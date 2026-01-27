@@ -1,4 +1,4 @@
-import { getTimeseriesData } from "~/api/client";
+import { getTimeseriesData } from '~/api/client';
 
 interface TimeSeriesRow {
   time: string;
@@ -48,7 +48,7 @@ class TimeSeriesCache {
 
     const entries = Array.from(this.cache.entries());
     entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-    
+
     const toRemove = entries.slice(0, this.cache.size - this.maxCacheSize);
     toRemove.forEach(([key]) => this.cache.delete(key));
   }
@@ -85,23 +85,20 @@ class TimeSeriesCache {
             return {
               id: tsId,
               rows: Array.isArray(data!.data)
-                ? data!.data.map((item) => ({
+                ? (data!.data.map((item) => ({
                     time: String(item.time),
                     values: Number(item.values),
                     cloud: Number(item.cloud),
-                  })) as TimeSeriesRow[]
+                  })) as TimeSeriesRow[])
                 : [],
             };
           })
         );
 
-        const dict = results.reduce<{ [key: number]: TimeSeriesRow[] }>(
-          (acc, { id, rows }) => {
-            acc[id] = rows;
-            return acc;
-          },
-          {}
-        );
+        const dict = results.reduce<{ [key: number]: TimeSeriesRow[] }>((acc, { id, rows }) => {
+          acc[id] = rows;
+          return acc;
+        }, {});
 
         // Store in cache
         this.cache.set(cacheKey, {
@@ -149,11 +146,7 @@ class TimeSeriesCache {
    * Prefetch timeseries data for a location without blocking
    * Used to warm the cache for upcoming tasks
    */
-  prefetch(
-    timeseriesIds: number[],
-    lat: number | null,
-    lon: number | null
-  ): void {
+  prefetch(timeseriesIds: number[], lat: number | null, lon: number | null): void {
     if (lat === null || lon === null || timeseriesIds.length === 0) {
       return;
     }

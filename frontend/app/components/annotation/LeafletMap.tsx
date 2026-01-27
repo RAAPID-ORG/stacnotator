@@ -14,7 +14,11 @@ interface LeafletMapProps {
   zoomOutTrigger?: number;
   panTrigger?: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
   disableKeyboard?: boolean; // Disable keyboard handlers (for small imagery windows)
-  onMapMove?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void; // Callback for map movement
+  onMapMove?: (
+    center: [number, number],
+    zoom: number,
+    bounds: [number, number, number, number]
+  ) => void; // Callback for map movement
   syncMapState?: boolean; // Whether this map should sync its state (only main map should)
   showCrosshair?: boolean; // Whether to show crosshair (default: true)
   enableTileBuffering?: boolean; // Enable tile preloading/buffering for smoother panning (default: false, only enable for main map)
@@ -22,11 +26,11 @@ interface LeafletMapProps {
 
 const PAN_OFFSET = 100; // pixels to pan
 
-const LeafletMap: React.FC<LeafletMapProps> = ({ 
-  center, 
-  zoom, 
-  tileUrl, 
-  crosshairColor, 
+const LeafletMap: React.FC<LeafletMapProps> = ({
+  center,
+  zoom,
+  tileUrl,
+  crosshairColor,
   refocusTrigger,
   showBasemap = false,
   zoomInTrigger,
@@ -44,7 +48,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const crosshairMarkerRef = useRef<L.Marker | null>(null);
   const scaleControlRef = useRef<L.Control.Scale | null>(null);
-  
+
   // Track the last refocus trigger to detect actual refocus requests
   const lastRefocusTriggerRef = useRef<number | undefined>(refocusTrigger);
   // Track if map has been initialized with initial center
@@ -52,7 +56,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // Store the initial center/zoom for refocus
   const initialCenterRef = useRef<[number, number]>(center);
   const initialZoomRef = useRef<number>(zoom);
-  
+
   // Track zoom/pan triggers
   const lastZoomInTriggerRef = useRef<number | undefined>(zoomInTrigger);
   const lastZoomOutTriggerRef = useRef<number | undefined>(zoomOutTrigger);
@@ -75,13 +79,14 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       wheelPxPerZoomLevel: 60, // Smoother mousewheel zoom
     });
 
-    scaleControlRef.current = L.control.scale({
-      position: 'bottomleft',
-      metric: true,
-      imperial: false,
-      maxWidth: 80,
-      
-    }).addTo(map);
+    scaleControlRef.current = L.control
+      .scale({
+        position: 'bottomleft',
+        metric: true,
+        imperial: false,
+        maxWidth: 80,
+      })
+      .addTo(map);
 
     mapRef.current = map;
 
@@ -98,17 +103,18 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     if (!mapRef.current || !syncMapState || !onMapMove) return;
 
     const map = mapRef.current;
-    
+
     const handleMoveEnd = () => {
       const center = map.getCenter();
       const zoom = map.getZoom();
       const bounds = map.getBounds();
-      
-      onMapMove(
-        [center.lat, center.lng],
-        zoom,
-        [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
-      );
+
+      onMapMove([center.lat, center.lng], zoom, [
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth(),
+      ]);
     };
 
     // Listen to moveend which fires after pan, zoom, or any movement
@@ -139,14 +145,13 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // For open mode with syncMapState, this will keep the map synced with store state
   useEffect(() => {
     if (!mapRef.current) return;
-    
+
     // Check if center has actually changed (new task selected or external update)
-    const centerChanged = 
-      initialCenterRef.current[0] !== center[0] || 
-      initialCenterRef.current[1] !== center[1];
-    
+    const centerChanged =
+      initialCenterRef.current[0] !== center[0] || initialCenterRef.current[1] !== center[1];
+
     const zoomChanged = initialZoomRef.current !== zoom;
-    
+
     if (!initializedRef.current || centerChanged || (syncMapState && zoomChanged)) {
       // Use setView without animation for smoother sync in open mode
       mapRef.current.setView(center, zoom, { animate: !syncMapState });
@@ -159,7 +164,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // Refocus when trigger changes (explicit user action)
   useEffect(() => {
     if (!mapRef.current || refocusTrigger === undefined) return;
-    
+
     // Only refocus if trigger actually changed (not just on re-render)
     if (lastRefocusTriggerRef.current !== refocusTrigger) {
       lastRefocusTriggerRef.current = refocusTrigger;
@@ -170,7 +175,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // Zoom in when trigger changes
   useEffect(() => {
     if (!mapRef.current || zoomInTrigger === undefined) return;
-    
+
     if (lastZoomInTriggerRef.current !== zoomInTrigger) {
       lastZoomInTriggerRef.current = zoomInTrigger;
       mapRef.current.zoomIn();
@@ -180,7 +185,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // Zoom out when trigger changes
   useEffect(() => {
     if (!mapRef.current || zoomOutTrigger === undefined) return;
-    
+
     if (lastZoomOutTriggerRef.current !== zoomOutTrigger) {
       lastZoomOutTriggerRef.current = zoomOutTrigger;
       mapRef.current.zoomOut();
@@ -190,18 +195,27 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   // Pan when trigger changes
   useEffect(() => {
     if (!mapRef.current || !panTrigger) return;
-    
+
     if (lastPanTriggerRef.current !== panTrigger.count) {
       lastPanTriggerRef.current = panTrigger.count;
-      
-      let x = 0, y = 0;
+
+      let x = 0,
+        y = 0;
       switch (panTrigger.direction) {
-        case 'up': y = -PAN_OFFSET; break;
-        case 'down': y = PAN_OFFSET; break;
-        case 'left': x = -PAN_OFFSET; break;
-        case 'right': x = PAN_OFFSET; break;
+        case 'up':
+          y = -PAN_OFFSET;
+          break;
+        case 'down':
+          y = PAN_OFFSET;
+          break;
+        case 'left':
+          x = -PAN_OFFSET;
+          break;
+        case 'right':
+          x = PAN_OFFSET;
+          break;
       }
-      
+
       mapRef.current.panBy([x, y]);
     }
   }, [panTrigger?.count, panTrigger?.direction]);
@@ -216,14 +230,18 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     }
 
     if (showBasemap) {
-      basemapLayerRef.current = L.tileLayer('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: ['a', 'b', 'c', 'd', 'e'],
-        maxZoom: 19,
-        keepBuffer: enableTileBuffering ? 5 : 0,
-        edgeBufferTiles: enableTileBuffering ? 2 : 0,
-        updateWhenIdle: !enableTileBuffering,
-      }).addTo(mapRef.current);
+      basemapLayerRef.current = L.tileLayer(
+        'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        {
+          attribution:
+            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: ['a', 'b', 'c', 'd', 'e'],
+          maxZoom: 19,
+          keepBuffer: enableTileBuffering ? 5 : 0,
+          edgeBufferTiles: enableTileBuffering ? 2 : 0,
+          updateWhenIdle: !enableTileBuffering,
+        }
+      ).addTo(mapRef.current);
     }
 
     return () => {
@@ -250,7 +268,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         keepBuffer: enableTileBuffering ? 5 : 0,
         edgeBufferTiles: enableTileBuffering ? 2 : 0,
         updateWhenIdle: !enableTileBuffering, // Update during panning only for main map
-      }).addTo(mapRef.current);                       
+      }).addTo(mapRef.current);
     }
 
     return () => {

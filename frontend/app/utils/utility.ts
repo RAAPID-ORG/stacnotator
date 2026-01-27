@@ -10,7 +10,20 @@ export interface TimeSlice {
   label: string;
 }
 
-const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_ABBREV = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 /**
  * Capitalize the first letter of a string
@@ -29,7 +42,7 @@ export const capitalizeFirst = (str: string): string => {
  * @param wkt - Well-Known Text string in POINT format
  * @returns Object with lat and lon properties, or null if parsing fails
  * @example
- * extractLatLonFromWKT('POINT(-122.4194 37.7749)') 
+ * extractLatLonFromWKT('POINT(-122.4194 37.7749)')
  * // Returns { lat: 37.7749, lon: -122.4194 }
  */
 export const extractLatLonFromWKT = (wkt: string): LatLon | null => {
@@ -112,7 +125,7 @@ const formatDateForDisplay = (dateStr: string): string => {
  */
 const addDuration = (date: Date, interval: number, unit: string): Date => {
   const result = new Date(date);
-  
+
   switch (unit.toLowerCase()) {
     case 'day':
     case 'days':
@@ -133,7 +146,7 @@ const addDuration = (date: Date, interval: number, unit: string): Date => {
     default:
       result.setDate(result.getDate() + interval);
   }
-  
+
   return result;
 };
 
@@ -159,12 +172,14 @@ export const computeTimeSlices = (
   slicingUnit: string | null
 ): TimeSlice[] => {
   if (!slicingInterval || !slicingUnit) {
-    return [{
-      index: 0,
-      startDate: windowStartDate,
-      endDate: windowEndDate,
-      label: formatDateRange(windowStartDate, windowEndDate),
-    }];
+    return [
+      {
+        index: 0,
+        startDate: windowStartDate,
+        endDate: windowEndDate,
+        label: formatDateRange(windowStartDate, windowEndDate),
+      },
+    ];
   }
 
   const slices: TimeSlice[] = [];
@@ -177,10 +192,10 @@ export const computeTimeSlices = (
   while (currentStart < end) {
     const currentEnd = addDuration(new Date(currentStart), slicingInterval, slicingUnit);
     const sliceEnd = currentEnd > end ? end : currentEnd;
-    
+
     const startDateStr = formatDateYYYYMMDD(currentStart);
     const endDateStr = formatDateYYYYMMDD(sliceEnd);
-    
+
     slices.push({
       index,
       startDate: startDateStr,
@@ -206,20 +221,20 @@ export const formatSliceLabel = (
 ): string => {
   const start = parseDate(startDate);
   const end = parseDate(endDate);
-  
+
   const endAdjusted = new Date(end);
   endAdjusted.setDate(endAdjusted.getDate() - 1);
   const displayEnd = endAdjusted < start ? start : endAdjusted;
-  
+
   const startMonth = start.getMonth();
   const endMonth = displayEnd.getMonth();
   const startDay = start.getDate();
   const endDay = displayEnd.getDate();
   const startYear = start.getFullYear();
   const endYear = displayEnd.getFullYear();
-  
+
   const unit = slicingUnit?.toLowerCase() || 'days';
-  
+
   switch (unit) {
     case 'month':
     case 'months':
@@ -230,14 +245,14 @@ export const formatSliceLabel = (
         return `${MONTH_ABBREV[startMonth]}-${MONTH_ABBREV[endMonth]}`;
       }
       return `${MONTH_ABBREV[startMonth]} '${String(startYear).slice(2)}`;
-      
+
     case 'week':
     case 'weeks':
       if (startMonth === endMonth) {
         return `${MONTH_ABBREV[startMonth]} ${startDay}-${endDay}`;
       }
       return `${MONTH_ABBREV[startMonth]} ${startDay} - ${MONTH_ABBREV[endMonth]} ${endDay}`;
-      
+
     case 'day':
     case 'days':
     default:
@@ -261,20 +276,20 @@ export const formatWindowLabel = (
 ): string => {
   const start = parseDate(startDate);
   const end = parseDate(endDate);
-  
+
   const endAdjusted = new Date(end);
   endAdjusted.setDate(endAdjusted.getDate() - 1);
   const displayEnd = endAdjusted < start ? start : endAdjusted;
-  
+
   const startMonth = start.getMonth();
   const endMonth = displayEnd.getMonth();
   const startDay = start.getDate();
   const endDay = displayEnd.getDate();
   const startYear = start.getFullYear();
   const endYear = displayEnd.getFullYear();
-  
+
   const unit = windowUnit?.toLowerCase() || 'months';
-  
+
   switch (unit) {
     case 'month':
     case 'months':
@@ -285,7 +300,7 @@ export const formatWindowLabel = (
         return `${MONTH_ABBREV[startMonth]}-${MONTH_ABBREV[endMonth]} ${startYear}`;
       }
       return `${MONTH_ABBREV[startMonth]} ${startYear} - ${MONTH_ABBREV[endMonth]} ${endYear}`;
-      
+
     case 'week':
     case 'weeks':
     case 'day':
@@ -309,12 +324,12 @@ export const formatWindowLabel = (
  */
 export const formatYearMonth = (yyyymm: string): string => {
   if (!yyyymm || yyyymm.length < 6) return yyyymm;
-  
+
   const year = yyyymm.substring(0, 4);
   const monthIndex = parseInt(yyyymm.substring(4, 6), 10) - 1;
-  
+
   if (monthIndex < 0 || monthIndex > 11) return yyyymm;
-  
+
   return `${MONTH_ABBREV[monthIndex]} ${year}`;
 };
 
@@ -323,10 +338,10 @@ export const formatYearMonth = (yyyymm: string): string => {
  */
 export const yyyymmToInputMonth = (yyyymm: string): string => {
   if (!yyyymm || yyyymm.length !== 6) return '';
-  
+
   const year = yyyymm.substring(0, 4);
   const month = yyyymm.substring(4, 6);
-  
+
   return `${year}-${month}`;
 };
 
@@ -355,7 +370,7 @@ export const convertGeoJSONToWKT = (geometry: GeoJSON.Geometry): string => {
     }
     case 'Polygon': {
       const rings = (geometry.coordinates as [number, number][][])
-        .map(ring => {
+        .map((ring) => {
           const coords = ring.map(([lon, lat]) => `${lon} ${lat}`).join(', ');
           return `(${coords})`;
         })
@@ -372,9 +387,9 @@ export const convertGeoJSONToWKT = (geometry: GeoJSON.Geometry): string => {
  */
 export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
   if (!wkt) return null;
-  
+
   const normalized = wkt.trim().toUpperCase();
-  
+
   // Parse POINT
   const pointMatch = normalized.match(/^POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)$/);
   if (pointMatch) {
@@ -383,44 +398,40 @@ export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
       coordinates: [parseFloat(pointMatch[1]), parseFloat(pointMatch[2])],
     };
   }
-  
+
   // Parse LINESTRING
   const lineMatch = normalized.match(/^LINESTRING\s*\((.+)\)$/);
   if (lineMatch) {
-    const coords = lineMatch[1]
-      .split(',')
-      .map(pair => {
-        const [lon, lat] = pair.trim().split(/\s+/);
-        return [parseFloat(lon), parseFloat(lat)];
-      });
+    const coords = lineMatch[1].split(',').map((pair) => {
+      const [lon, lat] = pair.trim().split(/\s+/);
+      return [parseFloat(lon), parseFloat(lat)];
+    });
     return {
       type: 'LineString',
       coordinates: coords,
     };
   }
-  
+
   // Parse POLYGON
   const polygonMatch = normalized.match(/^POLYGON\s*\((.+)\)$/);
   if (polygonMatch) {
-    const rings = polygonMatch[1]
-      .split(/\)\s*,\s*\(/)
-      .map((ring, i, arr) => {
-        // Remove leading/trailing parens from first/last ring
-        let cleanRing = ring;
-        if (i === 0) cleanRing = cleanRing.replace(/^\(/, '');
-        if (i === arr.length - 1) cleanRing = cleanRing.replace(/\)$/, '');
-        
-        return cleanRing.split(',').map(pair => {
-          const [lon, lat] = pair.trim().split(/\s+/);
-          return [parseFloat(lon), parseFloat(lat)];
-        });
+    const rings = polygonMatch[1].split(/\)\s*,\s*\(/).map((ring, i, arr) => {
+      // Remove leading/trailing parens from first/last ring
+      let cleanRing = ring;
+      if (i === 0) cleanRing = cleanRing.replace(/^\(/, '');
+      if (i === arr.length - 1) cleanRing = cleanRing.replace(/\)$/, '');
+
+      return cleanRing.split(',').map((pair) => {
+        const [lon, lat] = pair.trim().split(/\s+/);
+        return [parseFloat(lon), parseFloat(lat)];
       });
+    });
     return {
       type: 'Polygon',
       coordinates: rings,
     };
   }
-  
+
   return null;
 };
 
@@ -428,7 +439,7 @@ export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
  * Mock API function for magic wand auto-segmentation
  * In production, this would call a backend AI model for semantic segmentation
  * For now, returns a bounding box polygon around the clicked point
- * 
+ *
  * @param lat - Latitude of the clicked point
  * @param lon - Longitude of the clicked point
  * @param bufferSize - Size of the bounding box buffer (default: 0.001 degrees ~= 100m)
@@ -440,23 +451,25 @@ export const mockMagicWandSegmentation = async (
   bufferSize: number = 0.001
 ): Promise<GeoJSON.Polygon> => {
   // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 300));
-  
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
   // Create a bounding box around the point
   const minLon = lon - bufferSize;
   const maxLon = lon + bufferSize;
   const minLat = lat - bufferSize;
   const maxLat = lat + bufferSize;
-  
+
   // Return a GeoJSON polygon (bbox as a closed ring)
   return {
     type: 'Polygon',
-    coordinates: [[
-      [minLon, minLat],
-      [maxLon, minLat],
-      [maxLon, maxLat],
-      [minLon, maxLat],
-      [minLon, minLat], // Close the ring
-    ]],
+    coordinates: [
+      [
+        [minLon, minLat],
+        [maxLon, minLat],
+        [maxLon, maxLat],
+        [minLon, maxLat],
+        [minLon, minLat], // Close the ring
+      ],
+    ],
   };
 };

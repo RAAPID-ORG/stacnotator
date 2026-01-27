@@ -6,7 +6,7 @@ import type { AuthProvider } from '~/auth/providers/authProvider';
  */
 class AuthManager implements AuthProvider {
   readonly id = 'manager';
-  
+
   private providers: Map<string, AuthProvider> = new Map();
   private activeProvider: AuthProvider | null = null;
 
@@ -76,7 +76,7 @@ class AuthManager implements AuthProvider {
         }
       }
     }
-    
+
     if (!this.activeProvider) {
       throw new Error('Not authenticated');
     }
@@ -86,7 +86,7 @@ class AuthManager implements AuthProvider {
   onAuthStateChanged = (callback: (loggedIn: boolean) => void): (() => void) => {
     // Subscribe to all providers and call callback if any changes
     const unsubscribes: (() => void)[] = [];
-    
+
     for (const provider of this.providers.values()) {
       const unsub = provider.onAuthStateChanged((loggedIn) => {
         if (loggedIn) {

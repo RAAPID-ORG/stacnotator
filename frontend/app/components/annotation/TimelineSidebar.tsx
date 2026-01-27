@@ -42,8 +42,21 @@ const TimelineSidebar = ({
         className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-4 h-10 bg-neutral-200 hover:bg-neutral-300 text-neutral-500 hover:text-neutral-700 rounded-r border border-l-0 border-neutral-300 transition-colors cursor-pointer flex items-center justify-center"
         title={collapsed ? 'Show timeline' : 'Hide timeline'}
       >
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}>
-          <path d="M7 1L1 7L7 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        <svg
+          width="8"
+          height="14"
+          viewBox="0 0 8 14"
+          fill="currentColor"
+          className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}
+        >
+          <path
+            d="M7 1L1 7L7 13"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
         </svg>
       </button>
 
@@ -72,25 +85,30 @@ const TimelineSidebar = ({
                 const isActive = window.id === activeWindowId;
                 const segmentHeight = `${100 / totalWindows}%`;
                 const isLastWindow = index === windows.length - 1;
-                const previousWindowIsActive = index > 0 && windows[index - 1].id === activeWindowId;
+                const previousWindowIsActive =
+                  index > 0 && windows[index - 1].id === activeWindowId;
                 const hasMultipleSlices = isActive && slices.length > 1;
-                const windowLabel = formatWindowLabel(window.window_start_date, window.window_end_date, imagery.window_unit);
+                const windowLabel = formatWindowLabel(
+                  window.window_start_date,
+                  window.window_end_date,
+                  imagery.window_unit
+                );
 
                 return (
                   <div
                     key={window.id}
                     className="relative flex items-center justify-center group/window"
-                    style={{ 
-                      height: isActive ? 'auto' : segmentHeight, 
+                    style={{
+                      height: isActive ? 'auto' : segmentHeight,
                       minHeight: segmentHeight,
-                      width: '100%' 
+                      width: '100%',
                     }}
                   >
                     {isActive ? (
                       // Active window - highlighted segment with slices
-                      <div 
-                        className="flex flex-col items-center justify-center border-brand-500 border-2 rounded-sm bg-white z-10 transition-all duration-200 ease-out py-1" 
-                        style={{ 
+                      <div
+                        className="flex flex-col items-center justify-center border-brand-500 border-2 rounded-sm bg-white z-10 transition-all duration-200 ease-out py-1"
+                        style={{
                           minHeight: '100%',
                           maxWidth: '35px',
                           width: '100%',
@@ -105,14 +123,14 @@ const TimelineSidebar = ({
                           <div className="flex flex-row w-full items-center justify-center gap-0.5 px-0.5">
                             {slices.map((slice, sliceIdx) => {
                               const isActiveSlice = sliceIdx === activeSliceIndex;
-                              
+
                               return (
                                 <button
                                   key={sliceIdx}
                                   onClick={() => onSliceChange?.(sliceIdx)}
                                   className={`w-1.5 h-1.5 rounded-full cursor-pointer transition-colors duration-150 ${
-                                    isActiveSlice 
-                                      ? 'bg-brand-500' 
+                                    isActiveSlice
+                                      ? 'bg-brand-500'
                                       : 'bg-neutral-300 hover:bg-neutral-400'
                                   }`}
                                   title={slice.label}
@@ -149,7 +167,6 @@ const TimelineSidebar = ({
                   </div>
                 );
               })}
-
             </div>
 
             {/* End Date Label */}

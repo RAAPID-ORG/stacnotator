@@ -103,6 +103,83 @@ wheels = [
 ]
 
 [[package]]
+name = "backend"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "earthengine-api" },
+    { name = "fastapi" },
+    { name = "firebase-admin" },
+    { name = "geoalchemy2" },
+    { name = "geopandas" },
+    { name = "gunicorn" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "planetary-computer" },
+    { name = "psutil" },
+    { name = "psycopg2-binary" },
+    { name = "pydantic-settings" },
+    { name = "pyproj" },
+    { name = "pystac-client" },
+    { name = "python-dateutil" },
+    { name = "python-multipart" },
+    { name = "rasterio" },
+    { name = "sam3" },
+    { name = "segment-geospatial", extra = ["samgeo3"] },
+    { name = "shapely" },
+    { name = "sqlalchemy" },
+    { name = "stackstac" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "xarray" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.17.2" },
+    { name = "earthengine-api", specifier = ">=1.7.4" },
+    { name = "fastapi", specifier = ">=0.124.4" },
+    { name = "firebase-admin", specifier = ">=7.1.0" },
+    { name = "geoalchemy2", specifier = ">=0.18.1" },
+    { name = "geopandas", specifier = ">=1.0.1" },
+    { name = "gunicorn", specifier = ">=23.0.0" },
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "pandas", specifier = ">=2.3.3" },
+    { name = "planetary-computer", specifier = ">=1.0.0" },
+    { name = "psutil" },
+    { name = "psycopg2-binary", specifier = ">=2.9.11" },
+    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pyproj", specifier = ">=3.7.0" },
+    { name = "pystac-client", specifier = ">=0.8.5" },
+    { name = "python-dateutil", specifier = ">=2.9.0" },
+    { name = "python-multipart", specifier = ">=0.0.21" },
+    { name = "rasterio", specifier = ">=1.4.3" },
+    { name = "sam3", specifier = ">=0.1.2" },
+    { name = "segment-geospatial", extras = ["samgeo3"] },
+    { name = "shapely", specifier = ">=2.1.2" },
+    { name = "sqlalchemy", specifier = ">=2.0.45" },
+    { name = "stackstac", specifier = ">=0.5.1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.38.0" },
+    { name = "xarray", specifier = ">=2024.1.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.19.1" },
+    { name = "pre-commit", specifier = ">=4.5.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = ">=0.14.9" },
+]
+
+[[package]]
 name = "beautifulsoup4"
 version = "4.14.3"
 source = { registry = "https://pypi.org/simple" }
@@ -4323,83 +4400,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a2/ed/4a258f240b9a2354a3c09a15124ff670613663d6ddc96ddeeeb7d8532cc4/stackstac-0.5.1.tar.gz", hash = "sha256:1af0e1251100fe506b1f3c035ffcc34111ad67b264275d14a6775c4991e5f7f6", size = 59212, upload-time = "2024-08-10T04:34:20.096Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0d/1b/629745491592dbeba18bfcb06d22bcefd988fc40dc5a8dbf168517565e38/stackstac-0.5.1-py3-none-any.whl", hash = "sha256:3c596c9ccf502b6230b1c9e970a8099eeb94df867d0dea2fd45071223cb581e7", size = 64278, upload-time = "2024-08-10T04:34:18.474Z" },
-]
-
-[[package]]
-name = "backend"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "earthengine-api" },
-    { name = "fastapi" },
-    { name = "firebase-admin" },
-    { name = "geoalchemy2" },
-    { name = "geopandas" },
-    { name = "gunicorn" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "planetary-computer" },
-    { name = "psutil" },
-    { name = "psycopg2-binary" },
-    { name = "pydantic-settings" },
-    { name = "pyproj" },
-    { name = "pystac-client" },
-    { name = "python-dateutil" },
-    { name = "python-multipart" },
-    { name = "rasterio" },
-    { name = "sam3" },
-    { name = "segment-geospatial", extra = ["samgeo3"] },
-    { name = "shapely" },
-    { name = "sqlalchemy" },
-    { name = "stackstac" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "xarray" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.17.2" },
-    { name = "earthengine-api", specifier = ">=1.7.4" },
-    { name = "fastapi", specifier = ">=0.124.4" },
-    { name = "firebase-admin", specifier = ">=7.1.0" },
-    { name = "geoalchemy2", specifier = ">=0.18.1" },
-    { name = "geopandas", specifier = ">=1.0.1" },
-    { name = "gunicorn", specifier = ">=23.0.0" },
-    { name = "numpy", specifier = ">=1.26.0" },
-    { name = "pandas", specifier = ">=2.3.3" },
-    { name = "planetary-computer", specifier = ">=1.0.0" },
-    { name = "psutil" },
-    { name = "psycopg2-binary", specifier = ">=2.9.11" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
-    { name = "pyproj", specifier = ">=3.7.0" },
-    { name = "pystac-client", specifier = ">=0.8.5" },
-    { name = "python-dateutil", specifier = ">=2.9.0" },
-    { name = "python-multipart", specifier = ">=0.0.21" },
-    { name = "rasterio", specifier = ">=1.4.3" },
-    { name = "sam3", specifier = ">=0.1.2" },
-    { name = "segment-geospatial", extras = ["samgeo3"] },
-    { name = "shapely", specifier = ">=2.1.2" },
-    { name = "sqlalchemy", specifier = ">=2.0.45" },
-    { name = "stackstac", specifier = ">=0.5.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.38.0" },
-    { name = "xarray", specifier = ">=2024.1.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.19.1" },
-    { name = "pre-commit", specifier = ">=4.5.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "ruff", specifier = ">=0.14.9" },
 ]
 
 [[package]]

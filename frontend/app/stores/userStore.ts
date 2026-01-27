@@ -6,7 +6,7 @@ interface UserState {
   currentUser: UserOutDetailed | null;
   isLoading: boolean;
   fetchPromise: Promise<UserOutDetailed | null> | null;
-  
+
   // Actions
   getCurrentUser: () => Promise<UserOutDetailed | null>;
   getCurrentUserId: () => string | null;
@@ -29,21 +29,21 @@ export const useUserStore = create<UserState>((set, get) => ({
    */
   getCurrentUser: async () => {
     const state = get();
-    
+
     // Return cached user if available
     if (state.currentUser) {
       return state.currentUser;
     }
-    
+
     // Return existing fetch promise to avoid duplicate requests
     if (state.fetchPromise) {
       return state.fetchPromise;
     }
-    
+
     // Create new fetch promise
     const fetchPromise = (async () => {
       set({ isLoading: true });
-      
+
       try {
         const response = await me();
         const user = response.data || null;
@@ -58,7 +58,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         return null;
       }
     })();
-    
+
     set({ fetchPromise });
     return fetchPromise;
   },

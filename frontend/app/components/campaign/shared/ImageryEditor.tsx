@@ -10,7 +10,13 @@ interface ImageryEditorProps {
   showUpdateButton?: boolean;
 }
 
-export const ImageryEditor = ({ value, onChange, onRemove, onUpdate, showUpdateButton = false }: ImageryEditorProps) => {
+export const ImageryEditor = ({
+  value,
+  onChange,
+  onRemove,
+  onUpdate,
+  showUpdateButton = false,
+}: ImageryEditorProps) => {
   const [localValue, setLocalValue] = useState<ImageryCreate>(value);
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -24,7 +30,7 @@ export const ImageryEditor = ({ value, onChange, onRemove, onUpdate, showUpdateB
     const newValue = { ...localValue, [key]: val };
     setLocalValue(newValue);
     setHasChanges(true);
-    
+
     // If not showing update button, update immediately (for new imagery)
     if (!showUpdateButton) {
       onChange({ [key]: val } as Partial<ImageryCreate>);

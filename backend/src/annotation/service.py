@@ -565,13 +565,13 @@ def create_annotation_from_ai_segmentation(
 ) -> Dict[str, Any]:
     """
     Create annotation from AI segmentation using Sentinel-2 imagery.
-    
+
     This function:
     1. Loads Sentinel-2 imagery as georeferenced raster
     2. Performs SAM segmentation
     3. Converts masks to polygons using proper georeferencing
     4. Optionally saves to database if label_id provided
-    
+
     Args:
         db: Database session
         campaign: Campaign to create annotation for
@@ -583,10 +583,10 @@ def create_annotation_from_ai_segmentation(
         user_id: ID of user creating the annotation
         label_id: Optional label ID for annotation
         comment: Optional comment for annotation
-    
+
     Returns:
         Dictionary containing annotation_id, polygons (WKT), and metadata
-    
+
     Raises:
         HTTPException: If segmentation fails or no imagery found
     """
@@ -598,38 +598,35 @@ def create_annotation_from_ai_segmentation(
         end_date=end_date,
         max_cloud_cover=max_cloud_cover,
     )
-    
+
     if result is None:
         raise HTTPException(
             status_code=404,
             detail=f"No suitable Sentinel-2 imagery found for location {location} "
-                   f"between {start_date} and {end_date} with <{max_cloud_cover}% cloud cover"
+            f"between {start_date} and {end_date} with <{max_cloud_cover}% cloud cover",
         )
-    
+
     # Extract polygons and scores (already in WKT with proper georeferencing)
     polygons = result["polygons"]
     scores = result["scores"]
-    
+
     if len(polygons) == 0:
-        raise HTTPException(
-            status_code=500,
-            detail="Segmentation produced no polygons"
-        )
-    
+        raise HTTPException(status_code=500, detail="Segmentation produced no polygons")
+
     # Only create annotation if label_id is provided
     annotation_id = None
     if label_id is not None:
         # Get the polygon with the highest score for saving
         best_polygon_idx = np.argmax(scores)
         best_polygon_wkt = polygons[best_polygon_idx]
-        
+
         # Create annotation with the geometry
         try:
             # Create geometry from WKT (already properly georeferenced)
             geometry = AnnotationGeometry(geometry=f"SRID=4326;{best_polygon_wkt}")
             db.add(geometry)
             db.flush()  # Get geometry ID
-            
+
             # Create annotation
             annotation = Annotation(
                 geometry_id=geometry.id,
@@ -643,14 +640,13 @@ def create_annotation_from_ai_segmentation(
             db.commit()
             db.refresh(annotation)
             annotation_id = annotation.id
-            
+
         except Exception as e:
             db.rollback()
             raise HTTPException(
-                status_code=400,
-                detail=f"Failed to create annotation from segmentation: {str(e)}"
+                status_code=400, detail=f"Failed to create annotation from segmentation: {str(e)}"
             )
-    
+
     # Format response with polygons and scores
     polygon_outputs = [
         {
@@ -659,7 +655,7 @@ def create_annotation_from_ai_segmentation(
         }
         for poly, score in zip(polygons, scores)
     ]
-    
+
     return {
         "annotation_id": annotation_id,
         "polygons": polygon_outputs,

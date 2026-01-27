@@ -37,7 +37,8 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
 
     // Add CartoDB basemap
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: ['a', 'b', 'c', 'd'],
       maxZoom: 19,
     }).addTo(map);
@@ -55,7 +56,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
   // Update rectangle when bbox changes
   useEffect(() => {
     if (!mapRef.current) return;
-    
+
     // Don't update if we're in the middle of dragging
     if (isUpdatingFromDragRef.current) {
       isUpdatingFromDragRef.current = false;
@@ -66,9 +67,12 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
 
     // Validate bbox
     if (
-      isNaN(bbox_west) || isNaN(bbox_south) || 
-      isNaN(bbox_east) || isNaN(bbox_north) ||
-      bbox_west >= bbox_east || bbox_south >= bbox_north
+      isNaN(bbox_west) ||
+      isNaN(bbox_south) ||
+      isNaN(bbox_east) ||
+      isNaN(bbox_north) ||
+      bbox_west >= bbox_east ||
+      bbox_south >= bbox_north
     ) {
       // Remove rectangle if invalid
       if (rectangleRef.current) {
@@ -86,10 +90,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
       return;
     }
 
-    const bounds = L.latLngBounds(
-      [bbox_south, bbox_west],
-      [bbox_north, bbox_east]
-    );
+    const bounds = L.latLngBounds([bbox_south, bbox_west], [bbox_north, bbox_east]);
 
     if (rectangleRef.current) {
       // Update existing rectangle and markers
@@ -205,7 +206,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
           if (newWest < newEast && newSouth < newNorth) {
             const newBounds = L.latLngBounds([newSouth, newWest], [newNorth, newEast]);
             rectangle.setBounds(newBounds);
-            
+
             // Update the other marker
             if (isNW && markersRef.current.se) {
               markersRef.current.se.setLatLng([newSouth, newEast]);
@@ -236,7 +237,6 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
     // Fit map to bbox with padding
     mapRef.current.fitBounds(bounds, { padding: [50, 50] });
   }, [value, onChange]);
-
 
   return (
     <div className="space-y-4">
@@ -296,10 +296,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
 
         {/* Map */}
         <div className="lg:col-span-2">
-          <div 
-            ref={containerRef} 
-            className="w-full h-64 rounded-lg border border-neutral-200"
-          />
+          <div ref={containerRef} className="w-full h-64 rounded-lg border border-neutral-200" />
         </div>
       </div>
 

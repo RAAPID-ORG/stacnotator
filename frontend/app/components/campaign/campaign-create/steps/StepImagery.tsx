@@ -27,11 +27,11 @@ export const StepImagery = ({
   };
 
   const addItem = () => {
-    const preset = IMAGERY_PRESETS.find(p => p.id === selectedPreset);
+    const preset = IMAGERY_PRESETS.find((p) => p.id === selectedPreset);
     const newItem: ImageryCreate = preset
       ? { ...preset.template, start_ym: '', end_ym: '' }
       : emptyImagery();
-    
+
     setItems([...items, newItem]);
     setSelectedPreset('custom'); // Reset to custom after adding
   };
@@ -74,10 +74,11 @@ export const StepImagery = ({
             + Add imagery
           </button>
         </div>
-        
+
         {selectedPreset !== 'custom' && (
           <p className="text-xs text-neutral-600 italic">
-            Preset "{IMAGERY_PRESETS.find(p => p.id === selectedPreset)?.label}" will be added. You can customize it after adding.
+            Preset "{IMAGERY_PRESETS.find((p) => p.id === selectedPreset)?.label}" will be added.
+            You can customize it after adding.
           </p>
         )}
       </div>

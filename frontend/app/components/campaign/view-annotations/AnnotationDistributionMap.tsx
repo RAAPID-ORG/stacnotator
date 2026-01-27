@@ -30,7 +30,7 @@ const parseWKTPoint = (wkt: string): [number, number] | null => {
 const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
   const colors: Record<number, string> = {};
   const hueStep = 360 / Math.max(labels.length, 1);
-  
+
   labels.forEach((label, index) => {
     const hue = (index * hueStep) % 360;
     // Use varying saturation and lightness for better distinction
@@ -38,7 +38,7 @@ const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
     const lightness = 45 + (index % 2) * 10;
     colors[label.id] = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   });
-  
+
   return colors;
 };
 
@@ -46,10 +46,10 @@ const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
 const PENDING_COLOR = '#9CA3AF';
 const SKIPPED_COLOR = '#F59E0B';
 
-export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps> = ({ 
-  tasks, 
-  labels, 
-  bbox 
+export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps> = ({
+  tasks,
+  labels,
+  bbox,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,16 +75,14 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
     // Add CartoDB basemap
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: ['a', 'b', 'c', 'd'],
       maxZoom: 19,
     }).addTo(map);
 
     // Fit to bbox
-    const bounds = L.latLngBounds(
-      [bbox.south, bbox.west],
-      [bbox.north, bbox.east]
-    );
+    const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
     map.fitBounds(bounds, { padding: [20, 20] });
 
     // Add bbox rectangle
@@ -127,7 +125,7 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
       if (task.status === 'done' && task.annotation) {
         markerColor = labelColors[task.annotation.label_id] || PENDING_COLOR;
-        const label = labels.find(l => l.id === task.annotation!.label_id);
+        const label = labels.find((l) => l.id === task.annotation!.label_id);
         labelName = label ? label.name : `Label #${task.annotation.label_id}`;
       } else if (task.status === 'skipped') {
         markerColor = SKIPPED_COLOR;
@@ -146,12 +144,12 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       });
 
       const marker = L.marker(coords, { icon });
-      
+
       // Add popup with task info
-      const assignedTo = task.assigned_user 
-        ? `${task.assigned_user.display_name || task.assigned_user.email}` 
+      const assignedTo = task.assigned_user
+        ? `${task.assigned_user.display_name || task.assigned_user.email}`
         : 'Unassigned';
-      
+
       marker.bindPopup(`
         <div class="text-sm">
           <div class="font-medium mb-1">Task #${task.annotation_number}</div>
@@ -167,22 +165,24 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
   }, [tasks, mapReady, labelColors, labels]);
 
   // Calculate statistics by label
-  const labelStats = labels.map(label => {
-    const count = tasks.filter(
-      t => t.status === 'done' && t.annotation?.label_id === label.id
-    ).length;
-    return { label, count, color: labelColors[label.id] };
-  }).filter(stat => stat.count > 0);
+  const labelStats = labels
+    .map((label) => {
+      const count = tasks.filter(
+        (t) => t.status === 'done' && t.annotation?.label_id === label.id
+      ).length;
+      return { label, count, color: labelColors[label.id] };
+    })
+    .filter((stat) => stat.count > 0);
 
-  const pendingCount = tasks.filter(t => t.status === 'pending').length;
-  const skippedCount = tasks.filter(t => t.status === 'skipped').length;
+  const pendingCount = tasks.filter((t) => t.status === 'pending').length;
+  const skippedCount = tasks.filter((t) => t.status === 'skipped').length;
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
       <h2 className="text-lg font-semibold text-neutral-900 mb-4">
         Annotation Distribution ({tasks.length} total)
       </h2>
-      
+
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4 text-sm">
         {labelStats.map(({ label, count, color }) => (
@@ -202,9 +202,7 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
               className="w-4 h-4 rounded-full border-2 border-white"
               style={{ backgroundColor: PENDING_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
             />
-            <span className="text-neutral-700">
-              Pending ({pendingCount})
-            </span>
+            <span className="text-neutral-700">Pending ({pendingCount})</span>
           </div>
         )}
         {skippedCount > 0 && (
@@ -213,18 +211,13 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
               className="w-4 h-4 rounded-full border-2 border-white"
               style={{ backgroundColor: SKIPPED_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
             />
-            <span className="text-neutral-700">
-              Skipped ({skippedCount})
-            </span>
+            <span className="text-neutral-700">Skipped ({skippedCount})</span>
           </div>
         )}
       </div>
 
       {/* Map Container */}
-      <div 
-        ref={containerRef} 
-        className="w-full h-96 rounded-lg border border-neutral-200"
-      />
+      <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
 
       <style>{`
         .annotation-marker {

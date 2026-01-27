@@ -51,26 +51,33 @@ export const CreateCampaignModal = ({
     },
     imagery_configs: [],
     timeseries_configs: [],
-    mode: 'tasks'
+    mode: 'tasks',
   });
 
   // Get current step configuration based on mode
   const currentStepConfig = STEP_CONFIG[form.mode as 'tasks' | 'open'];
   const totalSteps = currentStepConfig.length;
-  
+
   // Render step content based on configuration
   const getStepContent = () => {
     const stepIndex = step - 1; // Convert to 0-based index
     const stepComponent = currentStepConfig[stepIndex]?.component;
 
     switch (stepComponent) {
-      case 'StepCampaign': return <StepCampaign form={form} setForm={setForm} />;
-      case 'StepSettings': return <StepSettings form={form} setForm={setForm} />;
-      case 'StepImagery': return <StepImagery form={form} setForm={setForm} />;
-      case 'StepAddTimeseries': return <StepAddTimeseries form={form} setForm={setForm} />;
-      case 'StepAddAnnotationTasks': return <StepAddAnnotationTasks file={taskIngestionFile} setFile={setTaskIngestionFile} />;
-      case 'StepReview': return <StepReview form={form} />;
-      default: return null;
+      case 'StepCampaign':
+        return <StepCampaign form={form} setForm={setForm} />;
+      case 'StepSettings':
+        return <StepSettings form={form} setForm={setForm} />;
+      case 'StepImagery':
+        return <StepImagery form={form} setForm={setForm} />;
+      case 'StepAddTimeseries':
+        return <StepAddTimeseries form={form} setForm={setForm} />;
+      case 'StepAddAnnotationTasks':
+        return <StepAddAnnotationTasks file={taskIngestionFile} setFile={setTaskIngestionFile} />;
+      case 'StepReview':
+        return <StepReview form={form} />;
+      default:
+        return null;
     }
   };
 
@@ -79,16 +86,17 @@ export const CreateCampaignModal = ({
       <div className="w-full max-w-2xl bg-white rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="px-6 py-4 border-b border-brand-700 flex justify-between items-center shrink-0">
           <h2 className="text-lg font-semibold text-neutral-900">New Campaign</h2>
-          <button onClick={onClose} className="text-neutral-700 hover:text-neutral-900 cursor-pointer transition-colors">
+          <button
+            onClick={onClose}
+            className="text-neutral-700 hover:text-neutral-900 cursor-pointer transition-colors"
+          >
             ✕
           </button>
         </div>
 
         <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} />
 
-        <div className="p-6 overflow-y-auto h-[60vh]">
-          {getStepContent()}
-        </div>
+        <div className="p-6 overflow-y-auto h-[60vh]">{getStepContent()}</div>
 
         <div className="px-6 py-4 border-t border-brand-500 flex justify-between shrink-0">
           <button

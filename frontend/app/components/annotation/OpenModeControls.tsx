@@ -55,7 +55,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
     label: 'Pan',
     shortcut: 'V',
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8" />
         <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
       </svg>
@@ -66,7 +73,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
     label: 'Annotate',
     shortcut: 'A',
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
       </svg>
@@ -77,7 +91,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
     label: 'Edit',
     shortcut: 'E',
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
       </svg>
@@ -88,7 +109,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
     label: 'Timeseries',
     shortcut: 'T',
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M3 3v18h18" />
         <path d="M7 16l4-4 4 4 5-6" />
       </svg>
@@ -102,14 +130,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
  */
 const OpenModeControls = () => {
   // Get state from store
-  const campaign = useAnnotationStore(state => state.campaign);
-  const selectedLabelId = useAnnotationStore(state => state.selectedLabelId);
-  const activeTool = useAnnotationStore(state => state.activeTool);
-  const magicWandEnabled = useAnnotationStore(state => state.magicWandEnabled);
-  const setSelectedLabelId = useAnnotationStore(state => state.setSelectedLabelId);
-  const setActiveTool = useAnnotationStore(state => state.setActiveTool);
-  const setTimeseriesPoint = useAnnotationStore(state => state.setTimeseriesPoint);
-  const toggleMagicWand = useAnnotationStore(state => state.toggleMagicWand);
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
+  const activeTool = useAnnotationStore((state) => state.activeTool);
+  const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
+  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
+  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
+  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
+  const toggleMagicWand = useAnnotationStore((state) => state.toggleMagicWand);
 
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
@@ -117,12 +145,10 @@ const OpenModeControls = () => {
 
   // Filter tools based on campaign configuration
   const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
-  const availableTools = TOOLS.filter(tool => 
-    tool.id !== 'timeseries' || hasTimeseries
-  );
+  const availableTools = TOOLS.filter((tool) => tool.id !== 'timeseries' || hasTimeseries);
 
   // Find currently selected label
-  const selectedLabel = extendedLabels.find(l => l.id === selectedLabelId) || null;
+  const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
 
   const handleToolSelect = (tool: OpenModeTool) => {
     setActiveTool(tool);
@@ -134,7 +160,7 @@ const OpenModeControls = () => {
     if (tool !== 'timeseries') {
       setTimeseriesPoint(null);
     }
-  };  // Quick label selection for efficient workflow
+  }; // Quick label selection for efficient workflow
   const handleLabelSelect = (label: ExtendedLabel) => {
     setSelectedLabelId(label.id);
     // Auto-switch to annotate mode if not already there
@@ -188,9 +214,7 @@ const OpenModeControls = () => {
       {/* Label Selection - show for annotate tool */}
       {activeTool === 'annotate' && (
         <div className="flex flex-col gap-1">
-          <span className="font-bold text-neutral-900 text-xs">
-            Labels
-          </span>
+          <span className="font-bold text-neutral-900 text-xs">Labels</span>
           {extendedLabels.map((label, index) => (
             <div key={label.id} className="relative">
               <button
@@ -219,7 +243,11 @@ const OpenModeControls = () => {
               {label.geometry_type === 'polygon' && (
                 <button
                   onClick={(e) => handleMagicWandToggle(e, label.id)}
-                  title={magicWandEnabled[label.id] ? 'Magic wand active - Click to draw automatically' : 'Magic wand inactive - Click to enable'}
+                  title={
+                    magicWandEnabled[label.id]
+                      ? 'Magic wand active - Click to draw automatically'
+                      : 'Magic wand inactive - Click to enable'
+                  }
                   className={`absolute top-1 right-1 p-0.5 rounded transition-all hover:scale-110 ${
                     magicWandEnabled[label.id]
                       ? 'bg-purple-500 text-white shadow-md'
@@ -254,7 +282,7 @@ const OpenModeControls = () => {
           {extendedLabels.length === 0 && (
             <p className="text-xs text-neutral-500 italic">No labels defined</p>
           )}
-          
+
           {/* Current selection info */}
           {selectedLabel && (
             <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
@@ -276,7 +304,7 @@ const OpenModeControls = () => {
               )}
             </div>
           )}
-          
+
           {!selectedLabel && (
             <p className="text-[9px] text-amber-600 mt-1 p-2 bg-amber-50 rounded">
               Select a label to start annotating
@@ -293,8 +321,8 @@ const OpenModeControls = () => {
             Hover over geometries to highlight them, then click to select and edit vertices.
           </p>
           <p className="text-[10px] text-neutral-500 mt-1">
-            Drag vertices to move them. Use the controls to save or delete.
-            Right click on vertices to delete them.
+            Drag vertices to move them. Use the controls to save or delete. Right click on vertices
+            to delete them.
           </p>
         </div>
       )}

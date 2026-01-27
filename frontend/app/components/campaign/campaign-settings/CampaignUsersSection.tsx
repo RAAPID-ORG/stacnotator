@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { addUsersToCampaign, getCampaignUsers, listUsers, makeUserCampaignAdmin, demoteCampaignAdmin, removeUserFromCampaign, type CampaignUserOut, type UserOutDetailed } from '~/api/client';
+import {
+  addUsersToCampaign,
+  getCampaignUsers,
+  listUsers,
+  makeUserCampaignAdmin,
+  demoteCampaignAdmin,
+  removeUserFromCampaign,
+  type CampaignUserOut,
+  type UserOutDetailed,
+} from '~/api/client';
 
 interface CampaignUsersSectionProps {
   campaignId: number;
@@ -57,7 +66,7 @@ export const CampaignUsersSection = ({
       return;
     }
 
-    const selectedUser = allUsers.find(u => u.id === selectedUserId);
+    const selectedUser = allUsers.find((u) => u.id === selectedUserId);
     if (!selectedUser) {
       const msg = 'Selected user not found';
       setError(msg);
@@ -71,18 +80,15 @@ export const CampaignUsersSection = ({
         path: { campaign_id: campaignId },
         body: { user_ids: [selectedUser.id] },
       });
-      
+
       // Reload users to get the updated list with the new user
       await loadUsers();
-      
+
       setSelectedUserId('');
       const msg = `${selectedUser.display_name} added to campaign`;
       onSuccess?.(msg);
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to add user. Please try again.';
+      const message = err instanceof Error ? err.message : 'Failed to add user. Please try again.';
       setError(message);
       onError?.(message);
       console.error(err);
@@ -94,21 +100,19 @@ export const CampaignUsersSection = ({
   const handleToggleAdmin = async (user: CampaignUserOut) => {
     try {
       setSaving(true);
-      
+
       if (user.role === 'admin') {
         // Demote admin to member
         await demoteCampaignAdmin({
           path: { campaign_id: campaignId },
           query: { user_id: user.user.id },
         });
-        
+
         // Update local state
-        setUsers(users.map((u) => 
-          u.user.id === user.user.id 
-            ? { ...u, role: 'member' as const } 
-            : u
-        ));
-        
+        setUsers(
+          users.map((u) => (u.user.id === user.user.id ? { ...u, role: 'member' as const } : u))
+        );
+
         const msg = `${user.user.display_name} demoted to member`;
         onSuccess?.(msg);
       } else {
@@ -117,14 +121,12 @@ export const CampaignUsersSection = ({
           path: { campaign_id: campaignId },
           query: { new_admin_user_id: user.user.id },
         });
-        
+
         // Update local state
-        setUsers(users.map((u) => 
-          u.user.id === user.user.id 
-            ? { ...u, role: 'admin' as const } 
-            : u
-        ));
-        
+        setUsers(
+          users.map((u) => (u.user.id === user.user.id ? { ...u, role: 'admin' as const } : u))
+        );
+
         const msg = `${user.user.display_name} promoted to admin`;
         onSuccess?.(msg);
       }
@@ -143,17 +145,17 @@ export const CampaignUsersSection = ({
 
     try {
       setSaving(true);
-      
+
       await removeUserFromCampaign({
-        path: { 
+        path: {
           campaign_id: campaignId,
           user_id: user.user.id,
         },
       });
-      
+
       // Update local state
       setUsers(users.filter((u) => u.user.id !== user.user.id));
-      
+
       const msg = `${user.user.display_name} removed from campaign`;
       onSuccess?.(msg);
     } catch (err) {
@@ -167,9 +169,7 @@ export const CampaignUsersSection = ({
   };
 
   // Filter out users already in the campaign
-  const availableUsers = allUsers.filter(
-    u => !users.some(cu => cu.user.id === u.id)
-  );
+  const availableUsers = allUsers.filter((u) => !users.some((cu) => cu.user.id === u.id));
 
   if (loading) {
     return (
@@ -248,7 +248,9 @@ export const CampaignUsersSection = ({
                     key={user.user.id}
                     className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
                   >
-                    <td className="px-4 py-3 text-gray-900 font-medium">{user.user.display_name}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium">
+                      {user.user.display_name}
+                    </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{user.user.email}</td>
                     <td className="px-4 py-3">
                       <span

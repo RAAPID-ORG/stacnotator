@@ -27,7 +27,8 @@ async def generate_tasks_from_sampling(
     campaign_id: int,
     strategy: str = Form(..., description="JSON string of SamplingStrategyConfig"),
     region_file: Optional[UploadFile] = File(
-        None, description="Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox."
+        None,
+        description="Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.",
     ),
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),

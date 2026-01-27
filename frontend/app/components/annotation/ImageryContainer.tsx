@@ -17,33 +17,36 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   const isDraggingRef = useRef(false);
 
   // Get state from store
-  const campaign = useAnnotationStore(state => state.campaign);
-  const selectedImageryId = useAnnotationStore(state => state.selectedImageryId);
-  const pendingTasks = useAnnotationStore(state => state.pendingTasks);
-  const currentTaskIndex = useAnnotationStore(state => state.currentTaskIndex);
-  const refocusTrigger = useAnnotationStore(state => state.refocusTrigger);
-  const selectedLayerIndex = useAnnotationStore(state => state.selectedLayerIndex);
-  const activeWindowId = useAnnotationStore(state => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore(state => state.activeSliceIndex);
-  const windowSliceIndices = useAnnotationStore(state => state.windowSliceIndices);
-  const currentMapCenter = useAnnotationStore(state => state.currentMapCenter);
-  const currentMapZoom = useAnnotationStore(state => state.currentMapZoom);
-  const setActiveWindowId = useAnnotationStore(state => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore(state => state.setActiveSliceIndex);
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
+  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
+  const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
+  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
+  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
+  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
+  const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
+  const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
+  const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
+  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
+  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
 
   // Compute derived values
-  const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId) || null;
+  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   const currentTask = pendingTasks[currentTaskIndex] || null;
   const isOpenMode = campaign?.mode === 'open';
-  const campaignBbox = campaign ? [
-    campaign.settings.bbox_west,
-    campaign.settings.bbox_south,
-    campaign.settings.bbox_east,
-    campaign.settings.bbox_north,
-  ] as [number, number, number, number] : null;
+  const campaignBbox = campaign
+    ? ([
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+      ] as [number, number, number, number])
+    : null;
 
   // Determine if this window is the active window
-  const isActiveWindow = selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
+  const isActiveWindow =
+    selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
 
   // Compute slices for this window
   const slices = useMemo(() => {
@@ -54,20 +57,27 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       selectedImagery.slicing_interval,
       selectedImagery.slicing_unit
     );
-  }, [window.window_start_date, window.window_end_date, selectedImagery?.slicing_interval, selectedImagery?.slicing_unit]);
+  }, [
+    window.window_start_date,
+    window.window_end_date,
+    selectedImagery?.slicing_interval,
+    selectedImagery?.slicing_unit,
+  ]);
 
   // Use global slice index for active window, stored index for others
-  const currentSliceIndex = isActiveWindow ? activeSliceIndex : (windowSliceIndices[window.id] ?? 0);
+  const currentSliceIndex = isActiveWindow
+    ? activeSliceIndex
+    : (windowSliceIndices[window.id] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
   if (!selectedImagery || !campaignBbox) return null;
 
   // Memoize latLon extraction to prevent recalculations
-  const latLon = useMemo(() => 
-    currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null,
+  const latLon = useMemo(
+    () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
     [currentTask?.geometry.geometry]
   );
-  
+
   // Determine center based on mode
   // In open mode, use synchronized map center from store
   // In task mode, use current task coordinates
@@ -84,7 +94,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     }
     return [0, 0];
   }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
-  
+
   // Determine zoom level
   const zoom = useMemo(() => {
     if (isOpenMode && currentMapZoom !== null) {
@@ -157,7 +167,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="flex-1 relative"
       onMouseDown={handleMouseDown}

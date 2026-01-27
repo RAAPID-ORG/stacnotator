@@ -30,12 +30,12 @@ export const AnnotationControls = ({
   commentInputRef,
 }: AnnotationControlsProps) => {
   // Use store state for label and comment
-  const selectedLabelId = useAnnotationStore(state => state.selectedLabelId);
-  const comment = useAnnotationStore(state => state.comment);
-  const isNavigating = useAnnotationStore(state => state.isNavigating);
-  const setSelectedLabelId = useAnnotationStore(state => state.setSelectedLabelId);
-  const setComment = useAnnotationStore(state => state.setComment);
-  const resetAnnotationForm = useAnnotationStore(state => state.resetAnnotationForm);
+  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
+  const comment = useAnnotationStore((state) => state.comment);
+  const isNavigating = useAnnotationStore((state) => state.isNavigating);
+  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
+  const setComment = useAnnotationStore((state) => state.setComment);
+  const resetAnnotationForm = useAnnotationStore((state) => state.resetAnnotationForm);
 
   // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
@@ -63,12 +63,10 @@ export const AnnotationControls = ({
   };
 
   const handleSkip = async () => {
-    const confirmed = window.confirm(
-      'Skip this annotation? You can come back to it later.'
-    );
-    
+    const confirmed = window.confirm('Skip this annotation? You can come back to it later.');
+
     if (!confirmed) return;
-    
+
     await onSubmit(null, comment);
     // Don't reset form here - let the effect handle it when task changes
   };
@@ -101,20 +99,20 @@ export const AnnotationControls = ({
 
   // Disable controls during submission or navigation
   const isDisabled = isSubmitting || isNavigating;
-  
+
   // Check if task already has a label (annotation exists)
   const hasExistingLabel = currentTask?.annotation !== null;
-  
+
   // Determine submit button text and state
   const isRemovingLabel = hasExistingLabel && selectedLabelId === null;
-  const submitButtonText = isRemovingLabel 
-    ? 'Remove Label' 
-    : hasExistingLabel 
-      ? 'Update' 
+  const submitButtonText = isRemovingLabel
+    ? 'Remove Label'
+    : hasExistingLabel
+      ? 'Update'
       : 'Submit';
   // Submit is disabled when: loading OR (no label selected AND not removing an existing label)
   const isSubmitDisabled = isDisabled || (selectedLabelId === null && !isRemovingLabel);
-  
+
   // Show Go button only when user has typed a different value
   const showGoButton = currentTask && gotoValue !== currentTask.annotation_number.toString();
 

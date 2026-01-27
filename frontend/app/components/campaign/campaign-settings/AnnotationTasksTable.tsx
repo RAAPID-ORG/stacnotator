@@ -9,8 +9,8 @@ interface AnnotationTasksTableProps {
   onOpenBulkAssign?: () => void;
 }
 
-export const AnnotationTasksTable = ({ 
-  tasks, 
+export const AnnotationTasksTable = ({
+  tasks,
   campaignUsers = [],
   onAssignTasks,
   onOpenBulkAssign,
@@ -75,11 +75,7 @@ export const AnnotationTasksTable = ({
       {onOpenBulkAssign && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-neutral-600">
-            {selectedTasks.size > 0 && (
-              <span>
-                {selectedTasks.size} task(s) selected
-              </span>
-            )}
+            {selectedTasks.size > 0 && <span>{selectedTasks.size} task(s) selected</span>}
           </div>
           <button
             onClick={onOpenBulkAssign}
@@ -135,7 +131,9 @@ export const AnnotationTasksTable = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-neutral-500">{task.id}</td>
-                  <td className="px-4 py-3 text-neutral-900 font-medium">{task.annotation_number}</td>
+                  <td className="px-4 py-3 text-neutral-900 font-medium">
+                    {task.annotation_number}
+                  </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getStatusColor(task.status)}`}
@@ -163,7 +161,11 @@ export const AnnotationTasksTable = ({
                           ))}
                         </select>
                         {isAssigning && (
-                          <svg className="w-4 h-4 animate-spin text-brand-600" fill="none" viewBox="0 0 24 24">
+                          <svg
+                            className="w-4 h-4 animate-spin text-brand-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
                             <circle
                               className="opacity-25"
                               cx="12"
@@ -195,13 +197,22 @@ export const AnnotationTasksTable = ({
           Total: <strong className="text-neutral-900">{tasks.length}</strong>
         </span>
         <span>
-          Completed: <strong className="text-neutral-900">{tasks.filter((t) => t.status === 'done').length}</strong>
+          Completed:{' '}
+          <strong className="text-neutral-900">
+            {tasks.filter((t) => t.status === 'done').length}
+          </strong>
         </span>
         <span>
-          Skipped: <strong className="text-neutral-900">{tasks.filter((t) => t.status === 'skipped').length}</strong>
+          Skipped:{' '}
+          <strong className="text-neutral-900">
+            {tasks.filter((t) => t.status === 'skipped').length}
+          </strong>
         </span>
         <span>
-          Pending: <strong className="text-neutral-900">{tasks.filter((t) => t.status === 'pending').length}</strong>
+          Pending:{' '}
+          <strong className="text-neutral-900">
+            {tasks.filter((t) => t.status === 'pending').length}
+          </strong>
         </span>
       </div>
     </div>

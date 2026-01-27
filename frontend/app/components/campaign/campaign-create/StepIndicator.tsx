@@ -1,7 +1,13 @@
 import { STEP_CONFIG } from './CreateCampaignModal';
 
-export const StepIndicator = ({ step, mode = 'tasks' }: { step: number; mode?: 'tasks' | 'open' }) => {
-  const STEPS = STEP_CONFIG[mode].map(s => s.name);
+export const StepIndicator = ({
+  step,
+  mode = 'tasks',
+}: {
+  step: number;
+  mode?: 'tasks' | 'open';
+}) => {
+  const STEPS = STEP_CONFIG[mode].map((s) => s.name);
   return (
     <div className="px-6 pt-4">
       <div
@@ -16,10 +22,7 @@ export const StepIndicator = ({ step, mode = 'tasks' }: { step: number; mode?: '
           const done = step > index;
 
           return (
-            <div
-              key={label}
-              className="col-span-1 flex flex-col items-center"
-            >
+            <div key={label} className="col-span-1 flex flex-col items-center">
               <div
                 className={`
                   h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium

@@ -3,17 +3,17 @@
 @import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
 @theme {
-    /* Brand  Colors */
-    --color-brand-50: rgb(236 247 242);
-    --color-brand-100: rgb(211 232 224);
-    --color-brand-200: rgb(171 210 195);
-    --color-brand-300: rgb(131 187 166);
-    --color-brand-400: rgb(90 153 125);
-    --color-brand-500: rgb(65 120 93);
-    --color-brand-600: rgb(50 98 71);
-    --color-brand-700: rgb(39 77 56);
-    --color-brand-800: rgb(28 56 41);
-    --color-brand-900: rgb(18 38 28);
+  /* Brand  Colors */
+  --color-brand-50: rgb(236 247 242);
+  --color-brand-100: rgb(211 232 224);
+  --color-brand-200: rgb(171 210 195);
+  --color-brand-300: rgb(131 187 166);
+  --color-brand-400: rgb(90 153 125);
+  --color-brand-500: rgb(65 120 93);
+  --color-brand-600: rgb(50 98 71);
+  --color-brand-700: rgb(39 77 56);
+  --color-brand-800: rgb(28 56 41);
+  --color-brand-900: rgb(18 38 28);
 
   /* Neutral Colors */
   --color-neutral-900: rgb(18, 18, 17);
@@ -122,7 +122,9 @@ button {
 
 .grid-card-hoverable:hover {
   border-color: var(--color-brand-500);
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 .card-header {
@@ -139,7 +141,9 @@ button {
 
 .active-window {
   border-color: var(--color-brand-500) !important;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
   transition: all 0.15s ease-in-out;
 }
 
@@ -171,7 +175,7 @@ button {
 }
 
 .is-editing .react-resizable-handle::after {
-  content: "";
+  content: '';
   position: absolute;
   right: 3px;
   bottom: 3px;

@@ -11,9 +11,9 @@ import { extendLabelsWithMetadata } from '~/components/annotation/OpenModeContro
  * Escape = Deselect label / cancel drawing
  */
 export const useOpenModeKeyboard = () => {
-  const campaign = useAnnotationStore(state => state.campaign);
-  const selectedLabelId = useAnnotationStore(state => state.selectedLabelId);
-  const setSelectedLabelId = useAnnotationStore(state => state.setSelectedLabelId);
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
+  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
 
   useEffect(() => {
     if (!campaign || campaign.mode !== 'open') return;
@@ -24,11 +24,7 @@ export const useOpenModeKeyboard = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is typing in an input/textarea
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
       }
 

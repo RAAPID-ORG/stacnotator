@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  generateTasksFromSampling,
-  type GenerateTasksResponse,
-} from '~/api/client';
+import { generateTasksFromSampling, type GenerateTasksResponse } from '~/api/client';
 
 // Local type definition for sampling strategy configuration
 interface SamplingStrategyConfig {
@@ -19,7 +16,11 @@ interface TaskGenerationSectionProps {
 }
 
 const SAMPLING_STRATEGIES = [
-  { value: 'random', label: 'Random Sampling', description: 'Randomly sample points within the region' },
+  {
+    value: 'random',
+    label: 'Random Sampling',
+    description: 'Randomly sample points within the region',
+  },
   // Future strategies can be added here
   // { value: 'stratified_random', label: 'Stratified Random', description: 'Random sampling with stratification' },
   // { value: 'grid', label: 'Grid Sampling', description: 'Sample points on a regular grid' },
@@ -40,7 +41,8 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     if (file) {
-      const isValid = file.name.endsWith('.zip') || file.name.endsWith('.geojson') || file.name.endsWith('.json');
+      const isValid =
+        file.name.endsWith('.zip') || file.name.endsWith('.geojson') || file.name.endsWith('.json');
       if (!isValid) {
         onError('Please upload a .zip (shapefile) or .geojson file');
         return;
@@ -102,11 +104,10 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-        Generate Tasks via Sampling
-      </h2>
+      <h2 className="text-lg font-semibold text-neutral-900 mb-4">Generate Tasks via Sampling</h2>
       <p className="text-sm text-neutral-500 mb-4">
-        Generate annotation tasks by sampling points within a region. You can either upload a boundary file or use the campaign's bounding box.
+        Generate annotation tasks by sampling points within a region. You can either upload a
+        boundary file or use the campaign's bounding box.
       </p>
 
       <div className="space-y-4">
@@ -147,11 +148,13 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           <label className="block text-sm font-medium text-neutral-700 mb-2">
             Region Selection
           </label>
-          
+
           {/* Option 1: Upload File */}
-          <div className={`border rounded-lg p-3 mb-2 transition-colors ${
-            !useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
-          }`}>
+          <div
+            className={`border rounded-lg p-3 mb-2 transition-colors ${
+              !useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
+            }`}
+          >
             <label className="flex items-start cursor-pointer mb-2">
               <input
                 type="radio"
@@ -166,7 +169,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                 <p className="text-xs text-neutral-500">Shapefile (.zip) or GeoJSON (.geojson)</p>
               </div>
             </label>
-            
+
             {!useCampaignBbox && (
               <div className="ml-6 mt-2">
                 <input
@@ -186,9 +189,11 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           </div>
 
           {/* Option 2: Use Campaign Bbox */}
-          <div className={`border rounded-lg p-3 transition-colors ${
-            useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
-          }`}>
+          <div
+            className={`border rounded-lg p-3 transition-colors ${
+              useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
+            }`}
+          >
             <label className="flex items-start cursor-pointer">
               <input
                 type="radio"
@@ -203,7 +208,9 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
               />
               <div>
                 <span className="font-medium text-neutral-900">Use Campaign Bounding Box</span>
-                <p className="text-xs text-neutral-500">Sample within the campaign's defined area</p>
+                <p className="text-xs text-neutral-500">
+                  Sample within the campaign's defined area
+                </p>
               </div>
             </label>
           </div>

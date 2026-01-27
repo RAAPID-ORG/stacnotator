@@ -16,23 +16,23 @@ import { capitalizeFirst } from '~/utils/utility';
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
-  
+
   // Annotation state
-  const campaign = useAnnotationStore(state => state.campaign);
-  const isLoadingCampaign = useAnnotationStore(state => state.isLoadingCampaign);
-  const loadCampaign = useAnnotationStore(state => state.loadCampaign);
-  const reset = useAnnotationStore(state => state.reset);
-  const tasks = useAnnotationStore(state => state.pendingTasks);
-  
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const isLoadingCampaign = useAnnotationStore((state) => state.isLoadingCampaign);
+  const loadCampaign = useAnnotationStore((state) => state.loadCampaign);
+  const reset = useAnnotationStore((state) => state.reset);
+  const tasks = useAnnotationStore((state) => state.pendingTasks);
+
   // UI state
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
-  const showAlert = useUIStore(state => state.showAlert);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
+  const showAlert = useUIStore((state) => state.showAlert);
 
   const campaignIdNumber = Number(campaignId);
 
   // Enable keyboard shortcuts for task mode
   useAnnotationKeyboard({ commentInputRef });
-  
+
   // Enable keyboard shortcuts for open mode
   useOpenModeKeyboard();
 
@@ -57,7 +57,7 @@ export const AnnotationPage = () => {
     };
 
     loadData();
-    
+
     return () => {
       cancelled = true;
       reset(); // Clean up on unmount
@@ -69,18 +69,18 @@ export const AnnotationPage = () => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name) }
+        { label: capitalizeFirst(campaign.name) },
       ]);
     }
   }, [campaign, setBreadcrumbs]);
 
   if (isLoadingCampaign) {
-      return (
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner size="lg" text="Loading annotator..." />
-        </div>
-      );
-    }
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner size="lg" text="Loading annotator..." />
+      </div>
+    );
+  }
 
   if (!campaign && !isLoadingCampaign) {
     return (
@@ -96,7 +96,7 @@ export const AnnotationPage = () => {
   return (
     <div className="flex flex-col h-full">
       <AnnotationToolbar />
-      {(campaign && ((campaign.mode == 'tasks' && tasks.length > 0) || (campaign.mode == 'open'))) ? (
+      {campaign && ((campaign.mode == 'tasks' && tasks.length > 0) || campaign.mode == 'open') ? (
         <Canvas commentInputRef={commentInputRef} />
       ) : (
         <div className="flex-1 flex items-center justify-center">
@@ -117,9 +117,7 @@ export const AnnotationPage = () => {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No Tasks Available
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tasks Available</h3>
             <p className="text-gray-600 mb-1">
               You've completed all assigned annotation tasks for this campaign!
             </p>

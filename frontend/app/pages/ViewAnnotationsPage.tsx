@@ -34,9 +34,9 @@ export const ViewAnnotationsPage = () => {
   const [showOnlyAssigned, setShowOnlyAssigned] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
-  const showAlert = useUIStore(state => state.showAlert);
-  const currentUser = useUserStore(state => state.currentUser);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
+  const showAlert = useUIStore((state) => state.showAlert);
+  const currentUser = useUserStore((state) => state.currentUser);
 
   useEffect(() => {
     if (campaign) {
@@ -78,7 +78,7 @@ export const ViewAnnotationsPage = () => {
 
   // Filtered tasks based on current filters
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
+    return tasks.filter((task) => {
       // Status filter
       if (statusFilter !== 'all' && task.status !== statusFilter) {
         return false;
@@ -108,11 +108,11 @@ export const ViewAnnotationsPage = () => {
   // Statistics
   const stats = useMemo(() => {
     const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'done').length;
-    const skipped = tasks.filter(t => t.status === 'skipped').length;
-    const pending = tasks.filter(t => t.status === 'pending').length;
+    const completed = tasks.filter((t) => t.status === 'done').length;
+    const skipped = tasks.filter((t) => t.status === 'skipped').length;
+    const pending = tasks.filter((t) => t.status === 'pending').length;
     const assignedToMe = currentUser
-      ? tasks.filter(t => t.assigned_user?.id === currentUser.id).length
+      ? tasks.filter((t) => t.assigned_user?.id === currentUser.id).length
       : 0;
 
     return { total, completed, skipped, pending, assignedToMe };
@@ -137,10 +137,10 @@ export const ViewAnnotationsPage = () => {
 
   const handleExportAnnotations = async () => {
     if (!campaign) return;
-    
+
     try {
       setExporting(true);
-      
+
       const response = await exportAnnotations({
         path: { campaign_id: numericCampaignId },
         parseAs: 'blob',
@@ -153,14 +153,14 @@ export const ViewAnnotationsPage = () => {
       const blob = response.data as Blob;
       const contentDisposition = response.response.headers.get('Content-Disposition');
       let filename = `campaign_${campaign.name.replace(/\s+/g, '_')}_annotations.csv`;
-      
+
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
         if (filenameMatch) {
           filename = filenameMatch[1];
         }
       }
-      
+
       // Create a download link
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -168,11 +168,11 @@ export const ViewAnnotationsPage = () => {
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      
+
       // Cleanup
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       showAlert('Annotations exported successfully', 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to export annotations';
@@ -220,15 +220,31 @@ export const ViewAnnotationsPage = () => {
             {exporting ? (
               <>
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 Exporting...
               </>
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 Export CSV
               </>
@@ -277,7 +293,7 @@ export const ViewAnnotationsPage = () => {
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-neutral-700">Status:</label>
             <div className="flex gap-1">
-              {(['all', 'pending', 'done', 'skipped'] as StatusFilter[]).map(status => (
+              {(['all', 'pending', 'done', 'skipped'] as StatusFilter[]).map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -299,7 +315,7 @@ export const ViewAnnotationsPage = () => {
               <input
                 type="checkbox"
                 checked={showOnlyAssigned}
-                onChange={e => setShowOnlyAssigned(e.target.checked)}
+                onChange={(e) => setShowOnlyAssigned(e.target.checked)}
                 className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500 mr-2"
               />
               Show only assigned to me
@@ -312,7 +328,7 @@ export const ViewAnnotationsPage = () => {
               type="text"
               placeholder="Search by ID or annotation #..."
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
             />
             {searchQuery && (
@@ -321,7 +337,12 @@ export const ViewAnnotationsPage = () => {
                 className="text-neutral-500 hover:text-neutral-700"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             )}
@@ -334,9 +355,15 @@ export const ViewAnnotationsPage = () => {
             Showing {filteredTasks.length} of {tasks.length} tasks
           </span>
           <div className="flex items-center gap-4">
-            <span>Completed: <strong className="text-neutral-900">{stats.completed}</strong></span>
-            <span>Skipped: <strong className="text-neutral-900">{stats.skipped}</strong></span>
-            <span>Pending: <strong className="text-neutral-900">{stats.pending}</strong></span>
+            <span>
+              Completed: <strong className="text-neutral-900">{stats.completed}</strong>
+            </span>
+            <span>
+              Skipped: <strong className="text-neutral-900">{stats.skipped}</strong>
+            </span>
+            <span>
+              Pending: <strong className="text-neutral-900">{stats.pending}</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -375,10 +402,10 @@ export const ViewAnnotationsPage = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTasks.map(task => {
+              {filteredTasks.map((task) => {
                 const latLon = extractLatLonFromWKT(task.geometry.geometry);
                 const isAssignedToMe = currentUser && task.assigned_user?.id === currentUser.id;
-                
+
                 return (
                   <tr
                     key={task.id}
@@ -452,19 +479,19 @@ export const ViewAnnotationsPage = () => {
           <span>
             Completed:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter(t => t.status === 'done').length}
+              {filteredTasks.filter((t) => t.status === 'done').length}
             </strong>
           </span>
           <span>
             Skipped:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter(t => t.status === 'skipped').length}
+              {filteredTasks.filter((t) => t.status === 'skipped').length}
             </strong>
           </span>
           <span>
             Pending:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter(t => t.status === 'pending').length}
+              {filteredTasks.filter((t) => t.status === 'pending').length}
             </strong>
           </span>
         </div>

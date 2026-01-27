@@ -30,16 +30,16 @@ export function ApprovalPendingScreen() {
             </svg>
           </div>
 
-          <h1 className="text-2xl font-semibold text-neutral-900 mb-3">
-            Approval Pending
-          </h1>
+          <h1 className="text-2xl font-semibold text-neutral-900 mb-3">Approval Pending</h1>
 
           <p className="text-neutral-600 mb-6">
-            Your account has been created successfully! Please wait for an administrator to approve your access.
+            Your account has been created successfully! Please wait for an administrator to approve
+            your access.
           </p>
 
           <p className="text-sm text-neutral-500 mb-8">
-            You will receive an email notification once your account is approved. You can also try refreshing this page later.
+            You will receive an email notification once your account is approved. You can also try
+            refreshing this page later.
           </p>
 
           <div className="space-y-3">

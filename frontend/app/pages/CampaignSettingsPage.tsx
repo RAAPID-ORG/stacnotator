@@ -49,7 +49,9 @@ export const CampaignSettingsPage = () => {
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'imagery' | 'tasks' | 'users' | 'timeseries'>('general');
+  const [activeTab, setActiveTab] = useState<
+    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries'
+  >('general');
 
   // Form states
   const [campaignName, setCampaignName] = useState('');
@@ -71,15 +73,15 @@ export const CampaignSettingsPage = () => {
   } | null>(null);
   const [showDeleteCampaignDialog, setShowDeleteCampaignDialog] = useState(false);
 
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
-  const showAlert = useUIStore(state => state.showAlert);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
+  const showAlert = useUIStore((state) => state.showAlert);
 
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
         { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}/annotate` },
-        { label: 'Settings' }
+        { label: 'Settings' },
       ]);
     }
   }, [campaign, setBreadcrumbs]);
@@ -132,11 +134,14 @@ export const CampaignSettingsPage = () => {
     if (!campaign || campaignName === campaign.name) return;
     try {
       setSaving(true);
-      await updateCampaignName({ path: { campaign_id: numericCampaignId }, body: { name: campaignName } });
-      
+      await updateCampaignName({
+        path: { campaign_id: numericCampaignId },
+        body: { name: campaignName },
+      });
+
       // Update local state immediately
       setCampaign({ ...campaign, name: campaignName });
-      
+
       showAlert('Campaign name updated successfully', 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save campaign name';
@@ -152,24 +157,24 @@ export const CampaignSettingsPage = () => {
     if (!campaign) return;
     try {
       setSaving(true);
-      await updateCampaignBbox({ 
-        path: { campaign_id: numericCampaignId }, 
-        body: { 
-          bbox_west: campaign.settings.bbox_west, 
-          bbox_east: campaign.settings.bbox_east, 
-          bbox_north: campaign.settings.bbox_north, 
-          bbox_south: campaign.settings.bbox_south 
-        } 
+      await updateCampaignBbox({
+        path: { campaign_id: numericCampaignId },
+        body: {
+          bbox_west: campaign.settings.bbox_west,
+          bbox_east: campaign.settings.bbox_east,
+          bbox_north: campaign.settings.bbox_north,
+          bbox_south: campaign.settings.bbox_south,
+        },
       });
-      
+
       // Local state is already updated via the onChange handler, no need to update again
-      
+
       showAlert('Campaign settings updated successfully', 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save settings';
       showAlert(message, 'error');
       console.error(err);
-      
+
       // Reload campaign to revert changes on error
       try {
         const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
@@ -207,12 +212,14 @@ export const CampaignSettingsPage = () => {
     try {
       setSaving(true);
       // Update the local state immediately for better UX
-      setImagery(imagery.map(img => {
-        if (img.id === imageryId) {
-          return { ...img, ...updates } as ImageryOut;
-        }
-        return img;
-      }));
+      setImagery(
+        imagery.map((img) => {
+          if (img.id === imageryId) {
+            return { ...img, ...updates } as ImageryOut;
+          }
+          return img;
+        })
+      );
       showAlert('Imagery updated successfully', 'success');
       // TODO: Implement API call when backend endpoint is available
       // await updateImagery({ path: { imagery_id: imageryId }, body: updates });
@@ -233,7 +240,7 @@ export const CampaignSettingsPage = () => {
 
     try {
       setSaving(true);
-      
+
       await deleteImagery({
         path: {
           campaign_id: numericCampaignId,
@@ -242,7 +249,7 @@ export const CampaignSettingsPage = () => {
       });
 
       // Update local state immediately
-      setImagery(imagery.filter(img => img.id !== deleteConfirm.imageryId));
+      setImagery(imagery.filter((img) => img.id !== deleteConfirm.imageryId));
       setDeleteConfirm(null);
       showAlert('Imagery deleted successfully', 'success');
     } catch (err) {
@@ -259,7 +266,7 @@ export const CampaignSettingsPage = () => {
 
     try {
       setSaving(true);
-      
+
       await deleteTimeseries({
         path: {
           campaign_id: numericCampaignId,
@@ -268,7 +275,7 @@ export const CampaignSettingsPage = () => {
       });
 
       // Update local state immediately
-      setTimeseries(timeseries.filter(ts => ts.id !== deleteConfirm.timeseriesId));
+      setTimeseries(timeseries.filter((ts) => ts.id !== deleteConfirm.timeseriesId));
       setDeleteConfirm(null);
       showAlert('Timeseries deleted successfully', 'success');
     } catch (err) {
@@ -285,14 +292,14 @@ export const CampaignSettingsPage = () => {
 
     try {
       setSaving(true);
-      
+
       await deleteCampaign({
         path: { campaign_id: numericCampaignId },
       });
 
       showAlert('Campaign deleted successfully', 'success');
       setShowDeleteCampaignDialog(false);
-      
+
       // Navigate to campaigns list after successful deletion
       navigate('/campaigns');
     } catch (err) {
@@ -312,10 +319,10 @@ export const CampaignSettingsPage = () => {
         path: { campaign_id: numericCampaignId },
         body: { file: taskFile },
       });
-      
+
       setTaskFile(null);
       showAlert('Annotation task(s) uploaded successfully', 'success');
-      
+
       // Reload annotation tasks
       const { data: tasksData } = await getAllAnnotationTasks({
         path: { campaign_id: numericCampaignId },
@@ -332,7 +339,7 @@ export const CampaignSettingsPage = () => {
 
   const handleTasksGenerated = async (response: GenerateTasksResponse) => {
     showAlert(`${response.num_tasks_created} tasks generated successfully`, 'success');
-    
+
     // Reload annotation tasks to show the new ones
     try {
       const { data: tasksData } = await getAllAnnotationTasks({
@@ -348,7 +355,7 @@ export const CampaignSettingsPage = () => {
     if (newTimeseries.length === 0) return;
     try {
       setSaving(true);
-      const timeSeriesCleaned = newTimeseries.map(ts => ({
+      const timeSeriesCleaned = newTimeseries.map((ts) => ({
         ...ts,
         start_ym: ts.start_ym ? ts.start_ym.replace(/-/g, '') : ts.start_ym,
         end_ym: ts.end_ym ? ts.end_ym.replace(/-/g, '') : ts.end_ym,
@@ -377,7 +384,7 @@ export const CampaignSettingsPage = () => {
         path: { campaign_id: numericCampaignId },
         body: { task_assignments: { [taskId]: userId } },
       });
-      
+
       // Update local state
       setAnnotationTasks((tasks) =>
         tasks.map((task) =>
@@ -389,7 +396,7 @@ export const CampaignSettingsPage = () => {
             : task
         )
       );
-      
+
       showAlert('Task assigned successfully', 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to assign task';
@@ -402,7 +409,7 @@ export const CampaignSettingsPage = () => {
   const handleBulkAssignTasks = async (assignments: { [taskId: number]: string }) => {
     try {
       setSaving(true);
-      
+
       // Convert task IDs to strings for API
       const taskAssignments: { [key: string]: string } = {};
       Object.entries(assignments).forEach(([taskId, userId]) => {
@@ -455,7 +462,9 @@ export const CampaignSettingsPage = () => {
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto p-8">
           <div className="mb-3">
-            <h1 className="text-3xl font-bold text-neutral-900 mb-2">{capitalizeFirst(campaign.name)}</h1>
+            <h1 className="text-3xl font-bold text-neutral-900 mb-2">
+              {capitalizeFirst(campaign.name)}
+            </h1>
             <p className="text-sm text-neutral-500">
               Manage your campaign settings, imagery, and users
             </p>
@@ -494,7 +503,9 @@ export const CampaignSettingsPage = () => {
                   <h2 className="text-lg font-semibold text-neutral-900 mb-">Campaign Name</h2>
                   <div className="flex gap-4 items-end">
                     <div className="flex-1">
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">Name</label>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">
+                        Name
+                      </label>
                       <input
                         type="text"
                         value={campaignName}
@@ -608,7 +619,9 @@ export const CampaignSettingsPage = () => {
               <div className="space-y-3">
                 {/* Add New Imagery */}
                 <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Imagery Sources</h2>
+                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+                    Add Imagery Sources
+                  </h2>
                   <div className="space-y-4">
                     {newImagery.map((img, index) => (
                       <div key={index} className="p-4">
@@ -642,11 +655,11 @@ export const CampaignSettingsPage = () => {
                         </select>
                         <button
                           onClick={() => {
-                            const preset = IMAGERY_PRESETS.find(p => p.id === selectedPreset);
+                            const preset = IMAGERY_PRESETS.find((p) => p.id === selectedPreset);
                             const newItem: ImageryCreate = preset
                               ? { ...preset.template, start_ym: '', end_ym: '' }
                               : emptyImagery();
-                            
+
                             setNewImagery([...newImagery, newItem]);
                             setSelectedPreset('custom'); // Reset to custom after adding
                           }}
@@ -655,10 +668,11 @@ export const CampaignSettingsPage = () => {
                           + Add
                         </button>
                       </div>
-                      
+
                       {selectedPreset !== 'custom' && (
                         <p className="text-xs text-neutral-600 italic">
-                          Preset "{IMAGERY_PRESETS.find(p => p.id === selectedPreset)?.label}" will be added. You can customize it after adding.
+                          Preset "{IMAGERY_PRESETS.find((p) => p.id === selectedPreset)?.label}"
+                          will be added. You can customize it after adding.
                         </p>
                       )}
                     </div>
@@ -705,7 +719,10 @@ export const CampaignSettingsPage = () => {
                           key={img.id}
                           value={{
                             ...img,
-                            search_body: typeof img.search_body === 'string' ? img.search_body : JSON.stringify(img.search_body),
+                            search_body:
+                              typeof img.search_body === 'string'
+                                ? img.search_body
+                                : JSON.stringify(img.search_body),
                           }}
                           onChange={(updates) => handleUpdateImagery(img.id, updates)}
                           onUpdate={() => {}}
@@ -776,7 +793,10 @@ export const CampaignSettingsPage = () => {
                   </h2>
                   <div className="space-y-3">
                     {timeseries.map((ts) => (
-                      <div key={ts.id} className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start">
+                      <div
+                        key={ts.id}
+                        className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start"
+                      >
                         <div>
                           <h4 className="font-medium text-neutral-900">{ts.name}</h4>
                           <p className="text-sm text-neutral-500 mt-1">
@@ -869,7 +889,7 @@ export const CampaignSettingsPage = () => {
                     Annotation Tasks Overview
                   </h2>
                   {annotationTasks.length > 0 ? (
-                    <AnnotationTasksTable 
+                    <AnnotationTasksTable
                       tasks={annotationTasks}
                       campaignUsers={campaignUsers}
                       onAssignTasks={handleAssignSingleTask}
@@ -877,7 +897,8 @@ export const CampaignSettingsPage = () => {
                     />
                   ) : (
                     <p className="text-sm text-neutral-500">
-                      No annotation tasks yet. Upload a CSV file or generate tasks using sampling above.
+                      No annotation tasks yet. Upload a CSV file or generate tasks using sampling
+                      above.
                     </p>
                   )}
                 </div>
@@ -898,7 +919,6 @@ export const CampaignSettingsPage = () => {
               />
             </>
           )}
-
         </div>
       </div>
 
@@ -907,11 +927,11 @@ export const CampaignSettingsPage = () => {
 
       <ConfirmDialog
         isOpen={!!deleteConfirm}
-        title={deleteConfirm?.imageryId ? "Delete Imagery Source?" : "Delete Timeseries?"}
+        title={deleteConfirm?.imageryId ? 'Delete Imagery Source?' : 'Delete Timeseries?'}
         description={
           deleteConfirm?.imageryId
-            ? "This action cannot be undone. The imagery source will be permanently removed from the campaign."
-            : "This action cannot be undone. The timeseries will be permanently removed from the campaign."
+            ? 'This action cannot be undone. The imagery source will be permanently removed from the campaign.'
+            : 'This action cannot be undone. The timeseries will be permanently removed from the campaign.'
         }
         confirmText="Delete"
         cancelText="Cancel"

@@ -11,7 +11,6 @@ const taskFilterOptions: { value: TaskFilterType; label: string }[] = [
   { value: 'pending', label: 'Overall Pending' },
   { value: 'all', label: 'Overall All' },
   { value: 'completed', label: 'Overall Completed' },
-
 ];
 
 import { useAnnotationStore } from '~/stores/annotationStore';
@@ -40,38 +39,44 @@ export const AnnotationToolbar = () => {
   const [showImageryDropdown, setShowImageryDropdown] = useState(false);
   const [showTaskFilterDropdown, setShowTaskFilterDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
-  
+
   const imageryDropdownRef = useRef<HTMLDivElement>(null);
   const taskFilterDropdownRef = useRef<HTMLDivElement>(null);
   const saveDropdownRef = useRef<HTMLDivElement>(null);
 
   // Get state from store
-  const campaign = useAnnotationStore(state => state.campaign);
-  const isEditingLayout = useAnnotationStore(state => state.isEditingLayout);
-  const selectedImageryId = useAnnotationStore(state => state.selectedImageryId);
-  const taskFilter = useAnnotationStore(state => state.taskFilter);
-  const setIsEditingLayout = useAnnotationStore(state => state.setIsEditingLayout);
-  const saveLayout = useAnnotationStore(state => state.saveLayout);
-  const cancelLayoutEdit = useAnnotationStore(state => state.cancelLayoutEdit);
-  const resetLayout = useAnnotationStore(state => state.resetLayout);
-  const setSelectedImageryId = useAnnotationStore(state => state.setSelectedImageryId);
-  const setTaskFilter = useAnnotationStore(state => state.setTaskFilter);
-  
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
+  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
+  const taskFilter = useAnnotationStore((state) => state.taskFilter);
+  const setIsEditingLayout = useAnnotationStore((state) => state.setIsEditingLayout);
+  const saveLayout = useAnnotationStore((state) => state.saveLayout);
+  const cancelLayoutEdit = useAnnotationStore((state) => state.cancelLayoutEdit);
+  const resetLayout = useAnnotationStore((state) => state.resetLayout);
+  const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
+  const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
+
   // Get UI actions from global store
-  const showAlert = useUIStore(state => state.showAlert);
-  const showKeyboardHelp = useUIStore(state => state.showKeyboardHelp);
-  const toggleKeyboardHelp = useUIStore(state => state.toggleKeyboardHelp);
-  const setShowKeyboardHelp = useUIStore(state => state.setShowKeyboardHelp);
-  const isFullscreen = useUIStore(state => state.isFullscreen);
-  const toggleFullscreen = useUIStore(state => state.toggleFullscreen);
+  const showAlert = useUIStore((state) => state.showAlert);
+  const showKeyboardHelp = useUIStore((state) => state.showKeyboardHelp);
+  const toggleKeyboardHelp = useUIStore((state) => state.toggleKeyboardHelp);
+  const setShowKeyboardHelp = useUIStore((state) => state.setShowKeyboardHelp);
+  const isFullscreen = useUIStore((state) => state.isFullscreen);
+  const toggleFullscreen = useUIStore((state) => state.toggleFullscreen);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (imageryDropdownRef.current && !imageryDropdownRef.current.contains(event.target as Node)) {
+      if (
+        imageryDropdownRef.current &&
+        !imageryDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowImageryDropdown(false);
       }
-      if (taskFilterDropdownRef.current && !taskFilterDropdownRef.current.contains(event.target as Node)) {
+      if (
+        taskFilterDropdownRef.current &&
+        !taskFilterDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowTaskFilterDropdown(false);
       }
       if (saveDropdownRef.current && !saveDropdownRef.current.contains(event.target as Node)) {
@@ -92,11 +97,11 @@ export const AnnotationToolbar = () => {
   const hasMainLayoutChanged = () => {
     const { currentLayout, savedLayout } = useAnnotationStore.getState();
     if (!currentLayout || !savedLayout) return false;
-    
+
     const mainItemKeys = ['main', 'timeseries', 'minimap'];
-    const currentMainItems = currentLayout.filter(item => mainItemKeys.includes(item.i));
-    const savedMainItems = savedLayout.filter(item => mainItemKeys.includes(item.i));
-    
+    const currentMainItems = currentLayout.filter((item) => mainItemKeys.includes(item.i));
+    const savedMainItems = savedLayout.filter((item) => mainItemKeys.includes(item.i));
+
     // Compare main layout items
     return JSON.stringify(currentMainItems) !== JSON.stringify(savedMainItems);
   };
@@ -104,13 +109,14 @@ export const AnnotationToolbar = () => {
   const handleSaveLayout = async (shouldBeDefault: boolean) => {
     // Check if saving as default
     if (shouldBeDefault) {
-      const confirmMessage = 'Are you sure you want to save this as the default layout?\n\nThis will overwrite the default layout for ALL users in this campaign.';
+      const confirmMessage =
+        'Are you sure you want to save this as the default layout?\n\nThis will overwrite the default layout for ALL users in this campaign.';
       if (!window.confirm(confirmMessage)) {
         setShowSaveDropdown(false);
         return;
       }
     }
-    
+
     // Check if main layout changed and there are multiple imagery sources
     if (hasMainLayoutChanged() && imagerySources.length > 1) {
       const layoutType = shouldBeDefault ? 'default' : 'personal';
@@ -120,19 +126,19 @@ export const AnnotationToolbar = () => {
         return;
       }
     }
-    
+
     await saveLayout(shouldBeDefault);
     setShowSaveDropdown(false);
   };
 
   const handleResetLayout = () => {
     if (!window.confirm('Reset canvas layout to campaign defaults?')) return;
-    
+
     // Merge main and imagery layouts
     const mainLayout = campaign.default_main_canvas_layout!.layout_data as Layout;
     const imageryLayout = selectedImagery?.default_canvas_layout?.layout_data as Layout | undefined;
     const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
-    
+
     resetLayout(mergedLayout);
     showAlert('Layout reset to defaults', 'success');
   };
@@ -186,43 +192,46 @@ export const AnnotationToolbar = () => {
         </div>
 
         {/* Task Filter Dropdown (custom) */}
-        {campaign.mode === "tasks" && <div className="relative" ref={taskFilterDropdownRef}>
-          <button
-            onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
-            type="button"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 15.5v-11ZM5.5 4a.5.5 0 0 0-.5.5V6h10V4.5a.5.5 0 0 0-.5-.5h-9ZM15 7H5v8.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V7Zm-8 2h6v1H7V9Zm0 2h6v1H7v-1Z" />
-            </svg>
-            <span>{taskFilterOptions.find(opt => opt.value === taskFilter)?.label || 'Task Filter'}</span>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
-            </svg>
-          </button>
-          {showTaskFilterDropdown && (
-            <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
-              {taskFilterOptions.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => {
-                    setTaskFilter(opt.value);
-                    setShowTaskFilterDropdown(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
-                    taskFilter === opt.value
-                      ? 'bg-neutral-100 text-brand-700 font-medium'
-                      : 'text-neutral-900'
-                  }`}
-                  type="button"
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div> 
-        }
+        {campaign.mode === 'tasks' && (
+          <div className="relative" ref={taskFilterDropdownRef}>
+            <button
+              onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
+              type="button"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 15.5v-11ZM5.5 4a.5.5 0 0 0-.5.5V6h10V4.5a.5.5 0 0 0-.5-.5h-9ZM15 7H5v8.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V7Zm-8 2h6v1H7V9Zm0 2h6v1H7v-1Z" />
+              </svg>
+              <span>
+                {taskFilterOptions.find((opt) => opt.value === taskFilter)?.label || 'Task Filter'}
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
+              </svg>
+            </button>
+            {showTaskFilterDropdown && (
+              <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
+                {taskFilterOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setTaskFilter(opt.value);
+                      setShowTaskFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
+                      taskFilter === opt.value
+                        ? 'bg-neutral-100 text-brand-700 font-medium'
+                        : 'text-neutral-900'
+                    }`}
+                    type="button"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* View Annotations Button */}
         <button
@@ -238,7 +247,7 @@ export const AnnotationToolbar = () => {
         </button>
       </div>
 
-  {/* Right - Layout Controls */}
+      {/* Right - Layout Controls */}
       <div className="flex items-center gap-2">
         {!isEditingLayout ? (
           <button
@@ -325,7 +334,11 @@ export const AnnotationToolbar = () => {
             type="button"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" clipRule="evenodd" d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 13.5899 6.41015 16.5 10 16.5C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM10 6C10.4142 6 10.75 6.33579 10.75 6.75V7.25C10.75 7.66421 10.4142 8 10 8C9.58579 8 9.25 7.66421 9.25 7.25V6.75C9.25 6.33579 9.58579 6 10 6ZM10 9C10.4142 9 10.75 9.33579 10.75 9.75V13.25C10.75 13.6642 10.4142 14 10 14C9.58579 14 9.25 13.6642 9.25 13.25V9.75C9.25 9.33579 9.58579 9 10 9Z" />
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 13.5899 6.41015 16.5 10 16.5C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM10 6C10.4142 6 10.75 6.33579 10.75 6.75V7.25C10.75 7.66421 10.4142 8 10 8C9.58579 8 9.25 7.66421 9.25 7.25V6.75C9.25 6.33579 9.58579 6 10 6ZM10 9C10.4142 9 10.75 9.33579 10.75 9.75V13.25C10.75 13.6642 10.4142 14 10 14C9.58579 14 9.25 13.6642 9.25 13.25V9.75C9.25 9.33579 9.58579 9 10 9Z"
+              />
             </svg>
           </button>
 

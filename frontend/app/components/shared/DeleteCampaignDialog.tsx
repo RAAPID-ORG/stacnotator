@@ -48,13 +48,12 @@ export const DeleteCampaignDialog = ({
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-2">
-                Delete Campaign
-              </h3>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-2">Delete Campaign</h3>
               <div className="text-sm text-neutral-600 space-y-3">
                 <p>
-                  This action <strong>cannot be undone</strong>. This will permanently delete the campaign{' '}
-                  <strong className="text-neutral-900">"{campaignName}"</strong> and all associated data:
+                  This action <strong>cannot be undone</strong>. This will permanently delete the
+                  campaign <strong className="text-neutral-900">"{campaignName}"</strong> and all
+                  associated data:
                 </p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
                   <li>All annotation tasks</li>
@@ -64,7 +63,8 @@ export const DeleteCampaignDialog = ({
                   <li>All campaign settings</li>
                 </ul>
                 <p className="pt-2">
-                  Please type <strong className="font-mono text-neutral-900">{campaignName}</strong> to confirm:
+                  Please type <strong className="font-mono text-neutral-900">{campaignName}</strong>{' '}
+                  to confirm:
                 </p>
               </div>
               <input

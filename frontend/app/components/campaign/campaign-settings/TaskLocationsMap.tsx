@@ -52,16 +52,14 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
     // Add CartoDB basemap
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: ['a', 'b', 'c', 'd'],
       maxZoom: 19,
     }).addTo(map);
 
     // Fit to bbox
-    const bounds = L.latLngBounds(
-      [bbox.south, bbox.west],
-      [bbox.north, bbox.east]
-    );
+    const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
     map.fitBounds(bounds, { padding: [20, 20] });
 
     // Add bbox rectangle
@@ -113,12 +111,12 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       });
 
       const marker = L.marker(coords, { icon });
-      
+
       // Add popup with task info
-      const assignedTo = task.assigned_user 
-        ? `${task.assigned_user.email || task.assigned_user.id}` 
+      const assignedTo = task.assigned_user
+        ? `${task.assigned_user.email || task.assigned_user.id}`
         : 'Unassigned';
-      
+
       marker.bindPopup(`
         <div class="text-sm">
           <div class="font-medium">Task #${task.annotation_number}</div>
@@ -131,17 +129,20 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
     });
   }, [tasks, mapReady]);
 
-  const taskCounts = tasks.reduce((acc, task) => {
-    acc[task.status] = (acc[task.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const taskCounts = tasks.reduce(
+    (acc, task) => {
+      acc[task.status] = (acc[task.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
       <h2 className="text-lg font-semibold text-neutral-900 mb-4">
         Task Locations ({tasks.length} total)
       </h2>
-      
+
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-4 text-sm">
         {Object.entries(STATUS_COLORS).map(([status, color]) => {
@@ -149,10 +150,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
           if (count === 0 && status !== 'pending') return null;
           return (
             <div key={status} className="flex items-center gap-2">
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: color }}
-              />
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
               <span className="text-neutral-700 capitalize">
                 {status} ({count})
               </span>
@@ -162,10 +160,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       </div>
 
       {/* Map Container */}
-      <div 
-        ref={containerRef} 
-        className="w-full h-80 rounded-lg border border-neutral-200"
-      />
+      <div ref={containerRef} className="w-full h-80 rounded-lg border border-neutral-200" />
 
       <style>{`
         .task-marker {

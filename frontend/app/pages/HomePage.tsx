@@ -2,11 +2,11 @@ import { useEffect } from 'react';
 import { useUIStore } from '~/stores/uiStore';
 
 export const HomePage = () => {
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
 
   // Empty breadcrumbs for home page
   useEffect(() => {
-    setBreadcrumbs([]); 
+    setBreadcrumbs([]);
   }, [setBreadcrumbs]);
 
   return (
@@ -16,7 +16,7 @@ export const HomePage = () => {
           <div className="max-w-3xl">
             <h1 className="text-4xl font-bold mb-2">Welcome to STACNotator</h1>
             <p className="text-xl text-brand-100">
-             NASA Harvest's Geospatial Imagery Annotation Platform. <br />
+              NASA Harvest's Geospatial Imagery Annotation Platform. <br />
             </p>
           </div>
         </div>

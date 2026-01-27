@@ -71,29 +71,29 @@ stacnotator/
 
 ## Architecture
 
-```
-Internet -> Nginx (80/443) -> Frontend (React + Nginx) -> Backend (FastAPI) -> PostgreSQL/PostGIS
-```
-
 **Services:**
-- **Frontend**: React app served by nginx on port 8080
-- **Backend**: FastAPI application with Gunicorn workers on port 8000
-- **Database**: PostgreSQL 16 with PostGIS extension on port 5432
-- **Nginx**: Reverse proxy for production (optional, port 80/443)
+- **Frontend**: React app served by nginx
+- **Backend**: FastAPI application with Gunicorn workers
+- **Database**: PostgreSQL 16 with PostGIS extension
+- **Nginx**: Reverse proxy for production (Not used when deployed on Azure!)
 
 ## Development
 
-```bash
-# Start with hot-reloading
-make up-dev
 
-# Common commands
-make logs              # View all logs
-make logs-backend      # Backend logs only
-make shell-backend     # Backend shell
-make shell-db          # PostgreSQL shell
-make migrate           # Run database migrations
-make down              # Stop all services
+
+```bash
+# Build images for development, setup db and run migrations
+make dev-init
+
+# Start with hot-reloading
+make dev-up
+
+# Common commands - Check the Makefile for more
+make logs                  # View all logs
+make dev-logs-backend      # Backend logs only
+make dev-shell-backend     # Backend shell
+make dev-migrate           # Run database migrations
+make dev-down              # Stop all services
 ```
 
 ## Production Deployment
@@ -229,14 +229,6 @@ CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
 
 See `.env.example` for all available options.
 
-## Security Best Practices
-
-1. **Strong passwords**: Use `openssl rand -base64 32`
-2. **Secure credentials**: Never commit `.env` or credential files
-3. **HTTPS in production**: Use Let's Encrypt for free SSL certificates
-4. **Update regularly**: Keep Docker images updated
-5. **Claim admin first**: Create the first user in a secure environment, as the first signup gets admin role
-
 ### Production Checklist
 
 - [ ] Strong `POSTGRES_PASSWORD` set (32+ characters)
@@ -254,6 +246,8 @@ See `.env.example` for all available options.
 ## Common Tasks
 
 ```bash
+# Check the Makefile more more quick commands
+
 # Create database migration
 make migrate-create MSG="add new table"
 

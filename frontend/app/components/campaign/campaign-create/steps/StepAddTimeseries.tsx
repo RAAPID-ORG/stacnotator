@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getTimeseriesCreationOptions, type CampaignCreate, type TimeSeriesCreate, type TimeSeriesOptionsOut } from '~/api/client';
+import {
+  getTimeseriesCreationOptions,
+  type CampaignCreate,
+  type TimeSeriesCreate,
+  type TimeSeriesOptionsOut,
+} from '~/api/client';
 import { useUIStore } from '~/stores/uiStore';
 import { yyyymmToInputMonth, inputMonthToYYYYMM } from '~/utils/utility';
 
@@ -87,7 +92,9 @@ export const StepAddTimeseries = ({
               <input
                 type="month"
                 value={yyyymmToInputMonth(i.start_ym)}
-                onChange={(e) => updateItem(index, { start_ym: inputMonthToYYYYMM(e.target.value) })}
+                onChange={(e) =>
+                  updateItem(index, { start_ym: inputMonthToYYYYMM(e.target.value) })
+                }
                 className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
               />
             </div>

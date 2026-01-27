@@ -30,21 +30,21 @@ def initialize_earth_engine():
     service_account = settings.EE_SERVICE_ACCOUNT
     private_key_path = settings.EE_PRIVATE_KEY_PATH
     private_key = settings.EE_PRIVATE_KEY
-    
+
     if not service_account:
         raise RuntimeError("Environment variable EE_SERVICE_ACCOUNT must be set")
-    
+
     if not private_key_path and not private_key:
         raise RuntimeError(
             "Either EE_PRIVATE_KEY_PATH or EE_PRIVATE_KEY environment variable must be set"
         )
-    
+
     # Use direct key content if available, otherwise use file path
     if private_key:
         credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
     else:
         credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
-    
+
     ee.Initialize(credentials)
 
 

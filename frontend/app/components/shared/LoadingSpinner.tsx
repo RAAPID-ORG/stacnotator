@@ -19,17 +19,15 @@ export const LoadingSpinner = ({ size = 'md', text, fullScreen = false }: Loadin
 
   const spinner = (
     <div className="flex flex-col items-center gap-2">
-      <div className={`${classes.spinner} animate-spin rounded-full border-2 border-neutral-300 border-t-brand-600`} />
+      <div
+        className={`${classes.spinner} animate-spin rounded-full border-2 border-neutral-300 border-t-brand-600`}
+      />
       {text && <span className={`${classes.text} text-neutral-600`}>{text}</span>}
     </div>
   );
 
   if (fullScreen) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center">
-        {spinner}
-      </div>
-    );
+    return <div className="min-h-screen w-full flex items-center justify-center">{spinner}</div>;
   }
 
   return spinner;

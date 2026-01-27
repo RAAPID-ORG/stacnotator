@@ -93,8 +93,8 @@ class AISegmentationRequest(BaseModel):
 class PolygonOut(BaseModel):
     polygon_wkt: str  # WKT polygon with proper georeferencing
     score: float
-    
-    
+
+
 class AISegmentationResponse(BaseModel):
     annotation_id: Optional[int] = None  # May be None if label_id not provided
     polygons: List[PolygonOut]  # List of polygon results with scores

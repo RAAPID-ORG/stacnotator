@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { type TimeSeriesOut } from "~/api/client";
-import { Line } from "react-chartjs-2";
+import { useEffect, useMemo, useState } from 'react';
+import { type TimeSeriesOut } from '~/api/client';
+import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   LineElement,
@@ -10,54 +10,52 @@ import {
   Tooltip,
   Legend,
   CategoryScale,
-} from "chart.js";
-import type { LatLon } from "~/utils/utility";
-import { timeseriesCache, type TimeSeriesRow } from "~/utils/timeseriesCache";
+} from 'chart.js';
+import type { LatLon } from '~/utils/utility';
+import { timeseriesCache, type TimeSeriesRow } from '~/utils/timeseriesCache';
 
-ChartJS.register(
-  LineElement,
-  PointElement,
-  LinearScale,
-  Title,
-  Tooltip,
-  Legend,
-  CategoryScale
-);
+ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale);
 
 interface TimeSeriesContainerProps {
   timeseries: TimeSeriesOut[];
   latLon: LatLon | null;
 }
 
-const COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#dc2626",
-  "#7c3aed",
-  "#ea580c",
-  "#0891b2",
-];
+const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 
 /**
  * Format date string to "MMM 'YY" format
  * Handles both YYYYMMDD and ISO date formats
  */
 const formatDateLabel = (dateStr: string): string => {
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
   // Handle YYYYMMDD format
   if (/^\d{8}$/.test(dateStr)) {
     const year = dateStr.slice(0, 4);
     const month = parseInt(dateStr.slice(4, 6), 10);
     return `${monthNames[month - 1]} '${year.slice(2)}`;
   }
-  
+
   // Handle ISO or other parseable date formats
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
     return `${monthNames[date.getMonth()]} '${String(date.getFullYear()).slice(2)}`;
   }
-  
+
   return dateStr;
 };
 
@@ -65,8 +63,21 @@ const formatDateLabel = (dateStr: string): string => {
  * Format date string for tooltip display (e.g., "15 Jan 2025")
  */
 const formatDateForTooltip = (dateStr: string): string => {
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
   // Handle YYYYMMDD format
   if (/^\d{8}$/.test(dateStr)) {
     const year = dateStr.slice(0, 4);
@@ -74,13 +85,13 @@ const formatDateForTooltip = (dateStr: string): string => {
     const day = parseInt(dateStr.slice(6, 8), 10);
     return `${day} ${monthNames[month - 1]} ${year}`;
   }
-  
+
   // Handle ISO or other parseable date formats
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
     return `${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
   }
-  
+
   return dateStr;
 };
 
@@ -92,13 +103,13 @@ const getMonthKey = (dateStr: string): string | null => {
   if (/^\d{8}$/.test(dateStr)) {
     return dateStr.slice(0, 6); // YYYYMM
   }
-  
+
   // Handle ISO or other parseable date formats
   const date = new Date(dateStr);
   if (!isNaN(date.getTime())) {
     return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
-  
+
   return null;
 };
 
@@ -109,7 +120,7 @@ const getMonthKey = (dateStr: string): string | null => {
 const getMonthLabels = (dates: string[]): { index: number; label: string }[] => {
   const seen = new Set<string>();
   const result: { index: number; label: string }[] = [];
-  
+
   dates.forEach((date, index) => {
     const monthKey = getMonthKey(date);
     if (monthKey && !seen.has(monthKey)) {
@@ -117,7 +128,7 @@ const getMonthLabels = (dates: string[]): { index: number; label: string }[] => 
       result.push({ index, label: formatDateLabel(date) });
     }
   });
-  
+
   return result;
 };
 
@@ -126,12 +137,12 @@ const getMonthLabels = (dates: string[]): { index: number; label: string }[] => 
  * Returns interval in months (1, 2, 3, 4, 6, or 12)
  */
 const calculateLabelInterval = (totalMonths: number): number => {
-  if (totalMonths <= 6) return 1;      // 6 months or less: show every month
-  if (totalMonths <= 12) return 2;     // 7-12 months: show every 2 months
-  if (totalMonths <= 18) return 3;     // 13-18 months: show every 3 months
-  if (totalMonths <= 24) return 4;     // 19-24 months: show every 4 months
-  if (totalMonths <= 36) return 6;     // 25-36 months: show every 6 months
-  return 12;                            // More than 36 months: show every year
+  if (totalMonths <= 6) return 1; // 6 months or less: show every month
+  if (totalMonths <= 12) return 2; // 7-12 months: show every 2 months
+  if (totalMonths <= 18) return 3; // 13-18 months: show every 3 months
+  if (totalMonths <= 24) return 4; // 19-24 months: show every 4 months
+  if (totalMonths <= 36) return 6; // 25-36 months: show every 6 months
+  return 12; // More than 36 months: show every year
 };
 
 /**
@@ -140,19 +151,19 @@ const calculateLabelInterval = (totalMonths: number): number => {
  */
 const getOptimalMonthLabels = (dates: string[]): { index: number; label: string }[] => {
   const allMonthLabels = getMonthLabels(dates);
-  
+
   if (allMonthLabels.length === 0) return [];
-  
+
   const totalMonths = allMonthLabels.length;
   const interval = calculateLabelInterval(totalMonths);
-  
+
   // Always include the first month, then every nth month based on interval
   const result: { index: number; label: string }[] = [];
-  
+
   for (let i = 0; i < allMonthLabels.length; i += interval) {
     result.push(allMonthLabels[i]);
   }
-  
+
   // Optionally add the last month if it's not already included
   // and there's significant gap (more than half the interval)
   const lastMonth = allMonthLabels[allMonthLabels.length - 1];
@@ -163,7 +174,7 @@ const getOptimalMonthLabels = (dates: string[]): { index: number; label: string 
       result.push(lastMonth);
     }
   }
-  
+
   return result;
 };
 
@@ -173,7 +184,7 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
   const [isLoading, setIsLoading] = useState(false);
 
   // Stabilize dependencies using primitive values to avoid unnecessary re-fetches
-  const timeseriesIds = useMemo(() => timeseries.map(ts => ts.id).join(','), [timeseries]);
+  const timeseriesIds = useMemo(() => timeseries.map((ts) => ts.id).join(','), [timeseries]);
   const lat = latLon?.lat ?? null;
   const lon = latLon?.lon ?? null;
 
@@ -189,14 +200,14 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
 
     const fetchData = async () => {
       try {
-        const timeseriesIds = timeseries.map(ts => ts.id);
+        const timeseriesIds = timeseries.map((ts) => ts.id);
         const data = await timeseriesCache.get(timeseriesIds, lat, lon);
-        
+
         if (cancelled) return;
 
         setTsData(data);
       } catch (err) {
-        console.error("Failed to load timeseries data", err);
+        console.error('Failed to load timeseries data', err);
         if (cancelled) return;
         setTsData(null);
       } finally {
@@ -219,11 +230,9 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
 
     // union of all timestamps
     const labelSet = new Set<string>();
-    Object.values(tsData).forEach((rows) =>
-      rows.forEach((r) => labelSet.add(r.time))
-    );
+    Object.values(tsData).forEach((rows) => rows.forEach((r) => labelSet.add(r.time)));
     const labels = Array.from(labelSet).sort();
-    
+
     // Get optimal month labels for x-axis based on data range
     const monthLabels = getOptimalMonthLabels(labels);
 
@@ -256,12 +265,12 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
         pointBackgroundColor: labels.map((time) => {
           const row = rowMap.get(time);
           if (!row) return color;
-          return row.cloud === 1 ? "#ef4444" : color;
+          return row.cloud === 1 ? '#ef4444' : color;
         }),
         pointBorderColor: labels.map((time) => {
           const row = rowMap.get(time);
           if (!row) return color;
-          return row.cloud === 1 ? "#ef4444" : color;
+          return row.cloud === 1 ? '#ef4444' : color;
         }),
         tension: 0.1,
         spanGaps: true, // Always interpolate between points
@@ -280,28 +289,21 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
             const color = COLORS[index % COLORS.length];
             return (
               <div key={ts.id} className="flex items-center gap-1">
-                <div 
-                  className="w-2 h-2 rounded-sm" 
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-[9px] font-bold text-neutral-700">
-                  {ts.name}
-                </span>
+                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
+                <span className="text-[9px] font-bold text-neutral-700">{ts.name}</span>
               </div>
             );
           })}
         </div>
-        
+
         {/* Remove cloudy toggle */}
         <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-          <span className="text-[10px] text-neutral-600">
-            Remove cloudy
-          </span>
-          <div 
+          <span className="text-[10px] text-neutral-600">Remove cloudy</span>
+          <div
             className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
             onClick={() => setRemoveCloudy(!removeCloudy)}
           >
-            <div 
+            <div
               className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
             />
           </div>
@@ -319,61 +321,61 @@ const TimeSeriesContainer = ({ timeseries, latLon }: TimeSeriesContainerProps) =
         )}
         {chartData && (
           <Line
-          data={chartData}
-          options={{
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false, // Using custom HTML legend instead
-              },
-              tooltip: {
-                callbacks: {
-                  title: (items) => {
-                    if (!items.length) return '';
-                    const dateStr = chartData.labels[items[0].dataIndex];
-                    return formatDateForTooltip(dateStr);
+            data={chartData}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false, // Using custom HTML legend instead
+                },
+                tooltip: {
+                  callbacks: {
+                    title: (items) => {
+                      if (!items.length) return '';
+                      const dateStr = chartData.labels[items[0].dataIndex];
+                      return formatDateForTooltip(dateStr);
+                    },
                   },
                 },
               },
-            },
-            scales: {
-              x: {
-                ticks: {
-                  maxRotation: 45,
-                  minRotation: 45,
-                  font: { size: 8 },
-                  callback: function(_value, index) {
-                    // Only show labels at month boundaries
-                    const monthLabel = chartData.monthLabels.find(m => m.index === index);
-                    return monthLabel ? monthLabel.label : null;
+              scales: {
+                x: {
+                  ticks: {
+                    maxRotation: 45,
+                    minRotation: 45,
+                    font: { size: 8 },
+                    callback: function (_value, index) {
+                      // Only show labels at month boundaries
+                      const monthLabel = chartData.monthLabels.find((m) => m.index === index);
+                      return monthLabel ? monthLabel.label : null;
+                    },
+                    autoSkip: false,
                   },
-                  autoSkip: false,
+                  grid: {
+                    display: false,
+                  },
                 },
-                grid: {
-                  display: false,
+                y: {
+                  ticks: {
+                    font: { size: 8 },
+                    maxTicksLimit: 5,
+                  },
+                  grid: {
+                    color: '#e5e5e5',
+                  },
                 },
               },
-              y: {
-                ticks: {
-                  font: { size: 8 },
-                  maxTicksLimit: 5,
+              elements: {
+                point: {
+                  radius: 0,
                 },
-                grid: {
-                  color: '#e5e5e5',
+                line: {
+                  borderWidth: 1.5,
                 },
               },
-            },
-            elements: {
-              point: {
-                radius: 0,
-              },
-              line: {
-                borderWidth: 1.5,
-              },
-            },
-          }}
-        />
+            }}
+          />
         )}
       </div>
     </div>

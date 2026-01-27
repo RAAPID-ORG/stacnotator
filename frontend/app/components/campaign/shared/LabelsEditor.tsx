@@ -1,4 +1,4 @@
-import type { LabelBase } from "~/api/client";
+import type { LabelBase } from '~/api/client';
 
 interface LabelsEditorProps {
   value: LabelBase[];

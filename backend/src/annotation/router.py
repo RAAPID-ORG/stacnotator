@@ -193,23 +193,23 @@ def create_ai_segmentation_annotation(
 ) -> AISegmentationResponse:
     """
     Create an annotation using AI segmentation on Sentinel-2 imagery.
-    
+
     This endpoint:
     1. Fetches Sentinel-2 imagery for the specified location and date range
     2. Performs AI segmentation using SAM (Segment Anything Model)
     3. Returns masks with proper georeferencing (EPSG:4326) for frontend rendering
     4. Optionally creates an annotation in the database (if label_id is provided)
-    
+
     The masks are returned as raster data with geo_transform information, allowing
     the frontend to overlay them directly on the map without coordinate conversion.
-    
+
     Args:
         campaign_id: ID of the campaign
         request: Segmentation parameters including location, dates, ROI size, and optional label
         db: Database session
         user: Authenticated user
         campaign: Campaign (validated for access)
-    
+
     Returns:
         AISegmentationResponse with masks, geo_transform, and optional annotation_id
     """
@@ -225,6 +225,5 @@ def create_ai_segmentation_annotation(
         label_id=request.label_id,
         comment=request.comment,
     )
-    
-    return AISegmentationResponse(**result)
 
+    return AISegmentationResponse(**result)

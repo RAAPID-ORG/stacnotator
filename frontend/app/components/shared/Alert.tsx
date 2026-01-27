@@ -90,7 +90,9 @@ export const Alert = ({
   autoClose = true,
   autoCloseDuration,
 }: AlertProps) => {
-  const duration = autoCloseDuration ?? ALERT_AUTO_CLOSE_DURATION[type.toUpperCase() as keyof typeof ALERT_AUTO_CLOSE_DURATION];
+  const duration =
+    autoCloseDuration ??
+    ALERT_AUTO_CLOSE_DURATION[type.toUpperCase() as keyof typeof ALERT_AUTO_CLOSE_DURATION];
 
   useEffect(() => {
     if (message && autoClose) {

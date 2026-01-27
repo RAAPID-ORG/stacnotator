@@ -23,7 +23,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
     if (!containerRef.current || mapRef.current) return;
 
     const bboxCenter: [number, number] = [(south + north) / 2, (west + east) / 2];
-    
+
     const map = L.map(containerRef.current, {
       center: bboxCenter,
       zoom: 8,
@@ -37,27 +37,30 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
       wheelPxPerZoomLevel: 60, // Smoother mousewheel zoom
     });
 
-    L.control.attribution({
-      position: 'bottomright',
-      prefix: '',
-    }).addTo(map);
+    L.control
+      .attribution({
+        position: 'bottomright',
+        prefix: '',
+      })
+      .addTo(map);
 
     // CartoDB basemap
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
+      attribution:
+        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: ['a', 'b', 'c', 'd'],
       maxZoom: 19,
     }).addTo(map);
 
-    const bounds = L.latLngBounds(
-      [south, west],
-      [north, east]
-    );
+    const bounds = L.latLngBounds([south, west], [north, east]);
     map.fitBounds(bounds);
 
     // Add campaign bounding box outline
     campaignBboxRectRef.current = L.rectangle(
-      [[south, west], [north, east]],
+      [
+        [south, west],
+        [north, east],
+      ],
       {
         color: 'rgb(150, 150, 150)',
         weight: 1.5,
@@ -131,7 +134,10 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
 
     // Create a semi-transparent rectangle to show the visible area
     boundsRectRef.current = L.rectangle(
-      [[south, west], [north, east]],
+      [
+        [south, west],
+        [north, east],
+      ],
       {
         color: 'rgb(50, 98, 71)',
         weight: 2,
@@ -151,21 +157,21 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
     const combinedSouth = Math.min(south, bboxSouth);
     const combinedEast = Math.max(east, bboxEast);
     const combinedNorth = Math.max(north, bboxNorth);
-    
+
     // Add padding to ensure visibility (10% on each side)
     const latPadding = (combinedNorth - combinedSouth) * 0.1;
     const lonPadding = (combinedEast - combinedWest) * 0.1;
-    
+
     const paddedBounds = L.latLngBounds(
       [combinedSouth - latPadding, combinedWest - lonPadding],
       [combinedNorth + latPadding, combinedEast + lonPadding]
     );
-    
+
     // Fit the minimap to show both the campaign bbox and the visible bounds
-    mapRef.current.fitBounds(paddedBounds, { 
+    mapRef.current.fitBounds(paddedBounds, {
       animate: true,
       duration: 0.3,
-      padding: [10, 10]
+      padding: [10, 10],
     });
 
     return () => {
@@ -174,7 +180,14 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
         boundsRectRef.current = null;
       }
     };
-  }, [visibleBounds?.[0], visibleBounds?.[1], visibleBounds?.[2], visibleBounds?.[3], bbox, mapReady]);
+  }, [
+    visibleBounds?.[0],
+    visibleBounds?.[1],
+    visibleBounds?.[2],
+    visibleBounds?.[3],
+    bbox,
+    mapReady,
+  ]);
 
   return (
     <>

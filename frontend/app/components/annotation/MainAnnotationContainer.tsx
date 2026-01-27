@@ -22,50 +22,52 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const [showLayerDropdown, setShowLayerDropdown] = useState(false);
 
   // Get state from store
-  const campaign = useAnnotationStore(state => state.campaign);
-  const selectedImageryId = useAnnotationStore(state => state.selectedImageryId);
-  const pendingTasks = useAnnotationStore(state => state.pendingTasks);
-  const filteredTasks = useAnnotationStore(state => state.filteredTasks);
-  const currentTaskIndex = useAnnotationStore(state => state.currentTaskIndex);
-  const allTasks = useAnnotationStore(state => state.allTasks);
-  const activeWindowId = useAnnotationStore(state => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore(state => state.activeSliceIndex);
-  const selectedLayerIndex = useAnnotationStore(state => state.selectedLayerIndex);
-  const selectedLabelId = useAnnotationStore(state => state.selectedLabelId);
-  const activeTool = useAnnotationStore(state => state.activeTool);
-  const showBasemap = useAnnotationStore(state => state.showBasemap);
-  const magicWandEnabled = useAnnotationStore(state => state.magicWandEnabled);
-  const refocusTrigger = useAnnotationStore(state => state.refocusTrigger);
-  const zoomInTrigger = useAnnotationStore(state => state.zoomInTrigger);
-  const zoomOutTrigger = useAnnotationStore(state => state.zoomOutTrigger);
-  const panTrigger = useAnnotationStore(state => state.panTrigger);
-  const isSubmitting = useAnnotationStore(state => state.isSubmitting);
-  const currentMapCenter = useAnnotationStore(state => state.currentMapCenter);
-  const currentMapZoom = useAnnotationStore(state => state.currentMapZoom);
-  const setActiveWindowId = useAnnotationStore(state => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore(state => state.setActiveSliceIndex);
-  const setSelectedLayerIndex = useAnnotationStore(state => state.setSelectedLayerIndex);
-  const setSelectedLabelId = useAnnotationStore(state => state.setSelectedLabelId);
-  const setShowBasemap = useAnnotationStore(state => state.setShowBasemap);
-  const triggerRefocus = useAnnotationStore(state => state.triggerRefocus);
-  const submitAnnotation = useAnnotationStore(state => state.submitAnnotation);
-  const nextTask = useAnnotationStore(state => state.nextTask);
-  const previousTask = useAnnotationStore(state => state.previousTask);
-  const goToTask = useAnnotationStore(state => state.goToTask);
-  const setMapCenter = useAnnotationStore(state => state.setMapCenter);
-  const setMapZoom = useAnnotationStore(state => state.setMapZoom);
-  const setMapBounds = useAnnotationStore(state => state.setMapBounds);
-  const setTimeseriesPoint = useAnnotationStore(state => state.setTimeseriesPoint);
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
+  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const filteredTasks = useAnnotationStore((state) => state.filteredTasks);
+  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
+  const allTasks = useAnnotationStore((state) => state.allTasks);
+  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
+  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
+  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
+  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
+  const activeTool = useAnnotationStore((state) => state.activeTool);
+  const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
+  const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
+  const zoomInTrigger = useAnnotationStore((state) => state.zoomInTrigger);
+  const zoomOutTrigger = useAnnotationStore((state) => state.zoomOutTrigger);
+  const panTrigger = useAnnotationStore((state) => state.panTrigger);
+  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
+  const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
+  const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
+  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
+  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
+  const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
+  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
+  const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
+  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
+  const nextTask = useAnnotationStore((state) => state.nextTask);
+  const previousTask = useAnnotationStore((state) => state.previousTask);
+  const goToTask = useAnnotationStore((state) => state.goToTask);
+  const setMapCenter = useAnnotationStore((state) => state.setMapCenter);
+  const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
+  const setMapBounds = useAnnotationStore((state) => state.setMapBounds);
+  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
 
   // Compute derived values
   const currentTask = pendingTasks[currentTaskIndex] || null;
-  const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId) || null;
-  const campaignBbox = campaign ? [
-    campaign.settings.bbox_west,
-    campaign.settings.bbox_south,
-    campaign.settings.bbox_east,
-    campaign.settings.bbox_north,
-  ] as [number, number, number, number] : null;
+  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
+  const campaignBbox = campaign
+    ? ([
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+      ] as [number, number, number, number])
+    : null;
 
   if (!campaign || !selectedImagery || !campaignBbox) return null;
 
@@ -75,7 +77,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
   // For open mode, get extended labels with colors and geometry types
   const extendedLabels = isOpenMode ? extendLabelsWithMetadata(labels) : [];
-  const selectedLabel = isOpenMode ? extendedLabels.find(l => l.id === selectedLabelId) || null : null;
+  const selectedLabel = isOpenMode
+    ? extendedLabels.find((l) => l.id === selectedLabelId) || null
+    : null;
 
   const handleLayerSelect = (index: number) => {
     setSelectedLayerIndex(index);
@@ -87,11 +91,11 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   };
 
   // Extract coordinates from current task - memoized to prevent unnecessary recalculations
-  const latLon = useMemo(() => 
-    currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null,
+  const latLon = useMemo(
+    () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
     [currentTask?.geometry.geometry]
   );
-  
+
   // Determine map center based on mode
   // In open mode, use synchronized map center from store (initialized to campaign bbox center)
   // In task mode, use current task coordinates
@@ -108,7 +112,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     }
     return [0, 0];
   }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
-  
+
   // Determine zoom level
   const zoom = useMemo(() => {
     if (isOpenMode && currentMapZoom !== null) {
@@ -116,16 +120,20 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     }
     return selectedImagery.default_zoom;
   }, [isOpenMode, currentMapZoom, selectedImagery.default_zoom]);
-  
+
   // Callback for when the main map moves (only in open mode)
-  const handleMapMove = (newCenter: [number, number], newZoom: number, newBounds: [number, number, number, number]) => {
+  const handleMapMove = (
+    newCenter: [number, number],
+    newZoom: number,
+    newBounds: [number, number, number, number]
+  ) => {
     if (isOpenMode) {
       setMapCenter(newCenter);
       setMapZoom(newZoom);
       setMapBounds(newBounds);
     }
   };
-  
+
   // Callback for timeseries tool clicks
   const handleTimeseriesClick = (lat: number, lon: number) => {
     setTimeseriesPoint({ lat, lon });
@@ -144,7 +152,12 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       selectedImagery.slicing_interval,
       selectedImagery.slicing_unit
     );
-  }, [activeWindow?.window_start_date, activeWindow?.window_end_date, selectedImagery.slicing_interval, selectedImagery.slicing_unit]);
+  }, [
+    activeWindow?.window_start_date,
+    activeWindow?.window_end_date,
+    selectedImagery.slicing_interval,
+    selectedImagery.slicing_unit,
+  ]);
 
   // Get the currently active slice
   const activeSlice = slices[activeSliceIndex] ?? slices[0];
@@ -180,7 +193,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       )}
 
       {/* Map Viewport */}
-      <div 
+      <div
         className="flex-1 flex flex-col relative"
         onMouseEnter={() => setShowLayerDropdown(false)}
       >
@@ -189,31 +202,28 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
           {/* Slice Selector - only show if multiple slices */}
           {slices.length > 1 && !showBasemap && (
             <select
-                  value={activeSliceIndex}
-                  onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
-                  className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium hover:bg-neutral-100 rounded shadow transition-colors cursor-pointer border border-neutral-300 focus:outline-none appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                  title="Select time slice"
-                >
-                  {slices.map((slice, idx) => (
-                    <option
-                      key={idx}
-                      value={idx}
-                      className={`
+              value={activeSliceIndex}
+              onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+              className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium hover:bg-neutral-100 rounded shadow transition-colors cursor-pointer border border-neutral-300 focus:outline-none appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
+              title="Select time slice"
+            >
+              {slices.map((slice, idx) => (
+                <option
+                  key={idx}
+                  value={idx}
+                  className={`
                         ${activeSliceIndex === idx ? 'bg-neutral-100 text-brand-700' : ''}
                         bg-white text-neutral-900
                       `}
-                    >
-                      {slice.label}
-                    </option>
-                  ))}
-                </select>
+                >
+                  {slice.label}
+                </option>
+              ))}
+            </select>
           )}
 
           {/* Layer Selector Dropdown */}
-          <div 
-            className="relative"
-            onMouseLeave={() => setShowLayerDropdown(false)}
-          >
+          <div className="relative" onMouseLeave={() => setShowLayerDropdown(false)}>
             <button
               onMouseEnter={() => setShowLayerDropdown(true)}
               className="px-3 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -226,9 +236,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               </svg>
               Layers
             </button>
-            
+
             {showLayerDropdown && (
-              <div 
+              <div
                 className="absolute top-full right-0 bg-white border border-neutral-300 rounded-bl rounded-br shadow-lg min-w-[200px] max-h-[300px] overflow-y-auto z-[1001]"
                 onMouseEnter={() => setShowLayerDropdown(true)}
                 onMouseLeave={() => setShowLayerDropdown(false)}
@@ -251,9 +261,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                     <span>{layer.name}</span>
                   </label>
                 ))}
-                
+
                 <div className="border-t border-neutral-300 my-1"></div>
-                
+
                 {/* Basemap option */}
                 <label
                   className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
@@ -291,15 +301,17 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
             Loading imagery...
           </div>
         )}
-        
+
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 text-red-400 text-xs z-10">
             Error: {error}
           </div>
         )}
-        
-        {!loading && !error && selectedImagery && (
-          isOpenMode ? (
+
+        {!loading &&
+          !error &&
+          selectedImagery &&
+          (isOpenMode ? (
             <LeafletMapWithDraw
               center={center}
               zoom={zoom}
@@ -313,7 +325,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               selectedLabel={selectedLabel}
               drawingEnabled={activeTool === 'annotate' && !!selectedLabel}
               activeTool={activeTool}
-              magicWandActive={selectedLabel ? (magicWandEnabled[selectedLabel.id] ?? false) : false}
+              magicWandActive={
+                selectedLabel ? (magicWandEnabled[selectedLabel.id] ?? false) : false
+              }
               onMapMove={handleMapMove}
               syncMapState={true}
               onTimeseriesClick={handleTimeseriesClick}
@@ -341,9 +355,8 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               panTrigger={panTrigger}
               enableTileBuffering={true}
             />
-          )
-        )}
-        
+          ))}
+
         {!loading && !error && !selectedImagery && (
           <div className="text-neutral-200">[ MAP VIEWPORT - No imagery available ]</div>
         )}
@@ -357,8 +370,21 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
           className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-[1001] w-4 h-10 bg-neutral-200 hover:bg-neutral-300 text-neutral-500 hover:text-neutral-700 rounded-l border border-r-0 border-neutral-300 transition-colors cursor-pointer flex items-center justify-center"
           title={controlsCollapsed ? 'Show annotation controls' : 'Hide annotation controls'}
         >
-          <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" className={`transition-transform ${controlsCollapsed ? 'rotate-180' : ''}`}>
-            <path d="M7 1L1 7L7 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          <svg
+            width="8"
+            height="14"
+            viewBox="0 0 8 14"
+            fill="currentColor"
+            className={`transition-transform ${controlsCollapsed ? 'rotate-180' : ''}`}
+          >
+            <path
+              d="M7 1L1 7L7 13"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
           </svg>
         </button>
 
@@ -367,22 +393,22 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
             controlsCollapsed ? 'w-0' : 'w-40'
           }`}
         >
-          {!controlsCollapsed && (
-            campaign && campaign.mode == 'tasks' ? (
-            <AnnotationControls
-              labels={labels}
-              onSubmit={submitAnnotation}
-              onNext={nextTask}
-              onPrevious={previousTask}
-              onGoToTask={goToTask}
-              isSubmitting={isSubmitting}
-              totalTasksCount={totalTasksCount}
-              currentTask={currentTask}
-              commentInputRef={commentInputRef}
-            />) : (
+          {!controlsCollapsed &&
+            (campaign && campaign.mode == 'tasks' ? (
+              <AnnotationControls
+                labels={labels}
+                onSubmit={submitAnnotation}
+                onNext={nextTask}
+                onPrevious={previousTask}
+                onGoToTask={goToTask}
+                isSubmitting={isSubmitting}
+                totalTasksCount={totalTasksCount}
+                currentTask={currentTask}
+                commentInputRef={commentInputRef}
+              />
+            ) : (
               <OpenModeControls />
-            )
-          )}
+            ))}
         </div>
       </div>
     </div>

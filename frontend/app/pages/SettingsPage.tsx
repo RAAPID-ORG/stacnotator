@@ -25,15 +25,13 @@ export const SettingsPage = () => {
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
 
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
-  const showAlert = useUIStore(state => state.showAlert);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
+  const showAlert = useUIStore((state) => state.showAlert);
   const { currentUser, updateCurrentUser, isLoading: userLoading } = useUserStore();
 
   // Set breadcrumbs
   useEffect(() => {
-    setBreadcrumbs([
-      { label: 'Settings' }
-    ]);
+    setBreadcrumbs([{ label: 'Settings' }]);
   }, [setBreadcrumbs]);
 
   // Load users when switching to users tab (if admin)

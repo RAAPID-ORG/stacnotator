@@ -21,10 +21,10 @@ export const CampaignsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
 
-  const setBreadcrumbs = useUIStore(state => state.setBreadcrumbs);
-  const showAlert = useUIStore(state => state.showAlert);
-  const showLoadingOverlay = useUIStore(state => state.showLoadingOverlay);
-  const hideLoadingOverlay = useUIStore(state => state.hideLoadingOverlay);
+  const setBreadcrumbs = useUIStore((state) => state.setBreadcrumbs);
+  const showAlert = useUIStore((state) => state.showAlert);
+  const showLoadingOverlay = useUIStore((state) => state.showLoadingOverlay);
+  const hideLoadingOverlay = useUIStore((state) => state.hideLoadingOverlay);
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Campaigns' }]);
@@ -61,7 +61,10 @@ export const CampaignsPage = () => {
           });
         } catch (err) {
           console.error('Failed to upload annotation tasks:', err);
-          showAlert('Campaign created, but failed to upload annotation tasks. Retry in campaign settings.', 'warning');
+          showAlert(
+            'Campaign created, but failed to upload annotation tasks. Retry in campaign settings.',
+            'warning'
+          );
         }
       }
 
@@ -145,10 +148,15 @@ export const CampaignsPage = () => {
             const isAdmin = campaign.is_admin ?? false;
 
             return (
-              <div key={campaign.id} className="bg-white border border-neutral-300 rounded-lg hover:border-brand-500 hover:shadow-md transition-all overflow-hidden">
+              <div
+                key={campaign.id}
+                className="bg-white border border-neutral-300 rounded-lg hover:border-brand-500 hover:shadow-md transition-all overflow-hidden"
+              >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-semibold text-neutral-900">{capitalizeFirst(campaign.name)}</h3>
+                    <h3 className="text-lg font-semibold text-neutral-900">
+                      {capitalizeFirst(campaign.name)}
+                    </h3>
                     {isAdmin && (
                       <button
                         onClick={(e) => {
@@ -178,8 +186,8 @@ export const CampaignsPage = () => {
                   <button
                     onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotate`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember 
-                        ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer' 
+                      isMember
+                        ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
@@ -192,8 +200,8 @@ export const CampaignsPage = () => {
                   <button
                     onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotations`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember 
-                        ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer' 
+                      isMember
+                        ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
@@ -211,10 +219,7 @@ export const CampaignsPage = () => {
 
       {/* Create Campaign Modal */}
       {showCreate && (
-        <CreateCampaignModal
-          onClose={() => setShowCreate(false)}
-          onSubmit={handleCreateCampaign}
-        />
+        <CreateCampaignModal onClose={() => setShowCreate(false)} onSubmit={handleCreateCampaign} />
       )}
     </div>
   );

@@ -22,12 +22,12 @@ import { useUserStore } from './userStore';
 /**
  * Task filter options
  */
-export type TaskFilterType = 
-  | 'assigned-pending' 
-  | 'assigned-all' 
-  | 'assigned-completed' 
-  | 'pending' 
-  | 'all' 
+export type TaskFilterType =
+  | 'assigned-pending'
+  | 'assigned-all'
+  | 'assigned-completed'
+  | 'pending'
+  | 'all'
   | 'completed';
 
 /**
@@ -43,21 +43,21 @@ interface AnnotationStore {
   completedTasksForCounter: number; // Completed tasks for the counter display (either all assigned completed or all completed)
   currentTaskIndex: number;
   taskFilter: TaskFilterType;
-  
+
   // Open mode annotations
   annotations: AnnotationOut[]; // All annotations in the campaign (for open mode)
   isLoadingAnnotations: boolean;
-  
+
   // Loading states
   isLoadingCampaign: boolean;
   isSubmitting: boolean;
   isNavigating: boolean; // True during task navigation to prevent premature submissions
-  
+
   // Layout management
   currentLayout: Layout | null;
   savedLayout: Layout | null;
   isEditingLayout: boolean;
-  
+
   // Imagery and layer selection
   selectedImageryId: number | null;
   selectedLayerIndex: number;
@@ -66,38 +66,38 @@ interface AnnotationStore {
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
   refocusTrigger: number;
-  
+
   // Map control triggers (increment to trigger action)
   zoomInTrigger: number;
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
-  
+
   // Synchronized map state (for open mode)
   currentMapCenter: [number, number] | null; // Current center of the main map [lat, lon]
   currentMapZoom: number | null; // Current zoom level
   currentMapBounds: [number, number, number, number] | null; // Current visible bounds [west, south, east, north]
-  
+
   // Annotation form state
   selectedLabelId: number | null;
   comment: string;
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries'; // Active tool for open mode
   timeseriesPoint: { lat: number; lon: number } | null; // Point for timeseries in open mode
   magicWandEnabled: Record<number, boolean>; // Track which labels have magic wand enabled (labelId -> boolean)
-  
+
   // Computed getters
   // NOTE: Components should compute currentTask directly as pendingTasks[currentTaskIndex]
   // to ensure coordinate synchronization across all components
   selectedImagery: () => CampaignOutWithImageryWindows['imagery'][0] | null;
   completedTasksCount: () => number;
   campaignBbox: () => [number, number, number, number] | null;
-  
+
   // Data actions
   loadCampaign: (campaignId: number) => Promise<void>;
   submitAnnotation: (labelId: number | null, comment: string) => Promise<void>;
   nextTask: () => void;
   previousTask: () => void;
   goToTask: (annotationNumber: number) => void;
-  
+
   // UI actions
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
@@ -112,17 +112,17 @@ interface AnnotationStore {
   setActiveSliceIndex: (index: number) => void;
   setWindowSliceIndex: (windowId: number, index: number) => void;
   triggerRefocus: () => void;
-  
+
   // Map control actions
   triggerZoomIn: () => void;
   triggerZoomOut: () => void;
   triggerPan: (direction: 'up' | 'down' | 'left' | 'right') => void;
-  
+
   // Synchronized map actions (for open mode)
   setMapCenter: (center: [number, number]) => void;
   setMapZoom: (zoom: number) => void;
   setMapBounds: (bounds: [number, number, number, number]) => void;
-  
+
   // Annotation form actions
   setSelectedLabelId: (id: number | null) => void;
   setComment: (comment: string) => void;
@@ -130,16 +130,20 @@ interface AnnotationStore {
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleMagicWand: (labelId: number) => void; // Toggle magic wand for a specific label
   resetAnnotationForm: () => void;
-  
+
   // Open mode annotation actions
   loadAnnotations: () => Promise<void>;
-  saveAnnotation: (geometry: GeoJSON.Geometry, labelId: number, comment?: string | null) => Promise<AnnotationOut | null>;
+  saveAnnotation: (
+    geometry: GeoJSON.Geometry,
+    labelId: number,
+    comment?: string | null
+  ) => Promise<AnnotationOut | null>;
   updateAnnotationGeometry: (annotationId: number, geometry: GeoJSON.Geometry) => Promise<void>;
   deleteAnnotation: (annotationId: number) => Promise<void>;
-  
+
   // Task filter actions
   setTaskFilter: (filter: TaskFilterType) => void;
-  
+
   // Reset
   reset: () => void;
 }
@@ -185,29 +189,29 @@ const initialState = {
  * Filter tasks based on filter type and current user
  */
 const filterTasks = (
-  allTasks: AnnotationTaskItemOut[], 
-  filter: TaskFilterType, 
+  allTasks: AnnotationTaskItemOut[],
+  filter: TaskFilterType,
   currentUserId: string | null
 ): AnnotationTaskItemOut[] => {
   switch (filter) {
     case 'assigned-pending':
-      return allTasks.filter(task => 
-        task.assigned_user?.id === currentUserId && task.status === 'pending'
+      return allTasks.filter(
+        (task) => task.assigned_user?.id === currentUserId && task.status === 'pending'
       );
     case 'assigned-all':
-      return allTasks.filter(task => task.assigned_user?.id === currentUserId);
+      return allTasks.filter((task) => task.assigned_user?.id === currentUserId);
     case 'assigned-completed':
-      return allTasks.filter(task => 
-        task.assigned_user?.id === currentUserId && task.status === 'done'
+      return allTasks.filter(
+        (task) => task.assigned_user?.id === currentUserId && task.status === 'done'
       );
     case 'pending':
-      return allTasks.filter(task => task.status === 'pending');
+      return allTasks.filter((task) => task.status === 'pending');
     case 'all':
       return allTasks;
     case 'completed':
-      return allTasks.filter(task => task.status === 'done');
+      return allTasks.filter((task) => task.status === 'done');
     default:
-      return allTasks.filter(task => task.status === 'pending');
+      return allTasks.filter((task) => task.status === 'pending');
   }
 };
 
@@ -222,7 +226,7 @@ const getTotalTasksForCounter = (
 ): number => {
   // For "assigned" filters, show total assigned tasks
   if (filter.startsWith('assigned-')) {
-    return allTasks.filter(task => task.assigned_user?.id === currentUserId).length;
+    return allTasks.filter((task) => task.assigned_user?.id === currentUserId).length;
   }
   // For "overall" filters, show all tasks
   return allTasks.length;
@@ -239,26 +243,28 @@ const getCompletedTasksForCounter = (
 ): number => {
   // For "assigned" filters, show completed assigned tasks
   if (filter.startsWith('assigned-')) {
-    return allTasks.filter(task => task.assigned_user?.id === currentUserId && task.status === 'done').length;
+    return allTasks.filter(
+      (task) => task.assigned_user?.id === currentUserId && task.status === 'done'
+    ).length;
   }
   // For "overall" filters, show all completed tasks
-  return allTasks.filter(task => task.status === 'done').length;
+  return allTasks.filter((task) => task.status === 'done').length;
 };
 
 export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   ...initialState,
-  
+
   // Computed getters
   selectedImagery: () => {
     const { campaign, selectedImageryId } = get();
-    return campaign?.imagery.find(img => img.id === selectedImageryId) || null;
+    return campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   },
-  
+
   completedTasksCount: () => {
     const { allTasks } = get();
-    return allTasks.filter(task => task.status === 'done').length;
+    return allTasks.filter((task) => task.status === 'done').length;
   },
-  
+
   campaignBbox: () => {
     const { campaign } = get();
     if (!campaign) return null;
@@ -269,11 +275,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       campaign.settings.bbox_north,
     ];
   },
-  
+
   // Data actions
   loadCampaign: async (campaignId: number) => {
     set({ isLoadingCampaign: true });
-    
+
     try {
       // Load campaign, tasks, and current user in parallel
       const [campaignResponse, tasksResponse, _currentUser] = await Promise.all([
@@ -281,7 +287,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
         useUserStore.getState().getCurrentUser(), // Fetch and cache current user
       ]);
-      
+
       const campaign = campaignResponse.data!;
       const allTasks = tasksResponse.data!.tasks;
       const currentUserId = useUserStore.getState().getCurrentUserId();
@@ -289,22 +295,27 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       const filteredTasks = filterTasks(allTasks, taskFilter, currentUserId);
       const pendingTasks = filteredTasks; // Show all filtered tasks, not just pending
       const totalTasksForCounter = getTotalTasksForCounter(allTasks, taskFilter, currentUserId);
-      const completedTasksForCounter = getCompletedTasksForCounter(allTasks, taskFilter, currentUserId);
-      
+      const completedTasksForCounter = getCompletedTasksForCounter(
+        allTasks,
+        taskFilter,
+        currentUserId
+      );
+
       // Set initial imagery selection
       const selectedImageryId = campaign.imagery.length > 0 ? campaign.imagery[0].id : null;
-      
+
       // Set initial active window ID from the first imagery's default
       const firstImagery = campaign.imagery[0];
-      const activeWindowId = firstImagery?.default_main_window_id ?? firstImagery?.windows[0]?.id ?? null;
-      
+      const activeWindowId =
+        firstImagery?.default_main_window_id ?? firstImagery?.windows[0]?.id ?? null;
+
       // Set initial layout - prefer personal layout over default
-      const mainLayout = (campaign.personal_main_canvas_layout?.layout_data || 
-                         campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-      const imageryLayout = (firstImagery?.personal_canvas_layout?.layout_data || 
-                            firstImagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+      const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
+        campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
+      const imageryLayout = (firstImagery?.personal_canvas_layout?.layout_data ||
+        firstImagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
       const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
-      
+
       // Initialize map center/zoom for open mode using campaign bbox center
       let initialMapCenter: [number, number] | null = null;
       let initialMapZoom: number | null = null;
@@ -316,7 +327,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         initialMapCenter = bboxCenter;
         initialMapZoom = firstImagery?.default_zoom ?? DEFAULT_MAP_ZOOM;
       }
-      
+
       set({
         campaign,
         allTasks,
@@ -334,7 +345,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         currentMapBounds: null,
         isLoadingCampaign: false,
       });
-      
+
       // Load annotations if in open mode
       if (campaign.mode === 'open') {
         await get().loadAnnotations();
@@ -346,19 +357,19 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       set({ isLoadingCampaign: false });
     }
   },
-  
+
   submitAnnotation: async (labelId: number | null, comment: string) => {
     const { campaign, pendingTasks, allTasks, currentTaskIndex, taskFilter } = get();
     const task = pendingTasks[currentTaskIndex];
-    
+
     if (!task || !campaign) return;
-    
+
     set({ isSubmitting: true });
-    
+
     try {
       let annotationData = null;
       let newStatus: 'pending' | 'done';
-      
+
       // If labelId is null and task has an annotation, delete it
       if (labelId === null && task.annotation !== null) {
         await deleteAnnotation({
@@ -373,35 +384,41 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       } else {
         // Otherwise, create/update the annotation
         const response = await completeAnnotationTask({
-          path: { 
-            campaign_id: campaign.id, 
-            annotation_task_id: task.id 
+          path: {
+            campaign_id: campaign.id,
+            annotation_task_id: task.id,
           },
-          body: { 
-            label_id: labelId, 
-            comment: comment || null 
+          body: {
+            label_id: labelId,
+            comment: comment || null,
           },
         });
-        
+
         annotationData = response.data ?? null;
         newStatus = 'done';
         useUIStore.getState().showAlert('Annotation submitted successfully', 'success');
       }
-      
+
       // Update local state with the annotation data from the server
-      const updatedTasks = allTasks.map(t =>
-        t.id === task.id ? { 
-          ...t, 
-          status: newStatus,
-          annotation: annotationData 
-        } : t
+      const updatedTasks = allTasks.map((t) =>
+        t.id === task.id
+          ? {
+              ...t,
+              status: newStatus,
+              annotation: annotationData,
+            }
+          : t
       );
       const currentUserId = useUserStore.getState().getCurrentUserId();
       const filteredTasks = filterTasks(updatedTasks, taskFilter, currentUserId);
       const updatedPending = filteredTasks; // Show all filtered tasks
       const totalTasksForCounter = getTotalTasksForCounter(updatedTasks, taskFilter, currentUserId);
-      const completedTasksForCounter = getCompletedTasksForCounter(updatedTasks, taskFilter, currentUserId);
-      
+      const completedTasksForCounter = getCompletedTasksForCounter(
+        updatedTasks,
+        taskFilter,
+        currentUserId
+      );
+
       set({
         allTasks: updatedTasks,
         filteredTasks,
@@ -419,15 +436,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       console.error('Submit error:', error);
     }
   },
-  
+
   nextTask: () => {
     const { pendingTasks, currentTaskIndex, campaign, selectedImageryId } = get();
     if (pendingTasks.length === 0) return;
-    
+
     // Get default window for current imagery
-    const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId);
-    const defaultWindowId = selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
-    
+    const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
+    const defaultWindowId =
+      selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
+
     // Set navigating flag and clear form immediately
     set({
       isNavigating: true,
@@ -438,22 +456,23 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       selectedLabelId: null,
       comment: '',
     });
-    
+
     // Clear navigating flag after a delay to allow maps to update
     // Not ideal, but otherwise we'll have to go into the details of leaflet loading
     setTimeout(() => {
       set({ isNavigating: false });
     }, 500);
   },
-  
+
   previousTask: () => {
     const { pendingTasks, currentTaskIndex, campaign, selectedImageryId } = get();
     if (pendingTasks.length === 0) return;
-    
+
     // Get default window for current imagery
-    const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId);
-    const defaultWindowId = selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
-    
+    const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
+    const defaultWindowId =
+      selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
+
     // Set navigating flag and clear form immediately
     set({
       isNavigating: true,
@@ -464,25 +483,26 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       selectedLabelId: null,
       comment: '',
     });
-    
+
     // Clear navigating flag after a delay to allow maps to update
     setTimeout(() => {
       set({ isNavigating: false });
     }, 500);
   },
-  
+
   goToTask: (annotationNumber: number) => {
     const { pendingTasks, campaign, selectedImageryId } = get();
     // Find the task with the matching annotation_number
-    const taskIndex = pendingTasks.findIndex(task => task.annotation_number === annotationNumber);
-    
+    const taskIndex = pendingTasks.findIndex((task) => task.annotation_number === annotationNumber);
+
     if (taskIndex !== -1) {
       // Get default window for current imagery
-      const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId);
-      const defaultWindowId = selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
-      
+      const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
+      const defaultWindowId =
+        selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
+
       // Set navigating flag and clear form immediately
-      set({ 
+      set({
         isNavigating: true,
         currentTaskIndex: taskIndex,
         activeWindowId: defaultWindowId,
@@ -491,38 +511,38 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         selectedLabelId: null,
         comment: '',
       });
-      
+
       // Clear navigating flag after a delay to allow maps to update
       setTimeout(() => {
         set({ isNavigating: false });
       }, 500);
     }
   },
-  
+
   // UI actions
   setCurrentLayout: (layout) => set({ currentLayout: layout }),
-  
+
   setSavedLayout: (layout) => set({ savedLayout: layout }),
-  
+
   setIsEditingLayout: (isEditing) => set({ isEditingLayout: isEditing }),
-  
+
   saveLayout: async (shouldBeDefault = false) => {
     const { campaign, currentLayout, selectedImageryId } = get();
-    
+
     if (!campaign || !currentLayout || selectedImageryId === null) {
       useUIStore.getState().showAlert('Cannot save layout: missing campaign or imagery', 'error');
       return;
     }
-    
+
     try {
       // Separate main layout items from imagery layout items
-      const mainLayoutItems = currentLayout.filter(item => 
-        item.i === 'main' || item.i === 'timeseries' || item.i === 'minimap'
+      const mainLayoutItems = currentLayout.filter(
+        (item) => item.i === 'main' || item.i === 'timeseries' || item.i === 'minimap'
       );
-      const imageryLayoutItems = currentLayout.filter(item => 
-        item.i !== 'main' && item.i !== 'timeseries' && item.i !== 'minimap'
+      const imageryLayoutItems = currentLayout.filter(
+        (item) => item.i !== 'main' && item.i !== 'timeseries' && item.i !== 'minimap'
       );
-      
+
       // Save to backend
       await createNewCanvasLayoutForImagery({
         path: { campaign_id: campaign.id },
@@ -536,11 +556,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           },
         },
       });
-      
+
       const layoutType = shouldBeDefault ? 'default' : 'personal';
       useUIStore.getState().showAlert(`Layout saved successfully as ${layoutType}`, 'success');
-      
-      set({ 
+
+      set({
         savedLayout: currentLayout,
         isEditingLayout: false,
       });
@@ -550,71 +570,71 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       console.error('Save layout error:', error);
     }
   },
-  
+
   cancelLayoutEdit: () => {
     const { savedLayout } = get();
-    set({ 
+    set({
       currentLayout: savedLayout,
       isEditingLayout: false,
     });
   },
-  
+
   resetLayout: (defaultLayout) => {
-    set({ 
+    set({
       currentLayout: defaultLayout,
       savedLayout: defaultLayout,
     });
   },
-  
+
   setSelectedImageryId: (id) => {
     const { campaign, activeWindowId, selectedImageryId: currentImageryId } = get();
     if (!campaign) return;
-    
+
     set({ selectedImageryId: id });
-    
+
     // Update layout when imagery changes - prefer personal layout over default
-    const mainLayout = (campaign.personal_main_canvas_layout?.layout_data || 
-                       campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-    const imagery = campaign.imagery.find(img => img.id === id);
-    const imageryLayout = (imagery?.personal_canvas_layout?.layout_data || 
-                          imagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+    const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
+      campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
+    const imagery = campaign.imagery.find((img) => img.id === id);
+    const imageryLayout = (imagery?.personal_canvas_layout?.layout_data ||
+      imagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
     const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
-    
+
     // Find the closest matching window in the new imagery
     let newActiveWindowId = imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
-    
+
     if (activeWindowId !== null && imagery) {
       // Get the current active window from the old imagery
-      const oldImagery = campaign.imagery.find(img => img.id === currentImageryId);
-      const currentWindow = oldImagery?.windows.find(w => w.id === activeWindowId);
-      
+      const oldImagery = campaign.imagery.find((img) => img.id === currentImageryId);
+      const currentWindow = oldImagery?.windows.find((w) => w.id === activeWindowId);
+
       if (currentWindow) {
         // Find the window with the closest date range in the new imagery
         const currentStartDate = new Date(currentWindow.window_start_date);
         const currentEndDate = new Date(currentWindow.window_end_date);
         const currentMidpoint = (currentStartDate.getTime() + currentEndDate.getTime()) / 2;
-        
+
         let closestWindow = imagery.windows[0];
         let smallestDiff = Number.MAX_SAFE_INTEGER;
-        
+
         for (const window of imagery.windows) {
           const windowStartDate = new Date(window.window_start_date);
           const windowEndDate = new Date(window.window_end_date);
           const windowMidpoint = (windowStartDate.getTime() + windowEndDate.getTime()) / 2;
-          
+
           // Calculate the difference between midpoints
           const diff = Math.abs(windowMidpoint - currentMidpoint);
-          
+
           if (diff < smallestDiff) {
             smallestDiff = diff;
             closestWindow = window;
           }
         }
-        
+
         newActiveWindowId = closestWindow.id;
       }
     }
-    
+
     set({
       currentLayout: mergedLayout,
       savedLayout: mergedLayout,
@@ -623,71 +643,76 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
     });
   },
-  
-  setSelectedLayerIndex: (index) => set({ 
-    selectedLayerIndex: index,
-    showBasemap: false,
-  }),
-  
+
+  setSelectedLayerIndex: (index) =>
+    set({
+      selectedLayerIndex: index,
+      showBasemap: false,
+    }),
+
   setShowBasemap: (show) => set({ showBasemap: show }),
-  
-  setActiveWindowId: (id) => set((state) => {
-    // Save current window's slice index before switching
-    const newWindowSliceIndices = { ...state.windowSliceIndices };
-    if (state.activeWindowId !== null) {
-      newWindowSliceIndices[state.activeWindowId] = state.activeSliceIndex;
-    }
-    // Restore the new window's slice index (or default to 0)
-    const newSliceIndex = id !== null ? (newWindowSliceIndices[id] ?? 0) : 0;
-    return {
-      activeWindowId: id,
-      activeSliceIndex: newSliceIndex,
-      windowSliceIndices: newWindowSliceIndices,
-    };
-  }),
-  
+
+  setActiveWindowId: (id) =>
+    set((state) => {
+      // Save current window's slice index before switching
+      const newWindowSliceIndices = { ...state.windowSliceIndices };
+      if (state.activeWindowId !== null) {
+        newWindowSliceIndices[state.activeWindowId] = state.activeSliceIndex;
+      }
+      // Restore the new window's slice index (or default to 0)
+      const newSliceIndex = id !== null ? (newWindowSliceIndices[id] ?? 0) : 0;
+      return {
+        activeWindowId: id,
+        activeSliceIndex: newSliceIndex,
+        windowSliceIndices: newWindowSliceIndices,
+      };
+    }),
+
   setActiveSliceIndex: (index) => set({ activeSliceIndex: index }),
-  
-  setWindowSliceIndex: (windowId, index) => set((state) => ({
-    windowSliceIndices: { ...state.windowSliceIndices, [windowId]: index },
-  })),
-  
+
+  setWindowSliceIndex: (windowId, index) =>
+    set((state) => ({
+      windowSliceIndices: { ...state.windowSliceIndices, [windowId]: index },
+    })),
+
   triggerRefocus: () => set((state) => ({ refocusTrigger: state.refocusTrigger + 1 })),
-  
+
   // Map control actions
   triggerZoomIn: () => set((state) => ({ zoomInTrigger: state.zoomInTrigger + 1 })),
-  
+
   triggerZoomOut: () => set((state) => ({ zoomOutTrigger: state.zoomOutTrigger + 1 })),
-  
-  triggerPan: (direction) => set((state) => ({ 
-    panTrigger: { direction, count: state.panTrigger.count + 1 } 
-  })),
-  
+
+  triggerPan: (direction) =>
+    set((state) => ({
+      panTrigger: { direction, count: state.panTrigger.count + 1 },
+    })),
+
   // Synchronized map actions (for open mode)
   setMapCenter: (center) => set({ currentMapCenter: center }),
-  
+
   setMapZoom: (zoom) => set({ currentMapZoom: zoom }),
-  
+
   setMapBounds: (bounds) => set({ currentMapBounds: bounds }),
-  
+
   // Annotation form actions
   setSelectedLabelId: (id) => set({ selectedLabelId: id }),
-  
+
   setComment: (comment) => set({ comment }),
-  
+
   setActiveTool: (tool) => set({ activeTool: tool }),
-  
+
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
-  
-  toggleMagicWand: (labelId) => set((state) => ({
-    magicWandEnabled: {
-      ...state.magicWandEnabled,
-      [labelId]: !state.magicWandEnabled[labelId],
-    },
-  })),
-  
+
+  toggleMagicWand: (labelId) =>
+    set((state) => ({
+      magicWandEnabled: {
+        ...state.magicWandEnabled,
+        [labelId]: !state.magicWandEnabled[labelId],
+      },
+    })),
+
   resetAnnotationForm: () => set({ selectedLabelId: null, comment: '' }),
-  
+
   // Task filter actions
   setTaskFilter: (filter: TaskFilterType) => {
     const { allTasks } = get();
@@ -696,9 +721,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     const pendingTasks = filteredTasks; // Show all filtered tasks
     const totalTasksForCounter = getTotalTasksForCounter(allTasks, filter, currentUserId);
     const completedTasksForCounter = getCompletedTasksForCounter(allTasks, filter, currentUserId);
-    
+
     // Set navigating flag and clear form when filter changes
-    set({ 
+    set({
       isNavigating: true,
       taskFilter: filter,
       filteredTasks,
@@ -709,27 +734,27 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       selectedLabelId: null,
       comment: '',
     });
-    
+
     // Clear navigating flag after a delay to allow maps to update
     setTimeout(() => {
       set({ isNavigating: false });
     }, 500);
   },
-  
+
   // Open mode annotation actions
   loadAnnotations: async () => {
     const { campaign } = get();
     if (!campaign || campaign.mode !== 'open') return;
-    
+
     set({ isLoadingAnnotations: true });
-    
+
     try {
       const response = await getAllAnnotationsForCampaign({
         path: { campaign_id: campaign.id },
       });
-      
+
       const annotations = response.data || [];
-      
+
       set({ annotations, isLoadingAnnotations: false });
     } catch (error) {
       handleApiError(error, 'Load annotations error', {
@@ -737,15 +762,20 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       });
       set({ isLoadingAnnotations: false });
     }
-  },  saveAnnotation: async (geometry: GeoJSON.Geometry, labelId: number, comment: string | null = null) => {
+  },
+  saveAnnotation: async (
+    geometry: GeoJSON.Geometry,
+    labelId: number,
+    comment: string | null = null
+  ) => {
     const { campaign } = get();
     if (!campaign) return null;
-    
+
     set({ isSubmitting: true });
-    
+
     try {
       const wktGeometry = convertGeoJSONToWKT(geometry);
-      
+
       const response = await createAnnotation({
         path: { campaign_id: campaign.id },
         body: {
@@ -754,15 +784,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           geometry_wkt: wktGeometry,
         },
       });
-      
+
       const annotation = response.data!;
-      
+
       // Add to local state
       set((state) => ({
         annotations: [...state.annotations, annotation],
         isSubmitting: false,
       }));
-      
+
       useUIStore.getState().showAlert('Annotation saved successfully', 'success');
       return annotation;
     } catch (error) {
@@ -773,22 +803,22 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       return null;
     }
   },
-  
+
   updateAnnotationGeometry: async (annotationId: number, geometry: GeoJSON.Geometry) => {
     const { campaign, annotations } = get();
     if (!campaign) return;
-    
+
     // Find the annotation to get its current label and comment
-    const annotation = annotations.find(a => a.id === annotationId);
+    const annotation = annotations.find((a) => a.id === annotationId);
     if (!annotation) return;
-    
+
     set({ isSubmitting: true });
-    
+
     try {
       const wktGeometry = convertGeoJSONToWKT(geometry);
-      
+
       const response = await updateAnnotation({
-        path: { 
+        path: {
           campaign_id: campaign.id,
           annotation_id: annotationId,
         },
@@ -798,17 +828,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           geometry_wkt: wktGeometry,
         },
       });
-      
+
       const updatedAnnotation = response.data!;
-      
+
       // Update local state
       set((state) => ({
-        annotations: state.annotations.map(a => 
-          a.id === annotationId ? updatedAnnotation : a
-        ),
+        annotations: state.annotations.map((a) => (a.id === annotationId ? updatedAnnotation : a)),
         isSubmitting: false,
       }));
-      
+
       useUIStore.getState().showAlert('Annotation updated successfully', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update annotation';
@@ -818,26 +846,26 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       throw error; // Re-throw to allow rollback handling
     }
   },
-  
+
   deleteAnnotation: async (annotationId: number) => {
     const { campaign } = get();
     if (!campaign) return;
-    
+
     set({ isSubmitting: true });
-    
+
     try {
-      await deleteAnnotation({ 
-        path: { 
-          campaign_id: campaign.id, 
-          annotation_id: annotationId 
-        } 
+      await deleteAnnotation({
+        path: {
+          campaign_id: campaign.id,
+          annotation_id: annotationId,
+        },
       });
-      
+
       set((state) => ({
-        annotations: state.annotations.filter(a => a.id !== annotationId),
+        annotations: state.annotations.filter((a) => a.id !== annotationId),
         isSubmitting: false,
       }));
-      
+
       useUIStore.getState().showAlert('Annotation deleted successfully', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete annotation';
@@ -846,7 +874,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       console.error('Delete annotation error:', error);
     }
   },
-  
+
   reset: () => {
     useUserStore.getState().clearUser(); // Clear user cache on reset
     set(initialState);

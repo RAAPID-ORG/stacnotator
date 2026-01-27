@@ -75,7 +75,8 @@ export const useStacImagery = ({
 
         if (cancelled) return;
 
-        const searchId = response.data?.searchId || response.data?.searchid || response.data?.search_id;
+        const searchId =
+          response.data?.searchId || response.data?.searchid || response.data?.search_id;
 
         if (!searchId) {
           throw new Error('No searchId returned from registration endpoint');

@@ -26,10 +26,7 @@ export const TaskAssignmentModal = ({
   const [assigning, setAssigning] = useState(false);
 
   // Get unassigned tasks
-  const unassignedTasks = useMemo(
-    () => tasks.filter((t) => !t.assigned_user),
-    [tasks]
-  );
+  const unassignedTasks = useMemo(() => tasks.filter((t) => !t.assigned_user), [tasks]);
 
   // Get selected task IDs for specific assignment
   const specificTaskIds = useMemo(() => {
@@ -200,7 +197,9 @@ export const TaskAssignmentModal = ({
                       className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                     />
                     <div className="flex-1">
-                      <div className="text-sm font-medium text-neutral-900">{user.user.display_name}</div>
+                      <div className="text-sm font-medium text-neutral-900">
+                        {user.user.display_name}
+                      </div>
                       <div className="text-xs text-neutral-500">
                         {tasks.filter((t) => t.assigned_user?.id === user.user.id).length} tasks
                         assigned
@@ -226,7 +225,8 @@ export const TaskAssignmentModal = ({
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600"
               />
               <p className="text-xs text-neutral-500 mt-1">
-                Total to assign: {Math.min(selectedUsers.length * tasksPerUser, unassignedTasks.length)} tasks
+                Total to assign:{' '}
+                {Math.min(selectedUsers.length * tasksPerUser, unassignedTasks.length)} tasks
               </p>
             </div>
           )}

@@ -25,8 +25,7 @@ class Settings(BaseSettings):
 
     # Store as string to avoid automatic JSON parsing by pydantic-settings
     cors_origins_raw: Union[str, List[str]] = Field(
-        default="http://localhost:3000,http://localhost:5173",
-        validation_alias="CORS_ORIGINS"
+        default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
 
     EE_SERVICE_ACCOUNT: str | None = None
@@ -54,7 +53,7 @@ class Settings(BaseSettings):
             except (json.JSONDecodeError, ValueError):
                 pass
             # Handle comma-separated string
-            return [origin.strip() for origin in v.split(',') if origin.strip()]
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return [
             "http://localhost:3000",
             "http://localhost:5173",

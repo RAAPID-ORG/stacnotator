@@ -21,7 +21,7 @@ export const StepCampaign = ({
 
       <div className="space-y-3">
         <p className="text-sm font-medium text-neutral-900">Campaign Mode</p>
-        
+
         <div className="space-y-3">
           <label className="flex items-start space-x-3 cursor-pointer">
             <input
@@ -52,7 +52,8 @@ export const StepCampaign = ({
             <div className="flex-1">
               <div className="font-medium text-sm text-neutral-900">Open</div>
               <div className="text-sm text-neutral-600">
-                Imagery that can be navigated open-world like and annotations can be placed manually.
+                Imagery that can be navigated open-world like and annotations can be placed
+                manually.
               </div>
             </div>
           </label>

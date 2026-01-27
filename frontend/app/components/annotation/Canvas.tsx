@@ -4,7 +4,12 @@ import type { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-import { extractLatLonFromWKT, computeTimeSlices, formatWindowLabel, type LatLon } from '~/utils/utility';
+import {
+  extractLatLonFromWKT,
+  computeTimeSlices,
+  formatWindowLabel,
+  type LatLon,
+} from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
 import { useUIStore } from '~/stores/uiStore';
 import { timeseriesCache } from '~/utils/timeseriesCache';
@@ -26,37 +31,38 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const [isMounted, setIsMounted] = useState(false);
 
   // Read state directly from store
-  const campaign = useAnnotationStore(state => state.campaign);
-  const totalTasksForCounter = useAnnotationStore(state => state.totalTasksForCounter);
-  const completedTasksForCounter = useAnnotationStore(state => state.completedTasksForCounter);
-  const pendingTasks = useAnnotationStore(state => state.pendingTasks);
-  const currentTaskIndex = useAnnotationStore(state => state.currentTaskIndex);
-  const selectedImageryId = useAnnotationStore(state => state.selectedImageryId);
-  const isEditingLayout = useAnnotationStore(state => state.isEditingLayout);
-  const currentLayout = useAnnotationStore(state => state.currentLayout);
-  const activeWindowId = useAnnotationStore(state => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore(state => state.activeSliceIndex);
-  const selectedLayerIndex = useAnnotationStore(state => state.selectedLayerIndex);
-  const showBasemap = useAnnotationStore(state => state.showBasemap);
-  const currentMapBounds = useAnnotationStore(state => state.currentMapBounds);
-  const timeseriesPoint = useAnnotationStore(state => state.timeseriesPoint);
-  const setCurrentLayout = useAnnotationStore(state => state.setCurrentLayout);
-  const setActiveWindowId = useAnnotationStore(state => state.setActiveWindowId);
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const totalTasksForCounter = useAnnotationStore((state) => state.totalTasksForCounter);
+  const completedTasksForCounter = useAnnotationStore((state) => state.completedTasksForCounter);
+  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
+  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
+  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
+  const currentLayout = useAnnotationStore((state) => state.currentLayout);
+  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
+  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
+  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
+  const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
+  const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
+  const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
+  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
 
   // Get fullscreen state from UI store
-  const isFullscreen = useUIStore(state => state.isFullscreen);
-
+  const isFullscreen = useUIStore((state) => state.isFullscreen);
 
   // Compute derived values
   const currentTask = pendingTasks[currentTaskIndex] || null;
-  const selectedImagery = campaign?.imagery.find(img => img.id === selectedImageryId) || null;
+  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   const isOpenMode = campaign?.mode === 'open';
-  const campaignBbox = campaign ? [
-    campaign.settings.bbox_west,
-    campaign.settings.bbox_south,
-    campaign.settings.bbox_east,
-    campaign.settings.bbox_north,
-  ] as [number, number, number, number] : null;
+  const campaignBbox = campaign
+    ? ([
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+      ] as [number, number, number, number])
+    : null;
 
   // Measure container width
   useEffect(() => {
@@ -78,12 +84,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   useEffect(() => {
     if (!campaign || pendingTasks.length === 0) return;
 
-    const timeseriesIds = campaign.time_series.map(ts => ts.id);
+    const timeseriesIds = campaign.time_series.map((ts) => ts.id);
     if (timeseriesIds.length === 0) return;
 
     // Prefetch next 3 tasks (skip current task as it's already being loaded by TimeSeriesContainer)
     const tasksToPreload = pendingTasks.slice(currentTaskIndex + 1, currentTaskIndex + 4);
-    
+
     tasksToPreload.forEach((task) => {
       const taskLatLon = extractLatLonFromWKT(task.geometry.geometry);
       if (taskLatLon) {
@@ -96,7 +102,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
   const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
-  const visualizationName = selectedImagery?.visualization_url_templates?.[selectedLayerIndex]?.name;
+  const visualizationName =
+    selectedImagery?.visualization_url_templates?.[selectedLayerIndex]?.name;
 
   // Compute slices for the active window
   const slices = useMemo(() => {
@@ -107,7 +114,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       selectedImagery.slicing_interval,
       selectedImagery.slicing_unit
     );
-  }, [activeWindow?.window_start_date, activeWindow?.window_end_date, selectedImagery?.slicing_interval, selectedImagery?.slicing_unit]);
+  }, [
+    activeWindow?.window_start_date,
+    activeWindow?.window_end_date,
+    selectedImagery?.slicing_interval,
+    selectedImagery?.slicing_unit,
+  ]);
 
   // Get the active slice for header display
   const activeSlice = slices[activeSliceIndex] ?? slices[0];
@@ -120,10 +132,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     }
     return currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null;
   }, [isOpenMode, timeseriesPoint, currentTask?.geometry.geometry]);
-  
+
   // Memoize center to prevent array recreation on every render
-  const center = useMemo<[number, number]>(() => 
-    latLon ? [latLon.lat, latLon.lon] : [0, 0],
+  const center = useMemo<[number, number]>(
+    () => (latLon ? [latLon.lat, latLon.lon] : [0, 0]),
     [latLon?.lat, latLon?.lon]
   );
 
@@ -136,15 +148,23 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           <>
             {activeSlice ? (
               <span>{activeSlice.label}</span>
-            ) : activeWindow && (
-              <span>{formatWindowLabel(activeWindow.window_start_date, activeWindow.window_end_date, selectedImagery?.window_unit || null)}</span>
+            ) : (
+              activeWindow && (
+                <span>
+                  {formatWindowLabel(
+                    activeWindow.window_start_date,
+                    activeWindow.window_end_date,
+                    selectedImagery?.window_unit || null
+                  )}
+                </span>
+              )
             )}
             {slices.length > 1 && (
-              <span className="text-neutral-500">({activeSliceIndex + 1}/{slices.length})</span>
+              <span className="text-neutral-500">
+                ({activeSliceIndex + 1}/{slices.length})
+              </span>
             )}
-            {!showBasemap && visualizationName && (
-              <span> - {visualizationName}</span>
-            )}
+            {!showBasemap && visualizationName && <span> - {visualizationName}</span>}
           </>
         )}
       </div>
@@ -203,10 +223,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           {/* Timeseries */}
           {campaign.time_series.length > 0 && (
             <div key="timeseries" className="grid-card">
-              <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
+              <div
+                className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}
+              >
                 <span>Time Series</span>
               </div>
-              <TimeSeriesContainer timeseries={campaign.time_series} latLon={latLon}/>
+              <TimeSeriesContainer timeseries={campaign.time_series} latLon={latLon} />
             </div>
           )}
 
@@ -215,9 +237,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
-            <MiniMap 
-              center={center} 
-              bbox={campaignBbox || [0, 0, 0, 0]} 
+            <MiniMap
+              center={center}
+              bbox={campaignBbox || [0, 0, 0, 0]}
               visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
             />
           </div>
@@ -225,21 +247,23 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           {/* Imagery Windows */}
           {selectedImagery?.windows.map((window) => {
             const isActiveWindow = window.id === currentActiveWindowId;
-            
+
             return (
-              <div 
-                key={window.id} 
+              <div
+                key={window.id}
                 className={`grid-card grid-card-hoverable ${isActiveWindow ? 'active-window' : ''}`}
               >
                 <div
                   className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50`}
                   onClick={() => setActiveWindowId(window.id)}
                 >
-                  {formatWindowLabel(window.window_start_date, window.window_end_date, selectedImagery.window_unit)}
+                  {formatWindowLabel(
+                    window.window_start_date,
+                    window.window_end_date,
+                    selectedImagery.window_unit
+                  )}
                 </div>
-                <ImageryContainer
-                  window={window}
-                />
+                <ImageryContainer window={window} />
               </div>
             );
           })}

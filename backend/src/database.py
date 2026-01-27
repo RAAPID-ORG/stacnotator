@@ -9,7 +9,12 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-db_url_masked = settings.DATABASE_URL.replace(settings.DBPASS, "***MASKED***") if settings.DBPASS else settings.DATABASE_URL
+db_url_masked = (
+    settings.DATABASE_URL.replace(settings.DBPASS, "***MASKED***")
+    if settings.DBPASS
+    else settings.DATABASE_URL
+)
+
 
 # Base class for all ORM models
 class Base(DeclarativeBase):

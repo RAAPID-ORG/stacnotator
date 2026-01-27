@@ -15,7 +15,7 @@ config = context.config
 
 # Inject DB URL from settings
 # Escape % characters for configparser (% is used for interpolation in INI files)
-database_url = settings.DATABASE_URL.replace('%', '%%')
+database_url = settings.DATABASE_URL.replace("%", "%%")
 config.set_main_option("sqlalchemy.url", database_url)
 
 if config.config_file_name is not None:

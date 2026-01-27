@@ -19,49 +19,56 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
       slicing_interval: 1,
       slicing_unit: 'weeks',
       registration_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
-      search_body: JSON.stringify({
-        bbox: '{campaignBBoxPlaceholder}',
-        filter: {
-          op: 'and',
-          args: [
-            {
-              op: 'anyinteracts',
-              args: [
-                { property: 'datetime' },
-                { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
-              ],
-            },
-            {
-              op: '<=',
-              args: [{ property: 'eo:cloud_cover' }, 20],
-            },
-            {
-              op: '=',
-              args: [{ property: 'collection' }, 'sentinel-2-l2a'],
-            },
-          ],
+      search_body: JSON.stringify(
+        {
+          bbox: '{campaignBBoxPlaceholder}',
+          filter: {
+            op: 'and',
+            args: [
+              {
+                op: 'anyinteracts',
+                args: [
+                  { property: 'datetime' },
+                  { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
+                ],
+              },
+              {
+                op: '<=',
+                args: [{ property: 'eo:cloud_cover' }, 20],
+              },
+              {
+                op: '=',
+                args: [{ property: 'collection' }, 'sentinel-2-l2a'],
+              },
+            ],
+          },
+          metadata: {
+            type: 'mosaic',
+            maxzoom: 24,
+            minzoom: 0,
+            pixel_selection: 'median',
+          },
+          filterLang: 'cql2-json',
+          collections: ['sentinel-2-l2a'],
         },
-        metadata: {
-          type: 'mosaic',
-          maxzoom: 24,
-          minzoom: 0,
-          pixel_selection: 'median',
-        },
-        filterLang: 'cql2-json',
-        collections: ['sentinel-2-l2a'],
-      }, null, 2),
+        null,
+        2
+      ),
       visualization_url_templates: [
         {
           name: 'True Color',
-          visualization_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=median',
+          visualization_url:
+            'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=median',
         },
         {
           name: 'False Color',
-          visualization_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35&collection=sentinel-2-l2a&pixel_selection=median',
+          visualization_url:
+            'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35&collection=sentinel-2-l2a&pixel_selection=median',
         },
         {
           name: 'NDVI',
-          visualization_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&nodata=0&expression=(B08-B04)/(B08%2BB04)&rescale=-1,1&colormap_name=rdylgn&collection=sentinel-2-l2a&pixel_selection=median',
+          visualization_url:
+            'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&nodata=0&expression=(B08-B04)/(B08%2BB04)&rescale=-1,1&colormap_name=rdylgn&collection=sentinel-2-l2a&pixel_selection=median',
         },
       ],
     },

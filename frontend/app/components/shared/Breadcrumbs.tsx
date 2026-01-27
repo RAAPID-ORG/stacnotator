@@ -13,17 +13,14 @@ interface BreadcrumbsProps {
  * Breadcrumb navigation component
  */
 export const Breadcrumbs = ({ items }: BreadcrumbsProps) => {
-  const allItems: BreadcrumbItem[] = [
-    { label: 'Home', path: '/' },
-    ...items,
-  ];
+  const allItems: BreadcrumbItem[] = [{ label: 'Home', path: '/' }, ...items];
 
   return (
     <header className="px-4 py-1 text-sm font-normal bg-neutral-100 border-b border-neutral-300 flex-shrink-0">
       <nav className="flex items-center">
         {allItems.map((item, index) => {
           const isLast = index === allItems.length - 1;
-          
+
           return (
             <span key={index} className="flex items-center">
               {item.path && !isLast ? (
@@ -34,14 +31,10 @@ export const Breadcrumbs = ({ items }: BreadcrumbsProps) => {
                   {item.label}
                 </Link>
               ) : (
-                <span className="font-semibold text-brand-700 px-2 py-0.5">
-                  {item.label}
-                </span>
+                <span className="font-semibold text-brand-700 px-2 py-0.5">{item.label}</span>
               )}
-              
-              {!isLast && (
-                <span className="text-neutral-700"> / </span>
-              )}
+
+              {!isLast && <span className="text-neutral-700"> / </span>}
             </span>
           );
         })}
