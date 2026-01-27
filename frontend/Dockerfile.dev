@@ -1,0 +1,32 @@
+# Development Dockerfile with Vite HMR support
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Build the application
+# Accept build arguments for Vite environment variables
+ARG VITE_API_BASE_URL
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+
+# Set environment variables for the build process
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+ENV VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
+ENV VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
+ENV VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
+
+# Install dependencies first (for better caching)
+COPY package.json package-lock.json* ./
+
+RUN npm install
+
+# Copy application files (source will be mounted as volume in dev)
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Run Vite dev server with HMR
+# --host 0.0.0.0 allows access from outside container
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

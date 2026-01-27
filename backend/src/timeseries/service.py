@@ -1,0 +1,374 @@
+from typing import Literal
+import ee
+from fastapi import HTTPException
+import pandas as pd
+
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+from src.campaigns.models import Campaign, CanvasLayout
+from src.config import get_settings
+from src.timeseries.models import TimeSeries
+from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
+from src.utils import find_free_position_in_layout
+
+settings = get_settings()
+
+
+# ============================================================================
+# Timeseries data fetching and processing functions for Earth Engine
+# ============================================================================
+
+# TODO in the future, would like to support timesteries from STAC catalog
+# Also want to allow users to define their timeseries band combinations and use these
+
+
+def initialize_earth_engine():
+    """
+    Initialize EarthEngine using a service Account
+    Supports both EE_PRIVATE_KEY_PATH (file path) and EE_PRIVATE_KEY (direct key content)
+    """
+    service_account = settings.EE_SERVICE_ACCOUNT
+    private_key_path = settings.EE_PRIVATE_KEY_PATH
+    private_key = settings.EE_PRIVATE_KEY
+    
+    if not service_account:
+        raise RuntimeError("Environment variable EE_SERVICE_ACCOUNT must be set")
+    
+    if not private_key_path and not private_key:
+        raise RuntimeError(
+            "Either EE_PRIVATE_KEY_PATH or EE_PRIVATE_KEY environment variable must be set"
+        )
+    
+    # Use direct key content if available, otherwise use file path
+    if private_key:
+        credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
+    else:
+        credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
+    
+    ee.Initialize(credentials)
+
+
+def add_ndvi_band_to_ee_image(image: ee.Image, nir: str, red: str, name: str = "NDVI") -> ee.Image:
+    """
+    Add an NDVI band to an Image, given red and nir band names
+    """
+    ndvi = image.normalizedDifference([nir, red]).rename(name)
+    return image.addBands(ndvi)
+
+
+def add_modis_cloud_mask(image):
+    """
+    Add a cloud mask for MODIS imagery based on the 'State' band
+    """
+    # Select the 'State' band and cast it to a number
+    cloud_bits = image.select("State").toUint16().bitwiseAnd(3)  # bits 0-1
+    is_cloud = cloud_bits.eq(1).Or(cloud_bits.eq(2))  # Cloudy or Mixed
+    # Create an image from the cloud mask and rename it
+    cloud_mask = ee.Image(is_cloud).rename("cloud")
+    return image.addBands(cloud_mask)
+
+
+def add_s2_cloud_mask(image):
+    """
+    Add a cloud mask for Sentinel2 imagery based on the 'QA60' band
+    """
+    qa = image.select("QA60")
+    cloud = qa.bitwiseAnd(1 << 10).Or(qa.bitwiseAnd(1 << 11))  # opaque or cirrus
+    # Create an image from the cloud mask and rename it
+    cloud_mask = ee.Image(cloud.neq(0)).rename("cloud")  # 1 = cloudy, 0 = clear
+    return image.addBands(cloud_mask)
+
+
+# Configuration for supported NDVI time series sources
+ds_configs = {
+    "MODIS": {
+        "collection_id": "MODIS/061/MOD09Q1",
+        "NDVI": {
+            "bands": {"nir": "sur_refl_b02", "red": "sur_refl_b01"},
+            "scale": 30,  # Or rather 250? Check with Christian/Josef
+        },
+        "cloudmask_callable": add_modis_cloud_mask,
+    },
+    "SENTINEL2": {
+        "collection_id": "COPERNICUS/S2_SR_HARMONIZED",
+        "NDVI": {"bands": {"nir": "B8", "red": "B4"}, "scale": 10},
+        "cloudmask_callable": add_s2_cloud_mask,
+    },
+}
+
+
+def fetch_ndvi_timeseries_ee(
+    source: str,
+    latitude: float,
+    longitude: float,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """
+    Fetch NDVI timeseries for specific point from earth engine, date range and source
+    """
+    config = ds_configs.get(source.upper())
+    if not config:
+        raise ValueError(
+            f"Source '{source}' not recognized. Available sources: {list(ds_configs.keys())}"
+        )
+
+    if "NDVI" not in config:
+        raise ValueError(f"NDVI not yet supported for data source: {source}")
+
+    # Create EE point for querying
+    point = ee.Geometry.Point([longitude, latitude])
+
+    # Build image collection with NDVI band
+    collection = (
+        ee.ImageCollection(config["collection_id"])
+        .filterDate(start_date, end_date)
+        .filterBounds(point)
+        .map(lambda img: add_ndvi_band_to_ee_image(img, **config["NDVI"]["bands"]))
+        .map(config["cloudmask_callable"])
+    )
+
+    # Extract NDVI & cloud values at the point over time
+    region_data = (
+        collection.select(["NDVI", "cloud"]).getRegion(point, config["NDVI"]["scale"]).getInfo()
+    )
+
+    # First row: column headers, subsequent rows: [longitude, latitude, time, NDVI]
+    columns = region_data[0]
+    records = region_data[1:]
+
+    # Build DataFrame
+    df = pd.DataFrame(records, columns=columns)
+    df["time"] = pd.to_datetime(df["time"], unit="ms")
+    df.rename(columns={"NDVI": "values"}, inplace=True)
+
+    # Clip NDVI to valid range [0, 1]
+    df["values"] = df["values"].clip(lower=0, upper=1)
+
+    # Ensure cloudy values are integers
+    df["cloud"] = df["cloud"].fillna(0).astype(int)
+
+    # Return only relevant columns
+    return df[["time", "values", "cloud"]]
+
+
+def get_timeseries_data(
+    ts_type: str,
+    source: Literal["MODIS", "SENTINEL2"],
+    latitude: float,
+    longitude: float,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    if ts_type == "NDVI":
+        return fetch_ndvi_timeseries_ee(
+            source, latitude=latitude, longitude=longitude, start_date=start_date, end_date=end_date
+        )
+    else:
+        raise ValueError("Currenty only supporting NDVI timeseries.")
+
+
+# ============================================================================
+# Timeseries management functions
+# ============================================================================
+
+
+def _add_timeseries_entry_to_layout(
+    layout_data: list[dict],
+    window_width: int = 10,
+    window_height: int = 8,
+    grid_width: int = 60,
+) -> bool:
+    """
+    Add a single "timeseries" entry to canvas layout if it doesn't already exist.
+
+    There is always only one timeseries entry with id "timeseries" regardless of
+    how many actual timeseries exist in the campaign.
+
+    Args:
+        layout_data: Existing layout data to append to (modified in place)
+        window_width: Width of timeseries window in grid units
+        window_height: Height of timeseries window in grid units
+        grid_width: Total grid width available
+
+    Returns:
+        True if timeseries entry was added, False if it already existed
+    """
+    # Check if timeseries entry already exists in the layout
+    timeseries_key = "timeseries"
+    if any(item.get("i") == timeseries_key for item in layout_data):
+        return False
+
+    # Find free position and add to layout
+    x, y = find_free_position_in_layout(
+        layout_data=layout_data,
+        item_width=window_width,
+        item_height=window_height,
+        grid_width=grid_width,
+    )
+
+    layout_entry = {
+        "i": timeseries_key,
+        "x": x,
+        "y": y,
+        "w": window_width,
+        "h": window_height,
+    }
+    layout_data.append(layout_entry)
+
+    return True
+
+
+def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeriesOut]:
+    # Check campaign exists
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
+
+    ts_items = db.query(TimeSeries).filter(TimeSeries.campaign_id == campaign_id).all()
+    return ts_items
+
+
+def create_timeseries_bulk(
+    campaign_id: int, ts_creates: list[TimeSeriesCreate], db: Session
+) -> list[TimeSeriesOut]:
+    """
+    Create multiple timeseries for a campaign and add timeseries entry to canvas layouts.
+
+    This function:
+    1. Creates the timeseries database entries
+    2. Adds a single "timeseries" entry to all main canvas layouts if this is the first timeseries
+
+    Args:
+        campaign_id: ID of the campaign
+        ts_creates: List of timeseries creation schemas
+        db: Database session
+
+    Returns:
+        List of created timeseries objects
+    """
+    # Verify campaign exists
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
+
+    # Check if campaign already has timeseries
+    existing_count = db.query(TimeSeries).filter(TimeSeries.campaign_id == campaign_id).count()
+
+    # Create timeseries entries
+    new_items = []
+    for ts_create in ts_creates:
+        ts_item = TimeSeries(
+            campaign_id=campaign_id,
+            name=ts_create.name,
+            start_ym=ts_create.start_ym,
+            end_ym=ts_create.end_ym,
+            data_source=ts_create.data_source,
+            provider=ts_create.provider,
+            ts_type=ts_create.ts_type,
+        )
+        new_items.append(ts_item)
+
+    db.add_all(new_items)
+    db.flush()
+
+    # If this is the first timeseries for the campaign, add timeseries entry to all main layouts
+    if existing_count == 0:
+        # Get all main canvas layouts for this campaign (default and personal)
+        # Main layouts have imagery_id = None
+        main_layouts = (
+            db.query(CanvasLayout)
+            .filter(
+                CanvasLayout.campaign_id == campaign_id,
+                CanvasLayout.imagery_id.is_(None),
+            )
+            .all()
+        )
+
+        # Add single timeseries entry to all layouts
+        for layout in main_layouts:
+            added = _add_timeseries_entry_to_layout(
+                layout_data=layout.layout_data,
+                window_width=10,
+                window_height=4,
+            )
+            if added:
+                # Mark layout_data as modified so SQLAlchemy knows to update it
+                flag_modified(layout, "layout_data")
+
+    db.commit()
+    return new_items
+
+
+def get_timeseries_by_id(timeseries_id: int, db: Session) -> TimeSeries:
+    ts_item = db.query(TimeSeries).filter(TimeSeries.id == timeseries_id).first()
+    if not ts_item:
+        raise HTTPException(status_code=404, detail=f"TimeSeries with id {timeseries_id} not found")
+    return ts_item
+
+
+def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None:
+    """
+    Delete a timeseries and update canvas layouts.
+
+    If this is the last timeseries in the campaign, removes the "timeseries"
+    entry from all main canvas layouts (default and personal).
+
+    Args:
+        timeseries_id: ID of the timeseries to delete
+        campaign_id: ID of the campaign (for validation)
+        db: Database session
+    """
+    # Verify timeseries exists and belongs to campaign
+    ts_item = (
+        db.query(TimeSeries)
+        .filter(
+            TimeSeries.id == timeseries_id,
+            TimeSeries.campaign_id == campaign_id,
+        )
+        .first()
+    )
+
+    if not ts_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"TimeSeries {timeseries_id} not found in campaign {campaign_id}",
+        )
+
+    # Check if this is the last timeseries in the campaign
+    remaining_count = (
+        db.query(TimeSeries)
+        .filter(
+            TimeSeries.campaign_id == campaign_id,
+            TimeSeries.id != timeseries_id,
+        )
+        .count()
+    )
+
+    # Delete the timeseries
+    db.delete(ts_item)
+    db.flush()
+
+    # If this was the last timeseries, remove the timeseries entry from all layouts
+    if remaining_count == 0:
+        timeseries_key = "timeseries"
+
+        # Get all main canvas layouts for this campaign
+        main_layouts = (
+            db.query(CanvasLayout)
+            .filter(
+                CanvasLayout.campaign_id == campaign_id,
+                CanvasLayout.imagery_id.is_(None),
+            )
+            .all()
+        )
+
+        # Remove timeseries entry from each layout
+        for layout in main_layouts:
+            # Filter out the timeseries entry
+            layout.layout_data = [
+                item for item in layout.layout_data if item.get("i") != timeseries_key
+            ]
+            flag_modified(layout, "layout_data")
+
+    db.commit()

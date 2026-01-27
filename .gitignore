@@ -1,0 +1,45 @@
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.dev
+
+# Docker
+docker-compose.override.yml
+
+# Credentials
+**/config/*.json
+!**/config/.gitkeep
+**/ssl/*.pem
+**/ssl/*.key
+**/ssl/*.crt
+
+# Logs
+*.log
+logs/
+nginx/logs/
+
+# Backups
+backups/
+*.sql
+*.dump
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Temporary files
+tmp/
+temp/

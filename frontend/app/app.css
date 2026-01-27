@@ -1,0 +1,245 @@
+@import 'tailwindcss';
+@import 'leaflet/dist/leaflet.css';
+@import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
+
+@theme {
+    /* Brand  Colors */
+    --color-brand-50: rgb(236 247 242);
+    --color-brand-100: rgb(211 232 224);
+    --color-brand-200: rgb(171 210 195);
+    --color-brand-300: rgb(131 187 166);
+    --color-brand-400: rgb(90 153 125);
+    --color-brand-500: rgb(65 120 93);
+    --color-brand-600: rgb(50 98 71);
+    --color-brand-700: rgb(39 77 56);
+    --color-brand-800: rgb(28 56 41);
+    --color-brand-900: rgb(18 38 28);
+
+  /* Neutral Colors */
+  --color-neutral-900: rgb(18, 18, 17);
+  --color-neutral-800: rgb(28, 28, 26);
+  --color-neutral-700: rgb(37, 36, 35);
+  --color-neutral-600: rgb(77, 75, 73);
+  --color-neutral-500: rgb(118, 115, 111);
+  --color-neutral-400: rgb(162, 159, 155);
+  --color-neutral-300: rgb(206, 204, 202);
+  --color-neutral-200: rgb(218, 217, 216);
+  --color-neutral-100: rgb(237, 236, 235);
+  --color-neutral-50: rgb(247, 246, 245);
+
+  /* Accent Colors */
+  /* new accent color-500: #F37D16 */
+  --color-accent-50: rgb(240 253 250);
+  --color-accent-100: rgb(204 251 241);
+  --color-accent-200: rgb(153 246 228);
+  --color-accent-300: rgb(94 234 212);
+  --color-accent-400: rgb(45 212 191);
+  --color-accent-500: rgb(20 184 166);
+  --color-accent-600: rgb(13 148 136);
+  --color-accent-700: rgb(15 118 110);
+  --color-accent-800: rgb(17 94 89);
+  --color-accent-900: rgb(19 78 74);
+
+  /* Amber Colors (for editing state) */
+  --color-amber-50: rgb(255 251 235);
+  --color-amber-100: rgb(254 243 199);
+  --color-amber-200: rgb(253 230 138);
+  --color-amber-300: rgb(252 211 77);
+  --color-amber-400: rgb(251 191 36);
+  --color-amber-500: rgb(245 158 11);
+  --color-amber-600: rgb(217 119 6);
+  --color-amber-700: rgb(180 83 9);
+  --color-amber-800: rgb(146 64 14);
+  --color-amber-900: rgb(120 53 15);
+
+  /* Semantic Text Colors */
+  --color-text-primary: rgb(15 23 42);
+  --color-text-secondary: rgb(71 85 105);
+  --color-text-muted: rgb(148 163 184);
+  --color-text-inverse: rgb(255 255 255);
+
+  /* Feedback Colors */
+  --color-success: rgb(56 161 105);
+  --color-warning: rgb(245 158 11);
+  --color-danger: rgb(245 101 101);
+  --color-info: rgb(59 130 246);
+
+  /* Typography */
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing Scale */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+
+  /* Border Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Box Shadows */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 10px 30px rgb(0 0 0 / 0.12);
+}
+
+html {
+  font-size: 1.125rem; /* 18px base */
+  line-height: 1.6;
+}
+
+/* Global button cursor */
+button {
+  cursor: pointer;
+}
+
+/* Canvas Grid Layout Styles */
+.react-grid-layout > div {
+  transition: none !important;
+}
+
+.grid-card {
+  background: white;
+  border: 1px solid var(--color-neutral-200);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.15s ease-in-out;
+}
+
+.grid-card-hoverable:hover {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.card-header {
+  background: var(--color-neutral-50);
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-neutral-700);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border-bottom: 1px solid var(--color-neutral-200);
+  user-select: none;
+}
+
+.active-window {
+  border-color: var(--color-brand-500) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  transition: all 0.15s ease-in-out;
+}
+
+.is-editing .grid-card {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.is-editing .grid-card:hover {
+  outline: 2px solid var(--color-amber-400);
+  outline-offset: -2px;
+  z-index: 50 !important;
+}
+
+.editable {
+  cursor: move !important;
+  background: var(--color-amber-50) !important;
+  color: var(--color-amber-900) !important;
+}
+
+.react-resizable-handle {
+  display: none !important;
+}
+
+.is-editing .react-resizable-handle {
+  display: block !important;
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+
+.is-editing .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-neutral-300);
+  border-bottom: 2px solid var(--color-neutral-300);
+}
+
+/* Leaflet Draw Edit Markers - Ensure they're always on top and clickable */
+.leaflet-marker-pane {
+  z-index: 600 !important;
+}
+
+.leaflet-editing-icon,
+.leaflet-edit-marker-selected {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure edit markers for vertices are visible and above everything */
+.leaflet-marker-icon.leaflet-editing-icon {
+  z-index: 1000 !important;
+  pointer-events: auto !important;
+  cursor: move !important;
+}
+
+/* Middle markers (for adding new vertices) */
+.leaflet-marker-icon.leaflet-div-icon.leaflet-editing-icon.leaflet-touch-icon {
+  z-index: 999 !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure the overlay pane with polygons doesn't block edit markers */
+.leaflet-overlay-pane {
+  z-index: 400;
+}
+
+/* Ensure the shadow pane doesn't interfere */
+.leaflet-shadow-pane {
+  z-index: 500;
+}
+
+/* Modal animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out;
+}

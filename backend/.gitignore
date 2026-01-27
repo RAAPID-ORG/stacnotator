@@ -1,0 +1,97 @@
+# =========================
+# Python bytecode / caches
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+
+# =========================
+# Virtual environments
+# =========================
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# uv
+# =========================
+.python-version
+
+# =========================
+# Build / packaging
+# =========================
+build/
+dist/
+wheelhouse/
+
+# =========================
+# Testing
+# =========================
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# =========================
+# Linting / formatting
+# =========================
+.ruff_cache/
+.mypy_cache/
+
+# =========================
+# FastAPI / app runtime
+# =========================
+*.log
+logs/
+instance/
+
+# =========================
+# Alembic
+# =========================
+alembic/versions/__pycache__/
+alembic/versions/*.pyc
+
+# =========================
+# Environment variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDEs / editors
+# =========================
+.vscode/
+.idea/
+*.iml
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.swp
+*.bak
+
+# =========================
+# Documentation builds
+# =========================
+docs/_build/
+
+# =========================
+# Config Stuff
+# =========================
+config/
+!config/.env_template
+
+data/

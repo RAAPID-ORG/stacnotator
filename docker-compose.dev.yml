@@ -1,0 +1,103 @@
+# Development Docker Compose Configuration (Standalone)
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+services:
+  # PostgreSQL Database with PostGIS
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: stacnotator-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stacnotator}
+      POSTGRES_USER: ${POSTGRES_USER:-stacnotator}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stacnotator} -d ${POSTGRES_DB:-stacnotator}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stacnotator-dev-network
+
+  # Backend API (Development with hot reload)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: backend-dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: ${POSTGRES_DB:-stacnotator}
+      DBUSER: ${POSTGRES_USER:-stacnotator}
+      DBPASS: ${POSTGRES_PASSWORD:-devpassword}
+      DBHOST: db
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-firebase}
+      FIREBASE_CREDENTIALS_PATH: /app/config/firebase-credentials.json
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
+      EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      ENVIRONMENT: development
+      LOG_LEVEL: debug
+    volumes:
+      # Mount source code for hot reloading
+      - ./backend/src:/app/src:ro
+      - ./backend/alembic:/app/alembic:ro
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/logging.ini:/app/logging.ini:ro
+      - ./backend/logs:/app/logs
+      # Mount credential files
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - stacnotator-dev-network
+    # Override command for development with hot reload
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+
+  # Frontend (Development with Vite HMR)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+    container_name: frontend-dev
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      # Mount source code for hot reloading
+      - ./frontend/app:/app/app:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      # Don't mount node_modules - use container's version
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - stacnotator-dev-network
+
+volumes:
+  postgres_data_dev:
+    driver: local
+
+networks:
+  stacnotator-dev-network:
+    driver: bridge

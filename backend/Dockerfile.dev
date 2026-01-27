@@ -1,0 +1,47 @@
+# Development Dockerfile with hot reload support
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+WORKDIR /app
+
+# Install system dependencies for geospatial packages and OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    gdal-bin \
+    libgdal-dev \
+    libproj-dev \
+    libgeos-dev \
+    libexpat1 \
+    libspatialindex-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgomp1 \
+    libgfortran5 \
+    libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies including dev dependencies
+RUN uv sync --frozen
+
+# Copy application code (source will be mounted as volume in dev)
+COPY . .
+
+# Create directories for config and logs
+RUN mkdir -p /app/config /app/logs
+
+# Add .venv to PATH
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+# Expose port
+EXPOSE 8000
+
+# Default command - can be overridden in docker-compose
+CMD uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug

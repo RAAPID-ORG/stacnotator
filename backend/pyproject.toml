@@ -1,0 +1,47 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "A Tool for Annotating Geospatial Imagery from STAC Catalogs"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.17.2",
+    "earthengine-api>=1.7.4",
+    "fastapi>=0.124.4",
+    "firebase-admin>=7.1.0",
+    "geoalchemy2>=0.18.1",
+    "geopandas>=1.0.1",
+    "pandas>=2.3.3",
+    "psutil",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-settings>=2.12.0",
+    "pyproj>=3.7.0",
+    "python-dateutil>=2.9.0",
+    "python-multipart>=0.0.21",
+    "shapely>=2.1.2",
+    "sqlalchemy>=2.0.45",
+    "uvicorn[standard]>=0.38.0",
+    "gunicorn>=23.0.0",
+    "pystac-client>=0.8.5",
+    "planetary-computer>=1.0.0",
+    "rasterio>=1.4.3",
+    "stackstac>=0.5.1",
+    "segment-geospatial[samgeo3]",
+    "sam3>=0.1.2",
+    "numpy>=1.26.0",
+    "xarray>=2024.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pre-commit>=4.5.0",
+    "pytest>=9.0.2",
+    "ruff>=0.14.9",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/env.py" = ["F403"]

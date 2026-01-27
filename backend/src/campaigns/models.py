@@ -1,0 +1,202 @@
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    String,
+    TIMESTAMP,
+    Text,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.campaigns.constants import CAMPAIGN_ROLE_ADMIN, CAMPAIGN_ROLE_MEMBER
+from src.database import Base
+from src.imagery.models import Imagery
+
+
+class Campaign(Base):
+    """
+    Represents an annotation campaign containing imagery, settings, tasks and annotations.
+    """
+
+    __tablename__ = "campaigns"
+    __table_args__ = {"schema": "data"}
+
+    # Primary key
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    # Campaign metadata
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=False),
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
+    mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=False)  # tasks or open-world
+
+    # Relationships
+    settings: Mapped["CampaignSettings"] = relationship(
+        back_populates="campaign",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    time_series: Mapped[list["TimeSeries"]] = relationship(  # noqa: F821
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+    )
+    users = relationship(
+        "CampaignUser",
+        cascade="all, delete-orphan",
+    )
+    task_items: Mapped[list["AnnotationTaskItem"]] = relationship(  # noqa: F821
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+    )
+    annotations: Mapped[list["Annotation"]] = relationship(  # noqa: F821
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+    )
+    imagery: Mapped[list["Imagery"]] = relationship(
+        "Imagery", back_populates="campaign", cascade="all, delete-orphan"
+    )
+    canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
+        "CanvasLayout",
+        foreign_keys="[CanvasLayout.campaign_id]",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+    )
+
+
+class CampaignSettings(Base):
+    """
+    Campaign configuration including labels that can be used for annotation and geographic bounding box.
+    """
+
+    __tablename__ = "settings"
+    __table_args__ = (
+        # Bounding box coordinate ranges
+        CheckConstraint("bbox_west BETWEEN -180 AND 180", name="settings_bbox_west_range"),
+        CheckConstraint("bbox_east BETWEEN -180 AND 180", name="settings_bbox_east_range"),
+        CheckConstraint("bbox_south BETWEEN -90 AND 90", name="settings_bbox_south_range"),
+        CheckConstraint("bbox_north BETWEEN -90 AND 90", name="settings_bbox_north_range"),
+        # Bounding box logical ordering
+        CheckConstraint("bbox_west < bbox_east", name="settings_bbox_lon_order"),
+        CheckConstraint("bbox_south < bbox_north", name="settings_bbox_lat_order"),
+        {"schema": "data"},
+    )
+
+    # Primary key (also foreign key)
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    # Settings data
+    labels: Mapped[dict] = mapped_column(
+        JSONB,
+        server_default="{}",
+        nullable=False,
+    )
+    bbox_west: Mapped[float] = mapped_column(nullable=False)
+    bbox_south: Mapped[float] = mapped_column(nullable=False)
+    bbox_east: Mapped[float] = mapped_column(nullable=False)
+    bbox_north: Mapped[float] = mapped_column(nullable=False)
+
+    # Relationships
+    campaign: Mapped["Campaign"] = relationship(back_populates="settings")
+
+
+class CanvasLayout(Base):
+    """
+    Stores UI canvas layout configuration for imagery or campaign settings.
+    Can be user-specific (personal layout) or serve as a default layout (is_default=True).
+
+    Layout types:
+    - Campaign main layout: campaign_id set, imagery_id NULL
+    - Imagery-specific layout: campaign_id set, imagery_id set
+    """
+
+    __tablename__ = "canvas_layouts"
+    __table_args__ = (
+        # Ensure default layouts are not personal (user_id must be NULL)
+        CheckConstraint(
+            "(is_default = false) OR (is_default = true AND user_id IS NULL)",
+            name="canvas_layouts_default_check",
+        ),
+        {"schema": "data"},
+    )
+
+    # Primary key
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    # Foreign keys
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    campaign_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    imagery_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("data.imagery.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+
+    # Whether this is the default layout (for user_id IS NULL)
+    is_default: Mapped[bool] = mapped_column(
+        server_default="false",
+        nullable=False,
+    )
+
+    # Layout data
+    layout_data: Mapped[list] = mapped_column(
+        JSONB,
+        server_default="[]",
+        nullable=False,
+    )
+
+    # Relationships
+    campaign: Mapped[Optional["Campaign"]] = relationship(
+        back_populates="canvas_layouts",
+    )
+    imagery: Mapped[Optional["Imagery"]] = relationship(
+        back_populates="canvas_layouts",
+    )
+
+
+class CampaignUser(Base):
+    """
+    Association table linking users to campaigns with role-based access.
+    """
+
+    __tablename__ = "campaign_users"
+    __table_args__ = (
+        CheckConstraint(
+            f"role IN ('{CAMPAIGN_ROLE_MEMBER}', '{CAMPAIGN_ROLE_ADMIN}')",
+            name="campaign_users_role_check",
+        ),
+        {"schema": "data"},
+    )
+
+    # Composite primary key
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    # User role in campaign
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Relationships
+    user: Mapped["User"] = relationship()  # noqa: F821

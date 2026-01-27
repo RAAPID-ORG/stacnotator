@@ -1,0 +1,15 @@
+.DS_Store
+.env
+node_modules/
+
+# React Router
+.react-router/
+build/
+
+*.log
+
+dist/
+
+.env.local
+
+openapi-ts*.log
