@@ -8,20 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     curl \
-    gdal-bin \
-    libgdal-dev \
-    libproj-dev \
-    libgeos-dev \
-    libexpat1 \
-    libspatialindex-dev \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    libgfortran5 \
-    libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files

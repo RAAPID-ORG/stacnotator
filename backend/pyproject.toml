@@ -22,14 +22,6 @@ dependencies = [
     "sqlalchemy>=2.0.45",
     "uvicorn[standard]>=0.38.0",
     "gunicorn>=23.0.0",
-    "pystac-client>=0.8.5",
-    "planetary-computer>=1.0.0",
-    "rasterio>=1.4.3",
-    "stackstac>=0.5.1",
-    "segment-geospatial[samgeo3]",
-    "sam3>=0.1.2",
-    "numpy>=1.26.0",
-    "xarray>=2024.1.0",
 ]
 
 [dependency-groups]

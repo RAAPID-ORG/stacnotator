@@ -7,20 +7,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    gdal-bin \
-    libgdal-dev \
-    libproj-dev \
-    libgeos-dev \
-    libexpat1 \
-    libspatialindex-dev \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    libgfortran5 \
-    libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -41,20 +27,6 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     postgresql-client \
-    gdal-bin \
-    libgdal36 \
-    libproj25 \
-    libgeos-c1v5 \
-    libexpat1 \
-    libspatialindex-c8 \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libgomp1 \
-    libgfortran5 \
-    libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
