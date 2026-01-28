@@ -11,9 +11,8 @@ from src.annotation.schema import (
     AnnotationOut,
     AnnotationTaskListOut,
     AnnotationUpdate,
-    AISegmentationRequest,
-    AISegmentationResponse,
 )
+
 from src.annotation import service
 from src.auth.dependencies import require_approved_user, require_authenticated_user
 from src.auth.models import User

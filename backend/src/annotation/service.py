@@ -18,8 +18,6 @@ from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask
 from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
 from src.campaigns.models import Campaign
-from src.annotation.ai_segmentation import auto_segment_location_s2
-
 
 # CSV import configuration
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
