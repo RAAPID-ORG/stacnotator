@@ -4,7 +4,7 @@ Scripts for deploying STAC Notator applications to Azure Container Apps.
 
 ## Prerequisites
 
-### 1. Infrastructure (Platform Engineers)
+### Infrastructure (Platform Engineers)
 
 **Infrastructure must be deployed first** by Platform Engineers using the `raapid-infra` Terraform repository.
 
@@ -16,40 +16,7 @@ The infrastructure includes:
 - Azure Key Vault with database credentials
 - Managed identities and RBAC permissions
 
-### 2. Application Secrets (Application Developers - ONE TIME)
-
-**Before first deployment**, application developers must:
-
-#### Step 1: Upload Secrets
-```bash
-# Set paths to your credential files
-export EE_CREDS="path/to/ee-private-key.json"
-export FIREBASE_CREDS="path/to/firebase-adminsdk.json"
-
-# Set Firebase client configuration (for frontend)
-export FIREBASE_API_KEY="your-api-key"
-export FIREBASE_AUTH_DOMAIN="your-app.firebaseapp.com"
-export FIREBASE_PROJECT_ID="your-project-id"
-
-# Upload all secrets to Key Vault
-./azure_deploy/upload-secrets.sh
-```
-
-**Note:** Firebase API keys are intentionally public and designed for client apps. Security is enforced via:
-- Authorized domains in Firebase Console
-- Firebase Authentication
-- Firebase Security Rules
-
-#### Step 2: Configure Container Apps to Use Secrets
-```bash
-./azure_deploy/configure-app-secrets.sh
-```
-
-This one-time setup:
-- Uploads Earth Engine and Firebase admin credentials to Key Vault
-- Uploads Firebase client configuration to Key Vault (used during frontend builds)
-- Configures backend container app to reference the secrets
-- Container apps automatically pick up secrets via Key Vault references
+### Logged into Azure CLI with sufficient RBAC permissions and within VPN.
 
 ## Developer Workflow
 
@@ -109,7 +76,7 @@ This script will:
 
 ### Environment Variables (Optional)
 
-To skip interactive prompts (useful for CI/CD):
+To skip interactive prompts (useful for CI/CD, once we et this up):
 
 ```bash
 export RESOURCE_GROUP="rg-stacnotator-prod-northeurope"
