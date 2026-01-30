@@ -356,6 +356,51 @@ def assign_tasks_to_users(db: Session, campaign_id: int, task_assignments: dict[
     db.commit()
 
 
+def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) -> int:
+    """
+    Delete multiple annotation tasks from a campaign.
+    
+    This will also delete any annotations associated with these tasks.
+    
+    Args:
+        db: Database session
+        campaign_id: ID of the campaign
+        task_ids: List of task IDs to delete
+        
+    Returns:
+        Number of tasks deleted
+        
+    Raises:
+        HTTPException: If tasks don't exist or don't belong to campaign
+    """
+    if not task_ids:
+        return 0
+    
+    # Verify all tasks belong to the campaign
+    stmt = select(AnnotationTaskItem).where(
+        AnnotationTaskItem.id.in_(task_ids),
+        AnnotationTaskItem.campaign_id == campaign_id
+    )
+    tasks = db.scalars(stmt).all()
+    
+    found_task_ids = {task.id for task in tasks}
+    missing_task_ids = set(task_ids) - found_task_ids
+    
+    if missing_task_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
+        )
+    
+    # Delete the tasks (annotations will be cascade deleted)
+    for task in tasks:
+        db.delete(task)
+    
+    db.commit()
+    
+    return len(tasks)
+
+
 def delete_campaign(db: Session, campaign_id: int) -> None:
     """
     Delete a campaign and all associated data.

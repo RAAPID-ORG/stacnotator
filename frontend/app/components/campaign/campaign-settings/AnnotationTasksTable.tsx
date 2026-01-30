@@ -7,6 +7,7 @@ interface AnnotationTasksTableProps {
   campaignUsers?: CampaignUserOut[];
   onAssignTasks?: (taskId: number, userId: string) => Promise<void>;
   onOpenBulkAssign?: () => void;
+  onDeleteTasks?: (taskIds: number[]) => Promise<void>;
 }
 
 export const AnnotationTasksTable = ({
@@ -14,9 +15,11 @@ export const AnnotationTasksTable = ({
   campaignUsers = [],
   onAssignTasks,
   onOpenBulkAssign,
+  onDeleteTasks,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleToggleTask = (taskId: number) => {
     setSelectedTasks((prev) => {
@@ -48,6 +51,18 @@ export const AnnotationTasksTable = ({
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (!onDeleteTasks || selectedTasks.size === 0) return;
+    
+    try {
+      setIsDeleting(true);
+      await onDeleteTasks(Array.from(selectedTasks));
+      setSelectedTasks(new Set()); // Clear selection after successful delete
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'done':
@@ -72,17 +87,30 @@ export const AnnotationTasksTable = ({
   return (
     <div className="space-y-4">
       {/* Action Bar */}
+
       {onOpenBulkAssign && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-neutral-600">
             {selectedTasks.size > 0 && <span>{selectedTasks.size} task(s) selected</span>}
           </div>
-          <button
-            onClick={onOpenBulkAssign}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
-          >
-            Bulk Assign Tasks
-          </button>
+          <div className="flex items-center gap-2">
+            {onDeleteTasks && (
+              <button
+                onClick={handleDeleteSelected}
+                disabled={selectedTasks.size === 0 || isDeleting}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Selected'}
+              </button>
+            )}
+            <button
+              onClick={onOpenBulkAssign}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              Bulk Assign Tasks
+            </button>
+          </div>
         </div>
       )}
 

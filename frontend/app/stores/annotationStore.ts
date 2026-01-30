@@ -72,9 +72,9 @@ interface AnnotationStore {
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
 
-  // Synchronized map state (for open mode)
+  // Synchronized map state (used for both open mode and task mode)
   currentMapCenter: [number, number] | null; // Current center of the main map [lat, lon]
-  currentMapZoom: number | null; // Current zoom level
+  currentMapZoom: number | null; // Current zoom level (persists across slice/window changes, resets on task navigation)
   currentMapBounds: [number, number, number, number] | null; // Current visible bounds [west, south, east, north]
 
   // Annotation form state
@@ -118,7 +118,7 @@ interface AnnotationStore {
   triggerZoomOut: () => void;
   triggerPan: (direction: 'up' | 'down' | 'left' | 'right') => void;
 
-  // Synchronized map actions (for open mode)
+  // Synchronized map actions (used for both modes)
   setMapCenter: (center: [number, number]) => void;
   setMapZoom: (zoom: number) => void;
   setMapBounds: (bounds: [number, number, number, number]) => void;
@@ -455,6 +455,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
       selectedLabelId: null,
       comment: '',
+      currentMapZoom: null, // Reset zoom when moving to new task
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -482,6 +483,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
       selectedLabelId: null,
       comment: '',
+      currentMapZoom: null, // Reset zoom when moving to new task
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -510,6 +512,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         windowSliceIndices: {},
         selectedLabelId: null,
         comment: '',
+        currentMapZoom: null, // Reset zoom when moving to new task
       });
 
       // Clear navigating flag after a delay to allow maps to update
@@ -687,7 +690,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       panTrigger: { direction, count: state.panTrigger.count + 1 },
     })),
 
-  // Synchronized map actions (for open mode)
+  // Synchronized map actions (used for both modes)
   setMapCenter: (center) => set({ currentMapCenter: center }),
 
   setMapZoom: (zoom) => set({ currentMapZoom: zoom }),

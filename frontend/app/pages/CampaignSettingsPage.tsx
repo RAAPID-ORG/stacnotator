@@ -25,6 +25,7 @@ import {
   getCampaignUsers,
   ingestAnnotationTaskFromCsv,
   assignTasksToUsers,
+  deleteAnnotationTasks,
   deleteCampaign,
   deleteTimeseries,
   type AnnotationTaskItemOut,
@@ -439,6 +440,34 @@ export const CampaignSettingsPage = () => {
       setShowAssignmentModal(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to assign tasks';
+      showAlert(message, 'error');
+      console.error(err);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTasks = async (taskIds: number[]) => {
+    if (taskIds.length === 0) {
+      showAlert('No tasks selected', 'error');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await deleteAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+        body: { task_ids: taskIds },
+      });
+
+      // Remove deleted tasks from local state
+      setAnnotationTasks((tasks) => tasks.filter((task) => !taskIds.includes(task.id)));
+
+      showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete tasks';
       showAlert(message, 'error');
       console.error(err);
       throw err;
@@ -894,6 +923,7 @@ export const CampaignSettingsPage = () => {
                       campaignUsers={campaignUsers}
                       onAssignTasks={handleAssignSingleTask}
                       onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                      onDeleteTasks={handleDeleteTasks}
                     />
                   ) : (
                     <p className="text-sm text-neutral-500">

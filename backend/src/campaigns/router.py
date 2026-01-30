@@ -15,6 +15,7 @@ from src.campaigns.schemas import (
     CampaignOutWithImageryWindows,
     CampaignUsersResponse,
     CampaignsListResponse,
+    DeleteAnnotationTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignNameRequest,
 )
@@ -199,6 +200,21 @@ def assign_tasks_to_users(
     """Assign multiple annotation tasks to different users in bulk"""
     service.assign_tasks_to_users(db, campaign_id, req.task_assignments)
     return {"message": f"Successfully assigned {len(req.task_assignments)} tasks"}
+
+
+@router.delete(
+    "/{campaign_id}/annotation-tasks",
+    status_code=200,
+)
+def delete_annotation_tasks(
+    campaign_id: int,
+    req: DeleteAnnotationTasksRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Delete multiple annotation tasks from a campaign"""
+    deleted_count = service.delete_annotation_tasks(db, campaign_id, req.task_ids)
+    return {"message": f"Successfully deleted {deleted_count} task(s)"}
 
 
 # TODO add user-personal imagery overwrites (layout+settings (e.g date/zoomlevel/crosshair/windowing))

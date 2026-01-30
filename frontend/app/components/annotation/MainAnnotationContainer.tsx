@@ -115,13 +115,15 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
   // Determine zoom level
   const zoom = useMemo(() => {
-    if (isOpenMode && currentMapZoom !== null) {
+    // Use currentMapZoom if available (persists across slice/window changes)
+    if (currentMapZoom !== null) {
       return currentMapZoom;
     }
+    // Otherwise use default zoom
     return selectedImagery.default_zoom;
-  }, [isOpenMode, currentMapZoom, selectedImagery.default_zoom]);
+  }, [currentMapZoom, selectedImagery.default_zoom]);
 
-  // Callback for when the main map moves (only in open mode)
+  // Callback for when the main map moves
   const handleMapMove = (
     newCenter: [number, number],
     newZoom: number,
@@ -131,6 +133,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       setMapCenter(newCenter);
       setMapZoom(newZoom);
       setMapBounds(newBounds);
+    } else {
+      // In task mode, only track zoom (center is determined by task)
+      setMapZoom(newZoom);
     }
   };
 
@@ -354,6 +359,8 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               zoomOutTrigger={zoomOutTrigger}
               panTrigger={panTrigger}
               enableTileBuffering={true}
+              onMapMove={handleMapMove}
+              syncMapState={true}
             />
           ))}
 

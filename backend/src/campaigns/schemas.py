@@ -198,3 +198,11 @@ class AssignTasksToUsersRequest(BaseModel):
     """
 
     task_assignments: dict[int, UUID]
+
+
+class DeleteAnnotationTasksRequest(BaseModel):
+    """
+    Request to delete multiple annotation tasks.
+    """
+
+    task_ids: list[int]
