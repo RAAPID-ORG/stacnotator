@@ -1,5 +1,5 @@
 import io
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 
@@ -8,7 +8,7 @@ import numpy as np
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
 from sqlalchemy import insert, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
@@ -22,6 +22,70 @@ from src.campaigns.models import Campaign
 # CSV import configuration
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
+
+
+# ============================================================================
+# Task Retrieval
+# ============================================================================
+
+
+def get_annotation_task_by_id(
+    db: Session,
+    task_id: int,
+    campaign_id: int,
+) -> Optional[AnnotationTaskItem]:
+    """
+    Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
+    
+    Args:
+        db: Database session
+        task_id: ID of the task
+        campaign_id: ID of the campaign (for validation)
+        
+    Returns:
+        Annotation task item or None if not found
+    """
+    stmt = (
+        select(AnnotationTaskItem)
+        .where(
+            AnnotationTaskItem.id == task_id,
+            AnnotationTaskItem.campaign_id == campaign_id,
+        )
+    )
+    
+    return db.scalar(stmt)
+
+
+def get_annotation_tasks_for_campaign(
+    db: Session,
+    campaign_id: int,
+) -> List[AnnotationTaskItem]:
+    """
+    Retrieve all annotation tasks for a campaign with eager loading
+    to avoid N+1 query problem.
+    
+    This loads all related data (geometry, assigned user, annotation) 
+    in a single optimized query.
+    
+    Args:
+        db: Database session
+        campaign_id: ID of the campaign
+        
+    Returns:
+        List of annotation task items with all relationships loaded
+    """
+    stmt = (
+        select(AnnotationTaskItem)
+        .where(AnnotationTaskItem.campaign_id == campaign_id)
+        .options(
+            joinedload(AnnotationTaskItem.geometry),
+            joinedload(AnnotationTaskItem.assigned_user),
+            joinedload(AnnotationTaskItem.annotation),
+        )
+        .order_by(AnnotationTaskItem.annotation_number)
+    )
+    
+    return db.scalars(stmt).unique().all()
 
 
 # ============================================================================
@@ -351,9 +415,10 @@ def get_annotations_for_campaign(
     campaign_id: int,
 ) -> list[Annotation]:
     """
-    Retrieve all annotations for a specific campaign.
+    Retrieve all annotations for a specific campaign with eager loading.
 
     Returns both task-based and standalone annotations for the given campaign.
+    Uses eager loading to avoid N+1 query problem.
 
     Args:
         db: Database session
@@ -362,9 +427,14 @@ def get_annotations_for_campaign(
     Returns:
         List of all annotation records for the campaign
     """
-    annotations = (
-        db.execute(select(Annotation).where(Annotation.campaign_id == campaign_id)).scalars().all()
+    stmt = (
+        select(Annotation)
+        .where(Annotation.campaign_id == campaign_id)
+        .options(
+            joinedload(Annotation.geometry),
+        )
     )
+    annotations = db.scalars(stmt).unique().all()
 
     return list(annotations)
 
@@ -465,12 +535,17 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
         user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
         return user.email if user else None
 
-    # Query all annotation tasks
-    task_items = (
-        db.execute(select(AnnotationTaskItem).where(AnnotationTaskItem.campaign_id == campaign.id))
-        .scalars()
-        .all()
+    # Query all annotation tasks with eager loading to avoid N+1 queries
+    stmt = (
+        select(AnnotationTaskItem)
+        .where(AnnotationTaskItem.campaign_id == campaign.id)
+        .options(
+            joinedload(AnnotationTaskItem.geometry),
+            joinedload(AnnotationTaskItem.assigned_user),
+            joinedload(AnnotationTaskItem.annotation),
+        )
     )
+    task_items = db.scalars(stmt).unique().all()
 
     export_records = []
 
@@ -507,17 +582,18 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
 
         export_records.append(record)
 
-    # Query standalone annotations (not linked to tasks)
-    standalone_annotations = (
-        db.execute(
-            select(Annotation).where(
-                Annotation.campaign_id == campaign.id,
-                Annotation.annotation_task_item_id.is_(None),
-            )
+    # Query standalone annotations (not linked to tasks) with eager loading
+    stmt = (
+        select(Annotation)
+        .where(
+            Annotation.campaign_id == campaign.id,
+            Annotation.annotation_task_item_id.is_(None),
         )
-        .scalars()
-        .all()
+        .options(
+            joinedload(Annotation.geometry),
+        )
     )
+    standalone_annotations = db.scalars(stmt).unique().all()
 
     # Process standalone annotations
     for annotation in standalone_annotations:

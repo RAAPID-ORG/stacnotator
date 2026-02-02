@@ -127,9 +127,12 @@ def make_user_campaign_admin(
 @router.get("/{campaign_id}/users", response_model=CampaignUsersResponse)
 def get_campaign_users(
     campaign_id: int,
+    db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    return CampaignUsersResponse(campaign_id=campaign.id, users=campaign.users)
+    # Use optimized query with eager loading
+    users = service.get_campaign_users_with_roles(db, campaign_id)
+    return CampaignUsersResponse(campaign_id=campaign.id, users=users)
 
 
 @router.patch("/{campaign_id}/name", response_model=CampaignOut)

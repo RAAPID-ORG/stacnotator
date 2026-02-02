@@ -34,9 +34,11 @@ router = APIRouter(
 
 @router.get("/campaigns/{campaign_id}/annotation-tasks", response_model=AnnotationTaskListOut)
 def get_all_annotation_tasks(
-    db=Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    tasks = campaign.task_items
+    tasks = service.get_annotation_tasks_for_campaign(db, campaign_id)
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -52,10 +54,11 @@ def complete_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> None:
-    # Validate task exists in campaign
-    annotation_task = next(
-        (task for task in campaign.task_items if task.id == annotation_task_id),
-        None,
+    # Get the specific task efficiently
+    annotation_task = service.get_annotation_task_by_id(
+        db=db,
+        task_id=annotation_task_id,
+        campaign_id=campaign_id,
     )
 
     if annotation_task is None:

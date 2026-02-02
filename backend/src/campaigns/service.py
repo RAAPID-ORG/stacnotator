@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm.attributes import flag_modified
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.auth.models import User
 from src.auth.service import is_admin as is_global_admin
@@ -21,7 +21,6 @@ from src.campaigns.models import (
     CanvasLayout,
 )
 from src.campaigns.schemas import CampaignSettingsCreate
-from sqlalchemy.orm import joinedload
 from src.imagery.models import Imagery
 from src.annotation.models import AnnotationTaskItem
 from src.imagery.service import create_imagery_with_layouts_bulk_no_commit
@@ -32,6 +31,26 @@ from src.timeseries.models import TimeSeries
 # ============================================================================
 # Campaign Management
 # ============================================================================
+
+
+def get_campaign_users_with_roles(db: Session, campaign_id: int) -> List[CampaignUser]:
+    """
+    Retrieve all users for a campaign with eager loading to avoid N+1 queries.
+    
+    Args:
+        db: Database session
+        campaign_id: ID of the campaign
+        
+    Returns:
+        List of campaign user associations with user data loaded
+    """
+    stmt = (
+        select(CampaignUser)
+        .where(CampaignUser.campaign_id == campaign_id)
+        .options(joinedload(CampaignUser.user))
+    )
+    
+    return db.scalars(stmt).unique().all()
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: int) -> List[dict]:
