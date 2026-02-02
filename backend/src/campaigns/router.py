@@ -130,7 +130,6 @@ def get_campaign_users(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    # Use optimized query with eager loading
     users = service.get_campaign_users_with_roles(db, campaign_id)
     return CampaignUsersResponse(campaign_id=campaign.id, users=users)
 

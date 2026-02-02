@@ -418,7 +418,6 @@ def get_annotations_for_campaign(
     Retrieve all annotations for a specific campaign with eager loading.
 
     Returns both task-based and standalone annotations for the given campaign.
-    Uses eager loading to avoid N+1 query problem.
 
     Args:
         db: Database session
@@ -535,7 +534,7 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
         user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
         return user.email if user else None
 
-    # Query all annotation tasks with eager loading to avoid N+1 queries
+
     stmt = (
         select(AnnotationTaskItem)
         .where(AnnotationTaskItem.campaign_id == campaign.id)
@@ -582,7 +581,6 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
 
         export_records.append(record)
 
-    # Query standalone annotations (not linked to tasks) with eager loading
     stmt = (
         select(Annotation)
         .where(

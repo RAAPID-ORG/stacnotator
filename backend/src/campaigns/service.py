@@ -35,7 +35,6 @@ from src.timeseries.models import TimeSeries
 
 def get_campaign_users_with_roles(db: Session, campaign_id: int) -> List[CampaignUser]:
     """
-    Retrieve all users for a campaign with eager loading to avoid N+1 queries.
     
     Args:
         db: Database session
