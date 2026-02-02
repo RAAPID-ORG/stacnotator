@@ -22,6 +22,8 @@ The infrastructure includes:
 
 ### First-Time Setup (ONE TIME)
 
+**IMPORTANT** Deployments can only happen from whitelisted IPs!
+
 After infrastructure is deployed by Platform Engineers:
 
 ```bash
