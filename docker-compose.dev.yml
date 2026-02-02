@@ -55,6 +55,7 @@ services:
       - ./backend/alembic:/app/alembic:ro
       - ./backend/alembic.ini:/app/alembic.ini:ro
       - ./backend/logging.ini:/app/logging.ini:ro
+      - ./backend/seed_dev_data.py:/app/seed_dev_data.py:ro
       - ./backend/logs:/app/logs
       # Mount credential files
       - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro

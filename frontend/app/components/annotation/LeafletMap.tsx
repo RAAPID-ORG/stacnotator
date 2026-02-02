@@ -242,24 +242,32 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
-        maxZoom = 19;
+        subdomains = undefined; // ESRI doesn't use subdomains
+        maxZoom = 24;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
         attribution =
           '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
         subdomains = ['a', 'b', 'c', 'd', 'e'];
-        maxZoom = 19;
+        maxZoom = 24;
       }
 
-      basemapLayerRef.current = L.tileLayer(url, {
+      const options: L.TileLayerOptions = {
         attribution,
-        subdomains,
+        minZoom: 0,
         maxZoom,
         keepBuffer: enableTileBuffering ? 5 : 0,
         edgeBufferTiles: enableTileBuffering ? 2 : 0,
         updateWhenIdle: !enableTileBuffering,
-      }).addTo(mapRef.current);
+      };
+
+      // Only add subdomains if they exist
+      if (subdomains) {
+        options.subdomains = subdomains;
+      }
+
+      basemapLayerRef.current = L.tileLayer(url, options).addTo(mapRef.current);
     }
 
     return () => {
@@ -281,6 +289,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     if (tileUrl) {
       tileLayerRef.current = L.tileLayer(tileUrl, {
         attribution: '', // Remove attribution text
+        minZoom: 0,
         maxZoom: 24,
         // Only enable tile buffering for main map to reduce memory usage
         keepBuffer: enableTileBuffering ? 5 : 0,

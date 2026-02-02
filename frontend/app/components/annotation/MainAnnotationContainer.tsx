@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { extractLatLonFromWKT, computeTimeSlices } from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
 import AnnotationControls from './AnnotationControls';
@@ -88,9 +88,17 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     setShowBasemap(false);
   };
 
-  const handleBasemapSelect = () => {
+  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery') => {
     setShowBasemap(true);
+    setBasemapType(type);
   };
+
+  // Auto-switch back to imagery layer when window or slice changes
+  useEffect(() => {
+    if (showBasemap && (activeWindowId || activeSliceIndex !== undefined)) {
+      setShowBasemap(false);
+    }
+  }, [activeWindowId, activeSliceIndex]);
 
   // Extract coordinates from current task - memoized to prevent unnecessary recalculations
   const latLon = useMemo(
@@ -183,6 +191,11 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   // Get the tile URL for the selected layer
   const selectedTileUrl = tileUrls[selectedLayerIndex]?.url || '';
 
+  // Get the current layer name for display
+  const currentLayerName = showBasemap
+    ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : 'CartoDB Light')
+    : (tileUrls[selectedLayerIndex]?.name || 'Layer');
+
   return (
     <div className="relative flex-1 bg-neutral-200 text-white text-xs overflow-hidden flex">
       {/* Timeline Sidebar - hidden when basemap is active to avoid confusion*/}
@@ -241,7 +254,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                 <path d="M2 10L10 14L18 10" />
                 <path d="M2 14L10 18L18 14" />
               </svg>
-              Layers
+              {currentLayerName}
             </button>
 
             {showLayerDropdown && (
@@ -271,37 +284,36 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
                 <div className="border-t border-neutral-300 my-1"></div>
 
-                {/* Basemap option */}
+                {/* Basemap options */}
                 <label
                   className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
-                    ${showBasemap ? 'bg-neutral-100 text-brand-700' : ''}
+                    ${showBasemap && basemapType === 'carto-light' ? 'bg-neutral-100 text-brand-700' : ''}
                   `}
                 >
                   <input
                     type="radio"
                     name="layer"
-                    checked={showBasemap}
-                    onChange={handleBasemapSelect}
-                    className={`mr-2 accent-brand-500${showBasemap ? '' : ' hover:accent-brand-500'}`}
+                    checked={showBasemap && basemapType === 'carto-light'}
+                    onChange={() => handleBasemapSelect('carto-light')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'carto-light' ? '' : ' hover:accent-brand-500'}`}
                   />
-                  <span>Basemap</span>
+                  <span>CartoDB Light</span>
                 </label>
 
-                {/* Basemap type selector - shown when basemap is active */}
-                {showBasemap && (
-                  <div className="px-3 pb-2 pt-1">
-                    <select
-                      value={basemapType}
-                      onChange={(e) =>
-                        setBasemapType(e.target.value as 'carto-light' | 'esri-world-imagery')
-                      }
-                      className="w-full text-xs px-2 py-1 bg-white border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    >
-                      <option value="carto-light">CartoDB Light</option>
-                      <option value="esri-world-imagery">ESRI World Imagery</option>
-                    </select>
-                  </div>
-                )}
+                <label
+                  className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
+                    ${showBasemap && basemapType === 'esri-world-imagery' ? 'bg-neutral-100 text-brand-700' : ''}
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="layer"
+                    checked={showBasemap && basemapType === 'esri-world-imagery'}
+                    onChange={() => handleBasemapSelect('esri-world-imagery')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'esri-world-imagery' ? '' : ' hover:accent-brand-500'}`}
+                  />
+                  <span>ESRI World Imagery</span>
+                </label>
               </div>
             )}
           </div>

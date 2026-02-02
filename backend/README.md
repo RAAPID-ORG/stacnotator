@@ -2,6 +2,26 @@
 
 Backend API for annotating geospatial imagery from STAC catalogs.
 
+## Development Quick Start
+
+The easiest way to get started is using the Makefile commands from the project root:
+
+```bash
+# Initialize and start everything (includes database seeding)
+make dev-init
+
+# Or if already initialized, just seed the database
+make dev-seed
+
+# Reset database completely (drop, recreate, migrate, seed)
+make dev-reset
+
+# Clear seed data only
+make dev-seed-clear
+```
+
+## Manual Setup
+
 **DEPRECATED NEED TO UPDATE**
 
 ## Setup

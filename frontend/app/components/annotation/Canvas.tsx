@@ -43,6 +43,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
   const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
   const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const basemapType = useAnnotationStore((state) => state.basemapType);
   const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
   const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
   const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
@@ -139,40 +140,56 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     [latLon?.lat, latLon?.lon]
   );
 
-  const renderMainHeader = () => (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 text-xs text-neutral-900">
-        {showBasemap ? (
-          <span>Basemap</span>
-        ) : (
-          <>
-            {activeSlice ? (
-              <span>{activeSlice.label}</span>
-            ) : (
-              activeWindow && (
-                <span>
-                  {formatWindowLabel(
-                    activeWindow.window_start_date,
-                    activeWindow.window_end_date,
-                    selectedImagery?.window_unit || null
-                  )}
+  const renderMainHeader = () => {
+    // Get the current layer name
+    const currentLayerName = showBasemap
+      ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : 'CartoDB Light')
+      : visualizationName || 'Layer';
+
+    return (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-neutral-900">
+          {/* Always show layer name */}
+          <span className="font-medium">{currentLayerName}</span>
+          
+          {/* Show imagery source and dates if not basemap */}
+          {!showBasemap && selectedImagery && (
+            <>
+              <span className="text-neutral-400">·</span>
+              <span className="text-neutral-600">{selectedImagery.name}</span>
+              {activeSlice ? (
+                <>
+                  <span className="text-neutral-400">·</span>
+                  <span className="text-neutral-600">{activeSlice.label}</span>
+                </>
+              ) : (
+                activeWindow && (
+                  <>
+                    <span className="text-neutral-400">·</span>
+                    <span className="text-neutral-600">
+                      {formatWindowLabel(
+                        activeWindow.window_start_date,
+                        activeWindow.window_end_date,
+                        selectedImagery.window_unit || null
+                      )}
+                    </span>
+                  </>
+                )
+              )}
+              {slices.length > 1 && (
+                <span className="text-neutral-500">
+                  ({activeSliceIndex + 1}/{slices.length})
                 </span>
-              )
-            )}
-            {slices.length > 1 && (
-              <span className="text-neutral-500">
-                ({activeSliceIndex + 1}/{slices.length})
-              </span>
-            )}
-            {!showBasemap && visualizationName && <span> - {visualizationName}</span>}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
+        <div className="text-xs text-neutral-900">
+          {completedTasksForCounter}/{totalTasksForCounter} tasks done
+        </div>
       </div>
-      <div className="text-xs text-neutral-900">
-        {completedTasksForCounter}/{totalTasksForCounter} tasks done
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderMinimapHeader = () => (
     <div className="flex flex-col gap-0">

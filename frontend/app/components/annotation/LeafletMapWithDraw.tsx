@@ -413,22 +413,28 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
-        maxZoom = 19;
+        maxZoom = 24;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
         attribution =
           '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
         subdomains = ['a', 'b', 'c', 'd', 'e'];
-        maxZoom = 19;
+        maxZoom = 24;
       }
 
-      basemapLayerRef.current = L.tileLayer(url, {
+      const options: L.TileLayerOptions = {
         attribution,
-        subdomains,
+        minZoom: 0,
         maxZoom,
         edgeBufferTiles: 2,
-      }).addTo(mapRef.current);
+      };
+
+      if (subdomains) {
+        options.subdomains = subdomains;
+      }
+
+      basemapLayerRef.current = L.tileLayer(url, options).addTo(mapRef.current);
     }
 
     return () => {
@@ -450,7 +456,8 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     if (tileUrl) {
       tileLayerRef.current = L.tileLayer(tileUrl, {
         attribution: '',
-        maxZoom: 19,
+        minZoom: 0,
+        maxZoom: 24,
         keepBuffer: 5,
         edgeBufferTiles: 2,
         updateWhenIdle: false,
