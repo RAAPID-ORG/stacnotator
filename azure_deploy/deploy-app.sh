@@ -143,6 +143,78 @@ echo ""
 
 KV_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
 
+# =========================================
+# Database Backup
+# =========================================
+echo -e "${YELLOW}Creating database backup before deployment...${NC}"
+
+# Get database connection info from Key Vault
+echo -e "${BLUE}  Fetching database credentials from Key Vault...${NC}"
+DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-host" --query "value" -o tsv 2>/dev/null || echo "")
+DB_NAME=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-name" --query "value" -o tsv 2>/dev/null || echo "")
+DB_USER=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-user" --query "value" -o tsv 2>/dev/null || echo "")
+DB_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-password" --query "value" -o tsv 2>/dev/null || echo "")
+
+if [ -z "$DB_HOST" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+    echo -e "${YELLOW}Warning: Could not retrieve database credentials from Key Vault${NC}"
+    echo -e "${YELLOW}Skipping database backup${NC}"
+else
+    echo -e "${GREEN}✓ Credentials retrieved${NC}"
+    echo -e "${BLUE}  Database: $DB_NAME on $DB_HOST${NC}"
+    
+    # Create backup directory if it doesn't exist
+    BACKUP_DIR="./azure_deploy/backups"
+    mkdir -p "$BACKUP_DIR"
+    
+    # Generate backup filename with timestamp and image tag
+    BACKUP_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+    BACKUP_FILE="$BACKUP_DIR/stacnotator-backup-${BACKUP_TIMESTAMP}-pre-${IMAGE_TAG}.sql"
+    
+    echo -e "${BLUE}  Creating backup: $BACKUP_FILE${NC}"
+    
+    # Use pg_dump via docker to create backup
+    # Redirect stderr to prevent password leaks in logs
+    if docker run --rm \
+        -e PGPASSWORD="$DB_PASSWORD" \
+        postgres:15-alpine \
+        pg_dump \
+        -h "$DB_HOST" \
+        -U "$DB_USER" \
+        -d "$DB_NAME" \
+        --no-owner \
+        --no-acl \
+        --clean \
+        --if-exists \
+        > "$BACKUP_FILE" 2>&1 | grep -v "PGPASSWORD\|password" > /dev/null; then
+        
+        # Compress the backup
+        echo -e "${BLUE}  Compressing backup...${NC}"
+        gzip "$BACKUP_FILE"
+        BACKUP_FILE="${BACKUP_FILE}.gz"
+        
+        # Get backup size
+        BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+        echo -e "${GREEN}✓ Database backup created: $BACKUP_FILE ($BACKUP_SIZE)${NC}"
+        
+        # Keep only last 10 backups
+        echo -e "${BLUE}  Cleaning up old backups (keeping last 10)...${NC}"
+        cd "$BACKUP_DIR"
+        ls -t stacnotator-backup-*.sql.gz 2>/dev/null | tail -n +11 | xargs -r rm
+        BACKUP_COUNT=$(ls -1 stacnotator-backup-*.sql.gz 2>/dev/null | wc -l)
+        echo -e "${GREEN}✓ $BACKUP_COUNT backup(s) retained${NC}"
+        cd - > /dev/null
+        
+        echo ""
+        echo -e "${BLUE}To restore this backup later, use the restore script:${NC}"
+        echo -e "  ./azure_deploy/restore-backup.sh $BACKUP_FILE"
+        echo ""
+    else
+        echo -e "${YELLOW}Warning: Database backup failed${NC}"
+        echo -e "${YELLOW}Continuing with deployment...${NC}"
+    fi
+fi
+echo ""
+
 # Build and push backend
 echo -e "${YELLOW}Logging in to ACR...${NC}"
 az acr login --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP"
