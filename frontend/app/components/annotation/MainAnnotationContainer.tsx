@@ -34,6 +34,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
   const activeTool = useAnnotationStore((state) => state.activeTool);
   const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const basemapType = useAnnotationStore((state) => state.basemapType);
   const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
   const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
   const zoomInTrigger = useAnnotationStore((state) => state.zoomInTrigger);
@@ -47,6 +48,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
   const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
   const nextTask = useAnnotationStore((state) => state.nextTask);
@@ -284,6 +286,22 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                   />
                   <span>Basemap</span>
                 </label>
+
+                {/* Basemap type selector - shown when basemap is active */}
+                {showBasemap && (
+                  <div className="px-3 pb-2 pt-1">
+                    <select
+                      value={basemapType}
+                      onChange={(e) =>
+                        setBasemapType(e.target.value as 'carto-light' | 'esri-world-imagery')
+                      }
+                      className="w-full text-xs px-2 py-1 bg-white border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    >
+                      <option value="carto-light">CartoDB Light</option>
+                      <option value="esri-world-imagery">ESRI World Imagery</option>
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -324,6 +342,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               crosshairColor={selectedImagery.crosshair_hex6}
               refocusTrigger={refocusTrigger}
               showBasemap={showBasemap}
+              basemapType={basemapType}
               zoomInTrigger={zoomInTrigger}
               zoomOutTrigger={zoomOutTrigger}
               panTrigger={panTrigger}
@@ -355,6 +374,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               crosshairColor={selectedImagery.crosshair_hex6}
               refocusTrigger={refocusTrigger}
               showBasemap={showBasemap}
+              basemapType={basemapType}
               zoomInTrigger={zoomInTrigger}
               zoomOutTrigger={zoomOutTrigger}
               panTrigger={panTrigger}

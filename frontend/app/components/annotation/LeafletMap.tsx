@@ -10,6 +10,7 @@ interface LeafletMapProps {
   crosshairColor: string;
   refocusTrigger?: number;
   showBasemap?: boolean;
+  basemapType?: 'carto-light' | 'esri-world-imagery';
   zoomInTrigger?: number;
   zoomOutTrigger?: number;
   panTrigger?: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
@@ -33,6 +34,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   crosshairColor,
   refocusTrigger,
   showBasemap = false,
+  basemapType = 'carto-light',
   zoomInTrigger,
   zoomOutTrigger,
   panTrigger,
@@ -230,18 +232,34 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     }
 
     if (showBasemap) {
-      basemapLayerRef.current = L.tileLayer(
-        'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        {
-          attribution:
-            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: ['a', 'b', 'c', 'd', 'e'],
-          maxZoom: 19,
-          keepBuffer: enableTileBuffering ? 5 : 0,
-          edgeBufferTiles: enableTileBuffering ? 2 : 0,
-          updateWhenIdle: !enableTileBuffering,
-        }
-      ).addTo(mapRef.current);
+      let url: string;
+      let attribution: string;
+      let subdomains: string[] | undefined;
+      let maxZoom: number;
+
+      if (basemapType === 'esri-world-imagery') {
+        url =
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        attribution =
+          'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
+        maxZoom = 19;
+      } else {
+        // carto-light (default)
+        url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+        attribution =
+          '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
+        subdomains = ['a', 'b', 'c', 'd', 'e'];
+        maxZoom = 19;
+      }
+
+      basemapLayerRef.current = L.tileLayer(url, {
+        attribution,
+        subdomains,
+        maxZoom,
+        keepBuffer: enableTileBuffering ? 5 : 0,
+        edgeBufferTiles: enableTileBuffering ? 2 : 0,
+        updateWhenIdle: !enableTileBuffering,
+      }).addTo(mapRef.current);
     }
 
     return () => {
@@ -250,7 +268,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         basemapLayerRef.current = null;
       }
     };
-  }, [showBasemap]);
+  }, [showBasemap, basemapType]);
 
   // Update tile layer
   useEffect(() => {

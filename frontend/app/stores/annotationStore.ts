@@ -62,6 +62,7 @@ interface AnnotationStore {
   selectedImageryId: number | null;
   selectedLayerIndex: number;
   showBasemap: boolean;
+  basemapType: 'carto-light' | 'esri-world-imagery';
   activeWindowId: number | null;
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
@@ -108,6 +109,7 @@ interface AnnotationStore {
   setSelectedImageryId: (id: number | null) => void;
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
+  setBasemapType: (type: 'carto-light' | 'esri-world-imagery') => void;
   setActiveWindowId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setWindowSliceIndex: (windowId: number, index: number) => void;
@@ -168,6 +170,7 @@ const initialState = {
   selectedImageryId: null,
   selectedLayerIndex: 0,
   showBasemap: false,
+  basemapType: 'carto-light' as const,
   activeWindowId: null,
   activeSliceIndex: 0,
   windowSliceIndices: {} as Record<number, number>,
@@ -654,6 +657,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     }),
 
   setShowBasemap: (show) => set({ showBasemap: show }),
+
+  setBasemapType: (type) => set({ basemapType: type }),
 
   setActiveWindowId: (id) =>
     set((state) => {
