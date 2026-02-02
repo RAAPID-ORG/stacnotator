@@ -1,6 +1,5 @@
-CAMPAIGN_ROLE_MEMBER = "member"
-CAMPAIGN_ROLE_ADMIN = "admin"
 DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT = [
-    {"i": "main", "x": 0, "y": 0, "w": 50, "h": 20},
-    {"i": "minimap", "x": 50, "y": 0, "w": 10, "h": 7},
+    {"i": "main", "x": 0, "y": 0, "w": 48, "h": 20},
+    {"i": "minimap", "x": 48, "y": 0, "w": 12, "h": 7},
+    {"i": "controls", "x": 48, "y": 7, "w": 12, "h": 13},
 ]

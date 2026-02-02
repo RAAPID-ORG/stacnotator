@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
+from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.schema import (
     AnnotationCreate,
@@ -14,12 +15,12 @@ from src.annotation.schema import (
 )
 
 from src.annotation import service
+from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
 from src.auth.dependencies import require_approved_user, require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-from sqlalchemy.orm import Session
 
 from src.utils import clean_filename, FunctionNameOperationIdRoute
 
@@ -32,11 +33,35 @@ router = APIRouter(
 )
 
 
+# ============================================================================
+# Task-Based Annotation
+# ============================================================================
+
 @router.get("/campaigns/{campaign_id}/annotation-tasks", response_model=AnnotationTaskListOut)
 def get_all_annotation_tasks(
-    db=Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
+    db: Session = Depends(get_db), 
+    campaign: Campaign = Depends(require_campaign_access)
 ):
-    tasks = campaign.task_items
+    # Eagerly load assignments and annotations for each task
+    tasks = (
+        db.query(AnnotationTask)
+        .filter(AnnotationTask.campaign_id == campaign.id)
+        .options(
+            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
+            joinedload(AnnotationTask.annotations),
+            joinedload(AnnotationTask.geometry)
+        )
+        .all()
+    )
+    
+    # Populate user information in assignments
+    for task in tasks:
+        if task.assignments:
+            for assignment in task.assignments:
+                if assignment.user:
+                    assignment.user_email = assignment.user.email
+                    assignment.user_display_name = assignment.user.display_name
+    
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -76,8 +101,25 @@ def complete_annotation_task(
         return annotation
 
 
+@router.post("/campaigns/{campaign_id}/ingest-annotation-task-csv")
+async def ingest_annotation_tasks_from_csv(
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    file: UploadFile = File(...),
+):
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    contents = await file.read()
+    service.create_annotation_tasks_from_csv(db, campaign.id, contents)
+
+
+# ============================================================================
+# Open-Mode Annotation
+# ============================================================================
+
 @router.post("/campaigns/{campaign_id}/create-annotation", response_model=AnnotationOut)
-def create_annotation(
+def create_annotation_openmode(
     campaign_id: int,
     annotation: AnnotationCreate,
     db: Session = Depends(get_db),
@@ -94,23 +136,10 @@ def create_annotation(
     return annotation
 
 
-@router.get("/campaigns/{campaign_id}/annotations", response_model=list[AnnotationOut])
-def get_all_annotations_for_campaign(
-    campaign_id: int,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_access),
-):
-    annotations = service.get_annotations_for_campaign(
-        db=db,
-        campaign_id=campaign.id,
-    )
-    return annotations
-
-
 @router.put(
     "/campaigns/{campaign_id}/annotations/{annotation_id}/update", response_model=AnnotationOut
 )
-def update_annotation(
+def update_annotation_openmode(
     annotation_id: int,
     annotation_update: AnnotationUpdate,
     db: Session = Depends(get_db),
@@ -126,6 +155,9 @@ def update_annotation(
 
     return annotation
 
+# ============================================================================
+# Common - for both modes
+# ============================================================================
 
 @router.delete("/campaigns/{campaign_id}/annotations/{annotation_id}", status_code=204)
 def delete_annotation(
@@ -166,14 +198,14 @@ def export_annotations(
     )
 
 
-@router.post("/campaigns/{campaign_id}/ingest-annotation-task-csv")
-async def ingest_annotation_task_from_csv(
+@router.get("/campaigns/{campaign_id}/annotations", response_model=list[AnnotationOut])
+def get_all_annotations_for_campaign(
+    campaign_id: int,
     db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-    file: UploadFile = File(...),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    if not file.filename.endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be a CSV")
-
-    contents = await file.read()
-    service.create_annotation_tasks_from_csv(db, campaign.id, contents)
+    annotations = service.get_annotations_for_campaign(
+        db=db,
+        campaign_id=campaign.id,
+    )
+    return annotations

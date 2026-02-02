@@ -1,12 +1,11 @@
 import { useState, useMemo } from 'react';
 import { extractLatLonFromWKT, computeTimeSlices } from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
-import AnnotationControls from './AnnotationControls';
 import LeafletMap from './LeafletMap';
 import LeafletMapWithDraw from './LeafletMapWithDraw';
 import TimelineSidebar from './TimelineSidebar';
 import { useStacImagery } from '~/hooks/useStacImagery';
-import OpenModeControls, { extendLabelsWithMetadata, type ExtendedLabel } from './OpenModeControls';
+import { extendLabelsWithMetadata, type ExtendedLabel } from './ControlsOpenMode';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -17,7 +16,6 @@ interface MainAnnotationsContainerProps {
  * Coordinates map display, timeline, and annotation controls
  */
 export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsContainerProps) => {
-  const [controlsCollapsed, setControlsCollapsed] = useState(false);
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [showLayerDropdown, setShowLayerDropdown] = useState(false);
 
@@ -367,56 +365,6 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
         {!loading && !error && !selectedImagery && (
           <div className="text-neutral-200">[ MAP VIEWPORT - No imagery available ]</div>
         )}
-      </div>
-
-      {/* Annotation Controls Panel */}
-      <div className="relative h-full">
-        {/* Collapse/Expand Button */}
-        <button
-          onClick={() => setControlsCollapsed(!controlsCollapsed)}
-          className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-[1001] w-4 h-10 bg-neutral-200 hover:bg-neutral-300 text-neutral-500 hover:text-neutral-700 rounded-l border border-r-0 border-neutral-300 transition-colors cursor-pointer flex items-center justify-center"
-          title={controlsCollapsed ? 'Show annotation controls' : 'Hide annotation controls'}
-        >
-          <svg
-            width="8"
-            height="14"
-            viewBox="0 0 8 14"
-            fill="currentColor"
-            className={`transition-transform ${controlsCollapsed ? 'rotate-180' : ''}`}
-          >
-            <path
-              d="M7 1L1 7L7 13"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </svg>
-        </button>
-
-        <div
-          className={`transition-all duration-300 ease-in-out overflow-hidden border-l border-gray-300 h-full ${
-            controlsCollapsed ? 'w-0' : 'w-40'
-          }`}
-        >
-          {!controlsCollapsed &&
-            (campaign && campaign.mode == 'tasks' ? (
-              <AnnotationControls
-                labels={labels}
-                onSubmit={submitAnnotation}
-                onNext={nextTask}
-                onPrevious={previousTask}
-                onGoToTask={goToTask}
-                isSubmitting={isSubmitting}
-                totalTasksCount={totalTasksCount}
-                currentTask={currentTask}
-                commentInputRef={commentInputRef}
-              />
-            ) : (
-              <OpenModeControls />
-            ))}
-        </div>
       </div>
     </div>
   );

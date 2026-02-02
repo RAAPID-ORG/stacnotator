@@ -17,6 +17,8 @@ import ImageryContainer from './ImageryContainer';
 import MiniMap from './Minimap';
 import MainAnnotationsContainer from './MainAnnotationContainer';
 import TimeSeriesContainer from './TimeSeriesContainer';
+import AnnotationControls from './ControlsTaskMode';
+import OpenModeControls from './ControlsOpenMode';
 
 interface CanvasProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -47,6 +49,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
   const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
   const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
+  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
+  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
+  const nextTask = useAnnotationStore((state) => state.nextTask);
+  const previousTask = useAnnotationStore((state) => state.previousTask);
+  const goToTask = useAnnotationStore((state) => state.goToTask);
+  const filteredTasks = useAnnotationStore((state) => state.filteredTasks);
 
   // Get fullscreen state from UI store
   const isFullscreen = useUIStore((state) => state.isFullscreen);
@@ -203,7 +211,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           }}
           dragConfig={{
             enabled: isEditingLayout,
-            handle: '.drag-handle',
           }}
           resizeConfig={{
             enabled: isEditingLayout,
@@ -242,6 +249,27 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               bbox={campaignBbox || [0, 0, 0, 0]}
               visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
             />
+          </div>
+
+          {/* Annotation Controls Panel */}
+          <div key="controls" className="grid-card">
+            <div className="h-full overflow-auto">
+              {campaign.mode === 'tasks' ? (
+                <AnnotationControls
+                  labels={campaign.settings.labels}
+                  onSubmit={submitAnnotation}
+                  onNext={nextTask}
+                  onPrevious={previousTask}
+                  onGoToTask={goToTask}
+                  isSubmitting={isSubmitting}
+                  totalTasksCount={filteredTasks.length}
+                  currentTask={currentTask}
+                  commentInputRef={commentInputRef}
+                />
+              ) : (
+                <OpenModeControls />
+              )}
+            </div>
           </div>
 
           {/* Imagery Windows */}

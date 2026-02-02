@@ -8,7 +8,7 @@ import { capitalizeFirst } from '~/utils/utility';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '~/constants';
 import {
   createCampaign,
-  ingestAnnotationTaskFromCsv,
+  ingestAnnotationTasksFromCsv,
   listAllCampaigns,
   type CampaignCreate,
   type CampaignListItemOut,
@@ -55,7 +55,7 @@ export const CampaignsPage = () => {
 
       if (taskIngestionFile && campaign) {
         try {
-          await ingestAnnotationTaskFromCsv({
+          await ingestAnnotationTasksFromCsv({
             path: { campaign_id: campaign.id },
             body: { file: taskIngestionFile },
           });
@@ -68,13 +68,13 @@ export const CampaignsPage = () => {
         }
       }
 
-      const refreshed = await listAllCampaigns();
-      if (refreshed.data) {
-        setCampaigns(refreshed.data.items);
-      }
-
       setShowCreate(false);
       showAlert(SUCCESS_MESSAGES.CAMPAIGN_CREATED, 'success');
+      
+      // Navigate to campaign settings page
+      if (campaign) {
+        navigate(`/campaigns/${campaign.id}/settings`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : ERROR_MESSAGES.CAMPAIGN_CREATE_FAILED;
       showAlert(message, 'error');
@@ -208,7 +208,7 @@ export const CampaignsPage = () => {
                     disabled={!isMember}
                     title={!isMember ? 'You are not a member of this campaign' : ''}
                   >
-                    View Annotations
+                    Review
                   </button>
                 </div>
               </div>

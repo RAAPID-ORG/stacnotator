@@ -11,7 +11,7 @@ from shapely.geometry import Point, MultiPolygon, Polygon, box
 from sqlalchemy import insert, select, func
 from sqlalchemy.orm import Session
 
-from src.annotation.models import AnnotationGeometry, AnnotationTaskItem
+from src.annotation.models import AnnotationGeometry, AnnotationTask
 from src.campaigns.models import Campaign
 
 
@@ -297,8 +297,8 @@ def create_tasks_from_sampling_strategy(
 
     # Get the current max annotation_number for this campaign
     max_annotation_number = db.scalar(
-        select(func.coalesce(func.max(AnnotationTaskItem.annotation_number), 0)).where(
-            AnnotationTaskItem.campaign_id == campaign_id
+        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
+            AnnotationTask.campaign_id == campaign_id
         )
     )
 
@@ -331,7 +331,7 @@ def create_tasks_from_sampling_strategy(
             for i, (geometry_id, point) in enumerate(zip(geometry_ids, sample_points))
         ]
 
-        db.execute(insert(AnnotationTaskItem), task_records)
+        db.execute(insert(AnnotationTask), task_records)
         db.commit()
 
         return len(task_records)

@@ -6,6 +6,7 @@ import { ImageryEditor } from '~/components/campaign/shared/ImageryEditor';
 import { IMAGERY_PRESETS, emptyImagery } from '~/components/campaign/shared/imageryPresets';
 import { AnnotationTasksTable } from '~/components/campaign/campaign-settings/AnnotationTasksTable';
 import { TaskAssignmentModal } from '~/components/campaign/campaign-settings/TaskAssignmentModal';
+import { ReviewerAssignmentModal, type AssignmentPattern } from '~/components/campaign/campaign-settings/ReviewerAssignmentModal';
 import { CampaignUsersSection } from '~/components/campaign/campaign-settings/CampaignUsersSection';
 import { TaskGenerationSection } from '~/components/campaign/campaign-settings/TaskGenerationSection';
 import { TaskLocationsMap } from '~/components/campaign/campaign-settings/TaskLocationsMap';
@@ -23,12 +24,14 @@ import {
   getAllAnnotationTasks,
   getCampaign,
   getCampaignUsers,
-  ingestAnnotationTaskFromCsv,
+  ingestAnnotationTasksFromCsv,
   assignTasksToUsers,
+  unassignUserFromTask,
+  assignReviewers,
   deleteAnnotationTasks,
   deleteCampaign,
   deleteTimeseries,
-  type AnnotationTaskItemOut,
+  type AnnotationTaskOut,
   type CampaignOut,
   type CampaignUserOut,
   type ImageryOut,
@@ -59,11 +62,12 @@ export const CampaignSettingsPage = () => {
   const [imagery, setImagery] = useState<ImageryOut[]>([]);
   const [newImagery, setNewImagery] = useState<ImageryCreate[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<string>('custom');
-  const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskItemOut[]>([]);
+  const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
   const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
-  const [taskFile, setTaskFile] = useState<File | null>(null);
+  const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
   const [uploadingTasks, setUploadingTasks] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [timeseries, setTimeseries] = useState<TimeSeriesOut[]>([]);
   const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
 
@@ -316,7 +320,7 @@ export const CampaignSettingsPage = () => {
     if (!taskFile) return;
     try {
       setUploadingTasks(true);
-      const { data } = await ingestAnnotationTaskFromCsv({
+      const { data } = await ingestAnnotationTasksFromCsv({
         path: { campaign_id: numericCampaignId },
         body: { file: taskFile },
       });
@@ -383,20 +387,14 @@ export const CampaignSettingsPage = () => {
     try {
       await assignTasksToUsers({
         path: { campaign_id: numericCampaignId },
-        body: { task_assignments: { [taskId]: userId } },
+        body: { task_assignments: { [taskId]: [userId] } },
       });
 
-      // Update local state
-      setAnnotationTasks((tasks) =>
-        tasks.map((task) =>
-          task.id === taskId
-            ? {
-                ...task,
-                assigned_user: campaignUsers.find((u) => u.user.id === userId)?.user || null,
-              }
-            : task
-        )
-      );
+      // Refresh tasks to get updated assignments
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
 
       showAlert('Task assigned successfully', 'success');
     } catch (err) {
@@ -407,14 +405,38 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  const handleBulkAssignTasks = async (assignments: { [taskId: number]: string }) => {
+  const handleUnassignTask = async (taskId: number, userId: string) => {
+    try {
+      await unassignUserFromTask({
+        path: { 
+          campaign_id: numericCampaignId,
+          task_id: taskId,
+          user_id: userId
+        },
+      });
+
+      // Refresh tasks to get updated assignments
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
+
+      showAlert('User unassigned successfully', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to unassign user';
+      showAlert(message, 'error');
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const handleBulkAssignTasks = async (assignments: { [taskId: number]: string[] }) => {
     try {
       setSaving(true);
 
-      // Convert task IDs to strings for API
-      const taskAssignments: { [key: string]: string } = {};
-      Object.entries(assignments).forEach(([taskId, userId]) => {
-        taskAssignments[taskId] = userId;
+      const taskAssignments: { [key: string]: string[] } = {};
+      Object.entries(assignments).forEach(([taskId, userIds]) => {
+        taskAssignments[taskId] = userIds;
       });
 
       await assignTasksToUsers({
@@ -422,24 +444,67 @@ export const CampaignSettingsPage = () => {
         body: { task_assignments: taskAssignments },
       });
 
-      // Update local state immediately
-      setAnnotationTasks((tasks) =>
-        tasks.map((task) => {
-          const assignedUserId = assignments[task.id];
-          if (assignedUserId !== undefined) {
-            return {
-              ...task,
-              assigned_user: campaignUsers.find((u) => u.user.id === assignedUserId)?.user || null,
-            };
-          }
-          return task;
-        })
-      );
+      // Refresh tasks to get updated assignments
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
 
       showAlert(`${Object.keys(assignments).length} task(s) assigned successfully`, 'success');
       setShowAssignmentModal(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to assign tasks';
+      showAlert(message, 'error');
+      console.error(err);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssignReviewers = async (pattern: AssignmentPattern) => {
+    try {
+      setSaving(true);
+
+      if (pattern.type === 'percentage') {
+        await assignReviewers({
+          path: { campaign_id: numericCampaignId },
+          body: {
+            pattern: 'percentage',
+            percentage: pattern.percentage,
+            num_reviewers: pattern.reviewersPerTask,
+            reviewer_ids: pattern.reviewerIds,
+          },
+        });
+        showAlert(
+          `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.percentage}% of tasks`,
+          'success'
+        );
+      } else if (pattern.type === 'fixed') {
+        await assignReviewers({
+          path: { campaign_id: numericCampaignId },
+          body: {
+            pattern: 'fixed',
+            num_tasks: pattern.numTasks,
+            fixed_num_reviewers: pattern.reviewersPerTask,
+            reviewer_ids: pattern.reviewerIds,
+          },
+        });
+        showAlert(
+          `Assigned ${pattern.reviewersPerTask} reviewers to ${pattern.numTasks} tasks`,
+          'success'
+        );
+      }
+
+      // Refresh tasks to get updated assignments
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
+
+      setShowReviewerModal(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to assign reviewers';
       showAlert(message, 'error');
       console.error(err);
       throw err;
@@ -490,13 +555,24 @@ export const CampaignSettingsPage = () => {
     <>
       <div className="flex-1 overflow-auto">
         <div className="max-w-6xl mx-auto p-8">
-          <div className="mb-3">
-            <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-              {capitalizeFirst(campaign.name)}
-            </h1>
-            <p className="text-sm text-neutral-500">
-              Manage your campaign settings, imagery, and users
-            </p>
+          <div className="mb-3 flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-neutral-900 mb-2">
+                {capitalizeFirst(campaign.name)}
+              </h1>
+              <p className="text-sm text-neutral-500">
+                Manage your campaign settings, imagery, and users
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
+                className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
+                type="button"
+              >
+                View Annotations
+              </button>
+            </div>
           </div>
 
           {/* Tab Navigation */}
@@ -862,55 +938,107 @@ export const CampaignSettingsPage = () => {
                   />
                 )}
 
-                {/* Upload Tasks */}
+                {/* Add New Tasks */}
                 <div className="bg-white rounded-lg border border-neutral-300 p-6">
                   <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Upload Annotation Tasks from CSV
+                    Add Annotation Tasks
                   </h2>
-                  <p className="text-sm text-neutral-500 mb-4">
-                    Upload a CSV file with task locations. Format: <code>id,lon,lat</code>
-                  </p>
-                  <div className="flex gap-4 items-center">
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={(e) => setTaskFile(e.target.files?.[0] || null)}
-                      disabled={uploadingTasks}
-                      className="flex-1 px-3 py-2 border border-neutral-300 rounded disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                    />
-                    <button
-                      onClick={handleUploadAnnotationTasks}
-                      disabled={!taskFile || uploadingTasks}
-                      className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                      {uploadingTasks && (
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                      )}
-                      Upload
-                    </button>
+                  
+                  {/* Task Creation Method Selection */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-neutral-700 mb-3">
+                      How would you like to create tasks?
+                    </label>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          // This will mark that user wants to upload
+                          // We'll use a sentinel value to indicate "upload mode"
+                          if (taskFile === null) {
+                            setTaskFile(new File([], ''));
+                          }
+                        }}
+                        className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
+                          taskFile !== null
+                            ? 'bg-brand-500 text-white border-brand-500'
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+                        }`}
+                      >
+                        <div className="font-medium">Upload CSV</div>
+                        <div className="text-xs mt-1 opacity-90">
+                          Upload tasks from a CSV file
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setTaskFile(null)}
+                        className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
+                          taskFile === null
+                            ? 'bg-brand-500 text-white border-brand-500'
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+                        }`}
+                      >
+                        <div className="font-medium">Generate via Sampling</div>
+                        <div className="text-xs mt-1 opacity-90">
+                          Create tasks using random or grid sampling
+                        </div>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Generate Tasks via Sampling */}
-                <TaskGenerationSection
-                  campaignId={numericCampaignId}
-                  onTasksGenerated={handleTasksGenerated}
-                  onError={(msg) => showAlert(msg, 'error')}
-                />
+                  {/* Upload CSV Section */}
+                  {taskFile !== null && (
+                    <div>
+                      <h3 className="text-md font-semibold text-neutral-900 mb-3">
+                        Upload Tasks from CSV
+                      </h3>
+                      <p className="text-sm text-neutral-500 mb-4">
+                        Upload a CSV file with task locations. Format: <code>id,lon,lat</code>
+                      </p>
+                      <div className="flex gap-4 items-center">
+                        <input
+                          type="file"
+                          accept=".csv"
+                          onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
+                          disabled={uploadingTasks}
+                          className="flex-1 px-3 py-2 border border-neutral-300 rounded disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          onClick={handleUploadAnnotationTasks}
+                          disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
+                          className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        >
+                          {uploadingTasks && (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                          )}
+                          Upload
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generate via Sampling Section */}
+                  {taskFile === null && (
+                    <TaskGenerationSection
+                      campaignId={numericCampaignId}
+                      onTasksGenerated={handleTasksGenerated}
+                      onError={(msg) => showAlert(msg, 'error')}
+                    />
+                  )}
+                </div>
 
                 {/* Tasks Table */}
                 <div className="bg-white rounded-lg border border-neutral-300 p-6">
@@ -922,7 +1050,9 @@ export const CampaignSettingsPage = () => {
                       tasks={annotationTasks}
                       campaignUsers={campaignUsers}
                       onAssignTasks={handleAssignSingleTask}
+                      onUnassignTask={handleUnassignTask}
                       onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                      onOpenReviewerAssign={() => setShowReviewerModal(true)}
                       onDeleteTasks={handleDeleteTasks}
                     />
                   ) : (
@@ -977,6 +1107,14 @@ export const CampaignSettingsPage = () => {
         tasks={annotationTasks}
         campaignUsers={campaignUsers}
         onAssign={handleBulkAssignTasks}
+      />
+
+      <ReviewerAssignmentModal
+        show={showReviewerModal}
+        onClose={() => setShowReviewerModal(false)}
+        campaignUsers={campaignUsers}
+        onAssign={handleAssignReviewers}
+        totalTasks={annotationTasks.length}
       />
 
       <DeleteCampaignDialog

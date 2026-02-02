@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAnnotationStore } from '~/stores/annotationStore';
-import { extendLabelsWithMetadata } from '~/components/annotation/OpenModeControls';
+import { extendLabelsWithMetadata } from '~/components/annotation/ControlsOpenMode';
 
 /**
  * Keyboard shortcuts for open mode annotation

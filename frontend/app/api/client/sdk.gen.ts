@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationData, CreateAnnotationErrors, CreateAnnotationResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutForImageryData, CreateNewCanvasLayoutForImageryErrors, CreateNewCanvasLayoutForImageryResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteImageryData, DeleteImageryErrors, DeleteImageryResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTaskFromCsvData, IngestAnnotationTaskFromCsvErrors, IngestAnnotationTaskFromCsvResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListUsersData, ListUsersResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, UpdateAnnotationData, UpdateAnnotationErrors, UpdateAnnotationResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses } from './types.gen';
+import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeErrors, CreateAnnotationOpenmodeResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutForImageryData, CreateNewCanvasLayoutForImageryErrors, CreateNewCanvasLayoutForImageryResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteImageryData, DeleteImageryErrors, DeleteImageryResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DemoteAuthorativeReviewerData, DemoteAuthorativeReviewerErrors, DemoteAuthorativeReviewerResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointErrors, GetCampaignStatisticsEndpointResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListUsersData, ListUsersResponses, MakeUserAuthorativeReviewerData, MakeUserAuthorativeReviewerErrors, MakeUserAuthorativeReviewerResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, UnassignUserFromTask2Data, UnassignUserFromTask2Errors, UnassignUserFromTask2Responses, UnassignUserFromTaskData, UnassignUserFromTaskErrors, UnassignUserFromTaskResponses, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeErrors, UpdateAnnotationOpenmodeResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -280,7 +280,18 @@ export const getCampaignWithImageryWindows = <ThrowOnError extends boolean = fal
  */
 export const makeUserCampaignAdmin = <ThrowOnError extends boolean = false>(options: Options<MakeUserCampaignAdminData, ThrowOnError>) => (options.client ?? client).post<MakeUserCampaignAdminResponses, MakeUserCampaignAdminErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/assign-admin',
+    url: '/api/campaigns/{campaign_id}/make-user-admin',
+    ...options
+});
+
+/**
+ * Make User Authorative Reviewer
+ *
+ * Give a user the authorative reviewer role, enabling him to review other annotations.
+ */
+export const makeUserAuthorativeReviewer = <ThrowOnError extends boolean = false>(options: Options<MakeUserAuthorativeReviewerData, ThrowOnError>) => (options.client ?? client).post<MakeUserAuthorativeReviewerResponses, MakeUserAuthorativeReviewerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/make-user-authorative-reviewer',
     ...options
 });
 
@@ -345,9 +356,20 @@ export const demoteCampaignAdmin = <ThrowOnError extends boolean = false>(option
 });
 
 /**
+ * Demote Authorative Reviewer
+ *
+ * Demote an authorative reviewer to basic member
+ */
+export const demoteAuthorativeReviewer = <ThrowOnError extends boolean = false>(options: Options<DemoteAuthorativeReviewerData, ThrowOnError>) => (options.client ?? client).post<DemoteAuthorativeReviewerResponses, DemoteAuthorativeReviewerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/demote-auth-reviewer',
+    ...options
+});
+
+/**
  * Assign Tasks To Users
  *
- * Assign multiple annotation tasks to different users in bulk
+ * Assign multiple annotation tasks to different users in bulk. Supports multiple reviewers per task.
  */
 export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options: Options<AssignTasksToUsersData, ThrowOnError>) => (options.client ?? client).post<AssignTasksToUsersResponses, AssignTasksToUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -357,6 +379,46 @@ export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Unassign User From Task
+ *
+ * Remove a user's assignment from a specific task.
+ */
+export const unassignUserFromTask = <ThrowOnError extends boolean = false>(options: Options<UnassignUserFromTaskData, ThrowOnError>) => (options.client ?? client).delete<UnassignUserFromTaskResponses, UnassignUserFromTaskErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/unassign-user/{user_id}',
+    ...options
+});
+
+/**
+ * Assign Reviewers
+ *
+ * Assign reviewers to tasks using different patterns:
+ * - 'percentage': Assign reviewers to X% of tasks
+ * - 'manual': Manually assign specific reviewers to specific tasks
+ * - 'fixed': Assign N reviewers to M tasks
+ */
+export const assignReviewers = <ThrowOnError extends boolean = false>(options: Options<AssignReviewersData, ThrowOnError>) => (options.client ?? client).post<AssignReviewersResponses, AssignReviewersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/assign-reviewers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Unassign User From Task
+ *
+ * Remove a user assignment from a specific task
+ */
+export const unassignUserFromTask2 = <ThrowOnError extends boolean = false>(options: Options<UnassignUserFromTask2Data, ThrowOnError>) => (options.client ?? client).delete<UnassignUserFromTask2Responses, UnassignUserFromTask2Errors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/users/{user_id}',
+    ...options
 });
 
 /**
@@ -384,6 +446,28 @@ export const getAllAnnotationTasks = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * Get Campaign Statistics Endpoint
+ *
+ * Get comprehensive statistics for a campaign.
+ *
+ * Returns:
+ * - Overall campaign metrics (total annotations, users, tasks)
+ * - Krippendorff's Alpha for inter-annotator agreement
+ * - Overall confidence and label distributions
+ * - Per-user statistics including:
+ * - Total annotations
+ * - Average confidence
+ * - Confidence distribution
+ * - Label distribution
+ * - Agreement with majority vote
+ */
+export const getCampaignStatisticsEndpoint = <ThrowOnError extends boolean = false>(options: Options<GetCampaignStatisticsEndpointData, ThrowOnError>) => (options.client ?? client).get<GetCampaignStatisticsEndpointResponses, GetCampaignStatisticsEndpointErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/statistics',
+    ...options
+});
+
+/**
  * Complete Annotation Task
  */
 export const completeAnnotationTask = <ThrowOnError extends boolean = false>(options: Options<CompleteAnnotationTaskData, ThrowOnError>) => (options.client ?? client).post<CompleteAnnotationTaskResponses, CompleteAnnotationTaskErrors, ThrowOnError>({
@@ -397,9 +481,23 @@ export const completeAnnotationTask = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
- * Create Annotation
+ * Ingest Annotation Tasks From Csv
  */
-export const createAnnotation = <ThrowOnError extends boolean = false>(options: Options<CreateAnnotationData, ThrowOnError>) => (options.client ?? client).post<CreateAnnotationResponses, CreateAnnotationErrors, ThrowOnError>({
+export const ingestAnnotationTasksFromCsv = <ThrowOnError extends boolean = false>(options: Options<IngestAnnotationTasksFromCsvData, ThrowOnError>) => (options.client ?? client).post<IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromCsvErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Create Annotation Openmode
+ */
+export const createAnnotationOpenmode = <ThrowOnError extends boolean = false>(options: Options<CreateAnnotationOpenmodeData, ThrowOnError>) => (options.client ?? client).post<CreateAnnotationOpenmodeResponses, CreateAnnotationOpenmodeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/campaigns/{campaign_id}/create-annotation',
     ...options,
@@ -410,18 +508,9 @@ export const createAnnotation = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * Get All Annotations For Campaign
+ * Update Annotation Openmode
  */
-export const getAllAnnotationsForCampaign = <ThrowOnError extends boolean = false>(options: Options<GetAllAnnotationsForCampaignData, ThrowOnError>) => (options.client ?? client).get<GetAllAnnotationsForCampaignResponses, GetAllAnnotationsForCampaignErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/annotations',
-    ...options
-});
-
-/**
- * Update Annotation
- */
-export const updateAnnotation = <ThrowOnError extends boolean = false>(options: Options<UpdateAnnotationData, ThrowOnError>) => (options.client ?? client).put<UpdateAnnotationResponses, UpdateAnnotationErrors, ThrowOnError>({
+export const updateAnnotationOpenmode = <ThrowOnError extends boolean = false>(options: Options<UpdateAnnotationOpenmodeData, ThrowOnError>) => (options.client ?? client).put<UpdateAnnotationOpenmodeResponses, UpdateAnnotationOpenmodeErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}/update',
     ...options,
@@ -454,17 +543,12 @@ export const exportAnnotations = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * Ingest Annotation Task From Csv
+ * Get All Annotations For Campaign
  */
-export const ingestAnnotationTaskFromCsv = <ThrowOnError extends boolean = false>(options: Options<IngestAnnotationTaskFromCsvData, ThrowOnError>) => (options.client ?? client).post<IngestAnnotationTaskFromCsvResponses, IngestAnnotationTaskFromCsvErrors, ThrowOnError>({
-    ...formDataBodySerializer,
+export const getAllAnnotationsForCampaign = <ThrowOnError extends boolean = false>(options: Options<GetAllAnnotationsForCampaignData, ThrowOnError>) => (options.client ?? client).get<GetAllAnnotationsForCampaignResponses, GetAllAnnotationsForCampaignErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv',
-    ...options,
-    headers: {
-        'Content-Type': null,
-        ...options.headers
-    }
+    url: '/api/campaigns/{campaign_id}/annotations',
+    ...options
 });
 
 /**

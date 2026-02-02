@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { AnnotationTaskItemOut } from '~/api/client';
+import type { AnnotationTaskOut } from '~/api/client';
+import { getTaskStatus, formatTaskStatus, getTaskStatusColor } from '~/utils/taskStatus';
 
 interface TaskLocationsMapProps {
-  tasks: AnnotationTaskItemOut[];
+  tasks: AnnotationTaskOut[];
   bbox: {
     west: number;
     south: number;
@@ -97,7 +98,14 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       const coords = parseWKTPoint(task.geometry.geometry);
       if (!coords) return;
 
-      const statusColor = STATUS_COLORS[task.status] || STATUS_COLORS.pending;
+      const taskStatus = getTaskStatus(task);
+      const statusColorMap: Record<string, string> = {
+        pending: '#6B7280',
+        partial: '#fbbf24',
+        conflicting: '#ef4444',
+        complete: '#10b981',
+      };
+      const statusColor = statusColorMap[taskStatus] || '#6B7280';
 
       const icon = L.divIcon({
         html: `
@@ -113,15 +121,17 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       const marker = L.marker(coords, { icon });
 
       // Add popup with task info
-      const assignedTo = task.assigned_user
-        ? `${task.assigned_user.email || task.assigned_user.id}`
+      const assignments = task.assignments || [];
+      const assignedTo = assignments.length > 0
+        ? assignments.map(a => a.user_id).join(', ')
         : 'Unassigned';
 
       marker.bindPopup(`
         <div class="text-sm">
           <div class="font-medium">Task #${task.annotation_number}</div>
-          <div class="text-neutral-500">Status: ${task.status}</div>
+          <div class="text-neutral-500">Status: ${formatTaskStatus(taskStatus)}</div>
           <div class="text-neutral-500">Assigned: ${assignedTo}</div>
+          <div class="text-neutral-500">Annotations: ${task.annotations.length}</div>
         </div>
       `);
 
@@ -131,7 +141,8 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
   const taskCounts = tasks.reduce(
     (acc, task) => {
-      acc[task.status] = (acc[task.status] || 0) + 1;
+      const status = getTaskStatus(task);
+      acc[status] = (acc[status] || 0) + 1;
       return acc;
     },
     {} as Record<string, number>

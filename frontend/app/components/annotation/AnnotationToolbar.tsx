@@ -238,12 +238,12 @@ export const AnnotationToolbar = () => {
           onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
           type="button"
-          title="View all annotations"
+          title="Review set annotations"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path d="M10 3C5.58173 3 2 6.58173 2 11C2 15.4183 5.58173 19 10 19C14.4183 19 18 15.4183 18 11C18 9.68678 17.6997 8.44559 17.1652 7.34338L16.2812 8.22736C16.7457 9.08509 17 10.0139 17 11C17 14.866 13.866 18 10 18C6.13401 18 3 14.866 3 11C3 7.13401 6.13401 4 10 4C11.3132 4 12.5544 4.30033 13.6566 4.83482L14.5406 3.95084C13.4384 3.34976 12.1971 3 10 3ZM17.8536 2.14645L8.5 11.5L5.85355 8.85355L5.14645 9.56066L8.14645 12.5607C8.34171 12.7559 8.65829 12.7559 8.85355 12.5607L18.5607 2.85355L17.8536 2.14645Z" />
           </svg>
-          <span>Annotations</span>
+          <span>Review</span>
         </button>
       </div>
 

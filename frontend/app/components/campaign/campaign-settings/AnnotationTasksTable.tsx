@@ -1,12 +1,20 @@
-import { useState } from 'react';
-import type { AnnotationTaskItemOut, CampaignUserOut } from '~/api/client';
+import { useState, useEffect, useRef } from 'react';
+import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { extractLatLonFromWKT } from '~/utils/utility';
+import { 
+  getTaskStatus, 
+  getUserTaskStatuses, 
+  getTaskStatusColor,
+  formatTaskStatus
+} from '~/utils/taskStatus';
 
 interface AnnotationTasksTableProps {
-  tasks: AnnotationTaskItemOut[];
+  tasks: AnnotationTaskOut[];
   campaignUsers?: CampaignUserOut[];
   onAssignTasks?: (taskId: number, userId: string) => Promise<void>;
+  onUnassignTask?: (taskId: number, userId: string) => Promise<void>;
   onOpenBulkAssign?: () => void;
+  onOpenReviewerAssign?: () => void;
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
 }
 
@@ -14,12 +22,30 @@ export const AnnotationTasksTable = ({
   tasks,
   campaignUsers = [],
   onAssignTasks,
+  onUnassignTask,
   onOpenBulkAssign,
+  onOpenReviewerAssign,
   onDeleteTasks,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserSelectForTask(null);
+      }
+    };
+
+    if (showUserSelectForTask !== null) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showUserSelectForTask]);
 
   const handleToggleTask = (taskId: number) => {
     setSelectedTasks((prev) => {
@@ -51,6 +77,16 @@ export const AnnotationTasksTable = ({
     }
   };
 
+  const handleUnassignTask = async (taskId: number, userId: string) => {
+    if (!onUnassignTask) return;
+    try {
+      setAssigningTaskId(taskId);
+      await onUnassignTask(taskId, userId);
+    } finally {
+      setAssigningTaskId(null);
+    }
+  };
+
   const handleDeleteSelected = async () => {
     if (!onDeleteTasks || selectedTasks.size === 0) return;
     
@@ -63,17 +99,7 @@ export const AnnotationTasksTable = ({
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'done':
-        return 'bg-green-100 text-green-800';
-      case 'skipped':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'pending':
-      default:
-        return 'bg-neutral-300 text-neutral-800';
-    }
-  };
+
 
   if (tasks.length === 0) {
     return (
@@ -110,6 +136,15 @@ export const AnnotationTasksTable = ({
             >
               Bulk Assign Tasks
             </button>
+            {onOpenReviewerAssign && (
+              <button
+                onClick={onOpenReviewerAssign}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                Assign Reviewers
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -128,7 +163,6 @@ export const AnnotationTasksTable = ({
                   />
                 </th>
               )}
-              <th className="px-4 py-3 text-left font-medium text-neutral-700">ID</th>
               <th className="px-4 py-3 text-left font-medium text-neutral-700">Annotation #</th>
               <th className="px-4 py-3 text-left font-medium text-neutral-700">Status</th>
               <th className="px-4 py-3 text-left font-medium text-neutral-700">Coordinates</th>
@@ -158,57 +192,119 @@ export const AnnotationTasksTable = ({
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 text-neutral-500">{task.id}</td>
                   <td className="px-4 py-3 text-neutral-900 font-medium">
                     {task.annotation_number}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getStatusColor(task.status)}`}
-                    >
-                      {task.status}
-                    </span>
+                    <div className="group relative inline-block">
+                      <span
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(getTaskStatus(task))}`}
+                      >
+                        {formatTaskStatus(getTaskStatus(task))}
+                      </span>
+                      {/* Tooltip showing per-user status */}
+                      {task.assignments && task.assignments.length > 0 && (
+                        <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap">
+                          <div className="font-semibold mb-1">User Status:</div>
+                          {Array.from(getUserTaskStatuses(task)).map(([userId, status]) => {
+                            const user = campaignUsers.find(u => u.user.id === userId);
+                            return (
+                              <div key={userId} className="flex items-center gap-2">
+                                <span>{user?.user.display_name || 'Unknown'}: </span>
+                                <span className={status === 'completed' ? 'text-green-300' : 'text-yellow-300'}>
+                                  {status}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                            <div className="border-4 border-transparent border-t-gray-900"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
                     {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '—'}
                   </td>
                   {onAssignTasks && campaignUsers.length > 0 && (
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={task.assigned_user?.id || ''}
-                          onChange={(e) => handleAssignTask(task.id, e.target.value)}
-                          disabled={isAssigning}
-                          className="text-xs border border-neutral-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <option value="">Unassigned</option>
-                          {campaignUsers.map((user) => (
-                            <option key={user.user.id} value={user.user.id}>
-                              {user.user.display_name}
-                            </option>
-                          ))}
-                        </select>
-                        {isAssigning && (
-                          <svg
-                            className="w-4 h-4 animate-spin text-brand-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {task.assignments && task.assignments.length > 0 ? (
+                          task.assignments.map((assignment) => {
+                            const user = campaignUsers.find(u => u.user.id === assignment.user_id);
+                            const userStatus = getUserTaskStatuses(task).get(assignment.user_id);
+                            return (
+                              <span
+                                key={assignment.user_id}
+                                className={`inline-block px-2 py-1 rounded text-xs ${
+                                  userStatus === 'completed'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                                title={`${user?.user.display_name || 'Unknown'} - ${userStatus}`}
+                              >
+                                {user?.user.display_name || 'Unknown'}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="text-xs text-neutral-500">Unassigned</span>
                         )}
+                        {/* Add User Button */}
+                        <div className="relative" ref={showUserSelectForTask === task.id ? dropdownRef : null}>
+                          <button
+                            onClick={() => setShowUserSelectForTask(showUserSelectForTask === task.id ? null : task.id)}
+                            disabled={isAssigning}
+                            className="inline-block px-2 py-1 rounded text-xs bg-neutral-200 text-neutral-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50 font-medium"
+                            title="Add user to task"
+                          >
+                            +
+                          </button>
+                          
+                          {/* User Select Dropdown */}
+                          {showUserSelectForTask === task.id && (
+                            <div className="absolute right-0 z-20 mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg min-w-48 max-h-64 overflow-y-auto">
+                              <div className="p-2">
+                                <div className="text-xs font-medium text-neutral-700 mb-2 px-2">
+                                  Manage users for task {task.id}
+                                </div>
+                                {campaignUsers.map((user) => {
+                                  const isAlreadyAssigned = task.assignments?.some(a => a.user_id === user.user.id);
+                                  return (
+                                    <button
+                                      key={user.user.id}
+                                      onClick={async () => {
+                                        if (isAlreadyAssigned) {
+                                          await handleUnassignTask(task.id, user.user.id);
+                                        } else {
+                                          await handleAssignTask(task.id, user.user.id);
+                                        }
+                                        setShowUserSelectForTask(null);
+                                      }}
+                                      disabled={isAssigning}
+                                      className={`w-full text-left px-3 py-2 text-xs rounded transition-colors ${
+                                        isAlreadyAssigned
+                                          ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                                          : 'hover:bg-brand-50 text-neutral-900'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <div className="font-medium">{user.user.display_name}</div>
+                                          <div className="text-neutral-500">{user.user.email}</div>
+                                        </div>
+                                        {isAlreadyAssigned && (
+                                          <span className="text-xs text-red-600 font-semibold">Remove</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   )}
@@ -225,21 +321,27 @@ export const AnnotationTasksTable = ({
           Total: <strong className="text-neutral-900">{tasks.length}</strong>
         </span>
         <span>
-          Completed:{' '}
+          Complete:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => t.status === 'done').length}
+            {tasks.filter((t) => getTaskStatus(t) === 'complete').length}
           </strong>
         </span>
         <span>
-          Skipped:{' '}
+          Partial:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => t.status === 'skipped').length}
+            {tasks.filter((t) => getTaskStatus(t) === 'partial').length}
+          </strong>
+        </span>
+        <span>
+          Conflicting:{' '}
+          <strong className="text-neutral-900">
+            {tasks.filter((t) => getTaskStatus(t) === 'conflicting').length}
           </strong>
         </span>
         <span>
           Pending:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => t.status === 'pending').length}
+            {tasks.filter((t) => getTaskStatus(t) === 'pending').length}
           </strong>
         </span>
       </div>

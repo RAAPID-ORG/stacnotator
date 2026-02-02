@@ -52,7 +52,7 @@ services:
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
-      - ./backend/alembic:/app/alembic:ro
+      - ./backend/alembic:/app/alembic  # Writable for creating migrations
       - ./backend/alembic.ini:/app/alembic.ini:ro
       - ./backend/logging.ini:/app/logging.ini:ro
       - ./backend/logs:/app/logs

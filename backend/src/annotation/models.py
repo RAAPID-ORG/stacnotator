@@ -2,6 +2,7 @@ from geoalchemy2 import Geometry as GeoAlchemyGeometry
 from typing import Optional
 from uuid import UUID
 
+import sqlalchemy as sa
 from sqlalchemy import (
     DateTime,
     ForeignKey,
@@ -16,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.database import Base
 
@@ -40,13 +42,13 @@ class AnnotationGeometry(Base):
     )
 
 
-class AnnotationTaskItem(Base):
+class AnnotationTask(Base):
     """
     Represents a single annotation task assigned within a campaign.
     Each task item has a unique annotation number within its campaign.
     """
 
-    __tablename__ = "annotation_task_items"
+    __tablename__ = "annotation_tasks"
     __table_args__ = (
         Index("idx_task_items_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
@@ -77,18 +79,7 @@ class AnnotationTaskItem(Base):
         nullable=False,
     )
 
-    assigned_user_id: Mapped[Optional[UUID]] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
-    # Task metadata
-    status: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        server_default="pending",
-    )
-
+    # Additional columns if ingested from a csv
     raw_source_data: Mapped[Optional[dict]] = mapped_column(
         JSONB,
         nullable=True,
@@ -97,26 +88,74 @@ class AnnotationTaskItem(Base):
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="task_items")
     geometry: Mapped[AnnotationGeometry] = relationship()
-    assigned_user: Mapped[Optional["User"]] = relationship()  # noqa: F821
-    annotation: Mapped[Optional["Annotation"]] = relationship(
-        foreign_keys="[Annotation.annotation_task_item_id]",
-        back_populates="annotation_task_item",
-        uselist=False,
+    assignments: Mapped[list["AnnotationTaskAssignment"]] = relationship(
+        "AnnotationTaskAssignment",
+        foreign_keys="[AnnotationTaskAssignment.task_id]",
+        back_populates="annotation_task",
+        cascade="all, delete-orphan",
     )
+    annotations: Mapped[list["Annotation"]] = relationship(
+        "Annotation",
+        foreign_keys="[Annotation.annotation_task_id]",
+        back_populates="annotation_task",
+    )
+
+
+class AnnotationTaskAssignment(Base):
+    """
+    Assignment from annotation task to a user.
+    """
+
+    __tablename__ = "annotation_tasks_assignment"
+    __table_args__ = (
+        Index("idx_annotation_tasks_assignment_task_id", "task_id"),
+        UniqueConstraint("task_id", "user_id"),
+        {"schema": "data"},
+    )
+    
+    # Primary key
+    id: Mapped[int] = mapped_column(
+        Integer,
+        Identity(always=True),
+        primary_key=True,
+    )
+
+    # Foreign keys
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        server_default="pending",
+    )
+
+    # Relationships
+    annotation_task: Mapped["AnnotationTask"] = relationship(
+        back_populates="assignments",
+    )
+    user: Mapped[Optional["User"]] = relationship()
 
 
 class Annotation(Base):
     """
     Represents a completed annotation with label and optional comment.
-    Can be created from a task item or standalone. Each task item can have
-    at most one annotation (enforced by unique constraint).
+    Can be created from a task or standalone. Multiple users can annotate
+    the same task for quality assurance purposes.
     If no label is set, it indicates that the annotation was skipped with a comment.
     """
 
     __tablename__ = "annotations"
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
-        UniqueConstraint("annotation_task_item_id", name="uq_annotation_task_item_id"),
+        Index("idx_annotations_task_id", "annotation_task_id"),
         {"schema": "data"},
     )
 
@@ -144,14 +183,20 @@ class Annotation(Base):
     )
 
     # Optional: set if annotation was created from a task
-    annotation_task_item_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("data.annotation_task_items.id", ondelete="SET NULL"),
+    annotation_task_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     # Annotation data
     label_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confidence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_authoritative: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        server_default=sa.false(),
+    )
 
     # Audit fields
     created_at: Mapped[DateTime] = mapped_column(
@@ -163,6 +208,6 @@ class Annotation(Base):
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
     geometry: Mapped[AnnotationGeometry] = relationship()
-    annotation_task_item: Mapped[Optional["AnnotationTaskItem"]] = relationship(
-        back_populates="annotation",
+    annotation_task: Mapped[Optional["AnnotationTask"]] = relationship(
+        back_populates="annotations",
     )

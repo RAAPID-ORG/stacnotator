@@ -156,7 +156,8 @@ class CampaignOutWithImageryWindows(CampaignOut):
 
 class CampaignUserOut(BaseModel):
     user: UserOut
-    role: str
+    is_admin: bool
+    is_authorative_reviewer: bool
 
     class Config:
         from_attributes = True
@@ -194,10 +195,30 @@ class UpdateCampaignBBoxRequest(BaseModel):
 class AssignTasksToUsersRequest(BaseModel):
     """
     Request to assign multiple tasks to users.
-    Maps task IDs to user IDs.
+    Maps task IDs to list of user IDs (supports multiple reviewers per task).
     """
 
-    task_assignments: dict[int, UUID]
+    task_assignments: dict[int, list[UUID]]
+
+
+class AssignReviewersRequest(BaseModel):
+    """
+    Request to assign reviewers to tasks based on different patterns.
+    """
+    
+    pattern: str  # 'percentage', 'manual', 'fixed'
+    
+    # For 'percentage' pattern
+    percentage: Optional[float] = None  # Percentage of tasks to review (0-100)
+    num_reviewers: Optional[int] = None  # Number of reviewers per task
+    reviewer_ids: Optional[list[UUID]] = None  # Pool of reviewers to choose from
+    
+    # For 'manual' pattern
+    manual_assignments: Optional[dict[int, list[UUID]]] = None  # task_id -> list of user_ids
+    
+    # For 'fixed' pattern
+    num_tasks: Optional[int] = None  # Number of tasks to assign reviewers to
+    fixed_num_reviewers: Optional[int] = None  # Fixed number of reviewers per task
 
 
 class DeleteAnnotationTasksRequest(BaseModel):
@@ -206,3 +227,37 @@ class DeleteAnnotationTasksRequest(BaseModel):
     """
 
     task_ids: list[int]
+
+
+# ============================================================================
+# Campaign Statistics Schemas
+# ============================================================================
+
+
+class AnnotatorInfo(BaseModel):
+    """Basic information about an annotator."""
+    user_id: str
+    user_email: str
+    user_display_name: Optional[str]
+    total_annotations: int
+    label_distribution: dict[str, int]  # label name -> count
+
+
+class PairwiseAgreement(BaseModel):
+    """Agreement percentage between two annotators."""
+    annotator1_id: str
+    annotator2_id: str
+    agreement_percentage: Optional[float]  # percentage (0-100), None if no shared tasks
+    shared_tasks: int  # number of tasks both annotators worked on
+
+
+class CampaignStatistics(BaseModel):
+    """Statistics for a campaign focused on inter-annotator agreement."""
+    campaign_id: int
+    campaign_name: str
+    total_annotations: int
+    tasks_with_multiple_annotations: int  # Number of tasks used for agreement calculation
+    overall_label_distribution: dict[str, int]  # Overall label distribution
+    krippendorff_alpha: Optional[float]  # Overall inter-annotator agreement (0-1)
+    annotators: list[AnnotatorInfo]
+    pairwise_agreements: list[PairwiseAgreement]

@@ -20,6 +20,10 @@ export type AnnotationCreate = {
      * Geometry Wkt
      */
     geometry_wkt: string;
+    /**
+     * Confidence
+     */
+    confidence: string | null;
 };
 
 /**
@@ -34,6 +38,10 @@ export type AnnotationFromTaskCreate = {
      * Comment
      */
     comment: string | null;
+    /**
+     * Confidence
+     */
+    confidence: number | null;
 };
 
 /**
@@ -47,7 +55,7 @@ export type AnnotationFromTaskOut = {
     /**
      * Label Id
      */
-    label_id: number;
+    label_id: number | null;
     /**
      * Comment
      */
@@ -60,6 +68,14 @@ export type AnnotationFromTaskOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * Confidence
+     */
+    confidence: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative: boolean;
 };
 
 /**
@@ -73,7 +89,7 @@ export type AnnotationOut = {
     /**
      * Label Id
      */
-    label_id: number;
+    label_id: number | null;
     /**
      * Comment
      */
@@ -86,28 +102,37 @@ export type AnnotationOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * Confidence
+     */
+    confidence: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative: boolean;
     geometry: GeometryOut;
 };
 
 /**
- * AnnotationTaskItemOut
+ * AnnotationTaskAssignmentOut
  */
-export type AnnotationTaskItemOut = {
+export type AnnotationTaskAssignmentOut = {
     /**
-     * Id
+     * User Id
      */
-    id: number;
-    /**
-     * Annotation Number
-     */
-    annotation_number: number;
-    geometry: GeometryOut;
+    user_id: string;
     /**
      * Status
      */
     status: string;
-    assigned_user: UserOut | null;
-    annotation: AnnotationFromTaskOut | null;
+    /**
+     * User Email
+     */
+    user_email?: string | null;
+    /**
+     * User Display Name
+     */
+    user_display_name?: string | null;
 };
 
 /**
@@ -121,7 +146,30 @@ export type AnnotationTaskListOut = {
     /**
      * Tasks
      */
-    tasks: Array<AnnotationTaskItemOut>;
+    tasks: Array<AnnotationTaskOut>;
+};
+
+/**
+ * AnnotationTaskOut
+ */
+export type AnnotationTaskOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Annotation Number
+     */
+    annotation_number: number;
+    geometry: GeometryOut;
+    /**
+     * Assignments
+     */
+    assignments: Array<AnnotationTaskAssignmentOut> | null;
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationFromTaskOut>;
 };
 
 /**
@@ -140,20 +188,92 @@ export type AnnotationUpdate = {
      * Geometry Wkt
      */
     geometry_wkt: string | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative: boolean | null;
+};
+
+/**
+ * AnnotatorInfo
+ *
+ * Basic information about an annotator.
+ */
+export type AnnotatorInfo = {
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * User Email
+     */
+    user_email: string;
+    /**
+     * User Display Name
+     */
+    user_display_name: string | null;
+    /**
+     * Total Annotations
+     */
+    total_annotations: number;
+    /**
+     * Label Distribution
+     */
+    label_distribution: {
+        [key: string]: number;
+    };
+};
+
+/**
+ * AssignReviewersRequest
+ *
+ * Request to assign reviewers to tasks based on different patterns.
+ */
+export type AssignReviewersRequest = {
+    /**
+     * Pattern
+     */
+    pattern: string;
+    /**
+     * Percentage
+     */
+    percentage?: number | null;
+    /**
+     * Num Reviewers
+     */
+    num_reviewers?: number | null;
+    /**
+     * Reviewer Ids
+     */
+    reviewer_ids?: Array<string> | null;
+    /**
+     * Manual Assignments
+     */
+    manual_assignments?: {
+        [key: string]: Array<string>;
+    } | null;
+    /**
+     * Num Tasks
+     */
+    num_tasks?: number | null;
+    /**
+     * Fixed Num Reviewers
+     */
+    fixed_num_reviewers?: number | null;
 };
 
 /**
  * AssignTasksToUsersRequest
  *
  * Request to assign multiple tasks to users.
- * Maps task IDs to user IDs.
+ * Maps task IDs to list of user IDs (supports multiple reviewers per task).
  */
 export type AssignTasksToUsersRequest = {
     /**
      * Task Assignments
      */
     task_assignments: {
-        [key: string]: string;
+        [key: string]: Array<string>;
     };
 };
 
@@ -186,9 +306,9 @@ export type BodyGenerateTasksFromSampling = {
 };
 
 /**
- * Body_ingestAnnotationTaskFromCsv
+ * Body_ingestAnnotationTasksFromCsv
  */
-export type BodyIngestAnnotationTaskFromCsv = {
+export type BodyIngestAnnotationTasksFromCsv = {
     /**
      * File
      */
@@ -399,14 +519,60 @@ export type CampaignSettingsOut = {
 };
 
 /**
+ * CampaignStatistics
+ *
+ * Statistics for a campaign focused on inter-annotator agreement.
+ */
+export type CampaignStatistics = {
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Campaign Name
+     */
+    campaign_name: string;
+    /**
+     * Total Annotations
+     */
+    total_annotations: number;
+    /**
+     * Tasks With Multiple Annotations
+     */
+    tasks_with_multiple_annotations: number;
+    /**
+     * Overall Label Distribution
+     */
+    overall_label_distribution: {
+        [key: string]: number;
+    };
+    /**
+     * Krippendorff Alpha
+     */
+    krippendorff_alpha: number | null;
+    /**
+     * Annotators
+     */
+    annotators: Array<AnnotatorInfo>;
+    /**
+     * Pairwise Agreements
+     */
+    pairwise_agreements: Array<PairwiseAgreement>;
+};
+
+/**
  * CampaignUserOut
  */
 export type CampaignUserOut = {
     user: UserOut;
     /**
-     * Role
+     * Is Admin
      */
-    role: string;
+    is_admin: boolean;
+    /**
+     * Is Authorative Reviewer
+     */
+    is_authorative_reviewer: boolean;
 };
 
 /**
@@ -844,6 +1010,30 @@ export type LabelBase = {
      * Name
      */
     name: string;
+};
+
+/**
+ * PairwiseAgreement
+ *
+ * Agreement percentage between two annotators.
+ */
+export type PairwiseAgreement = {
+    /**
+     * Annotator1 Id
+     */
+    annotator1_id: string;
+    /**
+     * Annotator2 Id
+     */
+    annotator2_id: string;
+    /**
+     * Agreement Percentage
+     */
+    agreement_percentage: number | null;
+    /**
+     * Shared Tasks
+     */
+    shared_tasks: number;
 };
 
 /**
@@ -1702,7 +1892,7 @@ export type MakeUserCampaignAdminData = {
          */
         new_admin_user_id: string;
     };
-    url: '/api/campaigns/{campaign_id}/assign-admin';
+    url: '/api/campaigns/{campaign_id}/make-user-admin';
 };
 
 export type MakeUserCampaignAdminErrors = {
@@ -1715,6 +1905,39 @@ export type MakeUserCampaignAdminErrors = {
 export type MakeUserCampaignAdminError = MakeUserCampaignAdminErrors[keyof MakeUserCampaignAdminErrors];
 
 export type MakeUserCampaignAdminResponses = {
+    /**
+     * Successful Response
+     */
+    201: unknown;
+};
+
+export type MakeUserAuthorativeReviewerData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query: {
+        /**
+         * New Authorative Reviewer Id
+         */
+        new_authorative_reviewer_id: string;
+    };
+    url: '/api/campaigns/{campaign_id}/make-user-authorative-reviewer';
+};
+
+export type MakeUserAuthorativeReviewerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MakeUserAuthorativeReviewerError = MakeUserAuthorativeReviewerErrors[keyof MakeUserAuthorativeReviewerErrors];
+
+export type MakeUserAuthorativeReviewerResponses = {
     /**
      * Successful Response
      */
@@ -1878,6 +2101,39 @@ export type DemoteCampaignAdminResponses = {
     200: unknown;
 };
 
+export type DemoteAuthorativeReviewerData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    url: '/api/campaigns/{campaign_id}/demote-auth-reviewer';
+};
+
+export type DemoteAuthorativeReviewerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DemoteAuthorativeReviewerError = DemoteAuthorativeReviewerErrors[keyof DemoteAuthorativeReviewerErrors];
+
+export type DemoteAuthorativeReviewerResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type AssignTasksToUsersData = {
     body: AssignTasksToUsersRequest;
     path: {
@@ -1900,6 +2156,106 @@ export type AssignTasksToUsersErrors = {
 export type AssignTasksToUsersError = AssignTasksToUsersErrors[keyof AssignTasksToUsersErrors];
 
 export type AssignTasksToUsersResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UnassignUserFromTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/unassign-user/{user_id}';
+};
+
+export type UnassignUserFromTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnassignUserFromTaskError = UnassignUserFromTaskErrors[keyof UnassignUserFromTaskErrors];
+
+export type UnassignUserFromTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type AssignReviewersData = {
+    body: AssignReviewersRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/assign-reviewers';
+};
+
+export type AssignReviewersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AssignReviewersError = AssignReviewersErrors[keyof AssignReviewersErrors];
+
+export type AssignReviewersResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UnassignUserFromTask2Data = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Task Id
+         */
+        task_id: number;
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/users/{user_id}';
+};
+
+export type UnassignUserFromTask2Errors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnassignUserFromTask2Error = UnassignUserFromTask2Errors[keyof UnassignUserFromTask2Errors];
+
+export type UnassignUserFromTask2Responses = {
     /**
      * Successful Response
      */
@@ -1964,6 +2320,36 @@ export type GetAllAnnotationTasksResponses = {
 
 export type GetAllAnnotationTasksResponse = GetAllAnnotationTasksResponses[keyof GetAllAnnotationTasksResponses];
 
+export type GetCampaignStatisticsEndpointData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/statistics';
+};
+
+export type GetCampaignStatisticsEndpointErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCampaignStatisticsEndpointError = GetCampaignStatisticsEndpointErrors[keyof GetCampaignStatisticsEndpointErrors];
+
+export type GetCampaignStatisticsEndpointResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignStatistics;
+};
+
+export type GetCampaignStatisticsEndpointResponse = GetCampaignStatisticsEndpointResponses[keyof GetCampaignStatisticsEndpointResponses];
+
 export type CompleteAnnotationTaskData = {
     body: AnnotationFromTaskCreate;
     path: {
@@ -2000,7 +2386,35 @@ export type CompleteAnnotationTaskResponses = {
 
 export type CompleteAnnotationTaskResponse = CompleteAnnotationTaskResponses[keyof CompleteAnnotationTaskResponses];
 
-export type CreateAnnotationData = {
+export type IngestAnnotationTasksFromCsvData = {
+    body: BodyIngestAnnotationTasksFromCsv;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
+};
+
+export type IngestAnnotationTasksFromCsvErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IngestAnnotationTasksFromCsvError = IngestAnnotationTasksFromCsvErrors[keyof IngestAnnotationTasksFromCsvErrors];
+
+export type IngestAnnotationTasksFromCsvResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type CreateAnnotationOpenmodeData = {
     body: AnnotationCreate;
     path: {
         /**
@@ -2012,57 +2426,25 @@ export type CreateAnnotationData = {
     url: '/api/campaigns/{campaign_id}/create-annotation';
 };
 
-export type CreateAnnotationErrors = {
+export type CreateAnnotationOpenmodeErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateAnnotationError = CreateAnnotationErrors[keyof CreateAnnotationErrors];
+export type CreateAnnotationOpenmodeError = CreateAnnotationOpenmodeErrors[keyof CreateAnnotationOpenmodeErrors];
 
-export type CreateAnnotationResponses = {
+export type CreateAnnotationOpenmodeResponses = {
     /**
      * Successful Response
      */
     200: AnnotationOut;
 };
 
-export type CreateAnnotationResponse = CreateAnnotationResponses[keyof CreateAnnotationResponses];
+export type CreateAnnotationOpenmodeResponse = CreateAnnotationOpenmodeResponses[keyof CreateAnnotationOpenmodeResponses];
 
-export type GetAllAnnotationsForCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/annotations';
-};
-
-export type GetAllAnnotationsForCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAllAnnotationsForCampaignError = GetAllAnnotationsForCampaignErrors[keyof GetAllAnnotationsForCampaignErrors];
-
-export type GetAllAnnotationsForCampaignResponses = {
-    /**
-     * Response Getallannotationsforcampaign
-     *
-     * Successful Response
-     */
-    200: Array<AnnotationOut>;
-};
-
-export type GetAllAnnotationsForCampaignResponse = GetAllAnnotationsForCampaignResponses[keyof GetAllAnnotationsForCampaignResponses];
-
-export type UpdateAnnotationData = {
+export type UpdateAnnotationOpenmodeData = {
     body: AnnotationUpdate;
     path: {
         /**
@@ -2078,23 +2460,23 @@ export type UpdateAnnotationData = {
     url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}/update';
 };
 
-export type UpdateAnnotationErrors = {
+export type UpdateAnnotationOpenmodeErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type UpdateAnnotationError = UpdateAnnotationErrors[keyof UpdateAnnotationErrors];
+export type UpdateAnnotationOpenmodeError = UpdateAnnotationOpenmodeErrors[keyof UpdateAnnotationOpenmodeErrors];
 
-export type UpdateAnnotationResponses = {
+export type UpdateAnnotationOpenmodeResponses = {
     /**
      * Successful Response
      */
     200: AnnotationOut;
 };
 
-export type UpdateAnnotationResponse = UpdateAnnotationResponses[keyof UpdateAnnotationResponses];
+export type UpdateAnnotationOpenmodeResponse = UpdateAnnotationOpenmodeResponses[keyof UpdateAnnotationOpenmodeResponses];
 
 export type DeleteAnnotationData = {
     body?: never;
@@ -2158,8 +2540,8 @@ export type ExportAnnotationsResponses = {
     200: unknown;
 };
 
-export type IngestAnnotationTaskFromCsvData = {
-    body: BodyIngestAnnotationTaskFromCsv;
+export type GetAllAnnotationsForCampaignData = {
+    body?: never;
     path: {
         /**
          * Campaign Id
@@ -2167,24 +2549,28 @@ export type IngestAnnotationTaskFromCsvData = {
         campaign_id: number;
     };
     query?: never;
-    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-csv';
+    url: '/api/campaigns/{campaign_id}/annotations';
 };
 
-export type IngestAnnotationTaskFromCsvErrors = {
+export type GetAllAnnotationsForCampaignErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type IngestAnnotationTaskFromCsvError = IngestAnnotationTaskFromCsvErrors[keyof IngestAnnotationTaskFromCsvErrors];
+export type GetAllAnnotationsForCampaignError = GetAllAnnotationsForCampaignErrors[keyof GetAllAnnotationsForCampaignErrors];
 
-export type IngestAnnotationTaskFromCsvResponses = {
+export type GetAllAnnotationsForCampaignResponses = {
     /**
+     * Response Getallannotationsforcampaign
+     *
      * Successful Response
      */
-    200: unknown;
+    200: Array<AnnotationOut>;
 };
+
+export type GetAllAnnotationsForCampaignResponse = GetAllAnnotationsForCampaignResponses[keyof GetAllAnnotationsForCampaignResponses];
 
 export type GetTimeseriesForCampaignData = {
     body?: never;

@@ -103,8 +103,8 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-neutral-300 p-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-4">Generate Tasks via Sampling</h2>
+    <div>
+      <h3 className="text-md font-semibold text-neutral-900 mb-3">Generate Tasks via Sampling</h3>
       <p className="text-sm text-neutral-500 mb-4">
         Generate annotation tasks by sampling points within a region. You can either upload a
         boundary file or use the campaign's bounding box.

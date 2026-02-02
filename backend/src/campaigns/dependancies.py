@@ -2,7 +2,6 @@ from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
-from src.campaigns.constants import CAMPAIGN_ROLE_ADMIN
 from src.campaigns.models import Campaign, CampaignUser
 from src.database import get_db
 
@@ -82,7 +81,7 @@ def require_campaign_admin(
         .filter(
             CampaignUser.campaign_id == campaign_id,
             CampaignUser.user_id == user.id,
-            CampaignUser.role == CAMPAIGN_ROLE_ADMIN,
+            CampaignUser.is_admin,
         )
         .first()
     )

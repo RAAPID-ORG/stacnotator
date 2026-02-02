@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { AnnotationTaskItemOut, LabelBase } from '~/api/client';
+import type { AnnotationTaskOut, LabelBase } from '~/api/client';
+import { getTaskStatus, formatTaskStatus } from '~/utils/taskStatus';
 
 interface AnnotationDistributionMapProps {
-  tasks: AnnotationTaskItemOut[];
+  tasks: AnnotationTaskOut[];
   labels: LabelBase[];
   bbox: {
     west: number;
@@ -120,16 +121,31 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       const coords = parseWKTPoint(task.geometry.geometry);
       if (!coords) return;
 
+      const taskStatus = getTaskStatus(task);
+      const annotations = task.annotations || [];
+      
       let markerColor = PENDING_COLOR;
       let labelName = 'Pending';
 
-      if (task.status === 'done' && task.annotation) {
-        markerColor = labelColors[task.annotation.label_id] || PENDING_COLOR;
-        const label = labels.find((l) => l.id === task.annotation!.label_id);
-        labelName = label ? label.name : `Label #${task.annotation.label_id}`;
-      } else if (task.status === 'skipped') {
-        markerColor = SKIPPED_COLOR;
-        labelName = 'Skipped';
+      if (taskStatus === 'complete' || taskStatus === 'partial' || taskStatus === 'conflicting') {
+        // Use the most common label for color (or first annotation if no consensus)
+        if (annotations.length > 0) {
+          const firstAnnotation = annotations[0];
+          if (firstAnnotation.label_id) {
+            markerColor = labelColors[firstAnnotation.label_id] || PENDING_COLOR;
+            const label = labels.find((l) => l.id === firstAnnotation.label_id);
+            labelName = label ? label.name : `Label #${firstAnnotation.label_id}`;
+          } else {
+            markerColor = SKIPPED_COLOR;
+            labelName = 'Skipped';
+          }
+        }
+        
+        // Special colors for conflicting
+        if (taskStatus === 'conflicting') {
+          markerColor = '#ef4444'; // red
+          labelName = 'Conflicting';
+        }
       }
 
       const icon = L.divIcon({
@@ -146,17 +162,25 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       const marker = L.marker(coords, { icon });
 
       // Add popup with task info
-      const assignedTo = task.assigned_user
-        ? `${task.assigned_user.display_name || task.assigned_user.email}`
+      const assignments = task.assignments || [];
+      const assignedTo = assignments.length > 0
+        ? assignments.map(a => a.user_id).join(', ')
         : 'Unassigned';
+
+      const annotationInfo = annotations.length > 0
+        ? annotations.map(a => {
+            const label = labels.find(l => l.id === a.label_id);
+            return `${label?.name || 'Skipped'} (by ${a.created_by_user_id})`;
+          }).join('<br>')
+        : 'No annotations';
 
       marker.bindPopup(`
         <div class="text-sm">
           <div class="font-medium mb-1">Task #${task.annotation_number}</div>
-          <div class="text-xs text-neutral-600">Status: <span class="capitalize">${task.status}</span></div>
-          <div class="text-xs text-neutral-600">Label: ${labelName}</div>
+          <div class="text-xs text-neutral-600">Status: <span class="capitalize">${formatTaskStatus(taskStatus)}</span></div>
+          <div class="text-xs text-neutral-600">Annotations: ${annotationInfo}</div>
           <div class="text-xs text-neutral-600">Assigned: ${assignedTo}</div>
-          ${task.annotation?.comment ? `<div class="text-xs text-neutral-600 mt-1">💬 ${task.annotation.comment}</div>` : ''}
+          ${annotations.length > 0 && annotations[0].comment ? `<div class="text-xs text-neutral-600 mt-1">💬 ${annotations[0].comment}</div>` : ''}
         </div>
       `);
 
@@ -167,15 +191,18 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
   // Calculate statistics by label
   const labelStats = labels
     .map((label) => {
-      const count = tasks.filter(
-        (t) => t.status === 'done' && t.annotation?.label_id === label.id
-      ).length;
+      const count = tasks.filter((t) => {
+        const annotations = t.annotations || [];
+        return annotations.some(a => a.label_id === label.id);
+      }).length;
       return { label, count, color: labelColors[label.id] };
     })
     .filter((stat) => stat.count > 0);
 
-  const pendingCount = tasks.filter((t) => t.status === 'pending').length;
-  const skippedCount = tasks.filter((t) => t.status === 'skipped').length;
+  const pendingCount = tasks.filter((t) => getTaskStatus(t) === 'pending').length;
+  const completeCount = tasks.filter((t) => getTaskStatus(t) === 'complete').length;
+  const partialCount = tasks.filter((t) => getTaskStatus(t) === 'partial').length;
+  const conflictingCount = tasks.filter((t) => getTaskStatus(t) === 'conflicting').length;
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
@@ -205,13 +232,31 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
             <span className="text-neutral-700">Pending ({pendingCount})</span>
           </div>
         )}
-        {skippedCount > 0 && (
+        {partialCount > 0 && (
           <div className="flex items-center gap-2">
             <span
               className="w-4 h-4 rounded-full border-2 border-white"
-              style={{ backgroundColor: SKIPPED_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
+              style={{ backgroundColor: '#fbbf24', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
             />
-            <span className="text-neutral-700">Skipped ({skippedCount})</span>
+            <span className="text-neutral-700">Partial ({partialCount})</span>
+          </div>
+        )}
+        {conflictingCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-4 h-4 rounded-full border-2 border-white"
+              style={{ backgroundColor: '#ef4444', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
+            />
+            <span className="text-neutral-700">Conflicting ({conflictingCount})</span>
+          </div>
+        )}
+        {completeCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-4 h-4 rounded-full border-2 border-white"
+              style={{ backgroundColor: '#10b981', boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
+            />
+            <span className="text-neutral-700">Complete ({completeCount})</span>
           </div>
         )}
       </div>

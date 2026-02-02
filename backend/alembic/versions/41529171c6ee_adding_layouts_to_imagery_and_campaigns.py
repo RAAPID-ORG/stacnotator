@@ -46,7 +46,7 @@ def upgrade() -> None:
         schema="auth",
     )
     op.create_unique_constraint(
-        "uq_annotation_task_item_id", "annotations", ["annotation_task_item_id"], schema="data"
+        "uq_annotation_task_id", "annotations", ["annotation_task_id"], schema="data"
     )
     op.add_column(
         "campaigns",
@@ -88,7 +88,7 @@ def downgrade() -> None:
     op.drop_column("imagery", "default_canvas_layout_id", schema="data")
     op.drop_constraint(None, "campaigns", schema="data", type_="foreignkey")
     op.drop_column("campaigns", "default_main_canvas_layout_id", schema="data")
-    op.drop_constraint("uq_annotation_task_item_id", "annotations", schema="data", type_="unique")
+    op.drop_constraint("uq_annotation_task_id", "annotations", schema="data", type_="unique")
     op.alter_column(
         "users",
         "display_name",

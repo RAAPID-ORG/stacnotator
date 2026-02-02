@@ -5,6 +5,8 @@ import {
   listUsers,
   makeUserCampaignAdmin,
   demoteCampaignAdmin,
+  makeUserAuthorativeReviewer,
+  demoteAuthorativeReviewer,
   removeUserFromCampaign,
   type CampaignUserOut,
   type UserOutDetailed,
@@ -101,17 +103,12 @@ export const CampaignUsersSection = ({
     try {
       setSaving(true);
 
-      if (user.role === 'admin') {
+      if (user.is_admin) {
         // Demote admin to member
         await demoteCampaignAdmin({
           path: { campaign_id: campaignId },
           query: { user_id: user.user.id },
         });
-
-        // Update local state
-        setUsers(
-          users.map((u) => (u.user.id === user.user.id ? { ...u, role: 'member' as const } : u))
-        );
 
         const msg = `${user.user.display_name} demoted to member`;
         onSuccess?.(msg);
@@ -122,16 +119,50 @@ export const CampaignUsersSection = ({
           query: { new_admin_user_id: user.user.id },
         });
 
-        // Update local state
-        setUsers(
-          users.map((u) => (u.user.id === user.user.id ? { ...u, role: 'admin' as const } : u))
-        );
-
         const msg = `${user.user.display_name} promoted to admin`;
         onSuccess?.(msg);
       }
+
+      // Reload users to get updated state
+      await loadUsers();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update user role';
+      setError(message);
+      onError?.(message);
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleAuthorativeReviewer = async (user: CampaignUserOut) => {
+    try {
+      setSaving(true);
+
+      if (user.is_authorative_reviewer) {
+        // Demote from authoritative reviewer
+        await demoteAuthorativeReviewer({
+          path: { campaign_id: campaignId },
+          query: { user_id: user.user.id },
+        });
+
+        const msg = `${user.user.display_name} removed as authoritative reviewer`;
+        onSuccess?.(msg);
+      } else {
+        // Make user authoritative reviewer
+        await makeUserAuthorativeReviewer({
+          path: { campaign_id: campaignId },
+          query: { new_authorative_reviewer_id: user.user.id },
+        });
+
+        const msg = `${user.user.display_name} is now an authoritative reviewer`;
+        onSuccess?.(msg);
+      }
+
+      // Reload users to get updated state
+      await loadUsers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update reviewer status';
       setError(message);
       onError?.(message);
       console.error(err);
@@ -253,25 +284,40 @@ export const CampaignUsersSection = ({
                     </td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{user.user.email}</td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                          user.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {user.role === 'admin' ? 'Admin' : 'Member'}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                            user.is_admin
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {user.is_admin ? 'Admin' : 'Member'}
+                        </span>
+                        {user.is_authorative_reviewer && (
+                          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                            Authoritative Reviewer
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => handleToggleAdmin(user)}
                           disabled={saving}
                           className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           type="button"
                         >
-                          {user.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
+                          {user.is_admin ? 'Revoke Admin' : 'Make Admin'}
+                        </button>
+                        <button
+                          onClick={() => handleToggleAuthorativeReviewer(user)}
+                          disabled={saving}
+                          className="text-xs px-2 py-1 border border-indigo-300 text-indigo-600 rounded hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          type="button"
+                        >
+                          {user.is_authorative_reviewer ? 'Remove Reviewer' : 'Make Reviewer'}
                         </button>
                         <button
                           onClick={() => handleRemoveUser(user)}

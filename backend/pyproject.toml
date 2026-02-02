@@ -11,6 +11,7 @@ dependencies = [
     "firebase-admin>=7.1.0",
     "geoalchemy2>=0.18.1",
     "geopandas>=1.0.1",
+    "krippendorff>=0.6.1",
     "pandas>=2.3.3",
     "psutil",
     "psycopg2-binary>=2.9.11",
