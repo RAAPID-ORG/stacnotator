@@ -1,3 +1,4 @@
+from src.auth.service import is_admin
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
@@ -40,7 +41,7 @@ def require_campaign_access(
             CampaignUser.user_id == user.id,
         )
         .first()
-    )
+    ) or is_admin(db, user.id)
 
     if has_access is None:
         raise HTTPException(
@@ -85,7 +86,7 @@ def require_campaign_admin(
             CampaignUser.role == CAMPAIGN_ROLE_ADMIN,
         )
         .first()
-    )
+    ) or is_admin(db, user.id)
 
     if has_admin_access is None:
         raise HTTPException(

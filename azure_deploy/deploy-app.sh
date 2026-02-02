@@ -150,19 +150,39 @@ echo -e "${YELLOW}Creating database backup before deployment...${NC}"
 
 # Get database connection info from Key Vault
 echo -e "${BLUE}  Fetching database credentials from Key Vault...${NC}"
-DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-host" --query "value" -o tsv 2>/dev/null || echo "")
-DB_NAME=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-name" --query "value" -o tsv 2>/dev/null || echo "")
-DB_USER=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-user" --query "value" -o tsv 2>/dev/null || echo "")
-DB_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name "db-password" --query "value" -o tsv 2>/dev/null || echo "")
+DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-postgres-host" --query "value" -o tsv 2>&1)
+DB_PASSWORD=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-postgres-admin-password" --query "value" -o tsv 2>&1)
+DB_CONNECTION_STRING=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-db-connection-string" --query "value" -o tsv 2>&1)
 
-if [ -z "$DB_HOST" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-    echo -e "${YELLOW}Warning: Could not retrieve database credentials from Key Vault${NC}"
-    echo -e "${YELLOW}Skipping database backup${NC}"
+# Extract DB_NAME and DB_USER from connection string
+# Format: postgresql://user:password@host:port/dbname?sslmode=require
+if [[ "$DB_CONNECTION_STRING" =~ postgresql://([^:]+):[^@]+@[^/]+/([^?]+) ]]; then
+    DB_USER="${BASH_REMATCH[1]}"
+    DB_NAME="${BASH_REMATCH[2]}"
 else
-    echo -e "${GREEN}✓ Credentials retrieved${NC}"
-    echo -e "${BLUE}  Database: $DB_NAME on $DB_HOST${NC}"
-    
-    # Create backup directory if it doesn't exist
+    DB_USER=""
+    DB_NAME=""
+fi
+
+# Check if any command failed (output contains "ERROR" or is empty)
+if [[ "$DB_HOST" == *"ERROR"* ]] || [[ "$DB_PASSWORD" == *"ERROR"* ]] || [[ "$DB_CONNECTION_STRING" == *"ERROR"* ]] || \
+   [ -z "$DB_HOST" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
+    echo -e "${RED}Error: Could not retrieve database credentials from Key Vault${NC}"
+    echo -e "${YELLOW}This is likely due to:${NC}"
+    echo -e "${YELLOW}  1. Key Vault firewall blocking your IP${NC}"
+    echo -e "${YELLOW}  2. Missing secrets in Key Vault${NC}"
+    echo -e "${YELLOW}  3. Insufficient permissions${NC}"
+    echo ""
+    echo -e "${YELLOW}To fix Key Vault firewall:${NC}"
+    echo -e "  az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32"
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Credentials retrieved${NC}"
+echo -e "${BLUE}  Database: $DB_NAME on $DB_HOST${NC}"
+
+# Create backup directory if it doesn't exist
     BACKUP_DIR="./azure_deploy/backups"
     mkdir -p "$BACKUP_DIR"
     
@@ -209,10 +229,25 @@ else
         echo -e "  ./azure_deploy/restore-backup.sh $BACKUP_FILE"
         echo ""
     else
-        echo -e "${YELLOW}Warning: Database backup failed${NC}"
-        echo -e "${YELLOW}Continuing with deployment...${NC}"
+        echo -e "${RED}Error: Database backup failed${NC}"
+        echo -e "${YELLOW}This could be due to:${NC}"
+        echo -e "${YELLOW}  1. Database connection issues${NC}"
+        echo -e "${YELLOW}  2. Invalid credentials${NC}"
+        echo -e "${YELLOW}  3. Network connectivity problems${NC}"
+        echo ""
+        
+        # Ask if user wants to continue without backup
+        if [ "$CI" != "true" ]; then
+            read -p "Continue deployment WITHOUT backup? (y/N): " CONTINUE_WITHOUT_BACKUP
+            if [[ ! "$CONTINUE_WITHOUT_BACKUP" =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}Deployment cancelled.${NC}"
+                exit 1
+            fi
+            echo -e "${YELLOW}Proceeding without backup...${NC}"
+        else
+            echo -e "${YELLOW}CI mode: Continuing deployment without backup${NC}"
+        fi
     fi
-fi
 echo ""
 
 # Build and push backend
@@ -252,9 +287,27 @@ fi
 echo -e "${YELLOW}Fetching Firebase configuration from Key Vault...${NC}"
 
 # Try to get Firebase config from Key Vault secrets
-VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>/dev/null || echo "")
+VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>&1)
+VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>&1)
+VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>&1)
+
+# Check if any command failed (output contains "ERROR" or is empty)
+if [[ "$VITE_FIREBASE_API_KEY" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_AUTH_DOMAIN" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_PROJECT_ID" == *"ERROR"* ]] || \
+   [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
+    echo -e "${RED}Error: Could not retrieve Firebase configuration from Key Vault${NC}"
+    echo -e "${YELLOW}This is likely due to:${NC}"
+    echo -e "${YELLOW}  1. Key Vault firewall blocking your IP${NC}"
+    echo -e "${YELLOW}  2. Missing Firebase secrets in Key Vault${NC}"
+    echo -e "${YELLOW}  3. Insufficient permissions${NC}"
+    echo ""
+    echo -e "${YELLOW}To fix Key Vault firewall:${NC}"
+    echo -e "  az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32"
+    echo ""
+    echo -e "${YELLOW}To upload Firebase secrets:${NC}"
+    echo -e "  ./azure_deploy/upload-secrets.sh"
+    echo ""
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Firebase configuration loaded${NC}"
 echo -e "${YELLOW}  Project: ${VITE_FIREBASE_PROJECT_ID}${NC}"
