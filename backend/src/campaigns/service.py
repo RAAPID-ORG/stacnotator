@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from src.auth.models import User
+from src.auth.service import is_admin as is_global_admin
 from src.campaigns.constants import (
     CAMPAIGN_ROLE_ADMIN,
     CAMPAIGN_ROLE_MEMBER,
@@ -42,8 +43,10 @@ def list_campaigns_with_user_roles(db: Session, user_id: int) -> List[dict]:
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
 
-    is_global_admin = select(User).where(User.id == user_id, User.is_admin == True)
-    if db.scalars(is_global_admin).first():
+    # Check if user is a global platform admin
+    user_is_global_admin = is_global_admin(db, user_id)
+    
+    if user_is_global_admin:
         # If user is global admin, they are admin of all campaigns
         results = []
         for campaign in campaigns:
