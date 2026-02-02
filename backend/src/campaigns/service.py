@@ -42,6 +42,20 @@ def list_campaigns_with_user_roles(db: Session, user_id: int) -> List[dict]:
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
 
+    is_global_admin = select(User).where(User.id == user_id, User.is_admin == True)
+    if db.scalars(is_global_admin).first():
+        # If user is global admin, they are admin of all campaigns
+        results = []
+        for campaign in campaigns:
+            results.append(
+                {
+                    "campaign": campaign,
+                    "is_admin": True,
+                    "is_member": True,
+                }
+            )
+        return results
+
     results = []
     for campaign in campaigns:
         is_admin = False
