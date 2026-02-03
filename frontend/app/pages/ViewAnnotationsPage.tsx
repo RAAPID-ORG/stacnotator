@@ -456,6 +456,7 @@ export const ViewAnnotationsPage = () => {
                     </td>
                     <td className="px-4 py-3">
                       <button
+                        disabled={true}
                         onClick={() => handleNavigateToTask(task.id)}
                         className="text-brand-500 hover:text-brand-700 text-sm font-medium transition-colors"
                       >

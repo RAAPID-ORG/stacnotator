@@ -34,7 +34,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
               },
               {
                 op: '<=',
-                args: [{ property: 'eo:cloud_cover' }, 20],
+                args: [{ property: 'eo:cloud_cover' }, 90],
               },
               {
                 op: '=',

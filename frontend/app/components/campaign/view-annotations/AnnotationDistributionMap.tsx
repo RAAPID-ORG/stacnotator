@@ -124,7 +124,7 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       let labelName = 'Pending';
 
       if (task.status === 'done' && task.annotation) {
-        markerColor = labelColors[task.annotation.label_id] || PENDING_COLOR;
+        markerColor = (task.annotation.label_id && labelColors[task.annotation.label_id]) || PENDING_COLOR;
         const label = labels.find((l) => l.id === task.annotation!.label_id);
         labelName = label ? label.name : `Label #${task.annotation.label_id}`;
       } else if (task.status === 'skipped') {

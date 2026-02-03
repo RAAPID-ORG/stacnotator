@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationData, CreateAnnotationErrors, CreateAnnotationResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutForImageryData, CreateNewCanvasLayoutForImageryErrors, CreateNewCanvasLayoutForImageryResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteImageryData, DeleteImageryErrors, DeleteImageryResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTaskFromCsvData, IngestAnnotationTaskFromCsvErrors, IngestAnnotationTaskFromCsvResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListUsersData, ListUsersResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, UpdateAnnotationData, UpdateAnnotationErrors, UpdateAnnotationResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses } from './types.gen';
+import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationData, CreateAnnotationErrors, CreateAnnotationResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutForImageryData, CreateNewCanvasLayoutForImageryErrors, CreateNewCanvasLayoutForImageryResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteImageryData, DeleteImageryErrors, DeleteImageryResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTaskFromCsvData, IngestAnnotationTaskFromCsvErrors, IngestAnnotationTaskFromCsvResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListUsersData, ListUsersResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, UpdateAnnotationData, UpdateAnnotationErrors, UpdateAnnotationResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses, UpdateImageryData, UpdateImageryErrors, UpdateImageryResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -567,6 +567,33 @@ export const createImagery = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * Delete Imagery
+ *
+ * Delete an imagery entry and all associated data.
+ */
+export const deleteImagery = <ThrowOnError extends boolean = false>(options: Options<DeleteImageryData, ThrowOnError>) => (options.client ?? client).delete<DeleteImageryResponses, DeleteImageryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/imagery/{imagery_id}',
+    ...options
+});
+
+/**
+ * Update Imagery
+ *
+ * Update an imagery configuration.
+ * Excludes temporal fields (start_ym, end_ym, window_*, slicing_*) which cannot be changed.
+ */
+export const updateImagery = <ThrowOnError extends boolean = false>(options: Options<UpdateImageryData, ThrowOnError>) => (options.client ?? client).patch<UpdateImageryResponses, UpdateImageryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/imagery/{imagery_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Create New Canvas Layout For Imagery
  *
  * Create or update canvas layout for imagery visualization.
@@ -583,15 +610,4 @@ export const createNewCanvasLayoutForImagery = <ThrowOnError extends boolean = f
         'Content-Type': 'application/json',
         ...options.headers
     }
-});
-
-/**
- * Delete Imagery
- *
- * Delete an imagery entry and all associated data.
- */
-export const deleteImagery = <ThrowOnError extends boolean = false>(options: Options<DeleteImageryData, ThrowOnError>) => (options.client ?? client).delete<DeleteImageryResponses, DeleteImageryErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery/{imagery_id}',
-    ...options
 });

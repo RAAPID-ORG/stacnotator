@@ -47,7 +47,7 @@ export type AnnotationFromTaskOut = {
     /**
      * Label Id
      */
-    label_id: number;
+    label_id: number | null;
     /**
      * Comment
      */
@@ -73,7 +73,7 @@ export type AnnotationOut = {
     /**
      * Label Id
      */
-    label_id: number;
+    label_id: number | null;
     /**
      * Comment
      */
@@ -691,6 +691,39 @@ export type ImageryOut = {
      * Visualization Url Templates
      */
     visualization_url_templates: Array<ImageryVisualizationUrlTemplateOut>;
+};
+
+/**
+ * ImageryUpdate
+ *
+ * Update schema for imagery - excludes temporal fields that cannot be changed
+ * after creation (start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit).
+ */
+export type ImageryUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Crosshair Hex6
+     */
+    crosshair_hex6?: string | null;
+    /**
+     * Default Zoom
+     */
+    default_zoom?: number | null;
+    /**
+     * Registration Url
+     */
+    registration_url?: string | null;
+    /**
+     * Search Body
+     */
+    search_body?: string | null;
+    /**
+     * Visualization Url Templates
+     */
+    visualization_url_templates?: Array<ImageryVisualizationUrlTemplateCreate> | null;
 };
 
 /**
@@ -2394,34 +2427,6 @@ export type CreateImageryResponses = {
 
 export type CreateImageryResponse2 = CreateImageryResponses[keyof CreateImageryResponses];
 
-export type CreateNewCanvasLayoutForImageryData = {
-    body: CanvasLayoutCreateRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/new-layout';
-};
-
-export type CreateNewCanvasLayoutForImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateNewCanvasLayoutForImageryError = CreateNewCanvasLayoutForImageryErrors[keyof CreateNewCanvasLayoutForImageryErrors];
-
-export type CreateNewCanvasLayoutForImageryResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
 export type DeleteImageryData = {
     body?: never;
     path: {
@@ -2455,3 +2460,65 @@ export type DeleteImageryResponses = {
 };
 
 export type DeleteImageryResponse = DeleteImageryResponses[keyof DeleteImageryResponses];
+
+export type UpdateImageryData = {
+    body: ImageryUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Imagery Id
+         */
+        imagery_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/{imagery_id}';
+};
+
+export type UpdateImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateImageryError = UpdateImageryErrors[keyof UpdateImageryErrors];
+
+export type UpdateImageryResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageryOut;
+};
+
+export type UpdateImageryResponse = UpdateImageryResponses[keyof UpdateImageryResponses];
+
+export type CreateNewCanvasLayoutForImageryData = {
+    body: CanvasLayoutCreateRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/new-layout';
+};
+
+export type CreateNewCanvasLayoutForImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateNewCanvasLayoutForImageryError = CreateNewCanvasLayoutForImageryErrors[keyof CreateNewCanvasLayoutForImageryErrors];
+
+export type CreateNewCanvasLayoutForImageryResponses = {
+    /**
+     * Successful Response
+     */
+    201: unknown;
+};

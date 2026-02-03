@@ -8,6 +8,7 @@ interface ImageryEditorProps {
   onRemove?: () => void;
   onUpdate?: () => void;
   showUpdateButton?: boolean;
+  isExisting?: boolean; // Whether this is an existing imagery (disables temporal fields)
 }
 
 export const ImageryEditor = ({
@@ -16,6 +17,7 @@ export const ImageryEditor = ({
   onRemove,
   onUpdate,
   showUpdateButton = false,
+  isExisting = false,
 }: ImageryEditorProps) => {
   const [localValue, setLocalValue] = useState<ImageryCreate>(value);
   const [hasChanges, setHasChanges] = useState(false);
@@ -99,6 +101,12 @@ export const ImageryEditor = ({
         className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
       />
 
+      {isExisting && (
+        <p className="text-xs text-neutral-500 italic">
+          Note: Temporal settings (dates, windows, slicing) cannot be changed after creation.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="text-xs text-neutral-700">Start Month</label>
@@ -106,7 +114,8 @@ export const ImageryEditor = ({
             type="month"
             value={yyyymmToInputMonth(localValue.start_ym)}
             onChange={(e) => update('start_ym', inputMonthToYYYYMM(e.target.value))}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            disabled={isExisting}
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -115,7 +124,8 @@ export const ImageryEditor = ({
             type="month"
             value={yyyymmToInputMonth(localValue.end_ym)}
             onChange={(e) => update('end_ym', inputMonthToYYYYMM(e.target.value))}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            disabled={isExisting}
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
       </div>
@@ -135,8 +145,9 @@ export const ImageryEditor = ({
                 update('window_unit', 'months');
               }
             }}
+            disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -151,7 +162,8 @@ export const ImageryEditor = ({
                 update('window_interval', 1);
               }
             }}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            disabled={isExisting}
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -175,8 +187,9 @@ export const ImageryEditor = ({
                 update('slicing_unit', 'months');
               }
             }}
+            disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -191,7 +204,8 @@ export const ImageryEditor = ({
                 update('slicing_interval', 1);
               }
             }}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            disabled={isExisting}
+            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -213,6 +227,11 @@ export const ImageryEditor = ({
 
       <div className="space-y-1">
         <label className="text-xs text-neutral-700">Search Body (JSON)</label>
+        <p className="text-xs text-neutral-500 italic">
+          Tip: Use <code className="bg-neutral-100 px-1 rounded">{'{startDatetimePlaceholder}'}</code> and{' '}
+          <code className="bg-neutral-100 px-1 rounded">{'{endDatetimePlaceholder}'}</code> for temporal
+          windowing based on your parameters above. See templates above for examples.
+        </p>
         <textarea
           placeholder='{"search_query": "..."}'
           value={localValue.search_body}
