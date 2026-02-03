@@ -24,7 +24,7 @@ class GeometryOut(BaseModel):
 
 class AnnotationFromTaskOut(BaseModel):
     id: int
-    label_id: int
+    label_id: Optional[int]
     comment: Optional[str]
     created_by_user_id: UUID
     created_at: datetime
