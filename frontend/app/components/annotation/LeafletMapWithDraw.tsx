@@ -259,12 +259,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         // Store annotation info on the layer
         layer._annotationId = annotation.id;
         layer._layerId = L.stamp(layer).toString();
-        layer._labelInfo = label || {
-          ...extendedLabels[0], // Use first label as fallback
-          id: annotation.label_id,
-          geometry_type: geometryType,
-          color,
-        };
+        layer._labelInfo = label;
 
         drawnItemsRef.current.addLayer(layer);
       }
