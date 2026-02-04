@@ -243,7 +243,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
         subdomains = undefined; // ESRI doesn't use subdomains
-        maxZoom = 24;
+        maxZoom = 17;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';

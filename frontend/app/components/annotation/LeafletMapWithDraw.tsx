@@ -25,6 +25,7 @@ interface LeafletMapWithDrawProps {
   tileUrl: string;
   crosshairColor: string;
   refocusTrigger?: number;
+  showCrosshair?: boolean; // Whether to show the crosshair (default: true)
   showBasemap?: boolean;
   basemapType?: 'carto-light' | 'esri-world-imagery';
   zoomInTrigger?: number;
@@ -56,6 +57,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   tileUrl,
   crosshairColor,
   refocusTrigger,
+  showCrosshair = true,
   showBasemap = false,
   basemapType = 'carto-light',
   zoomInTrigger,
@@ -79,6 +81,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   const scaleControlRef = useRef<L.Control.Scale | null>(null);
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null);
   const timeseriesMarkerRef = useRef<L.Marker | null>(null);
+  const crosshairMarkerRef = useRef<L.Marker | null>(null);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
@@ -387,6 +390,71 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
       mapRef.current.panBy([x, y]);
     }
   }, [panTrigger?.count, panTrigger?.direction]);
+
+  // Manage crosshair marker
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove crosshair if it shouldn't be shown
+    if (!showCrosshair) {
+      if (crosshairMarkerRef.current) {
+        crosshairMarkerRef.current.remove();
+        crosshairMarkerRef.current = null;
+      }
+      return;
+    }
+
+    // Update crosshair position without removing/recreating for smoother performance
+    if (crosshairMarkerRef.current) {
+      crosshairMarkerRef.current.setLatLng(center);
+      return;
+    }
+
+    // Create plus sign crosshair only if it doesn't exist
+    const svg = `
+      <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
+        <line x1="0" y1="10" x2="20" y2="10" stroke="#${crosshairColor}" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="10" y2="20" stroke="#${crosshairColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+
+    const crosshairIcon = L.divIcon({
+      html: svg,
+      className: 'crosshair-icon',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    crosshairMarkerRef.current = L.marker(center, { icon: crosshairIcon }).addTo(mapRef.current);
+
+    return () => {
+      if (crosshairMarkerRef.current) {
+        crosshairMarkerRef.current.remove();
+        crosshairMarkerRef.current = null;
+      }
+    };
+  }, [center[0], center[1], showCrosshair, crosshairColor]);
+
+  // Update crosshair color separately when it changes
+  useEffect(() => {
+    if (!mapRef.current || !crosshairMarkerRef.current) return;
+
+    const svg = `
+      <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
+        <line x1="0" y1="10" x2="20" y2="10" stroke="#${crosshairColor}" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="10" y2="20" stroke="#${crosshairColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+
+    const crosshairIcon = L.divIcon({
+      html: svg,
+      className: 'crosshair-icon',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    crosshairMarkerRef.current.setIcon(crosshairIcon);
+  }, [crosshairColor]);
 
   // Update basemap layer
   useEffect(() => {
