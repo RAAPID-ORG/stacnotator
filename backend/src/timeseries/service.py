@@ -176,7 +176,7 @@ def get_timeseries_data(
 def _add_timeseries_entry_to_layout(
     layout_data: list[dict],
     window_width: int = 10,
-    window_height: int = 8,
+    window_height: int = 12,
     grid_width: int = 60,
 ) -> bool:
     """

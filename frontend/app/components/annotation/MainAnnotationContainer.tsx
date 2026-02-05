@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { extractLatLonFromWKT, computeTimeSlices } from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
 import LeafletMap from './LeafletMap';
@@ -22,8 +22,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   // Get state from store
   const campaign = useAnnotationStore((state) => state.campaign);
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
-  const filteredTasks = useAnnotationStore((state) => state.filteredTasks);
+  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
   const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
   const allTasks = useAnnotationStore((state) => state.allTasks);
   const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
@@ -32,8 +31,10 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
   const activeTool = useAnnotationStore((state) => state.activeTool);
   const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const basemapType = useAnnotationStore((state) => state.basemapType);
   const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
   const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
+  const showCrosshair = useAnnotationStore((state) => state.showCrosshair);
   const zoomInTrigger = useAnnotationStore((state) => state.zoomInTrigger);
   const zoomOutTrigger = useAnnotationStore((state) => state.zoomOutTrigger);
   const panTrigger = useAnnotationStore((state) => state.panTrigger);
@@ -45,7 +46,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
+  const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
   const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
   const nextTask = useAnnotationStore((state) => state.nextTask);
   const previousTask = useAnnotationStore((state) => state.previousTask);
@@ -56,7 +59,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
 
   // Compute derived values
-  const currentTask = pendingTasks[currentTaskIndex] || null;
+  const currentTask = visibleTasks[currentTaskIndex] || null;
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   const campaignBbox = campaign
     ? ([
@@ -70,7 +73,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   if (!campaign || !selectedImagery || !campaignBbox) return null;
 
   const labels = campaign.settings.labels;
-  const totalTasksCount = filteredTasks.length;
+  const totalTasksCount = visibleTasks.length;
   const isOpenMode = campaign.mode === 'open';
 
   // For open mode, get extended labels with colors and geometry types
@@ -84,9 +87,17 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     setShowBasemap(false);
   };
 
-  const handleBasemapSelect = () => {
+  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => {
     setShowBasemap(true);
+    setBasemapType(type);
   };
+
+  // Auto-switch back to imagery layer when window or slice changes
+  useEffect(() => {
+    if (showBasemap && (activeWindowId || activeSliceIndex !== undefined)) {
+      setShowBasemap(false);
+    }
+  }, [activeWindowId, activeSliceIndex]);
 
   // Extract coordinates from current task - memoized to prevent unnecessary recalculations
   const latLon = useMemo(
@@ -179,6 +190,11 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   // Get the tile URL for the selected layer
   const selectedTileUrl = tileUrls[selectedLayerIndex]?.url || '';
 
+  // Get the current layer name for display
+  const currentLayerName = showBasemap
+    ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
+    : (tileUrls[selectedLayerIndex]?.name || 'Layer');
+
   return (
     <div className="relative flex-1 bg-neutral-200 text-white text-xs overflow-hidden flex">
       {/* Timeline Sidebar - hidden when basemap is active to avoid confusion*/}
@@ -237,7 +253,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                 <path d="M2 10L10 14L18 10" />
                 <path d="M2 14L10 18L18 14" />
               </svg>
-              Layers
+              {currentLayerName}
             </button>
 
             {showLayerDropdown && (
@@ -267,20 +283,50 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
                 <div className="border-t border-neutral-300 my-1"></div>
 
-                {/* Basemap option */}
+                {/* Basemap options */}
                 <label
                   className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
-                    ${showBasemap ? 'bg-neutral-100 text-brand-700' : ''}
+                    ${showBasemap && basemapType === 'carto-light' ? 'bg-neutral-100 text-brand-700' : ''}
                   `}
                 >
                   <input
                     type="radio"
                     name="layer"
-                    checked={showBasemap}
-                    onChange={handleBasemapSelect}
-                    className={`mr-2 accent-brand-500${showBasemap ? '' : ' hover:accent-brand-500'}`}
+                    checked={showBasemap && basemapType === 'carto-light'}
+                    onChange={() => handleBasemapSelect('carto-light')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'carto-light' ? '' : ' hover:accent-brand-500'}`}
                   />
-                  <span>Basemap</span>
+                  <span>CartoDB Light</span>
+                </label>
+
+                <label
+                  className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
+                    ${showBasemap && basemapType === 'esri-world-imagery' ? 'bg-neutral-100 text-brand-700' : ''}
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="layer"
+                    checked={showBasemap && basemapType === 'esri-world-imagery'}
+                    onChange={() => handleBasemapSelect('esri-world-imagery')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'esri-world-imagery' ? '' : ' hover:accent-brand-500'}`}
+                  />
+                  <span>ESRI World Imagery</span>
+                </label>
+
+                <label
+                  className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
+                    ${showBasemap && basemapType === 'opentopomap' ? 'bg-neutral-100 text-brand-700' : ''}
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="layer"
+                    checked={showBasemap && basemapType === 'opentopomap'}
+                    onChange={() => handleBasemapSelect('opentopomap')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'opentopomap' ? '' : ' hover:accent-brand-500'}`}
+                  />
+                  <span>OpenTopoMap</span>
                 </label>
               </div>
             )}
@@ -294,6 +340,23 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
+            </svg>
+          </button>
+
+          {/* Toggle Crosshair Button */}
+          <button
+            onClick={toggleCrosshair}
+            className={`px-3 py-1.5 bg-white text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer ${
+              showCrosshair ? 'text-neutral-900' : 'text-neutral-400'
+            }`}
+            title={`${showCrosshair ? 'Hide' : 'Show'} crosshair (O)`}
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+              <circle cx="10" cy="10" r="1.5" />
+              <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
             </svg>
           </button>
         </div>
@@ -321,7 +384,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               tileUrl={selectedTileUrl}
               crosshairColor={selectedImagery.crosshair_hex6}
               refocusTrigger={refocusTrigger}
+              showCrosshair={showCrosshair}
               showBasemap={showBasemap}
+              basemapType={basemapType}
               zoomInTrigger={zoomInTrigger}
               zoomOutTrigger={zoomOutTrigger}
               panTrigger={panTrigger}
@@ -352,7 +417,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               tileUrl={selectedTileUrl}
               crosshairColor={selectedImagery.crosshair_hex6}
               refocusTrigger={refocusTrigger}
+              showCrosshair={showCrosshair}
               showBasemap={showBasemap}
+              basemapType={basemapType}
               zoomInTrigger={zoomInTrigger}
               zoomOutTrigger={zoomOutTrigger}
               panTrigger={panTrigger}

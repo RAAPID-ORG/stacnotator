@@ -25,7 +25,9 @@ interface LeafletMapWithDrawProps {
   tileUrl: string;
   crosshairColor: string;
   refocusTrigger?: number;
+  showCrosshair?: boolean; // Whether to show the crosshair (default: true)
   showBasemap?: boolean;
+  basemapType?: 'carto-light' | 'esri-world-imagery' | 'opentopomap';
   zoomInTrigger?: number;
   zoomOutTrigger?: number;
   panTrigger?: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
@@ -55,7 +57,9 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   tileUrl,
   crosshairColor,
   refocusTrigger,
+  showCrosshair = true,
   showBasemap = false,
+  basemapType = 'carto-light',
   zoomInTrigger,
   zoomOutTrigger,
   panTrigger,
@@ -77,6 +81,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   const scaleControlRef = useRef<L.Control.Scale | null>(null);
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null);
   const timeseriesMarkerRef = useRef<L.Marker | null>(null);
+  const crosshairMarkerRef = useRef<L.Marker | null>(null);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
@@ -257,12 +262,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         // Store annotation info on the layer
         layer._annotationId = annotation.id;
         layer._layerId = L.stamp(layer).toString();
-        layer._labelInfo = label || {
-          ...extendedLabels[0], // Use first label as fallback
-          id: annotation.label_id,
-          geometry_type: geometryType,
-          color,
-        };
+        layer._labelInfo = label;
 
         drawnItemsRef.current.addLayer(layer);
       }
@@ -391,6 +391,71 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     }
   }, [panTrigger?.count, panTrigger?.direction]);
 
+  // Manage crosshair marker
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Remove crosshair if it shouldn't be shown
+    if (!showCrosshair) {
+      if (crosshairMarkerRef.current) {
+        crosshairMarkerRef.current.remove();
+        crosshairMarkerRef.current = null;
+      }
+      return;
+    }
+
+    // Update crosshair position without removing/recreating for smoother performance
+    if (crosshairMarkerRef.current) {
+      crosshairMarkerRef.current.setLatLng(center);
+      return;
+    }
+
+    // Create plus sign crosshair only if it doesn't exist
+    const svg = `
+      <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
+        <line x1="0" y1="10" x2="20" y2="10" stroke="#${crosshairColor}" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="10" y2="20" stroke="#${crosshairColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+
+    const crosshairIcon = L.divIcon({
+      html: svg,
+      className: 'crosshair-icon',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    crosshairMarkerRef.current = L.marker(center, { icon: crosshairIcon }).addTo(mapRef.current);
+
+    return () => {
+      if (crosshairMarkerRef.current) {
+        crosshairMarkerRef.current.remove();
+        crosshairMarkerRef.current = null;
+      }
+    };
+  }, [center[0], center[1], showCrosshair, crosshairColor]);
+
+  // Update crosshair color separately when it changes
+  useEffect(() => {
+    if (!mapRef.current || !crosshairMarkerRef.current) return;
+
+    const svg = `
+      <svg width="20" height="20" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;">
+        <line x1="0" y1="10" x2="20" y2="10" stroke="#${crosshairColor}" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="10" y2="20" stroke="#${crosshairColor}" stroke-width="1.5"/>
+      </svg>
+    `;
+
+    const crosshairIcon = L.divIcon({
+      html: svg,
+      className: 'crosshair-icon',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+
+    crosshairMarkerRef.current.setIcon(crosshairIcon);
+  }, [crosshairColor]);
+
   // Update basemap layer
   useEffect(() => {
     if (!mapRef.current) return;
@@ -401,16 +466,44 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     }
 
     if (showBasemap) {
-      basemapLayerRef.current = L.tileLayer(
-        'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        {
-          attribution:
-            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: ['a', 'b', 'c', 'd', 'e'],
-          maxZoom: 19,
-          edgeBufferTiles: 2,
-        }
-      ).addTo(mapRef.current);
+      let url: string;
+      let attribution: string;
+      let subdomains: string[] | undefined;
+      let maxZoom: number;
+
+      if (basemapType === 'esri-world-imagery') {
+        url =
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        attribution =
+          'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
+        maxZoom = 24;
+      } else if (basemapType === 'opentopomap') {
+        url = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+        attribution =
+          'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+        subdomains = ['a', 'b', 'c'];
+        maxZoom = 17;
+      } else {
+        // carto-light (default)
+        url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+        attribution =
+          '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
+        subdomains = ['a', 'b', 'c', 'd', 'e'];
+        maxZoom = 24;
+      }
+
+      const options: L.TileLayerOptions = {
+        attribution,
+        minZoom: 0,
+        maxZoom,
+        edgeBufferTiles: 2,
+      };
+
+      if (subdomains) {
+        options.subdomains = subdomains;
+      }
+
+      basemapLayerRef.current = L.tileLayer(url, options).addTo(mapRef.current);
     }
 
     return () => {
@@ -419,7 +512,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         basemapLayerRef.current = null;
       }
     };
-  }, [showBasemap]);
+  }, [showBasemap, basemapType]);
 
   // Update tile layer
   useEffect(() => {
@@ -432,7 +525,8 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     if (tileUrl) {
       tileLayerRef.current = L.tileLayer(tileUrl, {
         attribution: '',
-        maxZoom: 19,
+        minZoom: 0,
+        maxZoom: 24,
         keepBuffer: 5,
         edgeBufferTiles: 2,
         updateWhenIdle: false,

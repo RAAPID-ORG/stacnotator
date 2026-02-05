@@ -7,7 +7,7 @@ from src.auth.models import User
 from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-from src.imagery.schemas import ImageryBulkCreate, CanvasLayoutCreateRequest, CreateImageryResponse
+from src.imagery.schemas import ImageryBulkCreate, CanvasLayoutCreateRequest, CreateImageryResponse, ImageryUpdate, ImageryOut
 from src.utils import FunctionNameOperationIdRoute
 
 from src.imagery import service
@@ -39,6 +39,35 @@ def create_imagery(
     )
     db.commit()
     return {"new_items": new_items}
+
+
+@router.patch(
+    "/{campaign_id}/imagery/{imagery_id}",
+    response_model=ImageryOut,
+)
+def update_imagery(
+    campaign_id: int,
+    imagery_id: int,
+    updates: ImageryUpdate,
+    campaign: Campaign = Depends(require_campaign_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Update an imagery configuration.
+    Excludes temporal fields (start_ym, end_ym, window_*, slicing_*) which cannot be changed currently.
+    TODO implement allowing to change temporal fields but needs handling of windows.
+    """
+    # Convert Pydantic model to dict, excluding None values
+    update_dict = updates.model_dump(exclude_none=True)
+    
+    updated_imagery = service.update_imagery(
+        db=db,
+        imagery_id=imagery_id,
+        campaign_id=campaign_id,
+        updates=update_dict,
+    )
+    
+    return updated_imagery
 
 
 @router.post(

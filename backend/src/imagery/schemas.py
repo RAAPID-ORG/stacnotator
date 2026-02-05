@@ -161,6 +161,35 @@ class ImageryCreate(BaseModel):
         return v
 
 
+class ImageryUpdate(BaseModel):
+    """
+    Update schema for imagery - excludes temporal fields that cannot be changed
+    after creation (start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit).
+    """
+
+    name: Optional[str] = None
+    crosshair_hex6: Optional[str] = None
+    default_zoom: Optional[int] = None
+    registration_url: Optional[str] = None
+    search_body: Optional[str] = None
+    visualization_url_templates: Optional[list[ImageryVisualizationUrlTemplateCreate]] = None
+
+    @field_validator("search_body", mode="before")
+    @classmethod
+    def validate_search_body(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, dict):
+            return json.dumps(v)  # Convert dict to string
+        if isinstance(v, str):
+            # Validate JSON validity
+            try:
+                json.loads(v)
+            except json.JSONDecodeError:
+                raise ValueError("search_body must be valid JSON string")
+        return v
+
+
 class ImageryBulkCreate(BaseModel):
     items: list[ImageryCreate]
 

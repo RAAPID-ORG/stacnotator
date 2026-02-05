@@ -21,15 +21,17 @@ import { useUserStore } from './userStore';
 import { getUserAssignmentStatus, hasUserCompletedTask } from '~/utils/taskStatus';
 
 /**
- * Task filter options
+ * Task status values
  */
-export type TaskFilterType =
-  | 'assigned-pending'
-  | 'assigned-all'
-  | 'assigned-completed'
-  | 'pending'
-  | 'all'
-  | 'completed';
+export type TaskStatus = 'pending' | 'done' | 'skipped';
+
+/**
+ * Task filter configuration
+ */
+export interface TaskFilter {
+  assignedTo: string[]; // User IDs to filter by, empty array means all users
+  statuses: TaskStatus[]; // Task statuses to include
+}
 
 /**
  * Store managing all state related to annotation domain
@@ -38,12 +40,9 @@ interface AnnotationStore {
   // Campaign data
   campaign: CampaignOutWithImageryWindows | null;
   allTasks: AnnotationTaskOut[];
-  pendingTasks: AnnotationTaskOut[]; // Tasks shown in UI based on current filter
-  filteredTasks: AnnotationTaskOut[]; // All tasks matching current filter (both pending and completed)
-  totalTasksForCounter: number; // Total tasks for the counter display (either all assigned or all all)
-  completedTasksForCounter: number; // Completed tasks for the counter display (either all assigned completed or all completed)
+  visibleTasks: AnnotationTaskOut[]; // Tasks matching current filter
   currentTaskIndex: number;
-  taskFilter: TaskFilterType;
+  taskFilter: TaskFilter;
 
   // Open mode annotations
   annotations: AnnotationOut[]; // All annotations in the campaign (for open mode)
@@ -63,6 +62,7 @@ interface AnnotationStore {
   selectedImageryId: number | null;
   selectedLayerIndex: number;
   showBasemap: boolean;
+  basemapType: 'carto-light' | 'esri-world-imagery' | 'opentopomap';
   activeWindowId: number | null;
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
@@ -72,6 +72,7 @@ interface AnnotationStore {
   zoomInTrigger: number;
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
+  showCrosshair: boolean; // Toggle crosshair visibility on maps
 
   // Synchronized map state (used for both open mode and task mode)
   currentMapCenter: [number, number] | null; // Current center of the main map [lat, lon]
@@ -87,9 +88,9 @@ interface AnnotationStore {
   magicWandEnabled: Record<number, boolean>; // Track which labels have magic wand enabled (labelId -> boolean)
 
   // Computed getters
-  // NOTE: Components should compute currentTask directly as pendingTasks[currentTaskIndex]
+  // NOTE: Components should compute currentTask directly as visibleTasks[currentTaskIndex]
   // to ensure coordinate synchronization across all components
-  selectedImagery: () => CampaignOutWithImageryWindows['imagery'][0] | null;
+  selectedImagery: () => CampaignOutWithImageryWindows['imagery'][number] | null;
   completedTasksCount: () => number;
   campaignBbox: () => [number, number, number, number] | null;
 
@@ -110,10 +111,12 @@ interface AnnotationStore {
   setSelectedImageryId: (id: number | null) => void;
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
+  setBasemapType: (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => void;
   setActiveWindowId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setWindowSliceIndex: (windowId: number, index: number) => void;
   triggerRefocus: () => void;
+  toggleCrosshair: () => void;
 
   // Map control actions
   triggerZoomIn: () => void;
@@ -145,7 +148,8 @@ interface AnnotationStore {
   deleteAnnotation: (annotationId: number) => Promise<void>;
 
   // Task filter actions
-  setTaskFilter: (filter: TaskFilterType) => void;
+  setTaskFilter: (filter: Partial<TaskFilter>) => void;
+  resetTaskFilter: () => void;
 
   // Reset
   reset: () => void;
@@ -154,12 +158,12 @@ interface AnnotationStore {
 const initialState = {
   campaign: null,
   allTasks: [],
-  pendingTasks: [],
-  filteredTasks: [],
-  totalTasksForCounter: 0,
-  completedTasksForCounter: 0,
+  visibleTasks: [],
   currentTaskIndex: 0,
-  taskFilter: 'assigned-pending' as TaskFilterType,
+  taskFilter: {
+    assignedTo: [], // Empty means filter by current user by default (set on load)
+    statuses: ['pending' as TaskStatus],
+  },
   annotations: [],
   isLoadingAnnotations: false,
   isLoadingCampaign: false,
@@ -171,6 +175,7 @@ const initialState = {
   selectedImageryId: null,
   selectedLayerIndex: 0,
   showBasemap: false,
+  basemapType: 'carto-light' as const,
   activeWindowId: null,
   activeSliceIndex: 0,
   windowSliceIndices: {} as Record<number, number>,
@@ -178,6 +183,7 @@ const initialState = {
   zoomInTrigger: 0,
   zoomOutTrigger: 0,
   panTrigger: { direction: 'up' as const, count: 0 },
+  showCrosshair: true,
   currentMapCenter: null,
   currentMapZoom: null,
   currentMapBounds: null,
@@ -190,104 +196,26 @@ const initialState = {
 };
 
 /**
- * Filter tasks based on filter type and current user
+ * Apply task filter to get visible tasks
  */
-const filterTasks = (
+const applyTaskFilter = (
   allTasks: AnnotationTaskOut[],
-  filter: TaskFilterType,
-  currentUserId: string | null
+  filter: TaskFilter
 ): AnnotationTaskOut[] => {
-  switch (filter) {
-    case 'assigned-pending':
-      return allTasks.filter((task) => {
-        const status = getUserAssignmentStatus(task, currentUserId || '');
-        return status === 'pending';
-      });
-    case 'assigned-all':
-      return allTasks.filter((task) => {
-        const assignments = task.assignments || [];
-        return assignments.some(a => a.user_id === currentUserId);
-      });
-    case 'assigned-completed':
-      return allTasks.filter((task) => {
-        const status = getUserAssignmentStatus(task, currentUserId || '');
-        return status === 'completed';
-      });
-    case 'pending':
-      return allTasks.filter((task) => {
-        const annotations = task.annotations || [];
-        return annotations.length === 0;
-      });
-    case 'all':
-      return allTasks;
-    case 'completed':
-      return allTasks.filter((task) => {
-        const assignments = task.assignments || [];
-        const annotations = task.annotations || [];
-        // Consider complete if there are annotations covering all assignments
-        if (assignments.length === 0) {
-          return annotations.length > 0;
-        }
-        const assignedUserIds = new Set(assignments.map(a => a.user_id));
-        const completedUserIds = new Set(annotations.map(a => a.created_by_user_id));
-        return Array.from(assignedUserIds).every(id => completedUserIds.has(id));
-      });
-    default:
-      return allTasks.filter((task) => {
-        const annotations = task.annotations || [];
-        return annotations.length === 0;
-      });
-  }
-};
-
-/**
- * Get total task count for counter display
- * Returns either all assigned tasks or all tasks depending on filter
- */
-const getTotalTasksForCounter = (
-  allTasks: AnnotationTaskOut[],
-  filter: TaskFilterType,
-  currentUserId: string | null
-): number => {
-  // For "assigned" filters, show total assigned tasks
-  if (filter.startsWith('assigned-')) {
-    return allTasks.filter((task) => {
-      const assignments = task.assignments || [];
-      return assignments.some(a => a.user_id === currentUserId);
-    }).length;
-  }
-  // For "overall" filters, show all tasks
-  return allTasks.length;
-};
-
-/**
- * Get completed tasks count for counter display
- * Returns either all assigned completed tasks or all completed tasks depending on filter
- */
-const getCompletedTasksForCounter = (
-  allTasks: AnnotationTaskOut[],
-  filter: TaskFilterType,
-  currentUserId: string | null
-): number => {
-  // For "assigned" filters, show completed assigned tasks
-  if (filter.startsWith('assigned-')) {
-    return allTasks.filter((task) => {
-      const status = getUserAssignmentStatus(task, currentUserId || '');
-      return status === 'completed';
-    }).length;
-  }
-  // For "overall" filters, show all completed tasks
   return allTasks.filter((task) => {
+    // Filter by assignment (empty array means all users)
     const assignments = task.assignments || [];
-    const annotations = task.annotations || [];
-    // Consider complete if there are annotations covering all assignments
-    if (assignments.length === 0) {
-      return annotations.length > 0;
-    }
-    const assignedUserIds = new Set(assignments.map(a => a.user_id));
-    const completedUserIds = new Set(annotations.map(a => a.created_by_user_id));
-    return Array.from(assignedUserIds).every(id => completedUserIds.has(id));
-  }).length;
+    const matchesAssignment =
+      filter.assignedTo.length === 0 ||
+      assignments.some(a => filter.assignedTo.includes(a.user_id));
+
+    // Filter by status - check if any assignment has matching status
+    const matchesStatus = assignments.length === 0 
+      ? filter.statuses.includes('pending') // No assignments means pending
+      : assignments.some(a => filter.statuses.includes(a.status as TaskStatus));
+
+    return matchesAssignment && matchesStatus;
+  });
 };
 
 export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
@@ -334,21 +262,20 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       const [campaignResponse, tasksResponse, _currentUser] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-        useUserStore.getState().getCurrentUser(), // Fetch and cache current user
+        useUserStore.getState().getCurrentUser(),
       ]);
 
       const campaign = campaignResponse.data!;
       const allTasks = tasksResponse.data!.tasks;
       const currentUserId = useUserStore.getState().getCurrentUserId();
-      const taskFilter = get().taskFilter;
-      const filteredTasks = filterTasks(allTasks, taskFilter, currentUserId);
-      const pendingTasks = filteredTasks; // Show all filtered tasks, not just pending
-      const totalTasksForCounter = getTotalTasksForCounter(allTasks, taskFilter, currentUserId);
-      const completedTasksForCounter = getCompletedTasksForCounter(
-        allTasks,
-        taskFilter,
-        currentUserId
-      );
+
+      // Initialize task filter with current user
+      const taskFilter: TaskFilter = {
+        assignedTo: currentUserId ? [currentUserId] : [],
+        statuses: ['pending'],
+      };
+
+      const visibleTasks = applyTaskFilter(allTasks, taskFilter);
 
       // Set initial imagery selection
       const selectedImageryId = campaign.imagery.length > 0 ? campaign.imagery[0].id : null;
@@ -380,10 +307,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       set({
         campaign,
         allTasks,
-        filteredTasks,
-        pendingTasks,
-        totalTasksForCounter,
-        completedTasksForCounter,
+        visibleTasks,
+        taskFilter,
         currentTaskIndex: 0,
         selectedImageryId,
         activeWindowId,
@@ -408,8 +333,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   submitAnnotation: async (labelId: number | null, comment: string, confidence: number) => {
-    const { campaign, pendingTasks, allTasks, currentTaskIndex, taskFilter } = get();
-    const task = pendingTasks[currentTaskIndex];
+    const { campaign, visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
+    const task = visibleTasks[currentTaskIndex];
     const currentUserId = useUserStore.getState().getCurrentUserId();
 
     if (!task || !campaign || !currentUserId) return;
@@ -418,7 +343,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
     try {
       // Find the current user's annotation for this task (if any)
-      const userAnnotation = task.annotations.find(a => a.created_by_user_id === currentUserId);
+      const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
 
       // If labelId is null and user has an annotation, delete it
       if (labelId === null && userAnnotation) {
@@ -434,26 +359,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           t.id === task.id
             ? {
                 ...t,
-                annotations: t.annotations.filter(a => a.id !== userAnnotation.id),
+                annotations: t.annotations.filter((a) => a.id !== userAnnotation.id),
               }
             : t
         );
 
-        const filteredTasks = filterTasks(updatedTasks, taskFilter, currentUserId);
-        const updatedPending = filteredTasks;
-        const totalTasksForCounter = getTotalTasksForCounter(updatedTasks, taskFilter, currentUserId);
-        const completedTasksForCounter = getCompletedTasksForCounter(
-          updatedTasks,
-          taskFilter,
-          currentUserId
-        );
+        const updatedVisibleTasks = applyTaskFilter(updatedTasks, taskFilter);
 
         set({
           allTasks: updatedTasks,
-          filteredTasks,
-          pendingTasks: updatedPending,
-          totalTasksForCounter,
-          completedTasksForCounter,
+          visibleTasks: updatedVisibleTasks,
           isSubmitting: false,
         });
 
@@ -477,7 +392,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         // Update local state - either replace existing user annotation or add new one
         const updatedTasks = allTasks.map((t) => {
           if (t.id === task.id && newAnnotation) {
-            const otherAnnotations = t.annotations.filter(a => a.created_by_user_id !== currentUserId);
+            const otherAnnotations = t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
             return {
               ...t,
               annotations: [...otherAnnotations, newAnnotation],
@@ -486,24 +401,14 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           return t;
         });
 
-        const filteredTasks = filterTasks(updatedTasks, taskFilter, currentUserId);
-        const updatedPending = filteredTasks;
-        const totalTasksForCounter = getTotalTasksForCounter(updatedTasks, taskFilter, currentUserId);
-        const completedTasksForCounter = getCompletedTasksForCounter(
-          updatedTasks,
-          taskFilter,
-          currentUserId
-        );
+        const updatedVisibleTasks = applyTaskFilter(updatedTasks, taskFilter);
 
         set({
           allTasks: updatedTasks,
-          filteredTasks,
-          pendingTasks: updatedPending,
-          totalTasksForCounter,
-          completedTasksForCounter,
+          visibleTasks: updatedVisibleTasks,
           isSubmitting: false,
           // Move to next task or loop to first
-          currentTaskIndex: currentTaskIndex < updatedPending.length - 1 ? currentTaskIndex + 1 : 0,
+          currentTaskIndex: currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0,
         });
 
         useUIStore.getState().showAlert('Annotation submitted successfully', 'success');
@@ -517,8 +422,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   nextTask: () => {
-    const { pendingTasks, currentTaskIndex, campaign, selectedImageryId } = get();
-    if (pendingTasks.length === 0) return;
+    const { visibleTasks, currentTaskIndex, campaign, selectedImageryId } = get();
+    if (visibleTasks.length === 0) return;
 
     // Get default window for current imagery
     const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -528,25 +433,24 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     // Set navigating flag and clear form immediately
     set({
       isNavigating: true,
-      currentTaskIndex: currentTaskIndex >= pendingTasks.length - 1 ? 0 : currentTaskIndex + 1,
+      currentTaskIndex: currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1,
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
       selectedLabelId: null,
       comment: '',
-      currentMapZoom: null, // Reset zoom when moving to new task
+      currentMapZoom: null,
     });
 
     // Clear navigating flag after a delay to allow maps to update
-    // Not ideal, but otherwise we'll have to go into the details of leaflet loading
     setTimeout(() => {
       set({ isNavigating: false });
     }, 500);
   },
 
   previousTask: () => {
-    const { pendingTasks, currentTaskIndex, campaign, selectedImageryId } = get();
-    if (pendingTasks.length === 0) return;
+    const { visibleTasks, currentTaskIndex, campaign, selectedImageryId } = get();
+    if (visibleTasks.length === 0) return;
 
     // Get default window for current imagery
     const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -556,13 +460,13 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     // Set navigating flag and clear form immediately
     set({
       isNavigating: true,
-      currentTaskIndex: currentTaskIndex === 0 ? pendingTasks.length - 1 : currentTaskIndex - 1,
+      currentTaskIndex: currentTaskIndex === 0 ? visibleTasks.length - 1 : currentTaskIndex - 1,
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
       selectedLabelId: null,
       comment: '',
-      currentMapZoom: null, // Reset zoom when moving to new task
+      currentMapZoom: null,
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -572,9 +476,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   goToTask: (annotationNumber: number) => {
-    const { pendingTasks, campaign, selectedImageryId } = get();
+    const { visibleTasks, campaign, selectedImageryId } = get();
     // Find the task with the matching annotation_number
-    const taskIndex = pendingTasks.findIndex((task) => task.annotation_number === annotationNumber);
+    const taskIndex = visibleTasks.findIndex((task) => task.annotation_number === annotationNumber);
 
     if (taskIndex !== -1) {
       // Get default window for current imagery
@@ -591,7 +495,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         windowSliceIndices: {},
         selectedLabelId: null,
         comment: '',
-        currentMapZoom: null, // Reset zoom when moving to new task
+        currentMapZoom: null,
       });
 
       // Clear navigating flag after a delay to allow maps to update
@@ -734,6 +638,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
   setShowBasemap: (show) => set({ showBasemap: show }),
 
+  setBasemapType: (type) => set({ basemapType: type }),
+
   setActiveWindowId: (id) =>
     set((state) => {
       // Save current window's slice index before switching
@@ -758,6 +664,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     })),
 
   triggerRefocus: () => set((state) => ({ refocusTrigger: state.refocusTrigger + 1 })),
+
+  toggleCrosshair: () => set((state) => ({ showCrosshair: !state.showCrosshair })),
 
   // Map control actions
   triggerZoomIn: () => set((state) => ({ zoomInTrigger: state.zoomInTrigger + 1 })),
@@ -798,23 +706,23 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
 
   // Task filter actions
-  setTaskFilter: (filter: TaskFilterType) => {
-    const { allTasks } = get();
-    const currentUserId = useUserStore.getState().getCurrentUserId();
-    const filteredTasks = filterTasks(allTasks, filter, currentUserId);
-    const pendingTasks = filteredTasks; // Show all filtered tasks
-    const totalTasksForCounter = getTotalTasksForCounter(allTasks, filter, currentUserId);
-    const completedTasksForCounter = getCompletedTasksForCounter(allTasks, filter, currentUserId);
+  setTaskFilter: (filterUpdate: Partial<TaskFilter>) => {
+    const { allTasks, taskFilter } = get();
+    
+    // Merge with existing filter
+    const newFilter: TaskFilter = {
+      ...taskFilter,
+      ...filterUpdate,
+    };
+
+    const visibleTasks = applyTaskFilter(allTasks, newFilter);
 
     // Set navigating flag and clear form when filter changes
     set({
       isNavigating: true,
-      taskFilter: filter,
-      filteredTasks,
-      pendingTasks,
-      totalTasksForCounter,
-      completedTasksForCounter,
-      currentTaskIndex: 0, // Reset to first task when filter changes
+      taskFilter: newFilter,
+      visibleTasks,
+      currentTaskIndex: 0,
       selectedLabelId: null,
       comment: '',
     });
@@ -823,6 +731,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     setTimeout(() => {
       set({ isNavigating: false });
     }, 500);
+  },
+
+  resetTaskFilter: () => {
+    const currentUserId = useUserStore.getState().getCurrentUserId();
+    const defaultFilter: TaskFilter = {
+      assignedTo: currentUserId ? [currentUserId] : [],
+      statuses: ['pending'],
+    };
+    
+    get().setTaskFilter(defaultFilter);
   },
 
   // Open mode annotation actions

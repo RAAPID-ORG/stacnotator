@@ -463,3 +463,62 @@ def delete_imagery(
 
     db.delete(imagery)
     db.commit()
+
+
+def update_imagery(
+    db: Session,
+    imagery_id: int,
+    campaign_id: int,
+    updates: dict,
+) -> Imagery:
+    """
+    Update an imagery entry with new values.
+    Excludes temporal fields (start_ym, end_ym, window_*, slicing_*) which cannot be changed.
+    """
+    imagery = (
+        db.query(Imagery)
+        .filter(
+            Imagery.id == imagery_id,
+            Imagery.campaign_id == campaign_id,
+        )
+        .first()
+    )
+
+    if not imagery:
+        raise HTTPException(
+            status_code=404, detail=f"Imagery {imagery_id} not found in campaign {campaign_id}"
+        )
+
+    # Update visualization templates if provided
+    if "visualization_url_templates" in updates and updates["visualization_url_templates"] is not None:
+        # Delete existing templates
+        db.query(ImageryVisualizationUrlTemplate).filter(
+            ImageryVisualizationUrlTemplate.imagery_id == imagery_id
+        ).delete()
+        
+        # Create new templates
+        for template_data in updates["visualization_url_templates"]:
+            template = ImageryVisualizationUrlTemplate(
+                imagery_id=imagery_id,
+                name=template_data.get("name", ""),
+                visualization_url=template_data.get("visualization_url", ""),
+            )
+            db.add(template)
+        
+        # Remove from updates dict as we've handled it
+        del updates["visualization_url_templates"]
+
+    # Parse search_body if it's a JSON string
+    if "search_body" in updates and updates["search_body"] is not None:
+        if isinstance(updates["search_body"], str):
+            updates["search_body"] = json.loads(updates["search_body"])
+
+    # Update other fields
+    for key, value in updates.items():
+        if value is not None and hasattr(imagery, key):
+            setattr(imagery, key, value)
+
+    db.commit()
+    db.refresh(imagery)
+
+    return imagery

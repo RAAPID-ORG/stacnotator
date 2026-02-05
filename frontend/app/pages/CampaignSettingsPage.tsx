@@ -20,6 +20,7 @@ import { capitalizeFirst } from '~/utils/utility';
 import {
   createImagery,
   deleteImagery,
+  updateImagery,
   createTimeseriesForCampaign,
   getAllAnnotationTasks,
   getCampaign,
@@ -216,25 +217,49 @@ export const CampaignSettingsPage = () => {
   const handleUpdateImagery = async (imageryId: number, updates: Partial<ImageryCreate>) => {
     try {
       setSaving(true);
-      // Update the local state immediately for better UX
-      setImagery(
-        imagery.map((img) => {
-          if (img.id === imageryId) {
-            return { ...img, ...updates } as ImageryOut;
-          }
-          return img;
-        })
-      );
+      
+      // Filter out temporal fields that cannot be updated
+      const { start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit, ...allowedUpdates } = updates;
+      
+      // Call the API
+      const { data, error } = await updateImagery({
+        path: { 
+          campaign_id: numericCampaignId, 
+          imagery_id: imageryId 
+        },
+        body: allowedUpdates,
+      });
+
+      if (error) {
+        throw new Error('Failed to update imagery');
+      }
+
+      // Update the local state with the response from the server
+      if (data) {
+        setImagery(
+          imagery.map((img) => {
+            if (img.id === imageryId) {
+              return data;
+            }
+            return img;
+          })
+        );
+      }
+      
       showAlert('Imagery updated successfully', 'success');
-      // TODO: Implement API call when backend endpoint is available
-      // await updateImagery({ path: { imagery_id: imageryId }, body: updates });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update imagery';
       showAlert(message, 'error');
       console.error(err);
       // Reload campaign to revert changes on error
-      const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
-      setImagery(data!.imagery);
+      try {
+        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        if (data) {
+          setImagery(data.imagery);
+        }
+      } catch (reloadErr) {
+        console.error('Failed to reload campaign:', reloadErr);
+      }
     } finally {
       setSaving(false);
     }
@@ -833,6 +858,7 @@ export const CampaignSettingsPage = () => {
                           onUpdate={() => {}}
                           onRemove={() => setDeleteConfirm({ imageryId: img.id })}
                           showUpdateButton={true}
+                          isExisting={true}
                         />
                       ))
                     )}

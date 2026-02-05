@@ -13,11 +13,20 @@ A tool for annotating imagery from STAC Catalogs.
     cp .env.dev .env
     nano .env  # Add your Firebase credentials and any overrides (see env variables section below)
     ```
-2. **Initialize and start all services:**
+
+2. **Create a user in firebase**
+    - Go to `https://console.firebase.google.com/`, and select your project.
+    - Switch to the authentication tab.
+    - Under users, click Add user and follow the promts.
+    - Copy the UID of this new user.
+
+
+3. **Initialize and start all services &  seed the DB with data for your user:**
     ```bash
-    make dev-init
+    make dev-init FIREBASE_UID="<YOUR-UID>"
     ```
-3. **Access the app:**
+
+4. **Access the app:**
     - Frontend: http://localhost:5173 (auto-reloads)
     - Backend: http://localhost:8000 (auto-reloads)
     - API Docs: http://localhost:8000/docs

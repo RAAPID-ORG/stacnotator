@@ -9,9 +9,10 @@ from sqlalchemy import delete, select, update, func
 from sqlalchemy.orm.attributes import flag_modified
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.auth.models import User
+from src.auth.service import is_admin as is_global_admin
 from src.campaigns.constants import (
     DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
 )
@@ -22,7 +23,6 @@ from src.campaigns.models import (
     CanvasLayout,
 )
 from src.campaigns.schemas import CampaignSettingsCreate
-from sqlalchemy.orm import joinedload
 from src.imagery.models import Imagery
 from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
 from src.imagery.service import create_imagery_with_layouts_bulk_no_commit
@@ -40,6 +40,25 @@ def list_campaigns(db: Session) -> List[Campaign]:
     return db.scalars(stmt).all()
 
 
+def get_campaign_users_with_roles(db: Session, campaign_id: int) -> List[CampaignUser]:
+    """
+    
+    Args:
+        db: Database session
+        campaign_id: ID of the campaign
+        
+    Returns:
+        List of campaign user associations with user data loaded
+    """
+    stmt = (
+        select(CampaignUser)
+        .where(CampaignUser.campaign_id == campaign_id)
+        .options(joinedload(CampaignUser.user))
+    )
+    
+    return db.scalars(stmt).unique().all()
+
+
 def list_campaigns_with_user_roles(db: Session, user_id: int) -> List[dict]:
     """
     Retrieve all campaigns with user role information.
@@ -48,6 +67,22 @@ def list_campaigns_with_user_roles(db: Session, user_id: int) -> List[dict]:
     """
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
+
+    # Check if user is a global platform admin
+    user_is_global_admin = is_global_admin(db, user_id)
+    
+    if user_is_global_admin:
+        # If user is global admin, they are admin of all campaigns
+        results = []
+        for campaign in campaigns:
+            results.append(
+                {
+                    "campaign": campaign,
+                    "is_admin": True,
+                    "is_member": True,
+                }
+            )
+        return results
 
     results = []
     for campaign in campaigns:

@@ -15,6 +15,7 @@ interface UseAnnotationKeyboardOptions {
  * - Arrow Keys: Pan maps (up/down/left/right)
  * - Alt + Arrow Up/Down: Zoom in/out
  * - Space: Recenter maps
+ * - O: Toggle crosshair on/off
  * - W: Previous task
  * - S: Next task
  * - A/D: Switch to next/previous imagery slice
@@ -39,13 +40,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const comment = useAnnotationStore((state) => state.comment);
   const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
   const isNavigating = useAnnotationStore((state) => state.isNavigating);
-  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
   const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
 
   // Store actions
   const nextTask = useAnnotationStore((state) => state.nextTask);
   const previousTask = useAnnotationStore((state) => state.previousTask);
   const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
+  const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
   const triggerZoomIn = useAnnotationStore((state) => state.triggerZoomIn);
   const triggerZoomOut = useAnnotationStore((state) => state.triggerZoomOut);
   const triggerPan = useAnnotationStore((state) => state.triggerPan);
@@ -208,7 +210,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     if (isSubmitting || isNavigating) return;
 
     // Get current task to check if annotation exists
-    const currentTask = pendingTasks[currentTaskIndex] || null;
+    const currentTask = visibleTasks[currentTaskIndex] || null;
     const hasExistingAnnotation = currentTask?.annotation !== null;
 
     // Allow submission with null label only if removing an existing annotation
@@ -226,7 +228,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     comment,
     submitAnnotation,
     showAlert,
-    pendingTasks,
+    visibleTasks,
     currentTaskIndex,
   ]);
 
@@ -311,6 +313,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           triggerRefocus();
           break;
+        case 'o':
+        case 'O':
+          e.preventDefault();
+          toggleCrosshair();
+          break;
 
         // Arrow keys: pan by default, zoom with Alt modifier
         case 'ArrowUp':
@@ -388,6 +395,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     navigateSlice,
     navigateWindow,
     triggerRefocus,
+    toggleCrosshair,
     triggerZoomIn,
     triggerZoomOut,
     triggerPan,

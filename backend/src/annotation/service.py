@@ -1,5 +1,5 @@
 import io
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 
@@ -23,6 +23,70 @@ from src.campaigns.models import Campaign
 # CSV import configuration
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
+
+
+# ============================================================================
+# Task Retrieval
+# ============================================================================
+
+
+def get_annotation_task_by_id(
+    db: Session,
+    task_id: int,
+    campaign_id: int,
+) -> Optional[AnnotationTask]:
+    """
+    Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
+    
+    Args:
+        db: Database session
+        task_id: ID of the task
+        campaign_id: ID of the campaign (for validation)
+        
+    Returns:
+        Annotation task item or None if not found
+    """
+    stmt = (
+        select(AnnotationTask)
+        .where(
+            AnnotationTask.id == task_id,
+            AnnotationTask.campaign_id == campaign_id,
+        )
+    )
+    
+    return db.scalar(stmt)
+
+
+def get_annotation_tasks_for_campaign(
+    db: Session,
+    campaign_id: int,
+) -> List[AnnotationTask]:
+    """
+    Retrieve all annotation tasks for a campaign with eager loading
+    to avoid N+1 query problem.
+    
+    This loads all related data (geometry, assignments, annotations) 
+    in a single optimized query.
+    
+    Args:
+        db: Database session
+        campaign_id: ID of the campaign
+        
+    Returns:
+        List of annotation task items with all relationships loaded
+    """
+    stmt = (
+        select(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign_id)
+        .options(
+            joinedload(AnnotationTask.geometry),
+            joinedload(AnnotationTask.assignments),
+            joinedload(AnnotationTask.annotations),
+        )
+        .order_by(AnnotationTask.annotation_number)
+    )
+    
+    return db.scalars(stmt).unique().all()
 
 
 # ============================================================================
@@ -370,7 +434,7 @@ def get_annotations_for_campaign(
     campaign_id: int,
 ) -> list[Annotation]:
     """
-    Retrieve all annotations for a specific campaign.
+    Retrieve all annotations for a specific campaign with eager loading.
 
     Returns both task-based and standalone annotations for the given campaign.
 
@@ -381,13 +445,14 @@ def get_annotations_for_campaign(
     Returns:
         List of all annotation records for the campaign
     """
-    annotations = (
-        db.execute(
-            select(Annotation)
-            .where(Annotation.campaign_id == campaign_id)
-            .options(joinedload(Annotation.geometry))
-        ).unique().scalars().all()
+    stmt = (
+        select(Annotation)
+        .where(Annotation.campaign_id == campaign_id)
+        .options(
+            joinedload(Annotation.geometry),
+        )
     )
+    annotations = db.scalars(stmt).unique().all()
 
     return list(annotations)
 

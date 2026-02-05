@@ -13,13 +13,12 @@ interface ImageryContainerProps {
  * Imagery container component that displays STAC imagery in a map
  */
 const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
   // Get state from store
   const campaign = useAnnotationStore((state) => state.campaign);
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
   const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
   const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
   const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
@@ -33,7 +32,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
 
   // Compute derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
-  const currentTask = pendingTasks[currentTaskIndex] || null;
+  const currentTask = visibleTasks[currentTaskIndex] || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
     ? ([
@@ -168,7 +167,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
 
   return (
     <div
-      ref={containerRef}
       className="flex-1 relative"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

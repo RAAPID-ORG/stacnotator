@@ -1,20 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Layout } from 'react-grid-layout';
-import type { TaskFilterType } from '~/stores/annotationStore';
-
-// Task filter options
-const taskFilterOptions: { value: TaskFilterType; label: string }[] = [
-  { value: 'assigned-pending', label: 'Mine Pending' },
-  { value: 'assigned-all', label: 'Mine All' },
-  { value: 'assigned-completed', label: 'Mine Completed' },
-  { value: 'pending', label: 'Overall Pending' },
-  { value: 'all', label: 'Overall All' },
-  { value: 'completed', label: 'Overall Completed' },
-];
+import type { TaskFilter, TaskStatus } from '~/stores/annotationStore';
 
 import { useAnnotationStore } from '~/stores/annotationStore';
 import { useUIStore } from '~/stores/uiStore';
+import { useUserStore } from '~/stores/userStore';
 
 const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
@@ -23,6 +14,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: '↑ ↓ ← →', description: 'Pan map' },
   { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
   { key: 'Space', description: 'Recenter maps' },
+  { key: 'O', description: 'Toggle crosshair' },
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
@@ -30,6 +22,151 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'Escape', description: 'Unfocus input' },
   { key: 'H', description: 'Toggle keyboard help' },
 ];
+
+/**
+ * Task filter panel component
+ */
+const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
+  const campaign = useAnnotationStore((state) => state.campaign);
+  const allTasks = useAnnotationStore((state) => state.allTasks);
+  const taskFilter = useAnnotationStore((state) => state.taskFilter);
+  const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
+  const currentUser = useUserStore((state) => state.currentUser);
+
+  if (!campaign) return null;
+
+  // Get unique users from tasks - extract from assignments
+  const userMap = new Map<string, { id: string; email: string; display_name: string }>();
+  allTasks.forEach((task) => {
+    const assignments = task.assignments || [];
+    assignments.forEach((assignment) => {
+      if (!userMap.has(assignment.user_id)) {
+        userMap.set(assignment.user_id, {
+          id: assignment.user_id,
+          email: assignment.user_email || assignment.user_id,
+          display_name: assignment.user_display_name || assignment.user_email || assignment.user_id,
+        });
+      }
+    });
+  });
+  const allUsers = Array.from(userMap.values());
+
+  const handleAssigneeToggle = (userId: string) => {
+    const isSelected = taskFilter.assignedTo.includes(userId);
+    const newAssignedTo = isSelected
+      ? taskFilter.assignedTo.filter((id) => id !== userId)
+      : [...taskFilter.assignedTo, userId];
+    
+    setTaskFilter({ assignedTo: newAssignedTo });
+  };
+
+  const handleStatusToggle = (status: TaskStatus) => {
+    const isSelected = taskFilter.statuses.includes(status);
+    const newStatuses = isSelected
+      ? taskFilter.statuses.filter((s) => s !== status)
+      : [...taskFilter.statuses, status];
+    
+    if (newStatuses.length > 0) {
+      setTaskFilter({ statuses: newStatuses });
+    }
+  };
+
+  const handleShowAll = () => {
+    setTaskFilter({ assignedTo: [] });
+  };
+
+  const handleShowMine = () => {
+    if (currentUser) {
+      setTaskFilter({ assignedTo: [currentUser.id] });
+    }
+  };
+
+  const isShowingAll = taskFilter.assignedTo.length === 0;
+  const isShowingMineOnly = 
+    taskFilter.assignedTo.length === 1 && 
+    currentUser &&
+    taskFilter.assignedTo[0] === currentUser.id;
+
+  return (
+    <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[280px] p-3">
+      <div className="space-y-3">
+        {/* Assigned To Section */}
+        <div>
+          <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+            Assigned To
+          </div>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={handleShowAll}
+              className={`px-2 py-1 text-xs rounded ${
+                isShowingAll
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+              }`}
+            >
+              All
+            </button>
+            {currentUser && (
+              <button
+                onClick={handleShowMine}
+                className={`px-2 py-1 text-xs rounded ${
+                  isShowingMineOnly
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                }`}
+              >
+                Mine
+              </button>
+            )}
+          </div>
+          <div className="space-y-1 max-h-[200px] overflow-y-auto">
+            {allUsers.map((user) => (
+              <label
+                key={user.id}
+                className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(user.id)}
+                  onChange={() => handleAssigneeToggle(user.id)}
+                  disabled={isShowingAll}
+                  className="rounded accent-brand-500"
+                />
+                <span className="text-neutral-900">{user.display_name}</span>
+              </label>
+            ))}
+            {allUsers.length === 0 && (
+              <div className="text-xs text-neutral-500 px-2 py-1">No assigned users</div>
+            )}
+          </div>
+        </div>
+
+        {/* Status Section */}
+        <div className="border-t border-neutral-200 pt-3">
+          <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+            Status
+          </div>
+          <div className="space-y-1">
+            {(['pending', 'done', 'skipped'] as TaskStatus[]).map((status) => (
+              <label
+                key={status}
+                className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={taskFilter.statuses.includes(status)}
+                  onChange={() => handleStatusToggle(status)}
+                  className="rounded accent-brand-500"
+                />
+                <span className="text-neutral-900 capitalize">{status}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Toolbar for annotation page with imagery selection and layout controls
@@ -191,7 +328,7 @@ export const AnnotationToolbar = () => {
           )}
         </div>
 
-        {/* Task Filter Dropdown (custom) */}
+        {/* Task Filter Dropdown */}
         {campaign.mode === 'tasks' && (
           <div className="relative" ref={taskFilterDropdownRef}>
             <button
@@ -202,33 +339,13 @@ export const AnnotationToolbar = () => {
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 15.5v-11ZM5.5 4a.5.5 0 0 0-.5.5V6h10V4.5a.5.5 0 0 0-.5-.5h-9ZM15 7H5v8.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V7Zm-8 2h6v1H7V9Zm0 2h6v1H7v-1Z" />
               </svg>
-              <span>
-                {taskFilterOptions.find((opt) => opt.value === taskFilter)?.label || 'Task Filter'}
-              </span>
+              <span>Filter Tasks</span>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
               </svg>
             </button>
             {showTaskFilterDropdown && (
-              <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
-                {taskFilterOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      setTaskFilter(opt.value);
-                      setShowTaskFilterDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
-                      taskFilter === opt.value
-                        ? 'bg-neutral-100 text-brand-700 font-medium'
-                        : 'text-neutral-900'
-                    }`}
-                    type="button"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <TaskFilterPanel onClose={() => setShowTaskFilterDropdown(false)} />
             )}
           </div>
         )}

@@ -12,6 +12,10 @@ COMPOSE_DEV = docker-compose -f docker-compose.dev.yml
 # Production Commands (standalone prod compose file)
 COMPOSE_PROD = docker-compose -f docker-compose.prod.yml
 
+###################################################
+# Dev Commands
+###################################################
+
 dev-build: ## Build development Docker images with hot reload support
 	$(COMPOSE_DEV) build
 
@@ -57,7 +61,31 @@ dev-migrate: ## Run database migrations in development
 dev-migrate-create: ## Create new migration in development (use MSG="description")
 	$(COMPOSE_DEV) exec backend alembic revision --autogenerate -m "$(MSG)"
 
-dev-init: ## Initialize the application for development (first time setup)
+dev-seed: ## Seed development database with sample data (use FIREBASE_UID="your-uid" to specify user)
+	@if [ -n "$(FIREBASE_UID)" ]; then \
+		$(COMPOSE_DEV) exec backend python seed_dev_data.py $(FIREBASE_UID); \
+	else \
+		$(COMPOSE_DEV) exec backend python seed_dev_data.py; \
+	fi
+
+dev-seed-clear: ## Clear development seed data
+	$(COMPOSE_DEV) exec backend python seed_dev_data.py clear
+
+dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID="your-uid" to specify user)
+	@echo "Resetting development database..."
+	$(COMPOSE_DEV) down -v
+	$(COMPOSE_DEV) up -d
+	@echo "Waiting for database..."
+	@sleep 10
+	@$(MAKE) dev-migrate
+	@if [ -n "$(FIREBASE_UID)" ]; then \
+		$(MAKE) dev-seed FIREBASE_UID=$(FIREBASE_UID); \
+	else \
+		$(MAKE) dev-seed; \
+	fi
+	@echo "Database reset complete!"
+
+dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
 	@if [ ! -f .env ]; then cp .env.dev .env; echo "Created .env file from .env.dev"; fi
 	@echo "Building development images..."
@@ -68,12 +96,21 @@ dev-init: ## Initialize the application for development (first time setup)
 	@sleep 10
 	@echo "Running migrations..."
 	@$(MAKE) dev-migrate
+	@echo "Seeding development data..."
+	@if [ -n "$(FIREBASE_UID)" ]; then \
+		$(MAKE) dev-seed FIREBASE_UID=$(FIREBASE_UID); \
+	else \
+		$(MAKE) dev-seed; \
+	fi
 	@echo ""
 	@echo "=========================================="
 	@echo "Development setup complete!"
 	@echo "=========================================="
 
+###################################################
 # Production Commands
+###################################################
+
 build: ## Build all Docker images (production)
 	$(COMPOSE_PROD) build
 

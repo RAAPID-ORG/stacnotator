@@ -267,7 +267,7 @@ export const AnnotationTasksTable = ({
                             <div className="absolute right-0 z-20 mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg min-w-48 max-h-64 overflow-y-auto">
                               <div className="p-2">
                                 <div className="text-xs font-medium text-neutral-700 mb-2 px-2">
-                                  Manage users for task {task.id}
+                                  Manage users for task #{task.annotation_number}
                                 </div>
                                 {campaignUsers.map((user) => {
                                   const isAlreadyAssigned = task.assignments?.some(a => a.user_id === user.user.id);

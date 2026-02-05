@@ -180,9 +180,27 @@ fi
 echo -e "${YELLOW}Fetching Firebase configuration from Key Vault...${NC}"
 
 # Try to get Firebase config from Key Vault secrets
-VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>/dev/null || echo "")
-VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>/dev/null || echo "")
+VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>&1)
+VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>&1)
+VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>&1)
+
+# Check if any command failed (output contains "ERROR" or is empty)
+if [[ "$VITE_FIREBASE_API_KEY" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_AUTH_DOMAIN" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_PROJECT_ID" == *"ERROR"* ]] || \
+   [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
+    echo -e "${RED}Error: Could not retrieve Firebase configuration from Key Vault${NC}"
+    echo -e "${YELLOW}This is likely due to:${NC}"
+    echo -e "${YELLOW}  1. Key Vault firewall blocking your IP${NC}"
+    echo -e "${YELLOW}  2. Missing Firebase secrets in Key Vault${NC}"
+    echo -e "${YELLOW}  3. Insufficient permissions${NC}"
+    echo ""
+    echo -e "${YELLOW}To fix Key Vault firewall:${NC}"
+    echo -e "  az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32"
+    echo ""
+    echo -e "${YELLOW}To upload Firebase secrets:${NC}"
+    echo -e "  ./azure_deploy/upload-secrets.sh"
+    echo ""
+    exit 1
+fi
 
 echo -e "${GREEN}✓ Firebase configuration loaded${NC}"
 echo -e "${YELLOW}  Project: ${VITE_FIREBASE_PROJECT_ID}${NC}"

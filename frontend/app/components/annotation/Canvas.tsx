@@ -12,13 +12,23 @@ import {
 } from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
 import { useUIStore } from '~/stores/uiStore';
-import { timeseriesCache } from '~/utils/timeseriesCache';
 import ImageryContainer from './ImageryContainer';
 import MiniMap from './Minimap';
 import MainAnnotationsContainer from './MainAnnotationContainer';
-import TimeSeriesContainer from './TimeSeriesContainer';
-import AnnotationControls from './ControlsTaskMode';
-import OpenModeControls from './ControlsOpenMode';
+import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
+import ControlsTaskMode from './ControlsTaskMode';
+import ControlsOpenMode from './ControlsOpenMode';
+
+/**
+ * Copy text to clipboard
+ */
+const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err);
+  }
+};
 
 interface CanvasProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -34,9 +44,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   // Read state directly from store
   const campaign = useAnnotationStore((state) => state.campaign);
-  const totalTasksForCounter = useAnnotationStore((state) => state.totalTasksForCounter);
-  const completedTasksForCounter = useAnnotationStore((state) => state.completedTasksForCounter);
-  const pendingTasks = useAnnotationStore((state) => state.pendingTasks);
+  const allTasks = useAnnotationStore((state) => state.allTasks);
+  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
+  const taskFilter = useAnnotationStore((state) => state.taskFilter);
   const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
   const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
@@ -45,6 +55,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
   const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
   const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const basemapType = useAnnotationStore((state) => state.basemapType);
   const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
   const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
   const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
@@ -54,13 +65,25 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const nextTask = useAnnotationStore((state) => state.nextTask);
   const previousTask = useAnnotationStore((state) => state.previousTask);
   const goToTask = useAnnotationStore((state) => state.goToTask);
-  const filteredTasks = useAnnotationStore((state) => state.filteredTasks);
 
   // Get fullscreen state from UI store
   const isFullscreen = useUIStore((state) => state.isFullscreen);
 
   // Compute derived values
-  const currentTask = pendingTasks[currentTaskIndex] || null;
+  const currentTask = visibleTasks[currentTaskIndex] || null;
+  
+  // For counter: show tasks matching current assignedTo filter (regardless of status filter)
+  const tasksInAssignmentScope = allTasks.filter((task) => {
+    if (taskFilter.assignedTo.length === 0) return true; // All users
+    const assignments = task.assignments || [];
+    return assignments.some(a => taskFilter.assignedTo.includes(a.user_id));
+  });
+  const totalTasksForCounter = tasksInAssignmentScope.length;
+  const completedTasksForCounter = tasksInAssignmentScope.filter(task => {
+    const assignments = task.assignments || [];
+    return assignments.some(a => a.status === 'done' || a.status === 'skipped');
+  }).length;
+  
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
@@ -87,24 +110,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
     return () => resizeObserver.disconnect();
   }, []);
-
-  // Prefetch timeseries data for next 3 tasks
-  useEffect(() => {
-    if (!campaign || pendingTasks.length === 0) return;
-
-    const timeseriesIds = campaign.time_series.map((ts) => ts.id);
-    if (timeseriesIds.length === 0) return;
-
-    // Prefetch next 3 tasks (skip current task as it's already being loaded by TimeSeriesContainer)
-    const tasksToPreload = pendingTasks.slice(currentTaskIndex + 1, currentTaskIndex + 4);
-
-    tasksToPreload.forEach((task) => {
-      const taskLatLon = extractLatLonFromWKT(task.geometry.geometry);
-      if (taskLatLon) {
-        timeseriesCache.prefetch(timeseriesIds, taskLatLon.lat, taskLatLon.lon);
-      }
-    });
-  }, [campaign, pendingTasks, currentTaskIndex]);
 
   if (!campaign) return null;
 
@@ -147,48 +152,88 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     [latLon?.lat, latLon?.lon]
   );
 
-  const renderMainHeader = () => (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 text-xs text-neutral-900">
-        {showBasemap ? (
-          <span>Basemap</span>
-        ) : (
-          <>
-            {activeSlice ? (
-              <span>{activeSlice.label}</span>
-            ) : (
-              activeWindow && (
-                <span>
-                  {formatWindowLabel(
-                    activeWindow.window_start_date,
-                    activeWindow.window_end_date,
-                    selectedImagery?.window_unit || null
-                  )}
+  const renderMainHeader = () => {
+    // Get the current layer name
+    const currentLayerName = showBasemap
+      ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
+      : visualizationName || 'Layer';
+
+    return (
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-neutral-900">
+          {/* Always show layer name */}
+          <span className="font-medium">{currentLayerName}</span>
+          
+          {/* Show imagery source and dates if not basemap */}
+          {!showBasemap && selectedImagery && (
+            <>
+              <span className="text-neutral-400">·</span>
+              <span className="text-neutral-600">{selectedImagery.name}</span>
+              {activeSlice ? (
+                <>
+                  <span className="text-neutral-400">·</span>
+                  <span className="text-neutral-600">{activeSlice.label}</span>
+                </>
+              ) : (
+                activeWindow && (
+                  <>
+                    <span className="text-neutral-400">·</span>
+                    <span className="text-neutral-600">
+                      {formatWindowLabel(
+                        activeWindow.window_start_date,
+                        activeWindow.window_end_date,
+                        selectedImagery.window_unit || null
+                      )}
+                    </span>
+                  </>
+                )
+              )}
+              {slices.length > 1 && (
+                <span className="text-neutral-500">
+                  ({activeSliceIndex + 1}/{slices.length})
                 </span>
-              )
-            )}
-            {slices.length > 1 && (
-              <span className="text-neutral-500">
-                ({activeSliceIndex + 1}/{slices.length})
-              </span>
-            )}
-            {!showBasemap && visualizationName && <span> - {visualizationName}</span>}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
+        <div className="text-xs text-neutral-900">
+          {completedTasksForCounter}/{totalTasksForCounter} tasks done
+        </div>
       </div>
-      <div className="text-xs text-neutral-900">
-        {completedTasksForCounter}/{totalTasksForCounter} tasks done
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderMinimapHeader = () => (
     <div className="flex flex-col gap-0">
       <span>Minimap</span>
       {latLon && (
-        <span className="font-normal text-neutral-900 text-[10px] -mt-1">
-          lat: {latLon.lat.toFixed(5)} | lon: {latLon.lon.toFixed(5)}
-        </span>
+        <div className="flex items-center gap-1.5 font-normal text-neutral-900 text-[10px] -mt-1">
+          <span>
+            lat: {latLon.lat.toFixed(5)} | lon: {latLon.lon.toFixed(5)}
+          </span>
+          <button
+            onClick={() => copyToClipboard(`${latLon.lat},${latLon.lon}`)}
+            className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
+            title="Copy coordinates to clipboard"
+          >
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+              <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+            </svg>
+          </button>
+          <a
+            href={`https://www.google.com/maps?q=${latLon.lat},${latLon.lon}&t=k`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
+            title="Open in Google Maps (satellite view)"
+          >
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+              <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
+            </svg>
+          </a>
+        </div>
       )}
     </div>
   );
@@ -235,7 +280,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               >
                 <span>Time Series</span>
               </div>
-              <TimeSeriesContainer timeseries={campaign.time_series} latLon={latLon} />
+              <TimeSeriesChart
+                timeseries={campaign.time_series}
+                latLon={latLon}
+                prefetchCoordinates={visibleTasks
+                  .slice(currentTaskIndex + 1, currentTaskIndex + 4)
+                  .map((task) => extractLatLonFromWKT(task.geometry.geometry))
+                  .filter((coord): coord is LatLon => coord !== null)}
+              />
             </div>
           )}
 
@@ -255,19 +307,19 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           <div key="controls" className="grid-card">
             <div className="h-full overflow-auto">
               {campaign.mode === 'tasks' ? (
-                <AnnotationControls
+                <ControlsTaskMode
                   labels={campaign.settings.labels}
                   onSubmit={submitAnnotation}
                   onNext={nextTask}
                   onPrevious={previousTask}
                   onGoToTask={goToTask}
                   isSubmitting={isSubmitting}
-                  totalTasksCount={filteredTasks.length}
+                  totalTasksCount={visibleTasks.length}
                   currentTask={currentTask}
                   commentInputRef={commentInputRef}
                 />
               ) : (
-                <OpenModeControls />
+                <ControlsOpenMode />
               )}
             </div>
           </div>

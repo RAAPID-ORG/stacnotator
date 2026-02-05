@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies including dev dependencies
+# Install dependencies including dev dependencies with increased timeout
+ENV UV_HTTP_TIMEOUT=120
 RUN uv sync --frozen
 
 # Copy application code (source will be mounted as volume in dev)
