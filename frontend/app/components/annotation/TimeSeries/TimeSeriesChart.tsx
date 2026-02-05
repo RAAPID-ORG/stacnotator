@@ -1,0 +1,307 @@
+/**
+ * TimeSeriesChart - Main component for time series visualization
+ * 
+ * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
+ */
+
+import { useEffect, useMemo, useState } from 'react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  LineElement,
+  PointElement,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  CategoryScale,
+} from 'chart.js';
+import type { TimeSeriesOut } from '~/api/client';
+import type { LatLon } from '~/utils/utility';
+import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
+import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
+
+ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale);
+
+interface TimeSeriesChartProps {
+  timeseries: TimeSeriesOut[];
+  latLon: LatLon | null;
+  prefetchCoordinates?: LatLon[];
+}
+
+const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
+
+export const TimeSeriesChart = ({
+  timeseries,
+  latLon,
+  prefetchCoordinates = [],
+}: TimeSeriesChartProps) => {
+  const [data, setData] = useState<TimeSeriesData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [removeCloudy, setRemoveCloudy] = useState(false);
+  const [opacity, setOpacity] = useState(1);
+
+  const timeseriesIds = useMemo(() => timeseries.map((ts) => ts.id), [timeseries]);
+
+  // Fetch data for current location
+  useEffect(() => {
+    if (!latLon || timeseriesIds.length === 0) {
+      setData(null);
+      setIsLoading(false);
+      setError(null);
+      setOpacity(1);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+    
+    // Fade out current chart slightly
+    setOpacity(0.4);
+
+    timeSeriesCache
+      .get(timeseriesIds, latLon)
+      .then((result) => {
+        if (!cancelled) {
+          setData(result);
+          setError(null);
+          
+          // Fade in new chart
+          setOpacity(1);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load time series data:', err);
+        if (!cancelled) {
+          setData(null);
+          setError(err instanceof Error ? err : new Error('Unknown error'));
+          setOpacity(1);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeseriesIds, latLon]);
+
+  // Prefetch upcoming coordinates
+  useEffect(() => {
+    if (timeseriesIds.length === 0 || prefetchCoordinates.length === 0) {
+      return;
+    }
+
+    timeSeriesCache.prefetch(timeseriesIds, prefetchCoordinates);
+  }, [timeseriesIds, prefetchCoordinates]);
+
+  const chartData = useMemo(() => {
+    if (!data) return null;
+
+    // Union of all timestamps
+    const labelSet = new Set<string>();
+    Object.values(data).forEach((rows: TimeSeriesRow[]) =>
+      rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
+    );
+    const labels = Array.from(labelSet).sort();
+
+    // Get optimal month labels for x-axis
+    const monthLabels = getOptimalMonthLabels(labels);
+
+    // Create datasets
+    const datasets = timeseries.map((ts, index) => {
+      const rows = data[ts.id] ?? [];
+      const rowMap = new Map(rows.map((r: TimeSeriesRow) => [r.time, r]));
+
+      const color = COLORS[index % COLORS.length];
+
+      return {
+        label: ts.name,
+        data: labels.map((time) => {
+          const row = rowMap.get(time);
+          if (!row) return null;
+          if (removeCloudy && row.cloud === 1) return null;
+          return row.values;
+        }),
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius: labels.map((time) => {
+          const row = rowMap.get(time);
+          if (!row) return 0;
+          if (!removeCloudy && row.cloud === 1) return 1.5;
+          return 0;
+        }),
+        pointBackgroundColor: labels.map((time) => {
+          const row = rowMap.get(time);
+          if (!row) return color;
+          return row.cloud === 1 ? '#ef4444' : color;
+        }),
+        pointBorderColor: labels.map((time) => {
+          const row = rowMap.get(time);
+          if (!row) return color;
+          return row.cloud === 1 ? '#ef4444' : color;
+        }),
+        tension: 0.1,
+        spanGaps: true,
+      };
+    });
+
+    return { labels, datasets, monthLabels };
+  }, [data, timeseries, removeCloudy]);
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-[10px] text-red-600">Failed to load time series data</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No location selected
+  if (!latLon) {
+    return (
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-[10px] text-neutral-500">No location selected</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state only on initial load
+  if (!data) {
+    return (
+      <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-neutral-300 border-t-brand-600"></div>
+            <span className="text-[10px] text-neutral-600">Loading time series...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Chart rendering
+  if (!chartData) return null;
+
+  return (
+    <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
+      {/* Loading indicator overlay */}
+      {isLoading && (
+        <div className="absolute top-2 right-2 z-10">
+          <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-neutral-200">
+            <div className="animate-spin rounded-full h-3 w-3 border border-neutral-300 border-t-brand-600"></div>
+            <span className="text-[9px] text-neutral-600">Updating...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Header with Legend and Controls */}
+      <div className="flex justify-between items-center mb-1 flex-shrink-0 gap-2">
+        {/* Legend */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {timeseries.map((ts, index) => {
+            const color = COLORS[index % COLORS.length];
+            return (
+              <div key={ts.id} className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
+                <span className="text-[9px] font-bold text-neutral-700">{ts.name}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Remove cloudy toggle */}
+        <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
+          <span className="text-[10px] text-neutral-600">Remove cloudy</span>
+          <div
+            className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
+            onClick={() => setRemoveCloudy(!removeCloudy)}
+          >
+            <div
+              className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
+            />
+          </div>
+        </label>
+      </div>
+
+      {/* Chart with smooth transition */}
+      <div 
+        className="flex-1 min-h-0 w-full transition-opacity duration-300 ease-in-out"
+        style={{ opacity }}
+      >
+        <Line
+          data={chartData}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+              duration: 400,
+              easing: 'easeInOutQuart',
+            },
+            plugins: {
+              legend: {
+                display: false,
+              },
+              tooltip: {
+                callbacks: {
+                  title: (items) => {
+                    if (!items.length) return '';
+                    const dateStr = chartData.labels[items[0].dataIndex];
+                    return formatDateForTooltip(dateStr);
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                ticks: {
+                  maxRotation: 45,
+                  minRotation: 45,
+                  font: { size: 8 },
+                  callback: function (_value, index) {
+                    const monthLabel = chartData.monthLabels.find((m) => m.index === index);
+                    return monthLabel ? monthLabel.label : null;
+                  },
+                  autoSkip: false,
+                },
+                grid: {
+                  display: false,
+                },
+              },
+              y: {
+                ticks: {
+                  font: { size: 8 },
+                  maxTicksLimit: 5,
+                },
+                grid: {
+                  color: '#e5e5e5',
+                },
+              },
+            },
+            elements: {
+              point: {
+                radius: 0,
+              },
+              line: {
+                borderWidth: 1.5,
+              },
+            },
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+

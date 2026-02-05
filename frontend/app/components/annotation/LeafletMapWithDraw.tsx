@@ -27,7 +27,7 @@ interface LeafletMapWithDrawProps {
   refocusTrigger?: number;
   showCrosshair?: boolean; // Whether to show the crosshair (default: true)
   showBasemap?: boolean;
-  basemapType?: 'carto-light' | 'esri-world-imagery';
+  basemapType?: 'carto-light' | 'esri-world-imagery' | 'opentopomap';
   zoomInTrigger?: number;
   zoomOutTrigger?: number;
   panTrigger?: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
@@ -477,6 +477,12 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
         maxZoom = 24;
+      } else if (basemapType === 'opentopomap') {
+        url = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+        attribution =
+          'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
+        subdomains = ['a', 'b', 'c'];
+        maxZoom = 17;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';

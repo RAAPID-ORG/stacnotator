@@ -89,7 +89,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     setShowBasemap(false);
   };
 
-  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery') => {
+  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => {
     setShowBasemap(true);
     setBasemapType(type);
   };
@@ -194,7 +194,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
   // Get the current layer name for display
   const currentLayerName = showBasemap
-    ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : 'CartoDB Light')
+    ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
     : (tileUrls[selectedLayerIndex]?.name || 'Layer');
 
   return (
@@ -314,6 +314,21 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                     className={`mr-2 accent-brand-500${showBasemap && basemapType === 'esri-world-imagery' ? '' : ' hover:accent-brand-500'}`}
                   />
                   <span>ESRI World Imagery</span>
+                </label>
+
+                <label
+                  className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
+                    ${showBasemap && basemapType === 'opentopomap' ? 'bg-neutral-100 text-brand-700' : ''}
+                  `}
+                >
+                  <input
+                    type="radio"
+                    name="layer"
+                    checked={showBasemap && basemapType === 'opentopomap'}
+                    onChange={() => handleBasemapSelect('opentopomap')}
+                    className={`mr-2 accent-brand-500${showBasemap && basemapType === 'opentopomap' ? '' : ' hover:accent-brand-500'}`}
+                  />
+                  <span>OpenTopoMap</span>
                 </label>
               </div>
             )}

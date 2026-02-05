@@ -12,11 +12,10 @@ import {
 } from '~/utils/utility';
 import { useAnnotationStore } from '~/stores/annotationStore';
 import { useUIStore } from '~/stores/uiStore';
-import { timeseriesCache } from '~/utils/timeseriesCache';
 import ImageryContainer from './ImageryContainer';
 import MiniMap from './Minimap';
 import MainAnnotationsContainer from './MainAnnotationContainer';
-import TimeSeriesContainer from './TimeSeriesContainer';
+import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 
 /**
  * Copy text to clipboard
@@ -103,24 +102,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Prefetch timeseries data for next 3 tasks
-  useEffect(() => {
-    if (!campaign || visibleTasks.length === 0) return;
-
-    const timeseriesIds = campaign.time_series.map((ts) => ts.id);
-    if (timeseriesIds.length === 0) return;
-
-    // Prefetch next 3 tasks (skip current task as it's already being loaded by TimeSeriesContainer)
-    const tasksToPreload = visibleTasks.slice(currentTaskIndex + 1, currentTaskIndex + 4);
-
-    tasksToPreload.forEach((task) => {
-      const taskLatLon = extractLatLonFromWKT(task.geometry.geometry);
-      if (taskLatLon) {
-        timeseriesCache.prefetch(timeseriesIds, taskLatLon.lat, taskLatLon.lon);
-      }
-    });
-  }, [campaign, visibleTasks, currentTaskIndex]);
-
   if (!campaign) return null;
 
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
@@ -165,7 +146,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderMainHeader = () => {
     // Get the current layer name
     const currentLayerName = showBasemap
-      ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : 'CartoDB Light')
+      ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
       : visualizationName || 'Layer';
 
     return (
@@ -291,7 +272,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               >
                 <span>Time Series</span>
               </div>
-              <TimeSeriesContainer timeseries={campaign.time_series} latLon={latLon} />
+              <TimeSeriesChart
+                timeseries={campaign.time_series}
+                latLon={latLon}
+                prefetchCoordinates={visibleTasks
+                  .slice(currentTaskIndex + 1, currentTaskIndex + 4)
+                  .map((task) => extractLatLonFromWKT(task.geometry.geometry))
+                  .filter((coord): coord is LatLon => coord !== null)}
+              />
             </div>
           )}
 

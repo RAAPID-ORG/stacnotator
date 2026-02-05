@@ -61,7 +61,7 @@ interface AnnotationStore {
   selectedImageryId: number | null;
   selectedLayerIndex: number;
   showBasemap: boolean;
-  basemapType: 'carto-light' | 'esri-world-imagery';
+  basemapType: 'carto-light' | 'esri-world-imagery' | 'opentopomap';
   activeWindowId: number | null;
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
@@ -109,7 +109,7 @@ interface AnnotationStore {
   setSelectedImageryId: (id: number | null) => void;
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
-  setBasemapType: (type: 'carto-light' | 'esri-world-imagery') => void;
+  setBasemapType: (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => void;
   setActiveWindowId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setWindowSliceIndex: (windowId: number, index: number) => void;
