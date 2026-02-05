@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "format": "prettier --write \"app/**/*.{js,jsx,ts,tsx,css,md}\"",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,md}\"",
     "openapi-ts": "openapi-ts"
   },
   "dependencies": {

@@ -83,7 +83,7 @@ services:
       - backend
     volumes:
       # Mount source code for hot reloading
-      - ./frontend/app:/app/app:ro
+      - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro
       - ./frontend/index.html:/app/index.html:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
