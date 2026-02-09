@@ -1,6 +1,6 @@
 import type { CampaignCreate, CampaignSettingsCreate } from '~/api/client';
-import { BoundingBoxEditor } from '../../BoundingBoxEditor';
-import { LabelsEditor } from '../../LabelsEditor';
+import { BoundingBoxEditor } from '../../components/BoundingBoxEditor';
+import { LabelsEditor } from '../../components/LabelsEditor';
 
 
 const emptySettings = (): CampaignSettingsCreate => ({

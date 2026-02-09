@@ -24,6 +24,9 @@ export const createClientConfig = (
 ): Config<Required<ClientOptions>> => {
   const config: Config<Required<ClientOptions>> = {
     ...override,
+    // Override the generated baseUrl (http://localhost:8000) with the env var.
+    // In prod this is empty so requests go to the same origin via nginx proxy.
+    baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   } as Config<Required<ClientOptions>>;
 
   return config;

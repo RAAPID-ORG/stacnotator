@@ -4,11 +4,12 @@ import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import 'leaflet-edgebuffer';
+import { rateLimitedTileLayer } from '~/shared/utils/RateLimitedTileLayer';
 import type { ExtendedLabel, GeometryType } from './ControlsOpenMode';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/utils/utility';
-import { MAP_Z_INDEX, MAP_ANIMATION, MARKER_ICON_SIZE, MAP_STYLES } from '~/constants';
+import useAnnotationStore from '../annotation.store';
+import { MAP_ANIMATION, MAP_STYLES, MAP_Z_INDEX, MARKER_ICON_SIZE } from '~/shared/utils/constants';
+import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 
 // Extended layer type with annotation metadata
 // We use type assertion since Leaflet doesn't officially support custom properties
@@ -333,12 +334,23 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     }
   }, [center[0], center[1], zoom, syncMapState]);
 
-  // Refocus when trigger changes
+  // Refocus when trigger changes — fit to annotation bounds if any exist
   useEffect(() => {
     if (!mapRef.current || refocusTrigger === undefined) return;
 
     if (lastRefocusTriggerRef.current !== refocusTrigger) {
       lastRefocusTriggerRef.current = refocusTrigger;
+
+      // If there are drawn annotation layers, fit the map to their combined bounds
+      if (drawnItemsRef.current && drawnItemsRef.current.getLayers().length > 0) {
+        const bounds = drawnItemsRef.current.getBounds();
+        if (bounds.isValid()) {
+          mapRef.current.fitBounds(bounds, { padding: [40, 40], animate: true });
+          return;
+        }
+      }
+
+      // Fallback: reset to center/zoom (campaign bbox center)
       mapRef.current.setView(center, zoom);
     }
   }, [refocusTrigger, center[0], center[1], zoom]);
@@ -469,33 +481,34 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
       let url: string;
       let attribution: string;
       let subdomains: string[] | undefined;
-      let maxZoom: number;
+      let maxNativeZoom: number;
 
       if (basemapType === 'esri-world-imagery') {
         url =
           'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
-        maxZoom = 24;
+        maxNativeZoom = 17;
       } else if (basemapType === 'opentopomap') {
         url = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
         attribution =
           'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
         subdomains = ['a', 'b', 'c'];
-        maxZoom = 17;
+        maxNativeZoom = 17;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
         attribution =
           '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
         subdomains = ['a', 'b', 'c', 'd', 'e'];
-        maxZoom = 24;
+        maxNativeZoom = 24;
       }
 
       const options: L.TileLayerOptions = {
         attribution,
         minZoom: 0,
-        maxZoom,
+        maxZoom: 24,
+        maxNativeZoom,
         edgeBufferTiles: 2,
       };
 
@@ -523,7 +536,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     }
 
     if (tileUrl) {
-      tileLayerRef.current = L.tileLayer(tileUrl, {
+      tileLayerRef.current = rateLimitedTileLayer(tileUrl, {
         attribution: '',
         minZoom: 0,
         maxZoom: 24,
@@ -1363,6 +1376,16 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         .leaflet-tile {
           image-rendering: -webkit-optimize-contrast;
           image-rendering: crisp-edges;
+        }
+
+        /* Hatched pattern for 204 no-content tiles */
+        .leaflet-tile-no-content {
+          opacity: 1 !important;
+        }
+
+        /* Red-tinted hatched pattern for tiles that failed after all retries */
+        .leaflet-tile-error {
+          opacity: 0.8 !important;
         }
 
         /* Hide geoman default toolbar (we use custom controls) */

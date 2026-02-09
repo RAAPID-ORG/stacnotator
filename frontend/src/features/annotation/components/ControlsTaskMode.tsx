@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { useUserStore } from '~/stores/userStore';
-import { capitalizeFirst } from '~/utils/utility';
+import useAnnotationStore from '../annotation.store';
+import { useAccountStore } from '~/features/account/account.store';
+import { capitalizeFirst } from '~/shared/utils/utility';
 
 interface AnnotationControlsProps {
   labels: LabelBase[];
-  onSubmit: (labelId: number | null, comment: string, confidence: number) => Promise<void>;
+  onSubmit: (labelId: number | null, comment: string, confidence: number, isAuthoritative?: boolean) => Promise<void>;
   onNext: () => void;
   onPrevious: () => void;
   onGoToTask: (index: number) => void;
@@ -31,35 +31,20 @@ export const AnnotationControls = ({
   commentInputRef,
 }: AnnotationControlsProps) => {
   // Use store state for label and comment
+  // Form state (selectedLabelId, comment, confidence) is populated by the store's
+  // navigation actions (nextTask, previousTask, goToTask, etc.) via getFormStateForTask()
   const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
   const comment = useAnnotationStore((state) => state.comment);
   const confidence = useAnnotationStore((state) => state.confidence);
   const isNavigating = useAnnotationStore((state) => state.isNavigating);
+  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
+  const isAuthoritativeReviewer = useAnnotationStore((state) => state.isAuthoritativeReviewer);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
   const setComment = useAnnotationStore((state) => state.setComment);
   const setConfidence = useAnnotationStore((state) => state.setConfidence);
-  const resetAnnotationForm = useAnnotationStore((state) => state.resetAnnotationForm);
 
   // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
-
-  // Load existing annotation when task changes
-  useEffect(() => {
-    const currentUserId = useUserStore.getState().getCurrentUserId();
-    if (currentTask && currentUserId) {
-      // Find this user's annotation for the current task
-      const userAnnotation = currentTask.annotations.find(a => a.created_by_user_id === currentUserId);
-      if (userAnnotation) {
-        setSelectedLabelId(userAnnotation.label_id);
-        setComment(userAnnotation.comment || '');
-        setConfidence(userAnnotation.confidence ?? 5);
-      } else {
-        resetAnnotationForm();
-      }
-    } else {
-      resetAnnotationForm();
-    }
-  }, [currentTask?.id, setSelectedLabelId, setComment, setConfidence, resetAnnotationForm]);
 
   // Update goto input when task changes
   useEffect(() => {
@@ -80,6 +65,14 @@ export const AnnotationControls = ({
 
     await onSubmit(null, comment, confidence);
     // Don't reset form here - let the effect handle it when task changes
+  };
+
+  const handleSubmitAuthoritative = async () => {
+    const confirmed = window.confirm(
+      'Submit as authoritative? This will mark conflicting tasks as completed.'
+    );
+    if (!confirmed) return;
+    await onSubmit(selectedLabelId, comment, confidence, true);
   };
 
   const handleGoToTask = (annotationNumber: number) => {
@@ -112,7 +105,7 @@ export const AnnotationControls = ({
   const isDisabled = isSubmitting || isNavigating;
 
   // Check if current user has already annotated this task
-  const currentUserId = useUserStore((state) => state.getCurrentUserId());
+  const currentUserId = useAccountStore((state) => state.account?.id);
   const userAnnotation = currentTask?.annotations.find(a => a.created_by_user_id === currentUserId);
   const hasExistingLabel = userAnnotation !== undefined;
 
@@ -133,7 +126,7 @@ export const AnnotationControls = ({
     <div className="w-full h-full bg-white overflow-y-auto">
       <div className="flex flex-wrap">
         {/* Block 1: Label Selection */}
-        <div className="flex flex-col gap-1.5 p-2 border-r border-b border-neutral-200 flex-[2] min-w-[10rem]">
+        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-[2] min-w-[10rem]">
           <span className="font-bold text-neutral-900 text-xs">Annotation</span>
           <div className="flex flex-wrap gap-1.5">
             {labels.map((label, index) => (
@@ -158,7 +151,7 @@ export const AnnotationControls = ({
         </div>
 
         {/* Block 2: Comment Field */}
-        <div className="flex flex-col gap-1 p-2 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
+        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
           <label className="text-[10px] font-bold text-neutral-900 uppercase tracking-wide">
             Comment
           </label>
@@ -174,7 +167,7 @@ export const AnnotationControls = ({
         </div>
 
         {/* Block 3: Confidence + Submit/Skip */}
-        <div className="flex flex-col gap-2 p-2 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
+        <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
           {/* Confidence Slider */}
           <div className="flex flex-col gap-1">
             <label className="text-[10px] font-bold text-neutral-900 uppercase tracking-wide flex justify-between items-center">
@@ -220,11 +213,22 @@ export const AnnotationControls = ({
               Skip
             </button>
           </div>
+
+          {/* Submit as Authoritative (review mode + authoritative reviewer only) */}
+          {isReviewMode && isAuthoritativeReviewer && (
+            <button
+              disabled={isSubmitDisabled}
+              onClick={handleSubmitAuthoritative}
+              className="w-full px-2 py-1.5 text-xs font-bold border-2 border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Submitting...' : '🗲 Submit Authoritative'}
+            </button>
+          )}
         </div>
 
         {/* Block 4: Navigation Controls */}
         {currentTask && totalTasksCount && (
-          <div className="flex flex-col gap-1.5 p-2 border-b border-neutral-200 flex-1 min-w-[10rem]">
+          <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 flex-1 min-w-[10rem]">
             <span className="font-bold text-neutral-900 text-xs">Navigation</span>
             
             {/* Go to point row */}
@@ -273,6 +277,69 @@ export const AnnotationControls = ({
               >
                 Next &gt;
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Block 5: All Annotations (review mode only) */}
+        {isReviewMode && currentTask && currentTask.annotations.length > 0 && (
+          <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 w-full">
+            <span className="font-bold text-neutral-900 text-xs">All Annotations</span>
+            <div className="flex flex-col gap-1.5">
+              {/* Sort: own annotation first, then others */}
+              {[...currentTask.annotations]
+                .sort((a, b) => {
+                  if (a.created_by_user_id === currentUserId) return -1;
+                  if (b.created_by_user_id === currentUserId) return 1;
+                  return 0;
+                })
+                .map((ann) => {
+                  const isOwn = ann.created_by_user_id === currentUserId;
+                  const assignment = currentTask.assignments?.find(
+                    (a) => a.user_id === ann.created_by_user_id
+                  );
+                  const displayName = isOwn
+                    ? 'You'
+                    : assignment?.user_display_name || assignment?.user_email || ann.created_by_user_id.substring(0, 8);
+                  const label = labels.find((l) => l.id === ann.label_id);
+                  const labelName = label ? capitalizeFirst(label.name) : ann.label_id ? `#${ann.label_id}` : '—';
+
+                  return (
+                    <div
+                      key={ann.id}
+                      className={`text-[10px] rounded px-2 py-1.5 border ${
+                        ann.is_authoritative
+                          ? 'bg-amber-50 border-amber-300'
+                          : isOwn
+                            ? 'bg-brand-50 border-brand-200'
+                            : 'bg-neutral-50 border-neutral-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`font-bold ${isOwn ? 'text-brand-700' : 'text-neutral-700'}`}>
+                          {displayName}
+                          {ann.is_authoritative && (
+                            <span className="ml-1 text-amber-600" title="Authoritative">🗲</span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-neutral-500">
+                          <span className="font-medium text-neutral-800">{labelName}</span>
+                          {ann.confidence !== null && ann.confidence !== undefined && (
+                            <>
+                              <span className="text-neutral-300">|</span>
+                              <span title="Confidence">{ann.confidence}/5</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {ann.comment && ann.comment.trim() !== '' && (
+                        <div className="mt-1 text-neutral-600 italic whitespace-pre-wrap">
+                          &ldquo;{ann.comment}&rdquo;
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}

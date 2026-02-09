@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { LabelBase } from '~/api/client';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { capitalizeFirst } from '~/utils/utility';
+import useAnnotationStore from '../annotation.store';
+import { capitalizeFirst } from '~/shared/utils/utility';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
 export type GeometryType = 'point' | 'polygon' | 'line';
@@ -189,11 +189,11 @@ const OpenModeControls = () => {
 
   return (
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
-      <div className="flex flex-wrap gap-3 items-start">
+      <div className="flex flex-col gap-3">
         {/* Drawing Tools */}
-        <div className="flex flex-col gap-1 w-40 flex-shrink-0">
+        <div className="flex flex-col gap-1">
           <span className="font-bold text-neutral-900 text-xs">Tools</span>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-row flex-wrap gap-1">
             {availableTools.map((tool) => (
               <button
                 key={tool.id}
@@ -215,9 +215,9 @@ const OpenModeControls = () => {
         {/* Label Selection - show for annotate tool */}
         {activeTool === 'annotate' && (
           <>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex flex-col gap-1 w-full">
               <span className="font-bold text-neutral-900 text-xs">Labels</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
+              <div className="flex flex-col gap-1">
             {extendedLabels.map((label, index) => (
               <div key={label.id} className="relative">
                 <button
@@ -233,7 +233,7 @@ const OpenModeControls = () => {
                     className="w-3 h-3 rounded-sm border border-neutral-300 flex-shrink-0"
                     style={{ backgroundColor: label.color }}
                   />
-                  <span className="flex-1 truncate min-w-0">
+                  <span className="flex-1 min-w-0 truncate">
                     {selectedLabelId === label.id ? '✓ ' : ''}
                     {capitalizeFirst(label.name)}
                   </span>
@@ -318,7 +318,7 @@ const OpenModeControls = () => {
 
             {/* Current selection info */}
             {selectedLabel && (
-              <div className="p-2 bg-blue-50 rounded border border-blue-200 w-80 max-w-full flex-shrink-0">
+              <div className="p-2 bg-blue-50 rounded border border-blue-200 w-full">
                 <p className="text-[10px] text-blue-700 font-medium mb-1">
                   Selected: {capitalizeFirst(selectedLabel.name)}
                 </p>
@@ -342,7 +342,7 @@ const OpenModeControls = () => {
 
         {/* Edit Tool Info */}
         {activeTool === 'edit' && (
-          <div className="flex flex-col gap-1 w-80 max-w-full flex-shrink-0">
+          <div className="flex flex-col gap-1 w-full">
             <span className="font-bold text-neutral-900 text-xs">Edit Tool</span>
             <p className="text-[10px] text-neutral-600">
               Hover over geometries to highlight them, then click to select and edit vertices.
@@ -356,7 +356,7 @@ const OpenModeControls = () => {
 
         {/* Timeseries Tool Info */}
         {activeTool === 'timeseries' && (
-          <div className="flex flex-col gap-1 w-80 max-w-full flex-shrink-0">
+          <div className="flex flex-col gap-1 w-full">
             <span className="font-bold text-neutral-900 text-xs">Timeseries Tool</span>
             <p className="text-[10px] text-neutral-600">
               Click anywhere on the map to load timeseries data for that location.
@@ -366,7 +366,7 @@ const OpenModeControls = () => {
 
         {/* Pan Tool Info */}
         {activeTool === 'pan' && (
-          <div className="flex flex-col gap-1 w-80 max-w-full flex-shrink-0">
+          <div className="flex flex-col gap-1 w-full">
             <span className="font-bold text-neutral-900 text-xs">Navigation</span>
             <p className="text-[10px] text-neutral-600">
               Drag to pan the map. Use scroll wheel to zoom.

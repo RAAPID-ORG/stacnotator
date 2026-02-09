@@ -1,18 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
-import { AnnotationDistributionMap } from '~/components/campaign/view-annotations/AnnotationDistributionMap';
-import { CampaignStatisticsComponent } from '~/components/campaign/CampaignStatistics';
-import { useLayoutStore } from 'src/features/layout/layout.store';
-import { useUserStore } from '~/stores/userStore';
-import { capitalizeFirst, extractLatLonFromWKT } from '~/utils/utility';
-import { 
-  getTaskStatus, 
-  getUserAssignmentStatus, 
-  getTaskStatusColor,
-  formatTaskStatus,
-  type TaskStatus 
-} from '~/utils/taskStatus';
+
 import {
   getAllAnnotationTasks,
   getCampaign,
@@ -20,6 +9,12 @@ import {
   type AnnotationTaskOut,
   type CampaignOut,
 } from '~/api/client';
+import { useAccountStore } from '~/features/account/account.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
+import { formatTaskStatus, getTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
+import { capitalizeFirst, extractLatLonFromWKT } from '~/shared/utils/utility';
+import Statistics from '../components/Statistics';
+import { AnnotationDistributionMap } from '../components/AnnotationDistributionMap';
 
 type StatusFilter = 'all' | 'pending' | 'partial' | 'conflicting' | 'complete';
 type SortOption = 'default' | 'confidence-asc' | 'confidence-desc' | 'id-asc' | 'id-desc';
@@ -47,7 +42,7 @@ export const ViewAnnotationsPage = () => {
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const currentUser = useUserStore((state) => state.currentUser);
+  const currentUser = useAccountStore((state) => state.account);
 
   useEffect(() => {
     if (campaign) {
@@ -201,7 +196,7 @@ export const ViewAnnotationsPage = () => {
 
   const handleNavigateToTask = (taskId: number) => {
     // Navigate to annotation page with this task
-    navigate(`/campaigns/${campaignId}/annotate?task=${taskId}`);
+    navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
   };
 
   const handleExportAnnotations = async () => {
@@ -346,7 +341,7 @@ export const ViewAnnotationsPage = () => {
 
       {/* Campaign Statistics */}
       {tasks.length > 0 && (
-        <CampaignStatisticsComponent campaignId={numericCampaignId} />
+        <Statistics campaignId={numericCampaignId} />
       )}
 
       {/* Filters */}
@@ -686,7 +681,6 @@ export const ViewAnnotationsPage = () => {
                     </td>
                     <td className="px-4 py-3">
                       <button
-                        disabled={true}
                         onClick={() => handleNavigateToTask(task.id)}
                         className="text-brand-500 hover:text-brand-700 text-sm font-medium transition-colors"
                       >

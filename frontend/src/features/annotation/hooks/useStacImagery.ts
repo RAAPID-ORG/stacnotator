@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { stacRegistrationLimiter } from '../../../shared/utils/rateLimiter';
+import { stacRegistrationLimiter } from '~/shared/utils/rateLimiter';
 
 interface UseStacImageryParams {
   registrationUrl: string;

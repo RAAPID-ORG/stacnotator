@@ -1,9 +1,9 @@
 import { useRef, useMemo } from 'react';
 import LeafletMap from './LeafletMap';
-import { useStacImagery } from '../../../src/features/annotation/hooks/useStacImagery';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { extractLatLonFromWKT, computeTimeSlices } from '~/utils/utility';
 import type { ImageryWindowOut } from '~/api/client';
+import useAnnotationStore from '../annotation.store';
+import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
+import { useStacImagery } from '../hooks/useStacImagery';
 
 interface ImageryContainerProps {
   window: ImageryWindowOut;

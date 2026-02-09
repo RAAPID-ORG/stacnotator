@@ -181,6 +181,7 @@ def create_campaign(
         user_id=user_id,
         campaign_id=campaign.id,
         is_admin=True,
+        is_authorative_reviewer=False,
     )
     db.add(campaign_user)
 
@@ -907,11 +908,19 @@ def get_campaign_statistics(
     # Get label mapping
     labels = campaign.settings.labels or {}
     label_id_to_name = {}
-    for label_id, label_data in labels.items():
-        if isinstance(label_data, dict):
-            label_id_to_name[int(label_id)] = label_data.get("name", f"Label {label_id}")
-        else:
-            label_id_to_name[int(label_id)] = str(label_data)
+    if isinstance(labels, dict):
+        for label_id, label_data in labels.items():
+            if isinstance(label_data, dict):
+                label_id_to_name[int(label_id)] = label_data.get("name", f"Label {label_id}")
+            else:
+                label_id_to_name[int(label_id)] = str(label_data)
+    elif isinstance(labels, list):
+        for label_data in labels:
+            if isinstance(label_data, dict):
+                lid = label_data.get("id")
+                lname = label_data.get("name", f"Label {lid}")
+                if lid is not None:
+                    label_id_to_name[int(lid)] = lname
     
     # Batch fetch users
     user_ids = {ann.created_by_user_id for ann in annotations}

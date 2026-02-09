@@ -1,21 +1,19 @@
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { BoundingBoxEditor } from '~/components/campaign/shared/BoundingBoxEditor';
-import { LabelsEditor } from '~/components/campaign/shared/LabelsEditor';
-import { ImageryEditor } from '~/components/campaign/shared/ImageryEditor';
-import { IMAGERY_PRESETS, emptyImagery } from '~/components/campaign/shared/imageryPresets';
-import { AnnotationTasksTable } from '~/components/campaign/campaign-settings/AnnotationTasksTable';
-import { TaskAssignmentModal } from '~/components/campaign/campaign-settings/TaskAssignmentModal';
-import { ReviewerAssignmentModal, type AssignmentPattern } from '~/components/campaign/campaign-settings/ReviewerAssignmentModal';
-import { CampaignUsersSection } from '~/components/campaign/campaign-settings/CampaignUsersSection';
-import { TaskGenerationSection } from '~/components/campaign/campaign-settings/TaskGenerationSection';
-import { TaskLocationsMap } from '~/components/campaign/campaign-settings/TaskLocationsMap';
+import { TaskAssignmentModal } from '~/features/campaigns/settings/TaskAssignmentModal';
+import { ReviewerAssignmentModal, type AssignmentPattern } from '~/features/campaigns/settings/ReviewerAssignmentModal';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
-import { DeleteCampaignDialog } from '~/components/shared/DeleteCampaignDialog';
+import TabNavigator from 'src/shared/ui/TabNavigator';
+import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
+import GeneralSettingsTab from '~/features/campaigns/settings/tabs/GeneralSettingsTab';
+import ImageryTab from '~/features/campaigns/settings/tabs/ImageryTab';
+import TimeseriesTab from '~/features/campaigns/settings/tabs/TimeseriesTab';
+import TasksTab from '~/features/campaigns/settings/tabs/TasksTab';
+import UsersTab from '~/features/campaigns/settings/tabs/UsersTab';
 import { useLayoutStore } from 'src/features/layout/layout.store';
-import { capitalizeFirst } from '~/utils/utility';
+import { capitalizeFirst } from '~/shared/utils/utility';
 
 import {
   createImagery,
@@ -44,7 +42,6 @@ import {
   updateCampaignName,
   updateCampaignBbox,
 } from '~/api/client';
-import { StepAddTimeseries } from '~/components/campaign/campaign-create/steps/StepAddTimeseries';
 
 export const CampaignSettingsPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -92,7 +89,7 @@ export const CampaignSettingsPage = () => {
     }
   }, [campaign, setBreadcrumbs]);
 
-  // Load campaign
+  // Load campaign data (core data only)
   useEffect(() => {
     if (!campaignId || Number.isNaN(numericCampaignId)) return;
 
@@ -104,26 +101,6 @@ export const CampaignSettingsPage = () => {
         setCampaignName(data!.name);
         setImagery(data!.imagery);
         setTimeseries(data!.time_series);
-
-        // Load annotation tasks
-        try {
-          const { data } = await getAllAnnotationTasks({
-            path: { campaign_id: numericCampaignId },
-          });
-          setAnnotationTasks(data!.tasks);
-        } catch (err) {
-          console.error('Failed to load annotation tasks', err);
-        }
-
-        // Load campaign users
-        try {
-          const { data } = await getCampaignUsers({
-            path: { campaign_id: numericCampaignId },
-          });
-          setCampaignUsers(data!.users);
-        } catch (err) {
-          console.error('Failed to load campaign users', err);
-        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load campaign';
         showAlert(message, 'error');
@@ -134,7 +111,45 @@ export const CampaignSettingsPage = () => {
     };
 
     loadCampaign();
-  }, [campaignId, numericCampaignId]);
+  }, [numericCampaignId, showAlert]);
+
+  // Lazy load annotation tasks when tasks tab is active
+  useEffect(() => {
+    if (activeTab !== 'tasks' || annotationTasks.length > 0) return;
+
+    const loadTasks = async () => {
+      try {
+        const { data } = await getAllAnnotationTasks({
+          path: { campaign_id: numericCampaignId },
+        });
+        setAnnotationTasks(data!.tasks);
+      } catch (err) {
+        console.error('Failed to load annotation tasks', err);
+        showAlert('Failed to load annotation tasks', 'error');
+      }
+    };
+
+    loadTasks();
+  }, [activeTab, numericCampaignId, annotationTasks.length, showAlert]);
+
+  // Lazy load campaign users when users or tasks tab is active (both need users data)
+  useEffect(() => {
+    if ((activeTab !== 'users' && activeTab !== 'tasks') || campaignUsers.length > 0) return;
+
+    const loadUsers = async () => {
+      try {
+        const { data } = await getCampaignUsers({
+          path: { campaign_id: numericCampaignId },
+        });
+        setCampaignUsers(data!.users);
+      } catch (err) {
+        console.error('Failed to load campaign users', err);
+        showAlert('Failed to load campaign users', 'error');
+      }
+    };
+
+    loadUsers();
+  }, [activeTab, numericCampaignId, campaignUsers.length, showAlert]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -601,509 +616,99 @@ export const CampaignSettingsPage = () => {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-4 mb-3 border-b border-neutral-300">
-            {[
+          <TabNavigator
+            items={[
               { id: 'general', label: 'General Settings' },
               { id: 'imagery', label: 'Imagery' },
               { id: 'timeseries', label: 'Timeseries' },
               { id: 'tasks', label: 'Annotation Tasks' },
               { id: 'users', label: 'Users' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-3 border-b-2 transition-colors cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'border-brand-600 text-brand-700 font-medium'
-                    : 'border-transparent text-neutral-500 hover:text-brand-700'
-                }`}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+            ]}
+            activeId={activeTab}
+            onChange={(id) => setActiveTab(id as any)}
+          />
 
           {/* Tab Content */}
           {activeTab === 'general' && (
-            <>
-              <div className="space-y-3">
-                {/* Campaign Name */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-">Campaign Name</h2>
-                  <div className="flex gap-4 items-end">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-neutral-700 mb-2">
-                        Name
-                      </label>
-                      <input
-                        type="text"
-                        value={campaignName}
-                        onChange={(e) => setCampaignName(e.target.value)}
-                        disabled={saving}
-                        className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <button
-                      onClick={handleSaveName}
-                      disabled={saving || campaignName === campaign.name}
-                      className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                      {saving && (
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                      )}
-                      Save
-                    </button>
-                  </div>
-                </div>
-
-                {/* Bounding Box */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">Bounding Box</h2>
-                  <BoundingBoxEditor
-                    value={{
-                      bbox_west: campaign.settings.bbox_west,
-                      bbox_south: campaign.settings.bbox_south,
-                      bbox_east: campaign.settings.bbox_east,
-                      bbox_north: campaign.settings.bbox_north,
-                    }}
-                    onChange={(updates) => {
-                      setCampaign({
-                        ...campaign,
-                        settings: { ...campaign.settings, ...updates },
-                      });
-                    }}
-                  />
-                  <button
-                    onClick={handleSaveSettings}
-                    disabled={saving}
-                    className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-200 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  >
-                    {saving && (
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                    )}
-                    Save Settings
-                  </button>
-                </div>
-
-                {/* Labels */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">Annotation Labels</h2>
-                  <p className="text-sm text-neutral-500 mb-4">
-                    Labels are read-only in settings. To add labels, edit during campaign creation.
-                  </p>
-                  <LabelsEditor
-                    value={campaign.settings.labels}
-                    onChange={() => {}}
-                    readOnly={true}
-                  />
-                </div>
-
-                {/* Danger Zone - Delete Campaign */}
-                <div className="bg-white rounded-lg border border-red-300 p-6">
-                  <h2 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h2>
-                  <p className="text-sm text-neutral-600 mb-4">
-                    Once you delete a campaign, there is no going back. Please be certain.
-                  </p>
-                  <button
-                    onClick={() => setShowDeleteCampaignDialog(true)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Delete This Campaign
-                  </button>
-                </div>
-              </div>
-            </>
+            <GeneralSettingsTab
+              campaign={campaign!}
+              campaignName={campaignName}
+              setCampaignName={setCampaignName}
+              saving={saving}
+              onSaveName={handleSaveName}
+              onSaveSettings={handleSaveSettings}
+              onUpdateSettings={(updates) =>
+                setCampaign({ ...campaign!, settings: { ...campaign!.settings, ...updates } })
+              }
+              onOpenDelete={() => setShowDeleteCampaignDialog(true)}
+            />
           )}
 
           {activeTab === 'imagery' && (
-            <>
-              <div className="space-y-3">
-                {/* Add New Imagery */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Add Imagery Sources
-                  </h2>
-                  <div className="space-y-4">
-                    {newImagery.map((img, index) => (
-                      <div key={index} className="p-4">
-                        <ImageryEditor
-                          value={img}
-                          onChange={(updates) => {
-                            const updated = newImagery.map((i, idx) =>
-                              idx === index ? { ...i, ...updates } : i
-                            );
-                            setNewImagery(updated);
-                          }}
-                          onRemove={() => {
-                            setNewImagery(newImagery.filter((_, idx) => idx !== index));
-                          }}
-                        />
-                      </div>
-                    ))}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <select
-                          value={selectedPreset}
-                          onChange={(e) => setSelectedPreset(e.target.value)}
-                          className="flex-1 border border-neutral-300 rounded-md px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                        >
-                          <option value="custom">Custom Configuration</option>
-                          {IMAGERY_PRESETS.map((preset) => (
-                            <option key={preset.id} value={preset.id}>
-                              {preset.label}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => {
-                            const preset = IMAGERY_PRESETS.find((p) => p.id === selectedPreset);
-                            const newItem: ImageryCreate = preset
-                              ? { ...preset.template, start_ym: '', end_ym: '' }
-                              : emptyImagery();
-
-                            setNewImagery([...newImagery, newItem]);
-                            setSelectedPreset('custom'); // Reset to custom after adding
-                          }}
-                          className="px-4 py-2 border border-neutral-300 rounded-lg hover:bg-neutral-100 transition-colors text-neutral-700 whitespace-nowrap"
-                        >
-                          + Add
-                        </button>
-                      </div>
-
-                      {selectedPreset !== 'custom' && (
-                        <p className="text-xs text-neutral-600 italic">
-                          Preset "{IMAGERY_PRESETS.find((p) => p.id === selectedPreset)?.label}"
-                          will be added. You can customize it after adding.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {newImagery.length > 0 && (
-                    <button
-                      onClick={handleAddImagery}
-                      disabled={saving}
-                      className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-200 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                      {saving && (
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                      )}
-                      Add {newImagery.length} Imagery Source(s)
-                    </button>
-                  )}
-                </div>
-
-                {/* Existing Imagery */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Existing Imagery Sources ({imagery.length})
-                  </h2>
-                  <div className="space-y-4">
-                    {imagery.length === 0 ? (
-                      <p className="text-sm text-neutral-500">No imagery sources added yet</p>
-                    ) : (
-                      imagery.map((img) => (
-                        <ImageryEditor
-                          key={img.id}
-                          value={{
-                            ...img,
-                            search_body:
-                              typeof img.search_body === 'string'
-                                ? img.search_body
-                                : JSON.stringify(img.search_body),
-                          }}
-                          onChange={(updates) => handleUpdateImagery(img.id, updates)}
-                          onUpdate={() => {}}
-                          onRemove={() => setDeleteConfirm({ imageryId: img.id })}
-                          showUpdateButton={true}
-                          isExisting={true}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
+            <ImageryTab
+              newImagery={newImagery}
+              setNewImagery={setNewImagery}
+              selectedPreset={selectedPreset}
+              setSelectedPreset={setSelectedPreset}
+              imagery={imagery}
+              handleAddImagery={handleAddImagery}
+              handleUpdateImagery={handleUpdateImagery}
+              setDeleteConfirm={setDeleteConfirm}
+              saving={saving}
+            />
           )}
 
           {activeTab === 'timeseries' && (
-            <div className="space-y-3">
-              {/* Add New Timeseries */}
-              <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Timeseries</h2>
-                <StepAddTimeseries
-                  form={{
-                    name: campaignName,
-                    mode: campaign?.mode || 'tasks',
-                    settings: campaign?.settings || {},
-                    imagery_configs: imagery.map((img) => ({
-                      ...img,
-                      search_body: JSON.stringify(img.search_body),
-                    })),
-                    timeseries_configs: newTimeseries,
-                  }}
-                  setForm={(form) => setNewTimeseries(form.timeseries_configs || [])}
-                />
-
-                {newTimeseries.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleAddTimeseries}
-                    disabled={saving}
-                    className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-200 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                  >
-                    {saving && (
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                    )}
-                    Add {newTimeseries.length} Timeseries
-                  </button>
-                )}
-              </div>
-
-              {/* Existing Timeseries */}
-              {timeseries.length > 0 && (
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Existing Timeseries ({timeseries.length})
-                  </h2>
-                  <div className="space-y-3">
-                    {timeseries.map((ts) => (
-                      <div
-                        key={ts.id}
-                        className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start"
-                      >
-                        <div>
-                          <h4 className="font-medium text-neutral-900">{ts.name}</h4>
-                          <p className="text-sm text-neutral-500 mt-1">
-                            Start: {ts.start_ym} | End: {ts.end_ym}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setDeleteConfirm({ timeseriesId: ts.id })}
-                          className="text-sm text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <TimeseriesTab
+              newTimeseries={newTimeseries}
+              setNewTimeseries={setNewTimeseries}
+              timeseries={timeseries}
+              handleAddTimeseries={handleAddTimeseries}
+              setDeleteConfirm={setDeleteConfirm}
+              saving={saving}
+              campaignName={campaignName}
+              imagery={imagery}
+              campaignMode={campaign?.mode || 'tasks'}
+              campaignSettings={campaign?.settings || {}}
+            />
           )}
 
           {activeTab === 'tasks' && (
-            <>
-              <div className="space-y-3">
-                {/* Task Locations Map */}
-                {annotationTasks.length > 0 && campaign && (
-                  <TaskLocationsMap
-                    tasks={annotationTasks}
-                    bbox={{
+            <TasksTab
+              annotationTasks={annotationTasks}
+              campaignUsers={campaignUsers}
+              taskFile={taskFile}
+              setTaskFile={setTaskFile}
+              uploadingTasks={uploadingTasks}
+              handleUploadAnnotationTasks={handleUploadAnnotationTasks}
+              handleTasksGenerated={handleTasksGenerated}
+              onTaskGenerationError={(msg) => showAlert(msg, 'error')}
+              onOpenBulkAssign={() => setShowAssignmentModal(true)}
+              onOpenReviewerAssign={() => setShowReviewerModal(true)}
+              handleAssignSingleTask={handleAssignSingleTask}
+              handleUnassignTask={handleUnassignTask}
+              handleDeleteTasks={handleDeleteTasks}
+              campaignId={numericCampaignId}
+              bbox={
+                campaign
+                  ? {
                       west: campaign.settings.bbox_west,
                       south: campaign.settings.bbox_south,
                       east: campaign.settings.bbox_east,
                       north: campaign.settings.bbox_north,
-                    }}
-                  />
-                )}
-
-                {/* Add New Tasks */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Add Annotation Tasks
-                  </h2>
-                  
-                  {/* Task Creation Method Selection */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-neutral-700 mb-3">
-                      How would you like to create tasks?
-                    </label>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          // This will mark that user wants to upload
-                          // We'll use a sentinel value to indicate "upload mode"
-                          if (taskFile === null) {
-                            setTaskFile(new File([], ''));
-                          }
-                        }}
-                        className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                          taskFile !== null
-                            ? 'bg-brand-500 text-white border-brand-500'
-                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-                        }`}
-                      >
-                        <div className="font-medium">Upload CSV</div>
-                        <div className="text-xs mt-1 opacity-90">
-                          Upload tasks from a CSV file
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setTaskFile(null)}
-                        className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                          taskFile === null
-                            ? 'bg-brand-500 text-white border-brand-500'
-                            : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-                        }`}
-                      >
-                        <div className="font-medium">Generate via Sampling</div>
-                        <div className="text-xs mt-1 opacity-90">
-                          Create tasks using random or grid sampling
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Upload CSV Section */}
-                  {taskFile !== null && (
-                    <div>
-                      <h3 className="text-md font-semibold text-neutral-900 mb-3">
-                        Upload Tasks from CSV
-                      </h3>
-                      <p className="text-sm text-neutral-500 mb-4">
-                        Upload a CSV file with task locations. Format: <code>id,lon,lat</code>
-                      </p>
-                      <div className="flex gap-4 items-center">
-                        <input
-                          type="file"
-                          accept=".csv"
-                          onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
-                          disabled={uploadingTasks}
-                          className="flex-1 px-3 py-2 border border-neutral-300 rounded disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                        />
-                        <button
-                          onClick={handleUploadAnnotationTasks}
-                          disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
-                          className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                        >
-                          {uploadingTasks && (
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                          )}
-                          Upload
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Generate via Sampling Section */}
-                  {taskFile === null && (
-                    <TaskGenerationSection
-                      campaignId={numericCampaignId}
-                      onTasksGenerated={handleTasksGenerated}
-                      onError={(msg) => showAlert(msg, 'error')}
-                    />
-                  )}
-                </div>
-
-                {/* Tasks Table */}
-                <div className="bg-white rounded-lg border border-neutral-300 p-6">
-                  <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-                    Annotation Tasks Overview
-                  </h2>
-                  {annotationTasks.length > 0 ? (
-                    <AnnotationTasksTable
-                      tasks={annotationTasks}
-                      campaignUsers={campaignUsers}
-                      onAssignTasks={handleAssignSingleTask}
-                      onUnassignTask={handleUnassignTask}
-                      onOpenBulkAssign={() => setShowAssignmentModal(true)}
-                      onOpenReviewerAssign={() => setShowReviewerModal(true)}
-                      onDeleteTasks={handleDeleteTasks}
-                    />
-                  ) : (
-                    <p className="text-sm text-neutral-500">
-                      No annotation tasks yet. Upload a CSV file or generate tasks using sampling
-                      above.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </>
+                    }
+                  : undefined
+              }
+            />
           )}
 
           {activeTab === 'users' && (
-            <>
-              <CampaignUsersSection
-                campaignId={numericCampaignId}
-                onError={(msg) => {
-                  showAlert(msg, 'error');
-                }}
-                onSuccess={(msg) => {
-                  showAlert(msg, 'success');
-                }}
-              />
-            </>
+            <UsersTab
+              campaignId={numericCampaignId}
+              onError={(msg) => showAlert(msg, 'error')}
+              onSuccess={(msg) => showAlert(msg, 'success')}
+              campaignUsers={campaignUsers}
+            />
           )}
         </div>
       </div>

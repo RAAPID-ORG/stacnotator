@@ -76,6 +76,7 @@ class AnnotationFromTaskCreate(BaseModel):
     label_id: Optional[int]
     comment: Optional[str]
     confidence: Optional[int]
+    is_authoritative: Optional[bool] = None
 
 
 class AnnotationCreate(BaseModel):

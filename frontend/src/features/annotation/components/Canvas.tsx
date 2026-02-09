@@ -1,23 +1,16 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import ReactGridLayout, { getCompactor, noCompactor, type CompactType } from 'react-grid-layout';
-import type { Layout } from 'react-grid-layout';
+import ReactGridLayout, { getCompactor} from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
-
-import {
-  extractLatLonFromWKT,
-  computeTimeSlices,
-  formatWindowLabel,
-  type LatLon,
-} from '~/utils/utility';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { useUIStore } from '~/stores/uiStore';
 import ImageryContainer from './ImageryContainer';
 import MiniMap from './Minimap';
 import MainAnnotationsContainer from './MainAnnotationContainer';
 import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
+import useAnnotationStore from '../annotation.store';
+import { computeTimeSlices, extractLatLonFromWKT, formatWindowLabel, type LatLon } from '~/shared/utils/utility';
+import { useLayoutStore } from '~/features/layout/layout.store';
 
 /**
  * Copy text to clipboard
@@ -67,7 +60,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const goToTask = useAnnotationStore((state) => state.goToTask);
 
   // Get fullscreen state from UI store
-  const isFullscreen = useUIStore((state) => state.isFullscreen);
+  const isFullscreen = useLayoutStore((state) => state.isFullscreen);
 
   // Compute derived values
   const currentTask = visibleTasks[currentTaskIndex] || null;
@@ -196,9 +189,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </>
           )}
         </div>
-        <div className="text-xs text-neutral-900">
-          {completedTasksForCounter}/{totalTasksForCounter} tasks done
-        </div>
+        {!isOpenMode && (
+          <div className="text-xs text-neutral-900">
+            {completedTasksForCounter}/{totalTasksForCounter} tasks done
+          </div>
+        )}
       </div>
     );
   };
@@ -241,7 +236,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   return (
     <main
       ref={containerRef}
-      className={`flex-1 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen ? 'p-3' : 'p-1'} ${
+      className={`flex-1 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
         isEditingLayout ? 'is-editing' : ''
       }`}
     >

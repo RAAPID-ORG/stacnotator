@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CampaignCreate, ImageryCreate } from '~/api/client';
 import { emptyImagery, IMAGERY_PRESETS } from '~/features/campaigns/utils/imageryPresets';
-import { ImageryEditor } from '../../ImageryEditor';
+import { ImageryEditor } from '../../components/ImageryEditor';
 
 
 export const StepImagery = ({

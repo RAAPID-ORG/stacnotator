@@ -136,7 +136,7 @@ def make_user_authorative_reviewer(
     db: Session = Depends(get_db),
 ):
     """Give a user the authorative reviewer role, enabling him to review other annotations."""
-    return service.make_user_authorative_reviewer(db, campaign.id, new_authorative_reviewer_id)
+    return service.make_authorative_reviewer(db, campaign.id, new_authorative_reviewer_id)
 
 
 @router.get("/{campaign_id}/users", response_model=CampaignUsersResponse)

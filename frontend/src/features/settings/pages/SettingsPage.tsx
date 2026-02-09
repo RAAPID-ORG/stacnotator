@@ -31,12 +31,13 @@ export const SettingsPage = () => {
   // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
-  const loading = useAccountStore((s) => s.loading);
 
-  // Update account in store after editing
-  const updateAccount = async () => {
-    await fetchAccount();
-  };
+  // Fetch account on mount if not already loaded
+  useEffect(() => {
+    if (!account) {
+      fetchAccount();
+    }
+  }, [account, fetchAccount]);
 
   // Set breadcrumbs
   useEffect(() => {
@@ -197,7 +198,7 @@ export const SettingsPage = () => {
       });
 
       if (data) {
-        await updateAccount();
+        await fetchAccount();
         setIsEditingDisplayName(false);
         showAlert('Display name updated successfully', 'success');
       }
@@ -220,8 +221,8 @@ export const SettingsPage = () => {
     setDisplayNameInput('');
   };
 
-  // Show loading state while user is being fetched
-  if (loading || !account) {
+  // Show loading state while account is being fetched
+  if (!account) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <LoadingSpinner size="lg" text="Loading settings..." />

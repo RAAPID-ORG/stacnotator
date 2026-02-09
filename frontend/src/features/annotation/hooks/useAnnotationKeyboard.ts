@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { useUIStore } from '~/stores/uiStore';
-import { computeTimeSlices } from '~/utils/utility';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
+import { useLayoutStore } from '~/features/layout/layout.store';
+import useAnnotationStore from '../annotation.store';
+import { computeTimeSlices } from '~/shared/utils/utility';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -25,6 +25,7 @@ interface UseAnnotationKeyboardOptions {
  * - Enter: Submit annotation + comment
  * - B: Skip annotation
  * - Number keys: Select label by index (supports multi-digit)
+ * - Q/E: Decrease/increase confidence level
  * - H: Hide/show help dialog
  */
 export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboardOptions) => {
@@ -38,6 +39,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
   const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
   const comment = useAnnotationStore((state) => state.comment);
+  const confidence = useAnnotationStore((state) => state.confidence);
   const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
   const isNavigating = useAnnotationStore((state) => state.isNavigating);
   const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
@@ -54,10 +56,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
   const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
+  const setConfidence = useAnnotationStore((state) => state.setConfidence);
   const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
   const resetAnnotationForm = useAnnotationStore((state) => state.resetAnnotationForm);
-  const showAlert = useUIStore((state) => state.showAlert);
-  const toggleKeyboardHelp = useUIStore((state) => state.toggleKeyboardHelp);
+  const showAlert = useLayoutStore((state) => state.showAlert);
+  const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -211,7 +214,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
     // Get current task to check if annotation exists
     const currentTask = visibleTasks[currentTaskIndex] || null;
-    const hasExistingAnnotation = currentTask?.annotation !== null;
+    const hasExistingAnnotation = currentTask?.annotations && currentTask.annotations.length > 0;
 
     // Allow submission with null label only if removing an existing annotation
     if (!selectedLabelId && !hasExistingAnnotation) {
@@ -219,13 +222,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       return;
     }
 
-    await submitAnnotation(selectedLabelId, comment);
+    await submitAnnotation(selectedLabelId, comment, confidence);
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
   }, [
     isSubmitting,
     isNavigating,
     selectedLabelId,
     comment,
+    confidence,
     submitAnnotation,
     showAlert,
     visibleTasks,
@@ -236,9 +240,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const handleSkip = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
 
-    await submitAnnotation(null, comment);
+    await submitAnnotation(null, comment, confidence);
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
-  }, [isSubmitting, isNavigating, comment, submitAnnotation]);
+  }, [isSubmitting, isNavigating, comment, confidence, submitAnnotation]);
 
   // Focus comment box
   const focusComment = useCallback(() => {
@@ -246,6 +250,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     if (!textarea) return;
     textarea.focus();
   }, [commentInputRef]);
+
+  // Adjust confidence level
+  const adjustConfidence = useCallback((delta: number) => {
+    setConfidence(Math.max(1, Math.min(5, confidence + delta)));
+  }, [confidence, setConfidence]);
 
   // Main keydown handler
   useEffect(() => {
@@ -352,6 +361,18 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           focusComment();
           break;
 
+        // Confidence adjustment
+        case 'q':
+        case 'Q':
+          e.preventDefault();
+          adjustConfidence(-1); // Decrease confidence
+          break;
+        case 'e':
+        case 'E':
+          e.preventDefault();
+          adjustConfidence(1); // Increase confidence
+          break;
+
         // Submit
         case 'Enter':
           e.preventDefault();
@@ -388,6 +409,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     };
   }, [
     isSubmitting,
+    isNavigating,
     commentInputRef,
     handleDigitInput,
     previousTask,
@@ -400,6 +422,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     triggerZoomOut,
     triggerPan,
     focusComment,
+    adjustConfidence,
     handleSubmit,
     handleSkip,
     toggleKeyboardHelp,

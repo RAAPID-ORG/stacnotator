@@ -1,34 +1,28 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { authManager } from '~/features/auth';
-import type { AuthAdapter } from '~/features/auth/core/authAdapter';
 
 type AuthContextValue = {
-  auth: AuthAdapter;
+  auth: typeof authManager;
   loggedIn: boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Observes auth state changes from the headless authManager.
- * Exposes {auth, loggedIn} via context to the rest of the app.
+ * Exposes { auth, loggedIn } via context.
  */
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const auth = useMemo(() => authManager as AuthAdapter, []);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => authManager.isAuthenticated());
 
   useEffect(() => {
-    // Fast initial check (handles persisted sessions).
-    setLoggedIn(auth.isAuthenticated());
+    return authManager.onAuthStateChanged(setLoggedIn);
+  }, []);
 
-    const unsub = auth.onAuthStateChanged((isLoggedIn: boolean) => {
-      setLoggedIn(isLoggedIn);
-    });
-
-    return unsub;
-  }, [auth]);
-
-  return <AuthContext.Provider value={{ auth, loggedIn }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ auth: authManager, loggedIn }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuthContext = () => {

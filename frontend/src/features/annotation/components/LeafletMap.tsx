@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-edgebuffer';
+import { rateLimitedTileLayer } from '~/shared/utils/RateLimitedTileLayer';
 
 interface LeafletMapProps {
   center: [number, number]; // [lat, lon]
@@ -100,9 +101,9 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     };
   }, []);
 
-  // Listen to map move/zoom events and sync state (only for main map)
+  // Listen to map move/zoom events and report to parent
   useEffect(() => {
-    if (!mapRef.current || !syncMapState || !onMapMove) return;
+    if (!mapRef.current || !onMapMove) return;
 
     const map = mapRef.current;
 
@@ -127,7 +128,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       map.off('moveend', handleMoveEnd);
       map.off('zoomend', handleMoveEnd);
     };
-  }, [syncMapState, onMapMove]);
+  }, [onMapMove]);
 
   // Only show attribution for basemap
   useEffect(() => {
@@ -235,7 +236,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       let url: string;
       let attribution: string;
       let subdomains: string[] | undefined;
-      let maxZoom: number;
+      let maxNativeZoom: number;
 
       if (basemapType === 'esri-world-imagery') {
         url =
@@ -243,26 +244,27 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         attribution =
           'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
         subdomains = undefined; // ESRI doesn't use subdomains
-        maxZoom = 17;
+        maxNativeZoom = 17;
       } else if (basemapType === 'opentopomap') {
         url = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
         attribution =
           'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)';
         subdomains = ['a', 'b', 'c'];
-        maxZoom = 17;
+        maxNativeZoom = 17;
       } else {
         // carto-light (default)
         url = 'http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
         attribution =
           '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions">CARTO</a>';
         subdomains = ['a', 'b', 'c', 'd', 'e'];
-        maxZoom = 24;
+        maxNativeZoom = 24;
       }
 
       const options: L.TileLayerOptions = {
         attribution,
         minZoom: 0,
-        maxZoom,
+        maxZoom: 24,
+        maxNativeZoom,
         keepBuffer: enableTileBuffering ? 5 : 0,
         edgeBufferTiles: enableTileBuffering ? 2 : 0,
         updateWhenIdle: !enableTileBuffering,
@@ -293,7 +295,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     }
 
     if (tileUrl) {
-      tileLayerRef.current = L.tileLayer(tileUrl, {
+      tileLayerRef.current = rateLimitedTileLayer(tileUrl, {
         attribution: '', // Remove attribution text
         minZoom: 0,
         maxZoom: 24,
@@ -412,6 +414,16 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         .leaflet-tile {
           image-rendering: -webkit-optimize-contrast;
           image-rendering: crisp-edges;
+        }
+
+        /* Hatched pattern for 204 no-content tiles */
+        .leaflet-tile-no-content {
+          opacity: 1 !important;
+        }
+
+        /* Red-tinted hatched pattern for tiles that failed after all retries */
+        .leaflet-tile-error {
+          opacity: 0.8 !important;
         }
       `}</style>
     </>

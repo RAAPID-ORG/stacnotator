@@ -6,6 +6,7 @@ import {
   createNewCanvasLayoutForImagery,
   getAllAnnotationTasks,
   getCampaignWithImageryWindows,
+  getCampaignUsers,
   createAnnotationOpenmode,
   updateAnnotationOpenmode,
   getAllAnnotationsForCampaign,
@@ -14,11 +15,10 @@ import {
   type CampaignOutWithImageryWindows,
   type AnnotationOut,
 } from '~/api/client';
-import { convertGeoJSONToWKT, convertWKTToGeoJSON } from '~/utils/utility';
-import { handleError, handleApiError } from '~/utils/errorHandler';
-import { useUIStore } from './uiStore';
-import { useUserStore } from './userStore';
-import { getUserAssignmentStatus, hasUserCompletedTask } from '~/utils/taskStatus';
+import { useLayoutStore } from '../layout/layout.store';
+import { useAccountStore } from '../account/account.store';
+import { handleApiError } from '~/shared/utils/errorHandler';
+import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 
 /**
  * Task status values
@@ -52,6 +52,8 @@ interface AnnotationStore {
   isLoadingCampaign: boolean;
   isSubmitting: boolean;
   isNavigating: boolean; // True during task navigation to prevent premature submissions
+  isReviewMode: boolean; // True when navigated from review page — shows all annotators' annotations
+  isAuthoritativeReviewer: boolean; // True if current user is an authoritative reviewer for this campaign
 
   // Layout management
   currentLayout: Layout | null;
@@ -95,11 +97,12 @@ interface AnnotationStore {
   campaignBbox: () => [number, number, number, number] | null;
 
   // Data actions
-  loadCampaign: (campaignId: number) => Promise<void>;
-  submitAnnotation: (labelId: number | null, comment: string, confidence: number) => Promise<void>;
+  loadCampaign: (campaignId: number, initialTaskId?: number, isReviewMode?: boolean) => Promise<void>;
+  submitAnnotation: (labelId: number | null, comment: string, confidence: number, isAuthoritative?: boolean) => Promise<void>;
   nextTask: () => void;
   previousTask: () => void;
   goToTask: (annotationNumber: number) => void;
+  goToTaskById: (taskId: number, options?: { resetFilters?: boolean }) => void; // Navigate to a task by its database ID. resetFilters=true widens filter to all users/statuses (e.g. from review page)
 
   // UI actions
   setCurrentLayout: (layout: Layout) => void;
@@ -169,6 +172,8 @@ const initialState = {
   isLoadingCampaign: false,
   isSubmitting: false,
   isNavigating: false,
+  isReviewMode: false,
+  isAuthoritativeReviewer: false,
   currentLayout: null,
   savedLayout: null,
   isEditingLayout: false,
@@ -218,6 +223,29 @@ const applyTaskFilter = (
   });
 };
 
+/**
+ * Get form state (label, comment, confidence) from the current user's annotation on a task.
+ * Returns defaults if the user hasn't annotated the task yet.
+ */
+const getFormStateForTask = (task: AnnotationTaskOut | null): {
+  selectedLabelId: number | null;
+  comment: string;
+  confidence: number;
+} => {
+  if (!task) return { selectedLabelId: null, comment: '', confidence: 5 };
+  const currentUserId = useAccountStore.getState().account?.id;
+  if (!currentUserId) return { selectedLabelId: null, comment: '', confidence: 5 };
+  const userAnnotation = task.annotations.find(a => a.created_by_user_id === currentUserId);
+  if (userAnnotation) {
+    return {
+      selectedLabelId: userAnnotation.label_id,
+      comment: userAnnotation.comment || '',
+      confidence: userAnnotation.confidence ?? 5,
+    };
+  }
+  return { selectedLabelId: null, comment: '', confidence: 5 };
+};
+
 export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   ...initialState,
 
@@ -254,28 +282,48 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   // Data actions
-  loadCampaign: async (campaignId: number) => {
+  loadCampaign: async (campaignId: number, initialTaskId?: number, isReviewMode?: boolean) => {
     set({ isLoadingCampaign: true });
 
     try {
-      // Load campaign, tasks, and current user in parallel
-      const [campaignResponse, tasksResponse, _currentUser] = await Promise.all([
+      // Load campaign, tasks, and campaign users in parallel
+      const [campaignResponse, tasksResponse, usersResponse] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-        useUserStore.getState().getCurrentUser(),
+        getCampaignUsers({ path: { campaign_id: campaignId } }),
       ]);
 
       const campaign = campaignResponse.data!;
       const allTasks = tasksResponse.data!.tasks;
-      const currentUserId = useUserStore.getState().getCurrentUserId();
+      const campaignUsers = usersResponse.data?.users ?? [];
+      // Account is already loaded by AuthGate — just read from the store
+      const currentUserId = useAccountStore.getState().account?.id;
 
-      // Initialize task filter with current user
-      const taskFilter: TaskFilter = {
-        assignedTo: currentUserId ? [currentUserId] : [],
-        statuses: ['pending'],
-      };
+      // Check if current user is an authoritative reviewer for this campaign
+      const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
+      const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
 
-      const visibleTasks = applyTaskFilter(allTasks, taskFilter);
+      // If navigating to a specific task (e.g. from review page), use a wide filter
+      // so the target task is guaranteed to be visible. Otherwise use the default filter.
+      let taskFilter: TaskFilter;
+      let visibleTasks: AnnotationTaskOut[];
+      let currentTaskIndex = 0;
+
+      if (initialTaskId !== undefined) {
+        taskFilter = {
+          assignedTo: [],
+          statuses: ['pending', 'done', 'skipped'],
+        };
+        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+        const targetIndex = visibleTasks.findIndex((t) => t.id === initialTaskId);
+        currentTaskIndex = targetIndex !== -1 ? targetIndex : 0;
+      } else {
+        taskFilter = {
+          assignedTo: currentUserId ? [currentUserId] : [],
+          statuses: ['pending'],
+        };
+        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+      }
 
       // Set initial imagery selection
       const selectedImageryId = campaign.imagery.length > 0 ? campaign.imagery[0].id : null;
@@ -304,12 +352,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         initialMapZoom = firstImagery?.default_zoom ?? DEFAULT_MAP_ZOOM;
       }
 
+      // Populate form from the target task's existing annotation (if any)
+      const targetTask = visibleTasks[currentTaskIndex] || null;
+
       set({
         campaign,
         allTasks,
         visibleTasks,
         taskFilter,
-        currentTaskIndex: 0,
+        currentTaskIndex,
         selectedImageryId,
         activeWindowId,
         currentLayout: mergedLayout,
@@ -318,6 +369,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
         isLoadingCampaign: false,
+        isReviewMode: isReviewMode ?? false,
+        isAuthoritativeReviewer,
+        ...getFormStateForTask(targetTask),
       });
 
       // Load annotations if in open mode
@@ -332,10 +386,10 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     }
   },
 
-  submitAnnotation: async (labelId: number | null, comment: string, confidence: number) => {
+  submitAnnotation: async (labelId: number | null, comment: string, confidence: number, isAuthoritative?: boolean) => {
     const { campaign, visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
     const task = visibleTasks[currentTaskIndex];
-    const currentUserId = useUserStore.getState().getCurrentUserId();
+    const currentUserId = useAccountStore.getState().account?.id;
 
     if (!task || !campaign || !currentUserId) return;
 
@@ -372,7 +426,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           isSubmitting: false,
         });
 
-        useUIStore.getState().showAlert('Annotation removed successfully', 'success');
+        useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
       } else {
         // Create/update the annotation
         const response = await completeAnnotationTask({
@@ -384,6 +438,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
             label_id: labelId,
             comment: comment || null,
             confidence: confidence,
+            is_authoritative: isAuthoritative ?? null,
           },
         });
 
@@ -403,19 +458,23 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
         const updatedVisibleTasks = applyTaskFilter(updatedTasks, taskFilter);
 
+        // Move to next task or loop to first
+        const nextIndex = currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0;
+        const nextTask = updatedVisibleTasks[nextIndex] || null;
+
         set({
           allTasks: updatedTasks,
           visibleTasks: updatedVisibleTasks,
           isSubmitting: false,
-          // Move to next task or loop to first
-          currentTaskIndex: currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0,
+          currentTaskIndex: nextIndex,
+          ...getFormStateForTask(nextTask),
         });
 
-        useUIStore.getState().showAlert('Annotation submitted successfully', 'success');
+        useLayoutStore.getState().showAlert('Annotation submitted successfully', 'success');
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit annotation';
-      useUIStore.getState().showAlert(message, 'error');
+      useLayoutStore.getState().showAlert(message, 'error');
       set({ isSubmitting: false });
       console.error('Submit error:', error);
     }
@@ -430,15 +489,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     const defaultWindowId =
       selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
 
-    // Set navigating flag and clear form immediately
+    const nextIndex = currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1;
+    const nextTask = visibleTasks[nextIndex] || null;
+
     set({
       isNavigating: true,
-      currentTaskIndex: currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1,
+      currentTaskIndex: nextIndex,
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
-      selectedLabelId: null,
-      comment: '',
+      ...getFormStateForTask(nextTask),
       currentMapZoom: null,
     });
 
@@ -457,15 +517,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     const defaultWindowId =
       selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
 
-    // Set navigating flag and clear form immediately
+    const prevIndex = currentTaskIndex === 0 ? visibleTasks.length - 1 : currentTaskIndex - 1;
+    const prevTask = visibleTasks[prevIndex] || null;
+
     set({
       isNavigating: true,
-      currentTaskIndex: currentTaskIndex === 0 ? visibleTasks.length - 1 : currentTaskIndex - 1,
+      currentTaskIndex: prevIndex,
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
-      selectedLabelId: null,
-      comment: '',
+      ...getFormStateForTask(prevTask),
       currentMapZoom: null,
     });
 
@@ -486,15 +547,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       const defaultWindowId =
         selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
 
-      // Set navigating flag and clear form immediately
+      const targetTask = visibleTasks[taskIndex] || null;
+
       set({
         isNavigating: true,
         currentTaskIndex: taskIndex,
         activeWindowId: defaultWindowId,
         activeSliceIndex: 0,
         windowSliceIndices: {},
-        selectedLabelId: null,
-        comment: '',
+        ...getFormStateForTask(targetTask),
         currentMapZoom: null,
       });
 
@@ -503,6 +564,51 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         set({ isNavigating: false });
       }, 500);
     }
+  },
+
+  goToTaskById: (taskId: number, options?: { resetFilters?: boolean }) => {
+    const { allTasks, visibleTasks: currentVisibleTasks, taskFilter: currentFilter, campaign, selectedImageryId } = get();
+
+    // Determine which filter & visible list to use
+    let taskFilter: TaskFilter;
+    let visibleTasks: AnnotationTaskOut[];
+
+    if (options?.resetFilters) {
+      // Widen filter to show everything (e.g. coming from review page)
+      taskFilter = {
+        assignedTo: [],
+        statuses: ['pending', 'done', 'skipped'],
+      };
+      visibleTasks = applyTaskFilter(allTasks, taskFilter);
+    } else {
+      // Keep the current filter — try to find the task within the existing visible list
+      taskFilter = currentFilter;
+      visibleTasks = currentVisibleTasks;
+    }
+
+    const targetIndex = visibleTasks.findIndex((task) => task.id === taskId);
+    if (targetIndex === -1) return; // Task not in filtered list
+
+    const targetTask = visibleTasks[targetIndex] || null;
+    const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
+    const defaultWindowId =
+      selectedImagery?.default_main_window_id ?? selectedImagery?.windows[0]?.id ?? null;
+
+    set({
+      isNavigating: true,
+      taskFilter,
+      visibleTasks,
+      currentTaskIndex: targetIndex,
+      activeWindowId: defaultWindowId,
+      activeSliceIndex: 0,
+      windowSliceIndices: {},
+      ...getFormStateForTask(targetTask),
+      currentMapZoom: null,
+    });
+
+    setTimeout(() => {
+      set({ isNavigating: false });
+    }, 500);
   },
 
   // UI actions
@@ -516,7 +622,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     const { campaign, currentLayout, selectedImageryId } = get();
 
     if (!campaign || !currentLayout || selectedImageryId === null) {
-      useUIStore.getState().showAlert('Cannot save layout: missing campaign or imagery', 'error');
+      useLayoutStore.getState().showAlert('Cannot save layout: missing campaign or imagery', 'error');
       return;
     }
 
@@ -544,7 +650,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       });
 
       const layoutType = shouldBeDefault ? 'default' : 'personal';
-      useUIStore.getState().showAlert(`Layout saved successfully as ${layoutType}`, 'success');
+      useLayoutStore.getState().showAlert(`Layout saved successfully as ${layoutType}`, 'success');
 
       set({
         savedLayout: currentLayout,
@@ -552,7 +658,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save layout';
-      useUIStore.getState().showAlert(message, 'error');
+      useLayoutStore.getState().showAlert(message, 'error');
       console.error('Save layout error:', error);
     }
   },
@@ -716,15 +822,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     };
 
     const visibleTasks = applyTaskFilter(allTasks, newFilter);
+    const firstTask = visibleTasks[0] || null;
 
-    // Set navigating flag and clear form when filter changes
+    // Set navigating flag and populate form from the first visible task
     set({
       isNavigating: true,
       taskFilter: newFilter,
       visibleTasks,
       currentTaskIndex: 0,
-      selectedLabelId: null,
-      comment: '',
+      ...getFormStateForTask(firstTask),
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -734,7 +840,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   resetTaskFilter: () => {
-    const currentUserId = useUserStore.getState().getCurrentUserId();
+    const currentUserId = useAccountStore.getState().account?.id;
+    if (!currentUserId) return;
     const defaultFilter: TaskFilter = {
       assignedTo: currentUserId ? [currentUserId] : [],
       statuses: ['pending'],
@@ -796,11 +903,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         isSubmitting: false,
       }));
 
-      useUIStore.getState().showAlert('Annotation saved successfully', 'success');
+      useLayoutStore.getState().showAlert('Annotation saved successfully', 'success');
       return annotation;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save annotation';
-      useUIStore.getState().showAlert(message, 'error');
+      useLayoutStore.getState().showAlert(message, 'error');
       set({ isSubmitting: false });
       console.error('Save annotation error:', error);
       return null;
@@ -841,10 +948,10 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         isSubmitting: false,
       }));
 
-      useUIStore.getState().showAlert('Annotation updated successfully', 'success');
+      useLayoutStore.getState().showAlert('Annotation updated successfully', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update annotation';
-      useUIStore.getState().showAlert(message, 'error');
+      useLayoutStore.getState().showAlert(message, 'error');
       set({ isSubmitting: false });
       console.error('Update annotation error:', error);
       throw error; // Re-throw to allow rollback handling
@@ -870,17 +977,16 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         isSubmitting: false,
       }));
 
-      useUIStore.getState().showAlert('Annotation deleted successfully', 'success');
+      useLayoutStore.getState().showAlert('Annotation deleted successfully', 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete annotation';
-      useUIStore.getState().showAlert(message, 'error');
+      useLayoutStore.getState().showAlert(message, 'error');
       set({ isSubmitting: false });
       console.error('Delete annotation error:', error);
     }
   },
 
   reset: () => {
-    useUserStore.getState().clearUser(); // Clear user cache on reset
     set(initialState);
   },
 }));

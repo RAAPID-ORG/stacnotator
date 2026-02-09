@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Layout } from 'react-grid-layout';
-import type { TaskFilter, TaskStatus } from '~/stores/annotationStore';
-
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { useUIStore } from '~/stores/uiStore';
-import { useUserStore } from '~/stores/userStore';
+import useAnnotationStore, { type TaskStatus } from '../annotation.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/features/account/account.store';
 
 const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
@@ -31,7 +29,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
   const allTasks = useAnnotationStore((state) => state.allTasks);
   const taskFilter = useAnnotationStore((state) => state.taskFilter);
   const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
-  const currentUser = useUserStore((state) => state.currentUser);
+  const currentUser = useAccountStore((state) => state.account);
 
   if (!campaign) return null;
 
@@ -184,22 +182,21 @@ export const AnnotationToolbar = () => {
   // Get state from store
   const campaign = useAnnotationStore((state) => state.campaign);
   const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
+  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const taskFilter = useAnnotationStore((state) => state.taskFilter);
   const setIsEditingLayout = useAnnotationStore((state) => state.setIsEditingLayout);
   const saveLayout = useAnnotationStore((state) => state.saveLayout);
   const cancelLayoutEdit = useAnnotationStore((state) => state.cancelLayoutEdit);
   const resetLayout = useAnnotationStore((state) => state.resetLayout);
   const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
-  const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
 
   // Get UI actions from global store
-  const showAlert = useUIStore((state) => state.showAlert);
-  const showKeyboardHelp = useUIStore((state) => state.showKeyboardHelp);
-  const toggleKeyboardHelp = useUIStore((state) => state.toggleKeyboardHelp);
-  const setShowKeyboardHelp = useUIStore((state) => state.setShowKeyboardHelp);
-  const isFullscreen = useUIStore((state) => state.isFullscreen);
-  const toggleFullscreen = useUIStore((state) => state.toggleFullscreen);
+  const showAlert = useLayoutStore((state) => state.showAlert);
+  const showKeyboardHelp = useLayoutStore((state) => state.showKeyboardHelp);
+  const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
+  const setShowKeyboardHelp = useLayoutStore((state) => state.setShowKeyboardHelp);
+  const isFullscreen = useLayoutStore((state) => state.isFullscreen);
+  const toggleFullscreen = useLayoutStore((state) => state.toggleFullscreen);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -350,17 +347,58 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* View Annotations Button */}
+        {/* Review Mode Toggle + Navigate to Review Page */}
+        <div className="flex items-center rounded overflow-hidden">
+          {/* Toggle review mode on/off */}
+          <button
+            onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+              isReviewMode
+                ? 'bg-amber-50 text-amber-700 font-medium'
+                : 'text-neutral-700 hover:bg-neutral-50'
+            }`}
+            type="button"
+            title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className={isReviewMode ? 'text-amber-600' : 'text-neutral-500'}>
+              <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+              <path fillRule="evenodd" clipRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+            </svg>
+            <span>Review{isReviewMode ? ' ✓' : ''}</span>
+          </button>
+          {/* Divider */}
+          <div className="w-px h-5 bg-neutral-200" />
+          {/* Navigate to review page */}
+          <button
+            onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+            className="flex items-center px-2 py-1.5 text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700 transition-colors"
+            type="button"
+            title="Go to review page"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" clipRule="evenodd" d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Campaign Settings Button */}
         <button
-          onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+          onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
           type="button"
-          title="Review set annotations"
+          title="Campaign Settings"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M10 3C5.58173 3 2 6.58173 2 11C2 15.4183 5.58173 19 10 19C14.4183 19 18 15.4183 18 11C18 9.68678 17.6997 8.44559 17.1652 7.34338L16.2812 8.22736C16.7457 9.08509 17 10.0139 17 11C17 14.866 13.866 18 10 18C6.13401 18 3 14.866 3 11C3 7.13401 6.13401 4 10 4C11.3132 4 12.5544 4.30033 13.6566 4.83482L14.5406 3.95084C13.4384 3.34976 12.1971 3 10 3ZM17.8536 2.14645L8.5 11.5L5.85355 8.85355L5.14645 9.56066L8.14645 12.5607C8.34171 12.7559 8.65829 12.7559 8.85355 12.5607L18.5607 2.85355L17.8536 2.14645Z" />
+         <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0 transition text-text-400 group-hover:text-text-100 cursor-pointer"
+          >
+            <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
           </svg>
-          <span>Review</span>
+          <span>Settings</span>
         </button>
       </div>
 

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { getCampaignStatisticsEndpoint } from "../../api/client";
-import type { CampaignStatistics, AnnotatorInfo, PairwiseAgreement } from "../../api/client/types.gen";
+import { getCampaignStatisticsEndpoint, type AnnotatorInfo, type CampaignStatistics, type PairwiseAgreement } from "~/api/client";
 
-interface CampaignStatisticsProps {
+interface StatisticsProps {
   campaignId: number;
 }
 
-export function CampaignStatisticsComponent({ campaignId }: CampaignStatisticsProps) {
+const Statistics = ({ campaignId }: StatisticsProps) => {
   const [statistics, setStatistics] = useState<CampaignStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +150,7 @@ export function CampaignStatisticsComponent({ campaignId }: CampaignStatisticsPr
                     {statistics.krippendorff_alpha >= 0.8 ? "Excellent agreement" : statistics.krippendorff_alpha >= 0.67 ? "Good agreement" : "Poor agreement"}
                   </span>
                   <span className="text-xs text-gray-500">
-                    Based on {statistics.tasks_with_multiple_annotations} multi-annotated tasks
+                    Based on {statistics.tasks_with_multiple_annotations} multi-annotated tasks. Values {'>='} 0.8 are generally considered good, but this can vary by context.
                   </span>
                 </div>
               )}
@@ -379,3 +378,5 @@ export function CampaignStatisticsComponent({ campaignId }: CampaignStatisticsPr
     </div>
   );
 }
+
+export default Statistics;

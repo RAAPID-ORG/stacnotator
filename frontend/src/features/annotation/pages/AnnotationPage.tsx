@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { AnnotationToolbar } from '~/components/annotation/AnnotationToolbar';
-import { Canvas } from '~/components/annotation/Canvas';
-import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
-import { useAnnotationKeyboard } from '~/hooks/useAnnotationKeyboard';
-import { useOpenModeKeyboard } from '~/hooks/useOpenModeKeyboard';
-import { useAnnotationStore } from '~/stores/annotationStore';
-import { useLayoutStore } from 'src/features/layout/layout.store';
-import { capitalizeFirst } from '~/utils/utility';
+import { useParams, useSearchParams } from 'react-router-dom';
+import useAnnotationStore from '../annotation.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
+import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
+import { AnnotationToolbar } from '../components/AnnotationToolbar';
+import { Canvas } from '../components/Canvas';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { capitalizeFirst } from '~/shared/utils/utility';
 
 /**
  * Main annotation page for labeling campaign tasks
@@ -15,6 +15,7 @@ import { capitalizeFirst } from '~/utils/utility';
  */
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Annotation state
@@ -36,20 +37,34 @@ export const AnnotationPage = () => {
   // Enable keyboard shortcuts for open mode
   useOpenModeKeyboard();
 
-  // Load campaign data on mount
+  // Load campaign data on mount (or when campaignId changes)
   useEffect(() => {
     if (!campaignId || Number.isNaN(campaignIdNumber)) {
       showAlert('Invalid campaign ID', 'error');
       return;
     }
 
+    // Read task query param before starting — pass it into loadCampaign so
+    // the filter + task index are set atomically in a single store update.
+    const taskIdParam = searchParams.get('task');
+    const reviewParam = searchParams.get('review');
+    const initialTaskId = taskIdParam ? Number(taskIdParam) : undefined;
+    const isReviewMode = reviewParam === 'true';
+    if (taskIdParam || reviewParam) {
+      // Clear the query params immediately so they don't persist on reload / StrictMode re-run
+      setSearchParams({}, { replace: true });
+    }
+
     let cancelled = false;
 
     const loadData = async () => {
       try {
-        await loadCampaign(campaignIdNumber);
+        await loadCampaign(
+          campaignIdNumber,
+          initialTaskId && !Number.isNaN(initialTaskId) ? initialTaskId : undefined,
+          isReviewMode,
+        );
       } catch (error) {
-        // Error handling is done in the store, but prevent state updates if unmounted
         if (!cancelled) {
           console.error('Failed to load campaign:', error);
         }
@@ -60,9 +75,9 @@ export const AnnotationPage = () => {
 
     return () => {
       cancelled = true;
-      reset(); // Clean up on unmount
+      reset();
     };
-  }, [campaignId, campaignIdNumber, loadCampaign, reset, showAlert]);
+  }, [campaignIdNumber]); // store actions are stable singletons
 
   // Update breadcrumbs when campaign loads
   useEffect(() => {

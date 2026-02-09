@@ -1,4 +1,4 @@
-import { useUIStore } from '~/stores/uiStore';
+import { useLayoutStore } from "~/features/layout/layout.store";
 
 export interface ErrorHandlerOptions {
   /**
@@ -84,7 +84,7 @@ export const handleError = (
 
   // Show to user via alert
   if (showUser) {
-    useUIStore.getState().showAlert(displayMessage, alertType);
+    useLayoutStore.getState().showAlert(displayMessage, alertType);
   }
 
   // Future: Send to error tracking service (e.g., Sentry)

@@ -192,7 +192,7 @@ class CampaignUser(Base):
 
     # User roles in campaign
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     user: Mapped["User"] = relationship()  # noqa: F821

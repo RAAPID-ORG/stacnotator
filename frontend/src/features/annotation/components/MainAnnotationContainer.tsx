@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
-import { extractLatLonFromWKT, computeTimeSlices } from '~/utils/utility';
-import { useAnnotationStore } from '~/stores/annotationStore';
 import LeafletMap from './LeafletMap';
 import LeafletMapWithDraw from './LeafletMapWithDraw';
 import TimelineSidebar from './TimelineSidebar';
-import { useStacImagery } from '~/hooks/useStacImagery';
-import { extendLabelsWithMetadata, type ExtendedLabel } from './ControlsOpenMode';
+import { extendLabelsWithMetadata} from './ControlsOpenMode';
+import useAnnotationStore from '../annotation.store';
+import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
+import { useStacImagery } from '../hooks/useStacImagery';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -336,14 +336,15 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
           <button
             onClick={triggerRefocus}
             className="px-3 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title="Refocus all maps to center"
+            title={isOpenMode ? 'Fit map to all annotations (Space)' : 'Refocus all maps to center (Space)'}
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
             </svg>
           </button>
 
-          {/* Toggle Crosshair Button */}
+          {/* Toggle Crosshair Button - only in task mode */}
+          {!isOpenMode && (
           <button
             onClick={toggleCrosshair}
             className={`px-3 py-1.5 bg-white text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer ${
@@ -359,6 +360,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
             </svg>
           </button>
+          )}
         </div>
 
         {/* Map content */}
@@ -384,7 +386,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               tileUrl={selectedTileUrl}
               crosshairColor={selectedImagery.crosshair_hex6}
               refocusTrigger={refocusTrigger}
-              showCrosshair={showCrosshair}
+              showCrosshair={false}
               showBasemap={showBasemap}
               basemapType={basemapType}
               zoomInTrigger={zoomInTrigger}
@@ -425,7 +427,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               panTrigger={panTrigger}
               enableTileBuffering={true}
               onMapMove={handleMapMove}
-              syncMapState={true}
+              syncMapState={false}
             />
           ))}
 

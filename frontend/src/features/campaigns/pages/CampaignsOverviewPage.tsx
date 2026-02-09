@@ -11,7 +11,7 @@ import {
   type CampaignListItemOut,
 } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { CreateCampaignModal } from '../components/campaign-create/CreateCampaignModal';
+import { CreateCampaignModal } from '../creation/CreateCampaignModal';
 
 export const CampaignsPage = () => {
   const navigate = useNavigate();

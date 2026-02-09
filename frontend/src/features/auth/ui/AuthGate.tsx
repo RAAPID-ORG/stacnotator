@@ -1,52 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { LoginScreen } from './LoginScreen';
 import { ApprovalPendingScreen } from './ApprovalPendingScreen';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { useAccountStore } from '~/features/account/account.store';
 
-
-export const AuthGate = ({ children }: { children: React.ReactNode }) => {
+/**
+ * Gates the app behind authentication + backend approval.
+ * Only shows children once the user is logged in and approved.
+ */
+export const AuthGate = ({ children }: { children: ReactNode }) => {
   const { auth, loggedIn } = useAuth();
-  const [ready, setReady] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
-  // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
   const clear = useAccountStore((s) => s.clear);
-  const loading = useAccountStore((s) => s.loading);
 
   useEffect(() => {
     let cancelled = false;
 
-    const run = async () => {
+    const init = async () => {
       try {
         if (loggedIn) {
-          // Ensure token exists (also warms Firebase session).
-          await auth.getIdToken();
+          await auth.getIdToken(); // warm Firebase session
           await fetchAccount();
         } else {
           clear();
         }
       } catch (e) {
-        // If token fetch fails, you may choose to logout.
         console.error('AuthGate init error:', e);
       } finally {
-        if (!cancelled) setReady(true);
+        if (!cancelled) setInitializing(false);
       }
     };
 
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [loggedIn, auth, fetchAccount, clear]);
+    init();
+    return () => { cancelled = true; };
+  }, [loggedIn]); // auth, fetchAccount, clear are stable singletons — no need in deps
 
-  if (!ready || loading) return <LoadingSpinner fullScreen text="Initializing…" />;
+  if (initializing) return <LoadingSpinner fullScreen text="Initializing…" />;
 
   if (!loggedIn) return <LoginScreen />;
 
-  // Gate on backend approval (domain).
   if (account && !account.is_approved) return <ApprovalPendingScreen />;
 
   return <>{children}</>;

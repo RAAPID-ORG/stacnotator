@@ -4,7 +4,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import type { AuthAdapter } from '../../domain/authAdapter';
+import type { AuthAdapter } from '../../core/authAdapter';
 import { firebaseAuth } from './firebaseApp';
 
 export class FirebaseGoogleAdapter implements AuthAdapter {

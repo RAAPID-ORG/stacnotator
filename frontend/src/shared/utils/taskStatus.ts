@@ -3,6 +3,32 @@ import type { AnnotationTaskOut, AnnotationTaskAssignmentOut } from '~/api/clien
 export type TaskStatus = 'pending' | 'partial' | 'conflicting' | 'complete';
 
 /**
+ * Task status configuration with colors and labels
+ */
+export const TASK_STATUS_CONFIG = {
+  pending: {
+    label: 'Pending',
+    color: '#6B7280', // gray
+    badgeClass: 'bg-gray-100 text-gray-700',
+  },
+  partial: {
+    label: 'Partial',
+    color: '#F59E0B', // amber
+    badgeClass: 'bg-yellow-100 text-yellow-700',
+  },
+  conflicting: {
+    label: 'Conflicting',
+    color: '#EF4444', // red
+    badgeClass: 'bg-red-100 text-red-700',
+  },
+  complete: {
+    label: 'Complete',
+    color: '#10B981', // green
+    badgeClass: 'bg-green-100 text-green-700',
+  },
+} as const;
+
+/**
  * Compute overall task status based on assignments and annotations
  * 
  * - pending: No user has completed (no annotations)
@@ -76,16 +102,7 @@ export function getUserTaskStatuses(task: AnnotationTaskOut): Map<string, 'pendi
  * Get status badge color class based on task status
  */
 export function getTaskStatusColor(status: TaskStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'bg-gray-100 text-gray-700';
-    case 'partial':
-      return 'bg-yellow-100 text-yellow-700';
-    case 'conflicting':
-      return 'bg-red-100 text-red-700';
-    case 'complete':
-      return 'bg-green-100 text-green-700';
-  }
+  return TASK_STATUS_CONFIG[status].badgeClass;
 }
 
 /**
@@ -99,7 +116,7 @@ export function getUserStatusColor(completed: boolean): string {
  * Format task status for display
  */
 export function formatTaskStatus(status: TaskStatus): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return TASK_STATUS_CONFIG[status].label;
 }
 
 /**

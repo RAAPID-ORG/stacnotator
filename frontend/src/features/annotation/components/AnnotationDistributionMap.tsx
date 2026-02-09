@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
-import { getTaskStatus, formatTaskStatus } from '~/utils/taskStatus';
+import { formatTaskStatus, getTaskStatus } from '~/shared/utils/taskStatus';
 
 interface AnnotationDistributionMapProps {
   tasks: AnnotationTaskOut[];

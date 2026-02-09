@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
-import { getTaskStatus, formatTaskStatus, getTaskStatusColor } from '~/utils/taskStatus';
+import { formatTaskStatus, getTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
 
 interface TaskLocationsMapProps {
   tasks: AnnotationTaskOut[];
@@ -24,14 +24,6 @@ const parseWKTPoint = (wkt: string): [number, number] | null => {
     return [lat, lon]; // Leaflet uses [lat, lon]
   }
   return null;
-};
-
-// Status colors for task markers
-const STATUS_COLORS: Record<string, string> = {
-  pending: '#6B7280', // gray
-  assigned: '#3B82F6', // blue
-  completed: '#10B981', // green
-  skipped: '#F59E0B', // amber
 };
 
 export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox }) => {
@@ -99,13 +91,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       if (!coords) return;
 
       const taskStatus = getTaskStatus(task);
-      const statusColorMap: Record<string, string> = {
-        pending: '#6B7280',
-        partial: '#fbbf24',
-        conflicting: '#ef4444',
-        complete: '#10b981',
-      };
-      const statusColor = statusColorMap[taskStatus] || '#6B7280';
+      const statusColor = TASK_STATUS_CONFIG[taskStatus].color;
 
       const icon = L.divIcon({
         html: `
@@ -156,14 +142,14 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-4 text-sm">
-        {Object.entries(STATUS_COLORS).map(([status, color]) => {
+        {Object.entries(TASK_STATUS_CONFIG).map(([status, config]) => {
           const count = taskCounts[status] || 0;
           if (count === 0 && status !== 'pending') return null;
           return (
             <div key={status} className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-neutral-700 capitalize">
-                {status} ({count})
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: config.color }} />
+              <span className="text-neutral-700">
+                {config.label} ({count})
               </span>
             </div>
           );

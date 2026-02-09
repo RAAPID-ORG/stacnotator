@@ -1,6 +1,5 @@
 import type { ImageryWithWindowsOut } from '~/api/client';
-import type { TimeSlice } from '~/utils/utility';
-import { formatYearMonth, formatWindowLabel } from '~/utils/utility';
+import { formatWindowLabel, formatYearMonth, type TimeSlice } from '~/shared/utils/utility';
 
 interface TimelineSidebarProps {
   imagery: ImageryWithWindowsOut | null;

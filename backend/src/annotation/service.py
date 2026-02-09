@@ -279,6 +279,8 @@ def add_annotation_for_task(
             existing_annotation.comment = annotation_create.comment
             existing_annotation.created_by_user_id = user_id
             existing_annotation.confidence = annotation_create.confidence
+            if annotation_create.is_authoritative is not None:
+                existing_annotation.is_authoritative = annotation_create.is_authoritative
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
                 annotation = existing_annotation
@@ -292,7 +294,8 @@ def add_annotation_for_task(
                 annotation_task_id=annotation_task.id,
                 campaign_id=annotation_task.campaign_id,
                 created_by_user_id=user_id,
-                confidence=annotation_create.confidence
+                confidence=annotation_create.confidence,
+                is_authoritative=annotation_create.is_authoritative or False,
             )
             db.add(annotation)
 

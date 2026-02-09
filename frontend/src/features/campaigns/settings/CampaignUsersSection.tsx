@@ -317,7 +317,7 @@ export const CampaignUsersSection = ({
                           className="text-xs px-2 py-1 border border-indigo-300 text-indigo-600 rounded hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           type="button"
                         >
-                          {user.is_authorative_reviewer ? 'Remove Reviewer' : 'Make Reviewer'}
+                          {user.is_authorative_reviewer ? 'Remove Authoritative Reviewer' : 'Make Authoritative Reviewer'}
                         </button>
                         <button
                           onClick={() => handleRemoveUser(user)}

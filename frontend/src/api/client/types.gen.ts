@@ -42,6 +42,10 @@ export type AnnotationFromTaskCreate = {
      * Confidence
      */
     confidence: number | null;
+    /**
+     * Is Authoritative
+     */
+    is_authoritative?: boolean | null;
 };
 
 /**
