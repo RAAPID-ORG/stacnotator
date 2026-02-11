@@ -1,9 +1,10 @@
 import io
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from src.annotation.schema import (
     AnnotationCreate,
@@ -15,6 +16,7 @@ from src.annotation.schema import (
 )
 
 from src.annotation import service
+from src.annotation import embeddings_service
 from src.auth.dependencies import require_approved_user, require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
@@ -30,6 +32,8 @@ router = APIRouter(
     dependencies=[Depends(bearer), Depends(require_approved_user)],
     route_class=FunctionNameOperationIdRoute,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -81,6 +85,36 @@ def complete_annotation_task(
 
     if annotation:
         return annotation
+    
+@router.get("/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission", response_model=bool)
+def validate_annotation_submission(
+    campaign_id: int,
+    annotation_task_id: int,
+    label_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Check whether ``label_id`` agrees with the KNN-majority prediction
+    derived from the task's satellite embedding and its nearest neighbours
+    in the same campaign.
+    """
+
+    # TODO if too few labels, don't validate
+    embedding = embeddings_service.get_embedding_by_task(db, annotation_task_id)
+    if embedding is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No embedding found for this task - cannot validate.",
+        )
+
+    nearest = embeddings_service.find_nearest_labeled_embeddings(
+        db,
+        campaign_id=campaign_id,
+        target_vector=list(embedding.vector),
+        k=5,
+    )
+
+    return embeddings_service.knn_label_agrees(nearest, label_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-csv")

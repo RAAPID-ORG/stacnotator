@@ -1,4 +1,5 @@
 import json
+import logging
 import tempfile
 import zipfile
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import List
 
 import geopandas as gpd
 import numpy as np
+from src.campaigns.service import _identify_imagery_time_range
 from fastapi import HTTPException, UploadFile
 from shapely.geometry import Point, MultiPolygon, Polygon, box
 from sqlalchemy import insert, select, func
@@ -13,6 +15,9 @@ from sqlalchemy.orm import Session
 
 from src.annotation.models import AnnotationGeometry, AnnotationTask
 from src.campaigns.models import Campaign
+from src.annotation import embeddings_service
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -333,6 +338,10 @@ def create_tasks_from_sampling_strategy(
         ]
 
         db.execute(insert(AnnotationTask), task_records)
+        db.flush()
+        start_date, end_date = _identify_imagery_time_range(db, campaign_id)
+        logger.info(start_date, end_date)
+        embeddings_service.populate_campaign_embeddings(db, campaign_id, start_date, end_date)
         db.commit()
 
         return len(task_records)

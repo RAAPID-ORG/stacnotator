@@ -22,7 +22,7 @@ export const StepIndicator = ({
           const done = step > index;
 
           return (
-            <div key={label} className="col-span-1 flex flex-col items-center">
+            <div key={label} className="col-span-1 flex flex-col items-center relative">
               <div
                 className={`
                   h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium

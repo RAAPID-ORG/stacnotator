@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { CampaignCreate } from '~/api/client';
+import {
+  validateFullForm,
+  type FullValidationResult,
+} from '~/features/campaigns/utils/campaignValidation';
 import { StepCampaign } from './steps/StepCampaign';
 import { StepSettings } from './steps/StepSettings';
 import { StepImagery } from './steps/StepImagery';
 import { StepAddTimeseries } from './steps/StepAddTimeseries';
-import { StepAddAnnotationTasks } from './steps/StepAddAnnotationTasks';
 import { StepReview } from './steps/StepReview';
 import { StepIndicator } from './StepIndicator';
 
@@ -16,7 +19,6 @@ const STEP_CONFIG = {
     { name: 'Settings', component: 'StepSettings' },
     { name: 'Imagery', component: 'StepImagery' },
     { name: 'Time Series', component: 'StepAddTimeseries' },
-    { name: 'Tasks', component: 'StepAddAnnotationTasks' },
     { name: 'Create', component: 'StepReview' },
   ],
   open: [
@@ -35,11 +37,11 @@ export const CreateCampaignModal = ({
   onSubmit,
 }: {
   onClose: () => void;
-  onSubmit: (data: CampaignCreate, taskIngestionFile: File | null) => Promise<void>;
+  onSubmit: (data: CampaignCreate) => Promise<void>;
 }) => {
   const [step, setStep] = useState(1);
+  const [showValidation, setShowValidation] = useState(false);
 
-  const [taskIngestionFile, setTaskIngestionFile] = useState<File | null>(null);
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
     settings: {
@@ -53,6 +55,19 @@ export const CreateCampaignModal = ({
     timeseries_configs: [],
     mode: 'tasks',
   });
+
+  // Live validation — recomputed whenever form changes
+  const validation: FullValidationResult = useMemo(() => validateFullForm(form), [form]);
+
+  // Total number of individual issues
+  const totalErrors = useMemo(
+    () =>
+      Object.keys(validation.campaign.errors).length +
+      Object.keys(validation.settings.errors).length +
+      Object.keys(validation.imagery.errors).length +
+      Object.keys(validation.timeseries.errors).length,
+    [validation],
+  );
 
   // Get current step configuration based on mode
   const currentStepConfig = STEP_CONFIG[form.mode as 'tasks' | 'open'];
@@ -72,13 +87,21 @@ export const CreateCampaignModal = ({
         return <StepImagery form={form} setForm={setForm} />;
       case 'StepAddTimeseries':
         return <StepAddTimeseries form={form} setForm={setForm} />;
-      case 'StepAddAnnotationTasks':
-        return <StepAddAnnotationTasks file={taskIngestionFile} setFile={setTaskIngestionFile} />;
       case 'StepReview':
-        return <StepReview form={form} />;
+        return <StepReview form={form} validation={validation} />;
       default:
         return null;
     }
+  };
+
+  const handleSubmit = () => {
+    setShowValidation(true);
+
+    if (!validation.isValid) {
+      return;
+    }
+
+    onSubmit(form);
   };
 
   return (
@@ -94,7 +117,10 @@ export const CreateCampaignModal = ({
           </button>
         </div>
 
-        <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} />
+        <StepIndicator
+          step={step}
+          mode={form.mode as 'tasks' | 'open'}
+        />
 
         <div className="p-6 overflow-y-auto h-[60vh]">{getStepContent()}</div>
 
@@ -114,12 +140,20 @@ export const CreateCampaignModal = ({
               Continue
             </button>
           ) : (
-            <button
-              onClick={() => onSubmit(form, taskIngestionFile)}
-              className="rounded-md bg-green-500 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 transition-colors cursor-pointer"
-            >
-              Create Campaign
-            </button>
+            <div className="relative group">
+              <button
+                onClick={handleSubmit}
+                disabled={showValidation && !validation.isValid}
+                className="rounded-md bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+              >
+                Create Campaign
+              </button>
+              {showValidation && !validation.isValid && (
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

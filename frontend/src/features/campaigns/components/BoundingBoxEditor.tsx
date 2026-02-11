@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
 
 interface BoundingBoxEditorProps {
   value: {
@@ -23,6 +24,35 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
   const rectangleRef = useRef<L.Rectangle | null>(null);
   const markersRef = useRef<{ nw: L.Marker | null; se: L.Marker | null }>({ nw: null, se: null });
   const isUpdatingFromDragRef = useRef(false);
+
+  // Country search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const filteredCountries = searchQuery.length > 0
+    ? COUNTRY_BBOXES.filter((c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const handleSelectCountry = (country: (typeof COUNTRY_BBOXES)[number]) => {
+    const [west, south, east, north] = country.bbox;
+    onChange({ bbox_west: west, bbox_south: south, bbox_east: east, bbox_north: north });
+    setSearchQuery('');
+    setShowSuggestions(false);
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -240,7 +270,53 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium text-neutral-700">Bounding Box</h3>
+      <div>
+        <h3 className="text-sm font-medium text-neutral-700 mb-1">Bounding Box</h3>
+        <p className="text-xs text-neutral-500">
+          The geographic area where imagery can be loaded for this campaign. Search for a country or region, or set coordinates manually.
+          <br/><b>Note: These boxes were generated with ChatGPT - use with care!</b>
+        </p>
+      </div>
+
+      {/* Country / Region Search */}
+      <div className="relative" ref={searchRef}>
+        <div className="relative">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none">
+            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
+            placeholder="Search country or region..."
+            className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+          />
+        </div>
+        {showSuggestions && filteredCountries.length > 0 && (
+          <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {filteredCountries.map((country) => (
+              <li key={country.name}>
+                <button
+                  type="button"
+                  onClick={() => handleSelectCountry(country)}
+                  className="w-full text-left px-3 py-2 text-sm text-neutral-800 hover:bg-brand-50 hover:text-brand-700 transition-colors focus:outline-none cursor-pointer"
+                >
+                  {country.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {showSuggestions && searchQuery.length > 0 && filteredCountries.length === 0 && (
+          <div className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg px-3 py-2 text-sm text-neutral-500">
+            No results found
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Text Inputs */}

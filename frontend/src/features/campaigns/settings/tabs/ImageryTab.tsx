@@ -29,7 +29,10 @@ export const ImageryTab: React.FC<Props> = ({
   return (
     <div id="tab-imagery" role="tabpanel" className="space-y-3">
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Imagery Sources</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Imagery Sources</h2>
+        <p className="text-sm text-neutral-500 mb-4">
+          Imagery sources are the satellite or map layers displayed during annotation. Each source defines a tile service with a time range and visualisation settings. Use a preset for common providers or configure a custom STAC-based source.
+        </p>
         <div className="space-y-4">
           {newImagery.map((img, index) => (
             <div key={index} className="p-4">

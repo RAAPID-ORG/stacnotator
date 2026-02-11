@@ -287,27 +287,6 @@ const OpenModeControls = () => {
             <p className="text-xs text-neutral-500 italic">No labels defined</p>
           )}
 
-          {/* Current selection info */}
-          {selectedLabel && (
-            <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-              <p className="text-[10px] text-blue-700 font-medium mb-1">
-                Selected: {capitalizeFirst(selectedLabel.name)}
-              </p>
-              <p className="text-[9px] text-blue-600">
-                Type: {capitalizeFirst(selectedLabel.geometry_type)}
-              </p>
-              {selectedLabel.geometry_type === 'polygon' && magicWandEnabled[selectedLabel.id] ? (
-                <p className="text-[9px] text-purple-600 mt-1 font-medium">
-                  Magic wand active! Click once to auto-generate polygon.
-                </p>
-              ) : (
-                <p className="text-[9px] text-neutral-500 mt-1">
-                  Click on the map to draw a {selectedLabel.geometry_type}.
-                  {selectedLabel.geometry_type === 'polygon' && ' Double-click to finish.'}
-                </p>
-              )}
-            </div>
-          )}
 
           {!selectedLabel && (
             <p className="text-[9px] text-amber-600 mt-1 p-2 bg-amber-50 rounded max-w-md">

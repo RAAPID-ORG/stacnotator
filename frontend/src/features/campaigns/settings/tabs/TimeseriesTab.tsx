@@ -30,7 +30,10 @@ export const TimeseriesTab: React.FC<Props> = ({
   return (
     <div id="tab-timeseries" role="tabpanel" className="space-y-3">
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Timeseries</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Timeseries</h2>
+        <p className="text-sm text-neutral-500 mb-4">
+          Time series show how a location changes over time using spectral indices (e.g. NDVI, NDWI). They are displayed as interactive charts alongside imagery during annotation to provide temporal context.
+        </p>
         <StepAddTimeseries
           form={{
             name: campaignName,

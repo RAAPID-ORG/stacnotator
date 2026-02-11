@@ -2,9 +2,11 @@
 # Usage: docker-compose -f docker-compose.prod.yml up
 
 services:
-  # PostgreSQL Database with PostGIS
+  # PostgreSQL Database with PostGIS + pgvector
   db:
-    image: postgis/postgis:16-3.4-alpine
+    build:
+      context: ./db
+    image: stacnotator-db:latest
     container_name: stacnotator-db
     restart: unless-stopped
     environment:
@@ -13,7 +15,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -70,7 +71,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # In prod, API is served via nginx on the same origin — SDK paths already include /api
+        # In prod, API is served via nginx on the same origin - SDK paths already include /api
         VITE_API_BASE_URL: ${VITE_API_BASE_URL_PROD:-}
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}

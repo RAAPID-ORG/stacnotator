@@ -44,7 +44,7 @@ export const AnnotationPage = () => {
       return;
     }
 
-    // Read task query param before starting — pass it into loadCampaign so
+    // Read task query param before starting - pass it into loadCampaign so
     // the filter + task index are set atomically in a single store update.
     const taskIdParam = searchParams.get('task');
     const reviewParam = searchParams.get('review');

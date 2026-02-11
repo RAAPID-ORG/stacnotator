@@ -1,4 +1,7 @@
+from datetime import datetime as dt_datetime
+
 from geoalchemy2 import Geometry as GeoAlchemyGeometry
+from pgvector.sqlalchemy import Vector
 from typing import Optional
 from uuid import UUID
 
@@ -211,3 +214,43 @@ class Annotation(Base):
     annotation_task: Mapped[Optional["AnnotationTask"]] = relationship(
         back_populates="annotations",
     )
+
+class Embedding(Base):
+    """Stores a 64-D embedding vector linked to an annotation task."""
+
+    __tablename__ = "embeddings"
+    __table_args__ = (
+        Index(
+            "idx_embeddings_vector_cosine",
+            "vector",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"vector": "vector_cosine_ops"},
+        ),
+        {"schema": "data"},
+    )
+
+    # Primary key
+    id: Mapped[int] = mapped_column(
+        Integer,
+        Identity(always=True),
+        primary_key=True,
+    )
+
+    # Foreign key to the task this embedding belongs to
+    annotation_task_id: Mapped[int] = mapped_column(
+        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    # 64-D embedding vector (pgvector)
+    vector = mapped_column(Vector(64), nullable=False)
+
+    # Location & time metadata (for provenance / cache lookups)
+    lat: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    lon: Mapped[float] = mapped_column(sa.Float, nullable=False)
+    period_start: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # Relationships
+    annotation_task: Mapped["AnnotationTask"] = relationship()

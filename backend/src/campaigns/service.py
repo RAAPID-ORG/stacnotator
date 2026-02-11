@@ -1,9 +1,12 @@
 from typing import List, Optional
+from datetime import datetime
 from uuid import UUID
+import logging
 import random
 from collections import defaultdict
 
 import numpy as np
+from src.annotation import embeddings_service
 import krippendorff
 from sqlalchemy import delete, select, update, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -28,6 +31,42 @@ from src.annotation.models import AnnotationTask, AnnotationTaskAssignment
 from src.imagery.service import create_imagery_with_layouts_bulk_no_commit
 from src.timeseries.service import _add_timeseries_entry_to_layout
 from src.timeseries.models import TimeSeries
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Helpers
+# ============================================================================
+
+def _identify_imagery_time_range(
+    db: Session,
+    campaign_id: int,
+) -> tuple[datetime, datetime]:
+    """Derive the embedding time range from the campaign's imagery.
+
+    Returns the most recent year from all imagery.
+    """
+    stmt = (
+        select(
+            func.min(Imagery.start_ym),
+            func.max(Imagery.end_ym),
+        )
+        .where(Imagery.campaign_id == campaign_id)
+    )
+    row = db.execute(stmt).one()
+    min_ym, max_ym = row[0], row[1]
+
+    if min_ym is None or max_ym is None:
+        raise ValueError("Campaign has no imagery - cannot derive time range.")
+
+    earliest_year = int(min_ym[:4])
+    latest_year = int(max_ym[:4])
+
+    return (
+        datetime(latest_year, 1, 1),
+        datetime(latest_year, 12, 31),
+    )
 
 
 # ============================================================================
@@ -221,6 +260,16 @@ def create_campaign(
             campaign=campaign,
             imagery_items=imagery_configs,
         )
+
+    # Fetch and add embeddings
+    # TODO do this in the background without blocking campaign creation, as it can be time consuming
+    try:
+        logger.info("Creating embeddings")
+        start_date, end_date = _identify_imagery_time_range(db, campaign.id)
+        logger.info(start_date, end_date)
+        embeddings_service.populate_campaign_embeddings(db, campaign.id, start_date, end_date)
+    except Exception as e:
+        logger.warning("Skipping embeddings for campaign %d: %s", campaign.id, e)
 
     # Commit everything together
     db.commit()

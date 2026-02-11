@@ -11,6 +11,7 @@ import {
   updateAnnotationOpenmode,
   getAllAnnotationsForCampaign,
   deleteAnnotation,
+  validateAnnotationSubmission,
   type AnnotationTaskOut,
   type CampaignOutWithImageryWindows,
   type AnnotationOut,
@@ -52,7 +53,7 @@ interface AnnotationStore {
   isLoadingCampaign: boolean;
   isSubmitting: boolean;
   isNavigating: boolean; // True during task navigation to prevent premature submissions
-  isReviewMode: boolean; // True when navigated from review page — shows all annotators' annotations
+  isReviewMode: boolean; // True when navigated from review page - shows all annotators' annotations
   isAuthoritativeReviewer: boolean; // True if current user is an authoritative reviewer for this campaign
 
   // Layout management
@@ -88,6 +89,7 @@ interface AnnotationStore {
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries'; // Active tool for open mode
   timeseriesPoint: { lat: number; lon: number } | null; // Point for timeseries in open mode
   magicWandEnabled: Record<number, boolean>; // Track which labels have magic wand enabled (labelId -> boolean)
+  knnValidationEnabled: boolean; // Whether to run KNN validation before submission
 
   // Computed getters
   // NOTE: Components should compute currentTask directly as visibleTasks[currentTaskIndex]
@@ -138,6 +140,7 @@ interface AnnotationStore {
   setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleMagicWand: (labelId: number) => void; // Toggle magic wand for a specific label
+  setKnnValidationEnabled: (enabled: boolean) => void;
   resetAnnotationForm: () => void;
 
   // Open mode annotation actions
@@ -198,6 +201,7 @@ const initialState = {
   activeTool: 'pan' as const,
   timeseriesPoint: null,
   magicWandEnabled: {} as Record<number, boolean>,
+  knnValidationEnabled: false,
 };
 
 /**
@@ -296,7 +300,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       const campaign = campaignResponse.data!;
       const allTasks = tasksResponse.data!.tasks;
       const campaignUsers = usersResponse.data?.users ?? [];
-      // Account is already loaded by AuthGate — just read from the store
+      // Account is already loaded by AuthGate - just read from the store
       const currentUserId = useAccountStore.getState().account?.id;
 
       // Check if current user is an authoritative reviewer for this campaign
@@ -428,6 +432,36 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
         useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
       } else {
+        // Pre-submission KNN validation (only when enabled and a label is selected)
+        if (get().knnValidationEnabled && labelId !== null) {
+          try {
+            const validationRes = await validateAnnotationSubmission({
+              path: {
+                campaign_id: campaign.id,
+                annotation_task_id: task.id,
+              },
+              query: { label_id: labelId },
+            });
+
+            if (validationRes.data === false) {
+              const proceed = await useLayoutStore.getState().showConfirmDialog({
+                title: 'Label Mismatch Detected',
+                description:
+                  'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
+                confirmText: 'Submit Anyway',
+                cancelText: 'Go Back',
+                isDangerous: true,
+              });
+              if (!proceed) {
+                set({ isSubmitting: false });
+                return;
+              }
+            }
+          } catch {
+            // Validation endpoint unavailable (no embedding yet, etc.) - don't block submission
+          }
+        }
+
         // Create/update the annotation
         const response = await completeAnnotationTask({
           path: {
@@ -581,7 +615,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       };
       visibleTasks = applyTaskFilter(allTasks, taskFilter);
     } else {
-      // Keep the current filter — try to find the task within the existing visible list
+      // Keep the current filter - try to find the task within the existing visible list
       taskFilter = currentFilter;
       visibleTasks = currentVisibleTasks;
     }
@@ -808,6 +842,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         [labelId]: !state.magicWandEnabled[labelId],
       },
     })),
+
+  setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
 
   resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
 

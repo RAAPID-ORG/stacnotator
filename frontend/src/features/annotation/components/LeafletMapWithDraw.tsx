@@ -334,7 +334,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     }
   }, [center[0], center[1], zoom, syncMapState]);
 
-  // Refocus when trigger changes — fit to annotation bounds if any exist
+  // Refocus when trigger changes - fit to annotation bounds if any exist
   useEffect(() => {
     if (!mapRef.current || refocusTrigger === undefined) return;
 

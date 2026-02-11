@@ -1,7 +1,5 @@
-import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from 'src/features/auth/hooks/useAuth';
-import { useLayoutStore } from 'src/features/layout/layout.store';
 
 export const LogoutButton = () => {
   const navigate = useNavigate();
@@ -56,7 +54,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
         {!collapsed && (
           <button
             onClick={() => handleNavClick('/')}
-            className="text-md font-semibold text-brand-500 bg-none border-none p-0 cursor-pointer truncate"
+            className="text-md font-semibold text-brand-500 bg-none border-none p-0 cursor-pointer truncate focus:outline-none"
             type="button"
           >
             STACNotator
@@ -66,7 +64,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
         {showToggle && (
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className={`p-1 text-neutral-900 hover:text-brand-500 transition-colors cursor-pointer rounded ${
+            className={`p-1 text-neutral-900 hover:text-brand-500 transition-colors cursor-pointer rounded focus:outline-none ${
               collapsed ? 'mx-auto' : ''
             }`}
             type="button"
@@ -82,7 +80,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
       <nav className="flex flex-col flex-1 py-2 px-2 gap-1">
         <button
           onClick={() => handleNavClick('/')}
-          className={`flex items-center gap-3 py-2 text-left text-sm transition-all duration-150 ease-in-out w-full cursor-pointer rounded ${
+          className={`flex items-center gap-3 py-2 text-left text-sm transition-all duration-150 ease-in-out w-full cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
             collapsed ? 'justify-center' : 'px-3'
           } ${
             isHomeActive
@@ -106,7 +104,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
 
         <button
           onClick={() => handleNavClick('/campaigns')}
-          className={`flex items-center gap-3 py-2 text-left text-sm transition-all duration-150 ease-in-out w-full rounded cursor-pointer ${
+          className={`flex items-center gap-3 py-2 text-left text-sm transition-all duration-150 ease-in-out w-full rounded cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
             collapsed ? 'justify-center' : 'px-3'
           } ${
             isCampaignsActive

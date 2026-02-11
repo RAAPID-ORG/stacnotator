@@ -64,12 +64,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
           name: 'False Color',
           visualization_url:
             'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35&collection=sentinel-2-l2a&pixel_selection=median',
-        },
-        {
-          name: 'NDVI',
-          visualization_url:
-            'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?nodata=0&expression=(B08-B04)/(B08+B04)&rescale=-1,1&colormap_name=rdylgn&asset_as_band=true&collection=sentinel-2-l2a&pixel_selection=median',
-        },
+        }
       ],
     },
   },

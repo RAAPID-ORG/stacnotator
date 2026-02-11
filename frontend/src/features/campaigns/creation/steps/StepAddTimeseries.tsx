@@ -66,6 +66,15 @@ export const StepAddTimeseries = ({
 
   return (
     <div className="space-y-6">
+      <div>
+        <p className="text-sm text-neutral-600 mb-1">
+          Time series show how a location changes over time using spectral indices (e.g. NDVI, NDWI). They are displayed as interactive charts alongside the imagery during annotation.
+        </p>
+        <p className="text-xs text-neutral-500">
+          This is optional. Add one or more time series if temporal context helps annotators make decisions.
+        </p>
+      </div>
+
       {items.map((i, index) => (
         <div key={index} className="rounded-lg border border-neutral-300 p-4 space-y-4">
           <div className="flex items-center justify-between">

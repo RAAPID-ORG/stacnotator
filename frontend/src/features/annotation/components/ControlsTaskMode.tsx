@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
 import { useAccountStore } from '~/features/account/account.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 interface AnnotationControlsProps {
@@ -39,9 +40,11 @@ export const AnnotationControls = ({
   const isNavigating = useAnnotationStore((state) => state.isNavigating);
   const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
   const isAuthoritativeReviewer = useAnnotationStore((state) => state.isAuthoritativeReviewer);
+  const knnValidationEnabled = useAnnotationStore((state) => state.knnValidationEnabled);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
   const setComment = useAnnotationStore((state) => state.setComment);
   const setConfidence = useAnnotationStore((state) => state.setConfidence);
+  const setKnnValidationEnabled = useAnnotationStore((state) => state.setKnnValidationEnabled);
 
   // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
@@ -59,7 +62,12 @@ export const AnnotationControls = ({
   };
 
   const handleSkip = async () => {
-    const confirmed = window.confirm('Skip this annotation? You can come back to it later.');
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
+      title: 'Skip annotation?',
+      description: 'You can come back to it later.',
+      confirmText: 'Skip',
+      cancelText: 'Cancel',
+    });
 
     if (!confirmed) return;
 
@@ -68,9 +76,13 @@ export const AnnotationControls = ({
   };
 
   const handleSubmitAuthoritative = async () => {
-    const confirmed = window.confirm(
-      'Submit as authoritative? This will mark conflicting tasks as completed.'
-    );
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
+      title: 'Submit as authoritative?',
+      description: 'This will mark conflicting tasks as completed.',
+      confirmText: 'Submit Authoritative',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
     if (!confirmed) return;
     await onSubmit(selectedLabelId, comment, confidence, true);
   };
@@ -196,6 +208,30 @@ export const AnnotationControls = ({
           {/* Separator */}
           <div className="border-t border-neutral-300"></div>
 
+          {/* KNN Validation Toggle */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={knnValidationEnabled}
+                onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-7 h-4 bg-neutral-300 rounded-full peer-checked:bg-brand-500 transition-colors"></div>
+              <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform"></div>
+            </div>
+            <span className="text-[10px] text-neutral-600">Validate</span>
+            <div className="relative group">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-neutral-400 group-hover:text-neutral-600 transition-colors cursor-help shrink-0">
+                <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+              </svg>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
+                Checks your label against nearby annotations using satellite image similarity. You'll be asked to confirm if your label disagrees with the majority.
+                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
+              </div>
+            </div>
+          </label>
+
           {/* Submit/Skip Buttons */}
           <div className="flex gap-1">
             <button
@@ -221,7 +257,7 @@ export const AnnotationControls = ({
               onClick={handleSubmitAuthoritative}
               className="w-full px-2 py-1.5 text-xs font-bold border-2 border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Submitting...' : '🗲 Submit Authoritative'}
+              {isSubmitting ? 'Submitting...' : 'Submit Authoritative'}
             </button>
           )}
         </div>
@@ -302,7 +338,7 @@ export const AnnotationControls = ({
                     ? 'You'
                     : assignment?.user_display_name || assignment?.user_email || ann.created_by_user_id.substring(0, 8);
                   const label = labels.find((l) => l.id === ann.label_id);
-                  const labelName = label ? capitalizeFirst(label.name) : ann.label_id ? `#${ann.label_id}` : '—';
+                  const labelName = label ? capitalizeFirst(label.name) : ann.label_id ? `#${ann.label_id}` : '-';
 
                   return (
                     <div

@@ -584,7 +584,7 @@ export const ViewAnnotationsPage = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                      {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '—'}
+                      {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
@@ -597,8 +597,8 @@ export const ViewAnnotationsPage = () => {
                               ? currentUser.display_name || currentUser.email || 'You'
                               : annotator?.user_display_name || annotator?.user_email || ann.created_by_user_id?.substring(0, 8) || 'Unknown';
                             
-                            const label = ann.label_id ? `#${ann.label_id}` : '—';
-                            const confidence = ann.confidence !== null && ann.confidence !== undefined ? `${ann.confidence}/5` : '—';
+                            const label = ann.label_id ? `#${ann.label_id}` : '-';
+                            const confidence = ann.confidence !== null && ann.confidence !== undefined ? `${ann.confidence}/5` : '-';
                             const hasComment = ann.comment && ann.comment.trim() !== '';
                             
                             return (
@@ -662,9 +662,9 @@ export const ViewAnnotationsPage = () => {
                                   {displayName}
                                 </span>
                                 <span className="text-neutral-400">|</span>
-                                <span title="Label ID">—</span>
+                                <span title="Label ID">-</span>
                                 <span className="text-neutral-400">|</span>
-                                <span title="Confidence rating">—</span>
+                                <span title="Confidence rating">-</span>
                               </div>
                             );
                           })
@@ -672,9 +672,9 @@ export const ViewAnnotationsPage = () => {
                           <div className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 bg-neutral-100 text-neutral-500">
                             <span>Unassigned</span>
                             <span className="text-neutral-400">|</span>
-                            <span>—</span>
+                            <span>-</span>
                             <span className="text-neutral-400">|</span>
-                            <span>—</span>
+                            <span>-</span>
                           </div>
                         )}
                       </div>

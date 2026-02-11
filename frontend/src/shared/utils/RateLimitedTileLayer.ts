@@ -71,7 +71,7 @@ class TileRateLimiter {
   }
 }
 
-/** Singleton – shared by every RateLimitedTileLayer on the page */
+/** Singleton - shared by every RateLimitedTileLayer on the page */
 export const globalTileLimiter = new TileRateLimiter(
   MAX_CONCURRENT_REQUESTS,
   MAX_REQUESTS_PER_SECOND,
@@ -123,7 +123,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
     tile.alt = '';
     tile.setAttribute('role', 'presentation');
 
-    // Crossorigin – respect the option if set, otherwise leave it unset
+    // Crossorigin - respect the option if set, otherwise leave it unset
     // so that plain <img> loads work against servers without CORS headers.
     if (this.options.crossOrigin || this.options.crossOrigin === '') {
       tile.crossOrigin = this.options.crossOrigin;
@@ -165,7 +165,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
           globalTileLimiter.release();
 
           if (response.status === 204) {
-            // No content – show the hatched placeholder
+            // No content - show the hatched placeholder
             tile.src = NO_CONTENT_DATA_URI;
             tile.classList.add('leaflet-tile-no-content');
             done(undefined, tile);
@@ -230,7 +230,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
 }) as unknown as new (urlTemplate: string, options?: L.TileLayerOptions) => L.TileLayer;
 
 /**
- * Factory function – drop-in replacement for `L.tileLayer(url, options)`.
+ * Factory function - drop-in replacement for `L.tileLayer(url, options)`.
  *
  * ```ts
  * import { rateLimitedTileLayer } from '~/shared/utils/RateLimitedTileLayer';

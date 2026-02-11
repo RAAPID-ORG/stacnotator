@@ -225,7 +225,7 @@ export const AnnotationTasksTable = ({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                    {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '—'}
+                    {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
                   </td>
                   {onAssignTasks && campaignUsers.length > 0 && (
                     <td className="px-4 py-3">

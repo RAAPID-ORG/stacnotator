@@ -5,7 +5,6 @@ import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { useLayoutStore } from 'src/features/layout/layout.store';
 import {
   createCampaign,
-  ingestAnnotationTasksFromCsv,
   listAllCampaigns,
   type CampaignCreate,
   type CampaignListItemOut,
@@ -47,25 +46,10 @@ export const CampaignsPage = () => {
     fetchCampaigns();
   }, [showAlert]);
 
-  const handleCreateCampaign = async (data: CampaignCreate, taskIngestionFile: File | null) => {
+  const handleCreateCampaign = async (data: CampaignCreate) => {
     try {
       showLoadingOverlay('Creating campaign...');
       const { data: campaign } = await createCampaign({ body: data });
-
-      if (taskIngestionFile && campaign) {
-        try {
-          await ingestAnnotationTasksFromCsv({
-            path: { campaign_id: campaign.id },
-            body: { file: taskIngestionFile },
-          });
-        } catch (err) {
-          console.error('Failed to upload annotation tasks:', err);
-          showAlert(
-            'Campaign created, but failed to upload annotation tasks. Retry in campaign settings.',
-            'warning'
-          );
-        }
-      }
 
       setShowCreate(false);
       showAlert('Campaign created successfully', 'success');

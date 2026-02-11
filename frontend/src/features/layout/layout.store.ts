@@ -7,6 +7,14 @@ export interface BreadcrumbItem {
   path?: string;
 }
 
+export interface ConfirmDialogOptions {
+  title: string;
+  description?: string;
+  confirmText?: string;
+  cancelText?: string;
+  isDangerous?: boolean;
+}
+
 interface LayoutStore {
   // Alert state
   alertMessage: string | null;
@@ -28,6 +36,9 @@ interface LayoutStore {
   // Sidebar state
   sidebarCollapsed: boolean;
 
+  // Confirm dialog state
+  confirmDialog: (ConfirmDialogOptions & { resolve: (value: boolean) => void }) | null;
+
   // Actions
   showAlert: (message: string, type?: AlertType) => void;
   hideAlert: () => void;
@@ -41,6 +52,8 @@ interface LayoutStore {
   setIsFullscreen: (isFullscreen: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  showConfirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>;
+  resolveConfirmDialog: (value: boolean) => void;
 }
 
 /**
@@ -69,6 +82,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     showKeyboardHelp: false,
     isFullscreen: false,
     sidebarCollapsed: false,
+    confirmDialog: null,
 
     // Alert actions
     showAlert: (message, type = 'info') => set({ alertMessage: message, alertType: type }),
@@ -124,5 +138,19 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+    // Confirm dialog actions
+    showConfirmDialog: (options) =>
+      new Promise<boolean>((resolve) => {
+        set({ confirmDialog: { ...options, resolve } });
+      }),
+
+    resolveConfirmDialog: (value) => {
+      const dialog = useLayoutStore.getState().confirmDialog;
+      if (dialog) {
+        dialog.resolve(value);
+        set({ confirmDialog: null });
+      }
+    },
   };
 });

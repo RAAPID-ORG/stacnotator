@@ -2,9 +2,11 @@
 # Usage: docker-compose -f docker-compose.dev.yml up
 
 services:
-  # PostgreSQL Database with PostGIS
+  # PostgreSQL Database with PostGIS + pgvector
   db:
-    image: postgis/postgis:16-3.4-alpine
+    build:
+      context: ./db
+    image: stacnotator-db:dev
     container_name: stacnotator-db-dev
     restart: unless-stopped
     environment:
@@ -13,7 +15,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:

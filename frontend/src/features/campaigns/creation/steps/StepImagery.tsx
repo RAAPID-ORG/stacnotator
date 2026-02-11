@@ -44,10 +44,19 @@ export const StepImagery = ({
 
   return (
     <div className="space-y-6">
-      {items.map((i, index) => (
+      <div>
+        <p className="text-sm text-neutral-600 mb-1">
+          Imagery sources are the satellite or map layers displayed during annotation. Each source defines a tile service (e.g. Sentinel-2, Google Earth) with a time range and visualisation settings.
+        </p>
+        <p className="text-xs text-neutral-500">
+          You can add multiple sources - annotators will be able to switch between them. Use a preset for common providers or configure a custom STAC-based source.
+        </p>
+      </div>
+
+      {items.map((item, index) => (
         <ImageryEditor
           key={index}
-          value={i}
+          value={item}
           onChange={(updates) => updateItem(index, updates)}
           onRemove={() => removeItem(index)}
         />
@@ -60,7 +69,7 @@ export const StepImagery = ({
             onChange={(e) => setSelectedPreset(e.target.value)}
             className="flex-1 border border-neutral-300 rounded-md px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
           >
-            <option value="custom">Custom Configuration</option>
+            <option value="custom">Custom STAC Source</option>
             {IMAGERY_PRESETS.map((preset) => (
               <option key={preset.id} value={preset.id}>
                 {preset.label}

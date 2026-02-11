@@ -243,9 +243,15 @@ export const AnnotationToolbar = () => {
   const handleSaveLayout = async (shouldBeDefault: boolean) => {
     // Check if saving as default
     if (shouldBeDefault) {
-      const confirmMessage =
-        'Are you sure you want to save this as the default layout?\n\nThis will overwrite the default layout for ALL users in this campaign.';
-      if (!window.confirm(confirmMessage)) {
+      const confirmed = await useLayoutStore.getState().showConfirmDialog({
+        title: 'Save as Default Layout?',
+        description:
+          'This will overwrite the default layout for ALL users in this campaign.',
+        confirmText: 'Save Default',
+        cancelText: 'Cancel',
+        isDangerous: true,
+      });
+      if (!confirmed) {
         setShowSaveDropdown(false);
         return;
       }
@@ -254,8 +260,14 @@ export const AnnotationToolbar = () => {
     // Check if main layout changed and there are multiple imagery sources
     if (hasMainLayoutChanged() && imagerySources.length > 1) {
       const layoutType = shouldBeDefault ? 'default' : 'personal';
-      const confirmMessage = `Warning: You have modified the main layout (main map, timeseries, or minimap).\n\nThis change will be applied to ALL imagery sources and may cause layouts to shift.\n\nDo you want to save this ${layoutType} layout?`;
-      if (!window.confirm(confirmMessage)) {
+      const confirmed = await useLayoutStore.getState().showConfirmDialog({
+        title: 'Main Layout Modified',
+        description:
+          `You have modified the main layout (main map, timeseries, or minimap). This change will be applied to ALL imagery sources and may cause layouts to shift.\n\nDo you want to save this ${layoutType} layout?`,
+        confirmText: 'Save Layout',
+        cancelText: 'Cancel',
+      });
+      if (!confirmed) {
         setShowSaveDropdown(false);
         return;
       }
@@ -265,8 +277,14 @@ export const AnnotationToolbar = () => {
     setShowSaveDropdown(false);
   };
 
-  const handleResetLayout = () => {
-    if (!window.confirm('Reset canvas layout to campaign defaults?')) return;
+  const handleResetLayout = async () => {
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
+      title: 'Reset Layout?',
+      description: 'This will reset the canvas layout to the campaign defaults.',
+      confirmText: 'Reset',
+      cancelText: 'Cancel',
+    });
+    if (!confirmed) return;
 
     // Merge main and imagery layouts
     const mainLayout = campaign.default_main_canvas_layout!.layout_data as Layout;

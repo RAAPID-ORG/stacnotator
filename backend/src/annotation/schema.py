@@ -91,3 +91,6 @@ class AnnotationUpdate(BaseModel):
     comment: Optional[str]
     geometry_wkt: Optional[str]  # Geometry in WKT format
     is_authoritative: Optional[bool]
+
+class ValidateLabelSubmissionsResponse(BaseModel):
+    agrees: bool

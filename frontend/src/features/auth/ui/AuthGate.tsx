@@ -37,7 +37,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
 
     init();
     return () => { cancelled = true; };
-  }, [loggedIn]); // auth, fetchAccount, clear are stable singletons — no need in deps
+  }, [loggedIn]); // auth, fetchAccount, clear are stable singletons - no need in deps
 
   if (initializing) return <LoadingSpinner fullScreen text="Initializing…" />;
 

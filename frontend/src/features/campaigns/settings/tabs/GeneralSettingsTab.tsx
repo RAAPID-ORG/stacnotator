@@ -50,7 +50,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       </div>
 
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Bounding Box</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Bounding Box</h2>
+        <p className="text-sm text-neutral-500 mb-4">
+          The geographic area where imagery can be loaded. All annotation tasks must fall within this region.
+        </p>
         <BoundingBoxEditor
           value={{
             bbox_west: campaign.settings.bbox_west,
@@ -70,8 +73,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       </div>
 
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Annotation Labels</h2>
-        <p className="text-sm text-neutral-500 mb-4">Labels are read-only in settings. To add labels, edit during campaign creation.</p>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Annotation Labels</h2>
+        <p className="text-sm text-neutral-500 mb-4">The class names annotators choose from when labeling. Labels cannot be changed after creation to preserve data consistency.</p>
         <LabelsEditor value={campaign.settings.labels} onChange={() => {}} readOnly={true} />
       </div>
 

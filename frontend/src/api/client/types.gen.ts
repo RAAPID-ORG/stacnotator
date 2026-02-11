@@ -2423,6 +2423,47 @@ export type CompleteAnnotationTaskResponses = {
 
 export type CompleteAnnotationTaskResponse = CompleteAnnotationTaskResponses[keyof CompleteAnnotationTaskResponses];
 
+export type ValidateAnnotationSubmissionData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Annotation Task Id
+         */
+        annotation_task_id: number;
+    };
+    query: {
+        /**
+         * Label Id
+         */
+        label_id: number;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission';
+};
+
+export type ValidateAnnotationSubmissionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ValidateAnnotationSubmissionError = ValidateAnnotationSubmissionErrors[keyof ValidateAnnotationSubmissionErrors];
+
+export type ValidateAnnotationSubmissionResponses = {
+    /**
+     * Response Validateannotationsubmission
+     *
+     * Successful Response
+     */
+    200: boolean;
+};
+
+export type ValidateAnnotationSubmissionResponse = ValidateAnnotationSubmissionResponses[keyof ValidateAnnotationSubmissionResponses];
+
 export type IngestAnnotationTasksFromCsvData = {
     body: BodyIngestAnnotationTasksFromCsv;
     path: {
