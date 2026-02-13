@@ -46,7 +46,7 @@ export const StepImagery = ({
     <div className="space-y-6">
       <div>
         <p className="text-sm text-neutral-600 mb-1">
-          Imagery sources are the satellite or map layers displayed during annotation. Each source defines a tile service (e.g. Sentinel-2, Google Earth) with a time range and visualisation settings.
+          Imagery sources are the satellite or map layers displayed during annotation. Each source defines a tile service with a time range and visualisation settings.
         </p>
         <p className="text-xs text-neutral-500">
           You can add multiple sources - annotators will be able to switch between them. Use a preset for common providers or configure a custom STAC-based source.

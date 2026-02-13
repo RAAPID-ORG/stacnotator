@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 export interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
@@ -6,7 +8,8 @@ export interface ConfirmDialogProps {
   cancelText?: string;
   isDangerous?: boolean;
   isLoading?: boolean;
-  onConfirm: () => void | Promise<void>;
+  showDontAskAgain?: boolean;
+  onConfirm: (dontAskAgain?: boolean) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -18,13 +21,22 @@ export const ConfirmDialog = ({
   cancelText = 'Cancel',
   isDangerous = false,
   isLoading = false,
+  showDontAskAgain = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
   if (!isOpen) return null;
 
   const handleConfirm = async () => {
-    await onConfirm();
+    await onConfirm(showDontAskAgain ? dontAskAgain : undefined);
+    setDontAskAgain(false);
+  };
+
+  const handleCancel = () => {
+    setDontAskAgain(false);
+    onCancel();
   };
 
   return (
@@ -33,11 +45,22 @@ export const ConfirmDialog = ({
         <div className="p-6">
           <h2 className="text-lg font-semibold text-brand-800 mb-2">{title}</h2>
           {description && <p className="text-sm text-gray-600 mb-6">{description}</p>}
+          {showDontAskAgain && (
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={dontAskAgain}
+                onChange={(e) => setDontAskAgain(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
+              />
+              <span className="text-xs text-neutral-600">Don't ask again this session</span>
+            </label>
+          )}
         </div>
 
         <div className="border-t border-gray-200 flex gap-3 p-4 justify-end">
           <button
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={isLoading}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

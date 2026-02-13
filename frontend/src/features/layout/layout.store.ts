@@ -13,6 +13,8 @@ export interface ConfirmDialogOptions {
   confirmText?: string;
   cancelText?: string;
   isDangerous?: boolean;
+  showDontAskAgain?: boolean;
+  onDontAskAgain?: () => void;
 }
 
 interface LayoutStore {

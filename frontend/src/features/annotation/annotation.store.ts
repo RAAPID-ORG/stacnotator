@@ -90,6 +90,7 @@ interface AnnotationStore {
   timeseriesPoint: { lat: number; lon: number } | null; // Point for timeseries in open mode
   magicWandEnabled: Record<number, boolean>; // Track which labels have magic wand enabled (labelId -> boolean)
   knnValidationEnabled: boolean; // Whether to run KNN validation before submission
+  skipConfirmDisabled: boolean; // Whether to skip the confirmation dialog when skipping annotations
 
   // Computed getters
   // NOTE: Components should compute currentTask directly as visibleTasks[currentTaskIndex]
@@ -141,6 +142,7 @@ interface AnnotationStore {
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleMagicWand: (labelId: number) => void; // Toggle magic wand for a specific label
   setKnnValidationEnabled: (enabled: boolean) => void;
+  setSkipConfirmDisabled: (disabled: boolean) => void;
   resetAnnotationForm: () => void;
 
   // Open mode annotation actions
@@ -202,6 +204,7 @@ const initialState = {
   timeseriesPoint: null,
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
+  skipConfirmDisabled: false,
 };
 
 /**
@@ -844,6 +847,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     })),
 
   setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
+
+  setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
 
   resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
 

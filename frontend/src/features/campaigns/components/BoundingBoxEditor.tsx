@@ -274,53 +274,65 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
         <h3 className="text-sm font-medium text-neutral-700 mb-1">Bounding Box</h3>
         <p className="text-xs text-neutral-500">
           The geographic area where imagery can be loaded for this campaign. Search for a country or region, or set coordinates manually.
-          <br/><b>Note: These boxes were generated with ChatGPT - use with care!</b>
         </p>
       </div>
 
-      {/* Country / Region Search */}
-      <div className="relative" ref={searchRef}>
-        <div className="relative">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none">
-            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setShowSuggestions(true);
-            }}
-            onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
-            placeholder="Search country or region..."
-            className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-          />
-        </div>
-        {showSuggestions && filteredCountries.length > 0 && (
-          <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-            {filteredCountries.map((country) => (
-              <li key={country.name}>
-                <button
-                  type="button"
-                  onClick={() => handleSelectCountry(country)}
-                  className="w-full text-left px-3 py-2 text-sm text-neutral-800 hover:bg-brand-50 hover:text-brand-700 transition-colors focus:outline-none cursor-pointer"
-                >
-                  {country.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {showSuggestions && searchQuery.length > 0 && filteredCountries.length === 0 && (
-          <div className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg px-3 py-2 text-sm text-neutral-500">
-            No results found
-          </div>
-        )}
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Text Inputs */}
-        <div className="grid grid-cols-2 gap-4 lg:col-span-1">
+        {/* Left column: Search + Coordinate Inputs */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Country / Region Search */}
+          <div className="relative" ref={searchRef}>
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none">
+                  <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
+                  placeholder="Search country or region..."
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                />
+              </div>
+              <div className="relative group">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-neutral-400 group-hover:text-neutral-600 transition-colors cursor-help shrink-0">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+                </svg>
+                <div className="absolute bottom-full right-0 mb-1.5 w-56 px-2.5 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
+                  Country bounding boxes were AI-generated as a quick prototype. They may not reflect actual boundaries and do not represent any geopolitical positions of the authors.
+                  <div className="absolute top-full right-2 border-4 border-transparent border-t-neutral-800"></div>
+                </div>
+              </div>
+            </div>
+            {showSuggestions && filteredCountries.length > 0 && (
+              <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {filteredCountries.map((country) => (
+                  <li key={country.name}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCountry(country)}
+                      className="w-full text-left px-3 py-2 text-sm text-neutral-800 hover:bg-brand-50 hover:text-brand-700 transition-colors focus:outline-none cursor-pointer"
+                    >
+                      {country.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showSuggestions && searchQuery.length > 0 && filteredCountries.length === 0 && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg px-3 py-2 text-sm text-neutral-500">
+                No results found
+              </div>
+            )}
+          </div>
+
+          {/* Coordinate Inputs */}
+          <div className="grid grid-cols-2 gap-4">
           <label className="space-y-1">
             <span className="text-xs text-neutral-700">West (Long)</span>
             <input
@@ -365,8 +377,9 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
             />
           </label>
 
-          <div className="col-span-2 text-xs text-neutral-500 mt-2">
-            Drag the corner handles to resize, or click and drag the box to move it
+          <div className="col-span-2 text-xs text-neutral-500 mt-1">
+            Drag the corner handles to resize, or drag the box to move it
+          </div>
           </div>
         </div>
 
