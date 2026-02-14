@@ -48,7 +48,18 @@ def upgrade() -> None:
     sa.UniqueConstraint('campaign_id', 'annotation_number'),
     schema='data'
     )
-    op.create_index('idx_task_items_campaign_id', 'annotation_tasks', ['campaign_id'], unique=False, schema='data')
+    # Create index only if it doesn't already exist
+    index_exists = connection.execute(sa.text("""
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'i'
+          AND c.relname = 'idx_task_items_campaign_id'
+          AND n.nspname = 'data'
+        LIMIT 1
+    """)).fetchone() is not None
+    if not index_exists:
+        op.create_index('idx_task_items_campaign_id', 'annotation_tasks', ['campaign_id'], unique=False, schema='data')
     op.create_table('annotation_tasks_assignment',
     sa.Column('id', sa.Integer(), sa.Identity(always=True), nullable=False),
     sa.Column('task_id', sa.Integer(), nullable=False),

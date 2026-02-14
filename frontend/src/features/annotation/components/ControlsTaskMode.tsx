@@ -232,7 +232,7 @@ export const AnnotationControls = ({
                 <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
               </svg>
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                Checks your label against nearby annotations using satellite image similarity. You'll be asked to confirm if your label disagrees with the majority. Note: In our currentl prototype Alphaearth Embeddings from the last year of the imagery windows are used and they may thus not be representative of your time preiod of interest.
+                Experimental feature use with care! Checks your label against nearby annotations using embedding similarity. You'll be asked to confirm if your label disagrees with the majority. Note: In our currentl prototype Alphaearth Embeddings from the last year of the imagery windows are used and they may thus not be representative of your time preiod of interest.
                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
               </div>
             </div>

@@ -13,7 +13,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
     template: {
       name: 'Sentinel-2 L2A',
       crosshair_hex6: '00ff00',
-      default_zoom: 12,
+      default_zoom: 15,
       window_interval: 1,
       window_unit: 'months',
       slicing_interval: 1,
@@ -74,7 +74,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
     template: {
       name: 'Landsat)',
       crosshair_hex6: '00ff00',
-      default_zoom: 12,
+      default_zoom: 15,
       window_interval: 1,
       window_unit: 'months',
       slicing_interval: 1,
@@ -100,7 +100,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
     template: {
       name: 'Harmonized Landsat Sentinel (HLS)',
       crosshair_hex6: '00ff00',
-      default_zoom: 12,
+      default_zoom: 15,
       window_interval: 1,
       window_unit: 'months',
       slicing_interval: 1,
@@ -124,7 +124,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
     template: {
       name: 'National Agriculture Imagery Program (NAIP)',
       crosshair_hex6: '00ff00',
-      default_zoom: 12,
+      default_zoom: 15,
       window_interval: 1,
       window_unit: 'months',
       slicing_interval: 1,
@@ -149,7 +149,7 @@ export const emptyImagery = (): ImageryCreate => ({
   start_ym: '',
   end_ym: '',
   crosshair_hex6: 'ff0000',
-  default_zoom: 10,
+  default_zoom: 14,
   window_interval: undefined,
   window_unit: undefined,
   registration_url: '',

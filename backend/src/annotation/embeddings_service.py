@@ -69,8 +69,21 @@ def _fetch_alphaearth_gee_batch(
     results: dict[str, FetchedEmbedding] = {}
 
     # Single getInfo() call - all points come back at once
-    sampled_info = sampled.getInfo()
+    try:
+        sampled_info = sampled.getInfo()
+    except Exception as exc:
+        point_ids = [str(p.get("id")) for p in points]
+        logger.exception(
+            "GEE embedding fetch failed for %d point(s) (ids=%s): %s",
+            len(points), ",".join(point_ids), exc,
+        )
+        return results
+
     if sampled_info is None:
+        logger.warning(
+            "GEE embedding fetch returned no data for %d point(s).",
+            len(points),
+        )
         return results
 
     for feature in sampled_info["features"]:
@@ -280,9 +293,16 @@ def populate_campaign_embeddings(
             "Fetching embeddings batch %d-%d of %d",
             i + 1, i + len(batch), len(points_to_fetch),
         )
-        all_fetched.update(
-            _fetch_alphaearth_gee_batch(batch, start_date, end_date)
-        )
+        try:
+            all_fetched.update(
+                _fetch_alphaearth_gee_batch(batch, start_date, end_date)
+            )
+        except Exception as exc:
+            point_ids = [str(p.get("id")) for p in batch]
+            logger.exception(
+                "Embedding batch fetch failed for %d point(s) (ids=%s): %s",
+                len(batch), ",".join(point_ids), exc,
+            )
 
     # Store results - single bulk insert
     failed = len(points_to_fetch) - len(all_fetched)

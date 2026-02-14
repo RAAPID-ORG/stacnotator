@@ -7,11 +7,22 @@ Create Date: 2026-02-09 12:00:00.000000
 """
 from typing import Sequence, Union
 import logging
+import sys
 
 from alembic import op
 import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_stdout_logging() -> None:
+    """Ensure migration logs are visible in stdout during Alembic runs."""
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 # revision identifiers, used by Alembic.
 revision: str = 'a1b2c3d4e5f6'
@@ -34,6 +45,7 @@ def _backfill_embeddings() -> None:
     from src.campaigns.service import _identify_imagery_time_range
     from src.annotation import embeddings_service
 
+    _ensure_stdout_logging()
     initialize_earth_engine()
 
     bind = op.get_bind()
