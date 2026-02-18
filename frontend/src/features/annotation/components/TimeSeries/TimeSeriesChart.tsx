@@ -17,9 +17,9 @@ import {
   CategoryScale,
 } from 'chart.js';
 import type { TimeSeriesOut } from '~/api/client';
-import type { LatLon } from '~/utils/utility';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
+import type { LatLon } from '~/shared/utils/utility';
 
 ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale);
 

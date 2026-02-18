@@ -56,7 +56,7 @@ export const CreateCampaignModal = ({
     mode: 'tasks',
   });
 
-  // Live validation — recomputed whenever form changes
+  // Live validation - recomputed whenever form changes
   const validation: FullValidationResult = useMemo(() => validateFullForm(form), [form]);
 
   // Total number of individual issues

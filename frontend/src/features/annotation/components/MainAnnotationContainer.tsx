@@ -39,6 +39,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const zoomOutTrigger = useAnnotationStore((state) => state.zoomOutTrigger);
   const panTrigger = useAnnotationStore((state) => state.panTrigger);
   const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
+  const isNavigating = useAnnotationStore((state) => state.isNavigating);
   const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
   const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
   const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
@@ -146,8 +147,12 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       setMapZoom(newZoom);
       setMapBounds(newBounds);
     } else {
-      // In task mode, only track zoom (center is determined by task)
-      setMapZoom(newZoom);
+      // In task mode, only track zoom (center is determined by task).
+      // Skip during navigation so the store's null zoom (-> default_zoom) isn't
+      // immediately overwritten by the moveend event from the old view.
+      if (!isNavigating) {
+        setMapZoom(newZoom);
+      }
     }
   };
 

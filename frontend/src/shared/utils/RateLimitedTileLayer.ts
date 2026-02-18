@@ -101,7 +101,7 @@ const NO_CONTENT_TILE_SVG = encodeURIComponent(`
 
 const NO_CONTENT_DATA_URI = `data:image/svg+xml,${NO_CONTENT_TILE_SVG}`;
 
-// ── Custom TileLayer ─────────────────────────────────────────────────────────
+// Custom TileLayer with rate-limited, retrying tile loads and 204 "no content" handling
 //
 // Strategy:
 //   We use the standard <img>.src approach for actually loading tiles (this
@@ -109,9 +109,9 @@ const NO_CONTENT_DATA_URI = `data:image/svg+xml,${NO_CONTENT_TILE_SVG}`;
 //   servers). The rate limiter controls *when* each tile starts loading.
 //
 //   To detect HTTP 204 "No Content" we first do a lightweight HEAD request.
-//   • HEAD 204         → show hatched "no content" tile immediately.
-//   • HEAD succeeds    → proceed to load the tile image normally.
-//   • HEAD fails / !ok → retry with exponential backoff (network or server error).
+//   • HEAD 204         - show hatched "no content" tile immediately.
+//   • HEAD succeeds    - proceed to load the tile image normally.
+//   • HEAD fails / !ok - retry with exponential backoff (network or server error).
 //
 //   If the HEAD succeeds but the <img> still fails to render, that also
 //   triggers the retry path (via the img error event).
@@ -174,12 +174,12 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
 
           if (response.ok || response.type === 'opaque') {
             // Server has content (or we can't tell due to opaque response)
-            // → load the image the standard way via <img>.src
+            // -> load the image the standard way via <img>.src
             this._loadImageSrc(tile, url, attempt, done);
             return;
           }
 
-          // Non-ok, non-204 → treat as error for retry
+          // Non-ok, non-204 -> treat as error for retry
           throw new Error(`HTTP ${response.status}`);
         })
         .catch(() => {

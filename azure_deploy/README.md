@@ -108,3 +108,9 @@ This will stream real-time logs from the selected container app.
 - **Backend App Name**: `backend`
 - **Frontend App Name**: `frontend`
 - **ACR Name**: Automatically discovered from resource group
+
+## Doing a local backup of the database
+
+1. Make sure you are in the VPN from Unistra.
+2. Copy the db password from Azure Portal secrets (kv-stacnotator...)
+3. Whitelist your IP-address for the DB (Azure Postgres Flexible Server -> psqlstacnotatorprodwesteurope -> Settings -> Networking)

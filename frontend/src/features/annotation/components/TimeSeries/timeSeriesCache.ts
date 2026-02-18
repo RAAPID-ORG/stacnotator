@@ -6,7 +6,7 @@
  */
 
 import { getTimeseriesData } from '~/api/client';
-import type { LatLon } from '~/utils/utility';
+import type { LatLon } from '~/shared/utils/utility';
 
 export interface TimeSeriesRow {
   time: string;
