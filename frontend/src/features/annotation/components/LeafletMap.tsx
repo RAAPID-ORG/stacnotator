@@ -24,6 +24,9 @@ interface LeafletMapProps {
   syncMapState?: boolean; // Whether this map should sync its state (only main map should)
   showCrosshair?: boolean; // Whether to show crosshair (default: true)
   enableTileBuffering?: boolean; // Enable tile preloading/buffering for smoother panning (default: false, only enable for main map)
+  onClick?: (lat: number, lon: number) => void; // Callback for map clicks
+  probeMarker?: { lat: number; lon: number } | null; // Probe marker position for timeseries probe tool
+  cursorStyle?: string; // Custom cursor style for the map container
 }
 
 const PAN_OFFSET = 100; // pixels to pan
@@ -44,12 +47,16 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   syncMapState = false,
   showCrosshair = true,
   enableTileBuffering = false,
+  onClick,
+  probeMarker,
+  cursorStyle,
 }) => {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const basemapLayerRef = useRef<L.TileLayer | null>(null);
   const crosshairMarkerRef = useRef<L.Marker | null>(null);
+  const probeMarkerRef = useRef<L.Marker | null>(null);
   const scaleControlRef = useRef<L.Control.Scale | null>(null);
 
   // Track the last refocus trigger to detect actual refocus requests
@@ -129,6 +136,23 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       map.off('zoomend', handleMoveEnd);
     };
   }, [onMapMove]);
+
+  // Handle map click events
+  useEffect(() => {
+    if (!mapRef.current || !onClick) return;
+
+    const map = mapRef.current;
+
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      onClick(e.latlng.lat, e.latlng.lng);
+    };
+
+    map.on('click', handleClick);
+
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [onClick]);
 
   // Only show attribution for basemap
   useEffect(() => {
@@ -379,12 +403,65 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     crosshairMarkerRef.current.setIcon(crosshairIcon);
   }, [crosshairColor]);
 
+  // Update probe marker
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    if (!probeMarker) {
+      if (probeMarkerRef.current) {
+        probeMarkerRef.current.remove();
+        probeMarkerRef.current = null;
+      }
+      return;
+    }
+
+    const latlng = L.latLng(probeMarker.lat, probeMarker.lon);
+
+    if (probeMarkerRef.current) {
+      probeMarkerRef.current.setLatLng(latlng);
+    } else {
+      const markerIcon = L.divIcon({
+        html: `
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8" cy="8" r="6" fill="rgb(234, 88, 12)" stroke="white" stroke-width="2"/>
+          </svg>
+        `,
+        className: 'probe-marker',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+      });
+
+      probeMarkerRef.current = L.marker(latlng, { icon: markerIcon }).addTo(mapRef.current);
+    }
+
+    return () => {
+      if (probeMarkerRef.current) {
+        probeMarkerRef.current.remove();
+        probeMarkerRef.current = null;
+      }
+    };
+  }, [probeMarker?.lat, probeMarker?.lon]);
+
+  // Update cursor style
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (cursorStyle) {
+      containerRef.current.style.cursor = cursorStyle;
+    } else {
+      containerRef.current.style.cursor = '';
+    }
+  }, [cursorStyle]);
+
   return (
     <>
       <div ref={containerRef} className="w-full h-full" />
       <style>{`
         /* Hide crosshair icon background */
         .crosshair-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+        .probe-marker {
           background: transparent !important;
           border: none !important;
         }

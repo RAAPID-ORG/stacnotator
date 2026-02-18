@@ -88,6 +88,7 @@ interface AnnotationStore {
   confidence: number; // Confidence level 0-5, default 5
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries'; // Active tool for open mode
   timeseriesPoint: { lat: number; lon: number } | null; // Point for timeseries in open mode
+  probeTimeseriesPoint: { lat: number; lon: number } | null; // Probe point for additional timeseries in task mode
   magicWandEnabled: Record<number, boolean>; // Track which labels have magic wand enabled (labelId -> boolean)
   knnValidationEnabled: boolean; // Whether to run KNN validation before submission
   skipConfirmDisabled: boolean; // Whether to skip the confirmation dialog when skipping annotations
@@ -140,6 +141,7 @@ interface AnnotationStore {
   setConfidence: (confidence: number) => void;
   setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
+  setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleMagicWand: (labelId: number) => void; // Toggle magic wand for a specific label
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -202,6 +204,7 @@ const initialState = {
   confidence: 5, // Default confidence level
   activeTool: 'pan' as const,
   timeseriesPoint: null,
+  probeTimeseriesPoint: null,
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
@@ -505,6 +508,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           isSubmitting: false,
           currentTaskIndex: nextIndex,
           ...getFormStateForTask(nextTask),
+          probeTimeseriesPoint: null,
         });
 
         useLayoutStore.getState().showAlert('Annotation submitted successfully', 'success');
@@ -537,6 +541,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
       ...getFormStateForTask(nextTask),
       currentMapZoom: null,
+      probeTimeseriesPoint: null,
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -565,6 +570,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
       ...getFormStateForTask(prevTask),
       currentMapZoom: null,
+      probeTimeseriesPoint: null,
     });
 
     // Clear navigating flag after a delay to allow maps to update
@@ -594,6 +600,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         windowSliceIndices: {},
         ...getFormStateForTask(targetTask),
         currentMapZoom: null,
+        probeTimeseriesPoint: null,
       });
 
       // Clear navigating flag after a delay to allow maps to update
@@ -641,6 +648,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       windowSliceIndices: {},
       ...getFormStateForTask(targetTask),
       currentMapZoom: null,
+      probeTimeseriesPoint: null,
     });
 
     setTimeout(() => {
@@ -834,9 +842,11 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
   setConfidence: (confidence) => set({ confidence }),
 
-  setActiveTool: (tool) => set({ activeTool: tool }),
+  setActiveTool: (tool) => set({ activeTool: tool, ...(tool !== 'timeseries' ? { probeTimeseriesPoint: null } : {}) }),
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
+
+  setProbeTimeseriesPoint: (point) => set({ probeTimeseriesPoint: point }),
 
   toggleMagicWand: (labelId) =>
     set((state) => ({
@@ -872,6 +882,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       visibleTasks,
       currentTaskIndex: 0,
       ...getFormStateForTask(firstTask),
+      probeTimeseriesPoint: null,
     });
 
     // Clear navigating flag after a delay to allow maps to update

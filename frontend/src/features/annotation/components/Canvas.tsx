@@ -51,6 +51,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const basemapType = useAnnotationStore((state) => state.basemapType);
   const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
   const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
+  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
   const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
   const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
   const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
@@ -282,6 +283,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                   .slice(currentTaskIndex + 1, currentTaskIndex + 4)
                   .map((task) => extractLatLonFromWKT(task.geometry.geometry))
                   .filter((coord): coord is LatLon => coord !== null)}
+                probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
               />
             </div>
           )}

@@ -27,17 +27,22 @@ interface TimeSeriesChartProps {
   timeseries: TimeSeriesOut[];
   latLon: LatLon | null;
   prefetchCoordinates?: LatLon[];
+  probeLatLon?: LatLon | null; // Additional probe point for comparison (task mode)
 }
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
+const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#22d3ee'];
 
 export const TimeSeriesChart = ({
   timeseries,
   latLon,
   prefetchCoordinates = [],
+  probeLatLon,
 }: TimeSeriesChartProps) => {
   const [data, setData] = useState<TimeSeriesData | null>(null);
+  const [probeData, setProbeData] = useState<TimeSeriesData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [removeCloudy, setRemoveCloudy] = useState(false);
   const [opacity, setOpacity] = useState(1);
@@ -100,21 +105,72 @@ export const TimeSeriesChart = ({
     timeSeriesCache.prefetch(timeseriesIds, prefetchCoordinates);
   }, [timeseriesIds, prefetchCoordinates]);
 
+  // Fetch data for probe location (additional comparison point)
+  useEffect(() => {
+    if (!probeLatLon || timeseriesIds.length === 0) {
+      setProbeData(null);
+      setIsProbeLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsProbeLoading(true);
+
+    timeSeriesCache
+      .get(timeseriesIds, probeLatLon)
+      .then((result) => {
+        if (!cancelled) {
+          setProbeData(result);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load probe time series data:', err);
+        if (!cancelled) {
+          setProbeData(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsProbeLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [timeseriesIds, probeLatLon?.lat, probeLatLon?.lon]);
+
   const chartData = useMemo(() => {
     if (!data) return null;
 
-    // Union of all timestamps
+    // Union of all timestamps (from both task and probe data)
     const labelSet = new Set<string>();
     Object.values(data).forEach((rows: TimeSeriesRow[]) =>
       rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
     );
+    if (probeData) {
+      Object.values(probeData).forEach((rows: TimeSeriesRow[]) =>
+        rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
+      );
+    }
     const labels = Array.from(labelSet).sort();
 
     // Get optimal month labels for x-axis
     const monthLabels = getOptimalMonthLabels(labels);
 
-    // Create datasets
-    const datasets = timeseries.map((ts, index) => {
+    // Create datasets for main task point
+    const datasets: Array<{
+      label: string;
+      data: (number | null)[];
+      borderColor: string;
+      backgroundColor: string;
+      pointRadius: (number)[];
+      pointBackgroundColor: string[];
+      pointBorderColor: string[];
+      tension: number;
+      spanGaps: boolean;
+      borderDash?: number[];
+    }> = timeseries.map((ts, index) => {
       const rows = data[ts.id] ?? [];
       const rowMap = new Map(rows.map((r: TimeSeriesRow) => [r.time, r]));
 
@@ -151,8 +207,49 @@ export const TimeSeriesChart = ({
       };
     });
 
+    // Create datasets for probe point (dashed lines)
+    if (probeData) {
+      timeseries.forEach((ts, index) => {
+        const rows = probeData[ts.id] ?? [];
+        const rowMap = new Map(rows.map((r: TimeSeriesRow) => [r.time, r]));
+
+        const color = PROBE_COLORS[index % PROBE_COLORS.length];
+
+        datasets.push({
+          label: `${ts.name} (probe)`,
+          data: labels.map((time) => {
+            const row = rowMap.get(time);
+            if (!row) return null;
+            if (removeCloudy && row.cloud === 1) return null;
+            return row.values;
+          }),
+          borderColor: color,
+          backgroundColor: color,
+          pointRadius: labels.map((time) => {
+            const row = rowMap.get(time);
+            if (!row) return 0;
+            if (!removeCloudy && row.cloud === 1) return 1.5;
+            return 0;
+          }),
+          pointBackgroundColor: labels.map((time) => {
+            const row = rowMap.get(time);
+            if (!row) return color;
+            return row.cloud === 1 ? '#ef4444' : color;
+          }),
+          pointBorderColor: labels.map((time) => {
+            const row = rowMap.get(time);
+            if (!row) return color;
+            return row.cloud === 1 ? '#ef4444' : color;
+          }),
+          tension: 0.1,
+          spanGaps: true,
+          borderDash: [5, 3] as number[],
+        });
+      });
+    }
+
     return { labels, datasets, monthLabels };
-  }, [data, timeseries, removeCloudy]);
+  }, [data, probeData, timeseries, removeCloudy]);
 
   // Error state
   if (error) {
@@ -198,11 +295,11 @@ export const TimeSeriesChart = ({
   return (
     <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
       {/* Loading indicator overlay */}
-      {isLoading && (
+      {(isLoading || isProbeLoading) && (
         <div className="absolute top-2 right-2 z-10">
           <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-neutral-200">
             <div className="animate-spin rounded-full h-3 w-3 border border-neutral-300 border-t-brand-600"></div>
-            <span className="text-[9px] text-neutral-600">Updating...</span>
+            <span className="text-[9px] text-neutral-600">{isProbeLoading && !isLoading ? 'Loading probe...' : 'Updating...'}</span>
           </div>
         </div>
       )}
@@ -217,6 +314,15 @@ export const TimeSeriesChart = ({
               <div key={ts.id} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
                 <span className="text-[9px] font-bold text-neutral-700">{ts.name}</span>
+              </div>
+            );
+          })}
+          {probeData && timeseries.map((ts, index) => {
+            const color = PROBE_COLORS[index % PROBE_COLORS.length];
+            return (
+              <div key={`probe-${ts.id}`} className="flex items-center gap-1">
+                <div className="w-2 h-0.5 border-t-2 border-dashed" style={{ borderColor: color }} />
+                <span className="text-[9px] font-bold text-neutral-500">{ts.name} (probe)</span>
               </div>
             );
           })}

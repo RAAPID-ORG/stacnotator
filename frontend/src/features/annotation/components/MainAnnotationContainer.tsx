@@ -57,6 +57,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
   const setMapBounds = useAnnotationStore((state) => state.setMapBounds);
   const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
+  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
+  const setProbeTimeseriesPoint = useAnnotationStore((state) => state.setProbeTimeseriesPoint);
+  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
 
   // Compute derived values
   const currentTask = visibleTasks[currentTaskIndex] || null;
@@ -151,6 +154,13 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   // Callback for timeseries tool clicks
   const handleTimeseriesClick = (lat: number, lon: number) => {
     setTimeseriesPoint({ lat, lon });
+  };
+
+  // Callback for timeseries probe clicks in task mode
+  const handleProbeTimeseriesClick = (lat: number, lon: number) => {
+    if (!isOpenMode && activeTool === 'timeseries') {
+      setProbeTimeseriesPoint({ lat, lon });
+    }
   };
 
   // Get the currently active window
@@ -361,6 +371,25 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
             </svg>
           </button>
           )}
+
+          {/* Time Series Probe Tool - only in task mode when time series are configured */}
+          {!isOpenMode && campaign.time_series.length > 0 && (
+            <button
+              onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
+              className={`px-3 py-1.5 text-xs font-medium rounded shadow transition-colors flex items-center gap-1.5 cursor-pointer ${
+                activeTool === 'timeseries'
+                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'bg-white text-neutral-900 hover:bg-neutral-50'
+              }`}
+              title={activeTool === 'timeseries' ? 'Deactivate picked point for additional timeseries' : 'Allow selecting additional point on map to add additional timeseries'}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polyline points="2,16 5,10 8,12 11,6 14,9 17,3" strokeLinejoin="round" strokeLinecap="round" />
+                <circle cx="14" cy="14" r="4" fill="none" />
+                <line x1="17" y1="17" x2="19" y2="19" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Map content */}
@@ -428,6 +457,9 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
               enableTileBuffering={true}
               onMapMove={handleMapMove}
               syncMapState={false}
+              onClick={activeTool === 'timeseries' ? handleProbeTimeseriesClick : undefined}
+              probeMarker={probeTimeseriesPoint}
+              cursorStyle={activeTool === 'timeseries' ? 'crosshair' : undefined}
             />
           ))}
 
