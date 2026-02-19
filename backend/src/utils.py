@@ -1,8 +1,12 @@
+import ee
 import re
 import unicodedata
 from datetime import datetime
 
+from src.config import get_settings
 from fastapi.routing import APIRoute
+
+settings = get_settings()
 
 
 # ============================================================================
@@ -202,3 +206,34 @@ class FunctionNameOperationIdRoute(APIRoute):
             if endpoint:
                 kwargs["operation_id"] = snake_to_camel(endpoint.__name__)
         super().__init__(*args, **kwargs)
+
+
+# ============================================================================
+# Earth Engine Utils
+# ============================================================================
+
+
+def initialize_earth_engine():
+    """
+    Initialize EarthEngine using a service Account
+    Supports both EE_PRIVATE_KEY_PATH (file path) and EE_PRIVATE_KEY (direct key content)
+    """
+    service_account = settings.EE_SERVICE_ACCOUNT
+    private_key_path = settings.EE_PRIVATE_KEY_PATH
+    private_key = settings.EE_PRIVATE_KEY
+
+    if not service_account:
+        raise RuntimeError("Environment variable EE_SERVICE_ACCOUNT must be set")
+
+    if not private_key_path and not private_key:
+        raise RuntimeError(
+            "Either EE_PRIVATE_KEY_PATH or EE_PRIVATE_KEY environment variable must be set"
+        )
+
+    # Use direct key content if available, otherwise use file path
+    if private_key:
+        credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
+    else:
+        credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
+
+    ee.Initialize(credentials)

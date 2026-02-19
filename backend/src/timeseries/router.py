@@ -36,6 +36,7 @@ def get_timeseries_for_campaign(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
+    """Get all timeseries configurations for a campaign. NOT the actual data, just the metadata about the timeseries."""
     timeseries = service.get_timeseries_for_campaign(campaign_id, db)
     return TimeseriesListResponse(items=timeseries)
 
@@ -47,12 +48,14 @@ def create_timeseries_for_campaign(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
+    """Bulk create timeseries items for a campaign. Will register the timeseries configuration to campaign."""
     new_items = service.create_timeseries_bulk(campaign_id, request.timeseries, db)
     return TimeseriesBulkCreateResponse(new_items=new_items)
 
 
 @router.get("/timeseries/create-options", response_model=TimeSeriesOptionsOut)
 def get_timeseries_creation_options():
+    """Get options for registering new timeseries for a campaign, such as supported data sources, providers, and types."""
     return TimeSeriesOptionsOut(
         data_sources=SUPPORTED_TIMESERIES_SOURCES,
         providers=SUPPORTED_TIMESERIES_PROVIDERS,
@@ -60,13 +63,14 @@ def get_timeseries_creation_options():
     )
 
 
-# TODO might need to think again if this route requed campaign member access
+# TODO might need to think again if this route requires campaign member access
 @router.get(
     "/timeseries/{timeseries_id}/{latitude}/{longitude}/data", response_model=TimeseriesDataResponse
 )
 def get_timeseries_data(
     timeseries_id: int, latitude: float, longitude: float, db: Session = Depends(get_db)
 ):
+    """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
 
     start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])

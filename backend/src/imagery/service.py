@@ -4,7 +4,6 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from src.campaigns.constants import CAMPAIGN_ROLE_ADMIN
 from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
 from src.imagery.models import Imagery, ImageryVisualizationUrlTemplate, ImageryWindow
 from src.imagery.schemas import CanvasLayoutCreate, ImageryCreate
@@ -296,7 +295,7 @@ def create_new_canvas_layout(
             .filter(
                 CampaignUser.campaign_id == campaign_id,
                 CampaignUser.user_id == user_id,
-                CampaignUser.role == CAMPAIGN_ROLE_ADMIN,
+                CampaignUser.is_admin,
             )
             .first()
         )

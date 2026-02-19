@@ -12,9 +12,8 @@ from src.annotation.router import router as annotations_router
 from src.timeseries.router import router as timeseries_router
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
-from src.utils import generate_unique_id
+from src.utils import generate_unique_id, initialize_earth_engine
 
-from src.timeseries import service as timeseries_service
 
 settings = get_settings()
 
@@ -33,7 +32,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize earth engine
-    timeseries_service.initialize_earth_engine()
+    initialize_earth_engine()
     yield
 
 

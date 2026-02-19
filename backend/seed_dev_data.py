@@ -16,9 +16,9 @@ from sqlalchemy import select
 from src.database import SessionLocal
 from src.auth.models import User, UserRole
 from src.campaigns.models import Campaign, CampaignSettings, CampaignUser, CanvasLayout
-from src.campaigns.constants import CAMPAIGN_ROLE_ADMIN, DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
+from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
 from src.imagery.models import Imagery, ImageryWindow, ImageryVisualizationUrlTemplate
-from src.annotation.models import AnnotationTaskItem, AnnotationGeometry
+from src.annotation.models import AnnotationTask, AnnotationTaskAssignment, AnnotationGeometry
 from src.timeseries.models import TimeSeries
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED
 
@@ -148,7 +148,8 @@ def seed_dev_data(firebase_uid: str = None):
         campaign_user = CampaignUser(
             campaign_id=campaign.id,
             user_id=user.id,
-            role=CAMPAIGN_ROLE_ADMIN
+            is_admin=True,  # Make user admin of the campaign
+            is_authorative_reviewer=False
         )
         db.add(campaign_user)
         
@@ -313,14 +314,21 @@ def seed_dev_data(firebase_uid: str = None):
             db.add(geom)
             db.flush()  # Get the geometry ID
             
-            # Create task with geometry reference and assign to user
-            task = AnnotationTaskItem(
+            # Create task with geometry reference
+            task = AnnotationTask(
                 campaign_id=campaign.id,
                 annotation_number=idx,
                 geometry_id=geom.id,
-                status="pending"
             )
             db.add(task)
+            db.flush()  # Get the task ID
+            
+            # Assign task to user
+            assignment = AnnotationTaskAssignment(
+                task_id=task.id,
+                user_id=user.id,
+            )
+            db.add(assignment)
         
         db.commit()
         

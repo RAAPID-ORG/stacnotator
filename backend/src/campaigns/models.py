@@ -7,13 +7,12 @@ from sqlalchemy import (
     Integer,
     String,
     TIMESTAMP,
-    Text,
     func,
+    Boolean
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.campaigns.constants import CAMPAIGN_ROLE_ADMIN, CAMPAIGN_ROLE_MEMBER
 from src.database import Base
 from src.imagery.models import Imagery
 
@@ -52,7 +51,7 @@ class Campaign(Base):
         "CampaignUser",
         cascade="all, delete-orphan",
     )
-    task_items: Mapped[list["AnnotationTaskItem"]] = relationship(  # noqa: F821
+    task_items: Mapped[list["AnnotationTask"]] = relationship(  # noqa: F821
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
@@ -178,10 +177,6 @@ class CampaignUser(Base):
 
     __tablename__ = "campaign_users"
     __table_args__ = (
-        CheckConstraint(
-            f"role IN ('{CAMPAIGN_ROLE_MEMBER}', '{CAMPAIGN_ROLE_ADMIN}')",
-            name="campaign_users_role_check",
-        ),
         {"schema": "data"},
     )
 
@@ -195,8 +190,9 @@ class CampaignUser(Base):
         primary_key=True,
     )
 
-    # User role in campaign
-    role: Mapped[str] = mapped_column(Text, nullable=False)
+    # User roles in campaign
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     user: Mapped["User"] = relationship()  # noqa: F821

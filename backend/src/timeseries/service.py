@@ -18,34 +18,8 @@ settings = get_settings()
 # Timeseries data fetching and processing functions for Earth Engine
 # ============================================================================
 
-# TODO in the future, would like to support timesteries from STAC catalog
+# TODO in the future, would like to support timesteries from STAC catalog, but currently too slow
 # Also want to allow users to define their timeseries band combinations and use these
-
-
-def initialize_earth_engine():
-    """
-    Initialize EarthEngine using a service Account
-    Supports both EE_PRIVATE_KEY_PATH (file path) and EE_PRIVATE_KEY (direct key content)
-    """
-    service_account = settings.EE_SERVICE_ACCOUNT
-    private_key_path = settings.EE_PRIVATE_KEY_PATH
-    private_key = settings.EE_PRIVATE_KEY
-
-    if not service_account:
-        raise RuntimeError("Environment variable EE_SERVICE_ACCOUNT must be set")
-
-    if not private_key_path and not private_key:
-        raise RuntimeError(
-            "Either EE_PRIVATE_KEY_PATH or EE_PRIVATE_KEY environment variable must be set"
-        )
-
-    # Use direct key content if available, otherwise use file path
-    if private_key:
-        credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
-    else:
-        credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
-
-    ee.Initialize(credentials)
 
 
 def add_ndvi_band_to_ee_image(image: ee.Image, nir: str, red: str, name: str = "NDVI") -> ee.Image:
@@ -176,7 +150,7 @@ def get_timeseries_data(
 def _add_timeseries_entry_to_layout(
     layout_data: list[dict],
     window_width: int = 10,
-    window_height: int = 8,
+    window_height: int = 12,
     grid_width: int = 60,
 ) -> bool:
     """

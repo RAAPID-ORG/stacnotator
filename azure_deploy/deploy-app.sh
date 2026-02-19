@@ -242,21 +242,7 @@ REPLICA_NAME=$(az containerapp replica list \
     --query "[0].name" -o tsv 2>/dev/null || echo "")
 
 if [ -n "$REPLICA_NAME" ]; then
-    echo -e "${BLUE}  Running PostGIS initialization in replica: $REPLICA_NAME${NC}"
-    
-    # Run Python script to create PostGIS extensions
-    if az containerapp exec \
-        --name backend \
-        --resource-group "$RESOURCE_GROUP" \
-        --replica "$REPLICA_NAME" \
-        --command "python init_postgis.py" 2>&1; then
-        echo -e "${GREEN}✓ Database initialization completed${NC}"
-    else
-        echo -e "${RED}ERROR: Database initialization failed${NC}"
-        echo -e "${YELLOW}PostGIS extensions are required for migrations${NC}"
-        echo -e "${YELLOW}Check the output above for errors${NC}"
-        exit 1
-    fi
+    echo -e "${BLUE}  Running database migrations in replica: $REPLICA_NAME${NC}"
 else
     echo -e "${YELLOW}Warning: Could not find active backend replica${NC}"
 fi

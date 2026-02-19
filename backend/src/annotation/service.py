@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
+    ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
 )
-from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskItem
+from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
 from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
 from src.campaigns.models import Campaign
@@ -33,7 +34,7 @@ def get_annotation_task_by_id(
     db: Session,
     task_id: int,
     campaign_id: int,
-) -> Optional[AnnotationTaskItem]:
+) -> Optional[AnnotationTask]:
     """
     Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
     
@@ -46,10 +47,10 @@ def get_annotation_task_by_id(
         Annotation task item or None if not found
     """
     stmt = (
-        select(AnnotationTaskItem)
+        select(AnnotationTask)
         .where(
-            AnnotationTaskItem.id == task_id,
-            AnnotationTaskItem.campaign_id == campaign_id,
+            AnnotationTask.id == task_id,
+            AnnotationTask.campaign_id == campaign_id,
         )
     )
     
@@ -59,12 +60,12 @@ def get_annotation_task_by_id(
 def get_annotation_tasks_for_campaign(
     db: Session,
     campaign_id: int,
-) -> List[AnnotationTaskItem]:
+) -> List[AnnotationTask]:
     """
     Retrieve all annotation tasks for a campaign with eager loading
     to avoid N+1 query problem.
     
-    This loads all related data (geometry, assigned user, annotation) 
+    This loads all related data (geometry, assignments, annotations) 
     in a single optimized query.
     
     Args:
@@ -75,14 +76,14 @@ def get_annotation_tasks_for_campaign(
         List of annotation task items with all relationships loaded
     """
     stmt = (
-        select(AnnotationTaskItem)
-        .where(AnnotationTaskItem.campaign_id == campaign_id)
+        select(AnnotationTask)
+        .where(AnnotationTask.campaign_id == campaign_id)
         .options(
-            joinedload(AnnotationTaskItem.geometry),
-            joinedload(AnnotationTaskItem.assigned_user),
-            joinedload(AnnotationTaskItem.annotation),
+            joinedload(AnnotationTask.geometry),
+            joinedload(AnnotationTask.assignments),
+            joinedload(AnnotationTask.annotations),
         )
-        .order_by(AnnotationTaskItem.annotation_number)
+        .order_by(AnnotationTask.annotation_number)
     )
     
     return db.scalars(stmt).unique().all()
@@ -208,7 +209,7 @@ def create_annotation_tasks_from_csv(
             for geometry_id, (_, row) in zip(geometry_ids, df.iterrows())
         ]
 
-        db.execute(insert(AnnotationTaskItem), task_records)
+        db.execute(insert(AnnotationTask), task_records)
         db.commit()
 
     except Exception:
@@ -223,23 +224,22 @@ def create_annotation_tasks_from_csv(
 # Annotation Creation
 # ============================================================================
 
-
 def add_annotation_for_task(
     db: Session,
-    annotation_task: AnnotationTaskItem,
+    annotation_task: AnnotationTask,
     annotation_create: AnnotationFromTaskCreate,
     user_id: UUID,
 ) -> Optional[Annotation]:
     """
     Create or update annotation for a task item and update task status.
 
-    If annotation exists:
-    - Delete it if no new label provided and mark task as skipped
+    If annotation exists (same task, same user):
+    - Delete it if no new label provided and mark assignment as skipped
     - Update it if new label/comment is provided
 
     If annotation doesn't exist:
     - Create annotation record if label or comment is provided
-    - Update task status to 'done' (with label) or 'skipped' (without label)
+    - If from assignment: Update assignment status to 'done' (with label) or 'skipped' (without label)
 
     Args:
         db: Database session
@@ -247,44 +247,65 @@ def add_annotation_for_task(
         annotation_create: Annotation data from user
         user_id: ID of user creating the annotation
     """
+
+    # TODO refactor split into a add and edit function and call externally
+
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
-        select(Annotation).where(Annotation.annotation_task_item_id == annotation_task.id)
+        select(Annotation).where(
+            Annotation.annotation_task_id == annotation_task.id,
+            Annotation.created_by_user_id == user_id
+        )
+    ).scalar_one_or_none()
+
+    assignment = db.execute(
+        select(AnnotationTaskAssignment).where(
+            AnnotationTaskAssignment.task_id == annotation_task.id,
+            AnnotationTaskAssignment.user_id == user_id
+        )
     ).scalar_one_or_none()
 
     annotation = None
 
-    if existing_annotation:
+    if existing_annotation: # UPDATE
         # If no new label provided, delete existing annotation and mark as skipped
         if annotation_create.label_id is None:
             db.delete(existing_annotation)
-            annotation_task.status = ANNOTATION_TASK_STATUS_SKIPPED
+            if assignment:
+                assignment.status = ANNOTATION_TASK_STATUS_SKIPPED
         else:
             # Update existing annotation with new label/comment
             existing_annotation.label_id = annotation_create.label_id
             existing_annotation.comment = annotation_create.comment
             existing_annotation.created_by_user_id = user_id
-            annotation_task.status = ANNOTATION_TASK_STATUS_DONE
-            annotation = existing_annotation
-    else:
+            existing_annotation.confidence = annotation_create.confidence
+            if annotation_create.is_authoritative is not None:
+                existing_annotation.is_authoritative = annotation_create.is_authoritative
+            if assignment:
+                assignment.status = ANNOTATION_TASK_STATUS_DONE
+                annotation = existing_annotation
+    else: # CREATE
         # Create new annotation if label or comment provided
         if annotation_create.label_id is not None or annotation_create.comment is not None:
             annotation = Annotation(
                 geometry_id=annotation_task.geometry_id,
                 label_id=annotation_create.label_id,
                 comment=annotation_create.comment,
-                annotation_task_item_id=annotation_task.id,
+                annotation_task_id=annotation_task.id,
                 campaign_id=annotation_task.campaign_id,
                 created_by_user_id=user_id,
+                confidence=annotation_create.confidence,
+                is_authoritative=annotation_create.is_authoritative or False,
             )
             db.add(annotation)
 
-        # Update task status
-        annotation_task.status = (
-            ANNOTATION_TASK_STATUS_SKIPPED
-            if annotation_create.label_id is None
-            else ANNOTATION_TASK_STATUS_DONE
-        )
+        # Update assigment status if from assignment
+        if assignment:
+            assignment.status = (
+                ANNOTATION_TASK_STATUS_SKIPPED
+                if annotation_create.label_id is None
+                else ANNOTATION_TASK_STATUS_DONE
+            )
 
     db.commit()
 
@@ -329,7 +350,8 @@ def create_annotation(
             comment=annotation_create.comment,
             campaign_id=campaign.id,
             created_by_user_id=user_id,
-            annotation_task_item_id=None,  # Standalone annotation
+            confidence=annotation_create.confidence,
+            annotation_task_id=None,  # Standalone annotation
         )
         db.add(annotation)
         db.commit()
@@ -470,16 +492,18 @@ def delete_annotation(
 
     try:
         # If linked to a task, reset task status to pending
-        if annotation.annotation_task_item_id is not None:
-            task = db.execute(
-                select(AnnotationTaskItem).where(
-                    AnnotationTaskItem.id == annotation.annotation_task_item_id
+        if annotation.annotation_task_id is not None:
+            
+            assignment = db.execute(
+                select(AnnotationTaskAssignment).where(
+                    AnnotationTaskAssignment.task_id == annotation.annotation_task_id,
+                    AnnotationTaskAssignment.user_id == annotation.created_by_user_id
                 )
             ).scalar_one_or_none()
 
-            if task:
-                task.status = "pending"
-                db.add(task)  # Explicitly add to session to ensure update is tracked
+            if assignment:
+                assignment.status = ANNOTATION_TASK_STATUS_PENDING
+                db.add(assignment)  # Explicitly add to session to ensure update is tracked
 
         # Delete the annotation
         db.delete(annotation)
@@ -526,93 +550,65 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
             label_data = labels[label_id_str]
             return label_data.get("name") if isinstance(label_data, dict) else label_data
         return None
-
-    def get_user_email(user_id):
-        """Resolve user ID to email address."""
-        if user_id is None:
-            return None
-        user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
-        return user.email if user else None
-
-
-    stmt = (
-        select(AnnotationTaskItem)
-        .where(AnnotationTaskItem.campaign_id == campaign.id)
-        .options(
-            joinedload(AnnotationTaskItem.geometry),
-            joinedload(AnnotationTaskItem.assigned_user),
-            joinedload(AnnotationTaskItem.annotation),
-        )
+    
+    # Query all annotations with eagerly loaded relationships
+    annotations = (
+        db.execute(
+            select(Annotation)
+            .where(Annotation.campaign_id == campaign.id)
+            .options(
+                joinedload(Annotation.geometry),
+                joinedload(Annotation.annotation_task)
+            )
+        ).unique().scalars().all()
     )
-    task_items = db.scalars(stmt).unique().all()
+
+    # Batch fetch all unique user emails
+    user_ids = {ann.created_by_user_id for ann in annotations if ann.created_by_user_id}
+    user_email_map = {}
+    if user_ids:
+        users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
+        user_email_map = {user.id: user.email for user in users}
 
     export_records = []
+    all_columns = set()
 
-    # Process task items (with or without annotations)
-    for task in task_items:
-        # Start with raw source data
-        record = task.raw_source_data.copy() if task.raw_source_data else {}
-
-        # Add task metadata
-        record["annotation_id"] = task.id
-        record["annotation_number"] = task.annotation_number
-        record["task_status"] = task.status
-        record["assigned_user_email"] = get_user_email(task.assigned_user_id)
-        record["geometry_wkt"] = (
-            convert_geometry_to_wkt(task.geometry.geometry) if task.geometry else None
-        )
-
-        # Add annotation data if exists
-        if task.annotation:
-            record["annotation_label_id"] = task.annotation.label_id
-            record["annotation_label_name"] = get_label_name(task.annotation.label_id)
-            record["annotation_comment"] = task.annotation.comment
-            record["annotation_created_by_user_email"] = get_user_email(
-                task.annotation.created_by_user_id
-            )
-            record["annotation_created_at"] = task.annotation.created_at
-        else:
-            # Null annotation fields for unannotated tasks
-            record["annotation_label_id"] = None
-            record["annotation_label_name"] = None
-            record["annotation_comment"] = None
-            record["annotation_created_by_user_email"] = None
-            record["annotation_created_at"] = None
-
-        export_records.append(record)
-
-    stmt = (
-        select(Annotation)
-        .where(
-            Annotation.campaign_id == campaign.id,
-            Annotation.annotation_task_item_id.is_(None),
-        )
-        .options(
-            joinedload(Annotation.geometry),
-        )
-    )
-    standalone_annotations = db.scalars(stmt).unique().all()
-
-    # Process standalone annotations
-    for annotation in standalone_annotations:
+    for annotation in annotations:
         record = {
-            # Null task fields
-            "annotation_id": None,
-            "annotation_number": None,
-            "task_status": None,
-            "assigned_user_email": None,
+            # Annotation fields
+            "stacnotator_internal_identifier": annotation.id,
+            "annotation_label_id": annotation.label_id,
+            "annotation_label_name": get_label_name(annotation.label_id),
+            "annotation_comment": annotation.comment,
+            "annotation_confidence": annotation.confidence,
+            "annotation_is_authoritative": annotation.is_authoritative,
+            "annotation_created_by_user_email": user_email_map.get(annotation.created_by_user_id),
+            "annotation_created_at": annotation.created_at,
             "geometry_wkt": (
                 convert_geometry_to_wkt(annotation.geometry.geometry)
                 if annotation.geometry
                 else None
             ),
-            # Annotation fields
-            "annotation_label_id": annotation.label_id,
-            "annotation_label_name": get_label_name(annotation.label_id),
-            "annotation_comment": annotation.comment,
-            "annotation_created_by_user_email": get_user_email(annotation.created_by_user_id),
-            "annotation_created_at": annotation.created_at,
         }
+
+        if annotation.annotation_task_id:
+            task = annotation.annotation_task
+            raw_source = task.raw_source_data if task.raw_source_data else {}
+
+            # Merge raw source data into record
+            record.update(raw_source)
+
+            # Task fields
+            record["stacnotator_internal_task_identifier"] = task.id
+            record["annotation_number"] = task.annotation_number
+
+        # Track all columns as we build records
+        all_columns.update(record.keys())
         export_records.append(record)
+
+    # Fill missing columns with NaN in a single pass
+    for record in export_records:
+        for col in all_columns:
+            record.setdefault(col, np.nan)
 
     return pd.DataFrame(export_records)

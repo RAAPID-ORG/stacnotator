@@ -2,9 +2,11 @@
 # Usage: docker-compose -f docker-compose.dev.yml up
 
 services:
-  # PostgreSQL Database with PostGIS
+  # PostgreSQL Database with PostGIS + pgvector
   db:
-    image: postgis/postgis:16-3.4-alpine
+    build:
+      context: ./db
+    image: stacnotator-db:dev
     container_name: stacnotator-db-dev
     restart: unless-stopped
     environment:
@@ -13,7 +15,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -52,7 +53,7 @@ services:
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
-      - ./backend/alembic:/app/alembic:ro
+      - ./backend/alembic:/app/alembic  # Writable for creating migrations
       - ./backend/alembic.ini:/app/alembic.ini:ro
       - ./backend/logging.ini:/app/logging.ini:ro
       - ./backend/seed_dev_data.py:/app/seed_dev_data.py:ro
@@ -83,7 +84,7 @@ services:
       - backend
     volumes:
       # Mount source code for hot reloading
-      - ./frontend/app:/app/app:ro
+      - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro
       - ./frontend/index.html:/app/index.html:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
