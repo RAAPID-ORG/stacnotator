@@ -164,13 +164,15 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       // Add popup with task info
       const assignments = task.assignments || [];
       const assignedTo = assignments.length > 0
-        ? assignments.map(a => a.user_id).join(', ')
+        ? assignments.map(a => a.user_display_name || a.user_email || a.user_id).join(', ')
         : 'Unassigned';
 
       const annotationInfo = annotations.length > 0
         ? annotations.map(a => {
             const label = labels.find(l => l.id === a.label_id);
-            return `${label?.name || 'Skipped'} (by ${a.created_by_user_id})`;
+            const annotator = assignments.find(asgn => asgn.user_id === a.created_by_user_id);
+            const annotatorName = annotator?.user_display_name || annotator?.user_email || a.created_by_user_id;
+            return `${label?.name || 'Skipped'} (by ${annotatorName})`;
           }).join('<br>')
         : 'No annotations';
 

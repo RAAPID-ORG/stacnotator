@@ -80,7 +80,7 @@ def get_annotation_tasks_for_campaign(
         .where(AnnotationTask.campaign_id == campaign_id)
         .options(
             joinedload(AnnotationTask.geometry),
-            joinedload(AnnotationTask.assignments),
+            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
             joinedload(AnnotationTask.annotations),
         )
         .order_by(AnnotationTask.annotation_number)

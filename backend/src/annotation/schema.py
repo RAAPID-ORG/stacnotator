@@ -1,6 +1,6 @@
 from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from datetime import datetime
 from geoalchemy2.shape import to_shape
 from src.auth.schemas import UserOut
@@ -46,6 +46,21 @@ class AnnotationTaskAssignmentOut(BaseModel):
     status: str
     user_email: Optional[str] = None
     user_display_name: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_user_info(cls, data):
+        """Populate user_email and user_display_name from the user relationship."""
+        if hasattr(data, "user") and data.user is not None:
+            user = data.user
+            result = {
+                "user_id": data.user_id,
+                "status": data.status,
+                "user_email": user.email,
+                "user_display_name": user.display_name,
+            }
+            return result
+        return data
 
     class Config:
         from_attributes = True
