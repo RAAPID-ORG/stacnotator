@@ -95,12 +95,14 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
 
   // Determine zoom level
+  // In both open mode and task mode, use the synchronized zoom from the store
+  // so that zooming on the main map also zooms the small imagery containers
   const zoom = useMemo(() => {
-    if (isOpenMode && currentMapZoom !== null) {
+    if (currentMapZoom !== null) {
       return currentMapZoom;
     }
     return selectedImagery.default_zoom;
-  }, [isOpenMode, currentMapZoom, selectedImagery.default_zoom]);
+  }, [currentMapZoom, selectedImagery.default_zoom]);
 
   const { tileUrls, loading, error } = useStacImagery({
     registrationUrl: selectedImagery.registration_url,
@@ -199,7 +201,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
         crosshairColor={selectedImagery.crosshair_hex6}
         refocusTrigger={refocusTrigger}
         disableKeyboard={true}
-        syncMapState={isOpenMode}
+        syncMapState={true}
         showCrosshair={!isOpenMode}
       />
     </div>

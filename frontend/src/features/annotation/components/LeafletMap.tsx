@@ -180,8 +180,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
     const zoomChanged = initialZoomRef.current !== zoom;
 
     if (!initializedRef.current || centerChanged || (syncMapState && zoomChanged)) {
-      // Use setView without animation for smoother sync in open mode
-      mapRef.current.setView(center, zoom, { animate: !syncMapState });
+      mapRef.current.setView(center, zoom, { animate: initializedRef.current });
       initialCenterRef.current = center;
       initialZoomRef.current = zoom;
       initializedRef.current = true;
