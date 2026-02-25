@@ -75,7 +75,12 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Annotation Labels</h2>
         <p className="text-sm text-neutral-500 mb-4">The class names annotators choose from when labeling. Labels cannot be changed after creation to preserve data consistency.</p>
-        <LabelsEditor value={campaign.settings.labels} onChange={() => {}} readOnly={true} />
+        <LabelsEditor
+          value={campaign.settings.labels}
+          onChange={() => {}}
+          readOnly={true}
+          showGeometryType={campaign.mode === 'open'}
+        />
       </div>
 
       <div className="bg-white rounded-lg border border-red-300 p-6">

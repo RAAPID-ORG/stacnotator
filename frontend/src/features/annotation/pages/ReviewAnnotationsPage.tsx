@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 
@@ -6,6 +6,7 @@ import {
   getAllAnnotationTasks,
   getCampaign,
   exportAnnotations,
+  exportAnnotationsGeojson,
   type AnnotationTaskOut,
   type CampaignOut,
 } from '~/api/client';
@@ -30,8 +31,10 @@ export const ViewAnnotationsPage = () => {
 
   // Page States
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [showMap, setShowMap] = useState(true);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Filter States
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -199,24 +202,37 @@ export const ViewAnnotationsPage = () => {
     navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
   };
 
-  const handleExportAnnotations = async () => {
+  // Close export dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target as Node)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExport = async (format: 'csv' | 'geojson') => {
     if (!campaign) return;
+    setExporting(format);
+    setShowExportDropdown(false);
 
     try {
-      setExporting(true);
-
-      const response = await exportAnnotations({
+      const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
+      const response = await fetcher({
         path: { campaign_id: numericCampaignId },
         parseAs: 'blob',
       });
 
       if (!response.response.ok || !response.data) {
-        throw new Error('Failed to export annotations');
+        throw new Error(`Failed to export annotations as ${format.toUpperCase()}`);
       }
 
       const blob = response.data as Blob;
+      const ext = format === 'geojson' ? 'geojson' : 'csv';
       const contentDisposition = response.response.headers.get('Content-Disposition');
-      let filename = `campaign_${campaign.name.replace(/\s+/g, '_')}_annotations.csv`;
+      let filename = `campaign_${campaign.name.replace(/\s+/g, '_')}_annotations.${ext}`;
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
@@ -237,13 +253,13 @@ export const ViewAnnotationsPage = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      showAlert('Annotations exported successfully', 'success');
+      showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to export annotations';
       showAlert(message, 'error');
       console.error(err);
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -276,44 +292,70 @@ export const ViewAnnotationsPage = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleExportAnnotations}
-            disabled={exporting || tasks.length === 0}
-            className="px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {exporting ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Exporting...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
-                Export CSV
-              </>
+          {/* Export Dropdown */}
+          <div className="relative" ref={exportDropdownRef}>
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              disabled={exporting !== null || tasks.length === 0}
+              className="px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {exporting ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                  Export
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </>
+              )}
+            </button>
+            {showExportDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg z-20 min-w-[180px]">
+                <button
+                  onClick={() => handleExport('geojson')}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-100 transition-colors text-neutral-900 rounded-t-lg"
+                  type="button"
+                >
+                  <div className="font-medium">GeoJSON</div>
+                  <div className="text-xs text-gray-500">FeatureCollection (.geojson)</div>
+                </button>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200 rounded-b-lg"
+                  type="button"
+                >
+                  <div className="font-medium">CSV</div>
+                  <div className="text-xs text-gray-500">Tabular export (.csv)</div>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
           <button
             onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
             className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"

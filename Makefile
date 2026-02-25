@@ -1,4 +1,4 @@
-.PHONY: help build up down logs clean test migrate
+.PHONY: help build up down logs clean test migrate dev-openapi
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -70,6 +70,9 @@ dev-seed: ## Seed development database with sample data (use FIREBASE_UID="your-
 
 dev-seed-clear: ## Clear development seed data
 	$(COMPOSE_DEV) exec backend python seed_dev_data.py clear
+
+dev-openapi: ## Regenerate frontend API client from backend OpenAPI schema (backend must be running)
+	cd frontend && npm run openapi-ts
 
 dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Resetting development database..."

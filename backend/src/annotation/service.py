@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, joinedload
+from shapely.geometry import mapping
+
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
@@ -522,13 +524,6 @@ def delete_annotation(
 def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
     """
     Build comprehensive export of all annotations and tasks for a campaign.
-
-    Args:
-        db: Database session
-        campaign: Campaign to export data for
-
-    Returns:
-        DataFrame with all annotation and task data
     """
 
     def convert_geometry_to_wkt(geom):
@@ -612,3 +607,91 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
             record.setdefault(col, np.nan)
 
     return pd.DataFrame(export_records)
+
+
+def build_annotations_geojson_export(db: Session, campaign: Campaign) -> dict:
+    """
+    Build a GeoJSON FeatureCollection of all annotations for a campaign.
+
+    Each annotation becomes a GeoJSON Feature with its geometry and properties
+    containing label info, user, confidence, etc.
+    """
+
+    def get_label_name(label_id):
+        """Resolve label ID to label name from campaign settings."""
+        if label_id is None:
+            return None
+        labels = campaign.settings.labels if campaign.settings else {}
+        label_id_str = str(label_id)
+        if label_id_str in labels:
+            label_data = labels[label_id_str]
+            return label_data.get("name") if isinstance(label_data, dict) else label_data
+        return None
+
+    # Query all annotations with eagerly loaded relationships
+    annotations = (
+        db.execute(
+            select(Annotation)
+            .where(Annotation.campaign_id == campaign.id)
+            .options(
+                joinedload(Annotation.geometry),
+                joinedload(Annotation.annotation_task),
+            )
+        )
+        .unique()
+        .scalars()
+        .all()
+    )
+
+    # Batch fetch all unique user emails
+    user_ids = {ann.created_by_user_id for ann in annotations if ann.created_by_user_id}
+    user_email_map: dict = {}
+    if user_ids:
+        users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
+        user_email_map = {user.id: user.email for user in users}
+
+    features = []
+    for annotation in annotations:
+        # Convert PostGIS geometry -> Shapely shape -> GeoJSON geometry dict
+        geojson_geometry = None
+        if annotation.geometry:
+            try:
+                shape = to_shape(annotation.geometry.geometry)
+                geojson_geometry = mapping(shape)
+            except Exception:
+                geojson_geometry = None
+
+        properties = {
+            "id": annotation.id,
+            "label_id": annotation.label_id,
+            "label_name": get_label_name(annotation.label_id),
+            "comment": annotation.comment,
+            "confidence": annotation.confidence,
+            "is_authoritative": annotation.is_authoritative,
+            "created_by_user_email": user_email_map.get(annotation.created_by_user_id),
+            "created_at": annotation.created_at.isoformat() if annotation.created_at else None,
+        }
+
+        if annotation.annotation_task_id:
+            task = annotation.annotation_task
+            properties["task_id"] = task.id
+            properties["annotation_number"] = task.annotation_number
+
+            # Include original source data from CSV upload (if any)
+            if task.raw_source_data:
+                for key, value in task.raw_source_data.items():
+                    # Prefix to avoid collisions with annotation properties
+                    properties[key] = value
+
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": geojson_geometry,
+                "properties": properties,
+            }
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+    }

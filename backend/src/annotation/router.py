@@ -214,6 +214,28 @@ def export_annotations(
     )
 
 
+@router.get("/campaigns/{campaign_id}/export-annotations-geojson")
+def export_annotations_geojson(
+    db: Session = Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
+):
+    """Export all annotations for a campaign as a GeoJSON FeatureCollection file."""
+    import json
+
+    geojson = service.build_annotations_geojson_export(db, campaign)
+    campaign_name_cleaned = clean_filename(campaign.name)
+    content = json.dumps(geojson)
+    buffer = io.StringIO(content)
+    return StreamingResponse(
+        buffer,
+        media_type="application/geo+json",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="campaign_{campaign_name_cleaned}_annotations.geojson"'
+            )
+        },
+    )
+
+
 @router.get("/campaigns/{campaign_id}/annotations", response_model=list[AnnotationOut])
 def get_all_annotations_for_campaign(
     campaign_id: int,

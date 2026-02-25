@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Layout } from 'react-grid-layout';
+import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
 import useAnnotationStore, { type TaskStatus } from '../annotation.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
@@ -174,10 +175,13 @@ export const AnnotationToolbar = () => {
   const [showImageryDropdown, setShowImageryDropdown] = useState(false);
   const [showTaskFilterDropdown, setShowTaskFilterDropdown] = useState(false);
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
 
   const imageryDropdownRef = useRef<HTMLDivElement>(null);
   const taskFilterDropdownRef = useRef<HTMLDivElement>(null);
   const saveDropdownRef = useRef<HTMLDivElement>(null);
+  const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Get state from store
   const campaign = useAnnotationStore((state) => state.campaign);
@@ -215,6 +219,9 @@ export const AnnotationToolbar = () => {
       }
       if (saveDropdownRef.current && !saveDropdownRef.current.contains(event.target as Node)) {
         setShowSaveDropdown(false);
+      }
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setShowExportDropdown(false);
       }
     };
 
@@ -295,6 +302,48 @@ export const AnnotationToolbar = () => {
     showAlert('Layout reset to defaults', 'success');
   };
 
+  const handleExport = async (format: 'csv' | 'geojson') => {
+    if (!campaign) return;
+    setExporting(format);
+    setShowExportDropdown(false);
+    try {
+      const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
+      const response = await fetcher({
+        path: { campaign_id: campaign.id },
+        parseAs: 'blob',
+      });
+
+      if (!response.response.ok || !response.data) {
+        throw new Error(`Failed to export annotations as ${format.toUpperCase()}`);
+      }
+
+      const blob = response.data as Blob;
+      const ext = format === 'geojson' ? 'geojson' : 'csv';
+      const contentDisposition = response.response.headers.get('Content-Disposition');
+      let filename = `${campaign.name.replace(/\s+/g, '_')}_annotations.${ext}`;
+
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+)"?/i);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
+    } catch (err) {
+      console.error('Export failed:', err);
+      showAlert('Failed to export annotations', 'error');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <header className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0">
       <div className="flex items-center gap-2">
@@ -365,7 +414,8 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* Review Mode Toggle + Navigate to Review Page */}
+        {/* Review Mode Toggle + Navigate to Review Page (tasks mode only) */}
+        {campaign.mode === 'tasks' && (
         <div className="flex items-center rounded overflow-hidden">
           {/* Toggle review mode on/off */}
           <button
@@ -398,6 +448,7 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
         </div>
+        )}
 
         {/* Campaign Settings Button */}
         <button
@@ -418,6 +469,46 @@ export const AnnotationToolbar = () => {
           </svg>
           <span>Settings</span>
         </button>
+
+        {/* Export Dropdown */}
+        <div className="relative" ref={exportDropdownRef}>
+          <button
+            onClick={() => setShowExportDropdown(!showExportDropdown)}
+            disabled={exporting !== null}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showExportDropdown ? 'bg-neutral-100' : ''} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            type="button"
+            title="Export annotations"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
+              <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+            </svg>
+            <span>{exporting ? 'Exporting…' : 'Export'}</span>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
+            </svg>
+          </button>
+          {showExportDropdown && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[160px]">
+              <button
+                onClick={() => handleExport('geojson')}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
+                type="button"
+              >
+                <div className="font-medium">GeoJSON</div>
+                <div className="text-[10px] text-gray-500">FeatureCollection (.geojson)</div>
+              </button>
+              <button
+                onClick={() => handleExport('csv')}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
+                type="button"
+              >
+                <div className="font-medium">CSV</div>
+                <div className="text-[10px] text-gray-500">Tabular export (.csv)</div>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right - Layout Controls */}

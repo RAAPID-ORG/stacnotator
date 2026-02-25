@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, field_validator, computed_field
@@ -18,6 +18,7 @@ class LabelBase(BaseModel):
 
     id: int  # ID that is used for annotation
     name: str
+    geometry_type: Optional[Literal["point", "polygon", "line"]] = None
 
 
 class CampaignSettingsOut(BaseModel):
@@ -32,10 +33,22 @@ class CampaignSettingsOut(BaseModel):
     def convert_labels(cls, v):
         """
         Convert JSONB dict from DB to -> List[Label]
-        {"1": "Forest"} -> [{id: 1, name: "Forest"}]
+        New format: {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, name: "Forest", geometry_type: "polygon"}]
+        Legacy format: {"1": "Forest"} -> [{id: 1, name: "Forest", geometry_type: None}]
         """
         if isinstance(v, dict):
-            return [LabelBase(id=int(k), name=str(vv)) for k, vv in v.items()]
+            result = []
+            for k, vv in v.items():
+                if isinstance(vv, dict):
+                    result.append(LabelBase(
+                        id=int(k),
+                        name=vv.get("name", ""),
+                        geometry_type=vv.get("geometry_type"),
+                    ))
+                else:
+                    # Legacy format: value is just the name string
+                    result.append(LabelBase(id=int(k), name=str(vv)))
+            return result
         return v
 
     class Config:
@@ -51,8 +64,14 @@ class CampaignSettingsCreate(BaseModel):
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
+        labels_dict = {}
+        for label in self.labels:
+            label_data = {"name": label.name}
+            if label.geometry_type is not None:
+                label_data["geometry_type"] = label.geometry_type
+            labels_dict[str(label.id)] = label_data
         return {
-            "labels": {str(label.id): label.name for label in self.labels},
+            "labels": labels_dict,
             "bbox_west": self.bbox_west,
             "bbox_south": self.bbox_south,
             "bbox_east": self.bbox_east,

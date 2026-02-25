@@ -1047,6 +1047,10 @@ export type LabelBase = {
      * Name
      */
     name: string;
+    /**
+     * Geometry Type
+     */
+    geometry_type?: 'point' | 'polygon' | 'line' | null;
 };
 
 /**
@@ -2612,6 +2616,34 @@ export type ExportAnnotationsErrors = {
 export type ExportAnnotationsError = ExportAnnotationsErrors[keyof ExportAnnotationsErrors];
 
 export type ExportAnnotationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ExportAnnotationsGeojsonData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/export-annotations-geojson';
+};
+
+export type ExportAnnotationsGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportAnnotationsGeojsonError = ExportAnnotationsGeojsonErrors[keyof ExportAnnotationsGeojsonErrors];
+
+export type ExportAnnotationsGeojsonResponses = {
     /**
      * Successful Response
      */

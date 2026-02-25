@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { LabelBase } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -32,16 +31,13 @@ const LABEL_COLORS = [
 ];
 
 /**
- * Assign colors and mock geometry types to labels
- * In production, these would come from the backend
+ * Assign colors to labels and use geometry types from backend
+ * Falls back to 'polygon' if geometry_type is not set (legacy data)
  */
 export const extendLabelsWithMetadata = (labels: LabelBase[]): ExtendedLabel[] => {
   return labels.map((label, index) => ({
     ...label,
-    // TODO: geometry_type should come from backend
-    // For now, default all labels to polygon (most common for remote sensing)
-    // You can manually change specific labels if needed
-    geometry_type: 'polygon' as GeometryType,
+    geometry_type: (label.geometry_type as GeometryType) || 'polygon',
     color: LABEL_COLORS[index % LABEL_COLORS.length],
   }));
 };

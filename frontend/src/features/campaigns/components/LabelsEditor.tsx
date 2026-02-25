@@ -1,19 +1,35 @@
 import type { LabelBase } from '~/api/client';
 
+const GEOMETRY_TYPES = [
+  { value: 'point', label: '● Point' },
+  { value: 'polygon', label: '▰ Polygon' },
+  { value: 'line', label: '━ Line' },
+] as const;
+
 interface LabelsEditorProps {
   value: LabelBase[];
   onChange: (labels: LabelBase[]) => void;
   readOnly?: boolean;
+  /** When true (open mode), show geometry type selector per label */
+  showGeometryType?: boolean;
 }
 
-export const LabelsEditor = ({ value, onChange, readOnly = false }: LabelsEditorProps) => {
+export const LabelsEditor = ({ value, onChange, readOnly = false, showGeometryType = false }: LabelsEditorProps) => {
   const addLabel = () => {
     const nextId = value.length === 0 ? 1 : Math.max(...value.map((l) => l.id)) + 1;
-    onChange([...value, { id: nextId, name: '' }]);
+    const newLabel: LabelBase = { id: nextId, name: '' };
+    if (showGeometryType) {
+      newLabel.geometry_type = 'polygon';
+    }
+    onChange([...value, newLabel]);
   };
 
   const updateLabel = (id: number, name: string) => {
     onChange(value.map((l) => (l.id === id ? { ...l, name } : l)));
+  };
+
+  const updateGeometryType = (id: number, geometry_type: 'point' | 'polygon' | 'line') => {
+    onChange(value.map((l) => (l.id === id ? { ...l, geometry_type } : l)));
   };
 
   const removeLabel = (id: number) => {
@@ -36,6 +52,23 @@ export const LabelsEditor = ({ value, onChange, readOnly = false }: LabelsEditor
               readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''
             }`}
           />
+
+          {showGeometryType && (
+            <select
+              value={label.geometry_type || 'polygon'}
+              onChange={(e) => updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')}
+              disabled={readOnly}
+              className={`text-xs border border-neutral-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-brand-500 ${
+                readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''
+              }`}
+            >
+              {GEOMETRY_TYPES.map((gt) => (
+                <option key={gt.value} value={gt.value}>
+                  {gt.label}
+                </option>
+              ))}
+            </select>
+          )}
 
           {!readOnly && (
             <button

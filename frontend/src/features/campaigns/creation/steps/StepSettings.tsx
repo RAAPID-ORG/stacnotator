@@ -52,8 +52,13 @@ export const StepSettings = ({
         <h3 className="text-sm font-medium text-neutral-900 mb-1">Labels</h3>
         <p className="text-xs text-neutral-500 mb-3">
           The class names annotators will choose from when labeling. Each label is assigned an ID automatically in the order you add them.
+          {form.mode === 'open' && ' For open mode, you can also specify the geometry type per label.'}
         </p>
-        <LabelsEditor value={s.labels} onChange={(labels) => updateSettings('labels', labels)} />
+        <LabelsEditor
+          value={s.labels}
+          onChange={(labels) => updateSettings('labels', labels)}
+          showGeometryType={form.mode === 'open'}
+        />
       </div>
     </div>
   );
