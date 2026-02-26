@@ -242,3 +242,9 @@ pre-commit-install: ## Install pre-commit hooks
 pre-commit-run: ## Run pre-commit on all files
 	cd backend && uv run pre-commit run --all-files
 
+###################################################
+# Azure Deployment
+###################################################
+
+az-deploy: # Deploy to Azure. Requires to be on either the UMD (+TunnelAll) or Unistra VPN
+	./azure_deploy/deploy-app.sh
