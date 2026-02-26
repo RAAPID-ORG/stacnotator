@@ -12,12 +12,13 @@ import {
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import { formatTaskStatus, getTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
+import { formatTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { capitalizeFirst, extractLatLonFromWKT } from '~/shared/utils/utility';
 import Statistics from '../components/Statistics';
 import { AnnotationDistributionMap } from '../components/AnnotationDistributionMap';
 
-type StatusFilter = 'all' | 'pending' | 'partial' | 'conflicting' | 'complete' | 'skipped';
+type StatusFilter = 'all' | 'pending' | 'partial' | 'conflicting' | 'done' | 'skipped';
 type SortOption = 'default' | 'confidence-asc' | 'confidence-desc' | 'id-asc' | 'id-desc';
 
 export const ViewAnnotationsPage = () => {
@@ -90,8 +91,7 @@ export const ViewAnnotationsPage = () => {
     const filtered = tasks.filter((task) => {
       // Status filter
       if (statusFilter !== 'all') {
-        const taskStatus = getTaskStatus(task);
-        if (taskStatus !== statusFilter) {
+        if (task.task_status !== statusFilter) {
           return false;
         }
       }
@@ -186,11 +186,11 @@ export const ViewAnnotationsPage = () => {
   // Statistics
   const stats = useMemo(() => {
     const total = tasks.length;
-    const completed = tasks.filter((t) => getTaskStatus(t) === 'complete').length;
-    const partial = tasks.filter((t) => getTaskStatus(t) === 'partial').length;
-    const conflicting = tasks.filter((t) => getTaskStatus(t) === 'conflicting').length;
-    const pending = tasks.filter((t) => getTaskStatus(t) === 'pending').length;
-    const skipped = tasks.filter((t) => getTaskStatus(t) === 'skipped').length;
+    const completed = tasks.filter((t) => t.task_status === 'done').length;
+    const partial = tasks.filter((t) => t.task_status === 'partial').length;
+    const conflicting = tasks.filter((t) => t.task_status === 'conflicting').length;
+    const pending = tasks.filter((t) => t.task_status === 'pending').length;
+    const skipped = tasks.filter((t) => t.task_status === 'skipped').length;
     const assignedToMe = currentUser
       ? tasks.filter((t) => {
           const assignments = t.assignments || [];
@@ -411,7 +411,7 @@ export const ViewAnnotationsPage = () => {
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-neutral-700">Status:</label>
             <div className="flex gap-1">
-              {(['all', 'pending', 'partial', 'conflicting', 'complete', 'skipped'] as StatusFilter[]).map(
+              {(['all', 'pending', 'partial', 'conflicting', 'done', 'skipped'] as StatusFilter[]).map(
                 (status) => (
                   <button
                     key={status}
@@ -627,7 +627,7 @@ export const ViewAnnotationsPage = () => {
             <tbody>
               {filteredTasks.map((task) => {
                 const latLon = extractLatLonFromWKT(task.geometry.geometry);
-                const taskStatus = getTaskStatus(task);
+                const taskStatus = task.task_status as TaskStatus;
                 const assignments = task.assignments || [];
                 const annotations = task.annotations || [];
                 const isAssignedToMe =
@@ -669,7 +669,16 @@ export const ViewAnnotationsPage = () => {
                                 ann.created_by_user_id?.substring(0, 8) ||
                                 'Unknown';
 
-                            const label = ann.label_id ? `#${ann.label_id}` : '-';
+                            const assignmentForAnn = assignments.find(
+                              (a) => a.user_id === ann.created_by_user_id
+                            );
+                            const isSkippedAnn =
+                              assignmentForAnn?.status === 'skipped' || ann.label_id == null;
+                            const label = ann.label_id
+                              ? `#${ann.label_id}`
+                              : isSkippedAnn
+                                ? 'Skipped'
+                                : '-';
                             const confidence =
                               ann.confidence !== null && ann.confidence !== undefined
                                 ? `${ann.confidence}/5`
@@ -679,7 +688,11 @@ export const ViewAnnotationsPage = () => {
                             return (
                               <div
                                 key={ann.id}
-                                className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 bg-gray-100 text-gray-700"
+                                className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${
+                                  isSkippedAnn
+                                    ? 'bg-violet-100 text-violet-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
                               >
                                 <span className="font-medium" title="Annotator">
                                   {displayName}
@@ -716,7 +729,6 @@ export const ViewAnnotationsPage = () => {
                                       </svg>
                                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
                                         <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
-                                          <div className="font-semibold mb-1">Comment:</div>
                                           <div className="whitespace-pre-wrap">{ann.comment}</div>
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                                         </div>
@@ -727,42 +739,8 @@ export const ViewAnnotationsPage = () => {
                               </div>
                             );
                           })
-                        ) : assignments.length > 0 ? (
-                          // Show assignments if no annotations yet
-                          assignments.map((assignment) => {
-                            const isCurrentUser = assignment.user_id === currentUser?.id;
-                            const displayName = isCurrentUser
-                              ? currentUser.display_name || currentUser.email || 'You'
-                              : assignment.user_display_name ||
-                                assignment.user_email ||
-                                assignment.user_id.substring(0, 8);
-                            const isSkipped = assignment.status === 'skipped';
-
-                            return (
-                              <div
-                                key={assignment.user_id}
-                                className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${
-                                  isSkipped
-                                    ? 'bg-violet-100 text-violet-700'
-                                    : 'bg-gray-100 text-gray-700'
-                                }`}
-                              >
-                                <span className="font-medium" title="Assigned to">
-                                  {displayName}
-                                </span>
-                                <span className="text-neutral-400">|</span>
-                                <span>{isSkipped ? 'Skipped' : '-'}</span>
-                              </div>
-                            );
-                          })
                         ) : (
-                          <div className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 bg-neutral-100 text-neutral-500">
-                            <span>Unassigned</span>
-                            <span className="text-neutral-400">|</span>
-                            <span>-</span>
-                            <span className="text-neutral-400">|</span>
-                            <span>-</span>
-                          </div>
+                          <span className="text-xs text-neutral-400">-</span>
                         )}
                       </div>
                     </td>
@@ -793,31 +771,31 @@ export const ViewAnnotationsPage = () => {
           <span>
             Complete:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter((t) => getTaskStatus(t) === 'complete').length}
+              {filteredTasks.filter((t) => t.task_status === 'done').length}
             </strong>
           </span>
           <span>
             Partial:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter((t) => getTaskStatus(t) === 'partial').length}
+              {filteredTasks.filter((t) => t.task_status === 'partial').length}
             </strong>
           </span>
           <span>
             Conflicting:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter((t) => getTaskStatus(t) === 'conflicting').length}
+              {filteredTasks.filter((t) => t.task_status === 'conflicting').length}
             </strong>
           </span>
           <span>
             Pending:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter((t) => getTaskStatus(t) === 'pending').length}
+              {filteredTasks.filter((t) => t.task_status === 'pending').length}
             </strong>
           </span>
           <span>
             Skipped:{' '}
             <strong className="text-neutral-900">
-              {filteredTasks.filter((t) => getTaskStatus(t) === 'skipped').length}
+              {filteredTasks.filter((t) => t.task_status === 'skipped').length}
             </strong>
           </span>
         </div>

@@ -79,8 +79,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   });
   const totalTasksForCounter = tasksInAssignmentScope.length;
   const completedTasksForCounter = tasksInAssignmentScope.filter((task) => {
-    const assignments = task.assignments || [];
-    return assignments.some((a) => a.status === 'done' || a.status === 'skipped');
+    return task.task_status === 'done' || task.task_status === 'skipped' || task.task_status === 'conflicting';
   }).length;
 
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;

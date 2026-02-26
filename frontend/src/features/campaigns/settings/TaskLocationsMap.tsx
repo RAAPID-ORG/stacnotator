@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
-import { formatTaskStatus, getTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
+import { formatTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 
 interface TaskLocationsMapProps {
   tasks: AnnotationTaskOut[];
@@ -90,8 +91,8 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       const coords = parseWKTPoint(task.geometry.geometry);
       if (!coords) return;
 
-      const taskStatus = getTaskStatus(task);
-      const statusColor = TASK_STATUS_CONFIG[taskStatus].color;
+      const taskStatus = task.task_status as TaskStatus;
+      const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';
 
       const icon = L.divIcon({
         html: `
@@ -126,7 +127,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
   const taskCounts = tasks.reduce(
     (acc, task) => {
-      const status = getTaskStatus(task);
+      const status = task.task_status as TaskStatus;
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     },

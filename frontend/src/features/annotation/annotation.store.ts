@@ -22,15 +22,16 @@ import { handleApiError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 
 /**
- * Task status values
+ * Task status values for filtering.
+ * These match the backend-computed task_status values on AnnotationTaskOut.
  */
-export type TaskStatus = 'pending' | 'done' | 'skipped';
+export type TaskStatus = 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
 
 /**
  * Task filter configuration
  */
 export interface TaskFilter {
-  assignedTo: string[]; // User IDs to filter by, empty array means all users
+  assignedTo: string[]; // User IDs to filter by, empty array means all possible users
   statuses: TaskStatus[]; // Task statuses to include
 }
 
@@ -220,26 +221,38 @@ const initialState = {
 };
 
 /**
- * Apply task filter to get visible tasks
+ * Apply task filter to get visible tasks.
+ *
+ * When filtering by specific users (assignedTo is set), we filter by the
+ * user's **assignment status** (pending/done/skipped) since the user cares
+ * about their own work, not the overall task status.
+ *
+ * When showing all users (assignedTo is empty, e.g. review mode), we filter
+ * by the backend-computed **task_status** (pending/partial/done/skipped/conflicting).
  */
 const applyTaskFilter = (
   allTasks: AnnotationTaskOut[],
   filter: TaskFilter
 ): AnnotationTaskOut[] => {
+  const filterByUser = filter.assignedTo.length > 0;
+
   return allTasks.filter((task) => {
-    // Filter by assignment (empty array means all users)
     const assignments = task.assignments || [];
-    const matchesAssignment =
-      filter.assignedTo.length === 0 ||
-      assignments.some((a) => filter.assignedTo.includes(a.user_id));
 
-    // Filter by status - check if any assignment has matching status
-    const matchesStatus =
-      assignments.length === 0
-        ? filter.statuses.includes('pending') // No assignments means pending
-        : assignments.some((a) => filter.statuses.includes(a.status as TaskStatus));
-
-    return matchesAssignment && matchesStatus;
+    if (filterByUser) {
+      // Filter by specific users: match tasks where at least one of the
+      // selected users has an assignment whose status matches the filter.
+      const userAssignments = assignments.filter((a) =>
+        filter.assignedTo.includes(a.user_id)
+      );
+      if (userAssignments.length === 0) return false;
+      return userAssignments.some((a) =>
+        filter.statuses.includes(a.status as TaskStatus)
+      );
+    } else {
+      // No user filter (review mode / all users): use task-level status
+      return filter.statuses.includes(task.task_status as TaskStatus);
+    }
   });
 };
 
@@ -279,17 +292,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
   completedTasksCount: () => {
     const { allTasks } = get();
-    return allTasks.filter((task) => {
-      const assignments = task.assignments || [];
-      const annotations = task.annotations || [];
-      // Consider complete if there are annotations covering all assignments
-      if (assignments.length === 0) {
-        return annotations.length > 0;
-      }
-      const assignedUserIds = new Set(assignments.map((a) => a.user_id));
-      const completedUserIds = new Set(annotations.map((a) => a.created_by_user_id));
-      return Array.from(assignedUserIds).every((id) => completedUserIds.has(id));
-    }).length;
+    return allTasks.filter(
+      (task) => task.task_status === 'done' || task.task_status === 'conflicting'
+    ).length;
   },
 
   campaignBbox: () => {
@@ -334,7 +339,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       if (initialTaskId !== undefined) {
         taskFilter = {
           assignedTo: [],
-          statuses: ['pending', 'done', 'skipped'],
+          statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
         const targetIndex = visibleTasks.findIndex((t) => t.id === initialTaskId);
@@ -425,22 +430,32 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     try {
       // Find the current user's annotation for this task (if any)
       const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
+      const hasExistingLabel = userAnnotation?.label_id != null;
 
-      // If labelId is null and user has an annotation, delete it
-      if (labelId === null && userAnnotation) {
-        await deleteAnnotation({
+      // "Remove Label" action: user explicitly clears their labeled annotation
+      // Only triggers when user has a labeled annotation and submits with no label AND no comment
+      if (labelId === null && hasExistingLabel && !comment) {
+        const deleteResponse = await deleteAnnotation({
           path: {
             campaign_id: campaign.id,
-            annotation_id: userAnnotation.id,
+            annotation_id: userAnnotation!.id,
           },
         });
 
-        // Remove the annotation from the task
+        const deleteResult = deleteResponse.data;
+
+        // Update local state using backend-returned statuses
         const updatedTasks = allTasks.map((t) =>
           t.id === task.id
             ? {
                 ...t,
-                annotations: t.annotations.filter((a) => a.id !== userAnnotation.id),
+                annotations: t.annotations.filter((a) => a.id !== userAnnotation!.id),
+                assignments: (t.assignments || []).map((a) =>
+                  a.user_id === currentUserId
+                    ? { ...a, status: deleteResult?.assignment_status ?? 'pending' }
+                    : a
+                ),
+                task_status: deleteResult?.task_status ?? 'pending',
               }
             : t
         );
@@ -503,17 +518,27 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           },
         });
 
-        const newAnnotation = response.data ?? null;
+        const submitResult = response.data;
+        const newAnnotation = submitResult?.annotation ?? null;
+        const newTaskStatus = submitResult?.task_status ?? task.task_status;
+        const newAssignmentStatus = submitResult?.assignment_status ?? 'pending';
 
-        // Update local state - either replace existing user annotation or add new one
+        // Update local state using backend-returned statuses
         const updatedTasks = allTasks.map((t) => {
-          if (t.id === task.id && newAnnotation) {
-            const otherAnnotations = t.annotations.filter(
-              (a) => a.created_by_user_id !== currentUserId
-            );
+          if (t.id === task.id) {
+            const updatedAnnotations = newAnnotation
+              ? [
+                  ...t.annotations.filter((a) => a.created_by_user_id !== currentUserId),
+                  newAnnotation,
+                ]
+              : t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
             return {
               ...t,
-              annotations: [...otherAnnotations, newAnnotation],
+              annotations: updatedAnnotations,
+              assignments: (t.assignments || []).map((a) =>
+                a.user_id === currentUserId ? { ...a, status: newAssignmentStatus } : a
+              ),
+              task_status: newTaskStatus,
             };
           }
           return t;
@@ -651,7 +676,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       // Widen filter to show everything (e.g. coming from review page)
       taskFilter = {
         assignedTo: [],
-        statuses: ['pending', 'done', 'skipped'],
+        statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
       };
       visibleTasks = applyTaskFilter(allTasks, taskFilter);
     } else {

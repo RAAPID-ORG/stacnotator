@@ -103,7 +103,16 @@ export const AnnotationControls = ({
 
   const handleGoToTask = (annotationNumber: number) => {
     if (annotationNumber > 0) {
-      onGoToTask(annotationNumber);
+      const visibleTasks = useAnnotationStore.getState().visibleTasks;
+      const exists = visibleTasks.some((t) => t.annotation_number === annotationNumber);
+      if (exists) {
+        onGoToTask(annotationNumber);
+      } else {
+        useLayoutStore.getState().showAlert(
+          `Point #${annotationNumber} is not in the current filter`,
+          'error'
+        );
+      }
     }
   };
 
@@ -135,7 +144,12 @@ export const AnnotationControls = ({
   const userAnnotation = currentTask?.annotations.find(
     (a) => a.created_by_user_id === currentUserId
   );
-  const hasExistingLabel = userAnnotation !== undefined;
+  const hasExistingAnnotation = userAnnotation !== undefined;
+  const hasExistingLabel = userAnnotation !== undefined && userAnnotation.label_id != null;
+
+  // Check if current user is assigned to this task (only assigned users can skip)
+  const isAssignedToTask =
+    currentTask?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
 
   // Determine submit button text and state
   const isRemovingLabel = hasExistingLabel && selectedLabelId === null;
@@ -298,8 +312,9 @@ export const AnnotationControls = ({
               {isNavigating ? 'Loading...' : isSubmitting ? 'Submitting...' : submitButtonText}
             </button>
             <button
-              disabled={isDisabled}
+              disabled={isDisabled || !isAssignedToTask}
               onClick={handleSkip}
+              title={!isAssignedToTask ? 'You are not assigned to this task' : undefined}
               className="px-2 py-1.5 text-xs font-normal border border-neutral-300 text-neutral-900 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Skip
@@ -390,6 +405,7 @@ export const AnnotationControls = ({
                   const assignment = currentTask.assignments?.find(
                     (a) => a.user_id === ann.created_by_user_id
                   );
+                  const isSkipped = assignment?.status === 'skipped';
                   const displayName = isOwn
                     ? 'You'
                     : assignment?.user_display_name ||
@@ -400,7 +416,9 @@ export const AnnotationControls = ({
                     ? capitalizeFirst(label.name)
                     : ann.label_id
                       ? `#${ann.label_id}`
-                      : '-';
+                      : isSkipped
+                        ? 'Skipped'
+                        : '-';
 
                   return (
                     <div
@@ -425,7 +443,11 @@ export const AnnotationControls = ({
                           )}
                         </span>
                         <div className="flex items-center gap-1.5 text-neutral-500">
-                          <span className="font-medium text-neutral-800">{labelName}</span>
+                          <span
+                            className={`font-medium ${isSkipped ? 'text-neutral-500 italic' : 'text-neutral-800'}`}
+                          >
+                            {labelName}
+                          </span>
                           {ann.confidence !== null && ann.confidence !== undefined && (
                             <>
                               <span className="text-neutral-300">|</span>

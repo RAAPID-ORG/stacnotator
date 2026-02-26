@@ -1,11 +1,17 @@
 import type { AnnotationTaskOut } from '~/api/client';
 
-export type TaskStatus = 'pending' | 'partial' | 'conflicting' | 'complete' | 'skipped';
+/**
+ * Task-level status values, matching backend-computed task_status.
+ */
+export type TaskStatus = 'pending' | 'partial' | 'conflicting' | 'done' | 'skipped';
 
 /**
  * Task status configuration with colors and labels
  */
-export const TASK_STATUS_CONFIG = {
+export const TASK_STATUS_CONFIG: Record<
+  TaskStatus,
+  { label: string; color: string; badgeClass: string }
+> = {
   pending: {
     label: 'Pending',
     color: '#6B7280', // gray
@@ -21,7 +27,7 @@ export const TASK_STATUS_CONFIG = {
     color: '#EF4444', // red
     badgeClass: 'bg-red-100 text-red-700',
   },
-  complete: {
+  done: {
     label: 'Complete',
     color: '#10B981', // green
     badgeClass: 'bg-green-100 text-green-700',
@@ -31,74 +37,32 @@ export const TASK_STATUS_CONFIG = {
     color: '#8B5CF6', // violet
     badgeClass: 'bg-violet-100 text-violet-700',
   },
-} as const;
+};
 
 /**
- * Compute overall task status based on assignments and annotations
- *
- * - pending: No user has completed (no annotations)
- * - skipped: All assigned users have skipped the task
- * - partial: Some users have completed, but not all
- * - conflicting: All assigned users have completed, but labels differ
- * - complete: All assigned users have completed with same label
+ * Get status badge color class based on task status
  */
-export function getTaskStatus(task: AnnotationTaskOut): TaskStatus {
-  const assignments = task.assignments || [];
-  const annotations = task.annotations || [];
-
-  // If no assignments, fall back to simple check
-  if (assignments.length === 0) {
-    return annotations.length > 0 ? 'complete' : 'pending';
-  }
-
-  // Check if all assignments are skipped
-  const allSkipped = assignments.every((a) => a.status === 'skipped');
-  if (allSkipped) {
-    return 'skipped';
-  }
-
-  // Count how many users have completed (done or skipped count as "acted on")
-  const assignedUserIds = new Set(assignments.map((a) => a.user_id));
-  const completedUserIds = new Set(annotations.map((a) => a.created_by_user_id));
-
-  const completedCount = Array.from(assignedUserIds).filter((userId) =>
-    completedUserIds.has(userId)
-  ).length;
-
-  // No completions (some may have skipped, but not all)
-  if (completedCount === 0) {
-    return 'pending';
-  }
-
-  // Partial completions (count non-skipped assignments)
-  const nonSkippedAssignments = assignments.filter((a) => a.status !== 'skipped');
-  const nonSkippedUserIds = new Set(nonSkippedAssignments.map((a) => a.user_id));
-  const nonSkippedCompletedCount = Array.from(nonSkippedUserIds).filter((userId) =>
-    completedUserIds.has(userId)
-  ).length;
-
-  if (nonSkippedCompletedCount < nonSkippedUserIds.size) {
-    return 'partial';
-  }
-
-  // All non-skipped users have completed - check if labels match
-  const labels = annotations
-    .filter((a) => nonSkippedUserIds.has(a.created_by_user_id))
-    .map((a) => a.label_id);
-
-  // Check if all labels are the same (including null)
-  const uniqueLabels = new Set(labels);
-
-  if (uniqueLabels.size === 1) {
-    return 'complete';
-  } else {
-    return 'conflicting';
-  }
+export function getTaskStatusColor(status: TaskStatus): string {
+  return TASK_STATUS_CONFIG[status]?.badgeClass ?? 'bg-gray-100 text-gray-700';
 }
 
 /**
- * Get user-specific completion status for a task
- * Returns the status for each assigned user
+ * Get user completion badge color
+ */
+export function getUserStatusColor(completed: boolean): string {
+  return completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
+}
+
+/**
+ * Format task status for display
+ */
+export function formatTaskStatus(status: TaskStatus): string {
+  return TASK_STATUS_CONFIG[status]?.label ?? status;
+}
+
+/**
+ * Get user-specific completion status for a task.
+ * Returns the status for each assigned user based on assignments and annotations.
  */
 export function getUserTaskStatuses(
   task: AnnotationTaskOut
@@ -106,7 +70,10 @@ export function getUserTaskStatuses(
   const statusMap = new Map<string, 'pending' | 'completed' | 'skipped'>();
   const assignments = task.assignments || [];
   const annotations = task.annotations || [];
-  const completedUserIds = new Set(annotations.map((a) => a.created_by_user_id));
+  // Only labeled annotations count as completions
+  const completedUserIds = new Set(
+    annotations.filter((a) => a.label_id != null).map((a) => a.created_by_user_id)
+  );
 
   assignments.forEach((assignment) => {
     if (assignment.status === 'skipped') {
@@ -122,32 +89,11 @@ export function getUserTaskStatuses(
 }
 
 /**
- * Get status badge color class based on task status
- */
-export function getTaskStatusColor(status: TaskStatus): string {
-  return TASK_STATUS_CONFIG[status].badgeClass;
-}
-
-/**
- * Get user completion badge color
- */
-export function getUserStatusColor(completed: boolean): string {
-  return completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
-}
-
-/**
- * Format task status for display
- */
-export function formatTaskStatus(status: TaskStatus): string {
-  return TASK_STATUS_CONFIG[status].label;
-}
-
-/**
- * Check if current user has completed a task
+ * Check if current user has completed a task (with a labeled annotation)
  */
 export function hasUserCompletedTask(task: AnnotationTaskOut, userId: string): boolean {
   const annotations = task.annotations || [];
-  return annotations.some((a) => a.created_by_user_id === userId);
+  return annotations.some((a) => a.created_by_user_id === userId && a.label_id != null);
 }
 
 /**

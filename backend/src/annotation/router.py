@@ -14,6 +14,8 @@ from src.annotation.schema import (
     AnnotationFromTaskOut,
     AnnotationOut,
     AnnotationTaskListOut,
+    AnnotationTaskOut,
+    AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     ValidateLabelSubmissionsResponse,
 )
@@ -23,6 +25,8 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute, clean_filename
+from src.annotation.schema import AnnotationTaskOut
+
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -51,7 +55,7 @@ def get_all_annotation_tasks(
 
 @router.post(
     "/campaigns/{campaign_id}/{annotation_task_id}/annotate",
-    response_model=AnnotationFromTaskOut | None,
+    response_model=AnnotationTaskSubmitResponse,
 )
 def complete_annotation_task(
     campaign_id: int,
@@ -75,15 +79,35 @@ def complete_annotation_task(
         )
 
     # Persist annotation
-    annotation = service.add_annotation_for_task(
+    result_annotation = service.add_annotation_for_task(
         db=db,
         annotation_task=annotation_task,
         annotation_create=annotation,
         user_id=user.id,
     )
 
-    if annotation:
-        return annotation
+    # Re-fetch the task with all relationships for accurate status computation
+    refreshed_task = service.get_annotation_task_by_id(
+        db=db,
+        task_id=annotation_task_id,
+        campaign_id=campaign_id,
+    )
+
+    # Get user's assignment status
+    assignment_status = "pending"
+    if refreshed_task and refreshed_task.assignments:
+        for a in refreshed_task.assignments:
+            if a.user_id == user.id:
+                assignment_status = a.status
+                break
+
+    task_out = AnnotationTaskOut.model_validate(refreshed_task)
+
+    return AnnotationTaskSubmitResponse(
+        annotation=result_annotation,
+        task_status=task_out.task_status,
+        assignment_status=assignment_status,
+    )
 
 
 @router.get(
@@ -181,23 +205,56 @@ def update_annotation_openmode(
 # ============================================================================
 
 
-@router.delete("/campaigns/{campaign_id}/annotations/{annotation_id}", status_code=204)
+@router.delete(
+    "/campaigns/{campaign_id}/annotations/{annotation_id}",
+    response_model=AnnotationTaskSubmitResponse | None,
+)
 def delete_annotation(
     campaign_id: int,
     annotation_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> None:
+):
     """
     Delete a specific annotation from a campaign.
 
-    If the annotation is linked to a task, the task status will be reset to pending.
+    If the annotation is linked to a task, returns updated task_status and
+    assignment_status. Otherwise returns null.
     """
+    # Look up the annotation first to find its task_id before deleting
+    task_id = service.get_annotation_task_id_for_annotation(db, annotation_id, campaign.id)
+
     service.delete_annotation(
         db=db,
         annotation_id=annotation_id,
         campaign_id=campaign.id,
     )
+
+    # If it was linked to a task, return updated statuses
+    if task_id is not None:
+        refreshed_task = service.get_annotation_task_by_id(
+            db=db,
+            task_id=task_id,
+            campaign_id=campaign_id,
+        )
+        if refreshed_task:
+            task_out = AnnotationTaskOut.model_validate(refreshed_task)
+
+            assignment_status = "pending"
+            if refreshed_task.assignments:
+                for a in refreshed_task.assignments:
+                    if a.user_id == user.id:
+                        assignment_status = a.status
+                        break
+
+            return AnnotationTaskSubmitResponse(
+                annotation=None,
+                task_status=task_out.task_status,
+                assignment_status=assignment_status,
+            )
+
+    return None
 
 
 @router.get("/campaigns/{campaign_id}/export-annotations")

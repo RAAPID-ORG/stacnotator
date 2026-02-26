@@ -30,6 +30,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
   const allTasks = useAnnotationStore((state) => state.allTasks);
   const taskFilter = useAnnotationStore((state) => state.taskFilter);
   const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
+  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
   const currentUser = useAccountStore((state) => state.account);
 
   if (!campaign) return null;
@@ -67,6 +68,16 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
 
     if (newStatuses.length > 0) {
       setTaskFilter({ statuses: newStatuses });
+
+      // When selecting 'conflicting', automatically enable review mode and
+      // show all users so conflicting tasks from all annotators are visible.
+      if (!isSelected && status === 'conflicting') {
+        useAnnotationStore.setState({ isReviewMode: true });
+        if (taskFilter.assignedTo.length > 0) {
+          setTaskFilter({ statuses: newStatuses, assignedTo: [] });
+          return;
+        }
+      }
     }
   };
 
@@ -148,18 +159,32 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
             Status
           </div>
           <div className="space-y-1">
-            {(['pending', 'done', 'skipped'] as TaskStatus[]).map((status) => (
+            {(
+              (isReviewMode
+                ? [
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'partial', label: 'Partial' },
+                    { value: 'done', label: 'Done' },
+                    { value: 'skipped', label: 'Skipped' },
+                    { value: 'conflicting', label: 'Conflicting' },
+                  ]
+                : [
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'done', label: 'Done' },
+                    { value: 'skipped', label: 'Skipped' },
+                  ]) as { value: TaskStatus; label: string }[]
+            ).map(({ value, label }) => (
               <label
-                key={status}
+                key={value}
                 className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer"
               >
                 <input
                   type="checkbox"
-                  checked={taskFilter.statuses.includes(status)}
-                  onChange={() => handleStatusToggle(status)}
+                  checked={taskFilter.statuses.includes(value)}
+                  onChange={() => handleStatusToggle(value)}
                   className="rounded accent-brand-500"
                 />
-                <span className="text-neutral-900 capitalize">{status}</span>
+                <span className="text-neutral-900">{label}</span>
               </label>
             ))}
           </div>

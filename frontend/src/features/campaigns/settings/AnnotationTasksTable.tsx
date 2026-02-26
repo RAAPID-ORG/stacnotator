@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { extractLatLonFromWKT } from '~/shared/utils/utility';
 import {
-  getTaskStatus,
   getUserTaskStatuses,
   getTaskStatusColor,
   formatTaskStatus,
 } from '~/shared/utils/taskStatus';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 
 interface AnnotationTasksTableProps {
   tasks: AnnotationTaskOut[];
@@ -196,9 +196,9 @@ export const AnnotationTasksTable = ({
                   <td className="px-4 py-3">
                     <div className="group relative inline-block">
                       <span
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(getTaskStatus(task))}`}
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(task.task_status as TaskStatus)}`}
                       >
-                        {formatTaskStatus(getTaskStatus(task))}
+                        {formatTaskStatus(task.task_status as TaskStatus)}
                       </span>
                       {/* Tooltip showing per-user status */}
                       {task.assignments && task.assignments.length > 0 && (
@@ -346,31 +346,31 @@ export const AnnotationTasksTable = ({
         <span>
           Complete:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => getTaskStatus(t) === 'complete').length}
+            {tasks.filter((t) => t.task_status === 'done').length}
           </strong>
         </span>
         <span>
           Partial:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => getTaskStatus(t) === 'partial').length}
+            {tasks.filter((t) => t.task_status === 'partial').length}
           </strong>
         </span>
         <span>
           Conflicting:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => getTaskStatus(t) === 'conflicting').length}
+            {tasks.filter((t) => t.task_status === 'conflicting').length}
           </strong>
         </span>
         <span>
           Pending:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => getTaskStatus(t) === 'pending').length}
+            {tasks.filter((t) => t.task_status === 'pending').length}
           </strong>
         </span>
         <span>
           Skipped:{' '}
           <strong className="text-neutral-900">
-            {tasks.filter((t) => getTaskStatus(t) === 'skipped').length}
+            {tasks.filter((t) => t.task_status === 'skipped').length}
           </strong>
         </span>
       </div>

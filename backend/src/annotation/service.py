@@ -50,12 +50,20 @@ def get_annotation_task_by_id(
     Returns:
         Annotation task item or None if not found
     """
-    stmt = select(AnnotationTask).where(
-        AnnotationTask.id == task_id,
-        AnnotationTask.campaign_id == campaign_id,
+    stmt = (
+        select(AnnotationTask)
+        .where(
+            AnnotationTask.id == task_id,
+            AnnotationTask.campaign_id == campaign_id,
+        )
+        .options(
+            joinedload(AnnotationTask.geometry),
+            joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
+            joinedload(AnnotationTask.annotations),
+        )
     )
 
-    return db.scalar(stmt)
+    return db.scalars(stmt).unique().first()
 
 
 def get_annotation_tasks_for_campaign(
@@ -88,6 +96,21 @@ def get_annotation_tasks_for_campaign(
     )
 
     return db.scalars(stmt).unique().all()
+
+
+def get_annotation_task_id_for_annotation(
+    db: Session,
+    annotation_id: int,
+    campaign_id: int,
+) -> int | None:
+    """Get the task_id linked to an annotation (if any), before deletion."""
+    result = db.execute(
+        select(Annotation.annotation_task_id).where(
+            Annotation.id == annotation_id,
+            Annotation.campaign_id == campaign_id,
+        )
+    ).scalar_one_or_none()
+    return result
 
 
 # ============================================================================
