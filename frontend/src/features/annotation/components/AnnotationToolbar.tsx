@@ -25,7 +25,7 @@ const KEYBOARD_SHORTCUTS = [
 /**
  * Task filter panel component
  */
-const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
+const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
   const campaign = useAnnotationStore((state) => state.campaign);
   const allTasks = useAnnotationStore((state) => state.allTasks);
   const taskFilter = useAnnotationStore((state) => state.taskFilter);

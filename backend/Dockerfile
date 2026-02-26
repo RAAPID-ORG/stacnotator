@@ -1,5 +1,5 @@
 # Multi-stage build for optimized production image
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim as builder
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -51,7 +51,7 @@ EXPOSE 8000
 # Run the application with Gunicorn
 # Workers: 2 * CPU cores + 1 (override with WORKERS env var)
 # Worker class: uvicorn for async support
-CMD gunicorn src.main:app \
+CMD ["sh", "-c", "gunicorn src.main:app \
     --workers ${WORKERS:-1} \
     --worker-class uvicorn.workers.UvicornWorker \
     --bind 0.0.0.0:8000 \
@@ -63,4 +63,4 @@ CMD gunicorn src.main:app \
     --access-logfile - \
     --error-logfile - \
     --log-level info \
-    --forwarded-allow-ips '*'
+    --forwarded-allow-ips '*'"]
