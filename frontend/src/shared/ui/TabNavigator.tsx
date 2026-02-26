@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export type TabItem = {
@@ -14,9 +13,17 @@ interface TabNavigatorProps {
   className?: string;
 }
 
-export const TabNavigator: React.FC<TabNavigatorProps> = ({ items, activeId, onChange, className }) => {
+export const TabNavigator: React.FC<TabNavigatorProps> = ({
+  items,
+  activeId,
+  onChange,
+  className,
+}) => {
   return (
-    <div role="tablist" className={`flex gap-4 mb-3 border-b border-neutral-300 ${className ?? ''}`}>
+    <div
+      role="tablist"
+      className={`flex gap-4 mb-3 border-b border-neutral-300 ${className ?? ''}`}
+    >
       {items.map((item) => (
         <button
           key={item.id}

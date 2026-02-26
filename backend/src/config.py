@@ -1,10 +1,10 @@
-from functools import lru_cache
-from typing import List, Union
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, computed_field
 import json
 import os
+from functools import lru_cache
 from urllib.parse import quote_plus
+
+from pydantic import Field, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS: str | None = None  # Direct JSON content in env (alternative to path)
 
     # Store as string to avoid automatic JSON parsing by pydantic-settings
-    cors_origins_raw: Union[str, List[str]] = Field(
+    cors_origins_raw: str | list[str] = Field(
         default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
 
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     EE_PRIVATE_KEY: str | None = None  # Direct key content (alternative to path)
 
     @property
-    def CORS_ORIGINS(self) -> List[str]:
+    def CORS_ORIGINS(self) -> list[str]:
         """Parse CORS origins from various formats."""
         v = self.cors_origins_raw
         if isinstance(v, list):

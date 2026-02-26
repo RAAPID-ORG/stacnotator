@@ -1,13 +1,12 @@
 import uuid
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import (
+    TIMESTAMP,
     CheckConstraint,
     ForeignKey,
     Index,
     Text,
-    TIMESTAMP,
     UniqueConstraint,
     func,
 )
@@ -42,7 +41,7 @@ class User(Base):
 
     # User profile
     email: Mapped[str] = mapped_column(Text, nullable=False)
-    display_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit timestamps
     created_at: Mapped[str] = mapped_column(

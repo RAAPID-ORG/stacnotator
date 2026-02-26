@@ -1,17 +1,16 @@
-from datetime import datetime, timedelta
 import json
-from typing import List, Optional
+from datetime import datetime, timedelta
 from uuid import UUID
 
+from dateutil.relativedelta import relativedelta
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+
 from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
 from src.imagery.models import Imagery, ImageryVisualizationUrlTemplate, ImageryWindow
 from src.imagery.schemas import CanvasLayoutCreate, ImageryCreate
 from src.utils import find_free_position_in_layout, format_date_to_yyyymmdd, parse_ym_to_date
-from dateutil.relativedelta import relativedelta
-from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy.orm import Session
-
 
 # ============================================================================
 # Canvas Layout Management
@@ -19,8 +18,8 @@ from sqlalchemy.orm import Session
 
 
 def add_windows_to_canvas_layout(
-    layout_data: List[dict],
-    windows: List[ImageryWindow],
+    layout_data: list[dict],
+    windows: list[ImageryWindow],
     window_width: int = 10,
     window_height: int = 8,
     grid_width: int = 60,
@@ -28,7 +27,7 @@ def add_windows_to_canvas_layout(
     """
     Add imagery windows to canvas layout using 2D bin packing.
 
-    Places windows in available spaces, creating new rows as needed.
+    Places windows in available spaces (binpacking), creating new rows as needed.
     All windows have fixed dimensions (10x8 by default).
     Canvas is scrollable so there is no height limit.
 
@@ -67,7 +66,7 @@ def add_windows_to_canvas_layout(
 # ============================================================================
 
 
-def _build_windows(imagery: Imagery) -> List[ImageryWindow]:
+def _build_windows(imagery: Imagery) -> list[ImageryWindow]:
     """
     Build temporal windows based on imagery date range and interval settings.
 
@@ -184,8 +183,8 @@ def create_imagery_with_layouts_bulk_no_commit(
     db: Session,
     *,
     campaign: Campaign,
-    imagery_items: List[ImageryCreate],
-) -> List[Imagery]:
+    imagery_items: list[ImageryCreate],
+) -> list[Imagery]:
     """
     Create multiple imagery objects with canvas layouts and temporal windows.
     NOT COMMITING!
@@ -258,7 +257,7 @@ def create_new_canvas_layout(
     campaign_id: int,
     layout_data: CanvasLayoutCreate,
     user_id: UUID,
-    imagery_id: Optional[int] = None,
+    imagery_id: int | None = None,
     should_be_default: bool = False,
 ) -> dict:
     """
@@ -490,12 +489,15 @@ def update_imagery(
         )
 
     # Update visualization templates if provided
-    if "visualization_url_templates" in updates and updates["visualization_url_templates"] is not None:
+    if (
+        "visualization_url_templates" in updates
+        and updates["visualization_url_templates"] is not None
+    ):
         # Delete existing templates
         db.query(ImageryVisualizationUrlTemplate).filter(
             ImageryVisualizationUrlTemplate.imagery_id == imagery_id
         ).delete()
-        
+
         # Create new templates
         for template_data in updates["visualization_url_templates"]:
             template = ImageryVisualizationUrlTemplate(
@@ -504,14 +506,17 @@ def update_imagery(
                 visualization_url=template_data.get("visualization_url", ""),
             )
             db.add(template)
-        
+
         # Remove from updates dict as we've handled it
         del updates["visualization_url_templates"]
 
     # Parse search_body if it's a JSON string
-    if "search_body" in updates and updates["search_body"] is not None:
-        if isinstance(updates["search_body"], str):
-            updates["search_body"] = json.loads(updates["search_body"])
+    if (
+        "search_body" in updates
+        and updates["search_body"] is not None
+        and isinstance(updates["search_body"], str)
+    ):
+        updates["search_body"] = json.loads(updates["search_body"])
 
     # Update other fields
     for key, value in updates.items():

@@ -1,10 +1,11 @@
-import ee
 import re
 import unicodedata
 from datetime import datetime
 
-from src.config import get_settings
+import ee
 from fastapi.routing import APIRoute
+
+from src.config import get_settings
 
 settings = get_settings()
 

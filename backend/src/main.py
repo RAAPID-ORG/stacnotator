@@ -5,15 +5,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import get_settings
+from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
-from src.annotation.router import router as annotations_router
-from src.timeseries.router import router as timeseries_router
+from src.config import get_settings
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
+from src.timeseries.router import router as timeseries_router
 from src.utils import generate_unique_id, initialize_earth_engine
-
 
 settings = get_settings()
 

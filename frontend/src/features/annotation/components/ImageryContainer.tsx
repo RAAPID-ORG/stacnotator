@@ -56,6 +56,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       selectedImagery.slicing_interval,
       selectedImagery.slicing_unit
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [
     window.window_start_date,
     window.window_end_date,
@@ -69,11 +70,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     : (windowSliceIndices[window.id] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  if (!selectedImagery || !campaignBbox) return null;
-
   // Memoize latLon extraction to prevent recalculations
   const latLon = useMemo(
     () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
     [currentTask?.geometry.geometry]
   );
 
@@ -92,6 +92,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     }
     return [0, 0];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
 
   // Determine zoom level
@@ -101,18 +102,20 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     if (currentMapZoom !== null) {
       return currentMapZoom;
     }
-    return selectedImagery.default_zoom;
-  }, [currentMapZoom, selectedImagery.default_zoom]);
+    return selectedImagery?.default_zoom ?? 10;
+  }, [currentMapZoom, selectedImagery?.default_zoom]);
 
   const { tileUrls, loading, error } = useStacImagery({
-    registrationUrl: selectedImagery.registration_url,
-    searchBody: selectedImagery.search_body,
-    bbox: campaignBbox,
+    registrationUrl: selectedImagery?.registration_url ?? '',
+    searchBody: selectedImagery?.search_body ?? {},
+    bbox: campaignBbox ?? [0, 0, 0, 0],
     startDate: activeSlice?.startDate || window.window_start_date,
     endDate: activeSlice?.endDate || window.window_end_date,
-    visualizationUrlTemplates: selectedImagery.visualization_url_templates,
-    enabled: true,
+    visualizationUrlTemplates: selectedImagery?.visualization_url_templates ?? [],
+    enabled: !!selectedImagery && !!campaignBbox,
   });
+
+  if (!selectedImagery || !campaignBbox) return null;
 
   // Use the selected layer index or fallback to first tile URL
   const tileUrl = tileUrls.length > selectedLayerIndex ? tileUrls[selectedLayerIndex].url : '';

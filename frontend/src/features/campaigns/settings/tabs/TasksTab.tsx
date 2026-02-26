@@ -55,7 +55,9 @@ export const TasksTab: React.FC<Props> = ({
         <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Annotation Tasks</h2>
 
         <div className="mb-6">
-          <label className="block text-sm font-medium text-neutral-700 mb-3">How would you like to create tasks?</label>
+          <label className="block text-sm font-medium text-neutral-700 mb-3">
+            How would you like to create tasks?
+          </label>
           <div className="flex gap-3">
             <button
               onClick={() => {
@@ -64,7 +66,9 @@ export const TasksTab: React.FC<Props> = ({
                 }
               }}
               className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                taskFile !== null ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+                taskFile !== null
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
               }`}
             >
               <div className="font-medium">Upload CSV</div>
@@ -73,11 +77,15 @@ export const TasksTab: React.FC<Props> = ({
             <button
               onClick={() => setTaskFile(null)}
               className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                taskFile === null ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
+                taskFile === null
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
               }`}
             >
               <div className="font-medium">Generate via Sampling</div>
-              <div className="text-xs mt-1 opacity-90">Create tasks using random or grid sampling</div>
+              <div className="text-xs mt-1 opacity-90">
+                Create tasks using random or grid sampling
+              </div>
             </button>
           </div>
         </div>
@@ -85,7 +93,9 @@ export const TasksTab: React.FC<Props> = ({
         {taskFile !== null && (
           <div>
             <h3 className="text-md font-semibold text-neutral-900 mb-3">Upload Tasks from CSV</h3>
-            <p className="text-sm text-neutral-500 mb-4">Upload a CSV file with task locations. Format: <code>id,lon,lat</code></p>
+            <p className="text-sm text-neutral-500 mb-4">
+              Upload a CSV file with task locations. Format: <code>id,lon,lat</code>
+            </p>
             <div className="flex gap-4 items-center">
               <input
                 type="file"
@@ -127,7 +137,9 @@ export const TasksTab: React.FC<Props> = ({
             onDeleteTasks={handleDeleteTasks}
           />
         ) : (
-          <p className="text-sm text-neutral-500">No annotation tasks yet. Upload a CSV file or generate tasks using sampling above.</p>
+          <p className="text-sm text-neutral-500">
+            No annotation tasks yet. Upload a CSV file or generate tasks using sampling above.
+          </p>
         )}
       </div>
     </div>

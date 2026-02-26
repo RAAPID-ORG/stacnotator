@@ -1,6 +1,6 @@
 /**
  * Time series data cache with prefetching support
- * 
+ *
  * Critical for performance: Time series fetches take ~10 seconds per point.
  * This cache prevents redundant fetches and enables prefetching for smooth UX.
  */
@@ -48,10 +48,7 @@ class TimeSeriesCache {
     toRemove.forEach(([key]) => this.cache.delete(key));
   }
 
-  private async fetchFromAPI(
-    timeseriesIds: number[],
-    coordinate: LatLon
-  ): Promise<TimeSeriesData> {
+  private async fetchFromAPI(timeseriesIds: number[], coordinate: LatLon): Promise<TimeSeriesData> {
     const results = await Promise.all(
       timeseriesIds.map(async (tsId) => {
         const { data } = await getTimeseriesData({
@@ -81,10 +78,7 @@ class TimeSeriesCache {
     }, {});
   }
 
-  async get(
-    timeseriesIds: number[],
-    coordinate: LatLon | null
-  ): Promise<TimeSeriesData | null> {
+  async get(timeseriesIds: number[], coordinate: LatLon | null): Promise<TimeSeriesData | null> {
     if (!coordinate || timeseriesIds.length === 0) {
       return null;
     }

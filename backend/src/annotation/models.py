@@ -1,11 +1,9 @@
 from datetime import datetime as dt_datetime
-
-from geoalchemy2 import Geometry as GeoAlchemyGeometry
-from pgvector.sqlalchemy import Vector
-from typing import Optional
 from uuid import UUID
 
 import sqlalchemy as sa
+from geoalchemy2 import Geometry as GeoAlchemyGeometry
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     DateTime,
     ForeignKey,
@@ -83,7 +81,7 @@ class AnnotationTask(Base):
     )
 
     # Additional columns if ingested from a csv
-    raw_source_data: Mapped[Optional[dict]] = mapped_column(
+    raw_source_data: Mapped[dict | None] = mapped_column(
         JSONB,
         nullable=True,
     )
@@ -115,7 +113,7 @@ class AnnotationTaskAssignment(Base):
         UniqueConstraint("task_id", "user_id"),
         {"schema": "data"},
     )
-    
+
     # Primary key
     id: Mapped[int] = mapped_column(
         Integer,
@@ -125,13 +123,11 @@ class AnnotationTaskAssignment(Base):
 
     # Foreign keys
     task_id: Mapped[int] = mapped_column(
-        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"),
-        nullable=False
+        ForeignKey("data.annotation_tasks.id", ondelete="CASCADE"), nullable=False
     )
 
     user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        nullable=False
+        ForeignKey("auth.users.id", ondelete="CASCADE"), nullable=False
     )
 
     status: Mapped[str] = mapped_column(
@@ -144,7 +140,7 @@ class AnnotationTaskAssignment(Base):
     annotation_task: Mapped["AnnotationTask"] = relationship(
         back_populates="assignments",
     )
-    user: Mapped[Optional["User"]] = relationship()
+    user: Mapped["User | None"] = relationship()
 
 
 class Annotation(Base):
@@ -186,15 +182,15 @@ class Annotation(Base):
     )
 
     # Optional: set if annotation was created from a task
-    annotation_task_id: Mapped[Optional[int]] = mapped_column(
+    annotation_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.annotation_tasks.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     # Annotation data
-    label_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    confidence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_authoritative: Mapped[bool] = mapped_column(
         sa.Boolean,
         nullable=False,
@@ -211,9 +207,10 @@ class Annotation(Base):
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
     geometry: Mapped[AnnotationGeometry] = relationship()
-    annotation_task: Mapped[Optional["AnnotationTask"]] = relationship(
+    annotation_task: Mapped["AnnotationTask | None"] = relationship(
         back_populates="annotations",
     )
+
 
 class Embedding(Base):
     """Stores a 64-D embedding vector linked to an annotation task."""

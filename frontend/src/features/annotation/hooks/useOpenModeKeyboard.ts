@@ -12,7 +12,6 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
 
   useEffect(() => {

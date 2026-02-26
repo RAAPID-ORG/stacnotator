@@ -108,9 +108,8 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
       // Add popup with task info
       const assignments = task.assignments || [];
-      const assignedTo = assignments.length > 0
-        ? assignments.map(a => a.user_id).join(', ')
-        : 'Unassigned';
+      const assignedTo =
+        assignments.length > 0 ? assignments.map((a) => a.user_id).join(', ') : 'Unassigned';
 
       marker.bindPopup(`
         <div class="text-sm">

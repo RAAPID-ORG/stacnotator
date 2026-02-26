@@ -36,8 +36,11 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     };
 
     init();
-    return () => { cancelled = true; };
-  }, [loggedIn]); // auth, fetchAccount, clear are stable singletons - no need in deps
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auth, fetchAccount, clear are stable store singletons
+  }, [loggedIn]);
 
   if (initializing) return <LoadingSpinner fullScreen text="Initializing…" />;
 

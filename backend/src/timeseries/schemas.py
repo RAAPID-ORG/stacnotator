@@ -1,6 +1,4 @@
 from pydantic import BaseModel
-from typing import Dict, List
-
 
 # ============================================================================
 # TimeSeries Related Schemas
@@ -49,4 +47,4 @@ class TimeseriesListResponse(BaseModel):
 
 class TimeseriesDataResponse(BaseModel):
     timeseries_id: int
-    data: List[Dict]  # dataframe serialized as dict (orient="records")
+    data: list[dict]  # dataframe serialized as dict (orient="records")

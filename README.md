@@ -6,15 +6,18 @@ A tool for annotating imagery from STAC Catalogs.
 
 ## Quick Start
 
-### Development Setup (with Hot Reload)
+### Development Setup (with Hot Reloading)
+
+0. STACNotator uses Firebase to handle authentication. Create a new firebase project and generate firebase credentials.
 
 1. **Copy and edit environment file:**
     ```bash
     cp .env.dev .env
-    nano .env  # Add your Firebase credentials and any overrides (see env variables section below)
+    nano .env  # Add your Firebase credentials and any overrides (see examples)
     ```
 
 2. **Create a user in firebase**
+    - We use firebase to handle authentication. Create a firebase project.
     - Go to `https://console.firebase.google.com/`, and select your project.
     - Switch to the authentication tab.
     - Under users, click Add user and follow the promts.
@@ -65,7 +68,7 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app served by nginx
+- **Frontend**: React app served by nginx. Backend Client is generated with `openapi-ts`.
 - **Backend**: FastAPI application with Gunicorn workers
 - **Database**: PostgreSQL 16 with PostGIS extension
 - **Nginx**: Reverse proxy for production (Not used when deployed on Azure!)
@@ -94,12 +97,6 @@ STACNotator supports multiple deployment options:
 
 - **Docker Compose** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.)
 - **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
-
-## Environment Variables
-
-All configuration is managed via a single `.env` file at the project root. Use `.env.example` as a template.
-
-See `.env.example` for all available options and documentation. Some options are only required for production.
 
 ### Production Checklist
 

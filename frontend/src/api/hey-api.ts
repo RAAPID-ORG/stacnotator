@@ -58,7 +58,7 @@ interface RequestOptions {
  */
 export const setupClientInterceptors = (client: ClientWithInterceptors): void => {
   // Request interceptor to add auth token
-  client.interceptors.request.use(async (request: Request, options: RequestOptions) => {
+  client.interceptors.request.use(async (request: Request, _options: RequestOptions) => {
     const token = await authManager.getIdToken();
 
     if (token) {

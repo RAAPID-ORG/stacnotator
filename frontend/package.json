@@ -6,7 +6,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "openapi-ts": "openapi-ts"
   },
   "dependencies": {
@@ -32,6 +36,7 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@eslint/js": "^9.18.0",
     "@hey-api/openapi-ts": "0.89.2",
     "@react-router/dev": "7.10.1",
     "@tailwindcss/vite": "^4.1.13",
@@ -40,11 +45,14 @@
     "@types/react": "^19.2.7",
     "@types/react-chartjs-2": "^2.0.2",
     "@types/react-dom": "^19.2.3",
+    "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.18",
     "prettier": "^3.7.4",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.20.0",
     "vite": "^7.1.7",
     "vite-tsconfig-paths": "^5.1.4"
   }

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
@@ -17,7 +15,7 @@ class ImageryWindow(Base):
     """
     Represents a time window within an imagery's date range.
     Windows provide multiple views of the same imagery over different time periods.
-    They will typically all be disaplayed together for annotation.
+    They will typically all be displayed together for annotation.
     """
 
     __tablename__ = "imagery_windows"
@@ -86,18 +84,18 @@ class Imagery(Base):
     )
 
     # ID of the window to show by default on the main canvas
-    default_main_window_id: Mapped[Optional[int]] = mapped_column(
+    default_main_window_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
     )
 
     # Temporal windowing configuration
-    window_interval: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    window_unit: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    window_interval: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    window_unit: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Temporal slicing configuration (within windows)
-    slicing_interval: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    slicing_unit: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    slicing_interval: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    slicing_unit: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # STAC search configuration
     registration_url: Mapped[str] = mapped_column(String, nullable=False)

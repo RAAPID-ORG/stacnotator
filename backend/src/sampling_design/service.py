@@ -2,20 +2,19 @@ import json
 import logging
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
-from typing import List
 
 import geopandas as gpd
 import numpy as np
-from src.campaigns.service import _identify_imagery_time_range
 from fastapi import HTTPException, UploadFile
-from shapely.geometry import Point, MultiPolygon, Polygon, box
-from sqlalchemy import insert, select, func
+from shapely.geometry import MultiPolygon, Point, Polygon, box
+from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
+from src.annotation import embeddings_service
 from src.annotation.models import AnnotationGeometry, AnnotationTask
 from src.campaigns.models import Campaign
-from src.annotation import embeddings_service
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +56,11 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
         contents = await file.read()
         geojson_data = json.loads(contents.decode("utf-8"))
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid GeoJSON format")
+        raise HTTPException(status_code=400, detail="Invalid GeoJSON format") from None
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="GeoJSON must be UTF-8 encoded")
+        raise HTTPException(status_code=400, detail="GeoJSON must be UTF-8 encoded") from None
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read GeoJSON: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to read GeoJSON: {str(e)}") from e
 
     try:
         gdf = gpd.GeoDataFrame.from_features(
@@ -72,7 +71,9 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
             else [{"type": "Feature", "geometry": geojson_data, "properties": {}}]
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse GeoJSON geometry: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to parse GeoJSON geometry: {str(e)}"
+        ) from e
 
     if gdf.empty:
         raise HTTPException(status_code=400, detail="GeoJSON contains no valid geometries")
@@ -91,7 +92,7 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to merge geometries. The GeoJSON may contain complex or invalid topology: {str(e)}",
-            )
+            ) from e
 
     return gdf
 
@@ -109,16 +110,20 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
             with open(zip_path, "wb") as f:
                 f.write(contents)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to save uploaded file: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Failed to save uploaded file: {str(e)}"
+            ) from e
 
         # Extract zip file
         try:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_path)
         except zipfile.BadZipFile:
-            raise HTTPException(status_code=400, detail="Invalid zip file")
+            raise HTTPException(status_code=400, detail="Invalid zip file") from None
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to extract shapefile: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Failed to extract shapefile: {str(e)}"
+            ) from e
 
         # Find .shp file
         shp_files = list(temp_path.rglob("*.shp"))
@@ -136,7 +141,9 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
         try:
             gdf = gpd.read_file(shp_path)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to read shapefile: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Failed to read shapefile: {str(e)}"
+            ) from e
 
         if gdf.crs is None:
             raise HTTPException(
@@ -150,7 +157,7 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
             except Exception as e:
                 raise HTTPException(
                     status_code=400, detail=f"Failed to convert shapefile to EPSG:4326: {str(e)}"
-                )
+                ) from e
 
         # Fix invalid geometries before dissolving
         gdf["geometry"] = gdf["geometry"].buffer(0)
@@ -163,7 +170,7 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Failed to merge geometries. The shapefile may contain complex or invalid topology: {str(e)}",
-                )
+                ) from e
 
         return gdf
 
@@ -235,7 +242,7 @@ def create_bbox_polygon(campaign: Campaign) -> Polygon:
 
 def generate_random_points(
     geometry: Polygon | MultiPolygon, num_samples: int, seed: int | None = None
-) -> List[Point]:
+) -> list[Point]:
     """
     Generate random points within a polygon or multipolygon boundary.
 
@@ -334,18 +341,30 @@ def create_tasks_from_sampling_strategy(
                     "lat": point.y,
                 },
             }
-            for i, (geometry_id, point) in enumerate(zip(geometry_ids, sample_points))
+            for i, (geometry_id, point) in enumerate(zip(geometry_ids, sample_points, strict=True))
         ]
 
         db.execute(insert(AnnotationTask), task_records)
         db.flush()
-        start_date, end_date = _identify_imagery_time_range(db, campaign_id)
-        logger.info(start_date, end_date)
-        embeddings_service.populate_campaign_embeddings(db, campaign_id, start_date, end_date)
+
+        # Populate embeddings using the campaign's embedding year (if set)
+        campaign = db.get(Campaign, campaign_id)
+        embedding_year = (
+            campaign.settings.embedding_year if campaign and campaign.settings else None
+        )
+
+        if embedding_year is not None:
+            start_date = datetime(embedding_year, 1, 1)
+            end_date = datetime(embedding_year, 12, 31)
+            logger.info("Populating embeddings for year %d", embedding_year)
+            embeddings_service.populate_campaign_embeddings(db, campaign_id, start_date, end_date)
+        else:
+            logger.info("No embedding year set for campaign %d - skipping embeddings.", campaign_id)
+
         db.commit()
 
         return len(task_records)
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create tasks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create tasks: {str(e)}") from e

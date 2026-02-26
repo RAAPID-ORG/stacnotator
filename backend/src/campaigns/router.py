@@ -1,11 +1,13 @@
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
 from src.auth.models import User
-from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
+from src.campaigns import service
+from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
     AssignReviewersRequest,
@@ -14,16 +16,16 @@ from src.campaigns.schemas import (
     CampaignCreate,
     CampaignOut,
     CampaignOutWithImageryWindows,
+    CampaignsListResponse,
     CampaignStatistics,
     CampaignUsersResponse,
-    CampaignsListResponse,
     DeleteAnnotationTasksRequest,
+    EmbeddingYearUpdateResponse,
     UpdateCampaignBBoxRequest,
     UpdateCampaignNameRequest,
+    UpdateEmbeddingYearRequest,
 )
-
 from src.database import get_db
-from src.campaigns import service
 from src.utils import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -125,6 +127,7 @@ def make_user_campaign_admin(
 ):
     return service.make_admin(db, campaign.id, new_admin_user_id)
 
+
 @router.post(
     "/{campaign_id}/make-user-authorative-reviewer",
     status_code=201,
@@ -168,6 +171,22 @@ def update_campaign_bbox(
 ):
     bbox = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     return service.update_campaign_bbox(db, campaign_id, bbox)
+
+
+@router.patch("/{campaign_id}/embedding-year", response_model=EmbeddingYearUpdateResponse)
+def update_embedding_year(
+    campaign_id: int,
+    req: UpdateEmbeddingYearRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Set or change the year used for satellite embeddings.
+
+    When the year changes, all existing embeddings are deleted and
+    re-fetched for the new year.  This can take some time for large
+    campaigns.
+    """
+    return service.update_embedding_year(db, campaign_id, req.embedding_year)
 
 
 @router.delete(
@@ -214,9 +233,9 @@ def demote_authorative_reviewer(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Demote an authorative reviewer to basic member"""
-    service.demote_authorative_user(db, campaign_id, user_id)
-    return {"message": "User demoted from authorative reviewer."}
+    """Demote an authoritative reviewer to basic member"""
+    service.demote_authorative_reviewer(db, campaign_id, user_id)
+    return {"message": "User demoted from authoritative reviewer."}
 
 
 @router.post(
@@ -270,37 +289,36 @@ def assign_reviewers(
         if req.percentage is None or req.num_reviewers is None or req.reviewer_ids is None:
             raise HTTPException(
                 status_code=400,
-                detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required"
+                detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required",
             )
         service.assign_reviewers_percentage(
             db, campaign_id, req.percentage, req.num_reviewers, req.reviewer_ids
         )
         return {"message": f"Successfully assigned reviewers to {req.percentage}% of tasks"}
-    
+
     elif req.pattern == "manual":
         if req.manual_assignments is None:
             raise HTTPException(
-                status_code=400,
-                detail="For 'manual' pattern, manual_assignments is required"
+                status_code=400, detail="For 'manual' pattern, manual_assignments is required"
             )
         service.assign_tasks_to_users(db, campaign_id, req.manual_assignments)
         return {"message": f"Successfully assigned {len(req.manual_assignments)} tasks"}
-    
+
     elif req.pattern == "fixed":
         if req.num_tasks is None or req.fixed_num_reviewers is None or req.reviewer_ids is None:
             raise HTTPException(
                 status_code=400,
-                detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required"
+                detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required",
             )
         service.assign_reviewers_fixed(
             db, campaign_id, req.num_tasks, req.fixed_num_reviewers, req.reviewer_ids
         )
         return {"message": f"Successfully assigned reviewers to {req.num_tasks} tasks"}
-    
+
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid pattern '{req.pattern}'. Must be 'percentage', 'manual', or 'fixed'"
+            detail=f"Invalid pattern '{req.pattern}'. Must be 'percentage', 'manual', or 'fixed'",
         )
 
 
@@ -308,7 +326,7 @@ def assign_reviewers(
     "/{campaign_id}/tasks/{task_id}/users/{user_id}",
     status_code=200,
 )
-def unassign_user_from_task(
+def remove_user_from_task(
     campaign_id: int,
     task_id: int,
     user_id: str,
@@ -359,7 +377,7 @@ def get_campaign_statistics_endpoint(
 ):
     """
     Get comprehensive statistics for a campaign.
-    
+
     Returns:
     - Overall campaign metrics (total annotations, users, tasks)
     - Krippendorff's Alpha for inter-annotator agreement

@@ -70,13 +70,13 @@ const MapController = ({
       const bounds = L.latLngBounds([south, west], [north, east]);
       map.fitBounds(bounds);
     }
-    
+
     // Invalidate size after bounds change to ensure tiles load
     map.invalidateSize();
   }, [map, bbox, visibleBounds]);
 
   return null;
-}
+};
 
 const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
   const [west, south, east, north] = bbox;
@@ -84,7 +84,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
 
   // Create stable keys for rectangles to force re-render when bounds change
   const campaignBboxKey = `campaign-${west}-${south}-${east}-${north}`;
-  const visibleBoundsKey = visibleBounds 
+  const visibleBoundsKey = visibleBounds
     ? `visible-${visibleBounds[0]}-${visibleBounds[1]}-${visibleBounds[2]}-${visibleBounds[3]}`
     : null;
 
@@ -106,7 +106,8 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
         {/* Add custom attribution control */}
         <div className="leaflet-bottom leaflet-right">
           <div className="leaflet-control-attribution leaflet-control">
-            &copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>
+            &copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>,{' '}
+            <a href="https://carto.com/attributions">CARTO</a>
           </div>
         </div>
 

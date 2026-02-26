@@ -11,7 +11,6 @@ import { StepAddTimeseries } from './steps/StepAddTimeseries';
 import { StepReview } from './steps/StepReview';
 import { StepIndicator } from './StepIndicator';
 
-
 // Define step configuration to keep step names and content aligned
 const STEP_CONFIG = {
   tasks: [
@@ -66,7 +65,7 @@ export const CreateCampaignModal = ({
       Object.keys(validation.settings.errors).length +
       Object.keys(validation.imagery.errors).length +
       Object.keys(validation.timeseries.errors).length,
-    [validation],
+    [validation]
   );
 
   // Get current step configuration based on mode
@@ -117,10 +116,7 @@ export const CreateCampaignModal = ({
           </button>
         </div>
 
-        <StepIndicator
-          step={step}
-          mode={form.mode as 'tasks' | 'open'}
-        />
+        <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} />
 
         <div className="p-6 overflow-y-auto h-[60vh]">{getStepContent()}</div>
 

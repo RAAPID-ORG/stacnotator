@@ -38,9 +38,7 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
         {/* Error Content */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-gray-900">Application Error</h1>
-          <p className="text-gray-600">
-            Something went wrong while loading the application.
-          </p>
+          <p className="text-gray-600">Something went wrong while loading the application.</p>
         </div>
 
         {/* Error Details */}

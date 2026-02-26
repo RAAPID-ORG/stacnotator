@@ -1,15 +1,6 @@
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import (
-    CheckConstraint,
-    ForeignKey,
-    Integer,
-    String,
-    TIMESTAMP,
-    func,
-    Boolean
-)
+from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -35,7 +26,7 @@ class Campaign(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=False)  # tasks or open-world
+    mode: Mapped[str | None] = mapped_column(String(20), nullable=False)  # tasks or open-world
 
     # Relationships
     settings: Mapped["CampaignSettings"] = relationship(
@@ -105,6 +96,10 @@ class CampaignSettings(Base):
     bbox_east: Mapped[float] = mapped_column(nullable=False)
     bbox_north: Mapped[float] = mapped_column(nullable=False)
 
+    # Year from which to source satellite embeddings (e.g. 2024).
+    # NULL means embeddings are not configured / not used.
+    embedding_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
 
@@ -133,17 +128,17 @@ class CanvasLayout(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     # Foreign keys
-    user_id: Mapped[Optional[int]] = mapped_column(
+    user_id: Mapped[int | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="CASCADE"),
         nullable=True,
     )
 
-    campaign_id: Mapped[Optional[int]] = mapped_column(
+    campaign_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
         nullable=True,
     )
 
-    imagery_id: Mapped[Optional[int]] = mapped_column(
+    imagery_id: Mapped[int | None] = mapped_column(
         ForeignKey("data.imagery.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -162,10 +157,10 @@ class CanvasLayout(Base):
     )
 
     # Relationships
-    campaign: Mapped[Optional["Campaign"]] = relationship(
+    campaign: Mapped["Campaign | None"] = relationship(
         back_populates="canvas_layouts",
     )
-    imagery: Mapped[Optional["Imagery"]] = relationship(
+    imagery: Mapped["Imagery | None"] = relationship(
         back_populates="canvas_layouts",
     )
 
@@ -176,9 +171,7 @@ class CampaignUser(Base):
     """
 
     __tablename__ = "campaign_users"
-    __table_args__ = (
-        {"schema": "data"},
-    )
+    __table_args__ = ({"schema": "data"},)
 
     # Composite primary key
     user_id: Mapped[int] = mapped_column(

@@ -101,8 +101,17 @@ interface AnnotationStore {
   campaignBbox: () => [number, number, number, number] | null;
 
   // Data actions
-  loadCampaign: (campaignId: number, initialTaskId?: number, isReviewMode?: boolean) => Promise<void>;
-  submitAnnotation: (labelId: number | null, comment: string, confidence: number, isAuthoritative?: boolean) => Promise<void>;
+  loadCampaign: (
+    campaignId: number,
+    initialTaskId?: number,
+    isReviewMode?: boolean
+  ) => Promise<void>;
+  submitAnnotation: (
+    labelId: number | null,
+    comment: string,
+    confidence: number,
+    isAuthoritative?: boolean
+  ) => Promise<void>;
   nextTask: () => void;
   previousTask: () => void;
   goToTask: (annotationNumber: number) => void;
@@ -222,12 +231,13 @@ const applyTaskFilter = (
     const assignments = task.assignments || [];
     const matchesAssignment =
       filter.assignedTo.length === 0 ||
-      assignments.some(a => filter.assignedTo.includes(a.user_id));
+      assignments.some((a) => filter.assignedTo.includes(a.user_id));
 
     // Filter by status - check if any assignment has matching status
-    const matchesStatus = assignments.length === 0 
-      ? filter.statuses.includes('pending') // No assignments means pending
-      : assignments.some(a => filter.statuses.includes(a.status as TaskStatus));
+    const matchesStatus =
+      assignments.length === 0
+        ? filter.statuses.includes('pending') // No assignments means pending
+        : assignments.some((a) => filter.statuses.includes(a.status as TaskStatus));
 
     return matchesAssignment && matchesStatus;
   });
@@ -237,7 +247,9 @@ const applyTaskFilter = (
  * Get form state (label, comment, confidence) from the current user's annotation on a task.
  * Returns defaults if the user hasn't annotated the task yet.
  */
-const getFormStateForTask = (task: AnnotationTaskOut | null): {
+const getFormStateForTask = (
+  task: AnnotationTaskOut | null
+): {
   selectedLabelId: number | null;
   comment: string;
   confidence: number;
@@ -245,7 +257,7 @@ const getFormStateForTask = (task: AnnotationTaskOut | null): {
   if (!task) return { selectedLabelId: null, comment: '', confidence: 5 };
   const currentUserId = useAccountStore.getState().account?.id;
   if (!currentUserId) return { selectedLabelId: null, comment: '', confidence: 5 };
-  const userAnnotation = task.annotations.find(a => a.created_by_user_id === currentUserId);
+  const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
   if (userAnnotation) {
     return {
       selectedLabelId: userAnnotation.label_id,
@@ -274,9 +286,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       if (assignments.length === 0) {
         return annotations.length > 0;
       }
-      const assignedUserIds = new Set(assignments.map(a => a.user_id));
-      const completedUserIds = new Set(annotations.map(a => a.created_by_user_id));
-      return Array.from(assignedUserIds).every(id => completedUserIds.has(id));
+      const assignedUserIds = new Set(assignments.map((a) => a.user_id));
+      const completedUserIds = new Set(annotations.map((a) => a.created_by_user_id));
+      return Array.from(assignedUserIds).every((id) => completedUserIds.has(id));
     }).length;
   },
 
@@ -396,7 +408,12 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     }
   },
 
-  submitAnnotation: async (labelId: number | null, comment: string, confidence: number, isAuthoritative?: boolean) => {
+  submitAnnotation: async (
+    labelId: number | null,
+    comment: string,
+    confidence: number,
+    isAuthoritative?: boolean
+  ) => {
     const { campaign, visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
     const task = visibleTasks[currentTaskIndex];
     const currentUserId = useAccountStore.getState().account?.id;
@@ -417,7 +434,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
             annotation_id: userAnnotation.id,
           },
         });
-        
+
         // Remove the annotation from the task
         const updatedTasks = allTasks.map((t) =>
           t.id === task.id
@@ -449,7 +466,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
               query: { label_id: labelId },
             });
 
-            if (validationRes.data === false) {
+            const status = validationRes.data?.status;
+
+            if (status === 'mismatch') {
               const proceed = await useLayoutStore.getState().showConfirmDialog({
                 title: 'Label Mismatch Detected',
                 description:
@@ -463,8 +482,10 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
                 return;
               }
             }
+            // status === 'ok' → label agrees, proceed normally
+            // status === 'skipped_no_embedding', 'skipped_insufficient_data', or 'disabled' → not enough data / not configured, don't block
           } catch {
-            // Validation endpoint unavailable (no embedding yet, etc.) - don't block submission
+            // Validation endpoint unavailable - don't block submission
           }
         }
 
@@ -487,7 +508,9 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         // Update local state - either replace existing user annotation or add new one
         const updatedTasks = allTasks.map((t) => {
           if (t.id === task.id && newAnnotation) {
-            const otherAnnotations = t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
+            const otherAnnotations = t.annotations.filter(
+              (a) => a.created_by_user_id !== currentUserId
+            );
             return {
               ...t,
               annotations: [...otherAnnotations, newAnnotation],
@@ -499,7 +522,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         const updatedVisibleTasks = applyTaskFilter(updatedTasks, taskFilter);
 
         // Move to next task or loop to first
-        const nextIndex = currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0;
+        const nextIndex =
+          currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0;
         const nextTask = updatedVisibleTasks[nextIndex] || null;
 
         set({
@@ -611,7 +635,13 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   },
 
   goToTaskById: (taskId: number, options?: { resetFilters?: boolean }) => {
-    const { allTasks, visibleTasks: currentVisibleTasks, taskFilter: currentFilter, campaign, selectedImageryId } = get();
+    const {
+      allTasks,
+      visibleTasks: currentVisibleTasks,
+      taskFilter: currentFilter,
+      campaign,
+      selectedImageryId,
+    } = get();
 
     // Determine which filter & visible list to use
     let taskFilter: TaskFilter;
@@ -667,17 +697,27 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     const { campaign, currentLayout, selectedImageryId } = get();
 
     if (!campaign || !currentLayout || selectedImageryId === null) {
-      useLayoutStore.getState().showAlert('Cannot save layout: missing campaign or imagery', 'error');
+      useLayoutStore
+        .getState()
+        .showAlert('Cannot save layout: missing campaign or imagery', 'error');
       return;
     }
 
     try {
       // Separate main layout items from imagery layout items
       const mainLayoutItems = currentLayout.filter(
-        (item) => item.i === 'main' || item.i === 'timeseries' || item.i === 'minimap' || item.i === 'controls'
+        (item) =>
+          item.i === 'main' ||
+          item.i === 'timeseries' ||
+          item.i === 'minimap' ||
+          item.i === 'controls'
       );
       const imageryLayoutItems = currentLayout.filter(
-        (item) => item.i !== 'main' && item.i !== 'timeseries' && item.i !== 'minimap' && item.i !== 'controls'
+        (item) =>
+          item.i !== 'main' &&
+          item.i !== 'timeseries' &&
+          item.i !== 'minimap' &&
+          item.i !== 'controls'
       );
 
       // Save to backend
@@ -842,7 +882,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
 
   setConfidence: (confidence) => set({ confidence }),
 
-  setActiveTool: (tool) => set({ activeTool: tool, ...(tool !== 'timeseries' ? { probeTimeseriesPoint: null } : {}) }),
+  setActiveTool: (tool) =>
+    set({ activeTool: tool, ...(tool !== 'timeseries' ? { probeTimeseriesPoint: null } : {}) }),
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
 
@@ -865,7 +906,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   // Task filter actions
   setTaskFilter: (filterUpdate: Partial<TaskFilter>) => {
     const { allTasks, taskFilter } = get();
-    
+
     // Merge with existing filter
     const newFilter: TaskFilter = {
       ...taskFilter,
@@ -898,7 +939,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       assignedTo: currentUserId ? [currentUserId] : [],
       statuses: ['pending'],
     };
-    
+
     get().setTaskFilter(defaultFilter);
   },
 

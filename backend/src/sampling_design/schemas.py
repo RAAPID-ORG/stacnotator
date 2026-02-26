@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -11,7 +9,7 @@ class SamplingStrategyConfig(BaseModel):
         description="Type of sampling strategy: 'random', 'stratified_random', etc.",
     )
     num_samples: int = Field(..., gt=0, description="Number of samples to generate")
-    parameters: Optional[dict] = Field(
+    parameters: dict | None = Field(
         None, description="Additional strategy-specific parameters (e.g., seed for random)"
     )
     use_campaign_bbox: bool = Field(

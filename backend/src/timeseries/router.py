@@ -1,11 +1,11 @@
+from calendar import monthrange
+
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
-from calendar import monthrange
-
 
 from src.auth.dependencies import require_approved_user
-from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
+from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.timeseries import service
@@ -15,11 +15,11 @@ from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_TYPES,
 )
 from src.timeseries.schemas import (
-    TimeSeriesOptionsOut,
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
     TimeseriesListResponse,
+    TimeSeriesOptionsOut,
 )
 from src.utils import FunctionNameOperationIdRoute
 

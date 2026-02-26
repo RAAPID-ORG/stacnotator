@@ -1,23 +1,25 @@
 import io
-from typing import Optional, Dict, Any, List
 from uuid import UUID
-from datetime import datetime
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
+from shapely.geometry import mapping
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, joinedload
-from shapely.geometry import mapping
-
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
     ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
 )
-from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
+from src.annotation.models import (
+    Annotation,
+    AnnotationGeometry,
+    AnnotationTask,
+    AnnotationTaskAssignment,
+)
 from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
 from src.campaigns.models import Campaign
@@ -36,44 +38,41 @@ def get_annotation_task_by_id(
     db: Session,
     task_id: int,
     campaign_id: int,
-) -> Optional[AnnotationTask]:
+) -> AnnotationTask | None:
     """
     Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
-    
+
     Args:
         db: Database session
         task_id: ID of the task
         campaign_id: ID of the campaign (for validation)
-        
+
     Returns:
         Annotation task item or None if not found
     """
-    stmt = (
-        select(AnnotationTask)
-        .where(
-            AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign_id,
-        )
+    stmt = select(AnnotationTask).where(
+        AnnotationTask.id == task_id,
+        AnnotationTask.campaign_id == campaign_id,
     )
-    
+
     return db.scalar(stmt)
 
 
 def get_annotation_tasks_for_campaign(
     db: Session,
     campaign_id: int,
-) -> List[AnnotationTask]:
+) -> list[AnnotationTask]:
     """
     Retrieve all annotation tasks for a campaign with eager loading
     to avoid N+1 query problem.
-    
-    This loads all related data (geometry, assignments, annotations) 
+
+    This loads all related data (geometry, assignments, annotations)
     in a single optimized query.
-    
+
     Args:
         db: Database session
         campaign_id: ID of the campaign
-        
+
     Returns:
         List of annotation task items with all relationships loaded
     """
@@ -87,7 +86,7 @@ def get_annotation_tasks_for_campaign(
         )
         .order_by(AnnotationTask.annotation_number)
     )
-    
+
     return db.scalars(stmt).unique().all()
 
 
@@ -135,11 +134,11 @@ def create_annotation_tasks_from_csv(
             dtype={"id": str, "lon": float, "lat": float},
         )
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded")
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded") from None
     except pd.errors.EmptyDataError:
-        raise HTTPException(status_code=400, detail="CSV file is empty")
+        raise HTTPException(status_code=400, detail="CSV file is empty") from None
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid CSV format")
+        raise HTTPException(status_code=400, detail="Invalid CSV format") from None
 
     # Validate required columns
     missing = REQUIRED_COLUMNS - set(df.columns)
@@ -188,7 +187,7 @@ def create_annotation_tasks_from_csv(
     # Create geometry records
     geometry_records = [
         {"geometry": f"SRID=4326;POINT({lon} {lat})"}
-        for lon, lat in zip(df["lon"].values, df["lat"].values)
+        for lon, lat in zip(df["lon"].values, df["lat"].values, strict=True)
     ]
 
     try:
@@ -208,7 +207,7 @@ def create_annotation_tasks_from_csv(
                 "status": "pending",
                 "raw_source_data": row["raw_source_data"],
             }
-            for geometry_id, (_, row) in zip(geometry_ids, df.iterrows())
+            for geometry_id, (_, row) in zip(geometry_ids, df.iterrows(), strict=True)
         ]
 
         db.execute(insert(AnnotationTask), task_records)
@@ -219,19 +218,20 @@ def create_annotation_tasks_from_csv(
         raise HTTPException(
             status_code=500,
             detail="Import failed. No geometries or task items were created.",
-        )
+        ) from None
 
 
 # ============================================================================
 # Annotation Creation
 # ============================================================================
 
+
 def add_annotation_for_task(
     db: Session,
     annotation_task: AnnotationTask,
     annotation_create: AnnotationFromTaskCreate,
     user_id: UUID,
-) -> Optional[Annotation]:
+) -> Annotation | None:
     """
     Create or update annotation for a task item and update task status.
 
@@ -256,20 +256,20 @@ def add_annotation_for_task(
     existing_annotation = db.execute(
         select(Annotation).where(
             Annotation.annotation_task_id == annotation_task.id,
-            Annotation.created_by_user_id == user_id
+            Annotation.created_by_user_id == user_id,
         )
     ).scalar_one_or_none()
 
     assignment = db.execute(
         select(AnnotationTaskAssignment).where(
             AnnotationTaskAssignment.task_id == annotation_task.id,
-            AnnotationTaskAssignment.user_id == user_id
+            AnnotationTaskAssignment.user_id == user_id,
         )
     ).scalar_one_or_none()
 
     annotation = None
 
-    if existing_annotation: # UPDATE
+    if existing_annotation:  # UPDATE
         # If no new label provided, delete existing annotation and mark as skipped
         if annotation_create.label_id is None:
             db.delete(existing_annotation)
@@ -286,7 +286,7 @@ def add_annotation_for_task(
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
                 annotation = existing_annotation
-    else: # CREATE
+    else:  # CREATE
         # Create new annotation if label or comment provided
         if annotation_create.label_id is not None or annotation_create.comment is not None:
             annotation = Annotation(
@@ -363,7 +363,7 @@ def create_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to create annotation: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to create annotation: {str(e)}") from e
 
 
 def update_annotation(
@@ -426,7 +426,7 @@ def update_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to update annotation: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to update annotation: {str(e)}") from e
 
 
 # ============================================================================
@@ -495,11 +495,10 @@ def delete_annotation(
     try:
         # If linked to a task, reset task status to pending
         if annotation.annotation_task_id is not None:
-            
             assignment = db.execute(
                 select(AnnotationTaskAssignment).where(
                     AnnotationTaskAssignment.task_id == annotation.annotation_task_id,
-                    AnnotationTaskAssignment.user_id == annotation.created_by_user_id
+                    AnnotationTaskAssignment.user_id == annotation.created_by_user_id,
                 )
             ).scalar_one_or_none()
 
@@ -513,7 +512,7 @@ def delete_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete annotation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete annotation: {str(e)}") from e
 
 
 # ============================================================================
@@ -545,17 +544,17 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
             label_data = labels[label_id_str]
             return label_data.get("name") if isinstance(label_data, dict) else label_data
         return None
-    
+
     # Query all annotations with eagerly loaded relationships
     annotations = (
         db.execute(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
-            .options(
-                joinedload(Annotation.geometry),
-                joinedload(Annotation.annotation_task)
-            )
-        ).unique().scalars().all()
+            .options(joinedload(Annotation.geometry), joinedload(Annotation.annotation_task))
+        )
+        .unique()
+        .scalars()
+        .all()
     )
 
     # Batch fetch all unique user emails

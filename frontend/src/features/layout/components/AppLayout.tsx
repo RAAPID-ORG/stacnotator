@@ -34,7 +34,9 @@ export const AppLayout = () => {
 
   return (
     <div className="flex h-screen w-full bg-neutral-50">
-      {!isFullscreen && <AppSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />}
+      {!isFullscreen && (
+        <AppSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <Alert message={alertMessage} type={alertType} onDismiss={hideAlert} />

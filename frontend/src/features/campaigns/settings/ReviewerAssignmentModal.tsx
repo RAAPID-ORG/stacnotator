@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import type { CampaignUserOut } from '~/api/client';
 
 interface ReviewerAssignmentModalProps {

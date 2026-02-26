@@ -64,7 +64,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
           name: 'False Color',
           visualization_url:
             'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35&collection=sentinel-2-l2a&pixel_selection=median',
-        }
+        },
       ],
     },
   },
@@ -81,7 +81,26 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
       slicing_unit: 'weeks',
       registration_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
       search_body: JSON.stringify(
-        {"bbox":"{campaignBBoxPlaceholder}","filter":{"op":"and","args":[{"op":"anyinteracts","args":[{"property":"datetime"},{"interval":["{startDatetimePlaceholder}","{endDatetimePlaceholder}"]}]},{"op":"<=","args":[{"property":"eo:cloud_cover"},70]},{"op":"=","args":[{"property":"collection"},"landsat-c2-l2"]}]},"metadata":{"type":"mosaic","maxzoom":24,"minzoom":0,"pixel_selection":"median"},"filterLang":"cql2-json","collections":["landsat-c2-l2"]},
+        {
+          bbox: '{campaignBBoxPlaceholder}',
+          filter: {
+            op: 'and',
+            args: [
+              {
+                op: 'anyinteracts',
+                args: [
+                  { property: 'datetime' },
+                  { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
+                ],
+              },
+              { op: '<=', args: [{ property: 'eo:cloud_cover' }, 70] },
+              { op: '=', args: [{ property: 'collection' }, 'landsat-c2-l2'] },
+            ],
+          },
+          metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'median' },
+          filterLang: 'cql2-json',
+          collections: ['landsat-c2-l2'],
+        },
         null,
         2
       ),
@@ -107,7 +126,27 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
       slicing_unit: 'weeks',
       registration_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
       search_body: JSON.stringify(
-        {"bbox":"{campaignBBoxPlaceholder}","filter":{"op":"and","args":[{"op":"anyinteracts","args":[{"property":"datetime"},{"interval":["{startDatetimePlaceholder}","{endDatetimePlaceholder}"]}]},{"op":"<=","args":[{"property":"eo:cloud_cover"},70]}]},"metadata":{"type":"mosaic","maxzoom":24,"minzoom":0,"pixel_selection":"median"},"filterLang":"cql2-json","collections":["hls2-l30","hls2-s30"]}, null, 2
+        {
+          bbox: '{campaignBBoxPlaceholder}',
+          filter: {
+            op: 'and',
+            args: [
+              {
+                op: 'anyinteracts',
+                args: [
+                  { property: 'datetime' },
+                  { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
+                ],
+              },
+              { op: '<=', args: [{ property: 'eo:cloud_cover' }, 70] },
+            ],
+          },
+          metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'median' },
+          filterLang: 'cql2-json',
+          collections: ['hls2-l30', 'hls2-s30'],
+        },
+        null,
+        2
       ),
       visualization_url_templates: [
         {
@@ -118,7 +157,7 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
       ],
     },
   },
-    {
+  {
     id: 'naip',
     label: 'National Agriculture Imagery Program (NAIP)',
     template: {
@@ -131,7 +170,27 @@ export const IMAGERY_PRESETS: ImageryPreset[] = [
       slicing_unit: 'weeks',
       registration_url: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
       search_body: JSON.stringify(
-        {"bbox":"{campaignBBoxPlaceholder}","filter":{"op":"and","args":[{"op":"anyinteracts","args":[{"property":"datetime"},{"interval":["{startDatetimePlaceholder}","{endDatetimePlaceholder}"]}]},{"op":"=","args":[{"property":"collection"},"naip"]}]},"metadata":{"type":"mosaic","maxzoom":24,"minzoom":0,"pixel_selection":"median"},"filterLang":"cql2-json","collections":["naip"]}, null, 2
+        {
+          bbox: '{campaignBBoxPlaceholder}',
+          filter: {
+            op: 'and',
+            args: [
+              {
+                op: 'anyinteracts',
+                args: [
+                  { property: 'datetime' },
+                  { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
+                ],
+              },
+              { op: '=', args: [{ property: 'collection' }, 'naip'] },
+            ],
+          },
+          metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'median' },
+          filterLang: 'cql2-json',
+          collections: ['naip'],
+        },
+        null,
+        2
       ),
       visualization_url_templates: [
         {

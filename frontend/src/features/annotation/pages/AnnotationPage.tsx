@@ -62,7 +62,7 @@ export const AnnotationPage = () => {
         await loadCampaign(
           campaignIdNumber,
           initialTaskId && !Number.isNaN(initialTaskId) ? initialTaskId : undefined,
-          isReviewMode,
+          isReviewMode
         );
       } catch (error) {
         if (!cancelled) {
@@ -77,7 +77,8 @@ export const AnnotationPage = () => {
       cancelled = true;
       reset();
     };
-  }, [campaignIdNumber]); // store actions are stable singletons
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- store actions (loadCampaign, reset, showAlert) are stable singletons; searchParams/setSearchParams handled intentionally
+  }, [campaignIdNumber]);
 
   // Update breadcrumbs when campaign loads
   useEffect(() => {
@@ -135,7 +136,7 @@ export const AnnotationPage = () => {
             </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tasks Available</h3>
             <p className="text-gray-600 mb-1">
-              You've completed all assigned annotation tasks for this campaign! <br/>
+              You've completed all assigned annotation tasks for this campaign! <br />
               Change your filter settings to see more tasks that were not assigned to you.
             </p>
           </div>

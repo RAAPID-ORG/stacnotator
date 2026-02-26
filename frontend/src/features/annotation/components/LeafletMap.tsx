@@ -72,6 +72,10 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
   const lastZoomOutTriggerRef = useRef<number | undefined>(zoomOutTrigger);
   const lastPanTriggerRef = useRef<number | undefined>(panTrigger?.count);
 
+  // Extract center components for stable deps
+  const centerLat = center[0];
+  const centerLng = center[1];
+
   // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -106,6 +110,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         mapRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialization effect, only runs once
   }, []);
 
   // Listen to map move/zoom events and report to parent
@@ -185,7 +190,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       initialZoomRef.current = zoom;
       initializedRef.current = true;
     }
-  }, [center[0], center[1], zoom, syncMapState]);
+  }, [center, centerLat, centerLng, zoom, syncMapState]);
 
   // Refocus when trigger changes (explicit user action)
   useEffect(() => {
@@ -196,7 +201,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
       lastRefocusTriggerRef.current = refocusTrigger;
       mapRef.current.setView(center, zoom);
     }
-  }, [refocusTrigger, center[0], center[1], zoom]);
+  }, [refocusTrigger, center, centerLat, centerLng, zoom]);
 
   // Zoom in when trigger changes
   useEffect(() => {
@@ -244,6 +249,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
 
       mapRef.current.panBy([x, y]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [panTrigger?.count, panTrigger?.direction]);
 
   // Update basemap layer
@@ -307,7 +313,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         basemapLayerRef.current = null;
       }
     };
-  }, [showBasemap, basemapType]);
+  }, [showBasemap, basemapType, enableTileBuffering]);
 
   // Update tile layer
   useEffect(() => {
@@ -335,7 +341,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         tileLayerRef.current = null;
       }
     };
-  }, [tileUrl]);
+  }, [tileUrl, enableTileBuffering]);
 
   // Update crosshair - only when center coordinates actually change
   useEffect(() => {
@@ -379,7 +385,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         crosshairMarkerRef.current = null;
       }
     };
-  }, [center[0], center[1], showCrosshair, crosshairColor]);
+  }, [center, centerLat, centerLng, showCrosshair, crosshairColor]);
 
   // Update crosshair color separately when it changes
   useEffect(() => {
@@ -439,6 +445,7 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
         probeMarkerRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [probeMarker?.lat, probeMarker?.lon]);
 
   // Update cursor style

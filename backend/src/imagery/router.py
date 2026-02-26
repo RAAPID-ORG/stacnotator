@@ -1,17 +1,21 @@
 from fastapi import APIRouter, Depends
 from fastapi.security import HTTPBearer
-from requests import Session
+from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
 from src.auth.models import User
-from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
+from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-from src.imagery.schemas import ImageryBulkCreate, CanvasLayoutCreateRequest, CreateImageryResponse, ImageryUpdate, ImageryOut
-from src.utils import FunctionNameOperationIdRoute
-
 from src.imagery import service
-
+from src.imagery.schemas import (
+    CanvasLayoutCreateRequest,
+    CreateImageryResponse,
+    ImageryBulkCreate,
+    ImageryOut,
+    ImageryUpdate,
+)
+from src.utils import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -59,14 +63,14 @@ def update_imagery(
     """
     # Convert Pydantic model to dict, excluding None values
     update_dict = updates.model_dump(exclude_none=True)
-    
+
     updated_imagery = service.update_imagery(
         db=db,
         imagery_id=imagery_id,
         campaign_id=campaign_id,
         updates=update_dict,
     )
-    
+
     return updated_imagery
 
 

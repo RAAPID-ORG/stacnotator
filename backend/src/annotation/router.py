@@ -1,11 +1,13 @@
 import io
+import json
 import logging
-from typing import Optional
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
+from src.annotation import embeddings_service, service
 from src.annotation.schema import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
@@ -13,18 +15,14 @@ from src.annotation.schema import (
     AnnotationOut,
     AnnotationTaskListOut,
     AnnotationUpdate,
+    ValidateLabelSubmissionsResponse,
 )
-
-from src.annotation import service
-from src.annotation import embeddings_service
 from src.auth.dependencies import require_approved_user, require_authenticated_user
 from src.auth.models import User
-from src.campaigns.dependancies import require_campaign_access, require_campaign_admin
+from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-
-from src.utils import clean_filename, FunctionNameOperationIdRoute
-
+from src.utils import FunctionNameOperationIdRoute, clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -40,6 +38,7 @@ logger = logging.getLogger(__name__)
 # Task-Based Annotation
 # ============================================================================
 
+
 @router.get("/campaigns/{campaign_id}/annotation-tasks", response_model=AnnotationTaskListOut)
 def get_all_annotation_tasks(
     campaign_id: int,
@@ -52,7 +51,7 @@ def get_all_annotation_tasks(
 
 @router.post(
     "/campaigns/{campaign_id}/{annotation_task_id}/annotate",
-    response_model=Optional[AnnotationFromTaskOut],
+    response_model=AnnotationFromTaskOut | None,
 )
 def complete_annotation_task(
     campaign_id: int,
@@ -85,8 +84,12 @@ def complete_annotation_task(
 
     if annotation:
         return annotation
-    
-@router.get("/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission", response_model=bool)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/{annotation_task_id}/validate-submission",
+    response_model=ValidateLabelSubmissionsResponse,
+)
 def validate_annotation_submission(
     campaign_id: int,
     annotation_task_id: int,
@@ -94,27 +97,27 @@ def validate_annotation_submission(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    """Check whether ``label_id`` agrees with the KNN-majority prediction
+    """Check whether a label_id agrees with the KNN-majority prediction
     derived from the task's satellite embedding and its nearest neighbours
     in the same campaign.
+
+    Always returns 200 with a status field indicating the outcome:
+    - ok - label matches neighbours
+    - mismatch - label disagrees with neighbours
+    - skipped_no_embedding - no embedding for the task
+    - skipped_insufficient_data - not enough labeled data yet
+    - disabled - no embedding year configured for this campaign
     """
+    # Short-circuit if no embedding year is configured
+    if not campaign.settings or campaign.settings.embedding_year is None:
+        return ValidateLabelSubmissionsResponse(status="disabled", agrees=None)
 
-    # TODO if too few labels, don't validate
-    embedding = embeddings_service.get_embedding_by_task(db, annotation_task_id)
-    if embedding is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No embedding found for this task - cannot validate.",
-        )
-
-    nearest = embeddings_service.find_nearest_labeled_embeddings(
+    return embeddings_service.validate_label_submission(
         db,
         campaign_id=campaign_id,
-        target_vector=list(embedding.vector),
-        k=5,
+        annotation_task_id=annotation_task_id,
+        label_id=label_id,
     )
-
-    return embeddings_service.knn_label_agrees(nearest, label_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-csv")
@@ -133,6 +136,7 @@ async def ingest_annotation_tasks_from_csv(
 # ============================================================================
 # Open-Mode Annotation
 # ============================================================================
+
 
 @router.post("/campaigns/{campaign_id}/create-annotation", response_model=AnnotationOut)
 def create_annotation_openmode(
@@ -171,9 +175,11 @@ def update_annotation_openmode(
 
     return annotation
 
+
 # ============================================================================
 # Common - for both modes
 # ============================================================================
+
 
 @router.delete("/campaigns/{campaign_id}/annotations/{annotation_id}", status_code=204)
 def delete_annotation(
@@ -219,12 +225,12 @@ def export_annotations_geojson(
     db: Session = Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
 ):
     """Export all annotations for a campaign as a GeoJSON FeatureCollection file."""
-    import json
 
     geojson = service.build_annotations_geojson_export(db, campaign)
     campaign_name_cleaned = clean_filename(campaign.name)
     content = json.dumps(geojson)
     buffer = io.StringIO(content)
+
     return StreamingResponse(
         buffer,
         media_type="application/geo+json",

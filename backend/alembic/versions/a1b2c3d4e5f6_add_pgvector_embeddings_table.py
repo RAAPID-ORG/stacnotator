@@ -42,8 +42,8 @@ def _backfill_embeddings() -> None:
     from src.utils import initialize_earth_engine
     from src.database import Base  # noqa - ensures models are registered
     from src.campaigns.models import Campaign
-    from src.campaigns.service import _identify_imagery_time_range
     from src.annotation import embeddings_service
+    from datetime import datetime
 
     _ensure_stdout_logging()
     initialize_earth_engine()
@@ -56,7 +56,15 @@ def _backfill_embeddings() -> None:
 
     for campaign in campaigns:
         try:
-            start_date, end_date = _identify_imagery_time_range(session, campaign.id)
+            year = campaign.settings.embedding_year if campaign.settings else None
+            if year is None:
+                logger.info(
+                    "  Campaign %d (%s): no embedding year set – skipping.",
+                    campaign.id, campaign.name,
+                )
+                continue
+            start_date = datetime(year, 1, 1)
+            end_date = datetime(year, 12, 31)
             summary = embeddings_service.populate_campaign_embeddings(
                 session, campaign.id, start_date, end_date,
             )

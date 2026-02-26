@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Development database seeding script.
 Creates a sample campaign with imagery, tasks, and users for quick development.
@@ -6,7 +5,7 @@ Creates a sample campaign with imagery, tasks, and users for quick development.
 Usage:
     python seed_dev_data.py              # Seed the database
     python seed_dev_data.py clear        # Clear seed data
-    python seed_dev_data.py FIREBASE_UID # Seed with specific Firebase UID
+    python seed_dev_data.py FIREBASE_UID # Seed with specific Firebase UID for initial user
 """
 
 import sys

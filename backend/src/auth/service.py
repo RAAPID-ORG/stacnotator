@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -33,7 +32,7 @@ def _get_user_by_external_id(
     db: Session,
     issuer: str,
     external_uid: str,
-) -> Optional[User]:
+) -> User | None:
     """Find user by external identity provider credentials."""
     stmt = select(User).where(
         User.issuer == issuer,
@@ -143,7 +142,7 @@ def is_approved(db: Session, user_id: UUID) -> bool:
 # ============================================================================
 
 
-def approve_user(db: Session, user_id: UUID) -> Optional[User]:
+def approve_user(db: Session, user_id: UUID) -> User | None:
     """
     Grant approval role to a user.
 
@@ -168,7 +167,7 @@ def approve_user(db: Session, user_id: UUID) -> Optional[User]:
     return user
 
 
-def revoke_approval(db: Session, user_id: UUID) -> Optional[User]:
+def revoke_approval(db: Session, user_id: UUID) -> User | None:
     """
     Revoke approval role from a user.
 
@@ -204,7 +203,7 @@ def revoke_approval(db: Session, user_id: UUID) -> Optional[User]:
 # ============================================================================
 
 
-def grant_admin(db: Session, user_id: UUID) -> Optional[User]:
+def grant_admin(db: Session, user_id: UUID) -> User | None:
     """
     Grant admin role to a user.
 
@@ -236,7 +235,7 @@ def grant_admin(db: Session, user_id: UUID) -> Optional[User]:
     return user
 
 
-def revoke_admin(db: Session, user_id: UUID) -> Optional[User]:
+def revoke_admin(db: Session, user_id: UUID) -> User | None:
     """
     Revoke admin role from a user.
 
@@ -487,7 +486,7 @@ def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
 # ============================================================================
 
 
-def deny_user(db: Session, user_id: UUID) -> Optional[User]:
+def deny_user(db: Session, user_id: UUID) -> User | None:
     """
     Deny (delete) an unapproved user from the system.
 
@@ -577,7 +576,7 @@ def edit_user_info(
     db: Session,
     user_id: UUID,
     display_name: str,
-) -> Optional[User]:
+) -> User | None:
     """
     Edit user metadata such as display name
     """

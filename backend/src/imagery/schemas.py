@@ -1,9 +1,8 @@
 import json
 import re
-from typing import List, Optional
 from uuid import UUID
-from pydantic import BaseModel, ValidationInfo, field_validator, computed_field
 
+from pydantic import BaseModel, ValidationInfo, computed_field, field_validator
 
 # ============================================================================
 # Imagery Related Schemas
@@ -52,7 +51,7 @@ class CanvasLayoutOut(BaseModel):
     """
 
     id: int
-    user_id: Optional[UUID]
+    user_id: UUID | None
     layout_data: list
 
     class Config:
@@ -65,8 +64,8 @@ class CanvasLayoutCreate(BaseModel):
     """
 
     main_layout_data: list
-    imagery_layout_data: Optional[list] = None
-    imagery_id: Optional[int] = None
+    imagery_layout_data: list | None = None
+    imagery_id: int | None = None
 
 
 class ImageryOut(BaseModel):
@@ -156,8 +155,8 @@ class ImageryCreate(BaseModel):
             # Validate JSON validity
             try:
                 json.loads(v)
-            except json.JSONDecodeError:
-                raise ValueError("search_body must be valid JSON string")
+            except json.JSONDecodeError as e:
+                raise ValueError("search_body must be valid JSON string") from e
         return v
 
 
@@ -167,12 +166,12 @@ class ImageryUpdate(BaseModel):
     after creation (start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit).
     """
 
-    name: Optional[str] = None
-    crosshair_hex6: Optional[str] = None
-    default_zoom: Optional[int] = None
-    registration_url: Optional[str] = None
-    search_body: Optional[str] = None
-    visualization_url_templates: Optional[list[ImageryVisualizationUrlTemplateCreate]] = None
+    name: str | None = None
+    crosshair_hex6: str | None = None
+    default_zoom: int | None = None
+    registration_url: str | None = None
+    search_body: str | None = None
+    visualization_url_templates: list[ImageryVisualizationUrlTemplateCreate] | None = None
 
     @field_validator("search_body", mode="before")
     @classmethod
@@ -185,8 +184,8 @@ class ImageryUpdate(BaseModel):
             # Validate JSON validity
             try:
                 json.loads(v)
-            except json.JSONDecodeError:
-                raise ValueError("search_body must be valid JSON string")
+            except json.JSONDecodeError as e:
+                raise ValueError("search_body must be valid JSON string") from e
         return v
 
 
@@ -210,11 +209,11 @@ class ImageryWithWindowsOut(ImageryOut):
     """
 
     default_main_window_id: int
-    windows: List[ImageryWindowOut]
+    windows: list[ImageryWindowOut]
 
     @computed_field
     @property
-    def default_canvas_layout(self) -> Optional[CanvasLayoutOut]:
+    def default_canvas_layout(self) -> CanvasLayoutOut | None:
         """Get the default canvas layout for this imagery."""
         if hasattr(self, "_default_canvas_layout"):
             return self._default_canvas_layout
@@ -222,14 +221,14 @@ class ImageryWithWindowsOut(ImageryOut):
 
     @computed_field
     @property
-    def personal_canvas_layout(self) -> Optional[CanvasLayoutOut]:
+    def personal_canvas_layout(self) -> CanvasLayoutOut | None:
         """Get the personal canvas layout for the current user."""
         if hasattr(self, "_personal_canvas_layout"):
             return self._personal_canvas_layout
         return None
 
     @classmethod
-    def from_orm(cls, obj, user_id: Optional[UUID] = None):
+    def from_orm(cls, obj, user_id: UUID | None = None):
         """Override from_orm to extract default and personal layouts from canvas_layouts."""
         # Find the default and personal canvas layouts for this imagery
         default_layout = None
@@ -281,4 +280,4 @@ class CanvasLayoutCreateRequest(BaseModel):
 
 
 class CreateImageryResponse(BaseModel):
-    new_items: List[ImageryOut]
+    new_items: list[ImageryOut]

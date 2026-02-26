@@ -129,7 +129,7 @@ def deny_user(
     try:
         denied_user = service.deny_user(db, user_id)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
     if denied_user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -237,7 +237,7 @@ def revoke_admin_single(
     try:
         user = service.revoke_admin(db, user_id)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -280,7 +280,7 @@ def revoke_admin(
     try:
         result = service.revoke_admin_bulk(db, request.user_ids)
     except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
     return BulkUserActionResponse(
         success=result["revoked"],

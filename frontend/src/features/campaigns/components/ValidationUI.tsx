@@ -21,4 +21,4 @@ export const ValidationSummary = ({ errors }: { errors: string[] }) => {
   );
 };
 
-export const ValidationSuccess = () => (<></>);
+export const ValidationSuccess = () => <></>;

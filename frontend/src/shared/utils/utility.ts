@@ -217,7 +217,7 @@ export const formatSliceLabel = (
   startDate: string,
   endDate: string,
   slicingUnit: string | null,
-  sliceIndex: number
+  _sliceIndex: number
 ): string => {
   const start = parseDate(startDate);
   const end = parseDate(endDate);

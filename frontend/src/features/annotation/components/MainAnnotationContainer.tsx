@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import LeafletMap from './LeafletMap';
 import LeafletMapWithDraw from './LeafletMapWithDraw';
 import TimelineSidebar from './TimelineSidebar';
-import { extendLabelsWithMetadata} from './ControlsOpenMode';
+import { extendLabelsWithMetadata } from './ControlsOpenMode';
 import useAnnotationStore from '../annotation.store';
 import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
 import { useStacImagery } from '../hooks/useStacImagery';
@@ -15,7 +15,7 @@ interface MainAnnotationsContainerProps {
  * Main annotation container
  * Coordinates map display, timeline, and annotation controls
  */
-export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsContainerProps) => {
+export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: MainAnnotationsContainerProps) => {
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [showLayerDropdown, setShowLayerDropdown] = useState(false);
 
@@ -24,7 +24,6 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
   const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
   const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const allTasks = useAnnotationStore((state) => state.allTasks);
   const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
   const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
   const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
@@ -38,7 +37,6 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const zoomInTrigger = useAnnotationStore((state) => state.zoomInTrigger);
   const zoomOutTrigger = useAnnotationStore((state) => state.zoomOutTrigger);
   const panTrigger = useAnnotationStore((state) => state.panTrigger);
-  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
   const isNavigating = useAnnotationStore((state) => state.isNavigating);
   const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
   const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
@@ -50,10 +48,6 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
   const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
   const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
-  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const nextTask = useAnnotationStore((state) => state.nextTask);
-  const previousTask = useAnnotationStore((state) => state.previousTask);
-  const goToTask = useAnnotationStore((state) => state.goToTask);
   const setMapCenter = useAnnotationStore((state) => state.setMapCenter);
   const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
   const setMapBounds = useAnnotationStore((state) => state.setMapBounds);
@@ -74,11 +68,8 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       ] as [number, number, number, number])
     : null;
 
-  if (!campaign || !selectedImagery || !campaignBbox) return null;
-
-  const labels = campaign.settings.labels;
-  const totalTasksCount = visibleTasks.length;
-  const isOpenMode = campaign.mode === 'open';
+  const labels = campaign?.settings.labels ?? [];
+  const isOpenMode = campaign?.mode === 'open';
 
   // For open mode, get extended labels with colors and geometry types
   const extendedLabels = isOpenMode ? extendLabelsWithMetadata(labels) : [];
@@ -86,26 +77,17 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     ? extendedLabels.find((l) => l.id === selectedLabelId) || null
     : null;
 
-  const handleLayerSelect = (index: number) => {
-    setSelectedLayerIndex(index);
-    setShowBasemap(false);
-  };
-
-  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => {
-    setShowBasemap(true);
-    setBasemapType(type);
-  };
-
   // Auto-switch back to imagery layer when window or slice changes
   useEffect(() => {
     if (showBasemap && (activeWindowId || activeSliceIndex !== undefined)) {
       setShowBasemap(false);
     }
-  }, [activeWindowId, activeSliceIndex]);
+  }, [activeWindowId, activeSliceIndex, showBasemap, setShowBasemap]);
 
   // Extract coordinates from current task - memoized to prevent unnecessary recalculations
   const latLon = useMemo(
     () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
     [currentTask?.geometry.geometry]
   );
 
@@ -124,6 +106,7 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     }
     return [0, 0];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
 
   // Determine zoom level
@@ -133,8 +116,56 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
       return currentMapZoom;
     }
     // Otherwise use default zoom
-    return selectedImagery.default_zoom;
-  }, [currentMapZoom, selectedImagery.default_zoom]);
+    return selectedImagery?.default_zoom ?? 10;
+  }, [currentMapZoom, selectedImagery?.default_zoom]);
+
+  // Get the currently active window
+  const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
+  const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
+
+  // Compute slices for the active window
+  const slices = useMemo(() => {
+    if (!activeWindow || !selectedImagery) return [];
+    return computeTimeSlices(
+      activeWindow.window_start_date,
+      activeWindow.window_end_date,
+      selectedImagery.slicing_interval,
+      selectedImagery.slicing_unit
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
+  }, [
+    activeWindow?.window_start_date,
+    activeWindow?.window_end_date,
+    selectedImagery?.slicing_interval,
+    selectedImagery?.slicing_unit,
+  ]);
+
+  // Get the currently active slice
+  const activeSlice = slices[activeSliceIndex] ?? slices[0];
+
+  // Load STAC imagery for the active window and slice
+  const { tileUrls, loading, error } = useStacImagery({
+    registrationUrl: selectedImagery?.registration_url ?? '',
+    searchBody: selectedImagery?.search_body ?? {},
+    bbox: campaignBbox ?? [0, 0, 0, 0],
+    startDate: activeSlice?.startDate || activeWindow?.window_start_date || '',
+    endDate: activeSlice?.endDate || activeWindow?.window_end_date || '',
+    visualizationUrlTemplates: selectedImagery?.visualization_url_templates ?? [],
+    enabled: !!selectedImagery && !!activeWindow,
+  });
+
+  // Early return after all hooks
+  if (!campaign || !selectedImagery || !campaignBbox) return null;
+
+  const handleLayerSelect = (index: number) => {
+    setSelectedLayerIndex(index);
+    setShowBasemap(false);
+  };
+
+  const handleBasemapSelect = (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => {
+    setShowBasemap(true);
+    setBasemapType(type);
+  };
 
   // Callback for when the main map moves
   const handleMapMove = (
@@ -168,47 +199,17 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
     }
   };
 
-  // Get the currently active window
-  const currentActiveWindowId = activeWindowId ?? selectedImagery.default_main_window_id ?? null;
-  const activeWindow = selectedImagery.windows.find((w) => w.id === currentActiveWindowId);
-
-  // Compute slices for the active window
-  const slices = useMemo(() => {
-    if (!activeWindow) return [];
-    return computeTimeSlices(
-      activeWindow.window_start_date,
-      activeWindow.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-  }, [
-    activeWindow?.window_start_date,
-    activeWindow?.window_end_date,
-    selectedImagery.slicing_interval,
-    selectedImagery.slicing_unit,
-  ]);
-
-  // Get the currently active slice
-  const activeSlice = slices[activeSliceIndex] ?? slices[0];
-
-  // Load STAC imagery for the active window and slice
-  const { tileUrls, loading, error } = useStacImagery({
-    registrationUrl: selectedImagery.registration_url || '',
-    searchBody: selectedImagery.search_body || {},
-    bbox: campaignBbox,
-    startDate: activeSlice?.startDate || activeWindow?.window_start_date || '',
-    endDate: activeSlice?.endDate || activeWindow?.window_end_date || '',
-    visualizationUrlTemplates: selectedImagery.visualization_url_templates || [],
-    enabled: !!selectedImagery && !!activeWindow,
-  });
-
   // Get the tile URL for the selected layer
   const selectedTileUrl = tileUrls[selectedLayerIndex]?.url || '';
 
   // Get the current layer name for display
   const currentLayerName = showBasemap
-    ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
-    : (tileUrls[selectedLayerIndex]?.name || 'Layer');
+    ? basemapType === 'esri-world-imagery'
+      ? 'ESRI World Imagery'
+      : basemapType === 'opentopomap'
+        ? 'OpenTopoMap'
+        : 'CartoDB Light'
+    : tileUrls[selectedLayerIndex]?.name || 'Layer';
 
   return (
     <div className="relative flex-1 bg-neutral-200 text-white text-xs overflow-hidden flex">
@@ -351,7 +352,11 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
           <button
             onClick={triggerRefocus}
             className="px-3 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer"
-            title={isOpenMode ? 'Fit map to all annotations (Space)' : 'Refocus all maps to center (Space)'}
+            title={
+              isOpenMode
+                ? 'Fit map to all annotations (Space)'
+                : 'Refocus all maps to center (Space)'
+            }
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
               <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
@@ -360,21 +365,21 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
 
           {/* Toggle Crosshair Button - only in task mode */}
           {!isOpenMode && (
-          <button
-            onClick={toggleCrosshair}
-            className={`px-3 py-1.5 bg-white text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer ${
-              showCrosshair ? 'text-neutral-900' : 'text-neutral-400'
-            }`}
-            title={`${showCrosshair ? 'Hide' : 'Show'} crosshair (O)`}
-          >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-              <circle cx="10" cy="10" r="1.5" />
-              <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            </svg>
-          </button>
+            <button
+              onClick={toggleCrosshair}
+              className={`px-3 py-1.5 bg-white text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer ${
+                showCrosshair ? 'text-neutral-900' : 'text-neutral-400'
+              }`}
+              title={`${showCrosshair ? 'Hide' : 'Show'} crosshair (O)`}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <circle cx="10" cy="10" r="1.5" />
+                <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              </svg>
+            </button>
           )}
 
           {/* Time Series Probe Tool - only in task mode when time series are configured */}
@@ -386,10 +391,25 @@ export const MainAnnotationsContainer = ({ commentInputRef }: MainAnnotationsCon
                   ? 'bg-orange-500 text-white hover:bg-orange-600'
                   : 'bg-white text-neutral-900 hover:bg-neutral-50'
               }`}
-              title={activeTool === 'timeseries' ? 'Deactivate picked point for additional timeseries' : 'Allow selecting additional point on map to add additional timeseries'}
+              title={
+                activeTool === 'timeseries'
+                  ? 'Deactivate picked point for additional timeseries'
+                  : 'Allow selecting additional point on map to add additional timeseries'
+              }
             >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polyline points="2,16 5,10 8,12 11,6 14,9 17,3" strokeLinejoin="round" strokeLinecap="round" />
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <polyline
+                  points="2,16 5,10 8,12 11,6 14,9 17,3"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
                 <circle cx="14" cy="14" r="4" fill="none" />
                 <line x1="17" y1="17" x2="19" y2="19" />
               </svg>

@@ -31,7 +31,9 @@ export const ImageryTab: React.FC<Props> = ({
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Imagery Sources</h2>
         <p className="text-sm text-neutral-500 mb-4">
-          Imagery sources are the satellite or map layers displayed during annotation. Each source defines a tile service with a time range and visualisation settings. Use a preset for common providers or configure a custom STAC-based source.
+          Imagery sources are the satellite or map layers displayed during annotation. Each source
+          defines a tile service with a time range and visualisation settings. Use a preset for
+          common providers or configure a custom STAC-based source.
         </p>
         <div className="space-y-4">
           {newImagery.map((img, index) => (
@@ -39,7 +41,9 @@ export const ImageryTab: React.FC<Props> = ({
               <ImageryEditor
                 value={img}
                 onChange={(updates) => {
-                  const updated = newImagery.map((i, idx) => (idx === index ? { ...i, ...updates } : i));
+                  const updated = newImagery.map((i, idx) =>
+                    idx === index ? { ...i, ...updates } : i
+                  );
                   setNewImagery(updated);
                 }}
                 onRemove={() => setNewImagery(newImagery.filter((_, idx) => idx !== index))}
@@ -66,7 +70,18 @@ export const ImageryTab: React.FC<Props> = ({
                   const preset = IMAGERY_PRESETS.find((p) => p.id === selectedPreset);
                   const newItem: ImageryCreate = preset
                     ? { ...preset.template, start_ym: '', end_ym: '' }
-                    : ({ name: '', start_ym: '', end_ym: '', crosshair_hex6: 'ff0000', default_zoom: 10, window_interval: undefined, window_unit: undefined, registration_url: '', search_body: '', visualization_url_templates: [] } as ImageryCreate);
+                    : ({
+                        name: '',
+                        start_ym: '',
+                        end_ym: '',
+                        crosshair_hex6: 'ff0000',
+                        default_zoom: 10,
+                        window_interval: undefined,
+                        window_unit: undefined,
+                        registration_url: '',
+                        search_body: '',
+                        visualization_url_templates: [],
+                      } as ImageryCreate);
 
                   setNewImagery([...newImagery, newItem]);
                   setSelectedPreset('custom');
@@ -79,8 +94,8 @@ export const ImageryTab: React.FC<Props> = ({
 
             {selectedPreset !== 'custom' && (
               <p className="text-xs text-neutral-600 italic">
-                Preset "{IMAGERY_PRESETS.find((p) => p.id === selectedPreset)?.label}" will be added.
-                You can customize it after adding.
+                Preset "{IMAGERY_PRESETS.find((p) => p.id === selectedPreset)?.label}" will be
+                added. You can customize it after adding.
               </p>
             )}
           </div>
@@ -97,7 +112,9 @@ export const ImageryTab: React.FC<Props> = ({
       </div>
 
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Existing Imagery Sources ({imagery.length})</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+          Existing Imagery Sources ({imagery.length})
+        </h2>
         <div className="space-y-4">
           {imagery.length === 0 ? (
             <p className="text-sm text-neutral-500">No imagery sources added yet</p>
@@ -107,7 +124,10 @@ export const ImageryTab: React.FC<Props> = ({
                 key={img.id}
                 value={{
                   ...img,
-                  search_body: typeof img.search_body === 'string' ? img.search_body : JSON.stringify(img.search_body),
+                  search_body:
+                    typeof img.search_body === 'string'
+                      ? img.search_body
+                      : JSON.stringify(img.search_body),
                 }}
                 onChange={(updates) => handleUpdateImagery(img.id, updates)}
                 onUpdate={() => {}}

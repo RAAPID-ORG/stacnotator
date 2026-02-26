@@ -1,8 +1,8 @@
-from src.auth.service import is_admin
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
+from src.auth.service import is_admin
 from src.campaigns.models import Campaign, CampaignUser
 from src.database import get_db
 

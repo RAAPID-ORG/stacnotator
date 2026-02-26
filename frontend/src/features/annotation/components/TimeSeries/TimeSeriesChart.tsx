@@ -1,6 +1,6 @@
 /**
  * TimeSeriesChart - Main component for time series visualization
- * 
+ *
  * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
  */
 
@@ -62,7 +62,7 @@ export const TimeSeriesChart = ({
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    
+
     // Fade out current chart slightly
     setOpacity(0.4);
 
@@ -72,7 +72,7 @@ export const TimeSeriesChart = ({
         if (!cancelled) {
           setData(result);
           setError(null);
-          
+
           // Fade in new chart
           setOpacity(1);
         }
@@ -138,6 +138,7 @@ export const TimeSeriesChart = ({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
   }, [timeseriesIds, probeLatLon?.lat, probeLatLon?.lon]);
 
   const chartData = useMemo(() => {
@@ -164,7 +165,7 @@ export const TimeSeriesChart = ({
       data: (number | null)[];
       borderColor: string;
       backgroundColor: string;
-      pointRadius: (number)[];
+      pointRadius: number[];
       pointBackgroundColor: string[];
       pointBorderColor: string[];
       tension: number;
@@ -299,7 +300,9 @@ export const TimeSeriesChart = ({
         <div className="absolute top-2 right-2 z-10">
           <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md shadow-sm border border-neutral-200">
             <div className="animate-spin rounded-full h-3 w-3 border border-neutral-300 border-t-brand-600"></div>
-            <span className="text-[9px] text-neutral-600">{isProbeLoading && !isLoading ? 'Loading probe...' : 'Updating...'}</span>
+            <span className="text-[9px] text-neutral-600">
+              {isProbeLoading && !isLoading ? 'Loading probe...' : 'Updating...'}
+            </span>
           </div>
         </div>
       )}
@@ -317,15 +320,19 @@ export const TimeSeriesChart = ({
               </div>
             );
           })}
-          {probeData && timeseries.map((ts, index) => {
-            const color = PROBE_COLORS[index % PROBE_COLORS.length];
-            return (
-              <div key={`probe-${ts.id}`} className="flex items-center gap-1">
-                <div className="w-2 h-0.5 border-t-2 border-dashed" style={{ borderColor: color }} />
-                <span className="text-[9px] font-bold text-neutral-500">{ts.name} (probe)</span>
-              </div>
-            );
-          })}
+          {probeData &&
+            timeseries.map((ts, index) => {
+              const color = PROBE_COLORS[index % PROBE_COLORS.length];
+              return (
+                <div key={`probe-${ts.id}`} className="flex items-center gap-1">
+                  <div
+                    className="w-2 h-0.5 border-t-2 border-dashed"
+                    style={{ borderColor: color }}
+                  />
+                  <span className="text-[9px] font-bold text-neutral-500">{ts.name} (probe)</span>
+                </div>
+              );
+            })}
         </div>
 
         {/* Remove cloudy toggle */}
@@ -343,7 +350,7 @@ export const TimeSeriesChart = ({
       </div>
 
       {/* Chart with smooth transition */}
-      <div 
+      <div
         className="flex-1 min-h-0 w-full transition-opacity duration-300 ease-in-out"
         style={{ opacity }}
       >
@@ -410,4 +417,3 @@ export const TimeSeriesChart = ({
     </div>
   );
 };
-

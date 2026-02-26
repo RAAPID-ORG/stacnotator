@@ -1,4 +1,8 @@
-.PHONY: help build up down logs clean test migrate dev-openapi
+.PHONY: help build up down logs clean test migrate dev-openapi \
+	lint lint-backend lint-frontend \
+	format-check format-check-backend format-check-frontend \
+	typecheck typecheck-backend typecheck-frontend \
+	ci-check pre-commit-install pre-commit-run
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -197,3 +201,44 @@ ssl-setup: ## Generate self-signed SSL certificates (for testing)
 		-out nginx/ssl/cert.pem \
 		-subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
 	@echo "Self-signed SSL certificates created in nginx/ssl/"
+
+###################################################
+# Code Quality
+###################################################
+
+lint-backend: ## Run ruff linter on backend
+	cd backend && uv run ruff check src/
+
+lint-frontend: ## Run eslint on frontend
+	cd frontend && npx eslint src/
+
+lint: lint-backend lint-frontend ## Run all linters
+
+format-check-backend: ## Check backend formatting
+	cd backend && uv run ruff format --check src/
+
+format-check-frontend: ## Check frontend formatting
+	cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"
+
+format-check: format-check-backend format-check-frontend ## Check all formatting
+
+typecheck-backend: ## Run mypy on backend
+	cd backend && uv run mypy src/ --config-file pyproject.toml
+
+typecheck-frontend: ## Run tsc --noEmit on frontend
+	cd frontend && npx tsc --noEmit
+
+typecheck: typecheck-backend typecheck-frontend ## Run all type checkers
+
+ci-check: lint format-check typecheck ## Run all CI checks locally
+
+###################################################
+# Pre-commit
+###################################################
+
+pre-commit-install: ## Install pre-commit hooks
+	cd backend && uv run pre-commit install
+
+pre-commit-run: ## Run pre-commit on all files
+	cd backend && uv run pre-commit run --all-files
+

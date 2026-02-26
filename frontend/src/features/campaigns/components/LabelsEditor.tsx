@@ -14,7 +14,12 @@ interface LabelsEditorProps {
   showGeometryType?: boolean;
 }
 
-export const LabelsEditor = ({ value, onChange, readOnly = false, showGeometryType = false }: LabelsEditorProps) => {
+export const LabelsEditor = ({
+  value,
+  onChange,
+  readOnly = false,
+  showGeometryType = false,
+}: LabelsEditorProps) => {
   const addLabel = () => {
     const nextId = value.length === 0 ? 1 : Math.max(...value.map((l) => l.id)) + 1;
     const newLabel: LabelBase = { id: nextId, name: '' };
@@ -56,7 +61,9 @@ export const LabelsEditor = ({ value, onChange, readOnly = false, showGeometryTy
           {showGeometryType && (
             <select
               value={label.geometry_type || 'polygon'}
-              onChange={(e) => updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')}
+              onChange={(e) =>
+                updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')
+              }
               disabled={readOnly}
               className={`text-xs border border-neutral-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-brand-500 ${
                 readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''

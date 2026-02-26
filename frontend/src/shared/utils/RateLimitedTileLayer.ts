@@ -74,7 +74,7 @@ class TileRateLimiter {
 /** Singleton - shared by every RateLimitedTileLayer on the page */
 export const globalTileLimiter = new TileRateLimiter(
   MAX_CONCURRENT_REQUESTS,
-  MAX_REQUESTS_PER_SECOND,
+  MAX_REQUESTS_PER_SECOND
 );
 
 // ── Retry helpers ────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
     tile: HTMLImageElement,
     url: string,
     attempt: number,
-    done: L.DoneCallback,
+    done: L.DoneCallback
   ): void {
     globalTileLimiter.enqueue(() => {
       // If the tile element has been removed from the DOM (e.g. layer removed
@@ -197,12 +197,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
   /**
    * Standard <img>.src tile loading with error-based retry.
    */
-  _loadImageSrc(
-    tile: HTMLImageElement,
-    url: string,
-    attempt: number,
-    done: L.DoneCallback,
-  ): void {
+  _loadImageSrc(tile: HTMLImageElement, url: string, attempt: number, done: L.DoneCallback): void {
     // Clean up any previous handlers
     tile.onload = null;
     tile.onerror = null;
@@ -239,7 +234,7 @@ export const RateLimitedTileLayer = L.TileLayer.extend({
  */
 export function rateLimitedTileLayer(
   urlTemplate: string,
-  options?: L.TileLayerOptions,
+  options?: L.TileLayerOptions
 ): L.TileLayer {
   return new RateLimitedTileLayer(urlTemplate, options);
 }

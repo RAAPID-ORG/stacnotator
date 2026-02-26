@@ -53,7 +53,7 @@ export const CampaignsPage = () => {
 
       setShowCreate(false);
       showAlert('Campaign created successfully', 'success');
-      
+
       // Navigate to campaign settings page
       if (campaign) {
         navigate(`/campaigns/${campaign.id}/settings`);
@@ -126,7 +126,7 @@ export const CampaignsPage = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {campaigns.map((campaign, index) => {
+          {campaigns.map((campaign, _index) => {
             const isMember = campaign.is_member ?? false;
             const isAdmin = campaign.is_admin ?? false;
 

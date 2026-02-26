@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TimeSeriesCreate, TimeSeriesOut } from '~/api/client';
+import type { ImageryOut, TimeSeriesCreate, TimeSeriesOut, CampaignSettingsOut } from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/creation/steps/StepAddTimeseries';
 
 interface Props {
@@ -10,9 +10,9 @@ interface Props {
   setDeleteConfirm: (v: { timeseriesId?: number } | null) => void;
   saving: boolean;
   campaignName: string;
-  imagery: any[];
+  imagery: ImageryOut[];
   campaignMode: string;
-  campaignSettings?: any;
+  campaignSettings?: CampaignSettingsOut;
 }
 
 export const TimeseriesTab: React.FC<Props> = ({
@@ -32,17 +32,23 @@ export const TimeseriesTab: React.FC<Props> = ({
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Timeseries</h2>
         <p className="text-sm text-neutral-500 mb-4">
-          Time series show how a location changes over time using spectral indices (e.g. NDVI, NDWI). They are displayed as interactive charts alongside imagery during annotation to provide temporal context.
+          Time series show how a location changes over time using spectral indices (e.g. NDVI,
+          NDWI). They are displayed as interactive charts alongside imagery during annotation to
+          provide temporal context.
         </p>
         <StepAddTimeseries
           form={{
             name: campaignName,
-            mode: (campaignMode as any) || 'tasks',
-            settings: (typeof (campaignSettings as any) !== 'undefined' ? campaignSettings : {}),
-            imagery_configs: imagery.map((img) => ({ ...img, search_body: JSON.stringify(img.search_body) })),
+            mode: campaignMode as 'tasks' | 'open',
+            settings: campaignSettings ?? ({} as CampaignSettingsOut),
+            imagery_configs: imagery.map((img) => ({
+              ...img,
+              search_body: JSON.stringify(img.search_body),
+            })),
             timeseries_configs: newTimeseries,
-          }}
-          setForm={(form: any) => setNewTimeseries(form.timeseries_configs || [])}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- form shape adaptor between CampaignSettingsOut and CampaignCreate
+          } as any}
+          setForm={(form: Record<string, unknown>) => setNewTimeseries((form.timeseries_configs as TimeSeriesCreate[]) || [])}
         />
 
         {newTimeseries.length > 0 && (
@@ -59,13 +65,20 @@ export const TimeseriesTab: React.FC<Props> = ({
 
       {timeseries.length > 0 && (
         <div className="bg-white rounded-lg border border-neutral-300 p-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-4">Existing Timeseries ({timeseries.length})</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">
+            Existing Timeseries ({timeseries.length})
+          </h2>
           <div className="space-y-3">
             {timeseries.map((ts) => (
-              <div key={ts.id} className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start">
+              <div
+                key={ts.id}
+                className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start"
+              >
                 <div>
                   <h4 className="font-medium text-neutral-900">{ts.name}</h4>
-                  <p className="text-sm text-neutral-500 mt-1">Start: {ts.start_ym} | End: {ts.end_ym}</p>
+                  <p className="text-sm text-neutral-500 mt-1">
+                    Start: {ts.start_ym} | End: {ts.end_ym}
+                  </p>
                 </div>
                 <button
                   onClick={() => setDeleteConfirm({ timeseriesId: ts.id })}

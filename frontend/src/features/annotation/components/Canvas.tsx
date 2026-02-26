@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import ReactGridLayout, { getCompactor} from 'react-grid-layout';
+import ReactGridLayout, { getCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import ImageryContainer from './ImageryContainer';
@@ -9,7 +9,12 @@ import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
 import useAnnotationStore from '../annotation.store';
-import { computeTimeSlices, extractLatLonFromWKT, formatWindowLabel, type LatLon } from '~/shared/utils/utility';
+import {
+  computeTimeSlices,
+  extractLatLonFromWKT,
+  formatWindowLabel,
+  type LatLon,
+} from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 
 /**
@@ -65,19 +70,19 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   // Compute derived values
   const currentTask = visibleTasks[currentTaskIndex] || null;
-  
+
   // For counter: show tasks matching current assignedTo filter (regardless of status filter)
   const tasksInAssignmentScope = allTasks.filter((task) => {
     if (taskFilter.assignedTo.length === 0) return true; // All users
     const assignments = task.assignments || [];
-    return assignments.some(a => taskFilter.assignedTo.includes(a.user_id));
+    return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
   });
   const totalTasksForCounter = tasksInAssignmentScope.length;
-  const completedTasksForCounter = tasksInAssignmentScope.filter(task => {
+  const completedTasksForCounter = tasksInAssignmentScope.filter((task) => {
     const assignments = task.assignments || [];
-    return assignments.some(a => a.status === 'done' || a.status === 'skipped');
+    return assignments.some((a) => a.status === 'done' || a.status === 'skipped');
   }).length;
-  
+
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
@@ -105,8 +110,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return () => resizeObserver.disconnect();
   }, []);
 
-  if (!campaign) return null;
-
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
   const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
   const visualizationName =
@@ -121,6 +124,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       selectedImagery.slicing_interval,
       selectedImagery.slicing_unit
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [
     activeWindow?.window_start_date,
     activeWindow?.window_end_date,
@@ -138,18 +142,26 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       return timeseriesPoint;
     }
     return currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
   }, [isOpenMode, timeseriesPoint, currentTask?.geometry.geometry]);
 
   // Memoize center to prevent array recreation on every render
   const center = useMemo<[number, number]>(
     () => (latLon ? [latLon.lat, latLon.lon] : [0, 0]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when lat/lon change
     [latLon?.lat, latLon?.lon]
   );
+
+  if (!campaign) return null;
 
   const renderMainHeader = () => {
     // Get the current layer name
     const currentLayerName = showBasemap
-      ? (basemapType === 'esri-world-imagery' ? 'ESRI World Imagery' : basemapType === 'opentopomap' ? 'OpenTopoMap' : 'CartoDB Light')
+      ? basemapType === 'esri-world-imagery'
+        ? 'ESRI World Imagery'
+        : basemapType === 'opentopomap'
+          ? 'OpenTopoMap'
+          : 'CartoDB Light'
       : visualizationName || 'Layer';
 
     return (
@@ -157,7 +169,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         <div className="flex items-center gap-2 text-xs text-neutral-900">
           {/* Always show layer name */}
           <span className="font-medium">{currentLayerName}</span>
-          
+
           {/* Show imagery source and dates if not basemap */}
           {!showBasemap && selectedImagery && (
             <>

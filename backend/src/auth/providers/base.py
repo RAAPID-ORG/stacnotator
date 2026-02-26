@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from fastapi import Request
 
@@ -17,7 +16,7 @@ class AuthenticatedUser(dict):
     """
 
     uid: str
-    email: Optional[str]
+    email: str | None
 
 
 class AuthProvider(ABC):
@@ -34,7 +33,7 @@ class AuthProvider(ABC):
     name: str
 
     @abstractmethod
-    async def authenticate(self, request: Request) -> Optional[AuthenticatedUser]:
+    async def authenticate(self, request: Request) -> AuthenticatedUser | None:
         """
         Validate incoming request and extract authenticated user data.
 

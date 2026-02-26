@@ -73,7 +73,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       };
 
       // Build the request body
-      const requestBody: any = {
+      const requestBody: { strategy: string; region_file?: File } = {
         strategy: JSON.stringify(strategy),
       };
 

@@ -1,4 +1,4 @@
-import { authManager } from "../core/authManager";
+import { authManager } from '../core/authManager';
 
 export function ApprovalPendingScreen() {
   const handleLogout = async () => {

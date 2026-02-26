@@ -1,13 +1,11 @@
+import json
 import logging
-from typing import Optional
 
 import firebase_admin
 from fastapi import Request
 from firebase_admin import auth, credentials
-import json
 
-
-from src.auth.providers.base import AuthProvider, AuthenticatedUser
+from src.auth.providers.base import AuthenticatedUser, AuthProvider
 from src.config import get_settings
 
 settings = get_settings()
@@ -40,7 +38,7 @@ class FirebaseAuthProvider(AuthProvider):
                 )
             firebase_admin.initialize_app(cred)
 
-    async def authenticate(self, request: Request) -> Optional[AuthenticatedUser]:
+    async def authenticate(self, request: Request) -> AuthenticatedUser | None:
         """
         Authenticate user via Firebase ID token.
 

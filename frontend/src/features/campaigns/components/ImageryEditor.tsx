@@ -167,7 +167,9 @@ export const ImageryEditor = ({
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 flex items-center gap-1">
             Window Interval
-            {renderTooltip('Length of each imagery window (map-layer with time range) used in the timeline. Pair with Window Unit.')}
+            {renderTooltip(
+              'Length of each imagery window (map-layer with time range) used in the timeline. Pair with Window Unit.'
+            )}
           </label>
           <input
             type="number"
@@ -262,7 +264,9 @@ export const ImageryEditor = ({
       <div className="space-y-1">
         <label className="text-xs text-neutral-700 flex items-center gap-1">
           Registration URL
-          {renderTooltip('STAC registration endpoint used to create a searchId for this imagery source.')}
+          {renderTooltip(
+            'STAC registration endpoint used to create a searchId for this imagery source.'
+          )}
         </label>
         <input
           type="url"
@@ -276,12 +280,15 @@ export const ImageryEditor = ({
       <div className="space-y-1">
         <label className="text-xs text-neutral-700 flex items-center gap-1">
           Search Body (JSON)
-          {renderTooltip('JSON payload posted to the registration URL. Use date placeholders to inject intervals derived from the window/slicing range.')}
+          {renderTooltip(
+            'JSON payload posted to the registration URL. Use date placeholders to inject intervals derived from the window/slicing range.'
+          )}
         </label>
         <p className="text-xs text-neutral-500 italic">
-          Tip: Use <code className="bg-neutral-100 px-1 rounded">{'{startDatetimePlaceholder}'}</code> and{' '}
-          <code className="bg-neutral-100 px-1 rounded">{'{endDatetimePlaceholder}'}</code> for temporal
-          windowing based on your parameters above. See templates above for examples.
+          Tip: Use{' '}
+          <code className="bg-neutral-100 px-1 rounded">{'{startDatetimePlaceholder}'}</code> and{' '}
+          <code className="bg-neutral-100 px-1 rounded">{'{endDatetimePlaceholder}'}</code> for
+          temporal windowing based on your parameters above. See templates above for examples.
         </p>
         <textarea
           placeholder='{"search_query": "..."}'

@@ -1,17 +1,14 @@
-from typing import Optional
-
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
-from src.campaigns.dependancies import require_campaign_admin
+from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.sampling_design import service
-from src.sampling_design.schemas import SamplingStrategyConfig, GenerateTasksResponse
+from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
 from src.utils import FunctionNameOperationIdRoute
-
 
 bearer = HTTPBearer()
 router = APIRouter(
@@ -26,7 +23,7 @@ router = APIRouter(
 async def generate_tasks_from_sampling(
     campaign_id: int,
     strategy: str = Form(..., description="JSON string of SamplingStrategyConfig"),
-    region_file: Optional[UploadFile] = File(
+    region_file: UploadFile | None = File(
         None,
         description="Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.",
     ),

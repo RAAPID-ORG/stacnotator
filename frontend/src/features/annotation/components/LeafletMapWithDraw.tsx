@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 import 'leaflet-edgebuffer';
 import { rateLimitedTileLayer } from '~/shared/utils/RateLimitedTileLayer';
-import type { ExtendedLabel, GeometryType } from './ControlsOpenMode';
+import type { ExtendedLabel } from './ControlsOpenMode';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
 import useAnnotationStore from '../annotation.store';
 import { MAP_ANIMATION, MAP_STYLES, MAP_Z_INDEX, MARKER_ICON_SIZE } from '~/shared/utils/constants';
@@ -88,7 +88,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [layersVersion, setLayersVersion] = useState(0); // Trigger to re-setup handlers
   const [originalGeometry, setOriginalGeometry] = useState<GeoJSON.Geometry | null>(null); // For rollback on ESC
-  const [controlsUpdateTrigger, setControlsUpdateTrigger] = useState(0); // Trigger to reposition controls
+  const [_controlsUpdateTrigger, setControlsUpdateTrigger] = useState(0); // Trigger to reposition controls
   const currentDrawModeRef = useRef<string | null>(null); // Track current geoman draw mode
 
   // Get annotations from store
@@ -98,8 +98,12 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
   const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);
 
-  // Get extended labels with colors
-  const extendedLabels = campaign ? extendLabelsWithMetadata(campaign.settings.labels) : [];
+  // Get extended labels with colors - memoized to prevent dependency array instability
+  const extendedLabels = useMemo(
+    () => (campaign ? extendLabelsWithMetadata(campaign.settings.labels) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
+    [campaign?.settings.labels]
+  );
 
   // Track the last refocus trigger to detect actual refocus requests
   const lastRefocusTriggerRef = useRef<number | undefined>(refocusTrigger);
@@ -111,6 +115,10 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
   const lastZoomInTriggerRef = useRef<number | undefined>(zoomInTrigger);
   const lastZoomOutTriggerRef = useRef<number | undefined>(zoomOutTrigger);
   const lastPanTriggerRef = useRef<number | undefined>(panTrigger?.count);
+
+  // Extract center components for stable deps
+  const centerLat = center[0];
+  const centerLng = center[1];
 
   // Track previous annotations to avoid recreating layers unnecessarily
   const prevAnnotationsRef = useRef<typeof annotations>([]);
@@ -192,13 +200,12 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         mapRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialization effect, only runs once
   }, []);
 
   // Load existing annotations onto the map
   useEffect(() => {
     if (!mapRef.current || !drawnItemsRef.current) return;
-
-    const map = mapRef.current;
 
     // Check if annotations actually changed to avoid unnecessary layer recreation
     const annotationsChanged =
@@ -247,7 +254,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
             pmIgnore: false, // Allow geoman to edit this marker
           });
         },
-        style: (feature) => {
+        style: (_feature) => {
           return {
             color: color,
             weight: geometryType === 'line' ? MAP_STYLES.LINE_WEIGHT : MAP_STYLES.POLYGON_WEIGHT,
@@ -332,7 +339,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
       initialZoomRef.current = zoom;
       initializedRef.current = true;
     }
-  }, [center[0], center[1], zoom, syncMapState]);
+  }, [center, centerLat, centerLng, zoom, syncMapState]);
 
   // Refocus when trigger changes - fit to annotation bounds if any exist
   useEffect(() => {
@@ -353,7 +360,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
       // Fallback: reset to center/zoom (campaign bbox center)
       mapRef.current.setView(center, zoom);
     }
-  }, [refocusTrigger, center[0], center[1], zoom]);
+  }, [refocusTrigger, center, centerLat, centerLng, zoom]);
 
   // Zoom in when trigger changes
   useEffect(() => {
@@ -401,6 +408,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
 
       mapRef.current.panBy([x, y]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
   }, [panTrigger?.count, panTrigger?.direction]);
 
   // Manage crosshair marker
@@ -445,7 +453,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         crosshairMarkerRef.current = null;
       }
     };
-  }, [center[0], center[1], showCrosshair, crosshairColor]);
+  }, [center, centerLat, centerLng, showCrosshair, crosshairColor]);
 
   // Update crosshair color separately when it changes
   useEffect(() => {
@@ -808,7 +816,6 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
     if (!mapRef.current || !drawnItemsRef.current) return;
 
     const layers = drawnItemsRef.current.getLayers();
-    const map = mapRef.current;
 
     // Reset all layers to default style and handle geoman edit mode
     layers.forEach((layer: any) => {
@@ -870,7 +877,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
           } else {
             try {
               (layer as any).pm.disable();
-            } catch (e) {
+            } catch {
               // Ignore errors during disable
             }
           }
@@ -907,7 +914,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
           } else {
             try {
               (layer as any).pm.disable();
-            } catch (e) {
+            } catch {
               // Ignore errors during disable
             }
           }
@@ -991,6 +998,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         }
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleDelete uses refs and stable store actions
   }, [selectedLayerId, isEditing]);
 
   // Handle delete button
@@ -1261,7 +1269,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
                   // Invalid polygon, don't render controls
                   return null;
                 }
-              } catch (e) {
+              } catch {
                 return null;
               }
             } else if (
@@ -1274,7 +1282,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
                   // Invalid line, don't render controls
                   return null;
                 }
-              } catch (e) {
+              } catch {
                 return null;
               }
             }

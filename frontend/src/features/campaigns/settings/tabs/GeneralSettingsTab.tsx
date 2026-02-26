@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CampaignOut, CampaignSettingsCreate } from '~/api/client';
+import { updateEmbeddingYear } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
+import { useLayoutStore } from '~/features/layout/layout.store';
 
 interface Props {
   campaign: CampaignOut;
@@ -12,6 +14,7 @@ interface Props {
   onSaveSettings: () => Promise<void>;
   onUpdateSettings: (updates: Partial<CampaignSettingsCreate>) => void;
   onOpenDelete: () => void;
+  onCampaignUpdated?: (campaign: CampaignOut) => void;
 }
 
 export const GeneralSettingsTab: React.FC<Props> = ({
@@ -23,7 +26,69 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   onSaveSettings,
   onUpdateSettings,
   onOpenDelete,
+  onCampaignUpdated,
 }) => {
+  const showAlert = useLayoutStore((s) => s.showAlert);
+  const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+
+  // Embedding year local state
+  const currentYear = new Date().getFullYear();
+  const [embeddingYear, setEmbeddingYear] = useState<number | null>(
+    campaign.settings.embedding_year ?? null
+  );
+  const [savingEmbeddingYear, setSavingEmbeddingYear] = useState(false);
+
+  const embeddingYearChanged = embeddingYear !== (campaign.settings.embedding_year ?? null);
+
+  const handleSaveEmbeddingYear = async () => {
+    if (!embeddingYearChanged) return;
+
+    // Warn the user if changing — this triggers a full recompute
+    if (campaign.settings.embedding_year !== null && embeddingYear !== null) {
+      const confirmed = await showConfirmDialog({
+        title: 'Recompute Embeddings?',
+        description: `Changing the embedding year from ${campaign.settings.embedding_year} to ${embeddingYear} will delete all existing embeddings and re-fetch them from the satellite imagery for ${embeddingYear}. This may take a while for large campaigns.`,
+        confirmText: 'Recompute',
+        cancelText: 'Cancel',
+        isDangerous: true,
+      });
+      if (!confirmed) return;
+    }
+
+    try {
+      setSavingEmbeddingYear(true);
+      const { data } = await updateEmbeddingYear({
+        path: { campaign_id: campaign.id },
+        body: { embedding_year: embeddingYear },
+      });
+
+      if (data?.embeddings_recomputed) {
+        const s = data.summary;
+        showAlert(
+          `Embeddings recomputed for ${embeddingYear}: ${s?.created ?? 0} created, ${s?.skipped ?? 0} skipped, ${s?.failed ?? 0} failed`,
+          'success'
+        );
+      } else {
+        showAlert('Embedding year updated', 'success');
+      }
+
+      // Propagate the updated embedding_year back to parent
+      if (onCampaignUpdated) {
+        onCampaignUpdated({
+          ...campaign,
+          settings: {
+            ...campaign.settings,
+            embedding_year: data?.embedding_year ?? null,
+          },
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update embedding year';
+      showAlert(message, 'error');
+    } finally {
+      setSavingEmbeddingYear(false);
+    }
+  };
   return (
     <div id="tab-general" role="tabpanel" className="space-y-3">
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
@@ -52,7 +117,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Bounding Box</h2>
         <p className="text-sm text-neutral-500 mb-4">
-          The geographic area where imagery can be loaded. All annotation tasks must fall within this region.
+          The geographic area where imagery can be loaded. All annotation tasks must fall within
+          this region.
         </p>
         <BoundingBoxEditor
           value={{
@@ -74,7 +140,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Annotation Labels</h2>
-        <p className="text-sm text-neutral-500 mb-4">The class names annotators choose from when labeling. Labels cannot be changed after creation to preserve data consistency.</p>
+        <p className="text-sm text-neutral-500 mb-4">
+          The class names annotators choose from when labeling. Labels cannot be changed after
+          creation to preserve data consistency.
+        </p>
         <LabelsEditor
           value={campaign.settings.labels}
           onChange={() => {}}
@@ -83,10 +152,80 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         />
       </div>
 
+      {/* Embedding Year */}
+      <div className="bg-white rounded-lg border border-neutral-300 p-6">
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Satellite Embedding Year</h2>
+        <p className="text-sm text-neutral-500 mb-4">
+          The year from which satellite embeddings are sourced for KNN-based label validation.
+          Changing this will recompute all embeddings for the campaign.
+          {!campaign.settings.embedding_year && (
+            <span className="block mt-1 text-amber-600 font-medium">
+              ⚠ No embedding year set — KNN validation is currently unavailable for annotators.
+            </span>
+          )}
+        </p>
+        <div className="flex gap-4 items-end">
+          <div className="w-48">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">Year</label>
+            <select
+              value={embeddingYear ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEmbeddingYear(val === '' ? null : parseInt(val, 10));
+              }}
+              disabled={savingEmbeddingYear}
+              className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed"
+            >
+              <option value="">None (validation disabled)</option>
+              {Array.from({ length: currentYear - 2016 }, (_, i) => currentYear - i).map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleSaveEmbeddingYear}
+            disabled={savingEmbeddingYear || !embeddingYearChanged}
+            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {savingEmbeddingYear ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Recomputing…
+              </>
+            ) : (
+              'Save'
+            )}
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-lg border border-red-300 p-6">
         <h2 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h2>
-        <p className="text-sm text-neutral-600 mb-4">Once you delete a campaign, there is no going back. Please be certain.</p>
-        <button onClick={onOpenDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">Delete This Campaign</button>
+        <p className="text-sm text-neutral-600 mb-4">
+          Once you delete a campaign, there is no going back. Please be certain.
+        </p>
+        <button
+          onClick={onOpenDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Delete This Campaign
+        </button>
       </div>
     </div>
   );

@@ -111,6 +111,6 @@ This will stream real-time logs from the selected container app.
 
 ## Doing a local backup of the database
 
-1. Make sure you are in the VPN from Unistra.
+1. Make sure you are in the VPN from Unistra!! Otherwise this might lead to silent failures of KV access and overwriting images with empty keys.
 2. Copy the db password from Azure Portal secrets (kv-stacnotator...)
 3. Whitelist your IP-address for the DB (Azure Postgres Flexible Server -> psqlstacnotatorprodwesteurope -> Settings -> Networking)

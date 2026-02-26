@@ -1,9 +1,4 @@
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import type { AuthAdapter } from '../../core/authAdapter';
 import { firebaseAuth } from './firebaseApp';
 

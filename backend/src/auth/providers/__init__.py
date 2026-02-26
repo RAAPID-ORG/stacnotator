@@ -1,6 +1,6 @@
-from src.config import get_settings
 from src.auth.providers.base import AuthProvider
 from src.auth.providers.firebase import FirebaseAuthProvider
+from src.config import get_settings
 
 settings = get_settings()
 

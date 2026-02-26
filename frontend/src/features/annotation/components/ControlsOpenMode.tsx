@@ -214,81 +214,80 @@ const OpenModeControls = () => {
             <div className="flex flex-col gap-1 w-full">
               <span className="font-bold text-neutral-900 text-xs">Labels</span>
               <div className="flex flex-col gap-1">
-            {extendedLabels.map((label, index) => (
-              <div key={label.id} className="relative">
-                <button
-                  className={`w-full text-left px-2 py-1.5 text-[10px] font-bold rounded transition-colors flex items-center gap-1.5 ${
-                    selectedLabelId === label.id
-                      ? 'bg-neutral-100 text-brand-700 border-brand-500 border-2 font-semibold'
-                      : 'bg-neutral-100 hover:border-brand-500 text-neutral-800 border-neutral-100 border-2'
-                  } cursor-pointer`}
-                  onClick={() => handleLabelSelect(label)}
-                >
-                  {/* Color indicator */}
-                  <span
-                    className="w-3 h-3 rounded-sm border border-neutral-300 flex-shrink-0"
-                    style={{ backgroundColor: label.color }}
-                  />
-                  <span className="flex-1 min-w-0 truncate">
-                    {selectedLabelId === label.id ? '✓ ' : ''}
-                    {capitalizeFirst(label.name)}
-                  </span>
-                  <span className="text-neutral-400 text-[9px] flex items-center gap-0.5 flex-shrink-0">
-                    <span>{getGeometryIcon(label.geometry_type)}</span>
-                    <span>[{index + 1}]</span>
-                  </span>
-                </button>
-                {/* Magic Wand Icon - only for polygon labels */}
-                {label.geometry_type === 'polygon' && (
-                  <button
-                    onClick={(e) => handleMagicWandToggle(e, label.id)}
-                    title={
-                      magicWandEnabled[label.id]
-                        ? 'Magic wand active - Click to draw automatically'
-                        : 'Magic wand inactive - Click to enable'
-                    }
-                    className={`absolute top-0.5 right-0.5 p-0.5 rounded transition-all hover:scale-110 ${
-                      magicWandEnabled[label.id]
-                        ? 'bg-purple-500 text-white shadow-md'
-                        : 'bg-neutral-200 text-neutral-500 hover:bg-neutral-300'
-                    }`}
-                    style={{ zIndex: 10 }}
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                {extendedLabels.map((label, index) => (
+                  <div key={label.id} className="relative">
+                    <button
+                      className={`w-full text-left px-2 py-1.5 text-[10px] font-bold rounded transition-colors flex items-center gap-1.5 ${
+                        selectedLabelId === label.id
+                          ? 'bg-neutral-100 text-brand-700 border-brand-500 border-2 font-semibold'
+                          : 'bg-neutral-100 hover:border-brand-500 text-neutral-800 border-neutral-100 border-2'
+                      } cursor-pointer`}
+                      onClick={() => handleLabelSelect(label)}
                     >
-                      <path d="M15 4V2" />
-                      <path d="M15 16v-2" />
-                      <path d="M8 9h2" />
-                      <path d="M20 9h2" />
-                      <path d="M17.8 11.8 19 13" />
-                      <path d="M15 9h0" />
-                      <path d="M17.8 6.2 19 5" />
-                      <path d="m3 21 9-9" />
-                      <path d="M12.2 6.2 11 5" />
-                    </svg>
-                  </button>
-                )}
+                      {/* Color indicator */}
+                      <span
+                        className="w-3 h-3 rounded-sm border border-neutral-300 flex-shrink-0"
+                        style={{ backgroundColor: label.color }}
+                      />
+                      <span className="flex-1 min-w-0 truncate">
+                        {selectedLabelId === label.id ? '✓ ' : ''}
+                        {capitalizeFirst(label.name)}
+                      </span>
+                      <span className="text-neutral-400 text-[9px] flex items-center gap-0.5 flex-shrink-0">
+                        <span>{getGeometryIcon(label.geometry_type)}</span>
+                        <span>[{index + 1}]</span>
+                      </span>
+                    </button>
+                    {/* Magic Wand Icon - only for polygon labels */}
+                    {label.geometry_type === 'polygon' && (
+                      <button
+                        onClick={(e) => handleMagicWandToggle(e, label.id)}
+                        title={
+                          magicWandEnabled[label.id]
+                            ? 'Magic wand active - Click to draw automatically'
+                            : 'Magic wand inactive - Click to enable'
+                        }
+                        className={`absolute top-0.5 right-0.5 p-0.5 rounded transition-all hover:scale-110 ${
+                          magicWandEnabled[label.id]
+                            ? 'bg-purple-500 text-white shadow-md'
+                            : 'bg-neutral-200 text-neutral-500 hover:bg-neutral-300'
+                        }`}
+                        style={{ zIndex: 10 }}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M15 4V2" />
+                          <path d="M15 16v-2" />
+                          <path d="M8 9h2" />
+                          <path d="M20 9h2" />
+                          <path d="M17.8 11.8 19 13" />
+                          <path d="M15 9h0" />
+                          <path d="M17.8 6.2 19 5" />
+                          <path d="m3 21 9-9" />
+                          <path d="M12.2 6.2 11 5" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {extendedLabels.length === 0 && (
-            <p className="text-xs text-neutral-500 italic">No labels defined</p>
-          )}
+              {extendedLabels.length === 0 && (
+                <p className="text-xs text-neutral-500 italic">No labels defined</p>
+              )}
 
-
-          {!selectedLabel && (
-            <p className="text-[9px] text-amber-600 mt-1 p-2 bg-amber-50 rounded max-w-md">
-              Select a label to start annotating
-            </p>
-          )}
+              {!selectedLabel && (
+                <p className="text-[9px] text-amber-600 mt-1 p-2 bg-amber-50 rounded max-w-md">
+                  Select a label to start annotating
+                </p>
+              )}
             </div>
 
             {/* Current selection info */}
@@ -323,8 +322,8 @@ const OpenModeControls = () => {
               Hover over geometries to highlight them, then click to select and edit vertices.
             </p>
             <p className="text-[10px] text-neutral-500 mt-1">
-              Drag vertices to move them. Use the controls to save or delete. Right click on vertices
-              to delete them.
+              Drag vertices to move them. Use the controls to save or delete. Right click on
+              vertices to delete them.
             </p>
           </div>
         )}

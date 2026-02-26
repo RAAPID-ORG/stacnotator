@@ -1,19 +1,21 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
-import logging
 
-from src.annotation.schema import ValidateLabelSubmissionsResponse
 import ee
 from geoalchemy2.shape import to_shape
-from sqlalchemy import select, func
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
     AnnotationTask,
+)
+from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
+from src.annotation.schema import ValidateLabelSubmissionsResponse
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FetchedEmbedding:
     """Raw embedding fetched from an external provider (not yet persisted)."""
+
     vector: list[float]
     period_start: datetime
     period_end: datetime
@@ -30,7 +33,7 @@ class FetchedEmbedding:
 
 _ALPHAEARTH_BANDS = [f"A{i:02d}" for i in range(64)]
 _ALPHAEARTH_COLLECTION = "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL"
-_GEE_BATCH_SIZE = 500 # GEE sampleRegions has a limit on features per call
+_GEE_BATCH_SIZE = 500  # GEE sampleRegions has a limit on features per call
 
 
 def _fetch_alphaearth_gee_batch(
@@ -40,16 +43,15 @@ def _fetch_alphaearth_gee_batch(
 ) -> dict[str, FetchedEmbedding]:
     """Fetch 64-D AlphaEarth embeddings for many points in one GEE call.
 
-    *points* is a list of dicts with keys ``id``, ``lat``, ``lon``.
-    Returns a dict mapping point ``id`` -> ``FetchedEmbedding``.
+    points is a list of dicts with keys "id", "lat", "lon".
+    Returns a dict mapping point "id" -> FetchedEmbedding.
     Missing / failed points are omitted from the result.
     """
     if not points:
         return {}
 
     features = [
-        ee.Feature(ee.Geometry.Point([p["lon"], p["lat"]]), {"pid": p["id"]})
-        for p in points
+        ee.Feature(ee.Geometry.Point([p["lon"], p["lat"]]), {"pid": p["id"]}) for p in points
     ]
     fc = ee.FeatureCollection(features)
 
@@ -75,7 +77,9 @@ def _fetch_alphaearth_gee_batch(
         point_ids = [str(p.get("id")) for p in points]
         logger.exception(
             "GEE embedding fetch failed for %d point(s) (ids=%s): %s",
-            len(points), ",".join(point_ids), exc,
+            len(points),
+            ",".join(point_ids),
+            exc,
         )
         return results
 
@@ -127,9 +131,7 @@ def store_embedding(
     return row
 
 
-def get_embeddings_by_campaign(
-    db: Session, campaign_id: int
-) -> list[EmbeddingRow]:
+def get_embeddings_by_campaign(db: Session, campaign_id: int) -> list[EmbeddingRow]:
     """Return all embeddings for tasks within a campaign."""
     stmt = (
         select(EmbeddingRow)
@@ -139,9 +141,32 @@ def get_embeddings_by_campaign(
     return list(db.scalars(stmt).all())
 
 
-def get_embeddings_by_label(
-    db: Session, campaign_id: int, label_id: int
-) -> list[EmbeddingRow]:
+def get_num_embeddings_with_label(
+    db: Session,
+    campaign_id: int,
+    label_id: int | None = None,
+) -> int:
+    """Count embeddings linked to annotations that have a label set.
+
+    If label_id is given, only count embeddings whose annotation carries
+    that specific label. Otherwise count all labeled embeddings in the
+    campaign.
+    """
+    stmt = (
+        select(func.count(func.distinct(EmbeddingRow.id)))
+        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
+        .where(
+            AnnotationTask.campaign_id == campaign_id,
+            Annotation.label_id.isnot(None),
+        )
+    )
+    if label_id is not None:
+        stmt = stmt.where(Annotation.label_id == label_id)
+    return db.scalar(stmt) or 0
+
+
+def get_embeddings_by_label(db: Session, campaign_id: int, label_id: int) -> list[EmbeddingRow]:
     """Return all embeddings for a specific label within a campaign."""
     stmt = (
         select(EmbeddingRow)
@@ -160,9 +185,9 @@ def find_nearest_labeled_embeddings(
 ) -> list[tuple[EmbeddingRow, int, float]]:
     """Find the K nearest embeddings that have a labeled annotation.
 
-    Only tasks with at least one annotation where ``label_id IS NOT NULL``
-    are considered.  Returns ``(EmbeddingRow, label_id, cosine_distance)``
-    tuples ordered closest-first.  The HNSW index is still used for the
+    Only tasks with at least one annotation where label_id IS NOT NULL
+    are considered. Returns (EmbeddingRow, label_id, cosine_distance)
+    tuples ordered closest-first. The HNSW index is still used for the
     vector ordering; the extra JOIN just filters out unlabeled rows.
     """
     distance = EmbeddingRow.vector.cosine_distance(target_vector).label("distance")
@@ -186,9 +211,7 @@ def get_embedding_by_task(
 ) -> EmbeddingRow | None:
     """Return the embedding row for a given task, or None."""
     return db.scalars(
-        select(EmbeddingRow).where(
-            EmbeddingRow.annotation_task_id == annotation_task_id
-        )
+        select(EmbeddingRow).where(EmbeddingRow.annotation_task_id == annotation_task_id)
     ).first()
 
 
@@ -196,10 +219,10 @@ def knn_label_agrees(
     nearest: list[tuple[EmbeddingRow, int, float]],
     label_id: int,
 ) -> bool:
-    """Return True if the majority label among *nearest* neighbours equals *label_id*.
+    """Return True if the majority label among nearest neighbours equals label_id.
 
-    Expects tuples of ``(EmbeddingRow, label_id, distance)`` as returned by
-    ``find_nearest_labeled_embeddings``.
+    Expects tuples of (EmbeddingRow, label_id, distance) as returned by
+    find_nearest_labeled_embeddings.
     """
     if not nearest:
         return True  # No labeled neighbors - nothing to disagree with
@@ -210,34 +233,83 @@ def knn_label_agrees(
     return most_common == label_id
 
 
+def has_sufficient_validation_data(
+    db: Session,
+    campaign_id: int,
+    label_id: int,
+    n_neighbours: int,
+) -> bool:
+    """Check if enough reference data is available to compare against.
+
+    Returns True only if:
+    - at least 2 * n_neighbours total labeled embeddings exist in the campaign, AND
+    - at least n_neighbours embeddings with the specific label_id exist.
+
+    Uses a single query with conditional aggregation for efficiency.
+    """
+    # Single query: count total labeled embeddings AND per-label embeddings
+    total_stmt = (
+        select(
+            func.count(func.distinct(EmbeddingRow.id)).label("total"),
+            func.count(
+                func.distinct(case((Annotation.label_id == label_id, EmbeddingRow.id)))
+            ).label("label_count"),
+        )
+        .select_from(EmbeddingRow)
+        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
+        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
+        .where(
+            AnnotationTask.campaign_id == campaign_id,
+            Annotation.label_id.isnot(None),
+        )
+    )
+    row = db.execute(total_stmt).one()
+    total = row.total or 0
+    label_count = row.label_count or 0
+    return total >= 2 * n_neighbours and label_count >= n_neighbours
+
+
+_N_NEIGHBOURS = 5
+
+
 def validate_label_submission(
     db: Session,
-    annotation_id: int,
+    campaign_id: int,
+    annotation_task_id: int,
     label_id: int,
 ) -> ValidateLabelSubmissionsResponse:
-    """Validate if a submitted label is correct based on nearest embedding."""
-    annotation = db.get(Annotation, annotation_id)
-    if not annotation:
-        raise ValueError(f"Annotation {annotation_id} not found.")
-    if not annotation.annotation_task_id:
-        raise ValueError(f"Annotation {annotation_id} has no task.")
+    """Validate whether label_id agrees with KNN-majority for the task.
 
-    embedding = get_embedding_by_task(db, annotation.annotation_task_id)
+    Returns a structured response with a status field so callers can
+    distinguish between a genuine mismatch and a skip due to missing data.
+    """
+
+    embedding = get_embedding_by_task(db, annotation_task_id)
     if not embedding:
-        raise ValueError(f"No embedding found for task of annotation {annotation_id}.")
+        return ValidateLabelSubmissionsResponse(
+            status="skipped_no_embedding",
+            agrees=None,
+        )
+
+    if not has_sufficient_validation_data(db, campaign_id, label_id, _N_NEIGHBOURS):
+        return ValidateLabelSubmissionsResponse(
+            status="skipped_insufficient_data",
+            agrees=None,
+        )
 
     nearest = find_nearest_labeled_embeddings(
         db,
-        campaign_id=annotation.campaign_id,
+        campaign_id=campaign_id,
         target_vector=list(embedding.vector),
-        k=5,
+        k=_N_NEIGHBOURS,
     )
 
     agrees = knn_label_agrees(nearest, label_id)
 
-    return {
-        "agrees": agrees,
-    }
+    return ValidateLabelSubmissionsResponse(
+        status="ok" if agrees else "mismatch",
+        agrees=agrees,
+    )
 
 
 def populate_campaign_embeddings(
@@ -247,8 +319,7 @@ def populate_campaign_embeddings(
     end_date: datetime,
     provider: str = "alphaearth_gee",
 ) -> dict:
-    """Fetch and store embeddings for every task in a campaign (if not already present).
-    """
+    """Fetch and store embeddings for every task in a campaign (if not already present)."""
     if provider != "alphaearth_gee":
         raise NotImplementedError(f"Batch fetch not implemented for '{provider}'.")
 
@@ -277,31 +348,40 @@ def populate_campaign_embeddings(
 
         shape = to_shape(row.geometry)
         centroid = shape.centroid
-        points_to_fetch.append({
-            "id": str(row.task_id),
-            "lat": centroid.y,
-            "lon": centroid.x,
-        })
+        points_to_fetch.append(
+            {
+                "id": str(row.task_id),
+                "lat": centroid.y,
+                "lon": centroid.x,
+            }
+        )
 
-    logger.info(f"Fetching embeddings for campaign {campaign_id}: {len(points_to_fetch)} points to fetch, {skipped} already have embeddings.")
+    logger.info(
+        "Fetching embeddings for campaign %d: %d points to fetch, %d already have embeddings.",
+        campaign_id,
+        len(points_to_fetch),
+        skipped,
+    )
 
-    # Batch-fetch from GEE. Limitied by max size from GEE
+    # Batch-fetch from GEE. Limited by max size from GEE
     all_fetched: dict[str, FetchedEmbedding] = {}
     for i in range(0, len(points_to_fetch), _GEE_BATCH_SIZE):
         batch = points_to_fetch[i : i + _GEE_BATCH_SIZE]
         logger.info(
             "Fetching embeddings batch %d-%d of %d",
-            i + 1, i + len(batch), len(points_to_fetch),
+            i + 1,
+            i + len(batch),
+            len(points_to_fetch),
         )
         try:
-            all_fetched.update(
-                _fetch_alphaearth_gee_batch(batch, start_date, end_date)
-            )
+            all_fetched.update(_fetch_alphaearth_gee_batch(batch, start_date, end_date))
         except Exception as exc:
             point_ids = [str(p.get("id")) for p in batch]
             logger.exception(
                 "Embedding batch fetch failed for %d point(s) (ids=%s): %s",
-                len(batch), ",".join(point_ids), exc,
+                len(batch),
+                ",".join(point_ids),
+                exc,
             )
 
     # Store results - single bulk insert
@@ -318,7 +398,7 @@ def populate_campaign_embeddings(
         )
         for task_id_str, fetched in all_fetched.items()
     ]
-    logger.info(f"Len of new rows {len(new_rows)}")
+    logger.info("New embedding rows to insert: %d", len(new_rows))
     db.add_all(new_rows)
     db.flush()
     created = len(new_rows)
@@ -332,6 +412,10 @@ def populate_campaign_embeddings(
     }
     logger.info(
         "Populated embeddings for campaign %d: %d created, %d skipped, %d failed out of %d tasks",
-        campaign_id, created, skipped, failed, total,
+        campaign_id,
+        created,
+        skipped,
+        failed,
+        total,
     )
     return summary

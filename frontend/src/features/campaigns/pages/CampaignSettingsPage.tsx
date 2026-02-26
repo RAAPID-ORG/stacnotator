@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TaskAssignmentModal } from '~/features/campaigns/settings/TaskAssignmentModal';
-import { ReviewerAssignmentModal, type AssignmentPattern } from '~/features/campaigns/settings/ReviewerAssignmentModal';
+import {
+  ReviewerAssignmentModal,
+  type AssignmentPattern,
+} from '~/features/campaigns/settings/ReviewerAssignmentModal';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
@@ -111,7 +114,7 @@ export const CampaignSettingsPage = () => {
     };
 
     loadCampaign();
-  }, [numericCampaignId, showAlert]);
+  }, [campaignId, numericCampaignId, showAlert]);
 
   // Lazy load annotation tasks when tasks tab is active
   useEffect(() => {
@@ -132,9 +135,11 @@ export const CampaignSettingsPage = () => {
     loadTasks();
   }, [activeTab, numericCampaignId, annotationTasks.length, showAlert]);
 
-  // Lazy load campaign users when users or tasks tab is active (both need users data)
+  // Load campaign users when users or tasks tab is active.
+  // Re-fetches every time the tab becomes active so changes made in the
+  // users tab (add / remove / promote) are reflected in the tasks tab.
   useEffect(() => {
-    if ((activeTab !== 'users' && activeTab !== 'tasks') || campaignUsers.length > 0) return;
+    if (activeTab !== 'users' && activeTab !== 'tasks') return;
 
     const loadUsers = async () => {
       try {
@@ -149,7 +154,7 @@ export const CampaignSettingsPage = () => {
     };
 
     loadUsers();
-  }, [activeTab, numericCampaignId, campaignUsers.length, showAlert]);
+  }, [activeTab, numericCampaignId, showAlert]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -232,15 +237,23 @@ export const CampaignSettingsPage = () => {
   const handleUpdateImagery = async (imageryId: number, updates: Partial<ImageryCreate>) => {
     try {
       setSaving(true);
-      
+
       // Filter out temporal fields that cannot be updated
-      const { start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit, ...allowedUpdates } = updates;
-      
+      const {
+        start_ym: _start_ym,
+        end_ym: _end_ym,
+        window_interval: _window_interval,
+        window_unit: _window_unit,
+        slicing_interval: _slicing_interval,
+        slicing_unit: _slicing_unit,
+        ...allowedUpdates
+      } = updates;
+
       // Call the API
       const { data, error } = await updateImagery({
-        path: { 
-          campaign_id: numericCampaignId, 
-          imagery_id: imageryId 
+        path: {
+          campaign_id: numericCampaignId,
+          imagery_id: imageryId,
         },
         body: allowedUpdates,
       });
@@ -260,7 +273,7 @@ export const CampaignSettingsPage = () => {
           })
         );
       }
-      
+
       showAlert('Imagery updated successfully', 'success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update imagery';
@@ -360,7 +373,7 @@ export const CampaignSettingsPage = () => {
     if (!taskFile) return;
     try {
       setUploadingTasks(true);
-      const { data } = await ingestAnnotationTasksFromCsv({
+      const { data: _data } = await ingestAnnotationTasksFromCsv({
         path: { campaign_id: numericCampaignId },
         body: { file: taskFile },
       });
@@ -448,10 +461,10 @@ export const CampaignSettingsPage = () => {
   const handleUnassignTask = async (taskId: number, userId: string) => {
     try {
       await unassignUserFromTask({
-        path: { 
+        path: {
           campaign_id: numericCampaignId,
           task_id: taskId,
-          user_id: userId
+          user_id: userId,
         },
       });
 
@@ -625,7 +638,7 @@ export const CampaignSettingsPage = () => {
               { id: 'users', label: 'Users' },
             ]}
             activeId={activeTab}
-            onChange={(id) => setActiveTab(id as any)}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
           />
 
           {/* Tab Content */}
@@ -641,6 +654,7 @@ export const CampaignSettingsPage = () => {
                 setCampaign({ ...campaign!, settings: { ...campaign!.settings, ...updates } })
               }
               onOpenDelete={() => setShowDeleteCampaignDialog(true)}
+              onCampaignUpdated={(updated) => setCampaign(updated)}
             />
           )}
 

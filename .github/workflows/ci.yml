@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Secret scanning  (all branches)
+  secrets:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Backend: lint + type-check  (all branches)
+  backend-lint:
+    name: "Backend: Lint & Type Check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check src/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/
+
+      - name: Mypy type check
+        run: uv run mypy src/ --config-file pyproject.toml
+
+  # Frontend: lint + type-check  (all branches)
+  frontend-lint:
+    name: "Frontend: Lint & Type Check"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npx eslint src/
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Prettier format check
+        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+
+  # Backend: tests  (dev + main only)
+  backend-test:
+    name: "Backend: Tests"
+    needs: [backend-lint]
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: stacnotator_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U test -d stacnotator_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DBNAME: stacnotator_test
+      DBUSER: test
+      DBPASS: test
+      DBHOST: localhost
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      AUTH_PROVIDER: firebase
+      ENVIRONMENT: testing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short
+
+  # Docker build verification  (main only)
+  docker-build:
+    name: "Docker: Build Verification"
+    needs: [backend-lint, frontend-lint]
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t stacnotator-backend:ci ./backend
+
+      - name: Build frontend image
+        run: docker build -t stacnotator-frontend:ci ./frontend

@@ -1,4 +1,4 @@
-import { useLayoutStore } from "~/features/layout/layout.store";
+import { useLayoutStore } from '~/features/layout/layout.store';
 
 export interface ErrorHandlerOptions {
   /**

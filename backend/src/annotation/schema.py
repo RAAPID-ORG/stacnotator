@@ -1,9 +1,9 @@
-from typing import List, Optional
-from uuid import UUID
-from pydantic import BaseModel, field_validator, model_validator
 from datetime import datetime
+from typing import Literal
+from uuid import UUID
+
 from geoalchemy2.shape import to_shape
-from src.auth.schemas import UserOut
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class GeometryOut(BaseModel):
@@ -24,11 +24,11 @@ class GeometryOut(BaseModel):
 
 class AnnotationFromTaskOut(BaseModel):
     id: int
-    label_id: Optional[int]
-    comment: Optional[str]
+    label_id: int | None
+    comment: str | None
     created_by_user_id: UUID
     created_at: datetime
-    confidence: Optional[int]
+    confidence: int | None
     is_authoritative: bool
 
     class Config:
@@ -41,11 +41,12 @@ class AnnotationOut(AnnotationFromTaskOut):
     class Config:
         from_attributes = True
 
+
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
     status: str
-    user_email: Optional[str] = None
-    user_display_name: Optional[str] = None
+    user_email: str | None = None
+    user_display_name: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -70,8 +71,8 @@ class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
     geometry: GeometryOut
-    assignments: Optional[List[AnnotationTaskAssignmentOut]]
-    annotations: List[AnnotationFromTaskOut]
+    assignments: list[AnnotationTaskAssignmentOut] | None
+    annotations: list[AnnotationFromTaskOut]
 
     class Config:
         from_attributes = True
@@ -84,28 +85,47 @@ class AnnotationTaskListOut(BaseModel):
 
 class AnnotationsListOut(BaseModel):
     campaign_id: int
-    annotations: List[AnnotationOut]
+    annotations: list[AnnotationOut]
 
 
 class AnnotationFromTaskCreate(BaseModel):
-    label_id: Optional[int]
-    comment: Optional[str]
-    confidence: Optional[int]
-    is_authoritative: Optional[bool] = None
+    label_id: int | None
+    comment: str | None
+    confidence: int | None
+    is_authoritative: bool | None = None
 
 
 class AnnotationCreate(BaseModel):
     label_id: int
-    comment: Optional[str]
+    comment: str | None
     geometry_wkt: str  # Geometry in WKT format
-    confidence: Optional[str]
+    confidence: str | None
 
 
 class AnnotationUpdate(BaseModel):
-    label_id: Optional[int]
-    comment: Optional[str]
-    geometry_wkt: Optional[str]  # Geometry in WKT format
-    is_authoritative: Optional[bool]
+    label_id: int | None
+    comment: str | None
+    geometry_wkt: str | None  # Geometry in WKT format
+    is_authoritative: bool | None
+
 
 class ValidateLabelSubmissionsResponse(BaseModel):
-    agrees: bool
+    """Result of a KNN-based label validation check.
+
+    status tells the caller why a certain result was returned:
+
+    - "ok" - enough data, label agrees with neighbours
+    - "mismatch" - enough data, label disagrees with neighbours
+    - "skipped_no_embedding" - task has no embedding vector
+    - "skipped_insufficient_data" - not enough labeled neighbours yet
+    - "disabled" - validation is disabled (no embedding year configured)
+    """
+
+    status: Literal[
+        "ok",
+        "mismatch",
+        "skipped_no_embedding",
+        "skipped_insufficient_data",
+        "disabled",
+    ]
+    agrees: bool | None = None

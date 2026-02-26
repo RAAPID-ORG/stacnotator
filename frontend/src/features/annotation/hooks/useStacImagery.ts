@@ -108,6 +108,7 @@ export const useStacImagery = ({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bbox/searchBody/visualizationUrlTemplates tracked via memoized keys (bboxKey, searchBodyKey, templatesKey)
   }, [registrationUrl, searchBodyKey, bboxKey, startDate, endDate, templatesKey, enabled]);
 
   return { tileUrls, loading, error };

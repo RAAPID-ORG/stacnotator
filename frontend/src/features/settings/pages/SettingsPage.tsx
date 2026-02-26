@@ -49,7 +49,8 @@ export const SettingsPage = () => {
     if (activeTab === 'users' && account?.is_admin && users.length === 0) {
       loadUsers();
     }
-  }, [activeTab, account]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadUsers is a stable callback
+  }, [activeTab, account, users.length]);
 
   const loadUsers = async () => {
     try {

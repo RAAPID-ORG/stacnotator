@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { extractLatLonFromWKT } from '~/shared/utils/utility';
-import { 
-  getTaskStatus, 
-  getUserTaskStatuses, 
+import {
+  getTaskStatus,
+  getUserTaskStatuses,
   getTaskStatusColor,
-  formatTaskStatus
+  formatTaskStatus,
 } from '~/shared/utils/taskStatus';
 
 interface AnnotationTasksTableProps {
@@ -89,7 +89,7 @@ export const AnnotationTasksTable = ({
 
   const handleDeleteSelected = async () => {
     if (!onDeleteTasks || selectedTasks.size === 0) return;
-    
+
     try {
       setIsDeleting(true);
       await onDeleteTasks(Array.from(selectedTasks));
@@ -98,8 +98,6 @@ export const AnnotationTasksTable = ({
       setIsDeleting(false);
     }
   };
-
-
 
   if (tasks.length === 0) {
     return (
@@ -207,11 +205,19 @@ export const AnnotationTasksTable = ({
                         <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap">
                           <div className="font-semibold mb-1">User Status:</div>
                           {Array.from(getUserTaskStatuses(task)).map(([userId, status]) => {
-                            const user = campaignUsers.find(u => u.user.id === userId);
+                            const user = campaignUsers.find((u) => u.user.id === userId);
                             return (
                               <div key={userId} className="flex items-center gap-2">
                                 <span>{user?.user.display_name || 'Unknown'}: </span>
-                                <span className={status === 'completed' ? 'text-green-300' : 'text-yellow-300'}>
+                                <span
+                                  className={
+                                    status === 'completed'
+                                      ? 'text-green-300'
+                                      : status === 'skipped'
+                                        ? 'text-violet-300'
+                                        : 'text-yellow-300'
+                                  }
+                                >
                                   {status}
                                 </span>
                               </div>
@@ -232,7 +238,9 @@ export const AnnotationTasksTable = ({
                       <div className="flex flex-wrap gap-1 items-center">
                         {task.assignments && task.assignments.length > 0 ? (
                           task.assignments.map((assignment) => {
-                            const user = campaignUsers.find(u => u.user.id === assignment.user_id);
+                            const user = campaignUsers.find(
+                              (u) => u.user.id === assignment.user_id
+                            );
                             const userStatus = getUserTaskStatuses(task).get(assignment.user_id);
                             return (
                               <span
@@ -240,7 +248,9 @@ export const AnnotationTasksTable = ({
                                 className={`inline-block px-2 py-1 rounded text-xs ${
                                   userStatus === 'completed'
                                     ? 'bg-green-100 text-green-700'
-                                    : 'bg-gray-100 text-gray-700'
+                                    : userStatus === 'skipped'
+                                      ? 'bg-violet-100 text-violet-700'
+                                      : 'bg-gray-100 text-gray-700'
                                 }`}
                                 title={`${user?.user.display_name || 'Unknown'} - ${userStatus}`}
                               >
@@ -252,16 +262,23 @@ export const AnnotationTasksTable = ({
                           <span className="text-xs text-neutral-500">Unassigned</span>
                         )}
                         {/* Add User Button */}
-                        <div className="relative" ref={showUserSelectForTask === task.id ? dropdownRef : null}>
+                        <div
+                          className="relative"
+                          ref={showUserSelectForTask === task.id ? dropdownRef : null}
+                        >
                           <button
-                            onClick={() => setShowUserSelectForTask(showUserSelectForTask === task.id ? null : task.id)}
+                            onClick={() =>
+                              setShowUserSelectForTask(
+                                showUserSelectForTask === task.id ? null : task.id
+                              )
+                            }
                             disabled={isAssigning}
                             className="inline-block px-2 py-1 rounded text-xs bg-neutral-200 text-neutral-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50 font-medium"
                             title="Add user to task"
                           >
                             +
                           </button>
-                          
+
                           {/* User Select Dropdown */}
                           {showUserSelectForTask === task.id && (
                             <div className="absolute right-0 z-20 mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg min-w-48 max-h-64 overflow-y-auto">
@@ -270,7 +287,9 @@ export const AnnotationTasksTable = ({
                                   Manage users for task #{task.annotation_number}
                                 </div>
                                 {campaignUsers.map((user) => {
-                                  const isAlreadyAssigned = task.assignments?.some(a => a.user_id === user.user.id);
+                                  const isAlreadyAssigned = task.assignments?.some(
+                                    (a) => a.user_id === user.user.id
+                                  );
                                   return (
                                     <button
                                       key={user.user.id}
@@ -291,11 +310,15 @@ export const AnnotationTasksTable = ({
                                     >
                                       <div className="flex items-center justify-between">
                                         <div>
-                                          <div className="font-medium">{user.user.display_name}</div>
+                                          <div className="font-medium">
+                                            {user.user.display_name}
+                                          </div>
                                           <div className="text-neutral-500">{user.user.email}</div>
                                         </div>
                                         {isAlreadyAssigned && (
-                                          <span className="text-xs text-red-600 font-semibold">Remove</span>
+                                          <span className="text-xs text-red-600 font-semibold">
+                                            Remove
+                                          </span>
                                         )}
                                       </div>
                                     </button>
@@ -342,6 +365,12 @@ export const AnnotationTasksTable = ({
           Pending:{' '}
           <strong className="text-neutral-900">
             {tasks.filter((t) => getTaskStatus(t) === 'pending').length}
+          </strong>
+        </span>
+        <span>
+          Skipped:{' '}
+          <strong className="text-neutral-900">
+            {tasks.filter((t) => getTaskStatus(t) === 'skipped').length}
           </strong>
         </span>
       </div>

@@ -65,7 +65,7 @@ export const TaskAssignmentModal = ({
 
     if (mode === 'random-all') {
       if (selectedUsers.length === 0) return assignments;
-      
+
       unassignedTasks.forEach((task, index) => {
         const userIndex = index % selectedUsers.length;
         assignments[task.id] = [selectedUsers[userIndex]];
@@ -113,6 +113,7 @@ export const TaskAssignmentModal = ({
 
   const previewAssignmentCount = useMemo(() => {
     return Object.keys(generateAssignments()).length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generateAssignments depends on mode, selectedUsers, tasksPerUser, unassignedTasks
   }, [mode, selectedUsers, tasksPerUser, unassignedTasks]);
 
   if (!isOpen) return null;
@@ -199,9 +200,7 @@ export const TaskAssignmentModal = ({
 
                     {mode === 'random-count' && selectedUsers.includes(user.user.id) && (
                       <div className="flex items-center gap-2 ml-4">
-                        <label className="text-sm text-neutral-600 whitespace-nowrap">
-                          Tasks:
-                        </label>
+                        <label className="text-sm text-neutral-600 whitespace-nowrap">Tasks:</label>
                         <input
                           type="number"
                           min="1"

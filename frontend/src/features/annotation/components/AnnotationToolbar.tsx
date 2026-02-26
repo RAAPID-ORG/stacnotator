@@ -25,7 +25,7 @@ const KEYBOARD_SHORTCUTS = [
 /**
  * Task filter panel component
  */
-const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
+const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
   const campaign = useAnnotationStore((state) => state.campaign);
   const allTasks = useAnnotationStore((state) => state.allTasks);
   const taskFilter = useAnnotationStore((state) => state.taskFilter);
@@ -55,7 +55,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
     const newAssignedTo = isSelected
       ? taskFilter.assignedTo.filter((id) => id !== userId)
       : [...taskFilter.assignedTo, userId];
-    
+
     setTaskFilter({ assignedTo: newAssignedTo });
   };
 
@@ -64,7 +64,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
     const newStatuses = isSelected
       ? taskFilter.statuses.filter((s) => s !== status)
       : [...taskFilter.statuses, status];
-    
+
     if (newStatuses.length > 0) {
       setTaskFilter({ statuses: newStatuses });
     }
@@ -81,8 +81,8 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const isShowingAll = taskFilter.assignedTo.length === 0;
-  const isShowingMineOnly = 
-    taskFilter.assignedTo.length === 1 && 
+  const isShowingMineOnly =
+    taskFilter.assignedTo.length === 1 &&
     currentUser &&
     taskFilter.assignedTo[0] === currentUser.id;
 
@@ -126,7 +126,9 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
               >
                 <input
                   type="checkbox"
-                  checked={taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(user.id)}
+                  checked={
+                    taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(user.id)
+                  }
                   onChange={() => handleAssigneeToggle(user.id)}
                   disabled={isShowingAll}
                   className="rounded accent-brand-500"
@@ -252,8 +254,7 @@ export const AnnotationToolbar = () => {
     if (shouldBeDefault) {
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Save as Default Layout?',
-        description:
-          'This will overwrite the default layout for ALL users in this campaign.',
+        description: 'This will overwrite the default layout for ALL users in this campaign.',
         confirmText: 'Save Default',
         cancelText: 'Cancel',
         isDangerous: true,
@@ -269,8 +270,7 @@ export const AnnotationToolbar = () => {
       const layoutType = shouldBeDefault ? 'default' : 'personal';
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Main Layout Modified',
-        description:
-          `You have modified the main layout (main map, timeseries, or minimap). This change will be applied to ALL imagery sources and may cause layouts to shift.\n\nDo you want to save this ${layoutType} layout?`,
+        description: `You have modified the main layout (main map, timeseries, or minimap). This change will be applied to ALL imagery sources and may cause layouts to shift.\n\nDo you want to save this ${layoutType} layout?`,
         confirmText: 'Save Layout',
         cancelText: 'Cancel',
       });
@@ -416,38 +416,52 @@ export const AnnotationToolbar = () => {
 
         {/* Review Mode Toggle + Navigate to Review Page (tasks mode only) */}
         {campaign.mode === 'tasks' && (
-        <div className="flex items-center rounded overflow-hidden">
-          {/* Toggle review mode on/off */}
-          <button
-            onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
-              isReviewMode
-                ? 'bg-amber-50 text-amber-700 font-medium'
-                : 'text-neutral-700 hover:bg-neutral-50'
-            }`}
-            type="button"
-            title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" className={isReviewMode ? 'text-amber-600' : 'text-neutral-500'}>
-              <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-              <path fillRule="evenodd" clipRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
-            </svg>
-            <span>Review{isReviewMode ? ' ✓' : ''}</span>
-          </button>
-          {/* Divider */}
-          <div className="w-px h-5 bg-neutral-200" />
-          {/* Navigate to review page */}
-          <button
-            onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
-            className="flex items-center px-2 py-1.5 text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700 transition-colors"
-            type="button"
-            title="Go to review page"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" clipRule="evenodd" d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z" />
-            </svg>
-          </button>
-        </div>
+          <div className="flex items-center rounded overflow-hidden">
+            {/* Toggle review mode on/off */}
+            <button
+              onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+                isReviewMode
+                  ? 'bg-amber-50 text-amber-700 font-medium'
+                  : 'text-neutral-700 hover:bg-neutral-50'
+              }`}
+              type="button"
+              title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={isReviewMode ? 'text-amber-600' : 'text-neutral-500'}
+              >
+                <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
+                />
+              </svg>
+              <span>Review{isReviewMode ? ' ✓' : ''}</span>
+            </button>
+            {/* Divider */}
+            <div className="w-px h-5 bg-neutral-200" />
+            {/* Navigate to review page */}
+            <button
+              onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+              className="flex items-center px-2 py-1.5 text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700 transition-colors"
+              type="button"
+              title="Go to review page"
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
+                />
+              </svg>
+            </button>
+          </div>
         )}
 
         {/* Campaign Settings Button */}
@@ -457,7 +471,7 @@ export const AnnotationToolbar = () => {
           type="button"
           title="Campaign Settings"
         >
-         <svg
+          <svg
             width="20"
             height="20"
             viewBox="0 0 20 20"

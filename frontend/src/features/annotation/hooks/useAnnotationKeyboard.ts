@@ -58,13 +58,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
   const setConfidence = useAnnotationStore((state) => state.setConfidence);
   const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const resetAnnotationForm = useAnnotationStore((state) => state.resetAnnotationForm);
   const showAlert = useLayoutStore((state) => state.showAlert);
   const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
-  const labels = campaign?.settings.labels ?? [];
+  const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
 
   // Sort windows by window_index for proper ordering
   const sortedWindows = useMemo(() => {
@@ -252,9 +251,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   }, [commentInputRef]);
 
   // Adjust confidence level
-  const adjustConfidence = useCallback((delta: number) => {
-    setConfidence(Math.max(1, Math.min(5, confidence + delta)));
-  }, [confidence, setConfidence]);
+  const adjustConfidence = useCallback(
+    (delta: number) => {
+      setConfidence(Math.max(1, Math.min(5, confidence + delta)));
+    },
+    [confidence, setConfidence]
+  );
 
   // Main keydown handler
   useEffect(() => {

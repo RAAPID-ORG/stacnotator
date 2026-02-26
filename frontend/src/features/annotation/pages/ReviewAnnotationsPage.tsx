@@ -17,7 +17,7 @@ import { capitalizeFirst, extractLatLonFromWKT } from '~/shared/utils/utility';
 import Statistics from '../components/Statistics';
 import { AnnotationDistributionMap } from '../components/AnnotationDistributionMap';
 
-type StatusFilter = 'all' | 'pending' | 'partial' | 'conflicting' | 'complete';
+type StatusFilter = 'all' | 'pending' | 'partial' | 'conflicting' | 'complete' | 'skipped';
 type SortOption = 'default' | 'confidence-asc' | 'confidence-desc' | 'id-asc' | 'id-desc';
 
 export const ViewAnnotationsPage = () => {
@@ -99,7 +99,7 @@ export const ViewAnnotationsPage = () => {
       // Filter by selected user assignments
       if (selectedUserIds.length > 0) {
         const assignments = task.assignments || [];
-        const hasSelectedUser = assignments.some(a => selectedUserIds.includes(a.user_id));
+        const hasSelectedUser = assignments.some((a) => selectedUserIds.includes(a.user_id));
         if (!hasSelectedUser) {
           return false;
         }
@@ -129,7 +129,7 @@ export const ViewAnnotationsPage = () => {
         const getMinConfidence = (task: typeof a) => {
           if (!task.annotations || task.annotations.length === 0) return Infinity;
           const confidences = task.annotations
-            .map(ann => ann.confidence)
+            .map((ann) => ann.confidence)
             .filter((c): c is number => c !== null && c !== undefined);
           return confidences.length > 0 ? Math.min(...confidences) : Infinity;
         };
@@ -159,10 +159,13 @@ export const ViewAnnotationsPage = () => {
 
   // Get unique users from task assignments
   const uniqueUsers = useMemo(() => {
-    const userMap = new Map<string, { id: string; email: string | null; displayName: string | null }>();
-    
-    tasks.forEach(task => {
-      task.assignments?.forEach(assignment => {
+    const userMap = new Map<
+      string,
+      { id: string; email: string | null; displayName: string | null }
+    >();
+
+    tasks.forEach((task) => {
+      task.assignments?.forEach((assignment) => {
         if (!userMap.has(assignment.user_id)) {
           userMap.set(assignment.user_id, {
             id: assignment.user_id,
@@ -187,14 +190,15 @@ export const ViewAnnotationsPage = () => {
     const partial = tasks.filter((t) => getTaskStatus(t) === 'partial').length;
     const conflicting = tasks.filter((t) => getTaskStatus(t) === 'conflicting').length;
     const pending = tasks.filter((t) => getTaskStatus(t) === 'pending').length;
+    const skipped = tasks.filter((t) => getTaskStatus(t) === 'skipped').length;
     const assignedToMe = currentUser
       ? tasks.filter((t) => {
           const assignments = t.assignments || [];
-          return assignments.some(a => a.user_id === currentUser.id);
+          return assignments.some((a) => a.user_id === currentUser.id);
         }).length
       : 0;
 
-    return { total, completed, partial, conflicting, pending, assignedToMe };
+    return { total, completed, partial, conflicting, pending, skipped, assignedToMe };
   }, [tasks, currentUser]);
 
   const handleNavigateToTask = (taskId: number) => {
@@ -330,7 +334,12 @@ export const ViewAnnotationsPage = () => {
                   </svg>
                   Export
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
                   </svg>
                 </>
               )}
@@ -382,9 +391,7 @@ export const ViewAnnotationsPage = () => {
       )}
 
       {/* Campaign Statistics */}
-      {tasks.length > 0 && (
-        <Statistics campaignId={numericCampaignId} />
-      )}
+      {tasks.length > 0 && <Statistics campaignId={numericCampaignId} />}
 
       {/* Filters */}
       <div className="bg-white border border-neutral-300 rounded-lg p-4 mb-6">
@@ -404,19 +411,21 @@ export const ViewAnnotationsPage = () => {
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-neutral-700">Status:</label>
             <div className="flex gap-1">
-              {(['all', 'pending', 'partial', 'conflicting', 'complete'] as StatusFilter[]).map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    statusFilter === status
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                  }`}
-                >
-                  {status === 'all' ? 'All' : capitalizeFirst(status)}
-                </button>
-              ))}
+              {(['all', 'pending', 'partial', 'conflicting', 'complete', 'skipped'] as StatusFilter[]).map(
+                (status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      statusFilter === status
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    {status === 'all' ? 'All' : capitalizeFirst(status)}
+                  </button>
+                )
+              )}
             </div>
           </div>
 
@@ -429,23 +438,30 @@ export const ViewAnnotationsPage = () => {
                 className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white min-w-[200px] text-left flex items-center justify-between hover:bg-neutral-50"
               >
                 <span className="text-neutral-700">
-                  {selectedUserIds.length > 0 
-                    ? `${selectedUserIds.length} user${selectedUserIds.length > 1 ? 's' : ''} selected` 
+                  {selectedUserIds.length > 0
+                    ? `${selectedUserIds.length} user${selectedUserIds.length > 1 ? 's' : ''} selected`
                     : 'All users'}
                 </span>
-                <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <svg
+                  className="w-4 h-4 text-neutral-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
-              
+
               {showUserDropdown && (
                 <>
                   {/* Backdrop to close dropdown when clicking outside */}
-                  <div 
-                    className="fixed inset-0 z-10" 
-                    onClick={() => setShowUserDropdown(false)}
-                  />
-                  
+                  <div className="fixed inset-0 z-10" onClick={() => setShowUserDropdown(false)} />
+
                   {/* Dropdown menu */}
                   <div className="absolute z-20 mt-1 w-64 bg-white border border-neutral-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
                     {/* Clear all button */}
@@ -459,14 +475,15 @@ export const ViewAnnotationsPage = () => {
                         </button>
                       </div>
                     )}
-                    
+
                     {/* User checkboxes */}
                     <div className="py-1">
-                      {uniqueUsers.map(user => {
-                        const displayName = user.displayName || user.email || user.id.substring(0, 8);
+                      {uniqueUsers.map((user) => {
+                        const displayName =
+                          user.displayName || user.email || user.id.substring(0, 8);
                         const isSelected = selectedUserIds.includes(user.id);
                         const isCurrentUser = currentUser?.id === user.id;
-                        
+
                         return (
                           <label
                             key={user.id}
@@ -479,19 +496,23 @@ export const ViewAnnotationsPage = () => {
                                 if (e.target.checked) {
                                   setSelectedUserIds([...selectedUserIds, user.id]);
                                 } else {
-                                  setSelectedUserIds(selectedUserIds.filter(id => id !== user.id));
+                                  setSelectedUserIds(
+                                    selectedUserIds.filter((id) => id !== user.id)
+                                  );
                                 }
                               }}
                               className="w-4 h-4 text-brand-600 border-neutral-300 rounded focus:ring-brand-500"
                             />
                             <span className="ml-2 text-sm text-neutral-700">
-                              {isCurrentUser && <span className="font-medium text-brand-600">(You) </span>}
+                              {isCurrentUser && (
+                                <span className="font-medium text-brand-600">(You) </span>
+                              )}
                               {displayName}
                             </span>
                           </label>
                         );
                       })}
-                      
+
                       {uniqueUsers.length === 0 && (
                         <div className="px-3 py-2 text-sm text-neutral-500">
                           No users assigned to tasks
@@ -565,6 +586,9 @@ export const ViewAnnotationsPage = () => {
             <span>
               Pending: <strong className="text-neutral-900">{stats.pending}</strong>
             </span>
+            <span>
+              Skipped: <strong className="text-neutral-900">{stats.skipped}</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -606,7 +630,8 @@ export const ViewAnnotationsPage = () => {
                 const taskStatus = getTaskStatus(task);
                 const assignments = task.assignments || [];
                 const annotations = task.annotations || [];
-                const isAssignedToMe = currentUser && assignments.some(a => a.user_id === currentUser.id);
+                const isAssignedToMe =
+                  currentUser && assignments.some((a) => a.user_id === currentUser.id);
 
                 return (
                   <tr
@@ -633,16 +658,24 @@ export const ViewAnnotationsPage = () => {
                         {annotations.length > 0 ? (
                           annotations.map((ann) => {
                             // Find the user who made this annotation
-                            const annotator = assignments.find(a => a.user_id === ann.created_by_user_id);
+                            const annotator = assignments.find(
+                              (a) => a.user_id === ann.created_by_user_id
+                            );
                             const isCurrentUser = ann.created_by_user_id === currentUser?.id;
-                            const displayName = isCurrentUser 
+                            const displayName = isCurrentUser
                               ? currentUser.display_name || currentUser.email || 'You'
-                              : annotator?.user_display_name || annotator?.user_email || ann.created_by_user_id?.substring(0, 8) || 'Unknown';
-                            
+                              : annotator?.user_display_name ||
+                                annotator?.user_email ||
+                                ann.created_by_user_id?.substring(0, 8) ||
+                                'Unknown';
+
                             const label = ann.label_id ? `#${ann.label_id}` : '-';
-                            const confidence = ann.confidence !== null && ann.confidence !== undefined ? `${ann.confidence}/5` : '-';
+                            const confidence =
+                              ann.confidence !== null && ann.confidence !== undefined
+                                ? `${ann.confidence}/5`
+                                : '-';
                             const hasComment = ann.comment && ann.comment.trim() !== '';
-                            
+
                             return (
                               <div
                                 key={ann.id}
@@ -652,12 +685,14 @@ export const ViewAnnotationsPage = () => {
                                   {displayName}
                                 </span>
                                 <span className="text-neutral-400">|</span>
-                                <span title="Label ID">
-                                  {label}
-                                </span>
+                                <span title="Label ID">{label}</span>
                                 <span className="text-neutral-400">|</span>
-                                <span 
-                                  className={ann.confidence !== null && ann.confidence !== undefined ? 'font-bold' : ''}
+                                <span
+                                  className={
+                                    ann.confidence !== null && ann.confidence !== undefined
+                                      ? 'font-bold'
+                                      : ''
+                                  }
                                   title="Confidence rating"
                                 >
                                   {confidence}
@@ -666,7 +701,12 @@ export const ViewAnnotationsPage = () => {
                                   <>
                                     <span className="text-neutral-400">|</span>
                                     <span className="relative group cursor-help">
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
                                         <path
                                           strokeLinecap="round"
                                           strokeLinejoin="round"
@@ -691,22 +731,27 @@ export const ViewAnnotationsPage = () => {
                           // Show assignments if no annotations yet
                           assignments.map((assignment) => {
                             const isCurrentUser = assignment.user_id === currentUser?.id;
-                            const displayName = isCurrentUser 
+                            const displayName = isCurrentUser
                               ? currentUser.display_name || currentUser.email || 'You'
-                              : assignment.user_display_name || assignment.user_email || assignment.user_id.substring(0, 8);
-                            
+                              : assignment.user_display_name ||
+                                assignment.user_email ||
+                                assignment.user_id.substring(0, 8);
+                            const isSkipped = assignment.status === 'skipped';
+
                             return (
                               <div
                                 key={assignment.user_id}
-                                className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 bg-gray-100 text-gray-700"
+                                className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${
+                                  isSkipped
+                                    ? 'bg-violet-100 text-violet-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
                               >
                                 <span className="font-medium" title="Assigned to">
                                   {displayName}
                                 </span>
                                 <span className="text-neutral-400">|</span>
-                                <span title="Label ID">-</span>
-                                <span className="text-neutral-400">|</span>
-                                <span title="Confidence rating">-</span>
+                                <span>{isSkipped ? 'Skipped' : '-'}</span>
                               </div>
                             );
                           })
@@ -726,7 +771,9 @@ export const ViewAnnotationsPage = () => {
                         onClick={() => handleNavigateToTask(task.id)}
                         className="text-brand-500 hover:text-brand-700 text-sm font-medium transition-colors"
                       >
-                        {taskStatus === 'pending' ? 'Annotate' : 'View'}
+                        {taskStatus === 'pending' || taskStatus === 'skipped'
+                          ? 'Annotate'
+                          : 'View'}
                       </button>
                     </td>
                   </tr>
@@ -765,6 +812,12 @@ export const ViewAnnotationsPage = () => {
             Pending:{' '}
             <strong className="text-neutral-900">
               {filteredTasks.filter((t) => getTaskStatus(t) === 'pending').length}
+            </strong>
+          </span>
+          <span>
+            Skipped:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => getTaskStatus(t) === 'skipped').length}
             </strong>
           </span>
         </div>
