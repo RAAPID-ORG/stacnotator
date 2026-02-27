@@ -220,19 +220,18 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   return (
     <div className="relative flex-1 bg-neutral-200 text-white text-xs overflow-hidden flex">
-      {/* Timeline Sidebar - hidden when basemap is active to avoid confusion*/}
-      {!showBasemap && (
-        <TimelineSidebar
-          imagery={selectedImagery}
-          activeWindowId={currentActiveWindowId}
-          slices={slices}
-          activeSliceIndex={activeSliceIndex}
-          collapsed={timelineCollapsed}
-          onToggleCollapse={() => setTimelineCollapsed(!timelineCollapsed)}
-          onWindowChange={setActiveWindowId}
-          onSliceChange={setActiveSliceIndex}
-        />
-      )}
+      {/* Timeline Sidebar - always rendered to avoid map resize; content hidden when basemap is active */}
+      <TimelineSidebar
+        imagery={selectedImagery}
+        activeWindowId={currentActiveWindowId}
+        slices={slices}
+        activeSliceIndex={activeSliceIndex}
+        collapsed={timelineCollapsed}
+        onToggleCollapse={() => setTimelineCollapsed(!timelineCollapsed)}
+        onWindowChange={setActiveWindowId}
+        onSliceChange={setActiveSliceIndex}
+        hideContent={showBasemap}
+      />
 
       {/* Map Viewport */}
       <div

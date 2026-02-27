@@ -10,6 +10,7 @@ interface TimelineSidebarProps {
   onToggleCollapse: () => void;
   onWindowChange?: (windowId: number) => void;
   onSliceChange?: (sliceIndex: number) => void;
+  hideContent?: boolean; // keep sidebar in layout but show empty placeholder
 }
 
 const TimelineSidebar = ({
@@ -21,6 +22,7 @@ const TimelineSidebar = ({
   onToggleCollapse,
   onWindowChange,
   onSliceChange,
+  hideContent = false,
 }: TimelineSidebarProps) => {
   if (!imagery) {
     return null;
@@ -64,7 +66,13 @@ const TimelineSidebar = ({
           collapsed ? 'w-0' : 'w-[40px]'
         }`}
       >
-        {!collapsed && (
+        {!collapsed && hideContent && (
+          /* Basemap active – show a simple white column with a centred green bar */
+          <div className="h-full flex flex-col items-center justify-center">
+            <div className="w-0.5 flex-1 bg-brand-500 rounded-full my-2" />
+          </div>
+        )}
+        {!collapsed && !hideContent && (
           <div className="h-full flex flex-col px-1 py-1">
             {/* Start Date Label */}
             <div className="text-[10px] font-medium text-neutral-700 mb-1 text-center">
