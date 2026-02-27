@@ -479,20 +479,20 @@ const LeafletMap: React.FC<LeafletMapProps> = ({
           font-size: 10px;
           line-height: 1.2;
         }
-        
+
         /* Hardware acceleration for smoother map panning */
         .leaflet-container {
           will-change: transform;
         }
-        
+
         .leaflet-tile-container {
           will-change: transform;
         }
-        
+
         .leaflet-zoom-animated {
           will-change: transform;
         }
-        
+
         /* Optimize tile rendering */
         .leaflet-tile {
           image-rendering: -webkit-optimize-contrast;

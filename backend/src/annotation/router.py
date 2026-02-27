@@ -11,7 +11,6 @@ from src.annotation import embeddings_service, service
 from src.annotation.schema import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
-    AnnotationFromTaskOut,
     AnnotationOut,
     AnnotationTaskListOut,
     AnnotationTaskOut,
@@ -25,8 +24,6 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute, clean_filename
-from src.annotation.schema import AnnotationTaskOut
-
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -64,7 +61,7 @@ def complete_annotation_task(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> None:
+) -> AnnotationTaskSubmitResponse:
     # Get the specific task efficiently
     annotation_task = service.get_annotation_task_by_id(
         db=db,
@@ -169,7 +166,7 @@ def create_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> None:
+) -> AnnotationOut:
     annotation = service.create_annotation(
         db=db,
         campaign=campaign,
@@ -189,7 +186,7 @@ def update_annotation_openmode(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
-) -> None:
+) -> AnnotationOut:
     annotation = service.update_annotation(
         db=db,
         annotation_id=annotation_id,

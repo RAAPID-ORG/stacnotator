@@ -101,20 +101,14 @@ class AnnotationTaskOut(BaseModel):
             assignments = data.assignments or []
             annotations = data.annotations or []
             # Access ORM attributes
-            assignment_list = [
-                {"user_id": a.user_id, "status": a.status} for a in assignments
-            ]
+            assignment_list = [{"user_id": a.user_id, "status": a.status} for a in assignments]
             annotation_list = [
                 {"label_id": a.label_id, "created_by_user_id": a.created_by_user_id}
                 for a in annotations
             ]
         elif isinstance(data, dict):
             assignment_list = [
-                (
-                    {"user_id": a.user_id, "status": a.status}
-                    if hasattr(a, "user_id")
-                    else a
-                )
+                ({"user_id": a.user_id, "status": a.status} if hasattr(a, "user_id") else a)
                 for a in (data.get("assignments") or [])
             ]
             annotation_list = [
@@ -159,9 +153,7 @@ class AnnotationTaskOut(BaseModel):
                     status = TASK_STATUS_PARTIAL
                 else:
                     labels = {
-                        a["label_id"]
-                        for a in labeled
-                        if a["created_by_user_id"] in non_skipped_ids
+                        a["label_id"] for a in labeled if a["created_by_user_id"] in non_skipped_ids
                     }
                     status = TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
 

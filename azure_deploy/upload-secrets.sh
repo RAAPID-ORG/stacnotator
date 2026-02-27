@@ -130,21 +130,21 @@ if [ -z "$FIREBASE_API_KEY" ] || [ -z "$FIREBASE_AUTH_DOMAIN" ] || [ -z "$FIREBA
 else
     # Upload Firebase client configuration
     echo -e "${YELLOW}Uploading Firebase client configuration...${NC}"
-    
+
     az keyvault secret set \
         --vault-name "$KV_NAME" \
         --name "firebase-api-key" \
         --value "$FIREBASE_API_KEY" \
         --output none
     echo -e "${GREEN}✓ Firebase API Key uploaded${NC}"
-    
+
     az keyvault secret set \
         --vault-name "$KV_NAME" \
         --name "firebase-auth-domain" \
         --value "$FIREBASE_AUTH_DOMAIN" \
         --output none
     echo -e "${GREEN}✓ Firebase Auth Domain uploaded${NC}"
-    
+
     az keyvault secret set \
         --vault-name "$KV_NAME" \
         --name "firebase-project-id" \

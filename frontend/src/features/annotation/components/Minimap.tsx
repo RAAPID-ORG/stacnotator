@@ -162,7 +162,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds }) => {
           background: transparent !important;
           border: none !important;
         }
-        
+
         /* Make attribution text smaller in minimap */
         .leaflet-control-attribution {
           font-size: 8px !important;

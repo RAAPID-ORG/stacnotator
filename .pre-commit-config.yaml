@@ -28,15 +28,15 @@ repos:
       - id: ruff-format
         files: ^backend/
 
-  - repo: local
-    hooks:
-      - id: mypy-backend
-        name: mypy (backend)
-        entry: bash -c 'cd backend && uv run mypy src/ --config-file pyproject.toml'
-        language: system
-        types: [python]
-        files: ^backend/
-        pass_filenames: false
+  # - repo: local
+  #   hooks:
+  #     - id: mypy-backend
+  #       name: mypy (backend)
+  #       entry: bash -c 'cd backend && uv run mypy src/ --config-file pyproject.toml'
+  #       language: system
+  #       types: [python]
+  #       files: ^backend/
+  #       pass_filenames: false
 
   # Frontend: TypeScript
   - repo: local

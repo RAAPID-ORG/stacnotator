@@ -329,7 +329,7 @@ def assign_reviewers(
 def remove_user_from_task(
     campaign_id: int,
     task_id: int,
-    user_id: str,
+    user_id: UUID,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):

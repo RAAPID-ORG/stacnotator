@@ -5,12 +5,14 @@ Revises: a1b2c3d4e5f6
 Create Date: 2026-02-26 12:00:00.000000
 
 """
-from typing import Sequence, Union
+
 import logging
 import sys
+from collections.abc import Sequence
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +28,9 @@ def _ensure_stdout_logging() -> None:
 
 # revision identifiers, used by Alembic.
 revision: str = "b7c9d2e4f6a8"
-down_revision: Union[str, Sequence[str], None] = "a1b2c3d4e5f6"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "a1b2c3d4e5f6"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _backfill_embedding_year() -> None:
@@ -38,7 +40,8 @@ def _backfill_embedding_year() -> None:
     bind = op.get_bind()
 
     # For each campaign, derive the latest imagery year and store it
-    result = bind.execute(sa.text("""
+    result = bind.execute(
+        sa.text("""
         UPDATE data.settings s
         SET embedding_year = sub.latest_year
         FROM (
@@ -50,7 +53,8 @@ def _backfill_embedding_year() -> None:
         ) sub
         WHERE s.campaign_id = sub.campaign_id
           AND s.embedding_year IS NULL
-    """))
+    """)
+    )
     logger.info("Backfilled embedding_year for %d campaign(s)", result.rowcount)
 
 

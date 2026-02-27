@@ -277,7 +277,7 @@ class DeleteAnnotationTasksRequest(BaseModel):
 class AnnotatorInfo(BaseModel):
     """Basic information about an annotator."""
 
-    user_id: str
+    user_id: UUID
     user_email: str
     user_display_name: str | None
     total_annotations: int

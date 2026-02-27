@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -47,7 +49,7 @@ def list_users(
 
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)
 def edit_user_info(
-    user_id: str,
+    user_id: UUID,
     new_display_name: str,
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
@@ -78,7 +80,7 @@ def edit_user_info(
 
 @router.post("/users/{user_id}/approve", response_model=UserOutDetailed)
 def approve_user(
-    user_id: str,
+    user_id: UUID,
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -97,7 +99,7 @@ def approve_user(
 
 @router.post("/users/{user_id}/revoke", response_model=UserOutDetailed)
 def revoke_user(
-    user_id: str,
+    user_id: UUID,
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -116,7 +118,7 @@ def revoke_user(
 
 @router.post("/users/{user_id}/deny", response_model=UserOutDetailed)
 def deny_user(
-    user_id: str,
+    user_id: UUID,
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -205,7 +207,7 @@ def deny_users_bulk(
 
 @router.post("/users/{user_id}/grant-admin", response_model=UserOutDetailed)
 def grant_admin_single(
-    user_id: str,
+    user_id: UUID,
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -224,7 +226,7 @@ def grant_admin_single(
 
 @router.post("/users/{user_id}/revoke-admin", response_model=UserOutDetailed)
 def revoke_admin_single(
-    user_id: str,
+    user_id: UUID,
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):

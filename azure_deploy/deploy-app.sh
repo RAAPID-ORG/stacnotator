@@ -54,7 +54,7 @@ if [ -z "$IMAGE_TAG" ]; then
                 exit 1
             fi
         fi
-        
+
         # Get short commit SHA
         GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "")
         if [ -n "$GIT_SHA" ]; then
@@ -67,7 +67,7 @@ if [ -z "$IMAGE_TAG" ]; then
         # Use timestamp if not in a git repo to ensure unique tags
         IMAGE_TAG="v$(date +%Y%m%d-%H%M%S)"
     fi
-    
+
     echo -e "${BLUE}Auto-generated image tag:${NC} $IMAGE_TAG"
     echo -e "${YELLOW}Tip: Set IMAGE_TAG environment variable to override${NC}"
 fi

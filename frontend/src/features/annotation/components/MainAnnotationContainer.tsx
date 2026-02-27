@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import LeafletMap from './LeafletMap';
 import LeafletMapWithDraw from './LeafletMapWithDraw';
 import TimelineSidebar from './TimelineSidebar';
@@ -77,9 +77,16 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     ? extendedLabels.find((l) => l.id === selectedLabelId) || null
     : null;
 
-  // Auto-switch back to imagery layer when window or slice changes
+  // Auto-switch back to imagery layer when window or slice *actually changes*
+  const prevActiveWindowIdRef = useRef(activeWindowId);
+  const prevActiveSliceIndexRef = useRef(activeSliceIndex);
   useEffect(() => {
-    if (showBasemap && (activeWindowId || activeSliceIndex !== undefined)) {
+    const windowChanged = prevActiveWindowIdRef.current !== activeWindowId;
+    const sliceChanged = prevActiveSliceIndexRef.current !== activeSliceIndex;
+    prevActiveWindowIdRef.current = activeWindowId;
+    prevActiveSliceIndexRef.current = activeSliceIndex;
+
+    if (showBasemap && (windowChanged || sliceChanged)) {
       setShowBasemap(false);
     }
   }, [activeWindowId, activeSliceIndex, showBasemap, setShowBasemap]);

@@ -1364,7 +1364,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
           font-size: 10px;
           line-height: 1.2;
         }
-        
+
         /* Hardware acceleration for smoother map panning */
         .leaflet-container {
           will-change: transform;
@@ -1379,7 +1379,7 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         .leaflet-zoom-animated {
           will-change: transform;
         }
-        
+
         /* Optimize tile rendering */
         .leaflet-tile {
           image-rendering: -webkit-optimize-contrast;
@@ -1400,60 +1400,60 @@ const LeafletMapWithDraw: React.FC<LeafletMapWithDrawProps> = ({
         .leaflet-pm-toolbar {
           display: none !important;
         }
-        
+
         /* Geoman drawing tooltip styling */
         .leaflet-pm-toolbar-action {
           display: none !important;
         }
-        
+
         /* Improve drawing UX */
         .leaflet-marker-icon,
         .leaflet-marker-shadow {
           transition: none !important;
         }
-        
+
         .leaflet-interactive {
           cursor: pointer;
         }
-        
+
         /* Reduce visual jank during drawing */
         .leaflet-overlay-pane svg {
           pointer-events: auto;
         }
-        
+
         /* Ensure edit markers are clickable and above polygons */
         .leaflet-marker-pane {
           z-index: 1000 !important;
           pointer-events: auto !important;
         }
-        
+
         .leaflet-pane {
           z-index: auto;
         }
-        
+
         /* Timeseries marker styling */
         .timeseries-marker {
           background: transparent !important;
           border: none !important;
         }
-        
+
         /* Geoman edit handles styling */
         .marker-icon-middle,
         .marker-icon {
           cursor: move !important;
           z-index: 1000 !important; /* Ensure handles are above polygons */
         }
-        
+
         /* Geoman vertex markers need higher z-index */
         .leaflet-marker-pane .leaflet-marker-icon {
           z-index: 1000 !important;
         }
-        
+
         /* Geoman edit layer should be above annotations */
         .leaflet-overlay-pane .leaflet-pm-layer {
           z-index: 1000 !important;
         }
-        
+
         /* Make geoman snap guides more visible */
         .leaflet-pm-snap-guide-layer {
           stroke: #3b82f6;

@@ -68,7 +68,7 @@ def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[Campaig
     return db.scalars(stmt).unique().all()
 
 
-def list_campaigns_with_user_roles(db: Session, user_id: int) -> list[dict]:
+def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
     """
     Retrieve all campaigns with user role information.
 
@@ -143,7 +143,7 @@ def create_campaign(
     name: str,
     mode: str,
     settings: CampaignSettingsCreate,
-    user_id: int,
+    user_id: UUID,
     imagery_configs: list | None = None,
     timeseries_configs: list | None = None,
 ) -> Campaign:

@@ -5,12 +5,14 @@ Revises: b5eab45ffd41
 Create Date: 2026-02-09 12:00:00.000000
 
 """
-from typing import Sequence, Union
+
 import logging
 import sys
+from collections.abc import Sequence
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +26,12 @@ def _ensure_stdout_logging() -> None:
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
+
 # revision identifiers, used by Alembic.
-revision: str = 'a1b2c3d4e5f6'
-down_revision: Union[str, Sequence[str], None] = 'b5eab45ffd41'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "a1b2c3d4e5f6"
+down_revision: str | Sequence[str] | None = "b5eab45ffd41"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _backfill_embeddings() -> None:
@@ -38,12 +41,14 @@ def _backfill_embeddings() -> None:
     schema migration still succeeds - embeddings can be populated later
     via the backfill_embeddings.py script or on next campaign edit.
     """
-    from sqlalchemy.orm import Session
-    from src.utils import initialize_earth_engine
-    from src.database import Base  # noqa - ensures models are registered
-    from src.campaigns.models import Campaign
-    from src.annotation import embeddings_service
     from datetime import datetime
+
+    from sqlalchemy.orm import Session
+
+    from src.annotation import embeddings_service
+    from src.campaigns.models import Campaign
+    from src.database import Base  # noqa - ensures models are registered
+    from src.utils import initialize_earth_engine
 
     _ensure_stdout_logging()
     initialize_earth_engine()
@@ -60,22 +65,32 @@ def _backfill_embeddings() -> None:
             if year is None:
                 logger.info(
                     "  Campaign %d (%s): no embedding year set – skipping.",
-                    campaign.id, campaign.name,
+                    campaign.id,
+                    campaign.name,
                 )
                 continue
             start_date = datetime(year, 1, 1)
             end_date = datetime(year, 12, 31)
             summary = embeddings_service.populate_campaign_embeddings(
-                session, campaign.id, start_date, end_date,
+                session,
+                campaign.id,
+                start_date,
+                end_date,
             )
             logger.info(
                 "  Campaign %d (%s): created=%d skipped=%d failed=%d",
-                campaign.id, campaign.name,
-                summary["created"], summary["skipped"], summary["failed"],
+                campaign.id,
+                campaign.name,
+                summary["created"],
+                summary["skipped"],
+                summary["failed"],
             )
         except Exception as exc:
             logger.warning(
-                "  Campaign %d (%s): skipped - %s", campaign.id, campaign.name, exc,
+                "  Campaign %d (%s): skipped - %s",
+                campaign.id,
+                campaign.name,
+                exc,
             )
 
     session.flush()
@@ -113,7 +128,8 @@ def upgrade() -> None:
         _backfill_embeddings()
     except Exception as exc:
         logger.warning(
-            "Embedding backfill skipped - can be run later via backfill_embeddings.py: %s", exc,
+            "Embedding backfill skipped - can be run later via backfill_embeddings.py: %s",
+            exc,
         )
 
 
