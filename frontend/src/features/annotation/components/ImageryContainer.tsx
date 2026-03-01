@@ -1,5 +1,5 @@
 import { useRef, useMemo } from 'react';
-import LeafletMap from './LeafletMap';
+import WindowMap from './Map/WindowMap';
 import type { ImageryWindowOut } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
 import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
@@ -77,23 +77,22 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     [currentTask?.geometry.geometry]
   );
 
-  // Determine center based on mode
-  // In open mode, use synchronized map center from store
-  // In task mode, use current task coordinates
-  const center = useMemo<[number, number]>(() => {
-    if (isOpenMode && currentMapCenter) {
-      return currentMapCenter;
-    }
-    if (latLon) {
-      return [latLon.lat, latLon.lon];
-    }
-    // Fallback to campaign bbox center
-    if (campaignBbox) {
-      return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
-    }
+  // Initial center for map mount — task location or bbox center, computed once
+  const initialCenter = useMemo<[number, number]>(() => {
+    if (latLon) return [latLon.lat, latLon.lon];
+    if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return [0, 0];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
-  }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reactive center — always follows the main map so panning syncs in both modes
+  const center = useMemo<[number, number] | undefined>(() => {
+    if (currentMapCenter) return currentMapCenter;
+    if (latLon) return [latLon.lat, latLon.lon];
+    if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMapCenter, latLon?.lat, latLon?.lon]);
 
   // Determine zoom level
   // In both open mode and task mode, use the synchronized zoom from the store
@@ -117,67 +116,40 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
 
   if (!selectedImagery || !campaignBbox) return null;
 
-  // Use the selected layer index or fallback to first tile URL
+  // Use the selected layer index to match what the main map is showing
   const tileUrl = tileUrls.length > selectedLayerIndex ? tileUrls[selectedLayerIndex].url : '';
+  const datesReady = !!(activeSlice?.startDate || window.window_start_date) &&
+                     !!(activeSlice?.endDate || window.window_end_date);
 
-  // Handle click - only trigger if not dragging
-  const handleMouseDown = () => {
-    isDraggingRef.current = false;
-  };
+  // Crosshair at task location — same logic as main map
+  const crosshair = !isOpenMode && latLon
+    ? { lat: latLon.lat, lon: latLon.lon, color: selectedImagery.crosshair_hex6 ?? undefined }
+    : undefined;
 
-  const handleMouseMove = () => {
-    isDraggingRef.current = true;
-  };
-
+  // Handle click — only trigger if not dragging (makes the window "active")
+  const handleMouseDown = () => { isDraggingRef.current = false; };
+  const handleMouseMove = () => { isDraggingRef.current = true; };
   const handleMouseUp = () => {
-    if (!isDraggingRef.current) {
-      setActiveWindowId(window.id);
-    }
+    if (!isDraggingRef.current) setActiveWindowId(window.id);
     isDraggingRef.current = false;
   };
 
   const handleSliceChange = (index: number) => {
     if (isActiveWindow) {
-      // Active window uses the global slice index
       setActiveSliceIndex(index);
     } else {
-      // Non-active windows update their stored slice index
       useAnnotationStore.getState().setWindowSliceIndex(window.id, index);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-slate-400 text-[10px]">
-        Loading imagery...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-red-400 text-[10px]">
-        Error: {error}
-      </div>
-    );
-  }
-
-  if (!tileUrl) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-slate-400 text-[10px]">
-        No imagery available
-      </div>
-    );
-  }
-
   return (
     <div
-      className="flex-1 relative"
+      className="flex-1 relative overflow-hidden"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Slice selector - only show if multiple slices */}
+      {/* Slice selector */}
       {slices.length > 1 && (
         <div className="absolute bottom-1 right-1 z-[1000]">
           <select
@@ -189,24 +161,42 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             title="Select time slice"
           >
             {slices.map((slice, idx) => (
-              <option key={idx} value={idx}>
-                {slice.label}
-              </option>
+              <option key={idx} value={idx}>{slice.label}</option>
             ))}
           </select>
         </div>
       )}
 
-      <LeafletMap
-        center={center}
-        zoom={zoom}
-        tileUrl={tileUrl}
-        crosshairColor={selectedImagery.crosshair_hex6}
-        refocusTrigger={refocusTrigger}
-        disableKeyboard={true}
-        syncMapState={true}
-        showCrosshair={!isOpenMode}
-      />
+      {/* Status overlays */}
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">
+          Loading…
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-red-50/80 z-[999] text-red-400 text-[10px] pointer-events-none">
+          {error}
+        </div>
+      )}
+
+      {datesReady && tileUrl ? (
+        <WindowMap
+          initialCenter={initialCenter}
+          initialZoom={zoom}
+          center={center}
+          zoom={zoom}
+          tileUrl={tileUrl}
+          crosshair={crosshair}
+          showCrosshair={!isOpenMode}
+          refocusTrigger={refocusTrigger}
+        />
+      ) : (
+        !loading && (
+          <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
+            No imagery available
+          </div>
+        )
+      )}
     </div>
   );
 };

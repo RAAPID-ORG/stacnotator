@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
-from src.imagery.models import Imagery
 
 
 class Campaign(Base):
