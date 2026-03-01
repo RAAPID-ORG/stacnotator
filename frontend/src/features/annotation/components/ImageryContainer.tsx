@@ -3,7 +3,7 @@ import WindowMap from './Map/WindowMap';
 import type { ImageryWindowOut } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
 import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
-import { useStacImagery } from '../hooks/useStacImagery';
+import { useSliceLayerMap } from '../context/SliceLayerMapContext';
 
 interface ImageryContainerProps {
   window: ImageryWindowOut;
@@ -104,22 +104,19 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     return selectedImagery?.default_zoom ?? 10;
   }, [currentMapZoom, selectedImagery?.default_zoom]);
 
-  const { tileUrls, loading, error } = useStacImagery({
-    registrationUrl: selectedImagery?.registration_url ?? '',
-    searchBody: selectedImagery?.search_body ?? {},
-    bbox: campaignBbox ?? [0, 0, 0, 0],
-    startDate: activeSlice?.startDate || window.window_start_date,
-    endDate: activeSlice?.endDate || window.window_end_date,
-    visualizationUrlTemplates: selectedImagery?.visualization_url_templates ?? [],
-    enabled: !!selectedImagery && !!campaignBbox,
-  });
-
   if (!selectedImagery || !campaignBbox) return null;
 
-  // Use the selected layer index to match what the main map is showing
-  const tileUrl = tileUrls.length > selectedLayerIndex ? tileUrls[selectedLayerIndex].url : '';
-  const datesReady = !!(activeSlice?.startDate || window.window_start_date) &&
-                     !!(activeSlice?.endDate || window.window_end_date);
+  // ── Resolve tile URL from pre-registered SliceLayerMap ──────────────────
+  // The AnnotationPage pre-registers all slices before showing the Canvas, so
+  // this lookup always succeeds for slice-0 on first render. Later slices fill
+  // in as the background registration continues.
+  const { sliceLayerMap } = useSliceLayerMap();
+  const sliceKey = `${window.id}-${currentSliceIndex}`;
+  const resolvedUrls = sliceLayerMap.get(sliceKey);
+  // Pick the viz template matching the selected layer index
+  const tileUrl = resolvedUrls?.[selectedLayerIndex]?.url ?? resolvedUrls?.[0]?.url ?? '';
+  const loading = !resolvedUrls;
+  const datesReady = !loading;
 
   // Crosshair at task location — same logic as main map
   const crosshair = !isOpenMode && latLon
@@ -171,11 +168,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">
           Loading…
-        </div>
-      )}
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-50/80 z-[999] text-red-400 text-[10px] pointer-events-none">
-          {error}
         </div>
       )}
 

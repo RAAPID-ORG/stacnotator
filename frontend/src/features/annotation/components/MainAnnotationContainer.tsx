@@ -1,10 +1,12 @@
-import { useMemo, useState, memo } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
 import MainMap from './Map/MainMap';
 import TimelineSidebar from './TimelineSidebar';
 import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
 import useAnnotationStore from '../annotation.store';
 import { computeTimeSlices, extractLatLonFromWKT, formatWindowLabel } from '~/shared/utils/utility';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { useSliceLayerMap } from '../context/SliceLayerMapContext';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -31,10 +33,70 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
   const setMapCenter = useAnnotationStore((state) => state.setMapCenter);
   const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
+  const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
+  const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
+  const [timelineDragging, setTimelineDragging] = useState(false);
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
+
+  // ── Registration gate ───────────────────────────────────────────────────
+  // AnnotationPage (parent) uses useStacAllSlices and provides progress via
+  // SliceLayerMapContext.  We must wait for ALL slices to finish registering
+  // before dismissing the loading overlay, otherwise the user can interact
+  // with unregistered slices that produce white/empty tiles.
+  const { totalSlices, registeredSlices } = useSliceLayerMap();
+  const allRegistrationsDone = totalSlices === 0 || registeredSlices >= totalSlices;
+
+  // ── Render gate ─────────────────────────────────────────────────────────
+  // True only after BOTH: (a) OL viewport tiles rendered + prefetch idle,
+  // AND (b) all STAC slice registrations have resolved.
+  const [olLayerReady, setOlLayerReady] = useState(false);
+  const mapImageryReady = olLayerReady && allRegistrationsDone;
+
+  // Live prefetch tile counts — kept for onPrefetchStats wiring (not used in overlay text).
+  const [prefetchQueued, setPrefetchQueued] = useState(0);
+  const [prefetchLoading, setPrefetchLoading] = useState(0);
+  // Pending OL-ready signal: if it arrives before registrations finish, hold it here.
+  const pendingOlReadyRef = useRef(false);
+
+  const LAUNCH_SEQUENCE = [
+    'Launching satellite…',
+    'Achieving orbit…',
+    'Establishing uplink…',
+    'Downlinking imagery…',
+  ] as const;
+  const [launchStep, setLaunchStep] = useState(0);
+  useEffect(() => {
+    if (mapImageryReady) return;
+    const id = setInterval(() => {
+      setLaunchStep((s) => (s + 1) % LAUNCH_SEQUENCE.length);
+    }, 1800);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapImageryReady]);
+
+  // Flush the OL-ready signal once registrations catch up.
+  useEffect(() => {
+    if (pendingOlReadyRef.current && allRegistrationsDone) {
+      setOlLayerReady(true);
+    }
+  }, [allRegistrationsDone]);
+
+  const handleMapReady = useCallback(() => {
+    if (allRegistrationsDone) {
+      setOlLayerReady(true);
+    } else {
+      // Hold: registrations still in flight — will be flushed by the effect above.
+      pendingOlReadyRef.current = true;
+    }
+  }, [allRegistrationsDone]);
+
+  const handlePrefetchStats = useCallback((queued: number, loading: number) => {
+    setPrefetchQueued(queued);
+    setPrefetchLoading(loading);
+  }, []);
 
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
@@ -61,7 +123,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
   const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
 
-  // Compute slices for the active window
+  // Compute slices for the active window (for TimelineSidebar)
   const slices = useMemo(() => {
     if (!activeWindow || !selectedImagery) return [];
     return computeTimeSlices(
@@ -77,14 +139,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     selectedImagery?.slicing_interval,
     selectedImagery?.slicing_unit,
   ]);
-
-  const activeSlice = slices[activeSliceIndex] ?? slices[0];
-  const startDate = activeSlice?.startDate || activeWindow?.window_start_date || '';
-  const endDate = activeSlice?.endDate || activeWindow?.window_end_date || '';
-
-  // Don't render the map until we have valid dates — avoids firing useStacImagery
-  // with empty strings and then having to re-fetch when real dates arrive.
-  const datesReady = !!startDate && !!endDate;
 
   // Initial center: task geometry → bbox center. Never updated by live map movement.
   const latLon = useMemo(
@@ -144,6 +198,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         onToggleCollapse={() => setTimelineCollapsed((c) => !c)}
         onWindowChange={setActiveWindowId}
         onSliceChange={setActiveSliceIndex}
+        onDraggingChange={setTimelineDragging}
       />
       <div className="flex-1 min-w-0 h-full relative">
 
@@ -155,7 +210,23 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             <LayerSelector
               layers={mapLayers}
               selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-              onLayerSelect={setActiveLayerId}
+              onLayerSelect={(layerId) => {
+                setActiveLayerId(layerId);
+                // Sync the store so slice/window changes preserve the chosen viz/basemap
+                const layer = mapLayers.find((l) => l.id === layerId);
+                if (layer?.layerType === 'basemap') {
+                  setShowBasemap(true);
+                } else {
+                  // Parse viz template index from the layer id (stac-w{wid}-s{sidx}-v{tid})
+                  const match = layerId.match(/-v(\d+)$/);
+                  if (match) {
+                    const templateId = Number(match[1]);
+                    const idx = (selectedImagery.visualization_url_templates ?? [])
+                      .findIndex((t) => t.id === templateId);
+                    if (idx !== -1) setSelectedLayerIndex(idx);
+                  }
+                }
+              }}
             />
           )}
 
@@ -234,27 +305,37 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
         </div>
 
-        {datesReady ? (
-          <MainMap
-            imagery={selectedImagery}
-            bbox={campaignBbox}
-            startDate={startDate}
-            endDate={endDate}
-            initialCenter={initialCenter}
-            initialZoom={initialZoom}
-            center={center}
-            refocusTrigger={refocusTrigger}
-            crosshair={crosshair}
-            showCrosshair={showCrosshair}
-            activeLayerId={activeLayerId}
+        {/* All slice URLs are pre-resolved by AnnotationPage before Canvas mounts,
+            so we can render the map immediately without a datesReady gate. */}
+        <MainMap
+          imagery={selectedImagery}
+          initialCenter={initialCenter}
+          initialZoom={initialZoom}
+          center={center}
+          refocusTrigger={refocusTrigger}
+          crosshair={crosshair}
+          showCrosshair={showCrosshair}
+          activeLayerId={activeLayerId}
           onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
-          onLayerSelect={setActiveLayerId}
+          onLayerSelect={(layerId) => setActiveLayerId(layerId)}
           onViewChange={(center, zoom) => { setMapCenter(center); setMapZoom(zoom); }}
+          onReady={handleMapReady}
+          onPrefetchStats={handlePrefetchStats}
           nextNavTarget={nextNavTarget}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-neutral-100">
-            <span className="text-neutral-400 text-sm">Loading imagery…</span>
+          prefetchPaused={timelineDragging}
+        />
+
+        {/* Loading overlay — shown until the first active imagery layer has fully rendered
+            AND all background prefetch work has drained. The map is already mounted and
+            loading tiles behind this overlay. */}
+        {selectedImagery && !mapImageryReady && (
+          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 px-8 py-6 bg-white rounded-2xl border border-neutral-200 shadow-2xl">
+              <LoadingSpinner
+                size="lg"
+                text={LAUNCH_SEQUENCE[launchStep]}
+              />
+            </div>
           </div>
         )}
       </div>

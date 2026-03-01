@@ -6,15 +6,14 @@ import Overlay from 'ol/Overlay';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
-import { useStacImagery } from '../../hooks/useStacImagery';
 import type { ImageryWithWindowsOut } from '~/api/client';
 import PrefetchStatsOverlay from './PrefetchStatsOverlay';
+import { useSliceLayerMap } from '../../context/SliceLayerMapContext';
+import { computeTimeSlices } from '~/shared/utils/utility';
+import useAnnotationStore from '../../annotation.store';
 
 interface MainMapProps {
     imagery?: ImageryWithWindowsOut | null;
-    bbox?: [number, number, number, number];
-    startDate?: string;
-    endDate?: string;
     /** Set once on mount. The OL map owns its view position after that. */
     initialCenter?: [number, number];
     /** Set once on mount. */
@@ -31,19 +30,36 @@ interface MainMapProps {
     activeLayerId?: string;
     /** Called on moveend/zoomend so consumers can sync other maps */
     onViewChange?: (center: [number, number], zoom: number) => void;
+    /** Called once the active imagery layer has finished loading all visible tiles */
+    onReady?: () => void;
+    /**
+     * Called on every prefetch stats tick while the map is loading — useful for
+     * showing a live progress text in the loading overlay.
+     */
+    onPrefetchStats?: (queued: number, loading: number) => void;
     /**
      * Next anticipated navigation target [lat, lon] + zoom.
      * When set, the prefetcher pre-warms tiles at that location before the user arrives.
      * Pass null to clear (e.g. in open mode).
      */
     nextNavTarget?: { latLon: [number, number]; zoom: number } | null;
+    /**
+     * When true, background prefetch syncing is paused (e.g. during timeline drag).
+     * When it flips back to false, one sync is triggered immediately.
+     */
+    prefetchPaused?: boolean;
+}
+
+/**
+ * Stable layer ID for the STAC imagery layer for a specific window + slice + viz template.
+ * Format: `stac-w{windowId}-s{sliceIndex}-v{templateId}`
+ */
+function makeLayerId(windowId: number, sliceIndex: number, templateId: number): string {
+    return `stac-w${windowId}-s${sliceIndex}-v${templateId}`;
 }
 
 const MainMap = ({
     imagery = null,
-    bbox = [0, 0, 0, 0],
-    startDate = '',
-    endDate = '',
     initialCenter,
     initialZoom,
     center,
@@ -54,54 +70,152 @@ const MainMap = ({
     onLayerSelect,
     activeLayerId: controlledActiveLayerId,
     onViewChange,
+    onReady,
+    onPrefetchStats,
     nextNavTarget,
+    prefetchPaused = false,
 }: MainMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
     const mapContainerRef = useRef<HTMLDivElement | null>(null);
     const crosshairOverlayRef = useRef<Overlay | null>(null);
     const crosshairElRef = useRef<HTMLDivElement | null>(null);
-    // Refs that bridge the map-ready callback (created once) with values that arrive later
-    const tileUrlsRef = useRef<typeof tileUrls>([]);
     const mapReadyRef = useRef(false);
-    // Keep onViewChange in a ref so moveend never needs re-registration
+    // Keep onViewChange in a ref so view listeners never need re-registration
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
+    // Keep onReady in a ref; fire it only once after the first active layer renders
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
+    const hasCalledOnReadyRef = useRef(false);
+    // Keep onPrefetchStats in a ref so the subscription never needs re-registering
+    const onPrefetchStatsRef = useRef(onPrefetchStats);
+    onPrefetchStatsRef.current = onPrefetchStats;
+    // Track which slice keys have already been registered as OL layers
+    const registeredSliceKeysRef = useRef<Set<string>>(new Set());
 
     const [layers, setLayers] = useState<Layer[]>([]);
     const [activeLayerId, setActiveLayerId] = useState<string>('');
-    const [prefetchStats, setPrefetchStats] = useState<Parameters<typeof PrefetchStatsOverlay>[0]['stats']>(null);
+    // Stable subscribe function passed to PrefetchStatsOverlay so that component
+    // owns its own state. We store it in state (not a ref) so the overlay receives
+    // it after onMapReady fires, but it's set only once so there's no re-render churn.
+    const [prefetchSubscribe, setPrefetchSubscribe] = useState<Parameters<typeof PrefetchStatsOverlay>[0]['subscribe']>(null);
 
-    const { tileUrls, loading: stacLoading, error: stacError } = useStacImagery({
-        registrationUrl: imagery?.registration_url ?? '',
-        searchBody: imagery?.search_body ?? {},
-        bbox,
-        startDate,
-        endDate,
-        visualizationUrlTemplates: imagery?.visualization_url_templates ?? [],
-        enabled: !!imagery,
-    });
+    // ── Pre-resolved slice → tile URL map from AnnotationPage ──────────────
+    const { sliceLayerMap } = useSliceLayerMap();
 
-    // Shared logic: register resolved STAC tile URLs as layers and auto-select the first one.
-    // Called both from onMapReady (if tileUrls already resolved) and from the tileUrls effect.
-    const applyTileUrls = (urls: typeof tileUrls) => {
-        const lm = layerManagerRef.current;
-        if (!lm || urls.length === 0) return;
+    // ── Active slice/window/viz selection from the store ───────────────────
+    const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
+    const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
+    const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
 
-        lm.getLayers()
-            .filter((l) => l.id.startsWith('stac-'))
-            .forEach((l) => lm.removeLayer(l.id));
+    // Effective active window (fall back to default)
+    const effectiveActiveWindowId =
+        activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
 
-        urls.forEach(({ id, name, url }) => {
-            lm.registerLayer(new XYZLayer({ id: `stac-${id}`, name, layerType: 'imagery', urlTemplate: url }));
-        });
+    // Derive the currently-selected viz template
+    const vizTemplates = imagery?.visualization_url_templates ?? [];
+    const activeVizTemplate = vizTemplates[selectedLayerIndex] ?? vizTemplates[0] ?? null;
 
-        const firstId = `stac-${urls[0].id}`;
-        lm.setActiveLayer(firstId);
-        setActiveLayerId(firstId);
-        const updatedLayers = lm.getLayers();
-        setLayers(updatedLayers);
-        onLayersChange?.(updatedLayers, firstId);
+    // ── Register ALL timepoint layers once the map is ready ────────────────
+    // We register every window × every slice × every viz template as an OL layer
+    // up-front. The active one is made visible; all others stay hidden.
+    // This lets OL prefetch all of them without re-registering on selection change.
+    //
+    // This function is INCREMENTAL — it only adds layers for slices that have newly
+    // arrived in the sliceLayerMap. It never tears down existing layers, so it is
+    // safe to call repeatedly as the map is filled in.
+    const syncSliceLayers = (lm: LayerManager, isImageryChange = false) => {
+        if (!imagery) return;
+
+        // On imagery change, clear all previously registered stac layers
+        if (isImageryChange) {
+            lm.getLayers()
+                .filter((l) => l.id.startsWith('stac-'))
+                .forEach((l) => lm.removeLayer(l.id));
+            registeredSliceKeysRef.current.clear();
+        }
+
+        // Collect newly-arrived layers (batch them for a single _syncPrefetchLayers call)
+        const newLayers: XYZLayer[] = [];
+
+        for (const window of imagery.windows) {
+            const slices = computeTimeSlices(
+                window.window_start_date,
+                window.window_end_date,
+                imagery.slicing_interval,
+                imagery.slicing_unit,
+            );
+            for (const slice of slices) {
+                const sliceKey = `${window.id}-${slice.index}`;
+                const resolvedUrls = sliceLayerMap.get(sliceKey);
+                if (!resolvedUrls) continue; // not yet registered
+                if (registeredSliceKeysRef.current.has(sliceKey)) continue; // already added
+
+                for (const urlEntry of resolvedUrls) {
+                    newLayers.push(new XYZLayer({
+                        id: makeLayerId(window.id, slice.index, urlEntry.templateId),
+                        name: urlEntry.templateName,
+                        layerType: 'imagery',
+                        urlTemplate: urlEntry.url,
+                    }));
+                }
+
+                registeredSliceKeysRef.current.add(sliceKey);
+            }
+        }
+
+        if (newLayers.length > 0) {
+            lm.registerLayers(newLayers);
+        }
+
+        // Activate the correct layer for the current selection
+        activateCorrectLayer(lm);
+    };
+
+    /**
+     * Make the layer matching the current window/slice/viz active,
+     * and tell the LayerManager which viz is "selected" so it can skip
+     * non-selected viz layers during prefetch.
+     */
+    const activateCorrectLayer = (lm: LayerManager) => {
+        if (!imagery || !activeVizTemplate) return;
+
+        const targetId = makeLayerId(
+            effectiveActiveWindowId ?? imagery.windows[0]?.id,
+            activeSliceIndex,
+            activeVizTemplate.id,
+        );
+
+        lm.setActiveLayerAndViz(targetId, activeVizTemplate.id);
+        setActiveLayerId(targetId);
+
+        // Fire onReady once — after the very first imagery layer finishes rendering.
+        if (!hasCalledOnReadyRef.current && onReadyRef.current) {
+            hasCalledOnReadyRef.current = true;
+            lm.onceActiveLayerRendered(
+                () => { onReadyRef.current?.(); },
+            );
+        }
+
+        // Build a deduplicated layer list for the selector UI:
+        // - one entry per viz template (using the active window + current slice)
+        // - all basemap layers
+        // This avoids flooding the selector with window×slice×viz combinations.
+        const allLayers = lm.getLayers();
+        const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
+        const vizLayers = (imagery.visualization_url_templates ?? []).map((t) => {
+            const id = makeLayerId(
+                effectiveActiveWindowId ?? imagery.windows[0]?.id,
+                activeSliceIndex,
+                t.id,
+            );
+            return allLayers.find((l) => l.id === id) ?? null;
+        }).filter((l): l is Layer => l !== null);
+        const uiLayers = [...vizLayers, ...basemapLayers];
+
+        setLayers(uiLayers);
+        onLayersChange?.(uiLayers, targetId);
     };
 
     const initBaseLayers = () => {
@@ -134,15 +248,27 @@ const MainMap = ({
         onLayersChange?.(initialLayers, esriLayer.id);
     };
 
-    // When resolved tile URLs arrive, register them as XYZLayers and auto-select the first one.
-    // Always keep the ref up to date. If the map is already ready, apply immediately;
-    // otherwise onMapReady will read from the ref and apply them there.
+    // Register all slice layers when the sliceLayerMap grows or imagery changes.
+    // This fires once after all slice-0s are ready (AnnotationPage unblocks the Canvas
+    // only at that point) and again as remaining slices come in.
+    // Because syncSliceLayers is incremental it only ever adds new layers, never tears down existing ones.
+    const prevImageryIdRef = useRef<number | null | undefined>(null);
     useEffect(() => {
-        tileUrlsRef.current = tileUrls;
-        if (mapReadyRef.current) {
-            applyTileUrls(tileUrls);
-        }
-    }, [tileUrls]);
+        const lm = layerManagerRef.current;
+        if (!lm || !mapReadyRef.current || !imagery) return;
+        const isImageryChange = imagery.id !== prevImageryIdRef.current;
+        prevImageryIdRef.current = imagery.id;
+        syncSliceLayers(lm, isImageryChange);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sliceLayerMap, imagery?.id]);
+
+    // Re-activate the correct layer whenever the selection changes
+    useEffect(() => {
+        const lm = layerManagerRef.current;
+        if (!lm || !mapReadyRef.current || !imagery) return;
+        activateCorrectLayer(lm);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
 
     // Dispose the LayerManager (and its PrefetchManager) when the map unmounts
     useEffect(() => {
@@ -151,10 +277,15 @@ const MainMap = ({
         };
     }, []);
 
-    // Pan the map when `center` changes (e.g. task navigation)
+    // Pan the map when `center` changes (e.g. task navigation).
+    // We snap instantly (setCenter/setZoom + renderSync) rather than animating —
+    // the prefetcher has already loaded tiles at the destination, so the view
+    // appears fully painted on the very first frame with no visible transition.
     useEffect(() => {
         if (!center || !mapRef.current) return;
-        mapRef.current.getView().animate({ center: fromLonLat([center[1], center[0]]), duration: 300 });
+        const view = mapRef.current.getView();
+        view.setCenter(fromLonLat([center[1], center[0]]));
+        mapRef.current.renderSync();
     }, [center]);
 
     // Recenter when refocusTrigger increments
@@ -163,7 +294,10 @@ const MainMap = ({
         if (!center || !mapRef.current) return;
         if (refocusTrigger === lastRefocusTriggerRef.current) return;
         lastRefocusTriggerRef.current = refocusTrigger;
-        mapRef.current.getView().animate({ center: fromLonLat([center[1], center[0]]), zoom: initialZoom, duration: 300 });
+        const view = mapRef.current.getView();
+        view.setCenter(fromLonLat([center[1], center[0]]));
+        if (initialZoom !== undefined) view.setZoom(initialZoom);
+        mapRef.current.renderSync();
     }, [refocusTrigger]);
 
     // Update the OL Overlay position when crosshair prop changes
@@ -177,13 +311,6 @@ const MainMap = ({
         }
     }, [crosshair?.lat, crosshair?.lon, showCrosshair]);
 
-    const handleLayerSelect = (layerId: string) => {
-        if (!layerManagerRef.current) return;
-        layerManagerRef.current.setActiveLayer(layerId);
-        setActiveLayerId(layerId);
-        onLayerSelect?.(layerId);
-    };
-
     // When the controlled active layer id changes from outside, switch the OL layer
     useEffect(() => {
         if (!controlledActiveLayerId || !layerManagerRef.current) return;
@@ -191,8 +318,8 @@ const MainMap = ({
         setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId]);
 
-    // Forward next navigation target to the prefetcher so it pre-warms tiles
-    // before the user navigates to the next task
+    // Forward next navigation target to the prefetcher immediately so it starts
+    // warming tiles for the next task as soon as the current task is shown.
     useEffect(() => {
         if (!layerManagerRef.current) return;
         layerManagerRef.current.setNextNavTarget(
@@ -201,40 +328,42 @@ const MainMap = ({
         );
     }, [nextNavTarget?.latLon?.[0], nextNavTarget?.latLon?.[1], nextNavTarget?.zoom]);
 
-    const selectedLayer = layers.find((l) => l.id === activeLayerId);
+    // Pause / resume background prefetching (e.g. during timeline drag)
+    useEffect(() => {
+        const lm = layerManagerRef.current;
+        if (!lm) return;
+        if (prefetchPaused) {
+            lm.pausePrefetch();
+        } else {
+            lm.resumePrefetch();
+        }
+    }, [prefetchPaused]);
 
     return (
         <div className="relative w-full h-full" ref={mapContainerRef}>
-            {/* Loading indicator while STAC registration is in-flight */}
-            {stacLoading && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 text-neutral-700 text-xs px-3 py-1.5 rounded shadow pointer-events-none">
-                    Loading imagery…
-                </div>
-            )}
-
-            {/* STAC registration error */}
-            {stacError && (
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-red-50 text-red-600 text-xs px-3 py-1.5 rounded shadow max-w-xs text-center pointer-events-none">
-                    {stacError}
-                </div>
-            )}
-
             <Map
                 center={initialCenter}
                 zoom={initialZoom}
                 onMapReady={(map) => {
                     mapRef.current = map;
                     layerManagerRef.current = new LayerManager(map);
-                    layerManagerRef.current.onPrefetchStats((stats) => setPrefetchStats({ ...stats }));
+                    // Capture the subscribe function so PrefetchStatsOverlay can own its own state.
+                    // setState is called only once (on map ready) so there's no render churn.
+                    const lm = layerManagerRef.current!;
+                    setPrefetchSubscribe(() => lm.onPrefetchStats.bind(lm));
+                    // Forward live prefetch stats to the consumer (e.g. for overlay progress text).
+                    // We subscribe once here; the ref lets the callback always see the latest prop.
+                    lm.onPrefetchStats((stats) => {
+                        onPrefetchStatsRef.current?.(stats.queued, stats.loading);
+                    });
                     initBaseLayers();
 
-                    // Mark map as ready and apply any tile URLs that already resolved before mount.
                     mapReadyRef.current = true;
-                    applyTileUrls(tileUrlsRef.current);
+
+                    // Register all pre-resolved slice layers immediately
+                    syncSliceLayers(layerManagerRef.current!);
 
                     // Publish center+zoom continuously on every frame during pan/zoom.
-                    // Using change:center + change:resolution (fires per-frame) instead of
-                    // moveend (fires only after gesture ends) to eliminate window sync lag.
                     const view = map.getView();
                     const syncView = () => {
                         const olCenter = view.getCenter();
@@ -247,7 +376,6 @@ const MainMap = ({
                     view.on('change:resolution', syncView);
 
                     // Create the crosshair element imperatively — NOT in the React tree.
-                    // OL Overlay takes ownership of the DOM node; React must never touch it.
                     const color = crosshair?.color ?? 'ff0000';
                     const el = document.createElement('div');
                     el.style.pointerEvents = 'none';
@@ -267,7 +395,6 @@ const MainMap = ({
                     map.addOverlay(overlay);
                     crosshairOverlayRef.current = overlay;
 
-                    // Set initial position if crosshair is already active
                     if (crosshair && showCrosshair) {
                         overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
                     }
@@ -275,11 +402,9 @@ const MainMap = ({
             />
 
             {/* Prefetch stats pill + hover popover */}
-            <PrefetchStatsOverlay stats={prefetchStats} />
+            <PrefetchStatsOverlay subscribe={prefetchSubscribe} />
         </div>
     );
 };
-
-
 
 export default memo(MainMap);

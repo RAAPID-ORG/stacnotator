@@ -20,6 +20,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'C', description: 'Focus comment' },
   { key: 'Escape', description: 'Unfocus input' },
   { key: 'H', description: 'Toggle keyboard help' },
+  { key: 'L', description: 'Cycle visualization layer' },
 ];
 
 /**

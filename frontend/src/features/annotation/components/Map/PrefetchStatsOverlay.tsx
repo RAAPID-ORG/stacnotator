@@ -1,60 +1,77 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 // Inline the stats shape so we don't depend on a non-exported type path
 interface PrefetchCategoryStats { queued: number; loading: number; loaded: number; errors: number; }
 interface PrefetchStats {
     queued: number; loading: number; loaded: number; errors: number; paused: boolean;
-    spatialActive: PrefetchCategoryStats;
-    bgViewport: PrefetchCategoryStats;
-    nextNavActive: PrefetchCategoryStats;
+    spatialActive:    PrefetchCategoryStats;
+    bgViewport:       PrefetchCategoryStats;
+    bgBuffer:         PrefetchCategoryStats;
+    nextNavActive:    PrefetchCategoryStats;
     nextNavBackground: PrefetchCategoryStats;
 }
 
+/** A function that registers a stats callback and returns an unsubscribe fn */
+type StatsSubscriber = (cb: (stats: PrefetchStats) => void) => void;
+
 interface Props {
-    stats: PrefetchStats | null;
+    /** Subscribe function from LayerManager.onPrefetchStats — stable reference, set once */
+    subscribe: StatsSubscriber | null;
 }
 
 interface CategoryRowProps {
     label: string;
-    loaded: number;
-    queued: number;
-    loading: number;
-    color: string;
+    cat: PrefetchCategoryStats;
 }
 
-function CategoryRow({ label, loaded, queued, loading, color }: CategoryRowProps) {
-    const total = loaded + queued + loading;
-    const pct = total > 0 ? Math.round((loaded / total) * 100) : 0;
+/** One row per prefetch category — mini progress bar + counts. */
+function CategoryRow({ label, cat }: CategoryRowProps) {
+    const inFlight = cat.queued + cat.loading;
+    const total    = inFlight + cat.loaded;
+    const pct      = total > 0 ? Math.round((cat.loaded / total) * 100) : 0;
 
     return (
         <div className="flex flex-col gap-0.5">
             <div className="flex items-center justify-between text-[10px]">
-                <span className="text-neutral-300 font-medium">{label}</span>
-                <span className="text-neutral-400 tabular-nums">
-                    {loaded}/{total}
-                    {loading > 0 && <span className="text-yellow-400 ml-1">↓{loading}</span>}
+                <span className="text-neutral-600 font-medium">{label}</span>
+                <span className="tabular-nums">
+                    {inFlight > 0
+                        ? <span className="text-brand-600">
+                            {cat.loading > 0 ? `↓${cat.loading}` : ''}
+                            {cat.queued  > 0 ? ` ${cat.queued}q` : ''}
+                          </span>
+                        : <span className="text-brand-500">✓</span>
+                    }
                 </span>
             </div>
-            <div className="h-1.5 rounded-full bg-neutral-700 overflow-hidden">
-                <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{ width: `${pct}%`, backgroundColor: color }}
-                />
-            </div>
+            {total > 0 && (
+                <div className="h-0.5 rounded-full bg-neutral-200 overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all duration-150 bg-brand-500"
+                        style={{ width: `${pct}%` }}
+                    />
+                </div>
+            )}
         </div>
     );
 }
 
-export default function PrefetchStatsOverlay({ stats }: Props) {
+export default function PrefetchStatsOverlay({ subscribe }: Props) {
+    const [stats, setStats] = useState<PrefetchStats | null>(null);
     const [hovered, setHovered] = useState(false);
 
-    // Total progress across all categories
-    const totalLoaded = stats?.loaded ?? 0;
-    const totalQueued = (stats?.queued ?? 0) + (stats?.loading ?? 0);
-    const totalAll = totalLoaded + totalQueued;
-    const overallPct = totalAll > 0 ? Math.round((totalLoaded / totalAll) * 100) : 100;
-    const isPaused = stats?.paused ?? false;
-    const hasActivity = totalAll > 0;
+    const subscribedRef = useRef(false);
+    useEffect(() => {
+        if (!subscribe || subscribedRef.current) return;
+        subscribedRef.current = true;
+        subscribe((s) => setStats(s));
+    }, [subscribe]);
+
+    const liveLoading = stats?.loading ?? 0;
+    const liveQueued  = stats?.queued  ?? 0;
+    const liveTotal   = liveLoading + liveQueued;
+    const isActive    = liveTotal > 0;
+    const isPaused    = stats?.paused ?? false;
 
     return (
         <div
@@ -62,102 +79,67 @@ export default function PrefetchStatsOverlay({ stats }: Props) {
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
-            {/* Pill badge — always visible */}
+            {/* Pill badge */}
             <div className={`
-                flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium cursor-default
-                backdrop-blur-sm border transition-all duration-200
-                ${isPaused
-                    ? 'bg-neutral-900/70 border-neutral-600/50 text-neutral-400'
-                    : hasActivity
-                        ? 'bg-neutral-900/70 border-blue-500/40 text-neutral-200'
-                        : 'bg-neutral-900/70 border-neutral-700/40 text-neutral-500'
-                }
+                flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold cursor-default
+                bg-white border shadow-sm transition-all duration-200
+                ${isPaused  ? 'border-neutral-300 text-neutral-400'
+                : isActive  ? 'border-brand-400 text-brand-600'
+                :             'border-brand-400 text-brand-600'}
             `}>
-                {/* Status dot */}
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    isPaused ? 'bg-neutral-500' :
-                    hasActivity ? 'bg-blue-400 animate-pulse' :
-                    'bg-green-500'
+                    isPaused ? 'bg-neutral-400' :
+                    isActive ? 'bg-brand-500 animate-pulse' :
+                    'bg-brand-500'
                 }`} />
-
-                {/* Mini bar */}
-                <div className="w-12 h-1 rounded-full bg-neutral-700 overflow-hidden">
-                    <div
-                        className="h-full rounded-full bg-blue-400 transition-all duration-300"
-                        style={{ width: `${overallPct}%` }}
-                    />
-                </div>
-
-                <span className="tabular-nums text-neutral-400">{overallPct}%</span>
+                <span className="tabular-nums">
+                    {isPaused ? 'Paused' : isActive ? `↓${liveLoading} · ${liveQueued}q` : 'Ready'}
+                </span>
             </div>
 
             {/* Hover popover */}
             {hovered && stats && (
-                <div className="absolute bottom-full left-0 mb-1.5 w-52 rounded-lg bg-neutral-900/95 border border-neutral-700/60 shadow-xl backdrop-blur-sm p-3 flex flex-col gap-2.5">
+                <div className="absolute bottom-full left-0 mb-1.5 w-52 rounded bg-white border border-neutral-200 shadow-xl p-3 flex flex-col gap-2">
                     {/* Header */}
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-neutral-200 tracking-wide uppercase">
+                        <span className="text-[11px] font-semibold text-neutral-700 tracking-wide uppercase">
                             Prefetch
                         </span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                            isPaused
-                                ? 'bg-neutral-700 text-neutral-400'
-                                : 'bg-blue-900/60 text-blue-300'
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold border ${
+                            isPaused  ? 'bg-neutral-100 border-neutral-300 text-neutral-500'
+                            : isActive ? 'bg-brand-50 border-brand-300 text-brand-600'
+                            :           'bg-brand-50 border-brand-300 text-brand-600'
                         }`}>
-                            {isPaused ? 'Paused' : 'Active'}
+                            {isPaused ? 'Paused' : isActive ? 'Active' : 'Ready'}
                         </span>
                     </div>
 
-                    {/* Overall */}
-                    <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center justify-between text-[10px]">
-                            <span className="text-neutral-300 font-medium">Overall</span>
-                            <span className="text-neutral-400 tabular-nums">{totalLoaded} loaded</span>
-                        </div>
-                        <div className="h-2 rounded-full bg-neutral-700 overflow-hidden">
-                            <div
-                                className="h-full rounded-full bg-blue-400 transition-all duration-300"
-                                style={{ width: `${overallPct}%` }}
-                            />
-                        </div>
+                    <div className="border-t border-neutral-100" />
+
+                    {/* Totals row */}
+                    <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-neutral-500">Total</span>
+                        <span className="tabular-nums text-neutral-600 font-medium">
+                            {liveLoading > 0 && <span className="text-brand-600">↓{liveLoading} </span>}
+                            {liveQueued  > 0 && <span className="text-neutral-400">{liveQueued}q </span>}
+                            <span className="text-brand-500">✓{stats.loaded}</span>
+                        </span>
                     </div>
 
-                    <div className="border-t border-neutral-700/50 my-0.5" />
+                    <div className="border-t border-neutral-100" />
 
                     {/* Per-category rows */}
-                    <CategoryRow
-                        label="Spatial (active)"
-                        loaded={stats.spatialActive.loaded}
-                        queued={stats.spatialActive.queued}
-                        loading={stats.spatialActive.loading}
-                        color="#60a5fa"
-                    />
-                    <CategoryRow
-                        label="Background layers"
-                        loaded={stats.bgViewport.loaded}
-                        queued={stats.bgViewport.queued}
-                        loading={stats.bgViewport.loading}
-                        color="#a78bfa"
-                    />
-                    <CategoryRow
-                        label="Next nav (active)"
-                        loaded={stats.nextNavActive.loaded}
-                        queued={stats.nextNavActive.queued}
-                        loading={stats.nextNavActive.loading}
-                        color="#34d399"
-                    />
-                    <CategoryRow
-                        label="Next nav (bg)"
-                        loaded={stats.nextNavBackground.loaded}
-                        queued={stats.nextNavBackground.queued}
-                        loading={stats.nextNavBackground.loading}
-                        color="#6ee7b7"
-                    />
+                    <div className="flex flex-col gap-2">
+                        <CategoryRow label="Spatial"      cat={stats.spatialActive}     />
+                        <CategoryRow label="BG viewport"  cat={stats.bgViewport}         />
+                        <CategoryRow label="BG buffer"    cat={stats.bgBuffer}           />
+                        <CategoryRow label="Next nav"     cat={stats.nextNavActive}      />
+                        <CategoryRow label="Next nav bg"  cat={stats.nextNavBackground}  />
+                    </div>
 
-                    {/* Error count if any */}
-                    {stats.errors > 0 && (
-                        <div className="text-[9px] text-red-400 border-t border-neutral-700/50 pt-1.5">
-                            ⚠ {stats.errors} tile error{stats.errors !== 1 ? 's' : ''}
+                    {!isActive && !isPaused && (
+                        <div className="text-[9px] text-neutral-400 italic text-center pt-0.5">
+                            All tiles cached
                         </div>
                     )}
                 </div>

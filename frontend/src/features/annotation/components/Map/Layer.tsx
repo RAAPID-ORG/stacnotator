@@ -41,7 +41,9 @@ export class XYZLayer extends Layer {
 
     asOLLayer() {
         return new TileLayer({
-            preload: 4,
+            // Infinity tells OL to pre-load all tiles for this layer even when hidden,
+            // so switching to it is instant (tiles already in the browser cache).
+            preload: this.layerType === 'imagery' ? Infinity : 4,
             source: new XYZ({
                 url: this.urlTemplate,
                 attributions: this.attribution,

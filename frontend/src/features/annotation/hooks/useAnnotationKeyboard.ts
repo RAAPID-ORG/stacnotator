@@ -60,6 +60,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
   const showAlert = useLayoutStore((state) => state.showAlert);
   const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
+  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
+  const showBasemap = useAnnotationStore((state) => state.showBasemap);
+  const basemapType = useAnnotationStore((state) => state.basemapType);
+  const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
+  const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -206,6 +212,35 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     },
     [currentWindowSortedIndex, sortedWindows, setActiveWindowId]
   );
+
+  const BASEMAP_TYPES = ['carto-light', 'esri-world-imagery', 'opentopomap'] as const;
+
+  const cycleLayer = useCallback(() => {
+    const templates = selectedImagery?.visualization_url_templates ?? [];
+    const vizCount = templates.length;
+    const basemapCount = BASEMAP_TYPES.length;
+    const totalCount = vizCount + basemapCount;
+    if (totalCount === 0) return;
+
+    // Compute current position in the flat list: [viz0..vizN-1, basemap0..basemap2]
+    let currentPos: number;
+    if (showBasemap) {
+      const bmIdx = BASEMAP_TYPES.indexOf(basemapType as typeof BASEMAP_TYPES[number]);
+      currentPos = vizCount + (bmIdx >= 0 ? bmIdx : 0);
+    } else {
+      currentPos = selectedLayerIndex;
+    }
+
+    const nextPos = (currentPos + 1) % totalCount;
+
+    if (nextPos < vizCount) {
+      setSelectedLayerIndex(nextPos); // also sets showBasemap: false
+    } else {
+      const bmIdx = nextPos - vizCount;
+      setBasemapType(BASEMAP_TYPES[bmIdx]);
+      setShowBasemap(true);
+    }
+  }, [selectedImagery, selectedLayerIndex, showBasemap, basemapType, setSelectedLayerIndex, setShowBasemap, setBasemapType]);
 
   // Submit handler
   const handleSubmit = useCallback(async () => {
@@ -394,6 +429,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           toggleKeyboardHelp();
           break;
+
+        // Cycle visualization layer
+        case 'l':
+        case 'L':
+          e.preventDefault();
+          cycleLayer();
+          break;
       }
     };
 
@@ -428,6 +470,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     handleSubmit,
     handleSkip,
     toggleKeyboardHelp,
+    cycleLayer,
   ]);
 
   // Removed duplicate cleanup useEffect - consolidated above
