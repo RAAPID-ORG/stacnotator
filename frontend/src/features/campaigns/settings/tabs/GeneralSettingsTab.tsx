@@ -160,7 +160,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           Changing this will recompute all embeddings for the campaign.
           {!campaign.settings.embedding_year && (
             <span className="block mt-1 text-amber-600 font-medium">
-              ⚠ No embedding year set — KNN validation is currently unavailable for annotators.
+              No embedding year set — KNN validation is currently unavailable for annotators.
             </span>
           )}
         </p>

@@ -13,6 +13,8 @@ interface TimelineSidebarProps {
   onSliceChange?: (sliceIndex: number) => void;
   /** Called with true when drag starts, false when drag ends */
   onDraggingChange?: (dragging: boolean) => void;
+  /** Slice keys (`{windowId}-{sliceIndex}`) confirmed to have no imagery — hidden in the UI */
+  emptySlices?: Record<string, true>;
 }
 
 /** One addressable step in the flat drag range */
@@ -35,6 +37,7 @@ const TimelineSidebar = ({
   onWindowChange,
   onSliceChange,
   onDraggingChange,
+  emptySlices = {},
 }: TimelineSidebarProps) => {
   const trackRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -129,13 +132,21 @@ const TimelineSidebar = ({
     const step = yToStepRef.current(e.clientY);
     if (!step) return;
 
+    // Find the first non-empty slice for the target window
+    const landingSlice = (() => {
+      for (let i = 0; i < step.sliceCount; i++) {
+        if (!emptySlices[`${step.windowId}-${i}`]) return i;
+      }
+      return 0; // all empty — fall back to 0
+    })();
+
     // Update refs immediately (no re-render cost)
     dragWindowIdRef.current   = step.windowId;
-    dragSliceIndexRef.current = step.sliceIndex;
+    dragSliceIndexRef.current = landingSlice;
 
     // Commit to OL/store immediately — no batching needed, these are cheap
     onWindowChangeRef.current?.(step.windowId);
-    onSliceChangeRef.current?.(0);
+    onSliceChangeRef.current?.(landingSlice);
 
     // Throttle React state updates to once per animation frame for smooth rendering
     if (rafRef.current === null) {
@@ -178,8 +189,14 @@ const TimelineSidebar = ({
     // Commit the final position
     const step = yToStepRef.current(e.clientY);
     if (step) {
+      const landingSlice = (() => {
+        for (let i = 0; i < step.sliceCount; i++) {
+          if (!emptySlices[`${step.windowId}-${i}`]) return i;
+        }
+        return 0;
+      })();
       onWindowChangeRef.current?.(step.windowId);
-      onSliceChangeRef.current?.(0);
+      onSliceChangeRef.current?.(landingSlice);
     }
   };
 
@@ -282,6 +299,7 @@ const TimelineSidebar = ({
                           >
                             {wSlices.map((slice, si) => {
                               const sliceKey = `${window.id}-${si}`;
+                              if (emptySlices[sliceKey]) return null;
                               const isActive = si === liveSliceIndex;
                               return (
                                 <button
@@ -346,5 +364,3 @@ const TimelineSidebar = ({
 };
 
 export default TimelineSidebar;
-
-

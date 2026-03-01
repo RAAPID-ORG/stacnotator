@@ -66,6 +66,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
   const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
+  const emptySlices = useAnnotationStore((state) => state.emptySlices);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -108,6 +109,23 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       return Math.max(1, windowSlices.length);
     },
     [selectedImagery]
+  );
+
+  /**
+   * Find the first non-empty slice index for a window, searching forward from
+   * `startIndex` (wrapping is not needed — just find the first valid one).
+   * Returns -1 if all slices are empty.
+   */
+  const firstNonEmptySlice = useCallback(
+    (windowId: number, totalSlices: number, preferredIndex = 0): number => {
+      // Try from preferredIndex forward, then from 0
+      for (let offset = 0; offset < totalSlices; offset++) {
+        const i = (preferredIndex + offset) % totalSlices;
+        if (!emptySlices[`${windowId}-${i}`]) return i;
+      }
+      return -1; // All slices empty
+    },
+    [emptySlices]
   );
 
   // Select label by index (1-based)
@@ -158,29 +176,43 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     [labels.length, processDigitBuffer]
   );
 
-  // Navigate slices with window wrap-around when reaching boundaries
+  // Navigate slices with window wrap-around when reaching boundaries,
+  // automatically skipping slices marked as empty.
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
+      if (!currentWindow) return;
+
+      // Build the ordered list of non-empty slice indices for the current window
+      const nonEmpty: number[] = [];
+      for (let i = 0; i < currentSliceCount; i++) {
+        if (!emptySlices[`${currentWindow.id}-${i}`]) nonEmpty.push(i);
+      }
+
       if (direction === 'next') {
-        if (activeSliceIndex < currentSliceCount - 1) {
-          // Move to next slice within current window
-          setActiveSliceIndex(activeSliceIndex + 1);
+        // Find next non-empty slice after the current index within this window
+        const nextInWindow = nonEmpty.find((i) => i > activeSliceIndex);
+        if (nextInWindow !== undefined) {
+          setActiveSliceIndex(nextInWindow);
         } else if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          // At last slice, move to next window (first slice)
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex + 1].id);
-          // setActiveWindowId resets slice to 0 automatically
+          // Move to next window — land on its first non-empty slice
+          const nextWindow = sortedWindows[currentWindowSortedIndex + 1];
+          const nextCount = getSliceCountForWindow(nextWindow);
+          const landingSlice = firstNonEmptySlice(nextWindow.id, nextCount, 0);
+          setActiveWindowId(nextWindow.id);
+          if (landingSlice > 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
         }
       } else {
-        if (activeSliceIndex > 0) {
-          // Move to previous slice within current window
-          setActiveSliceIndex(activeSliceIndex - 1);
+        // Find previous non-empty slice before the current index within this window
+        const prevInWindow = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
+        if (prevInWindow !== undefined) {
+          setActiveSliceIndex(prevInWindow);
         } else if (currentWindowSortedIndex > 0) {
-          // At first slice, move to previous window (last slice)
+          // Move to previous window — land on its last non-empty slice
           const prevWindow = sortedWindows[currentWindowSortedIndex - 1];
-          const prevWindowSliceCount = getSliceCountForWindow(prevWindow);
+          const prevCount = getSliceCountForWindow(prevWindow);
+          const landingSlice = firstNonEmptySlice(prevWindow.id, prevCount, prevCount - 1);
           setActiveWindowId(prevWindow.id);
-          // Need to set slice after window change
-          setTimeout(() => setActiveSliceIndex(prevWindowSliceCount - 1), 0);
+          if (landingSlice >= 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
         }
       }
     },
@@ -188,29 +220,39 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       activeSliceIndex,
       currentSliceCount,
       currentWindowSortedIndex,
+      currentWindow,
       sortedWindows,
+      emptySlices,
       setActiveSliceIndex,
       setActiveWindowId,
       getSliceCountForWindow,
+      firstNonEmptySlice,
     ]
   );
 
-  // Navigate windows directly (Shift+W/S)
+  // Navigate windows directly (Shift+A/D), landing on first non-empty slice
   const navigateWindow = useCallback(
     (direction: 'next' | 'prev') => {
       if (sortedWindows.length === 0) return;
 
+      let targetWindow: typeof currentWindow | undefined;
       if (direction === 'next') {
         if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex + 1].id);
+          targetWindow = sortedWindows[currentWindowSortedIndex + 1];
         }
       } else {
         if (currentWindowSortedIndex > 0) {
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex - 1].id);
+          targetWindow = sortedWindows[currentWindowSortedIndex - 1];
         }
       }
+
+      if (!targetWindow) return;
+      const targetCount = getSliceCountForWindow(targetWindow);
+      const landingSlice = firstNonEmptySlice(targetWindow.id, targetCount, 0);
+      setActiveWindowId(targetWindow.id);
+      if (landingSlice > 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
     },
-    [currentWindowSortedIndex, sortedWindows, setActiveWindowId]
+    [currentWindowSortedIndex, sortedWindows, setActiveWindowId, setActiveSliceIndex, getSliceCountForWindow, firstNonEmptySlice]
   );
 
   const BASEMAP_TYPES = ['carto-light', 'esri-world-imagery', 'opentopomap'] as const;

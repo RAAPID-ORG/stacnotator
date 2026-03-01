@@ -71,6 +71,11 @@ interface AnnotationStore {
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
   refocusTrigger: number;
+  /**
+   * Set of slice keys (`{windowId}-{sliceIndex}`) confirmed to have no imagery.
+   * These are skipped during keyboard navigation and hidden in the timeline.
+   */
+  emptySlices: Record<string, true>;
 
   // Map control triggers (increment to trigger action)
   zoomInTrigger: number;
@@ -134,6 +139,10 @@ interface AnnotationStore {
   setWindowSliceIndex: (windowId: number, index: number) => void;
   triggerRefocus: () => void;
   toggleCrosshair: () => void;
+  /** Mark a slice key (`{windowId}-{sliceIndex}`) as having no imagery */
+  markSliceEmpty: (sliceKey: string) => void;
+  /** Clear all empty-slice records (e.g. on imagery change) */
+  clearEmptySlices: () => void;
 
   // Map control actions
   triggerZoomIn: () => void;
@@ -202,6 +211,7 @@ const initialState = {
   activeSliceIndex: 0,
   windowSliceIndices: {} as Record<number, number>,
   refocusTrigger: 0,
+  emptySlices: {} as Record<string, true>,
   zoomInTrigger: 0,
   zoomOutTrigger: 0,
   panTrigger: { direction: 'up' as const, count: 0 },
@@ -551,14 +561,15 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
           currentTaskIndex < updatedVisibleTasks.length - 1 ? currentTaskIndex + 1 : 0;
         const nextTask = updatedVisibleTasks[nextIndex] || null;
 
-        set({
-          allTasks: updatedTasks,
-          visibleTasks: updatedVisibleTasks,
-          isSubmitting: false,
-          currentTaskIndex: nextIndex,
-          ...getFormStateForTask(nextTask),
-          probeTimeseriesPoint: null,
-        });
+    set({
+      allTasks: updatedTasks,
+      visibleTasks: updatedVisibleTasks,
+      isSubmitting: false,
+      currentTaskIndex: nextIndex,
+      ...getFormStateForTask(nextTask),
+      probeTimeseriesPoint: null,
+      emptySlices: {},
+    });
 
         useLayoutStore.getState().showAlert('Annotation submitted successfully', 'success');
       }
@@ -588,6 +599,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
+      emptySlices: {},
       ...getFormStateForTask(nextTask),
       currentMapZoom: null,
       probeTimeseriesPoint: null,
@@ -617,6 +629,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
+      emptySlices: {},
       ...getFormStateForTask(prevTask),
       currentMapZoom: null,
       probeTimeseriesPoint: null,
@@ -647,6 +660,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         activeWindowId: defaultWindowId,
         activeSliceIndex: 0,
         windowSliceIndices: {},
+        emptySlices: {},
         ...getFormStateForTask(targetTask),
         currentMapZoom: null,
         probeTimeseriesPoint: null,
@@ -701,6 +715,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       activeWindowId: defaultWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
+      emptySlices: {},
       ...getFormStateForTask(targetTask),
       currentMapZoom: null,
       probeTimeseriesPoint: null,
@@ -843,6 +858,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       activeWindowId: newActiveWindowId,
       activeSliceIndex: 0,
       windowSliceIndices: {},
+      emptySlices: {}, // clear stale empty-slice markers when switching imagery
     });
   },
 
@@ -878,6 +894,13 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
     set((state) => ({
       windowSliceIndices: { ...state.windowSliceIndices, [windowId]: index },
     })),
+
+  markSliceEmpty: (sliceKey) =>
+    set((state) => ({
+      emptySlices: { ...state.emptySlices, [sliceKey]: true },
+    })),
+
+  clearEmptySlices: () => set({ emptySlices: {} }),
 
   triggerRefocus: () => set((state) => ({ refocusTrigger: state.refocusTrigger + 1 })),
 

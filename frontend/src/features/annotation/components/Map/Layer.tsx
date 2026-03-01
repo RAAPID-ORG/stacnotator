@@ -54,5 +54,5 @@ export class XYZLayer extends Layer {
                 transition: 0,  // disable fade-in so tiles snap in immediately
             }),
         });
-    }   
+    }
 }

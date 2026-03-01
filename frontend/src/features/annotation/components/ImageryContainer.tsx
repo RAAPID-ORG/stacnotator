@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import WindowMap from './Map/WindowMap';
 import type { ImageryWindowOut } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
@@ -29,6 +29,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
   const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
   const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
+  const markSliceEmpty = useAnnotationStore((state) => state.markSliceEmpty);
+  const emptySlices = useAnnotationStore((state) => state.emptySlices);
 
   // Compute derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
@@ -45,7 +47,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
 
   // Determine if this window is the active window
   const isActiveWindow =
-    selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
+    !!selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
 
   // Compute slices for this window
   const slices = useMemo(() => {
@@ -69,6 +71,14 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     ? activeSliceIndex
     : (windowSliceIndices[window.id] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
+
+  // ── Resolve tile URL from pre-registered SliceLayerMap ──────────────────
+  const { sliceLayerMap } = useSliceLayerMap();
+  const sliceKey = `${window.id}-${currentSliceIndex}`;
+  const resolvedUrls = sliceLayerMap.get(sliceKey);
+  const tileUrl = resolvedUrls?.[selectedLayerIndex]?.url ?? resolvedUrls?.[0]?.url ?? '';
+  const loading = !resolvedUrls;
+  const datesReady = !loading;
 
   // Memoize latLon extraction to prevent recalculations
   const latLon = useMemo(
@@ -95,33 +105,97 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   }, [currentMapCenter, latLon?.lat, latLon?.lon]);
 
   // Determine zoom level
-  // In both open mode and task mode, use the synchronized zoom from the store
-  // so that zooming on the main map also zooms the small imagery containers
   const zoom = useMemo(() => {
-    if (currentMapZoom !== null) {
-      return currentMapZoom;
-    }
+    if (currentMapZoom !== null) return currentMapZoom;
     return selectedImagery?.default_zoom ?? 10;
   }, [currentMapZoom, selectedImagery?.default_zoom]);
 
-  if (!selectedImagery || !campaignBbox) return null;
-
-  // ── Resolve tile URL from pre-registered SliceLayerMap ──────────────────
-  // The AnnotationPage pre-registers all slices before showing the Canvas, so
-  // this lookup always succeeds for slice-0 on first render. Later slices fill
-  // in as the background registration continues.
-  const { sliceLayerMap } = useSliceLayerMap();
-  const sliceKey = `${window.id}-${currentSliceIndex}`;
-  const resolvedUrls = sliceLayerMap.get(sliceKey);
-  // Pick the viz template matching the selected layer index
-  const tileUrl = resolvedUrls?.[selectedLayerIndex]?.url ?? resolvedUrls?.[0]?.url ?? '';
-  const loading = !resolvedUrls;
-  const datesReady = !loading;
-
-  // Crosshair at task location — same logic as main map
+  // Crosshair at task location
   const crosshair = !isOpenMode && latLon
-    ? { lat: latLon.lat, lon: latLon.lon, color: selectedImagery.crosshair_hex6 ?? undefined }
+    ? { lat: latLon.lat, lon: latLon.lon, color: selectedImagery?.crosshair_hex6 ?? undefined }
     : undefined;
+
+  // True once every slice for this window has been confirmed empty
+  const allSlicesEmpty = slices.length > 0 && slices.every((_, i) => emptySlices[`${window.id}-${i}`]);
+
+  // Empty-tile alert state — reset whenever the tileUrl changes
+  const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
+  useEffect(() => { setEmptyTileAlert(null); }, [tileUrl]);
+
+  // Stable ref so the OL tile-error callback always reads current values
+  // without needing to be recreated whenever deps change.
+  const emptyTilesStateRef = useRef({
+    window,
+    activeSlice,
+    sliceKey,
+    isActiveWindow,
+    slices,
+    currentSliceIndex,
+    emptySlices,
+    markSliceEmpty,
+    setActiveSliceIndex,
+    setWindowSliceIndex: useAnnotationStore.getState().setWindowSliceIndex,
+    setEmptyTileAlert,
+  });
+  // Keep ref in sync every render so the callback always sees fresh values
+  emptyTilesStateRef.current = {
+    window,
+    activeSlice,
+    sliceKey,
+    isActiveWindow,
+    slices,
+    currentSliceIndex,
+    emptySlices,
+    markSliceEmpty,
+    setActiveSliceIndex,
+    setWindowSliceIndex: useAnnotationStore.getState().setWindowSliceIndex,
+    setEmptyTileAlert,
+  };
+
+  // Stable callback passed to WindowMap — never recreated, always reads ref
+  const handleEmptyTiles = useCallback(() => {
+    const {
+      window: win,
+      activeSlice: slice,
+      sliceKey: key,
+      isActiveWindow: isActive,
+      slices: allSlices,
+      currentSliceIndex: curIdx,
+      emptySlices: empty,
+      markSliceEmpty: mark,
+      setActiveSliceIndex: setActive,
+      setWindowSliceIndex: setStored,
+      setEmptyTileAlert: setAlert,
+    } = emptyTilesStateRef.current;
+
+    const windowLabel = `Window ${win.window_index + 1}`;
+    const sliceLabel = slice?.label ?? '';
+    const alertLabel = sliceLabel ? `${windowLabel} – ${sliceLabel}` : windowLabel;
+
+    // Persist into store so keyboard nav and timeline can skip this slice
+    mark(key);
+
+    // Auto-advance to the next non-empty slice
+    const nextIndex = allSlices.findIndex(
+      (_, i) => i !== curIdx && !empty[`${win.id}-${i}`]
+    );
+
+    if (nextIndex !== -1) {
+      if (isActive) {
+        setActive(nextIndex);
+      } else {
+        setStored(win.id, nextIndex);
+      }
+      // Don't show alert — we silently skipped it
+      return;
+    }
+
+    // All slices are empty — show the alert
+    setAlert(alertLabel);
+  }, []); // stable — all state read from ref
+
+  // Early return AFTER all hooks
+  if (!selectedImagery || !campaignBbox) return null;
 
   // Handle click — only trigger if not dragging (makes the window "active")
   const handleMouseDown = () => { isDraggingRef.current = false; };
@@ -146,7 +220,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Slice selector */}
+      {/* Slice selector — empty slices are hidden */}
       {slices.length > 1 && (
         <div className="absolute bottom-1 right-1 z-[1000]">
           <select
@@ -157,9 +231,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             className="text-[9px] px-1 py-0.5 bg-white/90 border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:bg-white"
             title="Select time slice"
           >
-            {slices.map((slice, idx) => (
-              <option key={idx} value={idx}>{slice.label}</option>
-            ))}
+            {slices.map((slice, idx) => {
+              const key = `${window.id}-${idx}`;
+              if (emptySlices[key]) return null;
+              return <option key={idx} value={idx}>{slice.label}</option>;
+            })}
           </select>
         </div>
       )}
@@ -171,23 +247,57 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
         </div>
       )}
 
-      {datesReady && tileUrl ? (
-        <WindowMap
-          initialCenter={initialCenter}
-          initialZoom={zoom}
-          center={center}
-          zoom={zoom}
-          tileUrl={tileUrl}
-          crosshair={crosshair}
-          showCrosshair={!isOpenMode}
-          refocusTrigger={refocusTrigger}
-        />
-      ) : (
-        !loading && (
-          <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
+      {/* All-slices-empty: full-panel message replaces the map */}
+      {allSlicesEmpty ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
+          <svg className="w-6 h-6 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5" />
+          </svg>
+          <span className="text-[10px] font-medium text-neutral-400 text-center px-2 leading-snug">
             No imagery available
-          </div>
-        )
+          </span>
+        </div>
+      ) : (
+        <>
+          {/* Partial-empty alert — shown only when some (not all) slices are empty and we couldn't auto-advance */}
+          {emptyTileAlert && (
+            <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+              <span className="flex-1">
+                No imagery data for <strong>{emptyTileAlert}</strong>
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setEmptyTileAlert(null); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="ml-1 text-amber-600 hover:text-amber-900 font-bold leading-none"
+                title="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {datesReady && tileUrl ? (
+            <WindowMap
+              initialCenter={initialCenter}
+              initialZoom={zoom}
+              center={center}
+              zoom={zoom}
+              tileUrl={tileUrl}
+              crosshair={crosshair}
+              showCrosshair={!isOpenMode}
+              refocusTrigger={refocusTrigger}
+              detectionKey={currentTaskIndex}
+              onEmptyTiles={handleEmptyTiles}
+            />
+          ) : (
+            !loading && (
+              <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
+                No imagery available
+              </div>
+            )
+          )}
+        </>
       )}
     </div>
   );

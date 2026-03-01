@@ -35,6 +35,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
   const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const emptySlices = useAnnotationStore((state) => state.emptySlices);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [timelineDragging, setTimelineDragging] = useState(false);
@@ -199,6 +200,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         onWindowChange={setActiveWindowId}
         onSliceChange={setActiveSliceIndex}
         onDraggingChange={setTimelineDragging}
+        emptySlices={emptySlices}
       />
       <div className="flex-1 min-w-0 h-full relative">
 
