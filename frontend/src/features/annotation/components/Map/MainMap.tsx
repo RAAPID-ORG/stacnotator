@@ -48,6 +48,13 @@ interface MainMapProps {
      * When it flips back to false, one sync is triggered immediately.
      */
     prefetchPaused?: boolean;
+    /**
+     * When true, spatial prefetching for the active layer is disabled.
+     * Background (window warming) and next-nav prefetch are unaffected.
+     * Use this in task mode where the viewport is fixed per task and
+     * loading tiles around it wastes bandwidth.
+     */
+    disableSpatialPrefetch?: boolean;
 }
 
 /**
@@ -74,6 +81,7 @@ const MainMap = ({
     onPrefetchStats,
     nextNavTarget,
     prefetchPaused = false,
+    disableSpatialPrefetch = false,
 }: MainMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
@@ -338,6 +346,11 @@ const MainMap = ({
             lm.resumePrefetch();
         }
     }, [prefetchPaused]);
+
+    // Enable / disable spatial prefetching for the active layer (e.g. task mode).
+    useEffect(() => {
+        layerManagerRef.current?.setSpatialPrefetchEnabled(!disableSpatialPrefetch);
+    }, [disableSpatialPrefetch]);
 
     return (
         <div className="relative w-full h-full" ref={mapContainerRef}>

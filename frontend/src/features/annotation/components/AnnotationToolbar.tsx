@@ -651,16 +651,38 @@ export const AnnotationToolbar = () => {
               <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
                 Keyboard Shortcuts
               </div>
-              <div className="space-y-1.5">
-                {KEYBOARD_SHORTCUTS.map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
+              {campaign.mode === 'open' ? (
+                <div className="space-y-1.5">
+                  {([
+                    { key: 'V', description: 'Pan tool' },
+                    { key: 'A', description: 'Annotate tool' },
+                    { key: 'E', description: 'Edit tool' },
+                    { key: 'T', description: 'Timeseries probe' },
+                    { key: '1–9', description: 'Select label & annotate' },
+                    { key: 'Space', description: 'Fit view to annotations' },
+                    { key: 'Alt+drag', description: 'Move feature' },
+                    { key: 'Escape', description: 'Cancel / deselect edit' },
+                  ] as { key: string; description: string }[]).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -115,8 +115,9 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     ? { lat: latLon.lat, lon: latLon.lon, color: selectedImagery?.crosshair_hex6 ?? undefined }
     : undefined;
 
-  // True once every slice for this window has been confirmed empty
-  const allSlicesEmpty = slices.length > 0 && slices.every((_, i) => emptySlices[`${window.id}-${i}`]);
+  // True once every slice for this window has been confirmed empty.
+  // Only relevant in task mode — in open mode we always show the map.
+  const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${window.id}-${i}`]);
 
   // Empty-tile alert state — reset whenever the tileUrl changes
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
@@ -153,7 +154,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   };
 
   // Stable callback passed to WindowMap — never recreated, always reads ref
+  // In open mode this is omitted: empty-tile detection is based on where we
+  // scrolled to and would incorrectly hide valid imagery elsewhere.
   const handleEmptyTiles = useCallback(() => {
+    if (isOpenMode) return; // never fire in open mode
     const {
       window: win,
       activeSlice: slice,
@@ -233,7 +237,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
           >
             {slices.map((slice, idx) => {
               const key = `${window.id}-${idx}`;
-              if (emptySlices[key]) return null;
+              // In open mode show all slices; in task mode hide confirmed-empty ones
+              if (!isOpenMode && emptySlices[key]) return null;
               return <option key={idx} value={idx}>{slice.label}</option>;
             })}
           </select>
@@ -277,7 +282,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             </div>
           )}
 
-          {datesReady && tileUrl ? (
+          {datesReady && (tileUrl || isOpenMode) ? (
             <WindowMap
               initialCenter={initialCenter}
               initialZoom={zoom}

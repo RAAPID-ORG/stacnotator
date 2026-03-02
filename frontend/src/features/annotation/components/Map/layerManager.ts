@@ -46,6 +46,8 @@ export class LayerManager {
     private _syncTimer: ReturnType<typeof setTimeout> | null = null;
     /** When true, background prefetch syncs are suppressed (e.g. during timeline drag) */
     private _prefetchPaused = false;
+    /** When true, the active layer is excluded from spatial prefetching (e.g. task mode) */
+    private _spatialPrefetchDisabled = false;
 
     constructor(map: OLMap) {
         this.map = map;
@@ -257,6 +259,11 @@ export class LayerManager {
         const layer = this.layers.find((l) => l.id === layerId);
         if (layer?.layerType === "imagery") {
             this.prefetchManager.setActiveLayer(newActiveOLLayer);
+            // If spatial prefetch is disabled (e.g. task mode), keep the new active
+            // layer excluded so the prefetcher never issues spatial tiles for it.
+            if (this._spatialPrefetchDisabled) {
+                this.prefetchManager.excludeLayer(newActiveOLLayer);
+            }
             this._scheduleSyncPrefetchLayers();
         }
     }
@@ -288,6 +295,34 @@ export class LayerManager {
         if (this.activeVizTemplateId === templateId) return;
         this.activeVizTemplateId = templateId;
         this._scheduleSyncPrefetchLayers();
+    }
+
+    /**
+     * Enable or disable spatial prefetching for the active layer.
+     *
+     * In task mode the map snaps to a fixed point per task, so loading tiles
+     * around the viewport is wasteful — the area never changes between navigations.
+     * Background (window warming) and next-nav prefetch are unaffected.
+     *
+     * When disabled, the active layer is added to the prefetcher's exclude list
+     * so it never issues spatial tiles.  When re-enabled it is re-included.
+     * Subsequent `setActiveLayer` calls also respect this flag, so the exclusion
+     * persists across layer switches.
+     */
+    setSpatialPrefetchEnabled(enabled: boolean) {
+        if (this._spatialPrefetchDisabled === !enabled) return;
+        this._spatialPrefetchDisabled = !enabled;
+
+        const activeOLLayer = this.map.getLayers().getArray()
+            .find((l) => l.get('layerId') === this.activeLayerId) as BaseTileLayer<TileSource, any> | undefined;
+
+        if (!activeOLLayer) return;
+
+        if (!enabled) {
+            this.prefetchManager.excludeLayer(activeOLLayer);
+        } else {
+            this.prefetchManager.includeLayer(activeOLLayer);
+        }
     }
 
     /**

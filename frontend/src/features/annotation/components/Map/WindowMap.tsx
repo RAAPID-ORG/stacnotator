@@ -2,11 +2,21 @@ import { useEffect, useRef, memo } from 'react';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
 import XYZ from 'ol/source/XYZ';
 import Overlay from 'ol/Overlay';
 import { fromLonLat } from 'ol/proj';
 import { defaults as defaultInteractions } from 'ol/interaction';
+import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
+import { GeoJSON as OLGeoJSON } from 'ol/format';
+import type OLFeature from 'ol/Feature';
+import type { Geometry } from 'ol/geom';
 import 'ol/ol.css';
+
+import useAnnotationStore from '../../annotation.store';
+import { extendLabelsWithMetadata } from '../ControlsOpenMode';
+import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 
 /** Number of tile-load errors with zero successes before we call onEmptyTiles */
 const EMPTY_ERROR_THRESHOLD = 4;
@@ -39,6 +49,18 @@ interface WindowMapProps {
     onEmptyTiles?: () => void;
 }
 
+const geoJsonFormat = new OLGeoJSON();
+const PROP_ANNOTATION_ID = 'annotationId';
+const PROP_LABEL_ID = 'labelId';
+
+function hexToRgba(hex: string, alpha: number): string {
+    const clean = hex.replace('#', '');
+    const r = parseInt(clean.substring(0, 2), 16);
+    const g = parseInt(clean.substring(2, 4), 16);
+    const b = parseInt(clean.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
 const WindowMap = ({
     initialCenter,
     initialZoom,
@@ -60,6 +82,11 @@ const WindowMap = ({
     // Keep a stable ref to the latest callback so the tile-swap effect can use it
     const onEmptyTilesRef = useRef(onEmptyTiles);
     useEffect(() => { onEmptyTilesRef.current = onEmptyTiles; }, [onEmptyTiles]);
+
+    // ── Annotation vector layer ──────────────────────────────────────────
+    const annotations = useAnnotationStore((state) => state.annotations);
+    const campaign = useAnnotationStore((state) => state.campaign);
+    const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
 
     // Create the map once on mount
     useEffect(() => {
@@ -91,9 +118,17 @@ const WindowMap = ({
         });
         tileLayerRef.current = tileLayer;
 
+        // Annotation vector layer — read-only, synced from store
+        const annotationSource = new VectorSource<OLFeature<Geometry>>();
+        annotationSourceRef.current = annotationSource;
+        const annotationLayer = new VectorLayer({
+            source: annotationSource,
+            zIndex: 10,
+        });
+
         const map = new OLMap({
             target: containerRef.current,
-            layers: [tileLayer],
+            layers: [tileLayer, annotationLayer],
             maxTilesLoading: 4,  // small — windows only load what's visible, main map gets priority
             view: new View({
                 center: fromLonLat([initialCenter[1], initialCenter[0]]),
@@ -134,6 +169,7 @@ const WindowMap = ({
             map.setTarget(undefined);
             mapRef.current = null;
             tileLayerRef.current = null;
+            annotationSourceRef.current = null;
             overlayRef.current = null;
             overlayElRef.current = null;
         };
@@ -179,6 +215,65 @@ const WindowMap = ({
         view.setCenter(fromLonLat([center[1], center[0]]));
         if (zoom !== undefined) view.setZoom(zoom);
     }, [center, zoom]);
+
+    // ── Sync annotations into the vector source ──────────────────────────
+    // Incremental update — same pattern as OLMapWithDraw — to avoid flicker.
+    useEffect(() => {
+        const source = annotationSourceRef.current;
+        if (!source) return;
+
+        const extendedLabels = campaign ? extendLabelsWithMetadata(campaign.settings.labels) : [];
+
+        const existing = new Map<number, OLFeature<Geometry>>();
+        for (const f of source.getFeatures()) {
+            existing.set(f.get(PROP_ANNOTATION_ID) as number, f);
+        }
+
+        const incomingIds = new Set<number>();
+
+        for (const ann of annotations) {
+            const geoJSON = convertWKTToGeoJSON(ann.geometry.geometry);
+            if (!geoJSON) continue;
+
+            incomingIds.add(ann.id);
+            const label = extendedLabels.find((l) => l.id === ann.label_id);
+            const color = label?.color ?? '#3b82f6';
+            const isLine = label?.geometry_type === 'line';
+            const fillOpacity = 0.2;
+            const style = new Style({
+                fill: new Fill({ color: hexToRgba(color, fillOpacity) }),
+                stroke: new Stroke({ color, width: isLine ? 3 : 2 }),
+                image: new CircleStyle({
+                    radius: 6,
+                    fill: new Fill({ color: hexToRgba(color, 0.85) }),
+                    stroke: new Stroke({ color: '#fff', width: 2 }),
+                }),
+            });
+
+            if (existing.has(ann.id)) {
+                const feat = existing.get(ann.id)!;
+                const existingGeom = geoJsonFormat.writeFeatureObject(feat, { featureProjection: 'EPSG:3857' });
+                if (JSON.stringify(existingGeom.geometry) !== JSON.stringify(geoJSON)) {
+                    const newGeom = geoJsonFormat.readGeometry(geoJSON, { featureProjection: 'EPSG:3857' }) as Geometry;
+                    feat.setGeometry(newGeom);
+                }
+                feat.setStyle(style);
+            } else {
+                const feat = geoJsonFormat.readFeature(
+                    { type: 'Feature', geometry: geoJSON, properties: {} },
+                    { featureProjection: 'EPSG:3857' },
+                ) as OLFeature<Geometry>;
+                feat.set(PROP_ANNOTATION_ID, ann.id);
+                feat.set(PROP_LABEL_ID, ann.label_id);
+                feat.setStyle(style);
+                source.addFeature(feat);
+            }
+        }
+
+        for (const [id, feat] of existing) {
+            if (!incomingIds.has(id)) source.removeFeature(feat);
+        }
+    }, [annotations, campaign]);
 
     // Refocus to task center + initial zoom
     useEffect(() => {

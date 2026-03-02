@@ -3,22 +3,33 @@ import useAnnotationStore from '../annotation.store';
 import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
 
 /**
- * Keyboard shortcuts for open mode annotation
- * V = Pan
- * A = Annotate
- * T = Timeseries
- * 1-9 = Select label by index
- * Escape = Deselect label / cancel drawing
+ * Keyboard shortcuts for open mode annotation.
+ *
+ * Tool switching:
+ *   V — Pan
+ *   A — Annotate
+ *   E — Edit
+ *   T — Timeseries (only when campaign has time series)
+ *
+ * Label selection:
+ *   1–9 — Select label by index and switch to Annotate
+ *
+ * Misc:
+ *   Escape — Handled by OLMapWithDraw (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useAnnotationStore((state) => state.campaign);
   const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
+  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
+  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
+  const triggerFitAnnotations = useAnnotationStore((state) => state.triggerFitAnnotations);
 
   useEffect(() => {
     if (!campaign || campaign.mode !== 'open') return;
 
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
+    const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if user is typing in an input/textarea
@@ -27,31 +38,46 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
-      // Number keys 1-9 for label selection
+      // Number keys 1–9: select label and switch to annotate
       if (e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
           setSelectedLabelId(extendedLabels[index].id);
+          setActiveTool('annotate');
         }
         return;
       }
 
-      // Escape to deselect label
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setSelectedLabelId(null);
-        return;
+      switch (e.key.toLowerCase()) {
+        case 'v':
+          e.preventDefault();
+          setActiveTool('pan');
+          setTimeseriesPoint(null);
+          break;
+        case 'a':
+          e.preventDefault();
+          setActiveTool('annotate');
+          setTimeseriesPoint(null);
+          break;
+        case 'e':
+          e.preventDefault();
+          setActiveTool('edit');
+          setTimeseriesPoint(null);
+          break;
+        case 't':
+          if (!hasTimeseries) break;
+          e.preventDefault();
+          setActiveTool('timeseries');
+          break;
+        case ' ':
+          e.preventDefault();
+          triggerFitAnnotations();
+          break;
       }
-
-      // Tool shortcuts (v, a, t) are handled by OpenModeControls component state
-      // We don't need global shortcuts for tool switching as it's local UI state
     };
 
     window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [campaign, setSelectedLabelId]);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [campaign, setSelectedLabelId, setActiveTool, setTimeseriesPoint, triggerFitAnnotations]);
 };

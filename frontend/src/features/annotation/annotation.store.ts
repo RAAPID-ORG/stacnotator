@@ -71,6 +71,7 @@ interface AnnotationStore {
   activeSliceIndex: number;
   windowSliceIndices: Record<number, number>; // Per-window slice indices
   refocusTrigger: number;
+  fitAnnotationsTrigger: number;
   /**
    * Set of slice keys (`{windowId}-{sliceIndex}`) confirmed to have no imagery.
    * These are skipped during keyboard navigation and hidden in the timeline.
@@ -138,6 +139,7 @@ interface AnnotationStore {
   setActiveSliceIndex: (index: number) => void;
   setWindowSliceIndex: (windowId: number, index: number) => void;
   triggerRefocus: () => void;
+  triggerFitAnnotations: () => void;
   toggleCrosshair: () => void;
   /** Mark a slice key (`{windowId}-{sliceIndex}`) as having no imagery */
   markSliceEmpty: (sliceKey: string) => void;
@@ -211,6 +213,7 @@ const initialState = {
   activeSliceIndex: 0,
   windowSliceIndices: {} as Record<number, number>,
   refocusTrigger: 0,
+  fitAnnotationsTrigger: 0,
   emptySlices: {} as Record<string, true>,
   zoomInTrigger: 0,
   zoomOutTrigger: 0,
@@ -903,6 +906,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
   clearEmptySlices: () => set({ emptySlices: {} }),
 
   triggerRefocus: () => set((state) => ({ refocusTrigger: state.refocusTrigger + 1 })),
+  triggerFitAnnotations: () => set((state) => ({ fitAnnotationsTrigger: state.fitAnnotationsTrigger + 1 })),
 
   toggleCrosshair: () => set((state) => ({ showCrosshair: !state.showCrosshair })),
 

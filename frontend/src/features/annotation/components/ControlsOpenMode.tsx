@@ -318,13 +318,17 @@ const OpenModeControls = () => {
         {activeTool === 'edit' && (
           <div className="flex flex-col gap-1 w-full">
             <span className="font-bold text-neutral-900 text-xs">Edit Tool</span>
-            <p className="text-[10px] text-neutral-600">
-              Hover over geometries to highlight them, then click to select and edit vertices.
-            </p>
-            <p className="text-[10px] text-neutral-500 mt-1">
-              Drag vertices to move them. Use the controls to save or delete. Right click on
-              vertices to delete them.
-            </p>
+            <div className="text-[10px] text-neutral-600 flex flex-col gap-1">
+              <p>Click a geometry to select it and show its vertices.</p>
+              <p>Drag a <strong>vertex</strong> to move it.</p>
+              <p>Click an <strong>edge midpoint</strong> to insert a new vertex.</p>
+              <p>Hold <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Alt</kbd> + drag to move the whole feature.</p>
+              <p className="text-neutral-500">
+                Use <kbd className="px-1 bg-neutral-100 rounded text-[9px]">✓</kbd> to save,{' '}
+                <kbd className="px-1 bg-neutral-100 rounded text-[9px]">🗑</kbd> to delete, or{' '}
+                <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Esc</kbd> to cancel.
+              </p>
+            </div>
           </div>
         )}
 
@@ -355,19 +359,23 @@ const OpenModeControls = () => {
         <div className="pt-2 border-t border-neutral-200 w-full">
           <span className="font-bold text-neutral-900 text-[10px]">Shortcuts</span>
           <div className="mt-1 space-y-0.5 max-w-xs">
-            {TOOLS.map((tool) => (
+            {availableTools.map((tool) => (
               <div key={tool.id} className="flex justify-between text-[9px] text-neutral-500">
                 <span>{tool.label}</span>
                 <kbd className="px-1 bg-neutral-100 rounded">{tool.shortcut}</kbd>
               </div>
             ))}
             <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Label 1-9</span>
-              <kbd className="px-1 bg-neutral-100 rounded">1-9</kbd>
+              <span>Select label 1–9</span>
+              <kbd className="px-1 bg-neutral-100 rounded">1–9</kbd>
             </div>
             <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Escape</span>
-              <kbd className="px-1 bg-neutral-100 rounded">Cancel</kbd>
+              <span>Move feature (edit)</span>
+              <kbd className="px-1 bg-neutral-100 rounded">Alt+drag</kbd>
+            </div>
+            <div className="flex justify-between text-[9px] text-neutral-500">
+              <span>Cancel edit</span>
+              <kbd className="px-1 bg-neutral-100 rounded">Esc</kbd>
             </div>
           </div>
         </div>
