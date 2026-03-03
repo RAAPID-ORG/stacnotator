@@ -366,8 +366,8 @@ const OpenModeControls = () => {
               </div>
             ))}
             <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Select label 1–9</span>
-              <kbd className="px-1 bg-neutral-100 rounded">1–9</kbd>
+              <span>Select label 1-9</span>
+              <kbd className="px-1 bg-neutral-100 rounded">1-9</kbd>
             </div>
             <div className="flex justify-between text-[9px] text-neutral-500">
               <span>Move feature (edit)</span>

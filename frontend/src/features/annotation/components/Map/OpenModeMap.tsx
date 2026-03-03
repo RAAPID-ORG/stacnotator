@@ -1,5 +1,5 @@
 /**
- * OpenModeMap – open-mode main map with annotation drawing.
+ * OpenModeMap - open-mode main map with annotation drawing.
  *
  * The open-mode counterpart of TaskModeMap. Key differences:
  *   - Mounts DrawingLayer for annotation drawing/editing on the same map.
@@ -27,7 +27,7 @@ import useAnnotationStore from '../../annotation.store';
 import type { ExtendedLabel } from '../ControlsOpenMode';
 import { useSliceLayers } from './useSliceLayers';
 
-// ── Props ───────────────────────────────────────────────────────────────
+// Props
 
 interface OpenModeMapProps {
     imagery: ImageryWithWindowsOut | null;
@@ -53,7 +53,7 @@ export interface OpenModeMapHandle {
     fitAnnotations: () => void;
 }
 
-// ── Component ───────────────────────────────────────────────────────────
+// Component
 
 const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     imagery,
@@ -77,7 +77,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
-    // ── Shared layer management ─────────────────────────────────────────
+    // Shared layer management
 
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
         imagery,
@@ -87,7 +87,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         onLayersChange,
     });
 
-    // ── Imperative handle: fitAnnotations ───────────────────────────────
+    // Imperative handle: fitAnnotations
 
     const geoJsonFormat = useRef(new OLGeoJSON());
 
@@ -137,7 +137,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         doFitAnnotations();
     }, [fitAnnotationsTrigger, doFitAnnotations]);
 
-    // ── Refocus trigger ─────────────────────────────────────────────────
+    // Refocus trigger
 
     useEffect(() => {
         if (!mapRef.current || refocusTrigger === lastRefocusTriggerRef.current) return;
@@ -149,7 +149,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         });
     }, [refocusTrigger, initialCenter, initialZoom]);
 
-    // ── External active layer control ───────────────────────────────────
+    // External active layer control
 
     useEffect(() => {
         if (!controlledActiveLayerId || !layerManagerRef.current) return;
@@ -157,7 +157,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId, setActiveLayerId]);
 
-    // ── Render ──────────────────────────────────────────────────────────
+    // Render
 
     return (
         <div className="relative w-full h-full">

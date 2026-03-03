@@ -106,7 +106,7 @@ echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "${YELLOW}Get these values from Firebase Console:${NC}"
 echo -e "  https://console.firebase.google.com/"
-echo -e "  → Project Settings → General → Your apps → Web app config"
+echo -e "  -> Project Settings -> General -> Your apps -> Web app config"
 echo ""
 
 # Prompt for Firebase client configuration
@@ -176,7 +176,7 @@ echo -e "2. Deploy your application: ./azure_deploy/deploy-app.sh"
 echo ""
 if [ -n "$FIREBASE_PROJECT_ID" ]; then
     echo -e "${YELLOW}Important: Configure authorized domains in Firebase Console${NC}"
-    echo -e "  https://console.firebase.google.com/ → Authentication → Settings → Authorized domains"
+    echo -e "  https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains"
     echo -e "  Add your Container App domain after deployment"
     echo ""
 fi

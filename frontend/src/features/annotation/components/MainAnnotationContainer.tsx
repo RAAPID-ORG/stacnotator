@@ -54,7 +54,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  // ── Registration gate ───────────────────────────────────────────────────
+  // Registration gate
   // AnnotationPage (parent) uses useStacAllSlices and provides progress via
   // SliceLayerMapContext.  We must wait for ALL slices to finish registering
   // before dismissing the loading overlay, otherwise the user can interact
@@ -62,7 +62,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const { totalSlices, registeredSlices } = useSliceLayerMap();
   const allRegistrationsDone = totalSlices === 0 || registeredSlices >= totalSlices;
 
-  // ── Render gate ─────────────────────────────────────────────────────────
+  // Render gate
   // True only after BOTH: (a) OL viewport tiles rendered, AND (b) all STAC
   // slice registrations have resolved.
   const [olLayerReady, setOlLayerReady] = useState(false);
@@ -147,7 +147,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     selectedImagery?.slicing_unit,
   ]);
 
-  // Initial center: task geometry → bbox center. Never updated by live map movement.
+  // Initial center: task geometry -> bbox center. Never updated by live map movement.
   const latLon = useMemo(
     () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -212,8 +212,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
       />
       <div className="flex-1 min-w-0 h-full relative">
 
-        {/* Top-right controls - task mode only
-            (open mode has its layer selector inside OpenModeMap) */}
+        {/* Top-right controls for task mode */}
         {isTaskMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
 
@@ -296,7 +295,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
-            {/* Timeseries probe tool - task mode + campaign has time series */}
+            {/* Timeseries probe tool */}
             {campaign.time_series.length > 0 && (
               <button
                 onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
@@ -313,7 +312,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Fit-to-annotations button for open mode - top-right, matching task mode placement */}
         {isOpenMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
             <button
@@ -330,7 +328,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Map – task mode uses TaskModeMap; open mode uses OpenModeMap with drawing */}
+        {/* Map - task mode uses TaskModeMap; open mode uses OpenModeMap with drawing */}
         {isTaskMode ? (
           <TaskModeMap
             imagery={selectedImagery}

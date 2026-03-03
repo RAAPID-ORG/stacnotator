@@ -83,7 +83,7 @@ const WindowMap = ({
     const onEmptyTilesRef = useRef(onEmptyTiles);
     useEffect(() => { onEmptyTilesRef.current = onEmptyTiles; }, [onEmptyTiles]);
 
-    // ── Annotation vector layer ──────────────────────────────────────────
+    // Annotation vector layer
     const annotations = useAnnotationStore((state) => state.annotations);
     const campaign = useAnnotationStore((state) => state.campaign);
     const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
@@ -216,7 +216,7 @@ const WindowMap = ({
         if (zoom !== undefined) view.setZoom(zoom);
     }, [center, zoom]);
 
-    // ── Sync annotations into the vector source ──────────────────────────
+    // Sync annotations into the vector source
     // Incremental update - same pattern as DrawingLayer - to avoid flicker.
     useEffect(() => {
         const source = annotationSourceRef.current;

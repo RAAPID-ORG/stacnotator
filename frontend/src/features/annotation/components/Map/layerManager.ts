@@ -24,7 +24,7 @@ export class LayerManager {
         this.map = map;
     }
 
-    // ── Layer registration / removal ────────────────────────────────────
+    // Layer registration / removal
 
     registerLayer(layer: Layer) {
         if (this.layers.some((l) => l.id === layer.id)) return;
@@ -54,7 +54,7 @@ export class LayerManager {
         if (this.activeLayerId === layerId) this.activeLayerId = '';
     }
 
-    // ── Queries ─────────────────────────────────────────────────────────
+    // Queries
 
     getLayers() {
         return [...this.layers];
@@ -68,7 +68,7 @@ export class LayerManager {
         return this.layers.find((l) => l.id === this.activeLayerId);
     }
 
-    // ── Active layer switching ──────────────────────────────────────────
+    // Active layer switching
 
     /**
      * Switch the visible layer. The new layer becomes visible immediately;
@@ -172,13 +172,13 @@ export class LayerManager {
         safetyTimer = setTimeout(fire, 10_000);
     }
 
-    // ── Lifecycle ───────────────────────────────────────────────────────
+    // Lifecycle
 
     dispose() {
         // No-op - kept for API compatibility
     }
 
-    // ── Private helpers ─────────────────────────────────────────────────
+    // Private helpers
 
     private _findOLLayer(layerId: string): BaseTileLayer<TileSource, any> | undefined {
         return this.map.getLayers().getArray()

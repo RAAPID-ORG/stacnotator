@@ -3,7 +3,7 @@
  *
  * A focused OpenLayers component that owns the annotation VectorLayer and all
  * drawing/editing interactions (Draw, Modify, Select, Translate).  It is a
- * thin slice of responsibility – it knows nothing about tile layers or STAC;
+ * thin slice of responsibility - it knows nothing about tile layers or STAC;
  * those live in the parent OpenModeMap.
  *
  * The component receives the raw OL Map instance from its parent (set once via
@@ -11,13 +11,13 @@
  * without either layer owning the map lifecycle.
  *
  * Behaviour summary:
- *   pan mode      – all interactions disabled; normal OL panning
- *   annotate mode – Draw interaction active for the geometry matching
- *                   selectedLabel; finishes → saveAnnotation → re-render
- *   edit mode     – Select + Modify + Translate active; clicking a feature
+ *   pan mode      - all interactions disabled; normal OL panning
+ *   annotate mode - Draw interaction active for the geometry matching
+ *                   selectedLabel; finishes -> saveAnnotation -> re-render
+ *   edit mode     - Select + Modify + Translate active; clicking a feature
  *                   selects it; ESC cancels (restores saved geometry);
  *                   ✓ button commits the edited geometry; 🗑 button deletes
- *   timeseries    – timeseries-probe click handler
+ *   timeseries    - timeseries-probe click handler
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
@@ -134,7 +134,7 @@ const DrawingLayer = ({
     magicWandActive,
     onTimeseriesClick,
 }: DrawingLayerProps) => {
-    // ── Store ─────────────────────────────────────────────────────────────
+    // Store
     const annotations = useAnnotationStore((state) => state.annotations);
     const campaign = useAnnotationStore((state) => state.campaign);
     const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
@@ -147,7 +147,7 @@ const DrawingLayer = ({
         [campaign?.settings.labels],
     );
 
-    // ── OL objects held in refs (not state - no re-renders from these) ────
+    // OL objects held in refs (not state - no re-renders from these)
     const sourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
     const vectorLayerRef = useRef<VectorLayer<VectorSource<OLFeature<Geometry>>> | null>(null);
     const drawInteractionRef = useRef<Draw | null>(null);
@@ -163,7 +163,7 @@ const DrawingLayer = ({
     const onTimeseriesClickRef = useRef(onTimeseriesClick);
     onTimeseriesClickRef.current = onTimeseriesClick;
 
-    // ── React state (drives inline edit controls overlay) ────────────────
+    // React state (drives inline edit controls overlay)
     /** OL feature currently selected for editing */
     const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
     /** Pixel coords [x, y] of the top-right of the selected feature's bounding box */
@@ -171,12 +171,12 @@ const DrawingLayer = ({
     /** Saved geometry snapshot for ESC rollback */
     const originalGeometryRef = useRef<GeoJSON.Geometry | null>(null);
 
-    // ── Timeseries probe marker (OL Overlay) ─────────────────────────────
+    // Timeseries probe marker (OL Overlay)
     // We use a simple DOM element positioned via map.getPixelFromCoordinate rather
     // than an OL Overlay so we avoid a separate overlay lifecycle.
     const probeMarkerRef = useRef<{ lat: number; lon: number } | null>(null);
 
-    // ── 1. Create VectorSource + VectorLayer once ─────────────────────────
+    // 1. Create VectorSource + VectorLayer once
     useEffect(() => {
         const source = new VectorSource<OLFeature<Geometry>>();
         sourceRef.current = source;
@@ -196,7 +196,7 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, map is stable
     }, [map]);
 
-    // ── 2. Sync annotation features from store into VectorSource ─────────
+    // 2. Sync annotation features from store into VectorSource
     useEffect(() => {
         const source = sourceRef.current;
         if (!source) return;
@@ -251,7 +251,7 @@ const DrawingLayer = ({
         }
     }, [annotations, extendedLabels]);
 
-    // ── Helper: recompute edit controls position ──────────────────────────
+    // Helper: recompute edit controls position
     // Kept in a ref so interaction callbacks (modifyend, translateend) always
     // call the latest version without needing to be recreated.
     const refreshEditControlsPosRef = useRef<() => void>(() => {});
@@ -268,7 +268,7 @@ const DrawingLayer = ({
         const extent = feature.getGeometry()?.getExtent();
         if (!extent) { setEditControlsPos(null); return; }
 
-        // top-right corner of the bounding box → screen pixels
+        // top-right corner of the bounding box -> screen pixels
         const pixel = map.getPixelFromCoordinate([extent[2], extent[3]]);
         if (!pixel) { setEditControlsPos(null); return; }
         setEditControlsPos({ x: pixel[0] + 10, y: pixel[1] - 5 });
@@ -298,7 +298,7 @@ const DrawingLayer = ({
         refreshEditControlsPos();
     }, [selectedFeatureId, refreshEditControlsPos]);
 
-    // ── 3. Manage interactions based on activeTool ────────────────────────
+    // 3. Manage interactions based on activeTool
     const removeAllInteractions = useCallback(() => {
         [
             drawInteractionRef,
@@ -318,7 +318,7 @@ const DrawingLayer = ({
         map.getTargetElement()?.style.setProperty('cursor', '');
     }, [map]);
 
-    // ── 3a. Draw interaction (annotate mode) ─────────────────────────────
+    // 3a. Draw interaction (annotate mode)
     const setupDrawInteraction = useCallback(() => {
         const source = sourceRef.current;
         if (!source || !selectedLabel) return;
@@ -361,7 +361,7 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [map, selectedLabel, saveAnnotation]);
 
-    // ── 3b. Magic-wand interaction (single click → auto polygon) ─────────
+    // 3b. Magic-wand interaction (single click -> auto polygon)
     const magicWandAbortRef = useRef<AbortController | null>(null);
 
     const setupMagicWandInteraction = useCallback(() => {
@@ -395,7 +395,7 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [map, selectedLabel, saveAnnotation]);
 
-    // ── 3c. Edit interaction (select + modify + translate) ────────────────
+    // 3c. Edit interaction (select + modify + translate)
     const setupEditInteractions = useCallback(() => {
         const source = sourceRef.current;
         if (!source) return;
@@ -434,7 +434,7 @@ const DrawingLayer = ({
         translate.on('translateend', () => { refreshEditControlsPosRef.current(); });
 
         // Modify handles vertex drag, edge insertion and Delete-key vertex removal.
-        // Added AFTER Translate → processed FIRST by OL.
+        // Added AFTER Translate -> processed FIRST by OL.
         const modify = new Modify({ features: select.getFeatures() });
         modify.on('modifyend', () => { refreshEditControlsPosRef.current(); });
 
@@ -464,7 +464,7 @@ const DrawingLayer = ({
         };
     }, [map, extendedLabels]); // refreshEditControlsPos intentionally omitted - called via stable ref
 
-    // ── 3d. Timeseries click handler ──────────────────────────────────────
+    // 3d. Timeseries click handler
     const setupTimeseriesInteraction = useCallback(() => {
         const handleClick = (evt: { coordinate: number[] }) => {
             const [lon, lat] = toLonLat(evt.coordinate);
@@ -481,7 +481,7 @@ const DrawingLayer = ({
         };
     }, [map]);
 
-    // ── Main effect: tear down & rebuild interactions on mode change ──────
+    // Main effect: tear down & rebuild interactions on mode change
     useEffect(() => {
         removeAllInteractions();
         let cleanup: (() => void) | undefined;
@@ -505,7 +505,7 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type, magicWandActive]);
 
-    // ── 4. ESC key: cancel edit and roll back ─────────────────────────────
+    // 4. ESC key: cancel edit and roll back
     useEffect(() => {
         if (!selectedFeatureId || activeTool !== 'edit') return;
 
@@ -543,7 +543,7 @@ const DrawingLayer = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedFeatureId, activeTool]);
 
-    // ── 5. Edit control handlers (confirm / delete) ───────────────────────
+    // 5. Edit control handlers (confirm / delete)
     const handleConfirmEdit = useCallback(async () => {
         const source = sourceRef.current;
         const select = selectInteractionRef.current;
@@ -591,7 +591,7 @@ const DrawingLayer = ({
         originalGeometryRef.current = null;
     }, [selectedFeatureId, deleteAnnotation]);
 
-    // ── Render ─────────────────────────────────────────────────────────────
+    // Render
     // The map canvas is owned by the parent; we only render the floating edit controls.
     return editControlsPos && selectedFeatureId && activeTool === 'edit' ? (
         <div

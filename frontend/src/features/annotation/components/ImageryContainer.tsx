@@ -72,7 +72,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     : (windowSliceIndices[window.id] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // ── Resolve tile URL from pre-registered SliceLayerMap ──────────────────
+  // Resolve tile URL from pre-registered SliceLayerMap
   const { sliceLayerMap } = useSliceLayerMap();
   const sliceKey = `${window.id}-${currentSliceIndex}`;
   const resolvedUrls = sliceLayerMap.get(sliceKey);
@@ -174,7 +174,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
 
     const windowLabel = `Window ${win.window_index + 1}`;
     const sliceLabel = slice?.label ?? '';
-    const alertLabel = sliceLabel ? `${windowLabel} – ${sliceLabel}` : windowLabel;
+    const alertLabel = sliceLabel ? `${windowLabel} - ${sliceLabel}` : windowLabel;
 
     // Persist into store so keyboard nav and timeline can skip this slice
     mark(key);

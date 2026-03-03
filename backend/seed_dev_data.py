@@ -124,7 +124,7 @@ def seed_dev_data(firebase_uid: str = None):
         # ------------------------------------------------------------------
         # One Sentinel-2 imagery spanning all of 2024.
         # Monthly windows (window_interval=1 month) with weekly slices inside
-        # each window (slicing_interval=1 week) → 12 windows × ~4 slices each.
+        # each window (slicing_interval=1 week) -> 12 windows × ~4 slices each.
         # ------------------------------------------------------------------
         imagery_configs = [
             ImageryCreate(

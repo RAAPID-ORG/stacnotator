@@ -27,7 +27,7 @@ export interface SliceTileUrl {
   url: string;
 }
 
-/** Map from sliceKey → resolved tile URLs for every viz template */
+/** Map from sliceKey -> resolved tile URLs for every viz template */
 export type SliceLayerMap = Map<string, SliceTileUrl[]>;
 
 // ---------------------------------------------------------------------------

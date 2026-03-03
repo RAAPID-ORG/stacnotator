@@ -37,7 +37,7 @@ export const AnnotationPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // ── Store subscriptions ─────────────────────────────────────────────────
+  // Store subscriptions
   const campaign = useAnnotationStore((state) => state.campaign);
   const isLoadingCampaign = useAnnotationStore((state) => state.isLoadingCampaign);
   const loadCampaign = useAnnotationStore((state) => state.loadCampaign);
@@ -46,17 +46,17 @@ export const AnnotationPage = () => {
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
   const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
 
-  // ── UI store ────────────────────────────────────────────────────────────
+  // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const campaignIdNumber = Number(campaignId);
 
-  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+  // Keyboard shortcuts
   useAnnotationKeyboard({ commentInputRef });
   useOpenModeKeyboard();
 
-  // ── Load campaign ───────────────────────────────────────────────────────
+  // Load campaign
   useEffect(() => {
     if (!campaignId || Number.isNaN(campaignIdNumber)) {
       showAlert('Invalid campaign ID', 'error');
@@ -97,7 +97,7 @@ export const AnnotationPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignIdNumber]);
 
-  // ── Breadcrumbs ─────────────────────────────────────────────────────────
+  // Breadcrumbs
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
@@ -107,7 +107,7 @@ export const AnnotationPage = () => {
     }
   }, [campaign, setBreadcrumbs]);
 
-  // ── STAC pre-registration ───────────────────────────────────────────────
+  // STAC pre-registration
   // Derive the selected imagery + campaign bbox once the campaign is loaded.
   const selectedImagery = useMemo(
     () => campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null,
@@ -154,7 +154,7 @@ export const AnnotationPage = () => {
   const slice0Count = selectedImagery?.windows.length ?? 0;
   const allSlice0sReady = slice0Count === 0 || registeredSlices >= slice0Count;
 
-  // ── Early returns ───────────────────────────────────────────────────────
+  // Early returns
 
   if (isLoadingCampaign || (campaign && selectedImagery && !allSlice0sReady)) {
     const progressText =
@@ -179,7 +179,7 @@ export const AnnotationPage = () => {
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  // Render
   return (
     <SliceLayerMapProvider value={{ sliceLayerMap, totalSlices, registeredSlices }}>
       <div className="flex flex-col h-full">

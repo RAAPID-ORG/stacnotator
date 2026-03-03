@@ -64,7 +64,7 @@ def _backfill_embeddings() -> None:
             year = campaign.settings.embedding_year if campaign.settings else None
             if year is None:
                 logger.info(
-                    "  Campaign %d (%s): no embedding year set – skipping.",
+                    "  Campaign %d (%s): no embedding year set - skipping.",
                     campaign.id,
                     campaign.name,
                 )

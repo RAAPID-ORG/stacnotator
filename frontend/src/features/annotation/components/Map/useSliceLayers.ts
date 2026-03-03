@@ -7,7 +7,7 @@ import { useSliceLayerMap } from '../../context/SliceLayerMapContext';
 import useAnnotationStore from '../../annotation.store';
 import { computeTimeSlices } from '~/shared/utils/utility';
 
-// ── Basemap definitions ─────────────────────────────────────────────────
+// Basemap definitions
 
 export const BASEMAP_LAYERS = [
     new XYZLayer({
@@ -27,14 +27,14 @@ export const BASEMAP_LAYERS = [
     }),
 ];
 
-// ── Layer ID convention ─────────────────────────────────────────────────
+// Layer ID convention
 
 /** Stable layer ID: `stac-w{windowId}-s{sliceIndex}-v{templateId}` */
 export function makeLayerId(windowId: number, sliceIndex: number, templateId: number): string {
     return `stac-w${windowId}-s${sliceIndex}-v${templateId}`;
 }
 
-// ── Hook ────────────────────────────────────────────────────────────────
+// Hook
 
 interface UseSliceLayersOptions {
     imagery: ImageryWithWindowsOut | null;
@@ -68,7 +68,7 @@ export function useSliceLayers({
     const [layers, setLayers] = useState<Layer[]>([]);
     const [activeLayerId, setActiveLayerId] = useState('');
 
-    // Pre-resolved slice → tile URL map from context
+    // Pre-resolved slice -> tile URL map from context
     const { sliceLayerMap } = useSliceLayerMap();
 
     // Store subscriptions
@@ -89,7 +89,7 @@ export function useSliceLayers({
     const registeredSliceKeysRef = useRef<Set<string>>(new Set());
     const prevImageryIdRef = useRef<number | null>(null);
 
-    // ── Activate the correct layer for the current selection ─────────────
+    // Activate the correct layer for the current selection
 
     const activateCorrectLayer = useCallback((lm: LayerManager) => {
         if (!imagery || !activeVizTemplate) return;
@@ -130,7 +130,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [imagery?.id, effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
 
-    // ── Register STAC slice layers incrementally ────────────────────────
+    // Register STAC slice layers incrementally
 
     const syncSliceLayers = useCallback((lm: LayerManager, isImageryChange = false) => {
         if (!imagery) return;
@@ -177,7 +177,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sliceLayerMap, imagery?.id, activateCorrectLayer]);
 
-    // ── Init basemaps on first mount ────────────────────────────────────
+    // Init basemaps on first mount
 
     const initLayers = useCallback((lm: LayerManager) => {
         for (const bm of BASEMAP_LAYERS) {
@@ -194,7 +194,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [syncSliceLayers]);
 
-    // ── Sync when sliceLayerMap grows or imagery changes ────────────────
+    // Sync when sliceLayerMap grows or imagery changes
 
     useEffect(() => {
         if (!layerManager || !mapReady || !imagery) return;
@@ -204,7 +204,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sliceLayerMap, imagery?.id]);
 
-    // ── Re-activate when selection changes ──────────────────────────────
+    // Re-activate when selection changes
 
     useEffect(() => {
         if (!layerManager || !mapReady || !imagery) return;
@@ -212,7 +212,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
 
-    // ── Dispose on unmount ──────────────────────────────────────────────
+    // Dispose on unmount
 
     useEffect(() => {
         return () => { layerManager?.dispose(); };

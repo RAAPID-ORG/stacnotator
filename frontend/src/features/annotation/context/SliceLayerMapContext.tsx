@@ -4,11 +4,10 @@ import type { SliceLayerMap } from '../hooks/useStacAllSlices';
 /**
  * Context that carries the fully-resolved SliceLayerMap for the current
  * imagery. Populated by AnnotationPage (before Canvas renders) and consumed
- * by TaskModeMap and ImageryContainer so they never need to call useStacImagery
- * individually.
+ * by TaskModeMap and ImageryContainer.
  */
 export interface SliceLayerMapContextValue {
-  /** Map from `{windowId}-{sliceIndex}` → array of resolved tile URLs per viz template */
+  /** Map from `{windowId}-{sliceIndex}` -> array of resolved tile URLs per viz template */
   sliceLayerMap: SliceLayerMap;
   /** Total registrations required */
   totalSlices: number;

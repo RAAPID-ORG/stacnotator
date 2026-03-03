@@ -1,5 +1,5 @@
 /**
- * TaskModeMap – task-mode main map component.
+ * TaskModeMap - task-mode main map component.
  *
  * Displays STAC imagery tiles on an OL map with crosshair, basemaps,
  * and layer selection. The parent controls navigation by setting `center`
@@ -19,7 +19,7 @@ import type { ImageryWithWindowsOut } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
 
-// ── Props ───────────────────────────────────────────────────────────────
+// Props
 
 interface TaskModeMapProps {
     imagery?: ImageryWithWindowsOut | null;
@@ -40,7 +40,7 @@ interface TaskModeMapProps {
     onReady?: () => void;
 }
 
-// ── Component ───────────────────────────────────────────────────────────
+// Component
 
 const TaskModeMap = ({
     imagery = null,
@@ -66,7 +66,7 @@ const TaskModeMap = ({
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
 
-    // ── Shared layer management ─────────────────────────────────────────
+    // Shared layer management
 
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
         imagery: imagery ?? null,
@@ -76,7 +76,7 @@ const TaskModeMap = ({
         onLayersChange,
     });
 
-    // ── Pan to center on task navigation ────────────────────────────────
+    // Pan to center on task navigation
 
     useEffect(() => {
         if (!center || !mapRef.current) return;
@@ -96,7 +96,7 @@ const TaskModeMap = ({
         mapRef.current.renderSync();
     }, [refocusTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── Crosshair overlay ───────────────────────────────────────────────
+    // Crosshair overlay
 
     useEffect(() => {
         const overlay = crosshairOverlayRef.current;
@@ -108,7 +108,7 @@ const TaskModeMap = ({
         }
     }, [crosshair?.lat, crosshair?.lon, showCrosshair]);
 
-    // ── External active layer control ───────────────────────────────────
+    // External active layer control
 
     useEffect(() => {
         if (!controlledActiveLayerId || !layerManagerRef.current) return;
@@ -116,7 +116,7 @@ const TaskModeMap = ({
         setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId, setActiveLayerId]);
 
-    // ── Render ──────────────────────────────────────────────────────────
+    // Render
 
     return (
         <div className="relative w-full h-full">

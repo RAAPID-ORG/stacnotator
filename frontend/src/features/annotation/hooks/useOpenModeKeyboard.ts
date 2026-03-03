@@ -12,7 +12,7 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  *   T - Timeseries (only when campaign has time series)
  *
  * Label selection:
- *   1–9 - Select label by index and switch to Annotate
+ *   1-9 - Select label by index and switch to Annotate
  *
  * Misc:
  *   Escape - Handled by DrawingLayer (cancel edit / rollback)
@@ -38,7 +38,7 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
-      // Number keys 1–9: select label and switch to annotate
+      // Number keys 1-9: select label and switch to annotate
       if (e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
