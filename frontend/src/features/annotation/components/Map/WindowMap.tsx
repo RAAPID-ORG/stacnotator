@@ -217,7 +217,7 @@ const WindowMap = ({
     }, [center, zoom]);
 
     // ── Sync annotations into the vector source ──────────────────────────
-    // Incremental update - same pattern as OLMapWithDraw - to avoid flicker.
+    // Incremental update - same pattern as DrawingLayer - to avoid flicker.
     useEffect(() => {
         const source = annotationSourceRef.current;
         if (!source) return;

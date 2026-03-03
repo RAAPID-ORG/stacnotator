@@ -15,7 +15,7 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  *   1–9 - Select label by index and switch to Annotate
  *
  * Misc:
- *   Escape - Handled by OLMapWithDraw (cancel edit / rollback)
+ *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useAnnotationStore((state) => state.campaign);

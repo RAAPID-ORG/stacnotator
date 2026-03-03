@@ -11,7 +11,7 @@ interface MapProps {
   zoom?: number;
 }
 
-const Map = ({
+const BaseMap = ({
   onMapReady,
   center = [0, 0],
   zoom = 10,
@@ -48,4 +48,4 @@ const Map = ({
   );
 };
 
-export default memo(Map);
+export default memo(BaseMap);

@@ -29,7 +29,7 @@ import { SliceLayerMapProvider } from '../context/SliceLayerMapContext';
  * The Canvas is only shown once all slice-0 registrations are complete so that
  * every window map has a valid tile URL from the very first render.
  *
- * The resolved SliceLayerMap is distributed to MainMap and ImageryContainer
+ * The resolved SliceLayerMap is distributed to TaskModeMap and ImageryContainer
  * via SliceLayerMapContext - no prop-drilling through Canvas.
  */
 export const AnnotationPage = () => {

@@ -1,23 +1,23 @@
 /**
- * OLMapWithDraw
+ * DrawingLayer
  *
  * A focused OpenLayers component that owns the annotation VectorLayer and all
  * drawing/editing interactions (Draw, Modify, Select, Translate).  It is a
- * thin slice of responsibility - it knows nothing about tile layers or STAC;
- * those live in the parent OpenModeMainMap.
+ * thin slice of responsibility – it knows nothing about tile layers or STAC;
+ * those live in the parent OpenModeMap.
  *
  * The component receives the raw OL Map instance from its parent (set once via
  * `onMapRef`) so that tile layers and the drawing layer share the same map
  * without either layer owning the map lifecycle.
  *
  * Behaviour summary:
- *   pan mode      - all interactions disabled; normal OL panning
- *   annotate mode - Draw interaction active for the geometry matching
+ *   pan mode      – all interactions disabled; normal OL panning
+ *   annotate mode – Draw interaction active for the geometry matching
  *                   selectedLabel; finishes → saveAnnotation → re-render
- *   edit mode     - Select + Modify + Translate active; clicking a feature
+ *   edit mode     – Select + Modify + Translate active; clicking a feature
  *                   selects it; ESC cancels (restores saved geometry);
  *                   ✓ button commits the edited geometry; 🗑 button deletes
- *   timeseries    - timeseries-probe click handler
+ *   timeseries    – timeseries-probe click handler
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
@@ -114,7 +114,7 @@ function olFeatureToGeoJSONGeometry(feature: OLFeature<Geometry>): GeoJSON.Geome
 // Props
 // ---------------------------------------------------------------------------
 
-export interface OLMapWithDrawProps {
+export interface DrawingLayerProps {
     /** The OL map instance owned by the parent (tile layers already added). */
     map: OLMap;
     selectedLabel: ExtendedLabel | null;
@@ -127,13 +127,13 @@ export interface OLMapWithDrawProps {
 // Component
 // ---------------------------------------------------------------------------
 
-const OLMapWithDraw = ({
+const DrawingLayer = ({
     map,
     selectedLabel,
     activeTool,
     magicWandActive,
     onTimeseriesClick,
-}: OLMapWithDrawProps) => {
+}: DrawingLayerProps) => {
     // ── Store ─────────────────────────────────────────────────────────────
     const annotations = useAnnotationStore((state) => state.annotations);
     const campaign = useAnnotationStore((state) => state.campaign);
@@ -620,4 +620,4 @@ const OLMapWithDraw = ({
     ) : null;
 };
 
-export default memo(OLMapWithDraw);
+export default memo(DrawingLayer);

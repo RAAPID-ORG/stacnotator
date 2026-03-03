@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
-import MainMap from './Map/MainMap';
-import OpenModeMainMap from './Map/OpenModeMainMap';
-import type { OpenModeMainMapHandle } from './Map/OpenModeMainMap';
+import TaskModeMap from './Map/TaskModeMap';
+import OpenModeMap from './Map/OpenModeMap';
+import type { OpenModeMapHandle } from './Map/OpenModeMap';
 import TimelineSidebar from './TimelineSidebar';
 import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
@@ -63,18 +63,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const allRegistrationsDone = totalSlices === 0 || registeredSlices >= totalSlices;
 
   // ── Render gate ─────────────────────────────────────────────────────────
-  // True only after BOTH: (a) OL viewport tiles rendered + prefetch idle,
-  // AND (b) all STAC slice registrations have resolved.
+  // True only after BOTH: (a) OL viewport tiles rendered, AND (b) all STAC
+  // slice registrations have resolved.
   const [olLayerReady, setOlLayerReady] = useState(false);
   const mapImageryReady = olLayerReady && allRegistrationsDone;
 
-  // Live prefetch tile counts - kept for onPrefetchStats wiring (not used in overlay text).
-  const [prefetchQueued, setPrefetchQueued] = useState(0);
-  const [prefetchLoading, setPrefetchLoading] = useState(0);
   // Pending OL-ready signal: if it arrives before registrations finish, hold it here.
   const pendingOlReadyRef = useRef(false);
   // Ref to the open-mode map for imperative actions (e.g. fitAnnotations)
-  const openModeMapRef = useRef<OpenModeMainMapHandle>(null);
+  const openModeMapRef = useRef<OpenModeMapHandle>(null);
 
   const LAUNCH_SEQUENCE = [
     'Launching satellite…',
@@ -107,11 +104,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
       pendingOlReadyRef.current = true;
     }
   }, [allRegistrationsDone]);
-
-  const handlePrefetchStats = useCallback((queued: number, loading: number) => {
-    setPrefetchQueued(queued);
-    setPrefetchLoading(loading);
-  }, []);
 
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
@@ -185,19 +177,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   const initialZoom = selectedImagery?.default_zoom ?? 10;
 
-  // In task mode, compute the next task's location so the prefetcher can
-  // pre-warm tiles before the user navigates there.
-  const nextNavTarget = useMemo(() => {
-    if (campaign?.mode !== 'tasks' || visibleTasks.length < 2) return null;
-    const nextIndex = currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1;
-    const nextTask = visibleTasks[nextIndex];
-    if (!nextTask) return null;
-    const nextLatLon = extractLatLonFromWKT(nextTask.geometry.geometry);
-    if (!nextLatLon) return null;
-    return { latLon: [nextLatLon.lat, nextLatLon.lon] as [number, number], zoom: initialZoom };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTaskIndex, visibleTasks.length, campaign?.mode, initialZoom]);
-
   // Open mode: derive the selected label and magic wand state
   const extendedLabels = useMemo(
     () => extendLabelsWithMetadata(campaign?.settings.labels ?? []),
@@ -234,7 +213,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
       <div className="flex-1 min-w-0 h-full relative">
 
         {/* Top-right controls - task mode only
-            (open mode has its layer selector inside OpenModeMainMap) */}
+            (open mode has its layer selector inside OpenModeMap) */}
         {isTaskMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
 
@@ -351,9 +330,9 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Map - task mode uses MainMap; open mode uses OpenModeMainMap with drawing */}
+        {/* Map – task mode uses TaskModeMap; open mode uses OpenModeMap with drawing */}
         {isTaskMode ? (
-          <MainMap
+          <TaskModeMap
             imagery={selectedImagery}
             initialCenter={initialCenter}
             initialZoom={initialZoom}
@@ -363,16 +342,11 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             showCrosshair={showCrosshair}
             activeLayerId={activeLayerId}
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
-            onLayerSelect={(layerId) => setActiveLayerId(layerId)}
             onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
             onReady={handleMapReady}
-            onPrefetchStats={handlePrefetchStats}
-            nextNavTarget={nextNavTarget}
-            prefetchPaused={timelineDragging}
-            disableSpatialPrefetch
           />
         ) : (
-          <OpenModeMainMap
+          <OpenModeMap
             ref={openModeMapRef}
             imagery={selectedImagery}
             initialCenter={initialCenter}

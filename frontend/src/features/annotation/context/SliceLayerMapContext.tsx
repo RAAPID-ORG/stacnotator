@@ -4,7 +4,7 @@ import type { SliceLayerMap } from '../hooks/useStacAllSlices';
 /**
  * Context that carries the fully-resolved SliceLayerMap for the current
  * imagery. Populated by AnnotationPage (before Canvas renders) and consumed
- * by MainMap and ImageryContainer so they never need to call useStacImagery
+ * by TaskModeMap and ImageryContainer so they never need to call useStacImagery
  * individually.
  */
 export interface SliceLayerMapContextValue {

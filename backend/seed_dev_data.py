@@ -35,31 +35,33 @@ logger = logging.getLogger(__name__)
 UKRAINE_BBOX = dict(bbox_west=22.1, bbox_south=44.3, bbox_east=40.2, bbox_north=52.4)
 
 # Sentinel-2 Planetary Computer search body template (placeholders filled at query time)
-SENTINEL2_SEARCH_BODY = json.dumps({
-    "bbox": "{campaignBBoxPlaceholder}",
-    "filter": {
-        "op": "and",
-        "args": [
-            {
-                "op": "anyinteracts",
-                "args": [
-                    {"property": "datetime"},
-                    {"interval": ["{startDatetimePlaceholder}", "{endDatetimePlaceholder}"]},
-                ],
-            },
-            {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
-            {"op": "=", "args": [{"property": "collection"}, "sentinel-2-l2a"]},
-        ],
-    },
-    "metadata": {
-        "type": "mosaic",
-        "maxzoom": 24,
-        "minzoom": 0,
-        "pixel_selection": "median",
-    },
-    "filterLang": "cql2-json",
-    "collections": ["sentinel-2-l2a"],
-})
+SENTINEL2_SEARCH_BODY = json.dumps(
+    {
+        "bbox": "{campaignBBoxPlaceholder}",
+        "filter": {
+            "op": "and",
+            "args": [
+                {
+                    "op": "anyinteracts",
+                    "args": [
+                        {"property": "datetime"},
+                        {"interval": ["{startDatetimePlaceholder}", "{endDatetimePlaceholder}"]},
+                    ],
+                },
+                {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
+                {"op": "=", "args": [{"property": "collection"}, "sentinel-2-l2a"]},
+            ],
+        },
+        "metadata": {
+            "type": "mosaic",
+            "maxzoom": 24,
+            "minzoom": 0,
+            "pixel_selection": "median",
+        },
+        "filterLang": "cql2-json",
+        "collections": ["sentinel-2-l2a"],
+    }
+)
 
 CAMPAIGN_NAME = "Ukraine Dev Campaign"
 
@@ -205,9 +207,7 @@ def seed_dev_data(firebase_uid: str = None):
         sample_points = generate_random_points(ukraine_polygon, num_samples=100, seed=42)
 
         logger.info("Creating %d annotation tasks...", len(sample_points))
-        geometry_records = [
-            {"geometry": f"SRID=4326;POINT({pt.x} {pt.y})"} for pt in sample_points
-        ]
+        geometry_records = [{"geometry": f"SRID=4326;POINT({pt.x} {pt.y})"} for pt in sample_points]
         geometry_result = db.execute(
             insert(AnnotationGeometry).returning(AnnotationGeometry.id),
             geometry_records,
