@@ -24,7 +24,7 @@ const SliceLayerMapContext = createContext<SliceLayerMapContextValue>({
 
 export const SliceLayerMapProvider = SliceLayerMapContext.Provider;
 
-/** Hook — throws if used outside the provider */
+/** Hook - throws if used outside the provider */
 export function useSliceLayerMap(): SliceLayerMapContextValue {
   return useContext(SliceLayerMapContext);
 }

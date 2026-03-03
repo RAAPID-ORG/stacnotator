@@ -43,7 +43,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const handleSaveEmbeddingYear = async () => {
     if (!embeddingYearChanged) return;
 
-    // Warn the user if changing — this triggers a full recompute
+    // Warn the user if changing - this triggers a full recompute
     if (campaign.settings.embedding_year !== null && embeddingYear !== null) {
       const confirmed = await showConfirmDialog({
         title: 'Recompute Embeddings?',

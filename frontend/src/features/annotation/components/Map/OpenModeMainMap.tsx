@@ -6,7 +6,7 @@
  *
  * Key differences from MainMap:
  *   - Manages only the spatially-visible tiles; no cross-task prefetch target.
- *   - The PrefetchManager is initialised with a tighter spatial buffer only —
+ *   - The PrefetchManager is initialised with a tighter spatial buffer only -
  *     no `nextNavTarget` forwarding.
  *   - Mounts OLMapWithDraw to handle annotation drawing and editing on the
  *     same OL map instance (shared canvas, different layer stack).
@@ -75,14 +75,14 @@ const BASEMAP_LAYERS = [
 
 interface OpenModeMainMapProps {
     imagery: ImageryWithWindowsOut | null;
-    /** Set once on mount — the OL map owns its view position after that. */
+    /** Set once on mount - the OL map owns its view position after that. */
     initialCenter: [number, number];
     initialZoom: number;
     /** Called on every view change so the store can sync window maps. */
     onViewChange?: (center: [number, number], zoom: number) => void;
     /** Called once the first active imagery layer finishes rendering. */
     onReady?: () => void;
-    /** Controlled active layer id — when set externally, switches the map layer. */
+    /** Controlled active layer id - when set externally, switches the map layer. */
     activeLayerId?: string;
     /** Called whenever the layer list or active layer changes. */
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
@@ -380,7 +380,7 @@ const OpenModeMainMap = forwardRef<OpenModeMainMapHandle, OpenModeMainMapProps>(
                 }}
             />
 
-            {/* Drawing / editing overlay — rendered inside the same container so
+            {/* Drawing / editing overlay - rendered inside the same container so
                 that the floating edit controls (confirm / delete buttons) are
                 absolutely-positioned relative to this div. */}
             {olMap && (
@@ -393,7 +393,7 @@ const OpenModeMainMap = forwardRef<OpenModeMainMapHandle, OpenModeMainMapProps>(
                 />
             )}
 
-            {/* Layer selector — top-right inside this component */}
+            {/* Layer selector - top-right inside this component */}
             {layers.length > 0 && (
                 <div className="absolute top-2 right-2 z-[1000]">
                     <LayerSelector
@@ -410,7 +410,7 @@ const OpenModeMainMap = forwardRef<OpenModeMainMapHandle, OpenModeMainMapProps>(
             {/* Prefetch stats overlay */}
             <PrefetchStatsOverlay subscribe={prefetchSubscribe} />
 
-            {/* Stable crosshair — CSS-only, never moves with the view */}
+            {/* Stable crosshair - CSS-only, never moves with the view */}
             <div className="absolute inset-0 pointer-events-none z-[500]" aria-hidden>
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                     <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">

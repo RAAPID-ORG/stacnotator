@@ -5,7 +5,7 @@ import { Layer } from "./Layer";
 /**
  * A Layer backed by a STAC-registered tile URL.
  * The URL is already fully resolved (searchId substituted) before this object
- * is constructed — registration happens outside in useStacLayers.
+ * is constructed - registration happens outside in useStacLayers.
  */
 export class STACLayer extends Layer {
     readonly tileUrl: string;

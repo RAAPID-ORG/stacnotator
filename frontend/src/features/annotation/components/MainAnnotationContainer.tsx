@@ -68,7 +68,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const [olLayerReady, setOlLayerReady] = useState(false);
   const mapImageryReady = olLayerReady && allRegistrationsDone;
 
-  // Live prefetch tile counts — kept for onPrefetchStats wiring (not used in overlay text).
+  // Live prefetch tile counts - kept for onPrefetchStats wiring (not used in overlay text).
   const [prefetchQueued, setPrefetchQueued] = useState(0);
   const [prefetchLoading, setPrefetchLoading] = useState(0);
   // Pending OL-ready signal: if it arrives before registrations finish, hold it here.
@@ -103,7 +103,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     if (allRegistrationsDone) {
       setOlLayerReady(true);
     } else {
-      // Hold: registrations still in flight — will be flushed by the effect above.
+      // Hold: registrations still in flight - will be flushed by the effect above.
       pendingOlReadyRef.current = true;
     }
   }, [allRegistrationsDone]);
@@ -207,7 +207,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
   const magicWandActive = selectedLabelId != null && (magicWandEnabled[selectedLabelId] ?? false);
 
-  // Stable callback — must be declared before early return (hook rules)
+  // Stable callback - must be declared before early return (hook rules)
   const handleTimeseriesClick = useCallback((lat: number, lon: number) => {
     setTimeseriesPoint({ lat, lon });
   }, [setTimeseriesPoint]);
@@ -233,7 +233,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
       />
       <div className="flex-1 min-w-0 h-full relative">
 
-        {/* Top-right controls — task mode only
+        {/* Top-right controls - task mode only
             (open mode has its layer selector inside OpenModeMainMap) */}
         {isTaskMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
@@ -317,7 +317,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
-            {/* Timeseries probe tool — task mode + campaign has time series */}
+            {/* Timeseries probe tool - task mode + campaign has time series */}
             {campaign.time_series.length > 0 && (
               <button
                 onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
@@ -334,7 +334,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Fit-to-annotations button for open mode — top-right, matching task mode placement */}
+        {/* Fit-to-annotations button for open mode - top-right, matching task mode placement */}
         {isOpenMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
             <button
@@ -351,7 +351,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Map — task mode uses MainMap; open mode uses OpenModeMainMap with drawing */}
+        {/* Map - task mode uses MainMap; open mode uses OpenModeMainMap with drawing */}
         {isTaskMode ? (
           <MainMap
             imagery={selectedImagery}
@@ -387,7 +387,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           />
         )}
 
-        {/* Loading overlay — shown until the first active imagery layer has fully rendered */}
+        {/* Loading overlay - shown until the first active imagery layer has fully rendered */}
         {!mapImageryReady && (
           <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3 px-8 py-6 bg-white rounded-2xl border border-neutral-200 shadow-2xl">

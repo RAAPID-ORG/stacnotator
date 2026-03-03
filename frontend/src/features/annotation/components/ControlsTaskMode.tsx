@@ -266,7 +266,7 @@ export const AnnotationControls = ({
                   />
                 </svg>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Experimental feature — use with care! Checks your label against nearby annotations
+                  Experimental feature - use with care! Checks your label against nearby annotations
                   using embedding similarity (year {campaign?.settings?.embedding_year}). You'll be
                   asked to confirm if your label disagrees with the majority.
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
@@ -294,7 +294,7 @@ export const AnnotationControls = ({
                   />
                 </svg>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  KNN label validation is unavailable — no embedding year has been configured for
+                  KNN label validation is unavailable - no embedding year has been configured for
                   this campaign. Set it in Campaign Settings to enable this feature.
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>

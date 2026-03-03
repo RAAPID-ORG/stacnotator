@@ -13,7 +13,7 @@ interface TimelineSidebarProps {
   onSliceChange?: (sliceIndex: number) => void;
   /** Called with true when drag starts, false when drag ends */
   onDraggingChange?: (dragging: boolean) => void;
-  /** Slice keys (`{windowId}-{sliceIndex}`) confirmed to have no imagery — hidden in the UI */
+  /** Slice keys (`{windowId}-{sliceIndex}`) confirmed to have no imagery - hidden in the UI */
   emptySlices?: Record<string, true>;
 }
 
@@ -42,7 +42,7 @@ const TimelineSidebar = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
-  // Keep ALL callbacks in refs — pointer listeners read the ref directly so
+  // Keep ALL callbacks in refs - pointer listeners read the ref directly so
   // they never capture stale closures even as props change between renders.
   const onWindowChangeRef    = useRef(onWindowChange);
   const onSliceChangeRef     = useRef(onSliceChange);
@@ -52,7 +52,7 @@ const TimelineSidebar = ({
   useEffect(() => { onDraggingChangeRef.current = onDraggingChange;}, [onDraggingChange]);
 
   const [isDragging, setIsDragging] = useState(false);
-  // Committed drag position — updated in-place via refs to avoid stale closures,
+  // Committed drag position - updated in-place via refs to avoid stale closures,
   // then flushed into state once per rAF for smooth rendering.
   const dragWindowIdRef    = useRef<number | null>(null);
   const dragSliceIndexRef  = useRef<number>(0);
@@ -114,13 +114,13 @@ const TimelineSidebar = ({
     const frac = relY / rect.height;
     const idx  = Math.floor(frac * steps.length);
     return steps[Math.min(idx, steps.length - 1)];
-  }, []); // stable — reads refs, no deps
+  }, []); // stable - reads refs, no deps
 
   // Which window/slice to display (preview during drag, committed otherwise)
   const liveWindowId   = isDragging ? (dragWindowId   ?? activeWindowId) : activeWindowId;
   const liveSliceIndex = isDragging ? dragSliceIndex  : activeSliceIndex;
 
-  // Stable pointer handlers — stored in refs so addEventListener never needs
+  // Stable pointer handlers - stored in refs so addEventListener never needs
   // to be re-added and there is no stale-closure flicker.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const pointerMoveHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
@@ -137,14 +137,14 @@ const TimelineSidebar = ({
       for (let i = 0; i < step.sliceCount; i++) {
         if (!emptySlices[`${step.windowId}-${i}`]) return i;
       }
-      return 0; // all empty — fall back to 0
+      return 0; // all empty - fall back to 0
     })();
 
     // Update refs immediately (no re-render cost)
     dragWindowIdRef.current   = step.windowId;
     dragSliceIndexRef.current = landingSlice;
 
-    // Commit to OL/store immediately — no batching needed, these are cheap
+    // Commit to OL/store immediately - no batching needed, these are cheap
     onWindowChangeRef.current?.(step.windowId);
     onSliceChangeRef.current?.(landingSlice);
 
@@ -200,7 +200,7 @@ const TimelineSidebar = ({
     }
   };
 
-  // Truly stable wrapper functions — these are the actual listeners registered
+  // Truly stable wrapper functions - these are the actual listeners registered
   // on document. They delegate to the ref so they never go stale.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const stablePointerMove = useRef((e: PointerEvent) => pointerMoveHandlerRef.current(e)).current;
@@ -292,7 +292,7 @@ const TimelineSidebar = ({
                         <span className="text-[8px] font-bold text-brand-700 leading-tight text-center px-0.5 break-words w-full">
                           {wLabel}
                         </span>
-                        {/* Slice indicator dots — hidden while dragging to avoid accidental activation */}
+                        {/* Slice indicator dots - hidden while dragging to avoid accidental activation */}
                         {hasSlices && !isDragging && (
                           <div
                             className="flex flex-row flex-wrap items-center justify-center gap-0.5 px-0.5"
@@ -327,7 +327,7 @@ const TimelineSidebar = ({
                         group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10">
                         {/* Tick mark on the centre line */}
                         <div className="w-2.5 h-px bg-brand-400 group-hover:bg-brand-500 transition-colors" />
-                        {/* Date label — always visible, small */}
+                        {/* Date label - always visible, small */}
                         <span className="text-[7.5px] text-neutral-400 group-hover:text-brand-600
                           leading-tight text-center px-0.5 mt-0.5 break-words w-full transition-colors">
                           {wLabel}
@@ -338,7 +338,7 @@ const TimelineSidebar = ({
                 );
               })}
 
-              {/* Drag tooltip — floats to the right of the track */}
+              {/* Drag tooltip - floats to the right of the track */}
               {isDragging && tooltip && (
                 <div
                   className="absolute left-full ml-2 z-50 pointer-events-none"

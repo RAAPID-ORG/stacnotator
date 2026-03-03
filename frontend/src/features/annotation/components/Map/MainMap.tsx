@@ -26,14 +26,14 @@ interface MainMapProps {
     showCrosshair?: boolean;
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
     onLayerSelect?: (layerId: string) => void;
-    /** Controlled active layer id — when set from outside, the map switches to this layer */
+    /** Controlled active layer id - when set from outside, the map switches to this layer */
     activeLayerId?: string;
     /** Called on moveend/zoomend so consumers can sync other maps */
     onViewChange?: (center: [number, number], zoom: number) => void;
     /** Called once the active imagery layer has finished loading all visible tiles */
     onReady?: () => void;
     /**
-     * Called on every prefetch stats tick while the map is loading — useful for
+     * Called on every prefetch stats tick while the map is loading - useful for
      * showing a live progress text in the loading overlay.
      */
     onPrefetchStats?: (queued: number, loading: number) => void;
@@ -130,7 +130,7 @@ const MainMap = ({
     // up-front. The active one is made visible; all others stay hidden.
     // This lets OL prefetch all of them without re-registering on selection change.
     //
-    // This function is INCREMENTAL — it only adds layers for slices that have newly
+    // This function is INCREMENTAL - it only adds layers for slices that have newly
     // arrived in the sliceLayerMap. It never tears down existing layers, so it is
     // safe to call repeatedly as the map is filled in.
     const syncSliceLayers = (lm: LayerManager, isImageryChange = false) => {
@@ -198,7 +198,7 @@ const MainMap = ({
         lm.setActiveLayerAndViz(targetId, activeVizTemplate.id);
         setActiveLayerId(targetId);
 
-        // Fire onReady once — after the very first imagery layer finishes rendering.
+        // Fire onReady once - after the very first imagery layer finishes rendering.
         if (!hasCalledOnReadyRef.current && onReadyRef.current) {
             hasCalledOnReadyRef.current = true;
             lm.onceActiveLayerRendered(
@@ -286,7 +286,7 @@ const MainMap = ({
     }, []);
 
     // Pan the map when `center` changes (e.g. task navigation).
-    // We snap instantly (setCenter/setZoom + renderSync) rather than animating —
+    // We snap instantly (setCenter/setZoom + renderSync) rather than animating -
     // the prefetcher has already loaded tiles at the destination, so the view
     // appears fully painted on the very first frame with no visible transition.
     useEffect(() => {
@@ -388,7 +388,7 @@ const MainMap = ({
                     view.on('change:center', syncView);
                     view.on('change:resolution', syncView);
 
-                    // Create the crosshair element imperatively — NOT in the React tree.
+                    // Create the crosshair element imperatively - NOT in the React tree.
                     const color = crosshair?.color ?? 'ff0000';
                     const el = document.createElement('div');
                     el.style.pointerEvents = 'none';

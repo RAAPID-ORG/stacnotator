@@ -30,7 +30,7 @@ import { SliceLayerMapProvider } from '../context/SliceLayerMapContext';
  * every window map has a valid tile URL from the very first render.
  *
  * The resolved SliceLayerMap is distributed to MainMap and ImageryContainer
- * via SliceLayerMapContext — no prop-drilling through Canvas.
+ * via SliceLayerMapContext - no prop-drilling through Canvas.
  */
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -149,7 +149,7 @@ export const AnnotationPage = () => {
     enabled: !!selectedImagery && !isLoadingCampaign,
   });
 
-  // Block Canvas until slice-0 of every window is ready — guarantees each
+  // Block Canvas until slice-0 of every window is ready - guarantees each
   // WindowMap has a valid tile URL on its very first render.
   const slice0Count = selectedImagery?.windows.length ?? 0;
   const allSlice0sReady = slice0Count === 0 || registeredSlices >= slice0Count;

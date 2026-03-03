@@ -31,7 +31,7 @@ export interface SliceTileUrl {
 export type SliceLayerMap = Map<string, SliceTileUrl[]>;
 
 // ---------------------------------------------------------------------------
-// Session-level cache — survives re-renders and component remounts.
+// Session-level cache - survives re-renders and component remounts.
 // Key: `${registrationUrl}|${bbox}|${searchBodyHash}|${startDate}|${endDate}`
 // Value: resolved tile URLs for every viz template for that date range.
 // ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ async function registerSlice(
 interface UseStacAllSlicesParams {
   imagery: ImageryWithWindowsOut | null;
   bbox: [number, number, number, number];
-  /** The currently active window id — drives registration priority */
+  /** The currently active window id - drives registration priority */
   activeWindowId: number | null;
   enabled?: boolean;
 }
@@ -119,9 +119,9 @@ interface UseStacAllSlicesResult {
 /**
  * Registers STAC mosaic search IDs for every slice of every window in the imagery,
  * in priority order:
- *   1. First slice (index 0) of every window   — warms the "default view" for all windows
- *   2. Remaining slices of the active window    — fills in the window the user is looking at
- *   3. Remaining slices of all other windows    — background warm-up
+ *   1. First slice (index 0) of every window   - warms the "default view" for all windows
+ *   2. Remaining slices of the active window    - fills in the window the user is looking at
+ *   3. Remaining slices of all other windows    - background warm-up
  *
  * Results are cached at module level so navigating away and back never re-registers.
  * The returned `sliceLayerMap` is updated incrementally (React state), so callers
@@ -173,9 +173,9 @@ export function useStacAllSlices({
 
     // -----------------------------------------------------------------------
     // Sort into registration priority order:
-    //   priority 0 — first slice of every window
-    //   priority 1 — other slices of the active window
-    //   priority 2 — everything else
+    //   priority 0 - first slice of every window
+    //   priority 1 - other slices of the active window
+    //   priority 2 - everything else
     // -----------------------------------------------------------------------
     const effectiveActiveWindowId = activeWindowId ?? imagery.default_main_window_id ?? imagery.windows[0]?.id;
 
@@ -229,7 +229,7 @@ export function useStacAllSlices({
           desc.endDate,
         );
         if (registrationCache.has(cacheKey)) {
-          // Already in map from the initial seed — just count it
+          // Already in map from the initial seed - just count it
           continue;
         }
 
@@ -256,7 +256,7 @@ export function useStacAllSlices({
         } catch (err) {
           if (cancelledRef.current) break;
           console.error(`[useStacAllSlices] Failed to register slice ${desc.key}:`, err);
-          // Continue — don't abort the whole batch for one failure
+          // Continue - don't abort the whole batch for one failure
         }
       }
     })();
@@ -265,7 +265,7 @@ export function useStacAllSlices({
       cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // bbox array identity is unstable — use join as stable dep
+    // bbox array identity is unstable - use join as stable dep
   }, [
     enabled,
     imagery?.id,

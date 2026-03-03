@@ -3,7 +3,7 @@
  *
  * A focused OpenLayers component that owns the annotation VectorLayer and all
  * drawing/editing interactions (Draw, Modify, Select, Translate).  It is a
- * thin slice of responsibility — it knows nothing about tile layers or STAC;
+ * thin slice of responsibility - it knows nothing about tile layers or STAC;
  * those live in the parent OpenModeMainMap.
  *
  * The component receives the raw OL Map instance from its parent (set once via
@@ -11,13 +11,13 @@
  * without either layer owning the map lifecycle.
  *
  * Behaviour summary:
- *   pan mode      — all interactions disabled; normal OL panning
- *   annotate mode — Draw interaction active for the geometry matching
+ *   pan mode      - all interactions disabled; normal OL panning
+ *   annotate mode - Draw interaction active for the geometry matching
  *                   selectedLabel; finishes → saveAnnotation → re-render
- *   edit mode     — Select + Modify + Translate active; clicking a feature
+ *   edit mode     - Select + Modify + Translate active; clicking a feature
  *                   selects it; ESC cancels (restores saved geometry);
  *                   ✓ button commits the edited geometry; 🗑 button deletes
- *   timeseries    — timeseries-probe click handler
+ *   timeseries    - timeseries-probe click handler
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
@@ -96,7 +96,7 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// GeoJSON converter (OL ↔ GeoJSON) — reused across effects
+// GeoJSON converter (OL ↔ GeoJSON) - reused across effects
 // ---------------------------------------------------------------------------
 
 const geoJsonFormat = new OLGeoJSON();
@@ -147,7 +147,7 @@ const OLMapWithDraw = ({
         [campaign?.settings.labels],
     );
 
-    // ── OL objects held in refs (not state — no re-renders from these) ────
+    // ── OL objects held in refs (not state - no re-renders from these) ────
     const sourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
     const vectorLayerRef = useRef<VectorLayer<VectorSource<OLFeature<Geometry>>> | null>(null);
     const drawInteractionRef = useRef<Draw | null>(null);
@@ -343,7 +343,7 @@ const OLMapWithDraw = ({
                 return;
             }
 
-            // Remove the transient feature — will be replaced by store reload
+            // Remove the transient feature - will be replaced by store reload
             source.removeFeature(feature);
 
             await saveAnnotation(geoJSON, selectedLabelRef.current.id);
@@ -426,7 +426,7 @@ const OLMapWithDraw = ({
 
         // Alt+drag moves the whole selected feature; normal drag edits vertices.
         // Translate is added BEFORE Modify so OL (reverse-priority) gives Modify
-        // the first chance to handle pointer events — vertex handles win.
+        // the first chance to handle pointer events - vertex handles win.
         const translate = new Translate({
             features: select.getFeatures(),
             condition: altKeyOnly,
@@ -451,7 +451,7 @@ const OLMapWithDraw = ({
         translateInteractionRef.current = translate;
         snapInteractionRef.current = snap;
 
-        // Hover styling — pointer over feature body, crosshair over vertex handles
+        // Hover styling - pointer over feature body, crosshair over vertex handles
         const handlePointerMove = (evt: { dragging: boolean; pixel: number[] }) => {
             if (evt.dragging) return;
             const features = map.getFeaturesAtPixel(evt.pixel, { layerFilter: (l) => l === vectorLayerRef.current });
@@ -462,7 +462,7 @@ const OLMapWithDraw = ({
         return () => {
             map.un('pointermove', handlePointerMove as any);
         };
-    }, [map, extendedLabels]); // refreshEditControlsPos intentionally omitted — called via stable ref
+    }, [map, extendedLabels]); // refreshEditControlsPos intentionally omitted - called via stable ref
 
     // ── 3d. Timeseries click handler ──────────────────────────────────────
     const setupTimeseriesInteraction = useCallback(() => {
@@ -529,7 +529,7 @@ const OLMapWithDraw = ({
                     }) as Geometry;
                     feature.setGeometry(restored);
                 } catch {
-                    // fall through — feature will reload from store on next annotation update
+                    // fall through - feature will reload from store on next annotation update
                 }
             }
 

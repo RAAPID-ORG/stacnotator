@@ -87,7 +87,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     [currentTask?.geometry.geometry]
   );
 
-  // Initial center for map mount — task location or bbox center, computed once
+  // Initial center for map mount - task location or bbox center, computed once
   const initialCenter = useMemo<[number, number]>(() => {
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
@@ -95,7 +95,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reactive center — always follows the main map so panning syncs in both modes
+  // Reactive center - always follows the main map so panning syncs in both modes
   const center = useMemo<[number, number] | undefined>(() => {
     if (currentMapCenter) return currentMapCenter;
     if (latLon) return [latLon.lat, latLon.lon];
@@ -116,10 +116,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     : undefined;
 
   // True once every slice for this window has been confirmed empty.
-  // Only relevant in task mode — in open mode we always show the map.
+  // Only relevant in task mode - in open mode we always show the map.
   const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${window.id}-${i}`]);
 
-  // Empty-tile alert state — reset whenever the tileUrl changes
+  // Empty-tile alert state - reset whenever the tileUrl changes
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
   useEffect(() => { setEmptyTileAlert(null); }, [tileUrl]);
 
@@ -153,7 +153,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     setEmptyTileAlert,
   };
 
-  // Stable callback passed to WindowMap — never recreated, always reads ref
+  // Stable callback passed to WindowMap - never recreated, always reads ref
   // In open mode this is omitted: empty-tile detection is based on where we
   // scrolled to and would incorrectly hide valid imagery elsewhere.
   const handleEmptyTiles = useCallback(() => {
@@ -190,18 +190,18 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       } else {
         setStored(win.id, nextIndex);
       }
-      // Don't show alert — we silently skipped it
+      // Don't show alert - we silently skipped it
       return;
     }
 
-    // All slices are empty — show the alert
+    // All slices are empty - show the alert
     setAlert(alertLabel);
-  }, []); // stable — all state read from ref
+  }, []); // stable - all state read from ref
 
   // Early return AFTER all hooks
   if (!selectedImagery || !campaignBbox) return null;
 
-  // Handle click — only trigger if not dragging (makes the window "active")
+  // Handle click - only trigger if not dragging (makes the window "active")
   const handleMouseDown = () => { isDraggingRef.current = false; };
   const handleMouseMove = () => { isDraggingRef.current = true; };
   const handleMouseUp = () => {
@@ -224,7 +224,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Slice selector — empty slices are hidden */}
+      {/* Slice selector - empty slices are hidden */}
       {slices.length > 1 && (
         <div className="absolute bottom-1 right-1 z-[1000]">
           <select
@@ -265,7 +265,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
         </div>
       ) : (
         <>
-          {/* Partial-empty alert — shown only when some (not all) slices are empty and we couldn't auto-advance */}
+          {/* Partial-empty alert - shown only when some (not all) slices are empty and we couldn't auto-advance */}
           {emptyTileAlert && (
             <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
               <span className="flex-1">

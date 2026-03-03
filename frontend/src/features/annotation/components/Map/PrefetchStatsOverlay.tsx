@@ -15,7 +15,7 @@ interface PrefetchStats {
 type StatsSubscriber = (cb: (stats: PrefetchStats) => void) => void;
 
 interface Props {
-    /** Subscribe function from LayerManager.onPrefetchStats — stable reference, set once */
+    /** Subscribe function from LayerManager.onPrefetchStats - stable reference, set once */
     subscribe: StatsSubscriber | null;
 }
 
@@ -24,7 +24,7 @@ interface CategoryRowProps {
     cat: PrefetchCategoryStats;
 }
 
-/** One row per prefetch category — mini progress bar + counts. */
+/** One row per prefetch category - mini progress bar + counts. */
 function CategoryRow({ label, cat }: CategoryRowProps) {
     const inFlight = cat.queued + cat.loading;
     const total    = inFlight + cat.loaded;

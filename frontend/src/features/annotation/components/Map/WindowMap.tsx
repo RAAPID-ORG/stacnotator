@@ -22,7 +22,7 @@ import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 const EMPTY_ERROR_THRESHOLD = 4;
 
 interface WindowMapProps {
-    // [lat, lon] — initial map position, set once on mount
+    // [lat, lon] - initial map position, set once on mount
     initialCenter: [number, number];
     initialZoom: number;
     // Reactive: pan/zoom the map when these change (synced from main map via store)
@@ -42,7 +42,7 @@ interface WindowMapProps {
      */
     detectionKey?: number;
     /**
-     * Called once when the tile source appears empty/broken —
+     * Called once when the tile source appears empty/broken -
      * i.e. EMPTY_ERROR_THRESHOLD errors occur with no successful loads.
      * Resets whenever tileUrl changes.
      */
@@ -118,7 +118,7 @@ const WindowMap = ({
         });
         tileLayerRef.current = tileLayer;
 
-        // Annotation vector layer — read-only, synced from store
+        // Annotation vector layer - read-only, synced from store
         const annotationSource = new VectorSource<OLFeature<Geometry>>();
         annotationSourceRef.current = annotationSource;
         const annotationLayer = new VectorLayer({
@@ -129,7 +129,7 @@ const WindowMap = ({
         const map = new OLMap({
             target: containerRef.current,
             layers: [tileLayer, annotationLayer],
-            maxTilesLoading: 4,  // small — windows only load what's visible, main map gets priority
+            maxTilesLoading: 4,  // small - windows only load what's visible, main map gets priority
             view: new View({
                 center: fromLonLat([initialCenter[1], initialCenter[0]]),
                 zoom: initialZoom,
@@ -138,7 +138,7 @@ const WindowMap = ({
             interactions: defaultInteractions(),
         });
 
-        // Crosshair overlay — created imperatively, not in React tree
+        // Crosshair overlay - created imperatively, not in React tree
         const color = crosshair?.color ?? 'ff0000';
         const el = document.createElement('div');
         el.style.pointerEvents = 'none';
@@ -177,7 +177,7 @@ const WindowMap = ({
     }, []);
 
     // Swap tile source when tileUrl changes, and reset empty-tile detection.
-    // Also re-runs when detectionKey increments (task navigation) — the URL may
+    // Also re-runs when detectionKey increments (task navigation) - the URL may
     // be identical across tasks but counters must start fresh each time.
     useEffect(() => {
         if (!tileLayerRef.current || !tileUrl) return;
@@ -217,7 +217,7 @@ const WindowMap = ({
     }, [center, zoom]);
 
     // ── Sync annotations into the vector source ──────────────────────────
-    // Incremental update — same pattern as OLMapWithDraw — to avoid flicker.
+    // Incremental update - same pattern as OLMapWithDraw - to avoid flicker.
     useEffect(() => {
         const source = annotationSourceRef.current;
         if (!source) return;

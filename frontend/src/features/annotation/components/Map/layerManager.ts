@@ -88,7 +88,7 @@ export class LayerManager {
 
     registerLayer(layer: Layer) {
         const exists = this.layers.some((existing) => existing.id === layer.id);
-        if (exists) return; // already registered — don't add a duplicate OL layer
+        if (exists) return; // already registered - don't add a duplicate OL layer
 
         this.layers.push(layer);
 
@@ -107,7 +107,7 @@ export class LayerManager {
     }
 
     /**
-     * Register multiple layers in one batch — only calls _syncPrefetchLayers once
+     * Register multiple layers in one batch - only calls _syncPrefetchLayers once
      * at the end instead of once per layer. Use this when registering many layers
      * at once (e.g. all STAC slices at startup) to avoid O(n²) work.
      */
@@ -196,7 +196,7 @@ export class LayerManager {
         const pendingHide = newActiveOLLayer.get('_pendingHide') as (() => void) | undefined;
         if (pendingHide) pendingHide();
 
-        // Also cancel any pending hide still running on the previous layer —
+        // Also cancel any pending hide still running on the previous layer -
         // during rapid switches (e.g. timeline drag) we don't want ghost layers
         // from earlier positions to linger behind the newly active one.
         if (previousOLLayer) {
@@ -204,7 +204,7 @@ export class LayerManager {
             if (prevPendingHide) prevPendingHide();
         }
 
-        // Show the new layer — old layer stays visible as backdrop.
+        // Show the new layer - old layer stays visible as backdrop.
         newActiveOLLayer.setVisible(true);
 
         if (previousOLLayer) {
@@ -301,7 +301,7 @@ export class LayerManager {
      * Enable or disable spatial prefetching for the active layer.
      *
      * In task mode the map snaps to a fixed point per task, so loading tiles
-     * around the viewport is wasteful — the area never changes between navigations.
+     * around the viewport is wasteful - the area never changes between navigations.
      * Background (window warming) and next-nav prefetch are unaffected.
      *
      * When disabled, the active layer is added to the prefetcher's exclude list
@@ -326,7 +326,7 @@ export class LayerManager {
     }
 
     /**
-     * Pause ONLY the spatial (active-layer) prefetch — background and next-nav
+     * Pause ONLY the spatial (active-layer) prefetch - background and next-nav
      * tiles continue loading.  Call this during timeline drag so the prefetch
      * engine keeps warming other windows while the user scrubs.
      *
@@ -384,15 +384,15 @@ export class LayerManager {
      *   1. The active imagery layer's viewport tiles are fully loaded, AND
      *   2. All background prefetch work has drained to idle.
      *
-     * This is what gates the initial loading overlay — the user won't see the
+     * This is what gates the initial loading overlay - the user won't see the
      * map until both conditions are met, so switching windows is instant.
      *
-     * Stage 1 — active layer rendered (10 s safety):
+     * Stage 1 - active layer rendered (10 s safety):
      *   Counts in-flight tileloadstart/end/error events on the active source,
      *   combined with map `rendercomplete`.  Fires when both agree the viewport
      *   is done.
      *
-     * Stage 2 — prefetch queue idle (60 s safety):
+     * Stage 2 - prefetch queue idle (60 s safety):
      *   Waits for PrefetchManager to report queued + loading === 0.
      *
      * @param callback          Fires after BOTH stages complete (post-prefetch idle).
@@ -438,7 +438,7 @@ export class LayerManager {
             );
         }
 
-        // OL fires rendercomplete when all visible tile layers are idle —
+        // OL fires rendercomplete when all visible tile layers are idle -
         // use it as a secondary signal in case the source was already warm.
         this.map.once('rendercomplete', tryFire);
 

@@ -6,16 +6,16 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  * Keyboard shortcuts for open mode annotation.
  *
  * Tool switching:
- *   V — Pan
- *   A — Annotate
- *   E — Edit
- *   T — Timeseries (only when campaign has time series)
+ *   V - Pan
+ *   A - Annotate
+ *   E - Edit
+ *   T - Timeseries (only when campaign has time series)
  *
  * Label selection:
- *   1–9 — Select label by index and switch to Annotate
+ *   1–9 - Select label by index and switch to Annotate
  *
  * Misc:
- *   Escape — Handled by OLMapWithDraw (cancel edit / rollback)
+ *   Escape - Handled by OLMapWithDraw (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useAnnotationStore((state) => state.campaign);

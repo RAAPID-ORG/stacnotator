@@ -113,7 +113,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   /**
    * Find the first non-empty slice index for a window, searching forward from
-   * `startIndex` (wrapping is not needed — just find the first valid one).
+   * `startIndex` (wrapping is not needed - just find the first valid one).
    * Returns -1 if all slices are empty.
    */
   const firstNonEmptySlice = useCallback(
@@ -194,7 +194,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         if (nextInWindow !== undefined) {
           setActiveSliceIndex(nextInWindow);
         } else if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          // Move to next window — land on its first non-empty slice
+          // Move to next window - land on its first non-empty slice
           const nextWindow = sortedWindows[currentWindowSortedIndex + 1];
           const nextCount = getSliceCountForWindow(nextWindow);
           const landingSlice = firstNonEmptySlice(nextWindow.id, nextCount, 0);
@@ -207,7 +207,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         if (prevInWindow !== undefined) {
           setActiveSliceIndex(prevInWindow);
         } else if (currentWindowSortedIndex > 0) {
-          // Move to previous window — land on its last non-empty slice
+          // Move to previous window - land on its last non-empty slice
           const prevWindow = sortedWindows[currentWindowSortedIndex - 1];
           const prevCount = getSliceCountForWindow(prevWindow);
           const landingSlice = firstNonEmptySlice(prevWindow.id, prevCount, prevCount - 1);

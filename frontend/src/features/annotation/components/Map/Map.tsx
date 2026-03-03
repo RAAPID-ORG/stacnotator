@@ -24,9 +24,9 @@ const Map = ({
     const map = new OLMap({
       target: mapRef.current,
       layers: [],
-      maxTilesLoading: 64,  // default is 16 — more concurrent tile requests fills the viewport faster
+      maxTilesLoading: 64,  // default is 16 - more concurrent tile requests fills the viewport faster
       view: new View({
-        // center is [lat, lon] in degrees — convert to Web Mercator [lon, lat]
+        // center is [lat, lon] in degrees - convert to Web Mercator [lon, lat]
         center: fromLonLat([center[1], center[0]]),
         zoom,
       }),

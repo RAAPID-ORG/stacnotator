@@ -25,7 +25,7 @@ from src.campaigns.service import create_campaign
 from src.database import SessionLocal
 from src.imagery.schemas import ImageryCreate, ImageryVisualizationUrlTemplateCreate
 from src.sampling_design.service import generate_random_points
-from src.timeseries.models import TimeSeries  # noqa: F401 — keeps SQLAlchemy mapper happy
+from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def seed_dev_data(firebase_uid: str = None):
             select(Campaign).where(Campaign.name == CAMPAIGN_NAME)
         ).scalar_one_or_none()
         if existing:
-            logger.info("Campaign already exists — deleting and recreating...")
+            logger.info("Campaign already exists - deleting and recreating...")
             db.delete(existing)
             db.commit()
 
