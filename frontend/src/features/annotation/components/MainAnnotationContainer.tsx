@@ -14,6 +14,10 @@ import {
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { useSliceLayerMap } from '../context/SliceLayerMapContext';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
+import { usePrefetching } from '../hooks/usePrefetching';
+import type { LayerManager } from './Map/layerManager';
+import type { PrefetchStatsSnapshot } from './Map/layerManager';
+import PrefetchStatusIndicator from './PrefetchStatusIndicator';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -59,7 +63,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   // SliceLayerMapContext.  We must wait for ALL slices to finish registering
   // before dismissing the loading overlay, otherwise the user can interact
   // with unregistered slices that produce white/empty tiles.
-  const { totalSlices, registeredSlices } = useSliceLayerMap();
+  const { sliceLayerMap, totalSlices, registeredSlices } = useSliceLayerMap();
   const allRegistrationsDone = totalSlices === 0 || registeredSlices >= totalSlices;
 
   // Render gate
@@ -72,6 +76,14 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const pendingOlReadyRef = useRef(false);
   // Ref to the open-mode map for imperative actions (e.g. fitAnnotations)
   const openModeMapRef = useRef<OpenModeMapHandle>(null);
+
+  // ── Prefetching ──────────────────────────────────────────────────────────
+  const [layerManager, setLayerManager] = useState<LayerManager | null>(null);
+  const prefetchStatsRef = useRef<PrefetchStatsSnapshot | null>(null);
+
+  const handleLayerManagerReady = useCallback((lm: LayerManager) => {
+    setLayerManager(lm);
+  }, []);
 
   const LAUNCH_SEQUENCE = [
     'Launching satellite…',
@@ -107,6 +119,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
+
+  // ── Prefetching (must be after selectedImagery is resolved) ──
+  usePrefetching({
+    mode: campaign?.mode === 'open' ? 'open' : 'tasks',
+    imagery: selectedImagery,
+    layerManager,
+    sliceLayerMap,
+    onStats: (stats) => { prefetchStatsRef.current = stats; },
+  });
 
   const campaignBbox = useMemo(
     () => campaign
@@ -342,6 +363,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
             onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
             onReady={handleMapReady}
+            onLayerManagerReady={handleLayerManagerReady}
           />
         ) : (
           <OpenModeMap
@@ -356,8 +378,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             activeTool={activeTool}
             magicWandActive={magicWandActive}
             onTimeseriesClick={handleTimeseriesClick}
+            onLayerManagerReady={handleLayerManagerReady}
           />
         )}
+
+        {/* Prefetch status indicator */}
+        <PrefetchStatusIndicator
+          statsRef={prefetchStatsRef}
+          getStats={() => prefetchStatsRef.current}
+        />
 
         {/* Loading overlay - shown until the first active imagery layer has fully rendered */}
         {!mapImageryReady && (

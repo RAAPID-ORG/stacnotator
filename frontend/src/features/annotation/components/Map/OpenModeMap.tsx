@@ -46,6 +46,8 @@ interface OpenModeMapProps {
     onTimeseriesClick?: (lat: number, lon: number) => void;
     /** Increment to snap back to initialCenter/initialZoom. */
     refocusTrigger?: number;
+    /** Called once the LayerManager is created so parents can configure prefetching. */
+    onLayerManagerReady?: (lm: LayerManager) => void;
 }
 
 /** Imperative handle exposed to parents via ref */
@@ -68,6 +70,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     magicWandActive,
     onTimeseriesClick,
     refocusTrigger,
+    onLayerManagerReady,
 }, ref) => {
     const mapRef = useRef<OLMap | null>(null);
     const [olMap, setOlMap] = useState<OLMap | null>(null);
@@ -75,6 +78,8 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     const mapReadyRef = useRef(false);
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
+    const onLayerManagerReadyRef = useRef(onLayerManagerReady);
+    onLayerManagerReadyRef.current = onLayerManagerReady;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
     // Shared layer management
@@ -173,6 +178,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                     mapReadyRef.current = true;
 
                     initLayers(lm);
+                    onLayerManagerReadyRef.current?.(lm);
 
                     // Publish view changes so window maps stay synced
                     const view = map.getView();

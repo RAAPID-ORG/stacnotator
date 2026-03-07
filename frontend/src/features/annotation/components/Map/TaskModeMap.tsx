@@ -38,6 +38,8 @@ interface TaskModeMapProps {
     onViewChange?: (center: [number, number], zoom: number) => void;
     /** Called once the active imagery layer has finished loading. */
     onReady?: () => void;
+    /** Called once the LayerManager is created so parents can configure prefetching. */
+    onLayerManagerReady?: (lm: LayerManager) => void;
 }
 
 // Component
@@ -54,6 +56,7 @@ const TaskModeMap = ({
     activeLayerId: controlledActiveLayerId,
     onViewChange,
     onReady,
+    onLayerManagerReady,
 }: TaskModeMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
@@ -65,6 +68,8 @@ const TaskModeMap = ({
     // Keep callbacks in refs to avoid re-registering OL listeners
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
+    const onLayerManagerReadyRef = useRef(onLayerManagerReady);
+    onLayerManagerReadyRef.current = onLayerManagerReady;
 
     // Shared layer management
 
@@ -130,6 +135,7 @@ const TaskModeMap = ({
                     mapReadyRef.current = true;
 
                     initLayers(lm);
+                    onLayerManagerReadyRef.current?.(lm);
 
                     // Publish view changes on every frame during pan/zoom
                     const view = map.getView();

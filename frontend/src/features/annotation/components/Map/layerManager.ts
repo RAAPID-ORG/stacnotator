@@ -4,6 +4,12 @@ import BaseTileLayer from "ol/layer/BaseTile";
 import type TileSource from "ol/source/Tile";
 import { listen, unlistenByKey } from "ol/events";
 import type { EventsKey } from "ol/events";
+import PrefetchManager from "openlayers-prefetching";
+
+/** Stats snapshot type inferred from PrefetchManager.onStats callback signature. */
+export type PrefetchStatsSnapshot = Parameters<Parameters<PrefetchManager['onStats']>[0]>[0];
+
+type OLTileLayer = BaseTileLayer<TileSource, any>;
 
 /**
  * LayerManager - manages the OL layer registry and active layer switching.
@@ -12,6 +18,7 @@ import type { EventsKey } from "ol/events";
  *   - Register / remove Layer instances and add them to the OL map
  *   - Switch the active (visible) layer with a smooth crossfade
  *   - Notify when the active layer's tiles have finished rendering
+ *   - Manage tile prefetching via openlayers-prefetching
  *
  * Layer ID convention for STAC layers: `stac-w{windowId}-s{sliceIndex}-v{templateId}`
  */
@@ -19,6 +26,7 @@ export class LayerManager {
     private layers: Layer[] = [];
     private map: OLMap;
     private activeLayerId = '';
+    private prefetchManager: PrefetchManager | null = null;
 
     constructor(map: OLMap) {
         this.map = map;
@@ -74,6 +82,9 @@ export class LayerManager {
      * Switch the visible layer. The new layer becomes visible immediately;
      * the previous layer is hidden once the new one's tiles have loaded
      * (smooth crossfade, no white flash).
+     *
+     * If the new layer's tiles were already prefetched the switch is
+     * essentially instantaneous — no network requests, no flash.
      */
     setActiveLayer(layerId: string) {
         const newOL = this._findOLLayer(layerId);
@@ -93,14 +104,17 @@ export class LayerManager {
 
         if (!previousOL) return;
 
-        // Wait for the new layer's tiles to load, then hide the old one
-        this.map.renderSync();
+        // Check if the new layer's source already has all visible tiles cached.
+        // If so, hide the old layer on the very next animation frame so the
+        // transition is instant.
         const source = newOL.getSource();
         let pending = 0;
         const keys: EventsKey[] = [];
+        let done = false;
 
-        const tryHide = () => {
-            if (pending > 0) return;
+        const finish = () => {
+            if (done) return;
+            done = true;
             keys.forEach(unlistenByKey);
             keys.length = 0;
             previousOL.set('_pendingHide', undefined);
@@ -108,6 +122,7 @@ export class LayerManager {
         };
 
         const cancel = () => {
+            done = true;
             keys.forEach(unlistenByKey);
             keys.length = 0;
             previousOL.set('_pendingHide', undefined);
@@ -118,13 +133,17 @@ export class LayerManager {
         if (source) {
             keys.push(
                 listen(source, 'tileloadstart', () => { pending++; }),
-                listen(source, 'tileloadend', () => { pending = Math.max(0, pending - 1); tryHide(); }),
-                listen(source, 'tileloaderror', () => { pending = Math.max(0, pending - 1); tryHide(); }),
+                listen(source, 'tileloadend', () => { pending = Math.max(0, pending - 1); if (pending === 0) finish(); }),
+                listen(source, 'tileloaderror', () => { pending = Math.max(0, pending - 1); if (pending === 0) finish(); }),
             );
-            // If all tiles are already cached, hide on next tick
-            setTimeout(tryHide, 0);
+            // If tiles are already in the source cache no events will fire.
+            // Use rAF so the layer has one frame to render cached tiles, then
+            // hide the old one.
+            requestAnimationFrame(() => {
+                if (pending === 0) finish();
+            });
         } else {
-            tryHide();
+            finish();
         }
     }
 
@@ -175,7 +194,111 @@ export class LayerManager {
     // Lifecycle
 
     dispose() {
-        // No-op - kept for API compatibility
+        this.prefetchManager?.dispose();
+        this.prefetchManager = null;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // Prefetching
+    // ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initialise the PrefetchManager.
+     * Safe to call multiple times - disposes previous manager first.
+     */
+    initPrefetching(options?: {
+        spatialBufferFactor?: number;
+        maxConcurrent?: number;
+        enableSpatial?: boolean;
+    }) {
+        this.prefetchManager?.dispose();
+
+        this.prefetchManager = new PrefetchManager({
+            map: this.map,
+            spatialBufferFactor: options?.spatialBufferFactor ?? 0.5,
+            maxConcurrentPrefetches: options?.maxConcurrent ?? 6,
+            idleDelay: 150,
+            tickInterval: 300,
+            enabled: true,
+            loadActiveDuringInteraction: true,
+        });
+
+        // If spatial prefetching is disabled (task mode), set priority to 0 so
+        // the planner skips it entirely.
+        if (options?.enableSpatial === false) {
+            this.prefetchManager.setCategoryPriorities({
+                spatial: 0,
+                bgBuffer: 0,
+            } as any);
+        }
+    }
+
+    /** Get the underlying PrefetchManager (null if not initialized). */
+    getPrefetchManager() {
+        return this.prefetchManager;
+    }
+
+    /**
+     * Configure background-layer prefetching.
+     * Pass an array of layer IDs with priorities (lower = higher priority).
+     * Only imagery layers that are already registered on this LayerManager
+     * will be matched.
+     */
+    setBackgroundLayers(entries: Array<{ layerId: string; priority: number }>) {
+        if (!this.prefetchManager) return;
+
+        const olEntries: Array<{ layer: OLTileLayer; priority: number }> = [];
+        for (const entry of entries) {
+            const olLayer = this._findOLLayer(entry.layerId);
+            if (olLayer) {
+                olEntries.push({ layer: olLayer, priority: entry.priority });
+            }
+        }
+        this.prefetchManager.syncBackgroundLayers(olEntries);
+    }
+
+    /**
+     * Set the active layer for prefetching (spatial tiles around viewport).
+     * This should generally match the visible active layer.
+     */
+    setPrefetchActiveLayer(layerId: string) {
+        if (!this.prefetchManager) return;
+        const olLayer = this._findOLLayer(layerId);
+        if (olLayer) {
+            this.prefetchManager.setActiveLayer(olLayer);
+        }
+    }
+
+    /**
+     * Set the primary layer to prefetch at next-navigation targets.
+     */
+    setPrefetchNextNavLayer(layerId: string) {
+        if (!this.prefetchManager) return;
+        const olLayer = this._findOLLayer(layerId);
+        if (olLayer) {
+            this.prefetchManager.setNextNavLayer(olLayer);
+        }
+    }
+
+    /**
+     * Set next-navigation targets (e.g. next task location).
+     */
+    setPrefetchNextTargets(targets: Array<{ center: [number, number]; zoom: number }>) {
+        if (!this.prefetchManager) return;
+        this.prefetchManager.setNextTargets(targets);
+    }
+
+    /** Clear next-nav targets. */
+    clearPrefetchNextTargets() {
+        this.prefetchManager?.clearNextTargets();
+    }
+
+    /** Subscribe to prefetch stats updates. Returns unsubscribe function. */
+    onPrefetchStats(callback: (stats: PrefetchStatsSnapshot) => void): () => void {
+        if (!this.prefetchManager) return () => {};
+        this.prefetchManager.onStats(callback);
+        // PrefetchManager doesn't provide an off() - disposal cleans up
+        return () => {};
     }
 
     // Private helpers
