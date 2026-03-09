@@ -2,6 +2,7 @@ import { useEffect, useRef, memo } from "react";
 import OLMap from "ol/Map";
 import View from "ol/View";
 import { fromLonLat } from "ol/proj";
+import ScaleLine from "ol/control/ScaleLine";
 import "ol/ol.css";
 
 
@@ -24,8 +25,12 @@ const BaseMap = ({
     const map = new OLMap({
       target: mapRef.current,
       layers: [],
-      maxTilesLoading: 64,  // default is 16 - more concurrent tile requests fills the viewport faster
-      controls: [],
+      maxTilesLoading: 64,
+      controls: [
+        new ScaleLine({
+          units: 'metric',
+        }),
+      ],
       view: new View({
         // center is [lat, lon] in degrees - convert to Web Mercator [lon, lat]
         center: fromLonLat([center[1], center[0]]),

@@ -1,7 +1,7 @@
 /**
  * DrawingLayer
  *
- * A focused OpenLayers component that owns the annotation VectorLayer and all
+ * OL component that owns the annotation VectorLayer and all
  * drawing/editing interactions (Draw, Modify, Select, Translate).  It is a
  * thin slice of responsibility - it knows nothing about tile layers or STAC;
  * those live in the parent OpenModeMap.
@@ -39,17 +39,10 @@ import { extendLabelsWithMetadata } from '../ControlsOpenMode';
 import useAnnotationStore from '../../annotation.store';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 /** Feature property keys stored on each OL Feature */
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
-
-// ---------------------------------------------------------------------------
-// Style helpers
-// ---------------------------------------------------------------------------
 
 /** Build an OL style for a single annotation feature */
 function buildStyle(
@@ -95,10 +88,6 @@ function hexToRgba(hex: string, alpha: number): string {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// ---------------------------------------------------------------------------
-// GeoJSON converter (OL ↔ GeoJSON) - reused across effects
-// ---------------------------------------------------------------------------
-
 const geoJsonFormat = new OLGeoJSON();
 
 function olFeatureToGeoJSONGeometry(feature: OLFeature<Geometry>): GeoJSON.Geometry | null {
@@ -110,9 +99,6 @@ function olFeatureToGeoJSONGeometry(feature: OLFeature<Geometry>): GeoJSON.Geome
     }
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
 
 export interface DrawingLayerProps {
     /** The OL map instance owned by the parent (tile layers already added). */
@@ -122,10 +108,6 @@ export interface DrawingLayerProps {
     magicWandActive: boolean;
     onTimeseriesClick?: (lat: number, lon: number) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 const DrawingLayer = ({
     map,
