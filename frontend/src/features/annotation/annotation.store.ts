@@ -56,6 +56,7 @@ interface AnnotationStore {
   isNavigating: boolean; // True during task navigation to prevent premature submissions
   isReviewMode: boolean; // True when navigated from review page - shows all annotators' annotations
   isAuthoritativeReviewer: boolean; // True if current user is an authoritative reviewer for this campaign
+  isCampaignAdmin: boolean; // True if current user is an admin for this campaign
 
   // Layout management
   currentLayout: Layout | null;
@@ -202,6 +203,7 @@ const initialState = {
   isNavigating: false,
   isReviewMode: false,
   isAuthoritativeReviewer: false,
+  isCampaignAdmin: false,
   currentLayout: null,
   savedLayout: null,
   isEditingLayout: false,
@@ -342,6 +344,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
       // Check if current user is an authoritative reviewer for this campaign
       const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
       const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
+      const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
 
       // If navigating to a specific task (e.g. from review page), use a wide filter
       // so the target task is guaranteed to be visible. Otherwise use the default filter.
@@ -411,6 +414,7 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
         isLoadingCampaign: false,
         isReviewMode: isReviewMode ?? false,
         isAuthoritativeReviewer,
+        isCampaignAdmin,
         ...getFormStateForTask(targetTask),
       });
 

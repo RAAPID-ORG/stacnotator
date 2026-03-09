@@ -215,6 +215,7 @@ export const AnnotationToolbar = () => {
   const campaign = useAnnotationStore((state) => state.campaign);
   const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
   const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
+  const isCampaignAdmin = useAnnotationStore((state) => state.isCampaignAdmin);
   const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
   const setIsEditingLayout = useAnnotationStore((state) => state.setIsEditingLayout);
   const saveLayout = useAnnotationStore((state) => state.saveLayout);
@@ -490,7 +491,8 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* Campaign Settings Button */}
+        {/* Campaign Settings Button (admin only) */}
+        {isCampaignAdmin && (
         <button
           onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
           className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
@@ -509,6 +511,7 @@ export const AnnotationToolbar = () => {
           </svg>
           <span>Settings</span>
         </button>
+        )}
 
         {/* Export Dropdown */}
         <div className="relative" ref={exportDropdownRef}>
@@ -584,6 +587,7 @@ export const AnnotationToolbar = () => {
                     <div className="font-medium">Save as Personal</div>
                     <div className="text-[10px] text-gray-500">Only for you</div>
                   </button>
+                  {isCampaignAdmin && (
                   <button
                     onClick={() => handleSaveLayout(true)}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
@@ -592,6 +596,7 @@ export const AnnotationToolbar = () => {
                     <div className="font-medium">Save as Default</div>
                     <div className="text-[10px] text-gray-500">For all users</div>
                   </button>
+                  )}
                 </div>
               )}
             </div>
