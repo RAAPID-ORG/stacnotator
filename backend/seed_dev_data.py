@@ -1,7 +1,9 @@
 """
 Development database seeding script.
-Creates a sample Ukraine campaign with Sentinel-2 imagery (all 12 months, weekly slices)
-and 100 random sample points within Ukraine's bounding box.
+Creates two sample Ukraine campaigns with Sentinel-2 imagery (all 12 months, weekly slices)
+and S2 NDVI timeseries:
+  1. Task-mode campaign with 100 random sample points within Ukraine's bounding box
+  2. Open-mode campaign (same region and imagery, no tasks)
 
 Usage:
     python seed_dev_data.py              # Seed the database
@@ -26,6 +28,7 @@ from src.database import SessionLocal
 from src.imagery.schemas import ImageryCreate, ImageryVisualizationUrlTemplateCreate
 from src.sampling_design.service import generate_random_points
 from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
+from src.timeseries.schemas import TimeSeriesCreate
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +67,7 @@ SENTINEL2_SEARCH_BODY = json.dumps(
 )
 
 CAMPAIGN_NAME = "Ukraine Dev Campaign"
+OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
 
 
 def _ensure_user(db, firebase_uid: str) -> User:
@@ -106,14 +110,15 @@ def seed_dev_data(firebase_uid: str = None):
     try:
         logger.info("Starting database seeding...")
 
-        # Drop existing dev campaign so the script is idempotent
-        existing = db.execute(
-            select(Campaign).where(Campaign.name == CAMPAIGN_NAME)
-        ).scalar_one_or_none()
-        if existing:
-            logger.info("Campaign already exists - deleting and recreating...")
-            db.delete(existing)
-            db.commit()
+        # Drop existing dev campaigns so the script is idempotent
+        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+            existing = db.execute(
+                select(Campaign).where(Campaign.name == name)
+            ).scalar_one_or_none()
+            if existing:
+                logger.info("Campaign '%s' already exists - deleting and recreating...", name)
+                db.delete(existing)
+        db.commit()
 
         if firebase_uid is None:
             firebase_uid = "dev-test-uid"
@@ -167,6 +172,20 @@ def seed_dev_data(firebase_uid: str = None):
         ]
 
         # ------------------------------------------------------------------
+        # S2 NDVI timeseries (from Google Earth Engine)
+        # ------------------------------------------------------------------
+        timeseries_configs = [
+            TimeSeriesCreate(
+                name="S2 NDVI",
+                start_ym="202401",
+                end_ym="202412",
+                data_source="SENTINEL2",
+                provider="EE",
+                ts_type="NDVI",
+            ),
+        ]
+
+        # ------------------------------------------------------------------
         # Campaign settings
         # ------------------------------------------------------------------
         settings = CampaignSettingsCreate(
@@ -183,7 +202,7 @@ def seed_dev_data(firebase_uid: str = None):
         # ------------------------------------------------------------------
         # Create campaign (handles layout, windows, imagery all at once)
         # ------------------------------------------------------------------
-        logger.info("Creating campaign via service...")
+        logger.info("Creating task-mode campaign via service...")
         campaign = create_campaign(
             db,
             name=CAMPAIGN_NAME,
@@ -191,6 +210,7 @@ def seed_dev_data(firebase_uid: str = None):
             settings=settings,
             user_id=user.id,
             imagery_configs=imagery_configs,
+            timeseries_configs=timeseries_configs,
         )
         logger.info("Campaign created: id=%d", campaign.id)
 
@@ -242,14 +262,30 @@ def seed_dev_data(firebase_uid: str = None):
 
         db.commit()
 
+        # ==================================================================
+        # Open-mode campaign (same imagery & timeseries, no tasks)
+        # ==================================================================
+        logger.info("Creating open-mode campaign via service...")
+        open_campaign = create_campaign(
+            db,
+            name=OPEN_CAMPAIGN_NAME,
+            mode="open",
+            settings=settings,
+            user_id=user.id,
+            imagery_configs=imagery_configs,
+            timeseries_configs=timeseries_configs,
+        )
+        logger.info("Open-mode campaign created: id=%d", open_campaign.id)
+
         logger.info("\nDatabase seeding complete!")
-        logger.info("  Campaign ID   : %d", campaign.id)
-        logger.info("  Campaign Name : %s", campaign.name)
-        logger.info("  User          : %s", user.email)
-        logger.info("  Firebase UID  : %s", user.external_uid)
-        logger.info("  Imagery items : 1 (Jan-Dec 2024, monthly windows, weekly slices)")
-        logger.info("  Tasks created : %d", len(task_ids))
-        logger.info("  Labels        : %d", len(settings.labels))
+        logger.info("  Task-mode Campaign  : id=%d  name=%s", campaign.id, campaign.name)
+        logger.info("  Open-mode Campaign  : id=%d  name=%s", open_campaign.id, open_campaign.name)
+        logger.info("  User                : %s", user.email)
+        logger.info("  Firebase UID        : %s", user.external_uid)
+        logger.info("  Imagery items       : 1 (Jan-Dec 2024, monthly windows, weekly slices)")
+        logger.info("  Timeseries          : S2 NDVI (2024)")
+        logger.info("  Tasks (task-mode)   : %d", len(task_ids))
+        logger.info("  Labels              : %d", len(settings.labels))
 
     finally:
         db.close()
@@ -261,16 +297,19 @@ def clear_dev_data():
     try:
         logger.info("Clearing development data...")
 
-        campaign = db.execute(
-            select(Campaign).where(Campaign.name == CAMPAIGN_NAME)
-        ).scalar_one_or_none()
+        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+            campaign = db.execute(
+                select(Campaign).where(Campaign.name == name)
+            ).scalar_one_or_none()
 
-        if campaign:
-            db.delete(campaign)
-            db.commit()
-            logger.info("Development campaign deleted.")
-        else:
-            logger.info("No development campaign found.")
+            if campaign:
+                db.delete(campaign)
+                logger.info("Deleted campaign: %s", name)
+            else:
+                logger.info("No campaign found: %s", name)
+
+        db.commit()
+        logger.info("Development data cleared.")
 
     finally:
         db.close()

@@ -247,3 +247,40 @@ button {
 .animate-scale-in {
   animation: scale-in 0.15s ease-out;
 }
+
+/* Timeseries probe marker */
+.probe-marker {
+  width: 16px;
+  height: 16px;
+  position: relative;
+}
+
+.probe-marker::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgb(249 115 22); /* orange-500 */
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgb(249 115 22 / 0.5), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.probe-marker::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgb(249 115 22 / 0.6);
+  animation: probe-pulse 1.5s ease-out infinite;
+}
+
+@keyframes probe-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}

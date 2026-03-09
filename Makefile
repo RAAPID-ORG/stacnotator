@@ -78,6 +78,12 @@ dev-seed-clear: ## Clear development seed data
 dev-openapi: ## Regenerate frontend API client from backend OpenAPI schema (backend must be running)
 	cd frontend && npm run openapi-ts
 
+dev-rebuild-frontend: ## Rebuild frontend with fresh node_modules (clears cached volume)
+	$(COMPOSE_DEV) stop frontend
+	docker volume rm -f stacnotator_frontend_node_modules_dev
+	$(COMPOSE_DEV) build frontend --no-cache
+	$(COMPOSE_DEV) up -d frontend
+
 dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Resetting development database..."
 	$(COMPOSE_DEV) down -v

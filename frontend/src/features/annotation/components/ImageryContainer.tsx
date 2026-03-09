@@ -3,7 +3,7 @@ import WindowMap from './Map/WindowMap';
 import type { ImageryWindowOut } from '~/api/client';
 import useAnnotationStore from '../annotation.store';
 import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
-import { useSliceLayerMap } from '../context/SliceLayerMapContext';
+import { useStacRegistration } from '../hooks/useStacRegistration';
 
 interface ImageryContainerProps {
   window: ImageryWindowOut;
@@ -72,12 +72,20 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     : (windowSliceIndices[window.id] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // Resolve tile URL from pre-registered SliceLayerMap
-  const { sliceLayerMap } = useSliceLayerMap();
+  // Resolve tile URL from pre-registered STAC registrations
+  const { sliceLayerMap } = useStacRegistration({
+    imagery: selectedImagery,
+    bbox: campaignBbox ?? [0, 0, 0, 0],
+    enabled: !!selectedImagery && !!campaignBbox,
+  });
   const sliceKey = `${window.id}-${currentSliceIndex}`;
-  const resolvedUrls = sliceLayerMap.get(sliceKey);
-  const tileUrl = resolvedUrls?.[selectedLayerIndex]?.url ?? resolvedUrls?.[0]?.url ?? '';
-  const loading = !resolvedUrls;
+  const searchId = sliceLayerMap.get(sliceKey);
+  const vizTemplate = selectedImagery?.visualization_url_templates[selectedLayerIndex]
+    ?? selectedImagery?.visualization_url_templates[0];
+  const tileUrl = searchId && vizTemplate
+    ? vizTemplate.visualization_url.replace(/\{searchId\}/g, searchId)
+    : '';
+  const loading = !searchId;
   const datesReady = !loading;
 
   // Memoize latLon extraction to prevent recalculations
@@ -237,9 +245,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
           >
             {slices.map((slice, idx) => {
               const key = `${window.id}-${idx}`;
-              // In open mode show all slices; in task mode hide confirmed-empty ones
-              if (!isOpenMode && emptySlices[key]) return null;
-              return <option key={idx} value={idx}>{slice.label}</option>;
+              const isEmpty = !isOpenMode && emptySlices[key];
+              return (
+                <option key={idx} value={idx} disabled={!!isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
+                  {slice.label}{isEmpty ? ' (empty)' : ''}
+                </option>
+              );
             })}
           </select>
         </div>

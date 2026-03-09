@@ -10,7 +10,7 @@ import type { EventsKey } from "ol/events";
  *
  * Responsibilities:
  *   - Register / remove Layer instances and add them to the OL map
- *   - Switch the active (visible) layer with a smooth crossfade
+ *   - Switch the active (visible) layer
  *   - Notify when the active layer's tiles have finished rendering
  *
  * Layer ID convention for STAC layers: `stac-w{windowId}-s{sliceIndex}-v{templateId}`
@@ -71,61 +71,20 @@ export class LayerManager {
     // Active layer switching
 
     /**
-     * Switch the visible layer. The new layer becomes visible immediately;
-     * the previous layer is hidden once the new one's tiles have loaded
-     * (smooth crossfade, no white flash).
+     * Switch the visible layer.
      */
     setActiveLayer(layerId: string) {
         const newOL = this._findOLLayer(layerId);
         if (!newOL) return;
 
-        const previousId = this.activeLayerId;
-        const previousOL = previousId && previousId !== layerId
-            ? this._findOLLayer(previousId) : undefined;
+        // Hide the previous layer
+        const previousOL = this.activeLayerId && this.activeLayerId !== layerId
+            ? this._findOLLayer(this.activeLayerId) : undefined;
+        if (previousOL) previousOL.setVisible(false);
 
-        // Cancel any pending hides from earlier switches
-        this._cancelPendingHide(newOL);
-        if (previousOL) this._cancelPendingHide(previousOL);
-
-        // Show the new layer immediately (tiles may still be loading)
+        // Show the new layer
         newOL.setVisible(true);
         this.activeLayerId = layerId;
-
-        if (!previousOL) return;
-
-        // Wait for the new layer's tiles to load, then hide the old one
-        this.map.renderSync();
-        const source = newOL.getSource();
-        let pending = 0;
-        const keys: EventsKey[] = [];
-
-        const tryHide = () => {
-            if (pending > 0) return;
-            keys.forEach(unlistenByKey);
-            keys.length = 0;
-            previousOL.set('_pendingHide', undefined);
-            previousOL.setVisible(false);
-        };
-
-        const cancel = () => {
-            keys.forEach(unlistenByKey);
-            keys.length = 0;
-            previousOL.set('_pendingHide', undefined);
-            previousOL.setVisible(false);
-        };
-        previousOL.set('_pendingHide', cancel);
-
-        if (source) {
-            keys.push(
-                listen(source, 'tileloadstart', () => { pending++; }),
-                listen(source, 'tileloadend', () => { pending = Math.max(0, pending - 1); tryHide(); }),
-                listen(source, 'tileloaderror', () => { pending = Math.max(0, pending - 1); tryHide(); }),
-            );
-            // If all tiles are already cached, hide on next tick
-            setTimeout(tryHide, 0);
-        } else {
-            tryHide();
-        }
     }
 
     /**
@@ -185,8 +144,4 @@ export class LayerManager {
             .find((l) => l.get("layerId") === layerId) as BaseTileLayer<TileSource, any> | undefined;
     }
 
-    private _cancelPendingHide(olLayer: BaseTileLayer<TileSource, any>) {
-        const cancel = olLayer.get('_pendingHide') as (() => void) | undefined;
-        if (cancel) cancel();
-    }
 }

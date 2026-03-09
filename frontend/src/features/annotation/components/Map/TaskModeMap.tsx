@@ -16,6 +16,7 @@ import Overlay from 'ol/Overlay';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import type { Layer } from './Layer';
 import type { ImageryWithWindowsOut } from '~/api/client';
+import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
 
@@ -23,6 +24,7 @@ import { useSliceLayers } from './useSliceLayers';
 
 interface TaskModeMapProps {
     imagery?: ImageryWithWindowsOut | null;
+    sliceLayerMap: SliceLayerMap;
     initialCenter?: [number, number];
     initialZoom?: number;
     /** Reactive: pan the map to this position when it changes. */
@@ -38,12 +40,19 @@ interface TaskModeMapProps {
     onViewChange?: (center: [number, number], zoom: number) => void;
     /** Called once the active imagery layer has finished loading. */
     onReady?: () => void;
+    /** Currently active tool (pan, timeseries, etc.). */
+    activeTool?: 'pan' | 'annotate' | 'edit' | 'timeseries';
+    /** Called when the user clicks the map while timeseries tool is active. */
+    onTimeseriesClick?: (lat: number, lon: number) => void;
+    /** Timeseries probe point to display on the map. */
+    probePoint?: { lat: number; lon: number } | null;
 }
 
 // Component
 
 const TaskModeMap = ({
     imagery = null,
+    sliceLayerMap,
     initialCenter,
     initialZoom,
     center,
@@ -54,17 +63,23 @@ const TaskModeMap = ({
     activeLayerId: controlledActiveLayerId,
     onViewChange,
     onReady,
+    activeTool = 'pan',
+    onTimeseriesClick,
+    probePoint,
 }: TaskModeMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
     const mapReadyRef = useRef(false);
     const crosshairOverlayRef = useRef<Overlay | null>(null);
     const crosshairElRef = useRef<HTMLDivElement | null>(null);
+    const probeOverlayRef = useRef<Overlay | null>(null);
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
     // Keep callbacks in refs to avoid re-registering OL listeners
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
+    const onTimeseriesClickRef = useRef(onTimeseriesClick);
+    onTimeseriesClickRef.current = onTimeseriesClick;
 
     // Shared layer management
 
@@ -72,6 +87,7 @@ const TaskModeMap = ({
         imagery: imagery ?? null,
         layerManager: layerManagerRef.current,
         mapReady: mapReadyRef.current,
+        sliceLayerMap,
         onReady,
         onLayersChange,
     });
@@ -85,14 +101,13 @@ const TaskModeMap = ({
         mapRef.current.renderSync();
     }, [center]);
 
-    // Recenter when refocusTrigger increments
+    // Recenter when refocusTrigger increments (keep current zoom)
     useEffect(() => {
         if (!center || !mapRef.current) return;
         if (refocusTrigger === lastRefocusTriggerRef.current) return;
         lastRefocusTriggerRef.current = refocusTrigger;
         const view = mapRef.current.getView();
         view.setCenter(fromLonLat([center[1], center[0]]));
-        if (initialZoom !== undefined) view.setZoom(initialZoom);
         mapRef.current.renderSync();
     }, [refocusTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -107,6 +122,37 @@ const TaskModeMap = ({
             overlay.setPosition(undefined);
         }
     }, [crosshair?.lat, crosshair?.lon, showCrosshair]);
+
+    // Probe marker overlay
+
+    useEffect(() => {
+        const overlay = probeOverlayRef.current;
+        if (!overlay) return;
+        if (probePoint) {
+            overlay.setPosition(fromLonLat([probePoint.lon, probePoint.lat]));
+        } else {
+            overlay.setPosition(undefined);
+        }
+    }, [probePoint?.lat, probePoint?.lon, probePoint]);
+
+    // Timeseries probe click handler
+
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map || activeTool !== 'timeseries') return;
+
+        const handler = (e: { coordinate: number[] }) => {
+            const [lon, lat] = toLonLat(e.coordinate);
+            onTimeseriesClickRef.current?.(lat, lon);
+        };
+        map.on('singleclick', handler as any);
+        map.getTargetElement().style.cursor = 'crosshair';
+
+        return () => {
+            map.un('singleclick', handler as any);
+            map.getTargetElement().style.cursor = '';
+        };
+    }, [activeTool]);
 
     // External active layer control
 
@@ -167,6 +213,19 @@ const TaskModeMap = ({
                     if (crosshair && showCrosshair) {
                         overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
                     }
+
+                    // Create probe marker overlay
+                    const probeEl = document.createElement('div');
+                    probeEl.className = 'probe-marker';
+                    probeEl.style.pointerEvents = 'none';
+
+                    const probeOverlay = new Overlay({
+                        element: probeEl,
+                        positioning: 'center-center',
+                        stopEvent: false,
+                    });
+                    map.addOverlay(probeOverlay);
+                    probeOverlayRef.current = probeOverlay;
                 }}
             />
         </div>

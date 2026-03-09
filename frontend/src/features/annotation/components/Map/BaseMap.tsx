@@ -25,10 +25,12 @@ const BaseMap = ({
       target: mapRef.current,
       layers: [],
       maxTilesLoading: 64,  // default is 16 - more concurrent tile requests fills the viewport faster
+      controls: [],
       view: new View({
         // center is [lat, lon] in degrees - convert to Web Mercator [lon, lat]
         center: fromLonLat([center[1], center[0]]),
         zoom,
+        maxZoom: 24,  // allow zooming past basemap tile limits (tiles will stretch)
       }),
     });
 

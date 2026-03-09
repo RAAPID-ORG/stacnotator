@@ -280,7 +280,7 @@ export const AnnotationToolbar = () => {
     if (shouldBeDefault) {
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Save as Default Layout?',
-        description: 'This will overwrite the default layout for ALL users in this campaign.',
+        description: 'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.',
         confirmText: 'Save Default',
         cancelText: 'Cancel',
         isDangerous: true,

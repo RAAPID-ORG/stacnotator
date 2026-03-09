@@ -299,7 +299,7 @@ const TimelineSidebar = ({
                           >
                             {wSlices.map((slice, si) => {
                               const sliceKey = `${window.id}-${si}`;
-                              if (emptySlices[sliceKey]) return null;
+                              const isEmpty = !!emptySlices[sliceKey];
                               const isActive = si === liveSliceIndex;
                               return (
                                 <button
@@ -307,14 +307,16 @@ const TimelineSidebar = ({
                                   onPointerDown={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
-                                    onSliceChange?.(si);
+                                    if (!isEmpty) onSliceChange?.(si);
                                   }}
                                   className={`relative w-1.5 h-1.5 rounded-full transition-colors ${
-                                    isActive
-                                      ? 'bg-brand-500 cursor-pointer'
-                                      : 'bg-neutral-300 hover:bg-neutral-400 cursor-pointer'
+                                    isEmpty
+                                      ? 'bg-neutral-200 cursor-not-allowed opacity-50'
+                                      : isActive
+                                        ? 'bg-brand-500 cursor-pointer'
+                                        : 'bg-neutral-300 hover:bg-neutral-400 cursor-pointer'
                                   }`}
-                                  title={slice.label}
+                                  title={isEmpty ? `${slice.label} (no imagery)` : slice.label}
                                 />
                               );
                             })}

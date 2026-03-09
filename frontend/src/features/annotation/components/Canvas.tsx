@@ -9,6 +9,7 @@ import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
 import useAnnotationStore from '../annotation.store';
+import { BASEMAP_LAYERS } from './Map/useSliceLayers';
 import {
   computeTimeSlices,
   extractLatLonFromWKT,
@@ -156,11 +157,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderMainHeader = () => {
     // Get the current layer name
     const currentLayerName = showBasemap
-      ? basemapType === 'esri-world-imagery'
-        ? 'ESRI World Imagery'
-        : basemapType === 'opentopomap'
-          ? 'OpenTopoMap'
-          : 'CartoDB Light'
+      ? BASEMAP_LAYERS.find((b) => b.id === basemapType)?.name ?? 'Basemap'
       : visualizationName || 'Layer';
 
     return (

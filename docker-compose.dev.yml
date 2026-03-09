@@ -89,8 +89,9 @@ services:
       - ./frontend/index.html:/app/index.html:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
       - ./frontend/tsconfig.json:/app/tsconfig.json:ro
-      # Don't mount node_modules - use container's version
-      - /app/node_modules
+      # Named volume for node_modules - prevents host override and
+      # can be cleared independently with:  docker volume rm stacnotator_frontend_node_modules_dev
+      - frontend_node_modules_dev:/app/node_modules
     ports:
       - "5173:5173"
     networks:
@@ -98,6 +99,8 @@ services:
 
 volumes:
   postgres_data_dev:
+    driver: local
+  frontend_node_modules_dev:
     driver: local
 
 networks:

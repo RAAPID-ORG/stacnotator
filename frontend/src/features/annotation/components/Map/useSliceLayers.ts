@@ -3,7 +3,7 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { ImageryWithWindowsOut } from '~/api/client';
-import { useSliceLayerMap } from '../../context/SliceLayerMapContext';
+import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import useAnnotationStore from '../../annotation.store';
 import { computeTimeSlices } from '~/shared/utils/utility';
 
@@ -11,12 +11,21 @@ import { computeTimeSlices } from '~/shared/utils/utility';
 
 export const BASEMAP_LAYERS = [
     new XYZLayer({
+        id: 'carto-light',
+        name: 'CartoDB Light',
+        layerType: 'basemap',
+        urlTemplate: 'https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        attribution: '© OpenStreetMap, © CARTO',
+        maxZoom: 19,
+    }),
+    new XYZLayer({
         id: 'esri-world-imagery',
         name: 'ESRI World Imagery',
         layerType: 'basemap',
         urlTemplate:
             'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         attribution: 'Tiles © Esri',
+        maxZoom: 17,   // source tile limit – global coverage is solid at z17; OL stretches beyond
     }),
     new XYZLayer({
         id: 'opentopomap',
@@ -24,6 +33,7 @@ export const BASEMAP_LAYERS = [
         layerType: 'basemap',
         urlTemplate: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
         attribution: '© OpenTopoMap contributors',
+        maxZoom: 17,   // source tile limit
     }),
 ];
 
@@ -40,6 +50,8 @@ interface UseSliceLayersOptions {
     imagery: ImageryWithWindowsOut | null;
     layerManager: LayerManager | null;
     mapReady: boolean;
+    /** Pre-resolved STAC tile URLs (from useStacRegistration). */
+    sliceLayerMap: SliceLayerMap;
     /** Called once when the active layer finishes rendering. */
     onReady?: () => void;
     /** Called whenever the UI-visible layer list changes. */
@@ -47,29 +59,23 @@ interface UseSliceLayersOptions {
 }
 
 /**
- * Shared hook that manages STAC slice layer registration + active layer selection.
+ * Manages OL layer registration + active layer selection.
  *
- * Used by both TaskModeMap (task mode) and OpenModeMap (open mode).
- * Responsibilities:
- *   - Register basemap layers once on init
- *   - Incrementally register STAC imagery layers as sliceLayerMap grows
- *   - Activate the correct layer when window/slice/viz selection changes
- *   - Build the deduplicated UI layer list for the LayerSelector
- *
- * Returns the current layers and activeLayerId for the selector UI.
+ * - Registers basemap layers once on init
+ * - Registers all STAC imagery layers at once when sliceLayerMap arrives
+ * - Activates the correct layer when window/slice/viz selection changes
+ * - Builds the UI layer list for the LayerSelector
  */
 export function useSliceLayers({
     imagery,
     layerManager,
     mapReady,
+    sliceLayerMap,
     onReady,
     onLayersChange,
 }: UseSliceLayersOptions) {
     const [layers, setLayers] = useState<Layer[]>([]);
     const [activeLayerId, setActiveLayerId] = useState('');
-
-    // Pre-resolved slice -> tile URL map from context
-    const { sliceLayerMap } = useSliceLayerMap();
 
     // Store subscriptions
     const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
@@ -86,7 +92,6 @@ export function useSliceLayers({
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
     const hasCalledOnReadyRef = useRef(false);
-    const registeredSliceKeysRef = useRef<Set<string>>(new Set());
     const prevImageryIdRef = useRef<number | null>(null);
 
     // Activate the correct layer for the current selection
@@ -130,8 +135,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [imagery?.id, effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
 
-    // Register STAC slice layers incrementally
-
+    // Register STAC slice layers (called once when sliceLayerMap arrives complete)
     const syncSliceLayers = useCallback((lm: LayerManager, isImageryChange = false) => {
         if (!imagery) return;
 
@@ -139,7 +143,8 @@ export function useSliceLayers({
             lm.getLayers()
                 .filter((l) => l.id.startsWith('stac-'))
                 .forEach((l) => lm.removeLayer(l.id));
-            registeredSliceKeysRef.current.clear();
+            // Reset ready gate so onReady fires again for the new imagery
+            hasCalledOnReadyRef.current = false;
         }
 
         const newLayers: XYZLayer[] = [];
@@ -153,19 +158,20 @@ export function useSliceLayers({
             );
             for (const slice of slices) {
                 const sliceKey = `${window.id}-${slice.index}`;
-                const resolvedUrls = sliceLayerMap.get(sliceKey);
-                if (!resolvedUrls) continue;
-                if (registeredSliceKeysRef.current.has(sliceKey)) continue;
+                const searchId = sliceLayerMap.get(sliceKey);
+                if (!searchId) continue;
 
-                for (const urlEntry of resolvedUrls) {
+                for (const tpl of vizTemplates) {
+                    const layerId = makeLayerId(window.id, slice.index, tpl.id);
+                    if (lm.getLayerById(layerId)) continue;
+
                     newLayers.push(new XYZLayer({
-                        id: makeLayerId(window.id, slice.index, urlEntry.templateId),
-                        name: urlEntry.templateName,
+                        id: layerId,
+                        name: tpl.name,
                         layerType: 'imagery',
-                        urlTemplate: urlEntry.url,
+                        urlTemplate: tpl.visualization_url.replace(/\{searchId\}/g, searchId),
                     }));
                 }
-                registeredSliceKeysRef.current.add(sliceKey);
             }
         }
 
@@ -178,7 +184,6 @@ export function useSliceLayers({
     }, [sliceLayerMap, imagery?.id, activateCorrectLayer]);
 
     // Init basemaps on first mount
-
     const initLayers = useCallback((lm: LayerManager) => {
         for (const bm of BASEMAP_LAYERS) {
             lm.registerLayer(bm);
@@ -194,8 +199,7 @@ export function useSliceLayers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [syncSliceLayers]);
 
-    // Sync when sliceLayerMap grows or imagery changes
-
+    // Sync when sliceLayerMap grows or imagery changes (e.g. new imagery selected, or windows/slices change)
     useEffect(() => {
         if (!layerManager || !mapReady || !imagery) return;
         const isImageryChange = imagery.id !== prevImageryIdRef.current;
@@ -205,7 +209,6 @@ export function useSliceLayers({
     }, [sliceLayerMap, imagery?.id]);
 
     // Re-activate when selection changes
-
     useEffect(() => {
         if (!layerManager || !mapReady || !imagery) return;
         activateCorrectLayer(layerManager);
@@ -213,7 +216,6 @@ export function useSliceLayers({
     }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
 
     // Dispose on unmount
-
     useEffect(() => {
         return () => { layerManager?.dispose(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

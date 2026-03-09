@@ -67,6 +67,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
   const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const emptySlices = useAnnotationStore((state) => state.emptySlices);
+  const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -210,9 +211,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           // Move to previous window - land on its last non-empty slice
           const prevWindow = sortedWindows[currentWindowSortedIndex - 1];
           const prevCount = getSliceCountForWindow(prevWindow);
-          const landingSlice = firstNonEmptySlice(prevWindow.id, prevCount, prevCount - 1);
+          // Search backward from the last slice to find last non-empty
+          let landingSlice = -1;
+          for (let i = prevCount - 1; i >= 0; i--) {
+            if (!emptySlices[`${prevWindow.id}-${i}`]) { landingSlice = i; break; }
+          }
+          if (landingSlice < 0) return; // all empty - don't switch
           setActiveWindowId(prevWindow.id);
-          if (landingSlice >= 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
+          setTimeout(() => setActiveSliceIndex(landingSlice), 0);
         }
       }
     },
@@ -230,7 +236,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     ]
   );
 
-  // Navigate windows directly (Shift+A/D), landing on first non-empty slice
+  // Navigate windows directly (Shift+A/D), landing on the stored per-window slice
   const navigateWindow = useCallback(
     (direction: 'next' | 'prev') => {
       if (sortedWindows.length === 0) return;
@@ -247,12 +253,21 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       }
 
       if (!targetWindow) return;
+
+      // setActiveWindowId restores from windowSliceIndices[id] ?? 0
+      // If that stored slice is empty, override to the nearest non-empty one
       const targetCount = getSliceCountForWindow(targetWindow);
-      const landingSlice = firstNonEmptySlice(targetWindow.id, targetCount, 0);
+      const storedSlice = windowSliceIndices[targetWindow.id] ?? 0;
+      const isStoredEmpty = emptySlices[`${targetWindow.id}-${storedSlice}`];
+
       setActiveWindowId(targetWindow.id);
-      if (landingSlice > 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
+
+      if (isStoredEmpty) {
+        const fallback = firstNonEmptySlice(targetWindow.id, targetCount, storedSlice);
+        if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
+      }
     },
-    [currentWindowSortedIndex, sortedWindows, setActiveWindowId, setActiveSliceIndex, getSliceCountForWindow, firstNonEmptySlice]
+    [currentWindowSortedIndex, sortedWindows, setActiveWindowId, setActiveSliceIndex, getSliceCountForWindow, firstNonEmptySlice, windowSliceIndices, emptySlices]
   );
 
   const BASEMAP_TYPES = ['carto-light', 'esri-world-imagery', 'opentopomap'] as const;

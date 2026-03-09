@@ -12,7 +12,7 @@ import {
   formatWindowLabel,
 } from '~/shared/utils/utility';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { useSliceLayerMap } from '../context/SliceLayerMapContext';
+import { useStacRegistration } from '../hooks/useStacRegistration';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
 
 interface MainAnnotationsContainerProps {
@@ -42,8 +42,12 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
   const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
   const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const emptySlices = useAnnotationStore((state) => state.emptySlices);
   const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
+  const setProbeTimeseriesPoint = useAnnotationStore((state) => state.setProbeTimeseriesPoint);
+  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
+  const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
 
   // Open-mode annotation state
   const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
@@ -54,23 +58,44 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  // Registration gate
-  // AnnotationPage (parent) uses useStacAllSlices and provides progress via
-  // SliceLayerMapContext.  We must wait for ALL slices to finish registering
-  // before dismissing the loading overlay, otherwise the user can interact
-  // with unregistered slices that produce white/empty tiles.
-  const { totalSlices, registeredSlices } = useSliceLayerMap();
-  const allRegistrationsDone = totalSlices === 0 || registeredSlices >= totalSlices;
+  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
+  const currentTask = visibleTasks[currentTaskIndex] ?? null;
 
-  // Render gate
-  // True only after BOTH: (a) OL viewport tiles rendered, AND (b) all STAC
-  // slice registrations have resolved.
+  const campaignBbox = useMemo(
+    () => campaign
+      ? ([
+          campaign.settings.bbox_west,
+          campaign.settings.bbox_south,
+          campaign.settings.bbox_east,
+          campaign.settings.bbox_north,
+        ] as [number, number, number, number])
+      : ([0, 0, 0, 0] as [number, number, number, number]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      campaign?.settings.bbox_west,
+      campaign?.settings.bbox_south,
+      campaign?.settings.bbox_east,
+      campaign?.settings.bbox_north,
+    ]
+  );
+
+  // STAC registration - register all slices in parallel, concurrency-limited
+  const { sliceLayerMap, allRegistered } = useStacRegistration({
+    imagery: selectedImagery,
+    bbox: campaignBbox,
+    enabled: !!selectedImagery,
+  });
+
+  // Render gate: OL tiles rendered (only meaningful once registrations are done)
   const [olLayerReady, setOlLayerReady] = useState(false);
-  const mapImageryReady = olLayerReady && allRegistrationsDone;
 
-  // Pending OL-ready signal: if it arrives before registrations finish, hold it here.
-  const pendingOlReadyRef = useRef(false);
-  // Ref to the open-mode map for imperative actions (e.g. fitAnnotations)
+  // Reset OL-ready gate when imagery changes so we wait for the new tiles
+  useEffect(() => {
+    setOlLayerReady(false);
+  }, [selectedImageryId]);
+
+  const mapImageryReady = olLayerReady && allRegistered;
+
   const openModeMapRef = useRef<OpenModeMapHandle>(null);
 
   const LAUNCH_SEQUENCE = [
@@ -89,42 +114,9 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapImageryReady]);
 
-  // Flush the OL-ready signal once registrations catch up.
-  useEffect(() => {
-    if (pendingOlReadyRef.current && allRegistrationsDone) {
-      setOlLayerReady(true);
-    }
-  }, [allRegistrationsDone]);
-
   const handleMapReady = useCallback(() => {
-    if (allRegistrationsDone) {
-      setOlLayerReady(true);
-    } else {
-      // Hold: registrations still in flight - will be flushed by the effect above.
-      pendingOlReadyRef.current = true;
-    }
-  }, [allRegistrationsDone]);
-
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
-  const currentTask = visibleTasks[currentTaskIndex] ?? null;
-
-  const campaignBbox = useMemo(
-    () => campaign
-      ? ([
-          campaign.settings.bbox_west,
-          campaign.settings.bbox_south,
-          campaign.settings.bbox_east,
-          campaign.settings.bbox_north,
-        ] as [number, number, number, number])
-      : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      campaign?.settings.bbox_west,
-      campaign?.settings.bbox_south,
-      campaign?.settings.bbox_east,
-      campaign?.settings.bbox_north,
-    ]
-  );
+    setOlLayerReady(true);
+  }, []);
 
   // Resolve the active window
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
@@ -188,10 +180,14 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   // Stable callback - must be declared before early return (hook rules)
   const handleTimeseriesClick = useCallback((lat: number, lon: number) => {
-    setTimeseriesPoint({ lat, lon });
-  }, [setTimeseriesPoint]);
+    if (campaign?.mode === 'tasks') {
+      setProbeTimeseriesPoint({ lat, lon });
+    } else {
+      setTimeseriesPoint({ lat, lon });
+    }
+  }, [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]);
 
-  if (!campaign || !selectedImagery || !campaignBbox) return null;
+  if (!campaign || !selectedImagery) return null;
 
   const isTaskMode = campaign.mode === 'tasks';
   const isOpenMode = campaign.mode === 'open';
@@ -225,6 +221,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                   setActiveLayerId(layerId);
                   const layer = mapLayers.find((l) => l.id === layerId);
                   if (layer?.layerType === 'basemap') {
+                    setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
                     setShowBasemap(true);
                   } else {
                     const match = layerId.match(/-v(\d+)$/);
@@ -263,9 +260,14 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
                 title="Select time slice"
               >
-                {slices.map((slice, idx) => (
-                  <option key={idx} value={idx}>{slice.label}</option>
-                ))}
+                {slices.map((slice, idx) => {
+                  const isEmpty = !!emptySlices[`${currentActiveWindowId}-${idx}`];
+                  return (
+                    <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
+                      {slice.label}{isEmpty ? ' (empty)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             )}
 
@@ -332,6 +334,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         {isTaskMode ? (
           <TaskModeMap
             imagery={selectedImagery}
+            sliceLayerMap={sliceLayerMap}
             initialCenter={initialCenter}
             initialZoom={initialZoom}
             center={center}
@@ -342,11 +345,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
             onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
             onReady={handleMapReady}
+            activeTool={activeTool}
+            onTimeseriesClick={handleTimeseriesClick}
+            probePoint={probeTimeseriesPoint}
           />
         ) : (
           <OpenModeMap
             ref={openModeMapRef}
             imagery={selectedImagery}
+            sliceLayerMap={sliceLayerMap}
             initialCenter={initialCenter}
             initialZoom={initialZoom}
             refocusTrigger={refocusTrigger}
@@ -356,6 +363,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             activeTool={activeTool}
             magicWandActive={magicWandActive}
             onTimeseriesClick={handleTimeseriesClick}
+            probePoint={timeseriesPoint}
           />
         )}
 

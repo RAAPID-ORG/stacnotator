@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { stacRegistrationLimiter } from '~/shared/utils/rateLimiter';
+import { stacRegistrationLimiter } from '~/shared/utils/concurrencyLimiter';
 import { computeTimeSlices } from '~/shared/utils/utility';
 import type { ImageryWithWindowsOut } from '~/api/client';
 
@@ -212,15 +212,12 @@ export function useStacAllSlices({
     if (alreadyDone === allDescriptors.length) return;
 
     // -----------------------------------------------------------------------
-    // Fire registrations sequentially through the rate limiter
+    // Fire registrations in parallel, concurrency-limited by the limiter
     // -----------------------------------------------------------------------
     let done = alreadyDone;
 
-    (async () => {
-      for (const desc of sorted) {
-        if (cancelledRef.current) break;
-
-        // Skip if already resolved (either from initial cache seed or a previous iteration)
+    const pending = sorted
+      .filter((desc) => {
         const cacheKey = makeCacheKey(
           imagery.registration_url,
           bbox,
@@ -228,10 +225,10 @@ export function useStacAllSlices({
           desc.startDate,
           desc.endDate,
         );
-        if (registrationCache.has(cacheKey)) {
-          // Already in map from the initial seed - just count it
-          continue;
-        }
+        return !registrationCache.has(cacheKey);
+      })
+      .map(async (desc) => {
+        if (cancelledRef.current) return;
 
         try {
           const urls = await registerSlice(
@@ -243,7 +240,7 @@ export function useStacAllSlices({
             imagery.visualization_url_templates,
           );
 
-          if (cancelledRef.current) break;
+          if (cancelledRef.current) return;
 
           done++;
           const key = desc.key;
@@ -254,15 +251,16 @@ export function useStacAllSlices({
           });
           setRegisteredSlices(done);
         } catch (err) {
-          if (cancelledRef.current) break;
+          if (cancelledRef.current) return;
           console.error(`[useStacAllSlices] Failed to register slice ${desc.key}:`, err);
-          // Continue - don't abort the whole batch for one failure
         }
-      }
-    })();
+      });
+
+    Promise.all(pending);
 
     return () => {
       cancelledRef.current = true;
+      stacRegistrationLimiter.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // bbox array identity is unstable - use join as stable dep

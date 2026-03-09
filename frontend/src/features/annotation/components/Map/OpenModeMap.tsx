@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState, memo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type OLMap from 'ol/Map';
+import Overlay from 'ol/Overlay';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { createEmpty, extend, isEmpty } from 'ol/extent';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
@@ -22,15 +23,17 @@ import type { Layer } from './Layer';
 import LayerSelector from './LayerSelector';
 
 import type { ImageryWithWindowsOut } from '~/api/client';
+import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import useAnnotationStore from '../../annotation.store';
 import type { ExtendedLabel } from '../ControlsOpenMode';
-import { useSliceLayers } from './useSliceLayers';
+import { useSliceLayers, BASEMAP_LAYERS } from './useSliceLayers';
 
 // Props
 
 interface OpenModeMapProps {
     imagery: ImageryWithWindowsOut | null;
+    sliceLayerMap: SliceLayerMap;
     initialCenter: [number, number];
     initialZoom: number;
     /** Called on every view change so the store can sync window maps. */
@@ -46,6 +49,8 @@ interface OpenModeMapProps {
     onTimeseriesClick?: (lat: number, lon: number) => void;
     /** Increment to snap back to initialCenter/initialZoom. */
     refocusTrigger?: number;
+    /** Timeseries probe point to display on the map. */
+    probePoint?: { lat: number; lon: number } | null;
 }
 
 /** Imperative handle exposed to parents via ref */
@@ -57,6 +62,7 @@ export interface OpenModeMapHandle {
 
 const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     imagery,
+    sliceLayerMap,
     initialCenter,
     initialZoom,
     onViewChange,
@@ -68,14 +74,20 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     magicWandActive,
     onTimeseriesClick,
     refocusTrigger,
+    probePoint,
 }, ref) => {
     const mapRef = useRef<OLMap | null>(null);
     const [olMap, setOlMap] = useState<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
     const mapReadyRef = useRef(false);
+    const probeOverlayRef = useRef<Overlay | null>(null);
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
+
+    const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
+    const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
+    const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
 
     // Shared layer management
 
@@ -83,6 +95,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         imagery,
         layerManager: layerManagerRef.current,
         mapReady: mapReadyRef.current,
+        sliceLayerMap,
         onReady,
         onLayersChange,
     });
@@ -137,17 +150,16 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         doFitAnnotations();
     }, [fitAnnotationsTrigger, doFitAnnotations]);
 
-    // Refocus trigger
+    // Refocus trigger (keep current zoom)
 
     useEffect(() => {
         if (!mapRef.current || refocusTrigger === lastRefocusTriggerRef.current) return;
         lastRefocusTriggerRef.current = refocusTrigger;
         mapRef.current.getView().animate({
             center: fromLonLat([initialCenter[1], initialCenter[0]]),
-            zoom: initialZoom,
             duration: 300,
         });
-    }, [refocusTrigger, initialCenter, initialZoom]);
+    }, [refocusTrigger, initialCenter]);
 
     // External active layer control
 
@@ -156,6 +168,18 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         layerManagerRef.current.setActiveLayer(controlledActiveLayerId);
         setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId, setActiveLayerId]);
+
+    // Probe marker overlay
+
+    useEffect(() => {
+        const overlay = probeOverlayRef.current;
+        if (!overlay) return;
+        if (probePoint) {
+            overlay.setPosition(fromLonLat([probePoint.lon, probePoint.lat]));
+        } else {
+            overlay.setPosition(undefined);
+        }
+    }, [probePoint?.lat, probePoint?.lon, probePoint]);
 
     // Render
 
@@ -185,6 +209,19 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                     };
                     view.on('change:center', syncView);
                     view.on('change:resolution', syncView);
+
+                    // Create probe marker overlay
+                    const probeEl = document.createElement('div');
+                    probeEl.className = 'probe-marker';
+                    probeEl.style.pointerEvents = 'none';
+
+                    const probeOverlay = new Overlay({
+                        element: probeEl,
+                        positioning: 'center-center',
+                        stopEvent: false,
+                    });
+                    map.addOverlay(probeOverlay);
+                    probeOverlayRef.current = probeOverlay;
                 }}
             />
 
@@ -207,6 +244,22 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                         selectedLayer={layers.find((l) => l.id === activeLayerId)}
                         onLayerSelect={(layerId) => {
                             setActiveLayerId(layerId);
+                            // Actually switch OL layer visibility
+                            layerManagerRef.current?.setActiveLayer(layerId);
+                            const layer = layers.find((l) => l.id === layerId);
+                            if (layer?.layerType === 'basemap') {
+                                setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
+                                setShowBasemap(true);
+                            } else {
+                                setShowBasemap(false);
+                                const match = layerId.match(/-v(\d+)$/);
+                                if (match) {
+                                    const templateId = Number(match[1]);
+                                    const idx = (imagery?.visualization_url_templates ?? [])
+                                        .findIndex((t) => t.id === templateId);
+                                    if (idx !== -1) setSelectedLayerIndex(idx);
+                                }
+                            }
                             onLayersChange?.(layers, layerId);
                         }}
                     />
