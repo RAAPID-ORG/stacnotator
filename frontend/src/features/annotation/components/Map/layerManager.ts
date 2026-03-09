@@ -20,6 +20,17 @@ export class LayerManager {
     private map: OLMap;
     private activeLayerId = '';
 
+    // Busy/idle tracking for the active layer's tile source
+    private busyListenerKeys: EventsKey[] = [];
+    private activeTilePending = 0;
+    private _busy = false;
+    private busyChangeListeners: Array<(busy: boolean) => void> = [];
+    /** Debounce timer – waits a short period after pending hits 0 before
+     *  declaring idle, because OL often fires tileloadend immediately
+     *  followed by another tileloadstart during pan/zoom. */
+    private idleTimer: ReturnType<typeof setTimeout> | null = null;
+    private static readonly IDLE_DEBOUNCE_MS = 150;
+
     constructor(map: OLMap) {
         this.map = map;
     }
@@ -85,6 +96,38 @@ export class LayerManager {
         // Show the new layer
         newOL.setVisible(true);
         this.activeLayerId = layerId;
+
+        // Re-attach busy listeners to the new active layer
+        this._attachBusyListeners();
+    }
+
+    // Busy/idle tracking API
+
+    /**
+     * Whether the active layer is currently loading tiles.
+     */
+    get busy() {
+        return this._busy;
+    }
+
+    /**
+     * Subscribe to busy/idle transitions. Returns an unsubscribe function.
+     */
+    onBusyChange(listener: (busy: boolean) => void): () => void {
+        this.busyChangeListeners.push(listener);
+        return () => {
+            this.busyChangeListeners = this.busyChangeListeners.filter((l) => l !== listener);
+        };
+    }
+
+    /** Returns the underlying OL Map. */
+    getMap(): OLMap {
+        return this.map;
+    }
+
+    /** Returns the current active layer ID. */
+    getActiveLayerId(): string {
+        return this.activeLayerId;
     }
 
     /**
@@ -134,10 +177,63 @@ export class LayerManager {
     // Lifecycle
 
     dispose() {
-        // No-op - kept for API compatibility
+        this._detachBusyListeners();
+        this.busyChangeListeners = [];
     }
 
     // Private helpers
+
+    private _setBusy(busy: boolean) {
+        if (busy === this._busy) return;
+        this._busy = busy;
+        for (const fn of this.busyChangeListeners) fn(busy);
+    }
+
+    /** Detach existing tile-load listeners from the previous active layer. */
+    private _detachBusyListeners() {
+        this.busyListenerKeys.forEach(unlistenByKey);
+        this.busyListenerKeys = [];
+        this.activeTilePending = 0;
+        if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
+        this._setBusy(false);
+    }
+
+    /** Attach tile-load listeners to the current active layer's source. */
+    private _attachBusyListeners() {
+        this._detachBusyListeners();
+
+        const olLayer = this._findOLLayer(this.activeLayerId);
+        const source = olLayer?.getSource?.() ?? null;
+        if (!source) return;
+
+        const checkIdle = () => {
+            if (this.activeTilePending <= 0) {
+                // Debounce: wait a short period before declaring idle
+                if (this.idleTimer) clearTimeout(this.idleTimer);
+                this.idleTimer = setTimeout(() => {
+                    if (this.activeTilePending <= 0) {
+                        this._setBusy(false);
+                    }
+                }, LayerManager.IDLE_DEBOUNCE_MS);
+            }
+        };
+
+        this.busyListenerKeys.push(
+            listen(source, 'tileloadstart', () => {
+                this.activeTilePending++;
+                if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
+                this._setBusy(true);
+            }),
+            listen(source, 'tileloadend', () => {
+                this.activeTilePending = Math.max(0, this.activeTilePending - 1);
+                checkIdle();
+            }),
+            listen(source, 'tileloaderror', () => {
+                this.activeTilePending = Math.max(0, this.activeTilePending - 1);
+                checkIdle();
+            }),
+        );
+    }
 
     private _findOLLayer(layerId: string): BaseTileLayer<TileSource, any> | undefined {
         return this.map.getLayers().getArray()

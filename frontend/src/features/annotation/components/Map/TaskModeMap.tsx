@@ -9,7 +9,7 @@
  * `useSliceLayers` hook.
  */
 
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, memo, useState } from 'react';
 import BaseMap from './BaseMap';
 import type OLMap from 'ol/Map';
 import Overlay from 'ol/Overlay';
@@ -19,6 +19,8 @@ import type { ImageryWithWindowsOut } from '~/api/client';
 import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
+import { useTilePreloading } from './useTilePreloading';
+import useAnnotationStore from '../../annotation.store';
 
 // Props
 
@@ -69,6 +71,8 @@ const TaskModeMap = ({
 }: TaskModeMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
+    const [olMap, setOlMap] = useState<OLMap | null>(null);
+    const [layerManager, setLayerManager] = useState<LayerManager | null>(null);
     const mapReadyRef = useRef(false);
     const crosshairOverlayRef = useRef<Overlay | null>(null);
     const crosshairElRef = useRef<HTMLDivElement | null>(null);
@@ -81,6 +85,14 @@ const TaskModeMap = ({
     const onTimeseriesClickRef = useRef(onTimeseriesClick);
     onTimeseriesClickRef.current = onTimeseriesClick;
 
+    // Store subscriptions for preloading
+    const visibleTasks = useAnnotationStore((s) => s.visibleTasks);
+    const currentTaskIndex = useAnnotationStore((s) => s.currentTaskIndex);
+    const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
+
+    // Resolved active window ID
+    const effectiveActiveWindowId = activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
+
     // Shared layer management
 
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
@@ -92,14 +104,30 @@ const TaskModeMap = ({
         onLayersChange,
     });
 
-    // Pan to center on task navigation
+    // Tile preloading (task mode only – keeps other windows + next task warm)
+    useTilePreloading({
+        map: olMap,
+        layerManager,
+        imagery: imagery ?? null,
+        sliceLayerMap,
+        activeWindowId: effectiveActiveWindowId,
+        visibleTasks,
+        currentTaskIndex,
+        defaultZoom: imagery?.default_zoom ?? 10,
+        enabled: !!imagery,
+    });
+
+    // Pan to center + reset zoom on task navigation
 
     useEffect(() => {
         if (!center || !mapRef.current) return;
         const view = mapRef.current.getView();
         view.setCenter(fromLonLat([center[1], center[0]]));
+        // Reset zoom to default on every task change so prefetched tiles
+        // (which are always at defaultZoom) are cache hits.
+        if (initialZoom !== undefined) view.setZoom(initialZoom);
         mapRef.current.renderSync();
-    }, [center]);
+    }, [center, initialZoom]);
 
     // Recenter when refocusTrigger increments (keep current zoom)
     useEffect(() => {
@@ -174,6 +202,10 @@ const TaskModeMap = ({
                     const lm = new LayerManager(map);
                     layerManagerRef.current = lm;
                     mapReadyRef.current = true;
+
+                    // Expose to state so hooks (e.g. useTilePreloading) can subscribe
+                    setOlMap(map);
+                    setLayerManager(lm);
 
                     initLayers(lm);
 

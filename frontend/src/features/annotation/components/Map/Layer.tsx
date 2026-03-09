@@ -41,9 +41,11 @@ export class XYZLayer extends Layer {
 
     asOLLayer() {
         return new TileLayer({
-            // Infinity tells OL to pre-load all tiles for this layer even when hidden,
-            // so switching to it is instant (tiles already in the browser cache).
-            preload: this.layerType === 'imagery' ? Infinity : 4,
+            // Hidden imagery layers use preload 0 so they don't compete with
+            // the active layer for HTTP connections. Our TilePreloader handles
+            // background prefetching with proper prioritization instead.
+            // Basemaps keep preload 4 since they're lightweight.
+            preload: this.layerType === 'imagery' ? 0 : 4,
             source: new XYZ({
                 url: this.urlTemplate,
                 attributions: this.attribution,
