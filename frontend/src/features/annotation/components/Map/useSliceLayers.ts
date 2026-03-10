@@ -25,7 +25,7 @@ export const BASEMAP_LAYERS = [
         urlTemplate:
             'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         attribution: 'Tiles © Esri',
-        maxZoom: 17,   // source tile limit – global coverage is solid at z17; OL stretches beyond
+        maxZoom: 17,   // source tile limit - global coverage is solid at z17; OL stretches beyond
     }),
     new XYZLayer({
         id: 'opentopomap',
@@ -56,6 +56,8 @@ interface UseSliceLayersOptions {
     onReady?: () => void;
     /** Called whenever the UI-visible layer list changes. */
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
+    /** OL preload depth for imagery layers. Use Infinity for open mode. */
+    preloadDepth?: number;
 }
 
 /**
@@ -73,6 +75,7 @@ export function useSliceLayers({
     sliceLayerMap,
     onReady,
     onLayersChange,
+    preloadDepth,
 }: UseSliceLayersOptions) {
     const [layers, setLayers] = useState<Layer[]>([]);
     const [activeLayerId, setActiveLayerId] = useState('');
@@ -81,6 +84,8 @@ export function useSliceLayers({
     const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
     const activeSliceIndex = useAnnotationStore((s) => s.activeSliceIndex);
     const selectedLayerIndex = useAnnotationStore((s) => s.selectedLayerIndex);
+    const showBasemap = useAnnotationStore((s) => s.showBasemap);
+    const basemapType = useAnnotationStore((s) => s.basemapType);
 
     const effectiveActiveWindowId =
         activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
@@ -97,13 +102,23 @@ export function useSliceLayers({
     // Activate the correct layer for the current selection
 
     const activateCorrectLayer = useCallback((lm: LayerManager) => {
-        if (!imagery || !activeVizTemplate) return;
+        if (!imagery) return;
 
-        const targetId = makeLayerId(
-            effectiveActiveWindowId ?? imagery.windows[0]?.id,
-            activeSliceIndex,
-            activeVizTemplate.id,
-        );
+        // Determine which layer to activate
+        let targetId: string;
+
+        if (showBasemap) {
+            // Basemap mode: activate the selected basemap layer
+            targetId = basemapType;
+        } else {
+            // STAC imagery mode: activate the correct viz layer
+            if (!activeVizTemplate) return;
+            targetId = makeLayerId(
+                effectiveActiveWindowId ?? imagery.windows[0]?.id,
+                activeSliceIndex,
+                activeVizTemplate.id,
+            );
+        }
 
         lm.setActiveLayer(targetId);
         setActiveLayerId(targetId);
@@ -133,7 +148,7 @@ export function useSliceLayers({
         setLayers(uiLayers);
         onLayersChange?.(uiLayers, targetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [imagery?.id, effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
+    }, [imagery?.id, effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id, showBasemap, basemapType]);
 
     // Register STAC slice layers (called once when sliceLayerMap arrives complete)
     const syncSliceLayers = useCallback((lm: LayerManager, isImageryChange = false) => {
@@ -170,6 +185,7 @@ export function useSliceLayers({
                         name: tpl.name,
                         layerType: 'imagery',
                         urlTemplate: tpl.visualization_url.replace(/\{searchId\}/g, searchId),
+                        preload: preloadDepth,
                     }));
                 }
             }
@@ -213,7 +229,7 @@ export function useSliceLayers({
         if (!layerManager || !mapReady || !imagery) return;
         activateCorrectLayer(layerManager);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id]);
+    }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id, showBasemap, basemapType]);
 
     // Dispose on unmount
     useEffect(() => {

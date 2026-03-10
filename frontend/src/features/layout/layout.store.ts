@@ -32,6 +32,9 @@ interface LayoutStore {
   // Keyboard help state
   showKeyboardHelp: boolean;
 
+  // Guided tour state
+  showGuidedTour: boolean;
+
   // Fullscreen state
   isFullscreen: boolean;
 
@@ -50,6 +53,7 @@ interface LayoutStore {
   clearBreadcrumbs: () => void;
   toggleKeyboardHelp: () => void;
   setShowKeyboardHelp: (show: boolean) => void;
+  setShowGuidedTour: (show: boolean) => void;
   toggleFullscreen: () => void;
   setIsFullscreen: (isFullscreen: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -82,6 +86,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     loadingOverlayText: 'Loading...',
     breadcrumbs: [],
     showKeyboardHelp: false,
+    showGuidedTour: false,
     isFullscreen: false,
     sidebarCollapsed: false,
     confirmDialog: null,
@@ -106,6 +111,8 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     toggleKeyboardHelp: () => set((state) => ({ showKeyboardHelp: !state.showKeyboardHelp })),
 
     setShowKeyboardHelp: (show) => set({ showKeyboardHelp: show }),
+
+    setShowGuidedTour: (show) => set({ showGuidedTour: show }),
 
     // Fullscreen actions
     toggleFullscreen: () => {

@@ -1,10 +1,10 @@
 /**
- * TilePreloader – fetches XYZ tiles into the browser cache so that when
+ * TilePreloader - fetches XYZ tiles into the browser cache so that when
  * OpenLayers later requests them they are instant cache-hits.
  *
  * Design:
- *   - Priority queue – lower number = higher priority.
- *   - Pause / resume – pauses while the active OL layer is loading.
+ *   - Priority queue - lower number = higher priority.
+ *   - Pause / resume - pauses while the active OL layer is loading.
  *   - Flat per-tile concurrency via fetch() + HTTP/2 multiplexing.
  *   - abort(groupId) / clear() for cancellation.
  */

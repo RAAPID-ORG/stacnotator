@@ -67,7 +67,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'annotate',
     label: 'Annotate',
-    shortcut: 'A',
+    shortcut: 'R',
     icon: (
       <svg
         width="16"

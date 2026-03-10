@@ -89,6 +89,9 @@ const TaskModeMap = ({
     const visibleTasks = useAnnotationStore((s) => s.visibleTasks);
     const currentTaskIndex = useAnnotationStore((s) => s.currentTaskIndex);
     const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
+    const zoomInTrigger = useAnnotationStore((s) => s.zoomInTrigger);
+    const zoomOutTrigger = useAnnotationStore((s) => s.zoomOutTrigger);
+    const panTrigger = useAnnotationStore((s) => s.panTrigger);
 
     // Resolved active window ID
     const effectiveActiveWindowId = activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
@@ -104,7 +107,7 @@ const TaskModeMap = ({
         onLayersChange,
     });
 
-    // Tile preloading (task mode only – keeps other windows + next task warm)
+    // Tile preloading (task mode only - keeps other windows + next task warm)
     useTilePreloading({
         map: olMap,
         layerManager,
@@ -138,6 +141,45 @@ const TaskModeMap = ({
         view.setCenter(fromLonLat([center[1], center[0]]));
         mapRef.current.renderSync();
     }, [refocusTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Keyboard zoom in
+    useEffect(() => {
+        if (!zoomInTrigger || !mapRef.current) return;
+        const view = mapRef.current.getView();
+        const currentZoom = view.getZoom();
+        if (currentZoom !== undefined) {
+            view.animate({ zoom: currentZoom + 1, duration: 200 });
+        }
+    }, [zoomInTrigger]);
+
+    // Keyboard zoom out
+    useEffect(() => {
+        if (!zoomOutTrigger || !mapRef.current) return;
+        const view = mapRef.current.getView();
+        const currentZoom = view.getZoom();
+        if (currentZoom !== undefined) {
+            view.animate({ zoom: currentZoom - 1, duration: 200 });
+        }
+    }, [zoomOutTrigger]);
+
+    // Keyboard pan
+    useEffect(() => {
+        if (!panTrigger.count || !mapRef.current) return;
+        const view = mapRef.current.getView();
+        const resolution = view.getResolution();
+        const currentCenter = view.getCenter();
+        if (!resolution || !currentCenter) return;
+
+        const panDistance = resolution * 100; // pan ~100 pixels
+        let [x, y] = currentCenter;
+        switch (panTrigger.direction) {
+            case 'up':    y += panDistance; break;
+            case 'down':  y -= panDistance; break;
+            case 'left':  x -= panDistance; break;
+            case 'right': x += panDistance; break;
+        }
+        view.animate({ center: [x, y], duration: 150 });
+    }, [panTrigger]);
 
     // Crosshair overlay
 

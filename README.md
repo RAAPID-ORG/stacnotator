@@ -17,7 +17,6 @@ A tool for annotating imagery from STAC Catalogs.
     ```
 
 2. **Create a user in firebase**
-    - We use firebase to handle authentication. Create a firebase project.
     - Go to `https://console.firebase.google.com/`, and select your project.
     - Switch to the authentication tab.
     - Under users, click Add user and follow the promts.
@@ -104,11 +103,11 @@ STACNotator supports multiple deployment options:
 - [ ] Firebase credentials secured (permissions 600)
 - [ ] CORS origins restricted to your domain
 - [ ] `.env` file excluded from git
-- [ ] **You are the first user to sign up** (for admin access)
 - [ ] Workers tuned for your CPU count (see Worker Configuration)
 - [ ] Database not exposed publicly (remove `ports:` in docker-compose.prod.yml)
 - [ ] Domain DNS pointed to your server
 - [ ] Firewall configured (allow ports 80, 443)
+- [ ] Do your own security checklist - this is just an initial reccomendation
 
 
 ## Common Tasks

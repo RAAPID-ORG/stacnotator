@@ -7,7 +7,7 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  *
  * Tool switching:
  *   V - Pan
- *   A - Annotate
+ *   R - Annotate (draw)
  *   E - Edit
  *   T - Timeseries (only when campaign has time series)
  *
@@ -55,7 +55,7 @@ export const useOpenModeKeyboard = () => {
           setActiveTool('pan');
           setTimeseriesPoint(null);
           break;
-        case 'a':
+        case 'r':
           e.preventDefault();
           setActiveTool('annotate');
           setTimeseriesPoint(null);

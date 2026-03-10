@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useMemo, useState, useCallback, useRef, memo } from 'react';
 import TaskModeMap from './Map/TaskModeMap';
 import OpenModeMap from './Map/OpenModeMap';
 import type { OpenModeMapHandle } from './Map/OpenModeMap';
@@ -86,37 +86,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     enabled: !!selectedImagery,
   });
 
-  // Render gate: OL tiles rendered (only meaningful once registrations are done)
-  const [olLayerReady, setOlLayerReady] = useState(false);
-
-  // Reset OL-ready gate when imagery changes so we wait for the new tiles
-  useEffect(() => {
-    setOlLayerReady(false);
-  }, [selectedImageryId]);
-
-  const mapImageryReady = olLayerReady && allRegistered;
-
   const openModeMapRef = useRef<OpenModeMapHandle>(null);
-
-  const LAUNCH_SEQUENCE = [
-    'Launching satellite…',
-    'Preparing orbital injection…',
-    'Establishing uplink…',
-    'Downlinking imagery…',
-  ] as const;
-  const [launchStep, setLaunchStep] = useState(0);
-  useEffect(() => {
-    if (mapImageryReady) return;
-    const id = setInterval(() => {
-      setLaunchStep((s) => (s + 1) % LAUNCH_SEQUENCE.length);
-    }, 1800);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapImageryReady]);
-
-  const handleMapReady = useCallback(() => {
-    setOlLayerReady(true);
-  }, []);
 
   // Resolve the active window
   const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
@@ -210,7 +180,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
         {/* Top-right controls for task mode */}
         {isTaskMode && (
-          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
+          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
 
             {/* Layer selector */}
             {mapLayers.length > 0 && (
@@ -344,7 +314,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             activeLayerId={activeLayerId}
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
             onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
-            onReady={handleMapReady}
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
@@ -358,7 +327,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             initialZoom={initialZoom}
             refocusTrigger={refocusTrigger}
             onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
-            onReady={handleMapReady}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
             magicWandActive={magicWandActive}
@@ -367,13 +335,13 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           />
         )}
 
-        {/* Loading overlay - shown until the first active imagery layer has fully rendered */}
-        {!mapImageryReady && (
+        {/* Loading overlay - shown until STAC registrations complete */}
+        {!allRegistered && (
           <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-3 px-8 py-6 bg-white rounded-2xl border border-neutral-200 shadow-2xl">
               <LoadingSpinner
                 size="lg"
-                text={LAUNCH_SEQUENCE[launchStep]}
+                text="Loading imagery…"
               />
             </div>
           </div>

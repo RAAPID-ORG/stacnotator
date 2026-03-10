@@ -22,6 +22,7 @@ export class XYZLayer extends Layer {
     readonly attribution?: string;
     readonly minZoom?: number;
     readonly maxZoom?: number;
+    readonly preload?: number;
 
     constructor(params: {
         id: string;
@@ -31,21 +32,20 @@ export class XYZLayer extends Layer {
         attribution?: string;
         minZoom?: number;
         maxZoom?: number;
+        /** OL preload depth. Defaults to 0 for imagery, 4 for basemaps. Use Infinity for eager neighbour/zoom prefetching. */
+        preload?: number;
     }) {
         super(params.id, params.name, params.layerType);
         this.urlTemplate = params.urlTemplate;
         this.attribution = params.attribution;
         this.minZoom = params.minZoom;
         this.maxZoom = params.maxZoom;
+        this.preload = params.preload;
     }
 
     asOLLayer() {
         return new TileLayer({
-            // Hidden imagery layers use preload 0 so they don't compete with
-            // the active layer for HTTP connections. Our TilePreloader handles
-            // background prefetching with proper prioritization instead.
-            // Basemaps keep preload 4 since they're lightweight.
-            preload: this.layerType === 'imagery' ? 0 : 4,
+            preload: this.preload ?? (this.layerType === 'imagery' ? 0 : 4),
             source: new XYZ({
                 url: this.urlTemplate,
                 attributions: this.attribution,

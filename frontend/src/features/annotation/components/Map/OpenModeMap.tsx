@@ -98,6 +98,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         sliceLayerMap,
         onReady,
         onLayersChange,
+        preloadDepth: Infinity,
     });
 
     // Imperative handle: fitAnnotations

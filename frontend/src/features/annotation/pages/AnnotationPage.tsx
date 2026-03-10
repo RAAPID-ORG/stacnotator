@@ -6,6 +6,7 @@ import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
+import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { useStacRegistration } from '../hooks/useStacRegistration';
@@ -36,6 +37,8 @@ export const AnnotationPage = () => {
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
+  const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
+  const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
   // Start STAC registrations as soon as campaign data is available
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
@@ -148,7 +151,7 @@ export const AnnotationPage = () => {
 
   // Render
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <AnnotationToolbar />
       {campaign &&
       ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
@@ -180,6 +183,7 @@ export const AnnotationPage = () => {
           </div>
         </div>
       )}
+      <GuidedTour isOpen={showGuidedTour} onClose={() => setShowGuidedTour(false)} />
     </div>
   );
 };

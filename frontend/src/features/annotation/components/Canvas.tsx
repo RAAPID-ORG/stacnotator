@@ -226,11 +226,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </svg>
           </button>
           <a
-            href={`https://www.google.com/maps?q=${latLon.lat},${latLon.lon}&t=k`}
+            href={`https://earth.google.com/web/search/${latLon.lat},${latLon.lon}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
-            title="Open in Google Maps (satellite view)"
+            title="Open in Google Earth"
           >
             <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
               <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
@@ -245,7 +245,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   return (
     <main
       ref={containerRef}
-      className={`flex-1 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
+      className={`flex-1 min-h-0 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
         isEditingLayout ? 'is-editing' : ''
       }`}
     >
@@ -269,7 +269,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           onLayoutChange={setCurrentLayout}
         >
           {/* Main Annotation Container */}
-          <div key="main" className="grid-card">
+          <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
               {renderMainHeader()}
             </div>
@@ -278,7 +278,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
           {/* Timeseries */}
           {campaign.time_series.length > 0 && (
-            <div key="timeseries" className="grid-card">
+            <div key="timeseries" className="grid-card" data-tour="timeseries">
               <div
                 className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}
               >
@@ -297,7 +297,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           )}
 
           {/* Minimap */}
-          <div key="minimap" className="grid-card">
+          <div key="minimap" className="grid-card" data-tour="minimap">
             <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
@@ -309,7 +309,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           </div>
 
           {/* Annotation Controls Panel */}
-          <div key="controls" className="grid-card">
+          <div key="controls" className="grid-card" data-tour="controls">
             <div className="h-full overflow-auto">
               {campaign.mode === 'tasks' ? (
                 <ControlsTaskMode
@@ -330,13 +330,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           </div>
 
           {/* Imagery Windows */}
-          {selectedImagery?.windows.map((window) => {
+          {selectedImagery?.windows.map((window, windowIdx) => {
             const isActiveWindow = window.id === currentActiveWindowId;
 
             return (
               <div
                 key={window.id}
                 className={`grid-card grid-card-hoverable ${isActiveWindow ? 'active-window' : ''}`}
+                {...(windowIdx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
                   className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50`}

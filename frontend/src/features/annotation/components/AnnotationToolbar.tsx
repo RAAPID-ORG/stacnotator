@@ -21,6 +21,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'Escape', description: 'Unfocus input' },
   { key: 'H', description: 'Toggle keyboard help' },
   { key: 'L', description: 'Cycle visualization layer' },
+  { key: 'I', description: 'Cycle imagery source' },
 ];
 
 /**
@@ -372,10 +373,10 @@ export const AnnotationToolbar = () => {
   };
 
   return (
-    <header className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0">
+    <header data-tour="toolbar" className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0">
       <div className="flex items-center gap-2">
         {/* Imagery Dropdown */}
-        <div className="relative" ref={imageryDropdownRef}>
+        <div className="relative" ref={imageryDropdownRef} data-tour="imagery-selector">
           <button
             onClick={() => setShowImageryDropdown(!showImageryDropdown)}
             className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
@@ -421,7 +422,7 @@ export const AnnotationToolbar = () => {
 
         {/* Task Filter Dropdown */}
         {campaign.mode === 'tasks' && (
-          <div className="relative" ref={taskFilterDropdownRef}>
+          <div className="relative" ref={taskFilterDropdownRef} data-tour="task-filter">
             <button
               onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
               className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
@@ -443,7 +444,7 @@ export const AnnotationToolbar = () => {
 
         {/* Review Mode Toggle + Navigate to Review Page (tasks mode only) */}
         {campaign.mode === 'tasks' && (
-          <div className="flex items-center rounded overflow-hidden">
+          <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
             {/* Toggle review mode on/off */}
             <button
               onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
@@ -555,7 +556,7 @@ export const AnnotationToolbar = () => {
       </div>
 
       {/* Right - Layout Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="layout-controls">
         {!isEditingLayout ? (
           <button
             onClick={() => setIsEditingLayout(true)}
@@ -633,8 +634,24 @@ export const AnnotationToolbar = () => {
           )}
         </button>
 
+        {/* Guided Tour Button */}
+        <button
+          onClick={() => useLayoutStore.getState().setShowGuidedTour(true)}
+          className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
+          title="Take guided tour"
+          type="button"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fillRule="evenodd"
+              clipRule="evenodd"
+              d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 13.5899 6.41015 16.5 10 16.5C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM10 6C10.4142 6 10.75 6.33579 10.75 6.75V7.25C10.75 7.66421 10.4142 8 10 8C9.58579 8 9.25 7.66421 9.25 7.25V6.75C9.25 6.33579 9.58579 6 10 6ZM10 9C10.4142 9 10.75 9.33579 10.75 9.75V13.25C10.75 13.6642 10.4142 14 10 14C9.58579 14 9.25 13.6642 9.25 13.25V9.75C9.25 9.33579 9.58579 9 10 9Z"
+            />
+          </svg>
+        </button>
+
         {/* Keyboard Shortcuts Help */}
-        <div className="relative">
+        <div className="relative" data-tour="keyboard-help">
           <button
             onClick={toggleKeyboardHelp}
             onBlur={() => setTimeout(() => setShowKeyboardHelp(false), 150)}
@@ -642,31 +659,63 @@ export const AnnotationToolbar = () => {
             title="Keyboard shortcuts"
             type="button"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 13.5899 6.41015 16.5 10 16.5C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM10 6C10.4142 6 10.75 6.33579 10.75 6.75V7.25C10.75 7.66421 10.4142 8 10 8C9.58579 8 9.25 7.66421 9.25 7.25V6.75C9.25 6.33579 9.58579 6 10 6ZM10 9C10.4142 9 10.75 9.33579 10.75 9.75V13.25C10.75 13.6642 10.4142 14 10 14C9.58579 14 9.25 13.6642 9.25 13.25V9.75C9.25 9.33579 9.58579 9 10 9Z"
-              />
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2">
+              <rect x="2" y="5" width="16" height="11" rx="2" />
+              <line x1="5" y1="8.5" x2="7" y2="8.5" />
+              <line x1="9" y1="8.5" x2="11" y2="8.5" />
+              <line x1="13" y1="8.5" x2="15" y2="8.5" />
+              <line x1="5" y1="11.5" x2="7" y2="11.5" />
+              <line x1="9" y1="11.5" x2="11" y2="11.5" />
+              <line x1="13" y1="11.5" x2="15" y2="11.5" />
+              <line x1="7" y1="14" x2="13" y2="14" />
             </svg>
           </button>
 
           {showKeyboardHelp && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] p-3">
+            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] max-h-[70vh] overflow-y-auto p-3">
               <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
                 Keyboard Shortcuts
               </div>
               {campaign.mode === 'open' ? (
                 <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">Tools</div>
                   {([
                     { key: 'V', description: 'Pan tool' },
-                    { key: 'A', description: 'Annotate tool' },
+                    { key: 'R', description: 'Annotate tool' },
                     { key: 'E', description: 'Edit tool' },
                     { key: 'T', description: 'Timeseries probe' },
                     { key: '1-9', description: 'Select label & annotate' },
                     { key: 'Space', description: 'Fit view to annotations' },
                     { key: 'Alt+drag', description: 'Move feature' },
                     { key: 'Escape', description: 'Cancel / deselect edit' },
+                  ] as { key: string; description: string }[]).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">Navigation</div>
+                  {([
+                    { key: 'A / D', description: 'Previous / Next slice' },
+                    { key: 'Shift+A / D', description: 'Previous / Next window' },
+                  ] as { key: string; description: string }[]).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">Map</div>
+                  {([
+                    { key: '↑ ↓ ← →', description: 'Pan map' },
+                    { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
+                    { key: 'O', description: 'Toggle crosshair' },
+                    { key: 'L', description: 'Cycle visualization layer' },
+                    { key: 'I', description: 'Cycle imagery source' },
+                    { key: 'H', description: 'Toggle keyboard help' },
                   ] as { key: string; description: string }[]).map((shortcut) => (
                     <div key={shortcut.key} className="flex justify-between items-center text-xs">
                       <span className="text-neutral-600">{shortcut.description}</span>

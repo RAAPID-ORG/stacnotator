@@ -25,7 +25,7 @@ export class LayerManager {
     private activeTilePending = 0;
     private _busy = false;
     private busyChangeListeners: Array<(busy: boolean) => void> = [];
-    /** Debounce timer – waits a short period after pending hits 0 before
+    /** Debounce timer - waits a short period after pending hits 0 before
      *  declaring idle, because OL often fires tileloadend immediately
      *  followed by another tileloadstart during pan/zoom. */
     private idleTimer: ReturnType<typeof setTimeout> | null = null;

@@ -232,7 +232,7 @@ const TimelineSidebar = ({
   const totalWindows = windows.length;
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full" data-tour="timeline-sidebar">
       {/* Collapse/Expand Button */}
       <button
         onClick={onToggleCollapse}

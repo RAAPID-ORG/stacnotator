@@ -68,6 +68,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
   const emptySlices = useAnnotationStore((state) => state.emptySlices);
   const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
+  const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
@@ -299,6 +300,15 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     }
   }, [selectedImagery, selectedLayerIndex, showBasemap, basemapType, setSelectedLayerIndex, setShowBasemap, setBasemapType]);
 
+  // Cycle through imagery sources
+  const cycleImagery = useCallback(() => {
+    if (!campaign || campaign.imagery.length <= 1) return;
+    const imageryList = campaign.imagery;
+    const currentIdx = imageryList.findIndex((img) => img.id === selectedImageryId);
+    const nextIdx = (currentIdx + 1) % imageryList.length;
+    setSelectedImageryId(imageryList[nextIdx].id);
+  }, [campaign, selectedImageryId, setSelectedImageryId]);
+
   // Submit handler
   const handleSubmit = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
@@ -493,6 +503,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           cycleLayer();
           break;
+
+        // Cycle imagery source
+        case 'i':
+        case 'I':
+          e.preventDefault();
+          cycleImagery();
+          break;
       }
     };
 
@@ -528,6 +545,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     handleSkip,
     toggleKeyboardHelp,
     cycleLayer,
+    cycleImagery,
   ]);
 
   // Removed duplicate cleanup useEffect - consolidated above

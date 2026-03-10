@@ -1,10 +1,10 @@
 /**
- * useTilePreloading – background tile preloading for task mode.
+ * useTilePreloading - background tile preloading for task mode.
  *
  * Priority levels (lower = higher priority):
- *   P1 – Other windows at the current viewport.
- *   P2 – Next task's default window.
- *   P3 – Next task's other windows.
+ *   P1 - Other windows at the current viewport.
+ *   P2 - Next task's default window.
+ *   P3 - Next task's other windows.
  *
  * Empty-slice handling:
  *   Before enqueuing tiles for a window, we probe a single tile from
