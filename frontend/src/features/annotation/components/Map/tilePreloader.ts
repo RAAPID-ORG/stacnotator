@@ -96,6 +96,9 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
+  /** AbortControllers for in-flight fetches, keyed by generation. */
+  private inflightControllers = new Set<AbortController>();
+
   /** Per-group error/success counters for empty-tile detection. */
   private groupStats = new Map<string, { errors: number; successes: number; emptyFired: boolean }>();
 
@@ -126,6 +129,7 @@ export class TilePreloader {
   pause() {
     if (this.paused) return;
     this.paused = true;
+    this._abortInflight();
   }
 
   resume() {
@@ -142,10 +146,22 @@ export class TilePreloader {
     this.groupStats.delete(groupId);
   }
 
+  /**
+   * Abort all queued tiles whose groupId starts with the given prefix.
+   * Useful for selectively clearing e.g. all current-task or next-task groups.
+   */
+  abortByPrefix(prefix: string) {
+    this.tileQueue = this.tileQueue.filter((t) => !t.groupId.startsWith(prefix));
+    for (const key of this.groupStats.keys()) {
+      if (key.startsWith(prefix)) this.groupStats.delete(key);
+    }
+  }
+
   clear() {
     this.tileQueue = [];
     this.groupStats.clear();
     this.generation++;
+    this._abortInflight();
   }
 
   clearCache() {
@@ -201,11 +217,22 @@ export class TilePreloader {
     const gen = this.generation;
     this.inflight++;
 
-    fetch(tile.url, { mode: 'cors', credentials: 'omit' })
-      .then((res) => res.arrayBuffer().then(() => res.ok))
-      .catch(() => false)
-      .then((ok) => {
-        this.inflight--;
+    const controller = new AbortController();
+    this.inflightControllers.add(controller);
+
+    fetch(tile.url, { mode: 'cors', credentials: 'omit', signal: controller.signal })
+      .then((res) => res.arrayBuffer().then(() => ({ ok: res.ok, aborted: false })))
+      .catch((err) => ({ ok: false, aborted: err?.name === 'AbortError' }))
+      .then(({ ok, aborted }) => {
+        this.inflightControllers.delete(controller);
+        this.inflight = Math.max(0, this.inflight - 1);
+
+        // Aborted fetches are not real failures — skip group stats entirely.
+        if (aborted) {
+          if (!this.disposed && gen === this.generation) this.drain();
+          this.checkIdle();
+          return;
+        }
 
         // Per-group empty-tile detection (mirrors WindowMap's heuristic)
         const stats = this.groupStats.get(tile.groupId);
@@ -225,6 +252,15 @@ export class TilePreloader {
         if (!this.disposed && gen === this.generation) this.drain();
         this.checkIdle();
       });
+  }
+
+  /** Cancel all in-flight fetch requests immediately. */
+  private _abortInflight() {
+    for (const controller of this.inflightControllers) {
+      controller.abort();
+    }
+    this.inflightControllers.clear();
+    this.inflight = 0;
   }
 
   private checkIdle() {

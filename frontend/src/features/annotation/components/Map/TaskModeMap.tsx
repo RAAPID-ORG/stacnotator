@@ -72,7 +72,6 @@ const TaskModeMap = ({
 }: TaskModeMapProps) => {
     const mapRef = useRef<OLMap | null>(null);
     const layerManagerRef = useRef<LayerManager | null>(null);
-    const [olMap, setOlMap] = useState<OLMap | null>(null);
     const [layerManager, setLayerManager] = useState<LayerManager | null>(null);
     const mapReadyRef = useRef(false);
     const crosshairOverlayRef = useRef<Overlay | null>(null);
@@ -98,7 +97,6 @@ const TaskModeMap = ({
     const effectiveActiveWindowId = activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
 
     // Shared layer management
-
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
         imagery: imagery ?? null,
         layerManager: layerManagerRef.current,
@@ -110,7 +108,6 @@ const TaskModeMap = ({
 
     // Tile preloading (task mode only - keeps other windows + next task warm)
     useTilePreloading({
-        map: olMap,
         layerManager,
         imagery: imagery ?? null,
         sliceLayerMap,
@@ -240,7 +237,6 @@ const TaskModeMap = ({
                     mapReadyRef.current = true;
 
                     // Expose to state so hooks (e.g. useTilePreloading) can subscribe
-                    setOlMap(map);
                     setLayerManager(lm);
 
                     initLayers(lm);

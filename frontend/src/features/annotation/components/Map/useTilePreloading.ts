@@ -2,9 +2,14 @@
  * useTilePreloading - background tile preloading for task mode.
  *
  * Priority levels (lower = higher priority):
- *   P1 - Other windows/slices at the current viewport.
+ *   P1 - Other windows/slices for the current task (default viewport).
  *   P2 - Next task's default window slices.
  *   P3 - Next task's other window slices.
+ *
+ * All preloading uses a fixed extent: the default zoom centred on the
+ * task's location. User pan/zoom does NOT trigger re-preloading -
+ * preloading runs exactly once per task after the active layer finishes
+ * its initial load.
  *
  * Empty-slice handling:
  *   All slices for each window are enqueued with per-slice groupIds.
@@ -15,8 +20,6 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { toLonLat } from 'ol/proj';
-import type OLMap from 'ol/Map';
 import { TilePreloader } from './tilePreloader';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
@@ -52,15 +55,6 @@ function parseGroupId(gid: string): { prefix: string; windowId: number; sliceInd
   const m = gid.match(/^(\w+)-w(\d+)-s(\d+)$/);
   if (!m) return null;
   return { prefix: m[1], windowId: Number(m[2]), sliceIndex: Number(m[3]) };
-}
-
-function getViewportExtent(map: OLMap): [number, number, number, number] | null {
-  const view = map.getView();
-  const extent = view.calculateExtent(map.getSize());
-  if (!extent) return null;
-  const [w, s] = toLonLat([extent[0], extent[1]]);
-  const [e, n] = toLonLat([extent[2], extent[3]]);
-  return [w, s, e, n];
 }
 
 function estimateExtent(
@@ -124,7 +118,6 @@ function buildSliceJobs(
 // ---------------------------------------------------------------------------
 
 interface UseTilePreloadingOptions {
-  map: OLMap | null;
   layerManager: LayerManager | null;
   imagery: ImageryWithWindowsOut | null;
   sliceLayerMap: SliceLayerMap;
@@ -136,7 +129,6 @@ interface UseTilePreloadingOptions {
 }
 
 export function useTilePreloading({
-  map,
   layerManager,
   imagery,
   sliceLayerMap,
@@ -163,8 +155,6 @@ export function useTilePreloading({
   currentTaskIndexRef.current = currentTaskIndex;
   const defaultZoomRef = useRef(defaultZoom);
   defaultZoomRef.current = defaultZoom;
-  const mapRef = useRef(map);
-  mapRef.current = map;
 
   // Store actions
   const setWindowSliceIndex = useMapStore((s) => s.setWindowSliceIndex);
@@ -225,27 +215,25 @@ export function useTilePreloading({
 
   /**
    * Enqueue tiles for all slices of all non-active windows (P1).
+   * Uses the default viewport (default zoom + current task center), NOT
+   * the user's current pan/zoom position.
    */
   const enqueueCurrentOtherWindows = useCallback(() => {
     const p = preloaderRef.current;
-    const m = mapRef.current;
     const img = imageryRef.current;
     const winId = activeWindowIdRef.current;
-    if (!p || !m || !img || winId == null) return;
+    const tasks = visibleTasksRef.current;
+    const idx = currentTaskIndexRef.current;
+    if (!p || !img || winId == null || tasks.length === 0) return;
 
-    const extent = getViewportExtent(m);
-    if (!extent) return;
-    const zoom = m.getView().getZoom() ?? defaultZoomRef.current;
+    const currentTask = tasks[idx];
+    if (!currentTask) return;
 
-    // Abort any previous current-window groups
-    for (const win of img.windows) {
-      if (win.id === winId) continue;
-      const slices = computeTimeSlices(
-        win.window_start_date, win.window_end_date,
-        img.slicing_interval, img.slicing_unit,
-      );
-      for (const s of slices) p.abort(groupId(PREFIX_CURRENT, win.id, s.index));
-    }
+    const latLon = extractLatLonFromWKT(currentTask.geometry.geometry);
+    if (!latLon) return;
+
+    const zoom = defaultZoomRef.current;
+    const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
 
     const otherWindows = img.windows.filter((w) => w.id !== winId);
     const jobs = buildSliceJobs(
@@ -298,7 +286,7 @@ export function useTilePreloading({
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  // Wire up LayerManager busy/idle → pause/resume + trigger P1
+  // Wire up LayerManager busy/idle → pause/resume + trigger P1 once
   useEffect(() => {
     if (!enabled || !layerManager) return;
     const p = preloaderRef.current;
@@ -309,6 +297,8 @@ export function useTilePreloading({
         p.pause();
       } else {
         p.resume();
+        // Trigger P1 exactly once after the active layer's initial load.
+        // Subsequent pan/zoom busy→idle transitions are ignored.
         if (!hasEnqueuedCurrentRef.current) {
           hasEnqueuedCurrentRef.current = true;
           enqueueCurrentOtherWindows();
@@ -333,29 +323,6 @@ export function useTilePreloading({
 
     return () => { if (p) p.onIdle = undefined; };
   }, [enabled, enqueueNextTask]);
-
-  // On viewport change, re-enqueue P1
-  useEffect(() => {
-    if (!enabled || !map) return;
-
-    const handleMoveEnd = () => {
-      hasEnqueuedCurrentRef.current = false;
-      hasEnqueuedNextRef.current = false;
-
-      const p = preloaderRef.current;
-      if (!p) return;
-
-      p.clear();
-
-      if (layerManager && !layerManager.busy) {
-        hasEnqueuedCurrentRef.current = true;
-        enqueueCurrentOtherWindows();
-      }
-    };
-
-    map.on('moveend', handleMoveEnd);
-    return () => { map.un('moveend', handleMoveEnd); };
-  }, [enabled, map, layerManager, enqueueCurrentOtherWindows]);
 
   // On task navigation, clear everything
   useEffect(() => {
