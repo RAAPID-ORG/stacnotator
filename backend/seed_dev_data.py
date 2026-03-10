@@ -32,9 +32,7 @@ from src.timeseries.schemas import TimeSeriesCreate
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Ukraine bounding box (WGS-84)
-# ---------------------------------------------------------------------------
 UKRAINE_BBOX = dict(bbox_west=22.1, bbox_south=44.3, bbox_east=40.2, bbox_north=52.4)
 
 # Sentinel-2 Planetary Computer search body template (placeholders filled at query time)
@@ -126,11 +124,9 @@ def seed_dev_data(firebase_uid: str = None):
 
         user = _ensure_user(db, firebase_uid)
 
-        # ------------------------------------------------------------------
         # One Sentinel-2 imagery spanning all of 2024.
         # Monthly windows (window_interval=1 month) with weekly slices inside
         # each window (slicing_interval=1 week) -> 12 windows × ~4 slices each.
-        # ------------------------------------------------------------------
         imagery_configs = [
             ImageryCreate(
                 name="Sentinel-2 Ukraine 2024",
@@ -171,9 +167,7 @@ def seed_dev_data(firebase_uid: str = None):
             )
         ]
 
-        # ------------------------------------------------------------------
         # S2 NDVI timeseries (from Google Earth Engine)
-        # ------------------------------------------------------------------
         timeseries_configs = [
             TimeSeriesCreate(
                 name="S2 NDVI",
@@ -185,9 +179,7 @@ def seed_dev_data(firebase_uid: str = None):
             ),
         ]
 
-        # ------------------------------------------------------------------
         # Campaign settings
-        # ------------------------------------------------------------------
         settings = CampaignSettingsCreate(
             labels=[
                 LabelBase(id=1, name="Building"),
@@ -199,9 +191,7 @@ def seed_dev_data(firebase_uid: str = None):
             **UKRAINE_BBOX,
         )
 
-        # ------------------------------------------------------------------
         # Create campaign (handles layout, windows, imagery all at once)
-        # ------------------------------------------------------------------
         logger.info("Creating task-mode campaign via service...")
         campaign = create_campaign(
             db,
@@ -214,9 +204,7 @@ def seed_dev_data(firebase_uid: str = None):
         )
         logger.info("Campaign created: id=%d", campaign.id)
 
-        # ------------------------------------------------------------------
         # Generate 100 random points within Ukraine bbox and create tasks
-        # ------------------------------------------------------------------
         logger.info("Generating 100 random sample points within Ukraine bounding box...")
         ukraine_polygon = shapely_box(
             UKRAINE_BBOX["bbox_west"],
@@ -262,9 +250,7 @@ def seed_dev_data(firebase_uid: str = None):
 
         db.commit()
 
-        # ==================================================================
         # Open-mode campaign (same imagery & timeseries, no tasks)
-        # ==================================================================
         logger.info("Creating open-mode campaign via service...")
         open_campaign = create_campaign(
             db,

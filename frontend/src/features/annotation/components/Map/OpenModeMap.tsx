@@ -25,7 +25,8 @@ import LayerSelector from './LayerSelector';
 import type { ImageryWithWindowsOut } from '~/api/client';
 import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import useAnnotationStore from '../../annotation.store';
+import { useAnnotationStore } from '../../stores/annotation.store';
+import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../ControlsOpenMode';
 import { useSliceLayers, BASEMAP_LAYERS } from './useSliceLayers';
 
@@ -85,9 +86,9 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
-    const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
-    const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
-    const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
+    const setShowBasemap = useMapStore((s) => s.setShowBasemap);
+    const setBasemapType = useMapStore((s) => s.setBasemapType);
+    const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
 
     // Shared layer management
 
@@ -143,7 +144,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     }), [doFitAnnotations]);
 
     // Watch store trigger for Space-key fitAnnotations
-    const fitAnnotationsTrigger = useAnnotationStore((s) => s.fitAnnotationsTrigger);
+    const fitAnnotationsTrigger = useMapStore((s) => s.fitAnnotationsTrigger);
     const lastFitTriggerRef = useRef(fitAnnotationsTrigger);
     useEffect(() => {
         if (fitAnnotationsTrigger === lastFitTriggerRef.current) return;

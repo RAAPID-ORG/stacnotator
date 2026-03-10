@@ -14,12 +14,11 @@ import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 import 'ol/ol.css';
 
-import useAnnotationStore from '../../annotation.store';
+import { useAnnotationStore } from '../../stores/annotation.store';
+import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../ControlsOpenMode';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-
-/** Number of tile-load errors with zero successes before we call onEmptyTiles */
-const EMPTY_ERROR_THRESHOLD = 4;
+import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
     // [lat, lon] - initial map position, set once on mount
@@ -43,7 +42,7 @@ interface WindowMapProps {
     detectionKey?: number;
     /**
      * Called once when the tile source appears empty/broken -
-     * i.e. EMPTY_ERROR_THRESHOLD errors occur with no successful loads.
+     * i.e. EMPTY_TILE_THRESHOLD errors occur with no successful loads.
      * Resets whenever tileUrl changes.
      */
     onEmptyTiles?: () => void;
@@ -85,7 +84,7 @@ const WindowMap = ({
 
     // Annotation vector layer
     const annotations = useAnnotationStore((state) => state.annotations);
-    const campaign = useAnnotationStore((state) => state.campaign);
+    const campaign = useCampaignStore((state) => state.campaign);
     const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
 
     // Create the map once on mount
@@ -105,7 +104,7 @@ const WindowMap = ({
         let emptyFired = false;
         source.on('tileloaderror', () => {
             errorCount++;
-            if (!emptyFired && successCount === 0 && errorCount >= EMPTY_ERROR_THRESHOLD) {
+            if (!emptyFired && successCount === 0 && errorCount >= EMPTY_TILE_THRESHOLD) {
                 emptyFired = true;
                 onEmptyTilesRef.current?.();
             }
@@ -195,7 +194,7 @@ const WindowMap = ({
         let emptyFired = false;
         source.on('tileloaderror', () => {
             errorCount++;
-            if (!emptyFired && successCount === 0 && errorCount >= EMPTY_ERROR_THRESHOLD) {
+            if (!emptyFired && successCount === 0 && errorCount >= EMPTY_TILE_THRESHOLD) {
                 emptyFired = true;
                 onEmptyTilesRef.current?.();
             }

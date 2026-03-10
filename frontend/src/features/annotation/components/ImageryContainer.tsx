@@ -1,7 +1,9 @@
 import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import WindowMap from './Map/WindowMap';
 import type { ImageryWindowOut } from '~/api/client';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
 import { useStacRegistration } from '../hooks/useStacRegistration';
 
@@ -16,21 +18,23 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   const isDraggingRef = useRef(false);
 
   // Get state from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
-  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
-  const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
-  const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
-  const markSliceEmpty = useAnnotationStore((state) => state.markSliceEmpty);
-  const emptySlices = useAnnotationStore((state) => state.emptySlices);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+
+  const refocusTrigger = useMapStore((s) => s.refocusTrigger);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const windowSliceIndices = useMapStore((s) => s.windowSliceIndices);
+  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
+  const currentMapZoom = useMapStore((s) => s.currentMapZoom);
+  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
+  const emptySlices = useMapStore((s) => s.emptySlices);
 
   // Compute derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
@@ -143,7 +147,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     emptySlices,
     markSliceEmpty,
     setActiveSliceIndex,
-    setWindowSliceIndex: useAnnotationStore.getState().setWindowSliceIndex,
+    setWindowSliceIndex: useMapStore.getState().setWindowSliceIndex,
     setEmptyTileAlert,
   });
   // Keep ref in sync every render so the callback always sees fresh values
@@ -157,7 +161,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     emptySlices,
     markSliceEmpty,
     setActiveSliceIndex,
-    setWindowSliceIndex: useAnnotationStore.getState().setWindowSliceIndex,
+    setWindowSliceIndex: useMapStore.getState().setWindowSliceIndex,
     setEmptyTileAlert,
   };
 
@@ -221,7 +225,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     if (isActiveWindow) {
       setActiveSliceIndex(index);
     } else {
-      useAnnotationStore.getState().setWindowSliceIndex(window.id, index);
+      useMapStore.getState().setWindowSliceIndex(window.id, index);
     }
   };
 

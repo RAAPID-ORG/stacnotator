@@ -8,7 +8,9 @@ import MainAnnotationsContainer from './MainAnnotationContainer';
 import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import { BASEMAP_LAYERS } from './Map/useSliceLayers';
 import {
   computeTimeSlices,
@@ -41,30 +43,32 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Read state directly from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const allTasks = useAnnotationStore((state) => state.allTasks);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const taskFilter = useAnnotationStore((state) => state.taskFilter);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
-  const currentLayout = useAnnotationStore((state) => state.currentLayout);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
-  const showBasemap = useAnnotationStore((state) => state.showBasemap);
-  const basemapType = useAnnotationStore((state) => state.basemapType);
-  const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
-  const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
-  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
-  const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
-  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const nextTask = useAnnotationStore((state) => state.nextTask);
-  const previousTask = useAnnotationStore((state) => state.previousTask);
-  const goToTask = useAnnotationStore((state) => state.goToTask);
+  // Read state directly from stores
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const currentLayout = useCampaignStore((s) => s.currentLayout);
+  const setCurrentLayout = useCampaignStore((s) => s.setCurrentLayout);
+
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const taskFilter = useTaskStore((s) => s.taskFilter);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+  const isSubmitting = useTaskStore((s) => s.isSubmitting);
+  const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
+  const nextTask = useTaskStore((s) => s.nextTask);
+  const previousTask = useTaskStore((s) => s.previousTask);
+  const goToTask = useTaskStore((s) => s.goToTask);
+
+  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const showBasemap = useMapStore((s) => s.showBasemap);
+  const basemapType = useMapStore((s) => s.basemapType);
+  const currentMapBounds = useMapStore((s) => s.currentMapBounds);
+  const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
+  const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
+  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
 
   // Get fullscreen state from UI store
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);

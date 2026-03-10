@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useAnnotationStore } from '../stores/annotation.store';
+import { useMapStore } from '../stores/map.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
@@ -27,12 +30,11 @@ export const AnnotationPage = () => {
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Store subscriptions
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const isLoadingCampaign = useAnnotationStore((state) => state.isLoadingCampaign);
-  const loadCampaign = useAnnotationStore((state) => state.loadCampaign);
-  const reset = useAnnotationStore((state) => state.reset);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
+  const loadCampaign = useCampaignStore((s) => s.loadCampaign);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -113,7 +115,10 @@ export const AnnotationPage = () => {
 
     return () => {
       cancelled = true;
-      reset();
+      useCampaignStore.getState().reset();
+      useTaskStore.getState().reset();
+      useAnnotationStore.getState().reset();
+      useMapStore.getState().reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignIdNumber]);

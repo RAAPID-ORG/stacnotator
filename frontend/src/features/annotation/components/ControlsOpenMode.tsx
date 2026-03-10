@@ -1,5 +1,7 @@
 import type { LabelBase } from '~/api/client';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -126,14 +128,14 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
  */
 const OpenModeControls = () => {
   // Get state from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
-  const activeTool = useAnnotationStore((state) => state.activeTool);
-  const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
-  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
-  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
-  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
-  const toggleMagicWand = useAnnotationStore((state) => state.toggleMagicWand);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
+  const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
+  const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
+  const activeTool = useMapStore((s) => s.activeTool);
+  const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
 
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];

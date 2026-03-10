@@ -20,7 +20,8 @@ import type { SliceLayerMap } from '../../hooks/useStacRegistration';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
 import { useTilePreloading } from './useTilePreloading';
-import useAnnotationStore from '../../annotation.store';
+import { useTaskStore } from '../../stores/task.store';
+import { useMapStore } from '../../stores/map.store';
 
 // Props
 
@@ -86,12 +87,12 @@ const TaskModeMap = ({
     onTimeseriesClickRef.current = onTimeseriesClick;
 
     // Store subscriptions for preloading
-    const visibleTasks = useAnnotationStore((s) => s.visibleTasks);
-    const currentTaskIndex = useAnnotationStore((s) => s.currentTaskIndex);
-    const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
-    const zoomInTrigger = useAnnotationStore((s) => s.zoomInTrigger);
-    const zoomOutTrigger = useAnnotationStore((s) => s.zoomOutTrigger);
-    const panTrigger = useAnnotationStore((s) => s.panTrigger);
+    const visibleTasks = useTaskStore((s) => s.visibleTasks);
+    const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+    const activeWindowId = useMapStore((s) => s.activeWindowId);
+    const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
+    const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
+    const panTrigger = useMapStore((s) => s.panTrigger);
 
     // Resolved active window ID
     const effectiveActiveWindowId = activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
@@ -117,7 +118,7 @@ const TaskModeMap = ({
         visibleTasks,
         currentTaskIndex,
         defaultZoom: imagery?.default_zoom ?? 10,
-        enabled: !!imagery,
+        enabled: false,
     });
 
     // Pan to center + reset zoom on task navigation

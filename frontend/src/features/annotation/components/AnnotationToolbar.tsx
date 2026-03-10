@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Layout } from 'react-grid-layout';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
-import useAnnotationStore, { type TaskStatus } from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
 
@@ -28,11 +29,11 @@ const KEYBOARD_SHORTCUTS = [
  * Task filter panel component
  */
 const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const allTasks = useAnnotationStore((state) => state.allTasks);
-  const taskFilter = useAnnotationStore((state) => state.taskFilter);
-  const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
-  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isReviewMode = useCampaignStore((s) => s.isReviewMode);
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const taskFilter = useTaskStore((s) => s.taskFilter);
+  const setTaskFilter = useTaskStore((s) => s.setTaskFilter);
   const currentUser = useAccountStore((state) => state.account);
 
   if (!campaign) return null;
@@ -74,7 +75,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
       // When selecting 'conflicting', automatically enable review mode and
       // show all users so conflicting tasks from all annotators are visible.
       if (!isSelected && status === 'conflicting') {
-        useAnnotationStore.setState({ isReviewMode: true });
+        useCampaignStore.setState({ isReviewMode: true });
         if (taskFilter.assignedTo.length > 0) {
           setTaskFilter({ statuses: newStatuses, assignedTo: [] });
           return;
@@ -213,16 +214,16 @@ export const AnnotationToolbar = () => {
   const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Get state from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
-  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
-  const isCampaignAdmin = useAnnotationStore((state) => state.isCampaignAdmin);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const setIsEditingLayout = useAnnotationStore((state) => state.setIsEditingLayout);
-  const saveLayout = useAnnotationStore((state) => state.saveLayout);
-  const cancelLayoutEdit = useAnnotationStore((state) => state.cancelLayoutEdit);
-  const resetLayout = useAnnotationStore((state) => state.resetLayout);
-  const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const isReviewMode = useCampaignStore((s) => s.isReviewMode);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+  const setIsEditingLayout = useCampaignStore((s) => s.setIsEditingLayout);
+  const saveLayout = useCampaignStore((s) => s.saveLayout);
+  const cancelLayoutEdit = useCampaignStore((s) => s.cancelLayoutEdit);
+  const resetLayout = useCampaignStore((s) => s.resetLayout);
+  const setSelectedImageryId = useCampaignStore((s) => s.setSelectedImageryId);
 
   // Get UI actions from global store
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -266,7 +267,7 @@ export const AnnotationToolbar = () => {
 
   // Check if main layout items have changed
   const hasMainLayoutChanged = () => {
-    const { currentLayout, savedLayout } = useAnnotationStore.getState();
+    const { currentLayout, savedLayout } = useCampaignStore.getState();
     if (!currentLayout || !savedLayout) return false;
 
     const mainItemKeys = ['main', 'timeseries', 'minimap'];
@@ -447,7 +448,7 @@ export const AnnotationToolbar = () => {
           <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
             {/* Toggle review mode on/off */}
             <button
-              onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
+              onClick={() => useCampaignStore.setState({ isReviewMode: !isReviewMode })}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
                 isReviewMode
                   ? 'bg-amber-50 text-amber-700 font-medium'

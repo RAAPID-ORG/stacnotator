@@ -4,10 +4,6 @@ import { stacRegistrationLimiter } from '~/shared/utils/concurrencyLimiter';
 import { computeTimeSlices } from '~/shared/utils/utility';
 import type { ImageryWithWindowsOut } from '~/api/client';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface SliceDescriptor {
   /** Stable key: `{windowId}-{sliceIndex}` */
   key: string;
@@ -30,11 +26,9 @@ export interface SliceTileUrl {
 /** Map from sliceKey -> resolved tile URLs for every viz template */
 export type SliceLayerMap = Map<string, SliceTileUrl[]>;
 
-// ---------------------------------------------------------------------------
 // Session-level cache - survives re-renders and component remounts.
 // Key: `${registrationUrl}|${bbox}|${searchBodyHash}|${startDate}|${endDate}`
 // Value: resolved tile URLs for every viz template for that date range.
-// ---------------------------------------------------------------------------
 const registrationCache = new Map<string, SliceTileUrl[]>();
 
 function makeCacheKey(
@@ -47,10 +41,7 @@ function makeCacheKey(
   return `${registrationUrl}|${bbox.join(',')}|${JSON.stringify(searchBody)}|${startDate}|${endDate}`;
 }
 
-// ---------------------------------------------------------------------------
 // Core registration helper (used outside of React render cycle)
-// ---------------------------------------------------------------------------
-
 async function registerSlice(
   registrationUrl: string,
   searchBody: Record<string, unknown>,
@@ -95,10 +86,7 @@ async function registerSlice(
   return urls;
 }
 
-// ---------------------------------------------------------------------------
 // Hook
-// ---------------------------------------------------------------------------
-
 interface UseStacAllSlicesParams {
   imagery: ImageryWithWindowsOut | null;
   bbox: [number, number, number, number];
@@ -145,9 +133,7 @@ export function useStacAllSlices({
 
     cancelledRef.current = false;
 
-    // -----------------------------------------------------------------------
     // Build the full list of slice descriptors
-    // -----------------------------------------------------------------------
     const allDescriptors: SliceDescriptor[] = [];
 
     for (const window of imagery.windows) {
@@ -171,12 +157,10 @@ export function useStacAllSlices({
 
     setTotalSlices(allDescriptors.length);
 
-    // -----------------------------------------------------------------------
     // Sort into registration priority order:
     //   priority 0 - first slice of every window
     //   priority 1 - other slices of the active window
     //   priority 2 - everything else
-    // -----------------------------------------------------------------------
     const effectiveActiveWindowId = activeWindowId ?? imagery.default_main_window_id ?? imagery.windows[0]?.id;
 
     const sorted = [...allDescriptors].sort((a, b) => {
@@ -211,9 +195,6 @@ export function useStacAllSlices({
     // If everything is already cached, nothing to do
     if (alreadyDone === allDescriptors.length) return;
 
-    // -----------------------------------------------------------------------
-    // Fire registrations in parallel, concurrency-limited by the limiter
-    // -----------------------------------------------------------------------
     let done = alreadyDone;
 
     const pending = sorted

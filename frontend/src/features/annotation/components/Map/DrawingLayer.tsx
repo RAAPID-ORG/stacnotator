@@ -36,7 +36,8 @@ import type { DrawEvent } from 'ol/interaction/Draw';
 
 import type { ExtendedLabel } from '../ControlsOpenMode';
 import { extendLabelsWithMetadata } from '../ControlsOpenMode';
-import useAnnotationStore from '../../annotation.store';
+import { useAnnotationStore } from '../../stores/annotation.store';
+import { useCampaignStore } from '../../stores/campaign.store';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 
 
@@ -118,7 +119,7 @@ const DrawingLayer = ({
 }: DrawingLayerProps) => {
     // Store
     const annotations = useAnnotationStore((state) => state.annotations);
-    const campaign = useAnnotationStore((state) => state.campaign);
+    const campaign = useCampaignStore((state) => state.campaign);
     const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
     const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
     const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);

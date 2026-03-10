@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
 
 /**
@@ -18,11 +20,11 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
-  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
-  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
-  const triggerFitAnnotations = useAnnotationStore((state) => state.triggerFitAnnotations);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
+  const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
 
   useEffect(() => {
     if (!campaign || campaign.mode !== 'open') return;

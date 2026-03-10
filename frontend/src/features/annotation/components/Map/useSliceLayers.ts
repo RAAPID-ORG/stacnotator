@@ -4,7 +4,7 @@ import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { ImageryWithWindowsOut } from '~/api/client';
 import type { SliceLayerMap } from '../../hooks/useStacRegistration';
-import useAnnotationStore from '../../annotation.store';
+import { useMapStore } from '../../stores/map.store';
 import { computeTimeSlices } from '~/shared/utils/utility';
 
 // Basemap definitions
@@ -81,11 +81,11 @@ export function useSliceLayers({
     const [activeLayerId, setActiveLayerId] = useState('');
 
     // Store subscriptions
-    const activeWindowId = useAnnotationStore((s) => s.activeWindowId);
-    const activeSliceIndex = useAnnotationStore((s) => s.activeSliceIndex);
-    const selectedLayerIndex = useAnnotationStore((s) => s.selectedLayerIndex);
-    const showBasemap = useAnnotationStore((s) => s.showBasemap);
-    const basemapType = useAnnotationStore((s) => s.basemapType);
+    const activeWindowId = useMapStore((s) => s.activeWindowId);
+    const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+    const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+    const showBasemap = useMapStore((s) => s.showBasemap);
+    const basemapType = useMapStore((s) => s.basemapType);
 
     const effectiveActiveWindowId =
         activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;

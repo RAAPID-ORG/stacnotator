@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
 
 interface TourStep {
   /** CSS selector for the element to highlight (data-tour="...") */
@@ -672,7 +672,7 @@ interface GuidedTourProps {
 }
 
 export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
-  const campaign = useAnnotationStore((state) => state.campaign);
+  const campaign = useCampaignStore((s) => s.campaign);
   const [currentStep, setCurrentStep] = useState(0);
   const [pressCount, setPressCount] = useState(0);
   const [keyFulfilled, setKeyFulfilled] = useState(false);

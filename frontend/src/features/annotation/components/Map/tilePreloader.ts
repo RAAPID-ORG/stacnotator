@@ -7,10 +7,24 @@
  *   - Pause / resume - pauses while the active OL layer is loading.
  *   - Flat per-tile concurrency via fetch() + HTTP/2 multiplexing.
  *   - abort(groupId) / clear() for cancellation.
+ *   - Per-group empty-tile detection: if EMPTY_TILE_THRESHOLD errors
+ *     occur with zero successes for a group, onGroupEmpty fires and
+ *     the group is auto-aborted.
  */
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Number of consecutive tile-load errors (with zero successes) before we
+ * consider a group (slice) empty / nodata. Shared with WindowMap so the
+ * detection strategy is identical.
+ */
+export const EMPTY_TILE_THRESHOLD = 4;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,22 +73,6 @@ export function tileUrlsForExtent(
   return urls;
 }
 
-/**
- * Probe a single tile URL to check if the slice has data at this location.
- * Returns true if the tile has actual imagery (HTTP 200), false for nodata
- * (204), errors (4xx/5xx), or network failures.
- */
-export async function probeTile(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
-    await res.arrayBuffer();
-    // 204 = No Content (nodata tile), treat as empty
-    return res.status === 200;
-  } catch {
-    return false;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // TilePreloader
 // ---------------------------------------------------------------------------
@@ -98,8 +96,18 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
+  /** Per-group error/success counters for empty-tile detection. */
+  private groupStats = new Map<string, { errors: number; successes: number; emptyFired: boolean }>();
+
   /** Fired when the queue is empty and nothing is in-flight. */
   onIdle?: () => void;
+
+  /**
+   * Fired when a group accumulates EMPTY_TILE_THRESHOLD errors with zero
+   * successes - same heuristic as WindowMap's tileloaderror counting.
+   * The group is auto-aborted after this fires.
+   */
+  onGroupEmpty?: (groupId: string) => void;
 
   constructor(maxConcurrent = MAX_CONCURRENT) {
     this.maxConcurrent = maxConcurrent;
@@ -131,15 +139,18 @@ export class TilePreloader {
 
   abort(groupId: string) {
     this.tileQueue = this.tileQueue.filter((t) => t.groupId !== groupId);
+    this.groupStats.delete(groupId);
   }
 
   clear() {
     this.tileQueue = [];
+    this.groupStats.clear();
     this.generation++;
   }
 
   clearCache() {
     this.preloaded.clear();
+    this.groupStats.clear();
   }
 
   dispose() {
@@ -157,6 +168,11 @@ export class TilePreloader {
 
   private expandAndEnqueue(jobs: PreloadJob[]) {
     for (const job of jobs) {
+      // Initialize group stats if this is a new group
+      if (!this.groupStats.has(job.groupId)) {
+        this.groupStats.set(job.groupId, { errors: 0, successes: 0, emptyFired: false });
+      }
+
       const urls = tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom);
       for (const url of urls) {
         if (this.preloaded.has(url)) continue;
@@ -188,8 +204,24 @@ export class TilePreloader {
     fetch(tile.url, { mode: 'cors', credentials: 'omit' })
       .then((res) => res.arrayBuffer().then(() => res.ok))
       .catch(() => false)
-      .then(() => {
+      .then((ok) => {
         this.inflight--;
+
+        // Per-group empty-tile detection (mirrors WindowMap's heuristic)
+        const stats = this.groupStats.get(tile.groupId);
+        if (stats && !stats.emptyFired) {
+          if (ok) {
+            stats.successes++;
+          } else {
+            stats.errors++;
+            if (stats.successes === 0 && stats.errors >= EMPTY_TILE_THRESHOLD) {
+              stats.emptyFired = true;
+              this.abort(tile.groupId);
+              this.onGroupEmpty?.(tile.groupId);
+            }
+          }
+        }
+
         if (!this.disposed && gen === this.generation) this.drain();
         this.checkIdle();
       });

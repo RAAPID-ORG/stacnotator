@@ -5,7 +5,9 @@ import type { OpenModeMapHandle } from './Map/OpenModeMap';
 import TimelineSidebar from './TimelineSidebar';
 import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import {
   computeTimeSlices,
   extractLatLonFromWKT,
@@ -24,34 +26,34 @@ interface MainAnnotationsContainerProps {
  * Coordinates map display, timeline, and annotation controls
  */
 export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: MainAnnotationsContainerProps) => {
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const showCrosshair = useAnnotationStore((state) => state.showCrosshair);
-  const activeTool = useAnnotationStore((state) => state.activeTool);
-  const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
-  const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
-  const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
-  const setActiveTool = useAnnotationStore((state) => state.setActiveTool);
-  const setMapCenter = useAnnotationStore((state) => state.setMapCenter);
-  const setMapZoom = useAnnotationStore((state) => state.setMapZoom);
-  const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
-  const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
-  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
-  const emptySlices = useAnnotationStore((state) => state.emptySlices);
-  const setTimeseriesPoint = useAnnotationStore((state) => state.setTimeseriesPoint);
-  const setProbeTimeseriesPoint = useAnnotationStore((state) => state.setProbeTimeseriesPoint);
-  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
-  const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
 
-  // Open-mode annotation state
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
-  const magicWandEnabled = useAnnotationStore((state) => state.magicWandEnabled);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+  const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
+  const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
+
+  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const showCrosshair = useMapStore((s) => s.showCrosshair);
+  const activeTool = useMapStore((s) => s.activeTool);
+  const refocusTrigger = useMapStore((s) => s.refocusTrigger);
+  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
+  const triggerRefocus = useMapStore((s) => s.triggerRefocus);
+  const setActiveTool = useMapStore((s) => s.setActiveTool);
+  const setMapCenter = useMapStore((s) => s.setMapCenter);
+  const setMapZoom = useMapStore((s) => s.setMapZoom);
+  const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
+  const setShowBasemap = useMapStore((s) => s.setShowBasemap);
+  const setBasemapType = useMapStore((s) => s.setBasemapType);
+  const emptySlices = useMapStore((s) => s.emptySlices);
+  const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
+  const setProbeTimeseriesPoint = useMapStore((s) => s.setProbeTimeseriesPoint);
+  const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
+  const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [timelineDragging, setTimelineDragging] = useState(false);

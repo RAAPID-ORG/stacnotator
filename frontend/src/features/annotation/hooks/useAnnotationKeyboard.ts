@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 import { computeTimeSlices } from '~/shared/utils/utility';
 
 interface UseAnnotationKeyboardOptions {
@@ -33,42 +35,43 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Store selectors
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
-  const comment = useAnnotationStore((state) => state.comment);
-  const confidence = useAnnotationStore((state) => state.confidence);
-  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
-  const isNavigating = useAnnotationStore((state) => state.isNavigating);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+  const setSelectedImageryId = useCampaignStore((s) => s.setSelectedImageryId);
 
-  // Store actions
-  const nextTask = useAnnotationStore((state) => state.nextTask);
-  const previousTask = useAnnotationStore((state) => state.previousTask);
-  const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
-  const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
-  const triggerZoomIn = useAnnotationStore((state) => state.triggerZoomIn);
-  const triggerZoomOut = useAnnotationStore((state) => state.triggerZoomOut);
-  const triggerPan = useAnnotationStore((state) => state.triggerPan);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
-  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
-  const setConfidence = useAnnotationStore((state) => state.setConfidence);
-  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const showAlert = useLayoutStore((state) => state.showAlert);
-  const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
-  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
-  const showBasemap = useAnnotationStore((state) => state.showBasemap);
-  const basemapType = useAnnotationStore((state) => state.basemapType);
-  const setSelectedLayerIndex = useAnnotationStore((state) => state.setSelectedLayerIndex);
-  const setShowBasemap = useAnnotationStore((state) => state.setShowBasemap);
-  const setBasemapType = useAnnotationStore((state) => state.setBasemapType);
-  const emptySlices = useAnnotationStore((state) => state.emptySlices);
-  const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
-  const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
+  const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
+  const comment = useTaskStore((s) => s.comment);
+  const confidence = useTaskStore((s) => s.confidence);
+  const isSubmitting = useTaskStore((s) => s.isSubmitting);
+  const isNavigating = useTaskStore((s) => s.isNavigating);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+  const nextTask = useTaskStore((s) => s.nextTask);
+  const previousTask = useTaskStore((s) => s.previousTask);
+  const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const setConfidence = useTaskStore((s) => s.setConfidence);
+  const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
+
+  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const triggerRefocus = useMapStore((s) => s.triggerRefocus);
+  const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
+  const triggerZoomIn = useMapStore((s) => s.triggerZoomIn);
+  const triggerZoomOut = useMapStore((s) => s.triggerZoomOut);
+  const triggerPan = useMapStore((s) => s.triggerPan);
+  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const showBasemap = useMapStore((s) => s.showBasemap);
+  const basemapType = useMapStore((s) => s.basemapType);
+  const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
+  const setShowBasemap = useMapStore((s) => s.setShowBasemap);
+  const setBasemapType = useMapStore((s) => s.setBasemapType);
+  const emptySlices = useMapStore((s) => s.emptySlices);
+  const windowSliceIndices = useMapStore((s) => s.windowSliceIndices);
+
+  const showAlert = useLayoutStore((s) => s.showAlert);
+  const toggleKeyboardHelp = useLayoutStore((s) => s.toggleKeyboardHelp);
 
   // Derived values
   const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);

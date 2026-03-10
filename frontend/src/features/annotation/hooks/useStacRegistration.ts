@@ -4,16 +4,11 @@ import { stacRegistrationLimiter } from '~/shared/utils/concurrencyLimiter';
 import { computeTimeSlices } from '~/shared/utils/utility';
 import type { ImageryWithWindowsOut } from '~/api/client';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 /** Map from `{windowId}-{sliceIndex}` -> searchId */
 export type SliceLayerMap = Map<string, string>;
 
-// ---------------------------------------------------------------------------
-// Module-level cache — survives re-renders and component remounts.
-// ---------------------------------------------------------------------------
+// Module-level cache -survives re-renders and component remounts.
 
 const registrationCache = new Map<string, string>();
 
@@ -27,9 +22,7 @@ function cacheKey(
   return `${registrationUrl}|${bbox.join(',')}|${JSON.stringify(searchBody)}|${startDate}|${endDate}`;
 }
 
-// ---------------------------------------------------------------------------
 // Single-slice registration (with cache + concurrency limiting)
-// ---------------------------------------------------------------------------
 
 async function registerSlice(
   registrationUrl: string,
@@ -58,10 +51,7 @@ async function registerSlice(
   return searchId;
 }
 
-// ---------------------------------------------------------------------------
 // Hook
-// ---------------------------------------------------------------------------
-
 interface UseStacRegistrationParams {
   imagery: ImageryWithWindowsOut | null;
   bbox: [number, number, number, number];
@@ -69,7 +59,7 @@ interface UseStacRegistrationParams {
 }
 
 export interface UseStacRegistrationResult {
-  /** Resolved tile-URL map — set once when ALL registrations finish. */
+  /** Resolved tile-URL map -set once when ALL registrations finish. */
   sliceLayerMap: SliceLayerMap;
   /** True once every slice has been registered (or was cached). */
   allRegistered: boolean;
