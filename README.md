@@ -19,7 +19,7 @@ NASA Harvest's geospatial imagery annotation platform.
 2. **Create a user in firebase**
     - Go to `https://console.firebase.google.com/`, and select your project.
     - Switch to the authentication tab.
-    - Under users, click Add user and follow the promts.
+    - Under users, click Add user and follow the promts. This will be your initial user to login with in the app.
     - Copy the UID of this new user.
 
 
