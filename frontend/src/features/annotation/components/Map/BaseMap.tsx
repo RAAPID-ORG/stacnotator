@@ -49,7 +49,7 @@ const BaseMap = ({
   }, []);
 
   return (
-    <div className="w-full h-full min-h-[400px]">
+    <div className="w-full h-full">
       <div ref={mapRef} className="w-full h-full" />
     </div>
   );

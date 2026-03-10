@@ -1,14 +1,14 @@
 
 # STACNotator
 
-A tool for annotating imagery from STAC Catalogs.
+NASA Harvest's geospatial imagery annotation platform.
 
 
 ## Quick Start
 
 ### Development Setup (with Hot Reloading)
 
-0. STACNotator uses Firebase to handle authentication. Create a new firebase project and generate firebase credentials.
+0. STACNotator uses Firebase to handle authentication. Create a new Firebase project and generate firebase credentials.
 
 1. **Copy and edit environment file:**
     ```bash
@@ -67,14 +67,14 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app served by nginx. Backend Client is generated with `openapi-ts`.
+- **Frontend**: React app (Served by nginx in bare metal production deployments). Backend Client is generated with `openapi-ts`.
 - **Backend**: FastAPI application with Gunicorn workers
-- **Database**: PostgreSQL 16 with PostGIS extension
+- **Database**: PostgreSQL 16 with PostGIS and Vector extension
 - **Nginx**: Reverse proxy for production (Not used when deployed on Azure!)
 
 ## Development
 
-A seperate docker-environment is provided for development that facilitates usage.
+A seperate docker-environment is provided for development that facilitates usage with hot-reloading.
 
 ```bash
 # Build images for development, setup db and run migrations
@@ -108,20 +108,3 @@ STACNotator supports multiple deployment options:
 - [ ] Domain DNS pointed to your server
 - [ ] Firewall configured (allow ports 80, 443)
 - [ ] Do your own security checklist - this is just an initial reccomendation
-
-
-## Common Tasks
-
-```bash
-# Create database migration
-make migrate-create MSG="add new table"
-
-# View running containers
-make ps
-
-# Restart a service
-make restart-backend
-
-# Clean up everything
-make clean
-```

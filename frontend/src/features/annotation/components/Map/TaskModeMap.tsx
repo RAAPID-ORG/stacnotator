@@ -40,7 +40,7 @@ interface TaskModeMapProps {
     /** Controlled active layer id from outside. */
     activeLayerId?: string;
     /** Called on every pan/zoom so consumers can sync other maps. */
-    onViewChange?: (center: [number, number], zoom: number) => void;
+    onViewChange?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void;
     /** Called once the active imagery layer has finished loading. */
     onReady?: () => void;
     /** Currently active tool (pan, timeseries, etc.). */
@@ -118,11 +118,10 @@ const TaskModeMap = ({
         visibleTasks,
         currentTaskIndex,
         defaultZoom: imagery?.default_zoom ?? 10,
-        enabled: false,
+        enabled: imagery !== null,
     });
 
     // Pan to center + reset zoom on task navigation
-
     useEffect(() => {
         if (!center || !mapRef.current) return;
         const view = mapRef.current.getView();
@@ -183,7 +182,6 @@ const TaskModeMap = ({
     }, [panTrigger]);
 
     // Crosshair overlay
-
     useEffect(() => {
         const overlay = crosshairOverlayRef.current;
         if (!overlay) return;
@@ -195,7 +193,6 @@ const TaskModeMap = ({
     }, [crosshair?.lat, crosshair?.lon, showCrosshair]);
 
     // Probe marker overlay
-
     useEffect(() => {
         const overlay = probeOverlayRef.current;
         if (!overlay) return;
@@ -207,7 +204,6 @@ const TaskModeMap = ({
     }, [probePoint?.lat, probePoint?.lon, probePoint]);
 
     // Timeseries probe click handler
-
     useEffect(() => {
         const map = mapRef.current;
         if (!map || activeTool !== 'timeseries') return;
@@ -226,14 +222,11 @@ const TaskModeMap = ({
     }, [activeTool]);
 
     // External active layer control
-
     useEffect(() => {
         if (!controlledActiveLayerId || !layerManagerRef.current) return;
         layerManagerRef.current.setActiveLayer(controlledActiveLayerId);
         setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId, setActiveLayerId]);
-
-    // Render
 
     return (
         <div className="relative w-full h-full">
@@ -258,11 +251,19 @@ const TaskModeMap = ({
                         const olCenter = view.getCenter();
                         const z = view.getZoom();
                         if (!olCenter || z === undefined) return;
+                        const size = map.getSize();
+                        // Guard: skip if map hasn't laid out yet (size is 0)
+                        if (!size || size[0] === 0 || size[1] === 0) return;
                         const [lon, lat] = toLonLat(olCenter);
-                        onViewChangeRef.current?.([lat, lon], z);
+                        const extent = view.calculateExtent(size);
+                        const [minLon, minLat] = toLonLat([extent[0], extent[1]]);
+                        const [maxLon, maxLat] = toLonLat([extent[2], extent[3]]);
+                        onViewChangeRef.current?.([lat, lon], z, [minLon, minLat, maxLon, maxLat]);
                     };
                     view.on('change:center', syncView);
                     view.on('change:resolution', syncView);
+                    // Wait for the first full render so map.getSize() returns real dimensions
+                    map.once('rendercomplete', syncView);
 
                     // Create crosshair overlay imperatively
                     const color = crosshair?.color ?? 'ff0000';

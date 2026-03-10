@@ -3,7 +3,7 @@
  *
  * The open-mode counterpart of TaskModeMap. Key differences:
  *   - Mounts DrawingLayer for annotation drawing/editing on the same map.
- *   - Has a built-in LayerSelector and crosshair overlay.
+ *   - Has a crosshair overlay (toggleable via showCrosshair prop).
  *   - Exposes a `fitAnnotations` imperative handle.
  *
  * Layer management is shared with TaskModeMap via the `useSliceLayers` hook.
@@ -20,7 +20,6 @@ import BaseMap from './BaseMap';
 import DrawingLayer from './DrawingLayer';
 import { LayerManager } from './layerManager';
 import type { Layer } from './Layer';
-import LayerSelector from './LayerSelector';
 
 import type { ImageryWithWindowsOut } from '~/api/client';
 import type { SliceLayerMap } from '../../hooks/useStacRegistration';
@@ -28,7 +27,7 @@ import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../ControlsOpenMode';
-import { useSliceLayers, BASEMAP_LAYERS } from './useSliceLayers';
+import { useSliceLayers } from './useSliceLayers';
 
 // Props
 
@@ -38,7 +37,7 @@ interface OpenModeMapProps {
     initialCenter: [number, number];
     initialZoom: number;
     /** Called on every view change so the store can sync window maps. */
-    onViewChange?: (center: [number, number], zoom: number) => void;
+    onViewChange?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void;
     /** Called once the first active imagery layer finishes rendering. */
     onReady?: () => void;
     /** Controlled active layer id. */
@@ -52,6 +51,8 @@ interface OpenModeMapProps {
     refocusTrigger?: number;
     /** Timeseries probe point to display on the map. */
     probePoint?: { lat: number; lon: number } | null;
+    /** Whether to show the center crosshair overlay. */
+    showCrosshair?: boolean;
 }
 
 /** Imperative handle exposed to parents via ref */
@@ -76,6 +77,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     onTimeseriesClick,
     refocusTrigger,
     probePoint,
+    showCrosshair = true,
 }, ref) => {
     const mapRef = useRef<OLMap | null>(null);
     const [olMap, setOlMap] = useState<OLMap | null>(null);
@@ -85,10 +87,6 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
-
-    const setShowBasemap = useMapStore((s) => s.setShowBasemap);
-    const setBasemapType = useMapStore((s) => s.setBasemapType);
-    const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
 
     // Shared layer management
 
@@ -163,6 +161,19 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         });
     }, [refocusTrigger, initialCenter]);
 
+    // Pan-to-center trigger: minimap drag moves the main map
+    const panToCenterTrigger = useMapStore((s) => s.panToCenterTrigger);
+    const lastPanToCenterRef = useRef(panToCenterTrigger);
+    useEffect(() => {
+        if (panToCenterTrigger === lastPanToCenterRef.current) return;
+        lastPanToCenterRef.current = panToCenterTrigger;
+        const map = mapRef.current;
+        if (!map) return;
+        const newCenter = useMapStore.getState().currentMapCenter;
+        if (!newCenter) return;
+        map.getView().setCenter(fromLonLat([newCenter[1], newCenter[0]]));
+    }, [panToCenterTrigger]);
+
     // External active layer control
 
     useEffect(() => {
@@ -206,11 +217,19 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                         const olCenter = view.getCenter();
                         const zoom = view.getZoom();
                         if (!olCenter || zoom === undefined) return;
+                        const size = map.getSize();
+                        // Guard: skip if map hasn't laid out yet (size is 0)
+                        if (!size || size[0] === 0 || size[1] === 0) return;
                         const [lon, lat] = toLonLat(olCenter);
-                        onViewChangeRef.current?.([lat, lon], zoom);
+                        const extent = view.calculateExtent(size);
+                        const [minLon, minLat] = toLonLat([extent[0], extent[1]]);
+                        const [maxLon, maxLat] = toLonLat([extent[2], extent[3]]);
+                        onViewChangeRef.current?.([lat, lon], zoom, [minLon, minLat, maxLon, maxLat]);
                     };
                     view.on('change:center', syncView);
                     view.on('change:resolution', syncView);
+                    // Wait for the first full render so map.getSize() returns real dimensions
+                    map.once('rendercomplete', syncView);
 
                     // Create probe marker overlay
                     const probeEl = document.createElement('div');
@@ -238,37 +257,8 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                 />
             )}
 
-            {/* Layer selector */}
-            {layers.length > 0 && (
-                <div className="absolute top-2 right-2 z-[1000]">
-                    <LayerSelector
-                        layers={layers}
-                        selectedLayer={layers.find((l) => l.id === activeLayerId)}
-                        onLayerSelect={(layerId) => {
-                            setActiveLayerId(layerId);
-                            // Actually switch OL layer visibility
-                            layerManagerRef.current?.setActiveLayer(layerId);
-                            const layer = layers.find((l) => l.id === layerId);
-                            if (layer?.layerType === 'basemap') {
-                                setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
-                                setShowBasemap(true);
-                            } else {
-                                setShowBasemap(false);
-                                const match = layerId.match(/-v(\d+)$/);
-                                if (match) {
-                                    const templateId = Number(match[1]);
-                                    const idx = (imagery?.visualization_url_templates ?? [])
-                                        .findIndex((t) => t.id === templateId);
-                                    if (idx !== -1) setSelectedLayerIndex(idx);
-                                }
-                            }
-                            onLayersChange?.(layers, layerId);
-                        }}
-                    />
-                </div>
-            )}
-
             {/* Stable center crosshair */}
+            {showCrosshair && (
             <div className="absolute inset-0 pointer-events-none z-[500]" aria-hidden>
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                     <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
@@ -277,6 +267,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
                     </svg>
                 </div>
             </div>
+            )}
         </div>
     );
 });

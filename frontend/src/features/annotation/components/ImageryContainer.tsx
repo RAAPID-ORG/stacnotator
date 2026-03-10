@@ -31,6 +31,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
   const windowSliceIndices = useMapStore((s) => s.windowSliceIndices);
   const currentMapCenter = useMapStore((s) => s.currentMapCenter);
   const currentMapZoom = useMapStore((s) => s.currentMapZoom);
+  const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
   const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
@@ -107,20 +108,25 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reactive center - always follows the main map so panning syncs in both modes
+  // Reactive center - follows the main map when this is the active window,
+  // or when viewSyncEnabled is on for non-active windows.
   const center = useMemo<[number, number] | undefined>(() => {
-    if (currentMapCenter) return currentMapCenter;
+    if (isActiveWindow || viewSyncEnabled) {
+      if (currentMapCenter) return currentMapCenter;
+    }
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMapCenter, latLon?.lat, latLon?.lon]);
+  }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveWindow, viewSyncEnabled]);
 
   // Determine zoom level
   const zoom = useMemo(() => {
-    if (currentMapZoom !== null) return currentMapZoom;
+    if (isActiveWindow || viewSyncEnabled) {
+      if (currentMapZoom !== null) return currentMapZoom;
+    }
     return selectedImagery?.default_zoom ?? 10;
-  }, [currentMapZoom, selectedImagery?.default_zoom]);
+  }, [currentMapZoom, selectedImagery?.default_zoom, isActiveWindow, viewSyncEnabled]);
 
   // Crosshair at task location
   const crosshair = !isOpenMode && latLon

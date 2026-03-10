@@ -23,7 +23,11 @@ interface MapStore {
   zoomInTrigger: number;
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
+  panToCenterTrigger: number; // external pan-to-center (e.g. from minimap)
   showCrosshair: boolean;
+
+  // View sync: link small windows' pan/zoom to the main map
+  viewSyncEnabled: boolean;
 
   // Active tool
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -50,11 +54,13 @@ interface MapStore {
   triggerZoomIn: () => void;
   triggerZoomOut: () => void;
   triggerPan: (direction: 'up' | 'down' | 'left' | 'right') => void;
+  triggerPanToCenter: (center: [number, number]) => void;
   toggleCrosshair: () => void;
 
   setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
+  toggleViewSync: () => void;
 
   reset: () => void;
 }
@@ -78,11 +84,13 @@ const initialState = {
   zoomInTrigger: 0,
   zoomOutTrigger: 0,
   panTrigger: { direction: 'up' as const, count: 0 },
+  panToCenterTrigger: 0,
   showCrosshair: true,
 
   activeTool: 'pan' as const,
   timeseriesPoint: null as { lat: number; lon: number } | null,
   probeTimeseriesPoint: null as { lat: number; lon: number } | null,
+  viewSyncEnabled: true,
 };
 
 export const useMapStore = create<MapStore>((set) => ({
@@ -124,6 +132,7 @@ export const useMapStore = create<MapStore>((set) => ({
   triggerZoomIn: () => set((s) => ({ zoomInTrigger: s.zoomInTrigger + 1 })),
   triggerZoomOut: () => set((s) => ({ zoomOutTrigger: s.zoomOutTrigger + 1 })),
   triggerPan: (direction) => set((s) => ({ panTrigger: { direction, count: s.panTrigger.count + 1 } })),
+  triggerPanToCenter: (center) => set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
 
   setActiveTool: (tool) =>
@@ -131,6 +140,8 @@ export const useMapStore = create<MapStore>((set) => ({
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
   setProbeTimeseriesPoint: (point) => set({ probeTimeseriesPoint: point }),
+
+  toggleViewSync: () => set((s) => ({ viewSyncEnabled: !s.viewSyncEnabled })),
 
   reset: () => set(initialState),
 }));

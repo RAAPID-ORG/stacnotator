@@ -15,6 +15,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
   { key: 'Space', description: 'Recenter maps' },
   { key: 'O', description: 'Toggle crosshair' },
+  { key: 'V', description: 'Toggle view sync (link windows)' },
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },

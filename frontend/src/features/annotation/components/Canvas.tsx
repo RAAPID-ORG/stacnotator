@@ -66,6 +66,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const showBasemap = useMapStore((s) => s.showBasemap);
   const basemapType = useMapStore((s) => s.basemapType);
   const currentMapBounds = useMapStore((s) => s.currentMapBounds);
+  const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
   const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
@@ -309,6 +310,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               center={center}
               bbox={campaignBbox || [0, 0, 0, 0]}
               visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
+              onViewportDrag={campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined}
+              fitBbox={campaign?.mode === 'tasks'}
             />
           </div>
 

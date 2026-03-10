@@ -434,6 +434,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           toggleCrosshair();
           break;
+        case 'v':
+        case 'V':
+          e.preventDefault();
+          useMapStore.getState().toggleViewSync();
+          break;
 
         // Arrow keys: pan by default, zoom with Alt modifier
         case 'ArrowUp':

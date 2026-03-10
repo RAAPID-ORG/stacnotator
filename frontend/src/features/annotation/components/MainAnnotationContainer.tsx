@@ -46,6 +46,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setMapCenter = useMapStore((s) => s.setMapCenter);
   const setMapZoom = useMapStore((s) => s.setMapZoom);
+  const setMapBounds = useMapStore((s) => s.setMapBounds);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
   const setBasemapType = useMapStore((s) => s.setBasemapType);
@@ -54,6 +55,8 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setProbeTimeseriesPoint = useMapStore((s) => s.setProbeTimeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
+  const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
+  const toggleViewSync = useMapStore((s) => s.toggleViewSync);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [timelineDragging, setTimelineDragging] = useState(false);
@@ -269,6 +272,36 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
+            {/* View sync toggle - link pan/zoom of small windows to the main map */}
+            {selectedImagery.windows.length > 1 && (
+              <button
+                onClick={toggleViewSync}
+                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
+                title={viewSyncEnabled ? 'Unlink small windows from main map pan/zoom' : 'Link small windows to main map pan/zoom'}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  {viewSyncEnabled ? (
+                    <>
+                      {/* Linked icon: two rectangles connected by a chain link */}
+                      <rect x="1" y="3" width="7" height="6" rx="1" />
+                      <rect x="12" y="11" width="7" height="6" rx="1" />
+                      <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
+                      <path d="M9 11l2-2" />
+                    </>
+                  ) : (
+                    <>
+                      {/* Unlinked icon: two rectangles with broken link */}
+                      <rect x="1" y="3" width="7" height="6" rx="1" />
+                      <rect x="12" y="11" width="7" height="6" rx="1" />
+                      <path d="M8 8l0.5 0.5" />
+                      <path d="M11.5 11.5l0.5 0.5" />
+                      <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            )}
+
             {/* Timeseries probe tool */}
             {campaign.time_series.length > 0 && (
               <button
@@ -287,7 +320,68 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         )}
 
         {isOpenMode && (
-          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center">
+          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
+
+            {/* Layer selector */}
+            {mapLayers.length > 0 && (
+              <LayerSelector
+                layers={mapLayers}
+                selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
+                onLayerSelect={(layerId) => {
+                  setActiveLayerId(layerId);
+                  const layer = mapLayers.find((l) => l.id === layerId);
+                  if (layer?.layerType === 'basemap') {
+                    setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
+                    setShowBasemap(true);
+                  } else {
+                    const match = layerId.match(/-v(\d+)$/);
+                    if (match) {
+                      const templateId = Number(match[1]);
+                      const idx = (selectedImagery.visualization_url_templates ?? [])
+                        .findIndex((t) => t.id === templateId);
+                      if (idx !== -1) setSelectedLayerIndex(idx);
+                    }
+                  }
+                }}
+              />
+            )}
+
+            {/* Window selector */}
+            {selectedImagery.windows.length > 1 && (
+              <select
+                value={currentActiveWindowId ?? ''}
+                onChange={(e) => setActiveWindowId(Number(e.target.value))}
+                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
+                title="Select window"
+              >
+                {selectedImagery.windows.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {formatWindowLabel(w.window_start_date, w.window_end_date, selectedImagery.window_unit)}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Slice selector */}
+            {slices.length > 1 && (
+              <select
+                value={activeSliceIndex}
+                onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
+                title="Select time slice"
+              >
+                {slices.map((slice, idx) => {
+                  const isEmpty = !!emptySlices[`${currentActiveWindowId}-${idx}`];
+                  return (
+                    <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
+                      {slice.label}{isEmpty ? ' (empty)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+
+            {/* Fit annotations button */}
             <button
               onClick={() => openModeMapRef.current?.fitAnnotations()}
               className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
@@ -299,6 +393,49 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>
               </svg>
             </button>
+
+            {/* Crosshair toggle */}
+            <button
+              onClick={toggleCrosshair}
+              className={`px-2 py-1.5 bg-white rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer ${showCrosshair ? 'text-neutral-900' : 'text-neutral-400'}`}
+              title={showCrosshair ? 'Hide crosshair' : 'Show crosshair'}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <circle cx="10" cy="10" r="1.5" />
+                <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              </svg>
+            </button>
+
+            {/* View sync toggle - link pan/zoom of small windows to the main map */}
+            {selectedImagery.windows.length > 1 && (
+              <button
+                onClick={toggleViewSync}
+                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
+                title={viewSyncEnabled ? 'Unlink small windows from main map pan/zoom' : 'Link small windows to main map pan/zoom'}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  {viewSyncEnabled ? (
+                    <>
+                      <rect x="1" y="3" width="7" height="6" rx="1" />
+                      <rect x="12" y="11" width="7" height="6" rx="1" />
+                      <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
+                      <path d="M9 11l2-2" />
+                    </>
+                  ) : (
+                    <>
+                      <rect x="1" y="3" width="7" height="6" rx="1" />
+                      <rect x="12" y="11" width="7" height="6" rx="1" />
+                      <path d="M8 8l0.5 0.5" />
+                      <path d="M11.5 11.5l0.5 0.5" />
+                      <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            )}
           </div>
         )}
 
@@ -315,7 +452,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             showCrosshair={showCrosshair}
             activeLayerId={activeLayerId}
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
-            onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
+            onViewChange={(newCenter, zoom, bounds) => { setMapCenter(newCenter); setMapZoom(zoom); setMapBounds(bounds); }}
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
@@ -328,7 +465,10 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             initialCenter={initialCenter}
             initialZoom={initialZoom}
             refocusTrigger={refocusTrigger}
-            onViewChange={(newCenter, zoom) => { setMapCenter(newCenter); setMapZoom(zoom); }}
+            showCrosshair={showCrosshair}
+            activeLayerId={activeLayerId}
+            onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
+            onViewChange={(newCenter, zoom, bounds) => { setMapCenter(newCenter); setMapZoom(zoom); setMapBounds(bounds); }}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
             magicWandActive={magicWandActive}
