@@ -130,14 +130,11 @@ make dev-down              # Stop all services
 
 ### Pre-commit Hooks
 
-The project uses [pre-commit](https://pre-commit.com/) to enforce code quality on every commit. Hooks include trailing whitespace fixes, secret detection (gitleaks), Ruff linting/formatting for the backend, and ESLint + TypeScript checks for the frontend.
+The project uses [pre-commit](https://pre-commit.com/) to enforce code quality on every commit.
 
 ```bash
 # Install hooks (one-time setup)
 make pre-commit-install
-
-# Run all hooks manually against all files
-make pre-commit-run
 ```
 
 ## Production Deployment
