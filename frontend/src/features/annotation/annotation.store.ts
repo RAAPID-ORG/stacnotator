@@ -497,8 +497,8 @@ export const useAnnotationStore = create<AnnotationStore>((set, get) => ({
                 return;
               }
             }
-            // status === 'ok' → label agrees, proceed normally
-            // status === 'skipped_no_embedding', 'skipped_insufficient_data', or 'disabled' → not enough data / not configured, don't block
+            // status === 'ok' -> label agrees, proceed normally
+            // status === 'skipped_no_embedding', 'skipped_insufficient_data', or 'disabled' -> not enough data / not configured, don't block
           } catch {
             // Validation endpoint unavailable - don't block submission
           }

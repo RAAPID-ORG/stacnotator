@@ -159,7 +159,7 @@ class AnnotationTaskOut(BaseModel):
 
         # Set the computed status on the data
         if hasattr(data, "__dict__"):
-            # ORM model — inject into the dict that pydantic will use
+            # ORM model - inject into the dict that pydantic will use
             data.__dict__["task_status"] = status
         elif isinstance(data, dict):
             data["task_status"] = status

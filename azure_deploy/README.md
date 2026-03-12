@@ -43,8 +43,8 @@ export FIREBASE_PROJECT_ID="your-firebase-project"
 
 # 4. Configure authorized domains in Firebase Console
 # Go to: https://console.firebase.google.com/
-# → Authentication → Settings → Authorized domains
-# → Add your Container App frontend domain
+# -> Authentication -> Settings -> Authorized domains
+# -> Add your Container App frontend domain
 ```
 
 ### Regular Deployments

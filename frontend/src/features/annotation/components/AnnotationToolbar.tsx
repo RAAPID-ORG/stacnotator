@@ -10,7 +10,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
   { key: 'A / D', description: 'Previous / Next slice' },
   { key: 'Shift+A / D', description: 'Previous / Next window' },
-  { key: '↑ ↓ ← →', description: 'Pan map' },
+  { key: '↑ ↓ ← ->', description: 'Pan map' },
   { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
   { key: 'Space', description: 'Recenter maps' },
   { key: 'O', description: 'Toggle crosshair' },
