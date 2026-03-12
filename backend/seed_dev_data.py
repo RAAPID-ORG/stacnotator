@@ -20,6 +20,9 @@ from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
 from src.campaigns.models import Campaign, CampaignSettings, CampaignUser, CanvasLayout
 from src.database import SessionLocal
 from src.imagery.models import Imagery, ImageryVisualizationUrlTemplate, ImageryWindow
+from src.timeseries.models import (
+    TimeSeries,  # noqa: F401 - needed for SQLAlchemy relationship resolution
+)
 
 logger = logging.getLogger(__name__)
 
