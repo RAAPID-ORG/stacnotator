@@ -159,7 +159,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           The year from which satellite embeddings are sourced for KNN-based label validation.
           Changing this will recompute all embeddings for the campaign.
           {!campaign.settings.embedding_year && (
-            <span className="block mt-1 text-amber-600 font-medium">
+            <span className="block mt-1 text-orange-600 font-medium">
               No embedding year set - KNN-embeddings (AEF) based validation is currently unavailable for annotators.
             </span>
           )}

@@ -8,30 +8,68 @@ NASA Harvest's geospatial imagery annotation platform.
 
 ### Development Setup (with Hot Reloading)
 
-0. STACNotator uses Firebase to handle authentication. Create a new Firebase project and generate firebase credentials.
+#### Step 0 - Firebase Setup
 
-1. **Copy and edit environment file:**
-    ```bash
-    cp .env.dev .env
-    nano .env  # Add your Firebase credentials and any overrides (see examples)
-    ```
+STACNotator uses Firebase for authentication. Set up a project and download credentials:
 
-2. **Create a user in firebase**
-    - Go to `https://console.firebase.google.com/`, and select your project.
-    - Switch to the authentication tab.
-    - Under users, click Add user and follow the promts. This will be your initial user to login with in the app.
-    - Copy the UID of this new user.
+1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
+2. Navigate to **Settings > General**:
+   - Note your **`FIREBASE_PROJECT_ID`**.
+   - Scroll to **Your apps > \<your-app-name\>** and note the **`FIREBASE_API_KEY`** and **`FIREBASE_AUTH_DOMAIN`** from the SDK instructions.
+3. Navigate to **Settings > Service Accounts**:
+   - Select *Firebase Admin SDK* and click **Generate new private key**. Save the file.
 
+#### Step 1 - Configure Environment
 
-3. **Initialize and start all services &  seed the DB with data for your user:**
-    ```bash
-    make dev-init FIREBASE_UID="<YOUR-UID>"
-    ```
+```bash
+cp .env.dev .env
+nano .env
+```
 
-4. **Access the app:**
-    - Frontend: http://localhost:5173 (auto-reloads)
-    - Backend: http://localhost:8000 (auto-reloads)
-    - API Docs: http://localhost:8000/docs
+Update the following variables:
+
+| Variable | Description |
+|---|---|
+| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account (used for timeseries) |
+| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
+| `FIREBASE_CREDENTIALS_PATH_HOST` | Path to the Firebase service account credentials file (from Step 0) |
+| `VITE_FIREBASE_API_KEY` | Firebase API key (from Step 0) |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain (from Step 0) |
+| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID (from Step 0) |
+
+#### Step 2 - Create a Firebase User
+
+1. Go to [Firebase Console](https://console.firebase.google.com/) and select your project.
+2. Navigate to the **Authentication** tab.
+3. Under **Users**, click **Add user** and follow the prompts.
+4. Copy the **UID** of the newly created user.
+
+#### Step 3 - Initialize Services & Seed the Database
+
+```bash
+make dev-init FIREBASE_UID="<YOUR-UID>"
+```
+
+#### Step 4 - Start All Services
+
+```bash
+make dev-up
+```
+
+The app will be available at:
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 (auto-reloads) |
+| Backend | http://localhost:8000 (auto-reloads) |
+| API Docs | http://localhost:8000/docs |
+
+#### Step 5 - Stop All Services
+
+```bash
+make dev-down
+```
+
 
 ## Project Structure
 
