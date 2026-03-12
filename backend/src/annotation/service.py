@@ -439,6 +439,10 @@ def update_annotation(
         if annotation_update.comment is not None:
             annotation.comment = annotation_update.comment
 
+        # Update confidence if provided
+        if annotation_update.confidence is not None:
+            annotation.confidence = annotation_update.confidence
+
         # Update user who last modified
         annotation.created_by_user_id = user_id
 

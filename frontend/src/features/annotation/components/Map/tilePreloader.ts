@@ -9,46 +9,27 @@
  *   - abort(groupId) / clear() for cancellation.
  *   - Per-group empty-tile detection: if EMPTY_TILE_THRESHOLD errors
  *     occur with zero successes for a group, onGroupEmpty fires and
- *     the group is auto-aborted.
+ *     the group is auto-aborted (empty slice case).
  */
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
-/**
- * Number of consecutive tile-load errors (with zero successes) before we
- * consider a group (slice) empty / nodata. Shared with WindowMap so the
- * detection strategy is identical.
- */
+// Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface PreloadJob {
   priority: number;
   groupId: string;
-  /** Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}). */
-  urlTemplate: string;
-  /** Map extent in EPSG:4326 [west, south, east, north]. */
-  extent: [number, number, number, number];
+  urlTemplate: string; // Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}).
+  extent: [number, number, number, number];  // Map extent in EPSG:4326 [west, south, east, north].
   zoom: number;
 }
 
-// ---------------------------------------------------------------------------
-// Tile coordinate utilities
-// ---------------------------------------------------------------------------
-
 const defaultGrid = createXYZ();
 
-/**
- * Expand a URL template + extent + zoom into concrete tile URLs.
- */
+// Expand a URL template + extent + zoom into concrete tile URLs.
 export function tileUrlsForExtent(
   urlTemplate: string,
   extent: [number, number, number, number],
@@ -73,10 +54,6 @@ export function tileUrlsForExtent(
   return urls;
 }
 
-// ---------------------------------------------------------------------------
-// TilePreloader
-// ---------------------------------------------------------------------------
-
 const MAX_CONCURRENT = 50;
 const DRAIN_INTERVAL_MS = 50;
 
@@ -96,13 +73,13 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  /** AbortControllers for in-flight fetches, keyed by generation. */
+  // AbortControllers for in-flight fetches, keyed by generation.
   private inflightControllers = new Set<AbortController>();
 
-  /** Per-group error/success counters for empty-tile detection. */
+  // Per-group error/success counters for empty-tile detection.
   private groupStats = new Map<string, { errors: number; successes: number; emptyFired: boolean }>();
 
-  /** Fired when the queue is empty and nothing is in-flight. */
+  // Fired when the queue is empty and nothing is in-flight.
   onIdle?: () => void;
 
   /**
@@ -146,10 +123,8 @@ export class TilePreloader {
     this.groupStats.delete(groupId);
   }
 
-  /**
-   * Abort all queued tiles whose groupId starts with the given prefix.
-   * Useful for selectively clearing e.g. all current-task or next-task groups.
-   */
+  // Abort all queued tiles whose groupId starts with the given prefix.
+  // Useful for selectively clearing e.g. all current-task or next-task groups.
   abortByPrefix(prefix: string) {
     this.tileQueue = this.tileQueue.filter((t) => !t.groupId.startsWith(prefix));
     for (const key of this.groupStats.keys()) {
@@ -177,10 +152,6 @@ export class TilePreloader {
       this.drainTimer = null;
     }
   }
-
-  // -----------------------------------------------------------------------
-  // Internal
-  // -----------------------------------------------------------------------
 
   private expandAndEnqueue(jobs: PreloadJob[]) {
     for (const job of jobs) {
@@ -227,7 +198,7 @@ export class TilePreloader {
         this.inflightControllers.delete(controller);
         this.inflight = Math.max(0, this.inflight - 1);
 
-        // Aborted fetches are not real failures — skip group stats entirely.
+        // Aborted fetches are not real failures - skip group stats entirely.
         if (aborted) {
           if (!this.disposed && gen === this.generation) this.drain();
           this.checkIdle();
@@ -254,7 +225,7 @@ export class TilePreloader {
       });
   }
 
-  /** Cancel all in-flight fetch requests immediately. */
+  // Cancel all in-flight fetch requests immediately.
   private _abortInflight() {
     for (const controller of this.inflightControllers) {
       controller.abort();

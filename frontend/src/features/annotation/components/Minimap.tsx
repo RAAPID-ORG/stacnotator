@@ -74,7 +74,7 @@ const MapController = ({
     );
     map.fitBounds(padded, { animate: false, padding: [10, 10] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, visibleBounds != null]); // only trigger on null→non-null transition
+  }, [map, visibleBounds != null]); // only trigger on null to non-null transition
 
   // If bbox changes (different campaign), allow re-fit
   const prevBboxRef = useRef(bbox);

@@ -619,11 +619,11 @@ export const CampaignSettingsPage = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
+                onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
                 className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
                 type="button"
               >
-                View Annotations
+                Start Annotating
               </button>
             </div>
           </div>

@@ -436,6 +436,59 @@ export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
 };
 
 /**
+ * Extract the centroid (lat/lon) from any WKT geometry string.
+ * Supports POINT, LINESTRING, and POLYGON.
+ * For POINT: returns the point itself.
+ * For LINESTRING: returns the average of all vertices.
+ * For POLYGON: returns the average of the exterior ring vertices.
+ *
+ * @param wkt - Well-Known Text geometry string
+ * @returns Object with lat and lon properties, or null if parsing fails
+ */
+export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
+  if (!wkt) return null;
+  const normalized = wkt.trim().toUpperCase();
+
+  // POINT
+  const pointMatch = normalized.match(
+    /^POINT(?:\s+Z)?\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/
+  );
+  if (pointMatch) {
+    return { lon: parseFloat(pointMatch[1]), lat: parseFloat(pointMatch[2]) };
+  }
+
+  // LINESTRING – average of all vertices
+  const lineMatch = normalized.match(/^LINESTRING\s*\((.+)\)$/);
+  if (lineMatch) {
+    const pairs = lineMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));
+    if (pairs.length === 0) return null;
+    const sumLon = pairs.reduce((s, p) => s + p[0], 0);
+    const sumLat = pairs.reduce((s, p) => s + p[1], 0);
+    return { lon: sumLon / pairs.length, lat: sumLat / pairs.length };
+  }
+
+  // POLYGON – average of exterior ring vertices (skip closing vertex)
+  const polyMatch = normalized.match(/^POLYGON\s*\(\((.+?)\)/);
+  if (polyMatch) {
+    const pairs = polyMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));
+    // Drop last vertex if it duplicates the first (closed ring)
+    const ring =
+      pairs.length > 1 &&
+      pairs[0][0] === pairs[pairs.length - 1][0] &&
+      pairs[0][1] === pairs[pairs.length - 1][1]
+        ? pairs.slice(0, -1)
+        : pairs;
+    if (ring.length === 0) return null;
+    const sumLon = ring.reduce((s, p) => s + p[0], 0);
+    const sumLat = ring.reduce((s, p) => s + p[1], 0);
+    return { lon: sumLon / ring.length, lat: sumLat / ring.length };
+  }
+
+  // Fallback: try extractLatLonFromWKT for anything else
+  return extractLatLonFromWKT(wkt);
+};
+
+/**
  * Mock API function for magic wand auto-segmentation
  * In production, this would call a backend AI model for semantic segmentation
  * For now, returns a bounding box polygon around the clicked point

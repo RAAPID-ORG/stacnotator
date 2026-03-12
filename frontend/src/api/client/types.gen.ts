@@ -23,7 +23,7 @@ export type AnnotationCreate = {
     /**
      * Confidence
      */
-    confidence: string | null;
+    confidence: number | null;
 };
 
 /**
@@ -213,6 +213,10 @@ export type AnnotationUpdate = {
      * Geometry Wkt
      */
     geometry_wkt: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: number | null;
     /**
      * Is Authoritative
      */

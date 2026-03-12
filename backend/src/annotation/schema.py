@@ -202,13 +202,14 @@ class AnnotationCreate(BaseModel):
     label_id: int
     comment: str | None
     geometry_wkt: str  # Geometry in WKT format
-    confidence: str | None
+    confidence: int | None
 
 
 class AnnotationUpdate(BaseModel):
     label_id: int | None
     comment: str | None
     geometry_wkt: str | None  # Geometry in WKT format
+    confidence: int | None = None
     is_authoritative: bool | None
 
 

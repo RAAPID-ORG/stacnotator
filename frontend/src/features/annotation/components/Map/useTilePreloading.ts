@@ -9,7 +9,9 @@
  * All preloading uses a fixed extent: the default zoom centred on the
  * task's location. User pan/zoom does NOT trigger re-preloading -
  * preloading runs exactly once per task after the active layer finishes
- * its initial load.
+ * its initial load. In the future we might want to trigger re-preloading
+ * for the current tasks hidden layers on pan/zoom, but for now this is
+ * a simpler approach to implement.
  *
  * Empty-slice handling:
  *   All slices for each window are enqueued with per-slice groupIds.
@@ -28,29 +30,20 @@ import type { ImageryWithWindowsOut, AnnotationTaskOut } from '~/api/client';
 import { extractLatLonFromWKT, computeTimeSlices } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const PRIORITY_OTHER_WINDOWS = 1;
 const PRIORITY_NEXT_TASK_DEFAULT = 2;
 const PRIORITY_NEXT_TASK_OTHER = 3;
 
-/** Group ID prefix for current-task preloads. */
-const PREFIX_CURRENT = 'cur';
-/** Group ID prefix for next-task preloads. */
-const PREFIX_NEXT = 'nxt';
+const PREFIX_CURRENT = 'cur'; // Group ID prefix for current-task preloads.
+const PREFIX_NEXT = 'nxt'; // Group ID prefix for next-task preloads.
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
-/** Build a group ID that encodes prefix + windowId + sliceIndex. */
+// Build a group ID that encodes prefix + windowId + sliceIndex.
 function groupId(prefix: string, windowId: number, sliceIndex: number): string {
   return `${prefix}-w${windowId}-s${sliceIndex}`;
 }
 
-/** Parse a group ID back into its components. Returns null if malformed. */
+// Parse a group ID back into its components. Returns null if malformed.
 function parseGroupId(gid: string): { prefix: string; windowId: number; sliceIndex: number } | null {
   const m = gid.match(/^(\w+)-w(\d+)-s(\d+)$/);
   if (!m) return null;
@@ -68,9 +61,7 @@ function estimateExtent(
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
 }
 
-/**
- * Build preload jobs for all slices of the given windows.
- */
+// Build preload jobs for all slices of the given windows.
 function buildSliceJobs(
   windows: ImageryWithWindowsOut['windows'],
   imagery: ImageryWithWindowsOut,
@@ -112,10 +103,6 @@ function buildSliceJobs(
 
   return jobs;
 }
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
 
 interface UseTilePreloadingOptions {
   layerManager: LayerManager | null;
@@ -200,7 +187,7 @@ export function useTilePreloading({
       );
 
       if (firstValid !== -1 && firstValid !== parsed.sliceIndex) {
-        // Only set for non-active windows — active window handled by ImageryContainer
+        // Only set for non-active windows - active window handled by ImageryContainer
         if (parsed.windowId !== activeWindowIdRef.current) {
           setWindowSliceIndexRef.current(parsed.windowId, firstValid);
         }
@@ -245,9 +232,7 @@ export function useTilePreloading({
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  /**
-   * Enqueue tiles for all slices of all windows for the next task (P2+P3).
-   */
+  // Enqueue tiles for all slices of all windows for next task (P2+P3).
   const enqueueNextTask = useCallback(() => {
     const p = preloaderRef.current;
     const img = imageryRef.current;
@@ -286,7 +271,7 @@ export function useTilePreloading({
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  // Wire up LayerManager busy/idle → pause/resume + trigger P1 once
+  // Wire up LayerManager busy/idle to pause/resume + trigger P1 once
   useEffect(() => {
     if (!enabled || !layerManager) return;
     const p = preloaderRef.current;
@@ -298,7 +283,7 @@ export function useTilePreloading({
       } else {
         p.resume();
         // Trigger P1 exactly once after the active layer's initial load.
-        // Subsequent pan/zoom busy→idle transitions are ignored.
+        // Subsequent pan/zoom busy to idle transitions are ignored.
         if (!hasEnqueuedCurrentRef.current) {
           hasEnqueuedCurrentRef.current = true;
           enqueueCurrentOtherWindows();
