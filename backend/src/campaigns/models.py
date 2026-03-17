@@ -49,8 +49,14 @@ class Campaign(Base):
         back_populates="campaign",
         cascade="all, delete-orphan",
     )
-    imagery: Mapped[list["Imagery"]] = relationship(
-        "Imagery", back_populates="campaign", cascade="all, delete-orphan"
+    imagery_sources: Mapped[list["ImagerySource"]] = relationship(  # noqa: F821
+        "ImagerySource", back_populates="campaign", cascade="all, delete-orphan"
+    )
+    basemaps: Mapped[list["Basemap"]] = relationship(  # noqa: F821
+        "Basemap", back_populates="campaign", cascade="all, delete-orphan"
+    )
+    imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
+        "ImageryView", back_populates="campaign", cascade="all, delete-orphan"
     )
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
@@ -105,17 +111,16 @@ class CampaignSettings(Base):
 
 class CanvasLayout(Base):
     """
-    Stores UI canvas layout configuration for imagery or campaign settings.
+    Stores UI canvas layout configuration for views or campaign settings.
     Can be user-specific (personal layout) or serve as a default layout (is_default=True).
 
     Layout types:
-    - Campaign main layout: campaign_id set, imagery_id NULL
-    - Imagery-specific layout: campaign_id set, imagery_id set
+    - Campaign main layout: campaign_id set, view_id NULL
+    - View-specific layout: campaign_id set, view_id set
     """
 
     __tablename__ = "canvas_layouts"
     __table_args__ = (
-        # Ensure default layouts are not personal (user_id must be NULL)
         CheckConstraint(
             "(is_default = false) OR (is_default = true AND user_id IS NULL)",
             name="canvas_layouts_default_check",
@@ -123,10 +128,8 @@ class CanvasLayout(Base):
         {"schema": "data"},
     )
 
-    # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    # Foreign keys
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="CASCADE"),
         nullable=True,
@@ -137,29 +140,26 @@ class CanvasLayout(Base):
         nullable=True,
     )
 
-    imagery_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.imagery.id", ondelete="CASCADE"),
+    view_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.imagery_views.id", ondelete="CASCADE"),
         nullable=True,
     )
 
-    # Whether this is the default layout (for user_id IS NULL)
     is_default: Mapped[bool] = mapped_column(
         server_default="false",
         nullable=False,
     )
 
-    # Layout data
     layout_data: Mapped[list] = mapped_column(
         JSONB,
         server_default="[]",
         nullable=False,
     )
 
-    # Relationships
     campaign: Mapped["Campaign | None"] = relationship(
         back_populates="canvas_layouts",
     )
-    imagery: Mapped["Imagery | None"] = relationship(
+    imagery_view: Mapped["ImageryView | None"] = relationship(  # noqa: F821
         back_populates="canvas_layouts",
     )
 

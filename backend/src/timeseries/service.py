@@ -250,12 +250,12 @@ def create_timeseries_bulk(
     # If this is the first timeseries for the campaign, add timeseries entry to all main layouts
     if existing_count == 0:
         # Get all main canvas layouts for this campaign (default and personal)
-        # Main layouts have imagery_id = None
+        # Main layouts have view_id = None
         main_layouts = (
             db.query(CanvasLayout)
             .filter(
                 CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.imagery_id.is_(None),
+                CanvasLayout.view_id.is_(None),
             )
             .all()
         )
@@ -333,7 +333,7 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
             db.query(CanvasLayout)
             .filter(
                 CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.imagery_id.is_(None),
+                CanvasLayout.view_id.is_(None),
             )
             .all()
         )

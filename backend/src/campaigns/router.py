@@ -15,7 +15,7 @@ from src.campaigns.schemas import (
     AssignUsersToCampaignRequest,
     CampaignCreate,
     CampaignOut,
-    CampaignOutWithImageryWindows,
+    CampaignOutFull,
     CampaignsListResponse,
     CampaignStatistics,
     CampaignUsersResponse,
@@ -85,7 +85,7 @@ def create_campaign(
         mode=campaign.mode,
         settings=campaign.settings,
         user_id=user.id,
-        imagery_configs=campaign.imagery_configs,
+        imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
     )
 
@@ -103,16 +103,16 @@ def add_users_to_campaign(
     service.add_users_to_campaign_bulk(db, campaign.id, users_to_assign.user_ids)
 
 
-@router.get("/{campaign_id}/detailed", response_model=CampaignOutWithImageryWindows)
+@router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)
 def get_campaign_with_imagery_windows(
     campaign_id: int,
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    """Get campaign with detailed imagery windows and layouts (both default and personal)"""
+    """Get campaign with detailed imagery views and layouts (both default and personal)"""
     campaign_with_layouts = service.get_campaign_with_layouts(db, campaign_id)
-    return CampaignOutWithImageryWindows.from_orm(campaign_with_layouts, user_id=user.id)
+    return CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
 
 
 @router.post(

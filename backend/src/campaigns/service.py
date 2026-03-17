@@ -30,8 +30,8 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
-from src.imagery.models import Imagery
-from src.imagery.service import create_imagery_with_layouts_bulk_no_commit
+from src.imagery.models import ImageryView
+from src.imagery.service import create_imagery_from_editor_state
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import _add_timeseries_entry_to_layout
 
@@ -125,7 +125,7 @@ def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
         db.query(Campaign)
         .options(
             joinedload(Campaign.canvas_layouts),
-            joinedload(Campaign.imagery).joinedload(Imagery.canvas_layouts),
+            joinedload(Campaign.imagery_views).joinedload(ImageryView.canvas_layouts),
         )
         .filter(Campaign.id == campaign_id)
         .first()
@@ -144,7 +144,7 @@ def create_campaign(
     mode: str,
     settings: CampaignSettingsCreate,
     user_id: UUID,
-    imagery_configs: list | None = None,
+    imagery_editor_state=None,
     timeseries_configs: list | None = None,
 ) -> Campaign:
     """
@@ -156,7 +156,7 @@ def create_campaign(
         mode: Campaign mode (e.g., 'tasks' or 'open-world')
         settings: Campaign configuration settings
         user_id: ID of user to set as admin
-        imagery_configs: Optional list of imagery configurations to create
+        imagery_editor_state: Optional imagery editor state to persist
         timeseries_configs: Optional list of timeseries configurations to create
 
     Returns:
@@ -171,10 +171,10 @@ def create_campaign(
     # Create default main canvas layout for the campaign
     default_layout = CanvasLayout(
         layout_data=DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
-        user_id=None,  # Default layout for all users
+        user_id=None,
         campaign_id=campaign.id,
-        imagery_id=None,  # Main campaign layout, not imagery-specific
-        is_default=True,  # Mark as default
+        view_id=None,
+        is_default=True,
     )
     db.add(default_layout)
 
@@ -224,11 +224,11 @@ def create_campaign(
             db.refresh(campaign)
 
     # Create imagery if provided
-    if imagery_configs:
-        create_imagery_with_layouts_bulk_no_commit(
+    if imagery_editor_state:
+        create_imagery_from_editor_state(
             db,
             campaign=campaign,
-            imagery_items=imagery_configs,
+            editor_state=imagery_editor_state,
         )
 
     # Fetch and add embeddings (only when the user specified an embedding year)
@@ -798,7 +798,7 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     Cascading deletes will automatically remove:
     - Campaign settings
     - Canvas layouts (both default and personal)
-    - Imagery and imagery windows
+    - Imagery sources, views, and basemaps
     - Timeseries
     - Annotations
     - Annotation task items

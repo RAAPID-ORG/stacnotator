@@ -6,10 +6,11 @@ import {
 } from '~/features/campaigns/utils/campaignValidation';
 import { StepCampaign } from './steps/StepCampaign';
 import { StepSettings } from './steps/StepSettings';
-import { StepImagery } from './steps/StepImagery';
+import { StepImagery, createInitialImageryState } from './steps/StepImagery';
 import { StepAddTimeseries } from './steps/StepAddTimeseries';
 import { StepReview } from './steps/StepReview';
 import { StepIndicator } from './StepIndicator';
+import type { ImageryStepState } from './steps/imagery/types';
 
 // Define step configuration to keep step names and content aligned
 const STEP_CONFIG = {
@@ -55,8 +56,10 @@ export const CreateCampaignModal = ({
     mode: 'tasks',
   });
 
+  const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
+
   // Live validation - recomputed whenever form changes
-  const validation: FullValidationResult = useMemo(() => validateFullForm(form), [form]);
+  const validation: FullValidationResult = useMemo(() => validateFullForm(form, imageryState), [form, imageryState]);
 
   // Total number of individual issues
   const totalErrors = useMemo(
@@ -83,7 +86,7 @@ export const CreateCampaignModal = ({
       case 'StepSettings':
         return <StepSettings form={form} setForm={setForm} />;
       case 'StepImagery':
-        return <StepImagery form={form} setForm={setForm} />;
+        return <StepImagery form={form} setForm={setForm} imageryState={imageryState} setImageryState={setImageryState} />;
       case 'StepAddTimeseries':
         return <StepAddTimeseries form={form} setForm={setForm} />;
       case 'StepReview':
@@ -100,6 +103,14 @@ export const CreateCampaignModal = ({
       return;
     }
 
+    console.log('[Campaign Create] full payload:', {
+      form,
+      imagery_editor_state: {
+        sources: imageryState.sources,
+        views: imageryState.views,
+        basemaps: imageryState.basemaps,
+      },
+    });
     onSubmit(form);
   };
 
@@ -116,7 +127,7 @@ export const CreateCampaignModal = ({
           </button>
         </div>
 
-        <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} />
+        <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} onStepClick={setStep} />
 
         <div className="p-6 overflow-y-auto h-[60vh]">{getStepContent()}</div>
 

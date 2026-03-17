@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
+import { CreateCampaignPage } from '~/features/campaigns/creation/CreateCampaignPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AnnotationPage } from 'src/features/annotation/pages/AnnotationPage';
 import { SettingsPage } from 'src/features/settings/pages/SettingsPage';
@@ -13,6 +14,7 @@ export const Router = () => (
       <Route path="/" element={<AppLayout />}>
         <Route index element={<HomePage />} />
         <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns/new" element={<CreateCampaignPage />} />
         <Route path="campaigns/:campaignId/annotate" element={<AnnotationPage />} />
         <Route path="campaigns/:campaignId/settings" element={<CampaignSettingsPage />} />
         <Route path="campaigns/:campaignId/annotations" element={<ReviewPage />} />

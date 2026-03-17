@@ -7,6 +7,7 @@ import {
 } from '~/api/client';
 import { useLayoutStore } from 'src/features/layout/layout.store';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
+import { MonthPicker } from './imagery/MonthPicker';
 
 const emptyTimeseries = (): TimeSeriesCreate => ({
   name: '',
@@ -100,22 +101,16 @@ export const StepAddTimeseries = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Start Date</label>
-              <input
-                type="month"
+              <MonthPicker
                 value={yyyymmToInputMonth(i.start_ym)}
-                onChange={(e) =>
-                  updateItem(index, { start_ym: inputMonthToYYYYMM(e.target.value) })
-                }
-                className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+                onChange={(v) => updateItem(index, { start_ym: inputMonthToYYYYMM(v) })}
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">End Date</label>
-              <input
-                type="month"
+              <MonthPicker
                 value={yyyymmToInputMonth(i.end_ym)}
-                onChange={(e) => updateItem(index, { end_ym: inputMonthToYYYYMM(e.target.value) })}
-                className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+                onChange={(v) => updateItem(index, { end_ym: inputMonthToYYYYMM(v) })}
               />
             </div>
           </div>

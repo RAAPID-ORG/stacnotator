@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ImageryCreate, ImageryVisualizationUrlTemplateCreate } from '~/api/client';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
+import { MonthPicker } from '~/features/campaigns/creation/steps/imagery/MonthPicker';
 
 interface ImageryEditorProps {
   value: ImageryCreate;
@@ -140,12 +141,10 @@ export const ImageryEditor = ({
             Start Month
             {renderTooltip('Start of the imagery availability window (YYYY-MM).')}
           </label>
-          <input
-            type="month"
+          <MonthPicker
             value={yyyymmToInputMonth(localValue.start_ym)}
-            onChange={(e) => update('start_ym', inputMonthToYYYYMM(e.target.value))}
+            onChange={(v) => update('start_ym', inputMonthToYYYYMM(v))}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -153,12 +152,10 @@ export const ImageryEditor = ({
             End Month
             {renderTooltip('End of the imagery availability window (YYYY-MM).')}
           </label>
-          <input
-            type="month"
+          <MonthPicker
             value={yyyymmToInputMonth(localValue.end_ym)}
-            onChange={(e) => update('end_ym', inputMonthToYYYYMM(e.target.value))}
+            onChange={(v) => update('end_ym', inputMonthToYYYYMM(v))}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
       </div>

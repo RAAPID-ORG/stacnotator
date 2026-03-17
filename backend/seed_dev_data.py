@@ -25,7 +25,17 @@ from src.campaigns.models import Campaign
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
 from src.campaigns.service import create_campaign
 from src.database import SessionLocal
-from src.imagery.schemas import ImageryCreate, ImageryVisualizationUrlTemplateCreate
+from src.imagery.schemas import (
+    CollectionStacConfigCreate,
+    ImageryCollectionCreate,
+    ImageryEditorStateCreate,
+    ImagerySliceCreate,
+    ImagerySourceCreate,
+    ImageryViewCreate,
+    SliceTileUrlCreate,
+    ViewCollectionRefCreate,
+    VisualizationTemplateCreate,
+)
 from src.sampling_design.service import generate_random_points
 from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
 from src.timeseries.schemas import TimeSeriesCreate
@@ -124,48 +134,78 @@ def seed_dev_data(firebase_uid: str = None):
 
         user = _ensure_user(db, firebase_uid)
 
-        # One Sentinel-2 imagery spanning all of 2024.
-        # Monthly windows (window_interval=1 month) with weekly slices inside
-        # each window (slicing_interval=1 week) -> 12 windows × ~4 slices each.
-        imagery_configs = [
-            ImageryCreate(
-                name="Sentinel-2 Ukraine 2024",
-                start_ym="202401",
-                end_ym="202412",
-                crosshair_hex6="FF0000",
-                default_zoom=14,
-                window_interval=1,
-                window_unit="months",
-                slicing_interval=1,
-                slicing_unit="weeks",
-                registration_url=(
-                    "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-                ),
-                search_body=SENTINEL2_SEARCH_BODY,
-                visualization_url_templates=[
-                    ImageryVisualizationUrlTemplateCreate(
-                        name="True Color",
-                        visualization_url=(
-                            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
-                            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
-                            "?assets=B04&assets=B03&assets=B02&nodata=0"
-                            "&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35"
-                            "&collection=sentinel-2-l2a&pixel_selection=median"
+        # One Sentinel-2 imagery source spanning all of 2024.
+        # One collection with 12 monthly slices, each with two visualization URL templates.
+        true_color_url = (
+            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
+            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
+            "?assets=B04&assets=B03&assets=B02&nodata=0"
+            "&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35"
+            "&collection=sentinel-2-l2a&pixel_selection=median"
+        )
+        false_color_url = (
+            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
+            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
+            "?assets=B08&assets=B04&assets=B03&nodata=0"
+            "&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35"
+            "&collection=sentinel-2-l2a&pixel_selection=median"
+        )
+
+        monthly_slices = []
+        for month in range(1, 13):
+            end_month = month + 1 if month < 12 else 12
+            end_year = 2024 if month < 12 else 2024
+            monthly_slices.append(
+                ImagerySliceCreate(
+                    name=f"2024-{month:02d}",
+                    start_date=f"2024-{month:02d}-01",
+                    end_date=f"{end_year}-{end_month:02d}-{'28' if month == 12 else '01'}",
+                    tile_urls=[
+                        SliceTileUrlCreate(
+                            visualization_name="True Color", tile_url=true_color_url
                         ),
-                    ),
-                    ImageryVisualizationUrlTemplateCreate(
-                        name="False Color Infrared",
-                        visualization_url=(
-                            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
-                            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
-                            "?assets=B08&assets=B04&assets=B03&nodata=0"
-                            "&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35"
-                            "&collection=sentinel-2-l2a&pixel_selection=median"
+                        SliceTileUrlCreate(
+                            visualization_name="False Color Infrared", tile_url=false_color_url
                         ),
-                    ),
-                ],
+                    ],
+                )
             )
-        ]
+
+        imagery_editor_state = ImageryEditorStateCreate(
+            sources=[
+                ImagerySourceCreate(
+                    name="Sentinel-2 Ukraine 2024",
+                    crosshair_hex6="FF0000",
+                    default_zoom=14,
+                    visualizations=[
+                        VisualizationTemplateCreate(name="True Color"),
+                        VisualizationTemplateCreate(name="False Color Infrared"),
+                    ],
+                    collections=[
+                        ImageryCollectionCreate(
+                            name="2024 Monthly Mosaics",
+                            cover_slice_index=5,
+                            stac_config=CollectionStacConfigCreate(
+                                registration_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register",
+                                search_body=SENTINEL2_SEARCH_BODY,
+                            ),
+                            slices=monthly_slices,
+                        ),
+                    ],
+                ),
+            ],
+            views=[
+                ImageryViewCreate(
+                    name="Default View",
+                    collection_refs=[
+                        ViewCollectionRefCreate(
+                            source_id="0", collection_id="0", show_as_window=True
+                        ),
+                    ],
+                ),
+            ],
+            basemaps=[],
+        )
 
         # S2 NDVI timeseries (from Google Earth Engine)
         timeseries_configs = [
@@ -191,7 +231,7 @@ def seed_dev_data(firebase_uid: str = None):
             **UKRAINE_BBOX,
         )
 
-        # Create campaign (handles layout, windows, imagery all at once)
+        # Create campaign (handles layout, imagery, timeseries all at once)
         logger.info("Creating task-mode campaign via service...")
         campaign = create_campaign(
             db,
@@ -199,7 +239,7 @@ def seed_dev_data(firebase_uid: str = None):
             mode="tasks",
             settings=settings,
             user_id=user.id,
-            imagery_configs=imagery_configs,
+            imagery_editor_state=imagery_editor_state,
             timeseries_configs=timeseries_configs,
         )
         logger.info("Campaign created: id=%d", campaign.id)
@@ -258,7 +298,7 @@ def seed_dev_data(firebase_uid: str = None):
             mode="open",
             settings=settings,
             user_id=user.id,
-            imagery_configs=imagery_configs,
+            imagery_editor_state=imagery_editor_state,
             timeseries_configs=timeseries_configs,
         )
         logger.info("Open-mode campaign created: id=%d", open_campaign.id)
@@ -268,7 +308,7 @@ def seed_dev_data(firebase_uid: str = None):
         logger.info("  Open-mode Campaign  : id=%d  name=%s", open_campaign.id, open_campaign.name)
         logger.info("  User                : %s", user.email)
         logger.info("  Firebase UID        : %s", user.external_uid)
-        logger.info("  Imagery items       : 1 (Jan-Dec 2024, monthly windows, weekly slices)")
+        logger.info("  Imagery items       : 1 source, 1 collection, 12 monthly slices")
         logger.info("  Timeseries          : S2 NDVI (2024)")
         logger.info("  Tasks (task-mode)   : %d", len(task_ids))
         logger.info("  Labels              : %d", len(settings.labels))

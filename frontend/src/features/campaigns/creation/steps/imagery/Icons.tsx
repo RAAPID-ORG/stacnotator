@@ -1,0 +1,20 @@
+// Re-export all icons from the shared location
+export {
+  IconPlus,
+  IconTrash,
+  IconChevronDown,
+  IconChevronUp,
+  IconEye,
+  IconEyeSlash,
+  IconMap,
+  IconGlobe,
+  IconStac,
+  IconLayers,
+  IconClock,
+  IconInfo,
+  IconCode,
+  IconWindow,
+  IconSettings,
+  IconDragHandle,
+  IconClose,
+} from '~/shared/ui/Icons';
