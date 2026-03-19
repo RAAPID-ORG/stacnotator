@@ -84,6 +84,63 @@ def _compute_slices(
     return slices
 
 
+_MONTH_ABBR = [
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+
+def _format_collection_name(start: date, end: date) -> str:
+    """Human-readable name for a collection (window) date range.
+
+    Examples:
+        Same month:        "Jan 2022"
+        Multi-month/year:  "Jan-Mar 2022"
+        Spanning years:    "Nov 2021 - Feb 2022"
+        Full year:         "2022"
+    """
+    # Adjust end: windows use exclusive-end, so subtract 1 day for display
+    display_end = end - timedelta(days=1)
+    if display_end < start:
+        display_end = start
+
+    if start.year == display_end.year and start.month == display_end.month:
+        return f"{_MONTH_ABBR[start.month]} {start.year}"
+
+    if start.month == 1 and start.day == 1 and display_end.month == 12 and display_end.day == 31 and start.year == display_end.year:
+        return str(start.year)
+
+    if start.year == display_end.year:
+        return f"{_MONTH_ABBR[start.month]}-{_MONTH_ABBR[display_end.month]} {start.year}"
+
+    return f"{_MONTH_ABBR[start.month]} {start.year} - {_MONTH_ABBR[display_end.month]} {display_end.year}"
+
+
+def _format_slice_name(start: date, end: date) -> str:
+    """Human-readable name for a slice date range.
+
+    Examples:
+        Same month:        "Feb 1-7"
+        Spanning months:   "Jan 28 - Feb 3"
+        Full month:        "Mar 1-31"
+    """
+    # Adjust end: slices use exclusive-end, subtract 1 day for display
+    display_end = end - timedelta(days=1)
+    if display_end < start:
+        display_end = start
+
+    if start == display_end:
+        return f"{_MONTH_ABBR[start.month]} {start.day}"
+
+    if start.month == display_end.month and start.year == display_end.year:
+        return f"{_MONTH_ABBR[start.month]} {start.day}-{display_end.day}"
+
+    if start.year == display_end.year:
+        return f"{_MONTH_ABBR[start.month]} {start.day} - {_MONTH_ABBR[display_end.month]} {display_end.day}"
+
+    return f"{_MONTH_ABBR[start.month]} {start.day}, {start.year} - {_MONTH_ABBR[display_end.month]} {display_end.day}, {display_end.year}"
+
+
 def upgrade() -> None:
     conn = op.get_bind()
 
@@ -185,14 +242,27 @@ def upgrade() -> None:
     """))
 
     # imagery_windows -> imagery_collections (preserve id, window_index -> display_order)
-    conn.execute(sa.text("""
-        INSERT INTO data.imagery_collections (id, source_id, name, cover_slice_index, display_order)
-        SELECT w.id, w.imagery_id,
-               i.name || ' #' || w.window_index,
-               0, w.window_index
+    # Use Python to compute human-readable names from window date ranges
+    window_rows_for_names = conn.execute(sa.text("""
+        SELECT w.id, w.imagery_id, w.window_start_date, w.window_end_date, w.window_index
         FROM data.imagery_windows w
-        JOIN data.imagery i ON i.id = w.imagery_id
-    """))
+        ORDER BY w.imagery_id, w.window_index
+    """)).fetchall()
+
+    coll_insert = sa.text("""
+        INSERT INTO data.imagery_collections (id, source_id, name, cover_slice_index, display_order)
+        VALUES (:id, :source_id, :name, 0, :display_order)
+    """)
+    for w in window_rows_for_names:
+        start = _parse_yyyymmdd(w.window_start_date)
+        end = _parse_yyyymmdd(w.window_end_date)
+        name = _format_collection_name(start, end)
+        conn.execute(coll_insert, {
+            "id": w.id,
+            "source_id": w.imagery_id,
+            "name": name,
+            "display_order": w.window_index,
+        })
 
     # collection_stac_configs: one per collection, inheriting from parent imagery
     conn.execute(sa.text("""
@@ -269,10 +339,11 @@ def upgrade() -> None:
         for sl in slices:
             start_str = sl["start"].isoformat()
             end_str = sl["end"].isoformat()
+            slice_name = _format_slice_name(sl["start"], sl["end"])
 
             row = conn.execute(slice_insert, {
                 "coll_id": window.id,
-                "name": "",
+                "name": slice_name,
                 "start": start_str,
                 "end": end_str,
                 "display_order": sl["index"],
@@ -312,7 +383,7 @@ def upgrade() -> None:
             }
         except Exception:
             logger.warning(
-                "STAC registration failed for slice %s (collection %s, %s→%s)",
+                "STAC registration failed for slice %s (collection %s, %s->%s)",
                 task["slice_id"], task["collection_id"], task["start"], task["end"],
                 exc_info=True,
             )
@@ -369,6 +440,30 @@ def upgrade() -> None:
         FROM data.imagery i
     """))
 
+    # basemaps: insert 3 default basemap options for every campaign
+    campaign_ids = [r[0] for r in conn.execute(sa.text("SELECT DISTINCT id FROM data.campaigns")).fetchall()]
+    basemap_insert = sa.text("""
+        INSERT INTO data.basemaps (campaign_id, name, url)
+        VALUES (:campaign_id, :name, :url)
+    """)
+    default_basemaps = [
+        {
+            "name": "Carto Light",
+            "url": "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
+        },
+        {
+            "name": "OpenTopoMap",
+            "url": "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+        },
+        {
+            "name": "ESRI World Imagery",
+            "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        },
+    ]
+    for cid in campaign_ids:
+        for bm in default_basemaps:
+            conn.execute(basemap_insert, {"campaign_id": cid, "name": bm["name"], "url": bm["url"]})
+
     # Sync sequences
     conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.imagery_sources', 'id'), COALESCE((SELECT MAX(id) FROM data.imagery_sources), 1))"))
     conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.visualization_templates', 'id'), COALESCE((SELECT MAX(id) FROM data.visualization_templates), 1))"))
@@ -376,6 +471,7 @@ def upgrade() -> None:
     conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.imagery_slices', 'id'), COALESCE((SELECT MAX(id) FROM data.imagery_slices), 1))"))
     conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.slice_tile_urls', 'id'), COALESCE((SELECT MAX(id) FROM data.slice_tile_urls), 1))"))
     conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.imagery_views', 'id'), COALESCE((SELECT MAX(id) FROM data.imagery_views), 1))"))
+    conn.execute(sa.text("SELECT setval(pg_get_serial_sequence('data.basemaps', 'id'), COALESCE((SELECT MAX(id) FROM data.basemaps), 1))"))
 
     # ── 3. Swap canvas_layouts FK: imagery_id -> view_id ──
 

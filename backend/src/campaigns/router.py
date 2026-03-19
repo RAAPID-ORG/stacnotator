@@ -22,7 +22,9 @@ from src.campaigns.schemas import (
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     UpdateCampaignBBoxRequest,
+    UpdateCampaignGuideRequest,
     UpdateCampaignNameRequest,
+    UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
 )
 from src.database import get_db
@@ -55,6 +57,7 @@ def list_all_campaigns(
                 "created_at": campaign.created_at,
                 "is_admin": data["is_admin"],
                 "is_member": data["is_member"],
+                "is_public": campaign.is_public,
             }
         )
 
@@ -83,6 +86,7 @@ def create_campaign(
         db,
         name=campaign.name,
         mode=campaign.mode,
+        is_public=campaign.is_public,
         settings=campaign.settings,
         user_id=user.id,
         imagery_editor_state=campaign.imagery_editor_state,
@@ -160,6 +164,27 @@ def update_campaign_name(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     return service.update_campaign_name(db, campaign_id, req.name)
+
+
+@router.patch("/{campaign_id}/visibility", response_model=CampaignOut)
+def update_campaign_visibility(
+    campaign_id: int,
+    req: UpdateCampaignVisibilityRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Toggle a campaign between public and private. Only campaign admins can change this."""
+    return service.update_campaign_visibility(db, campaign_id, req.is_public)
+
+
+@router.patch("/{campaign_id}/guide", response_model=CampaignOut)
+def update_campaign_guide(
+    campaign_id: int,
+    req: UpdateCampaignGuideRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_campaign_guide(db, campaign_id, req.guide_markdown)
 
 
 @router.patch("/{campaign_id}/bbox", response_model=CampaignOut)

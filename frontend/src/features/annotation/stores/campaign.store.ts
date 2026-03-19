@@ -3,8 +3,8 @@ import type { Layout } from 'react-grid-layout';
 import {
   getCampaignWithImageryWindows,
   getCampaignUsers,
-  createNewCanvasLayoutForImagery,
-  type CampaignOutWithImageryWindows,
+  createNewCanvasLayout,
+  type CampaignOutFull,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -16,14 +16,14 @@ import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
 
 interface CampaignStore {
   // State
-  campaign: CampaignOutWithImageryWindows | null;
+  campaign: CampaignOutFull | null;
   isLoadingCampaign: boolean;
   isReviewMode: boolean;
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
 
-  // Imagery selection
-  selectedImageryId: number | null;
+  // View selection (replaces imagery selection)
+  selectedViewId: number | null;
 
   // Layout
   currentLayout: Layout | null;
@@ -32,7 +32,7 @@ interface CampaignStore {
 
   // Actions
   loadCampaign: (campaignId: number, initialTaskId?: number, isReviewMode?: boolean) => Promise<void>;
-  setSelectedImageryId: (id: number | null) => void;
+  setSelectedViewId: (id: number | null) => void;
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
   setIsEditingLayout: (isEditing: boolean) => void;
@@ -43,12 +43,12 @@ interface CampaignStore {
 }
 
 const initialState = {
-  campaign: null as CampaignOutWithImageryWindows | null,
+  campaign: null as CampaignOutFull | null,
   isLoadingCampaign: false,
   isReviewMode: false,
   isAuthoritativeReviewer: false,
   isCampaignAdmin: false,
-  selectedImageryId: null as number | null,
+  selectedViewId: null as number | null,
   currentLayout: null as Layout | null,
   savedLayout: null as Layout | null,
   isEditingLayout: false,
@@ -74,16 +74,19 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
       const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
 
-      // Imagery & layout
-      const selectedImageryId = campaign.imagery[0]?.id ?? null;
-      const firstImagery = campaign.imagery[0];
-      const activeWindowId = firstImagery?.default_main_window_id ?? firstImagery?.windows[0]?.id ?? null;
+      // View & layout
+      const firstView = campaign.imagery_views[0];
+      const selectedViewId = firstView?.id ?? null;
+
+      // Find the first collection with show_as_window from the first view
+      const firstWindowRef = firstView?.collection_refs?.find((r) => r.show_as_window);
+      const activeCollectionId = firstWindowRef?.collection_id ?? null;
 
       const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
         campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-      const imageryLayout = (firstImagery?.personal_canvas_layout?.layout_data ||
-        firstImagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
-      const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
+      const viewLayout = (firstView?.personal_canvas_layout?.layout_data ||
+        firstView?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+      const mergedLayout = viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
 
       // Map initial state for open mode
       let initialMapCenter: [number, number] | null = null;
@@ -93,12 +96,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
           (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
           (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
         ];
-        initialMapZoom = firstImagery?.default_zoom ?? DEFAULT_MAP_ZOOM;
+        const firstSource = campaign.imagery_sources[0];
+        initialMapZoom = firstSource?.default_zoom ?? DEFAULT_MAP_ZOOM;
       }
 
       set({
         campaign,
-        selectedImageryId,
+        selectedViewId,
         currentLayout: mergedLayout,
         savedLayout: mergedLayout,
         isLoadingCampaign: false,
@@ -109,13 +113,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
       // Initialize sibling stores
       useMapStore.setState({
-        activeWindowId,
+        activeCollectionId,
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
       });
 
-      // Load tasks (handles filtering, initial task selection, form state)
+      // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
 
       // Load open mode annotations
@@ -130,56 +134,33 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     }
   },
 
-  setSelectedImageryId: (id) => {
-    const { campaign, selectedImageryId: currentImageryId } = get();
+  setSelectedViewId: (id) => {
+    const { campaign } = get();
     if (!campaign) return;
 
-    const imagery = campaign.imagery.find((img) => img.id === id);
+    const view = campaign.imagery_views.find((v) => v.id === id);
 
     // Update layout
     const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
       campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-    const imageryLayout = (imagery?.personal_canvas_layout?.layout_data ||
-      imagery?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
-    const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
+    const viewLayout = (view?.personal_canvas_layout?.layout_data ||
+      view?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+    const mergedLayout = viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
 
-    // Find closest matching window in new imagery
-    let newActiveWindowId = imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
-    const { activeWindowId } = useMapStore.getState();
-
-    if (activeWindowId !== null && imagery) {
-      const oldImagery = campaign.imagery.find((img) => img.id === currentImageryId);
-      const currentWindow = oldImagery?.windows.find((w) => w.id === activeWindowId);
-
-      if (currentWindow) {
-        const currentMid = (new Date(currentWindow.window_start_date).getTime() +
-          new Date(currentWindow.window_end_date).getTime()) / 2;
-        let closest = imagery.windows[0];
-        let smallestDiff = Number.MAX_SAFE_INTEGER;
-
-        for (const w of imagery.windows) {
-          const mid = (new Date(w.window_start_date).getTime() +
-            new Date(w.window_end_date).getTime()) / 2;
-          const diff = Math.abs(mid - currentMid);
-          if (diff < smallestDiff) {
-            smallestDiff = diff;
-            closest = w;
-          }
-        }
-        newActiveWindowId = closest.id;
-      }
-    }
+    // Find the first show_as_window collection in the new view
+    const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
+    const newActiveCollectionId = firstWindowRef?.collection_id ?? null;
 
     set({
-      selectedImageryId: id,
+      selectedViewId: id,
       currentLayout: mergedLayout,
       savedLayout: mergedLayout,
     });
 
     useMapStore.setState({
-      activeWindowId: newActiveWindowId,
+      activeCollectionId: newActiveCollectionId,
       activeSliceIndex: 0,
-      windowSliceIndices: {},
+      collectionSliceIndices: {},
       emptySlices: {},
     });
   },
@@ -189,9 +170,9 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   setIsEditingLayout: (isEditing) => set({ isEditingLayout: isEditing }),
 
   saveLayout: async (shouldBeDefault = false) => {
-    const { campaign, currentLayout, selectedImageryId } = get();
-    if (!campaign || !currentLayout || selectedImageryId === null) {
-      useLayoutStore.getState().showAlert('Cannot save layout: missing campaign or imagery', 'error');
+    const { campaign, currentLayout, selectedViewId } = get();
+    if (!campaign || !currentLayout || selectedViewId === null) {
+      useLayoutStore.getState().showAlert('Cannot save layout: missing campaign or view', 'error');
       return;
     }
 
@@ -199,19 +180,19 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const mainItems = currentLayout.filter(
         (item) => ['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
       );
-      const imageryItems = currentLayout.filter(
+      const viewItems = currentLayout.filter(
         (item) => !['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
       );
 
-      await createNewCanvasLayoutForImagery({
+      await createNewCanvasLayout({
         path: { campaign_id: campaign.id },
         body: {
-          imagery_id: selectedImageryId,
+          view_id: selectedViewId,
           should_be_default: shouldBeDefault,
           layout: {
             main_layout_data: mainItems,
-            imagery_layout_data: imageryItems.length > 0 ? imageryItems : null,
-            imagery_id: selectedImageryId,
+            view_layout_data: viewItems.length > 0 ? viewItems : null,
+            view_id: selectedViewId,
           },
         },
       });

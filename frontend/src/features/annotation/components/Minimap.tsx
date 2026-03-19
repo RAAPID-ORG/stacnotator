@@ -1,7 +1,12 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Rectangle, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { MapContainer, TileLayer, Rectangle, Marker, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+
+interface AnnotationDot {
+  lat: number;
+  lon: number;
+}
 
 interface MiniMapProps {
   center: [number, number]; // [lat, lon]
@@ -11,6 +16,8 @@ interface MiniMapProps {
   onViewportDrag?: (lat: number, lon: number) => void;
   /** When true (task mode), fit the campaign bbox on the minimap instead of the viewport. */
   fitBbox?: boolean;
+  /** Annotation locations to show as dots (open mode only). */
+  annotationDots?: AnnotationDot[];
 }
 
 // Custom icon for the center marker
@@ -36,7 +43,6 @@ const MapController = ({
   fitBbox?: boolean;
 }) => {
   const map = useMap();
-  const hasFittedToViewport = useRef(false);
   const hasFittedBbox = useRef(false);
 
   // Invalidate size on mount and when container might resize
@@ -58,30 +64,41 @@ const MapController = ({
     );
   }, [map, bbox, fitBbox]);
 
-  // Open mode: when visibleBounds first becomes available, zoom to show the viewport
-  // with surrounding context. Only fires once per campaign.
+  // Open mode: continuously adjust minimap so the main viewport is always visible
+  // with surrounding context.
   useEffect(() => {
     if (fitBbox) return; // skip in task mode
-    if (!visibleBounds || hasFittedToViewport.current) return;
-    hasFittedToViewport.current = true;
+    if (!visibleBounds) return;
 
     const [vWest, vSouth, vEast, vNorth] = visibleBounds;
+    const viewportBounds = L.latLngBounds([vSouth, vWest], [vNorth, vEast]);
+
+    // Check if the viewport is already fully visible in the current minimap view
+    const currentBounds = map.getBounds();
+    if (currentBounds.contains(viewportBounds)) {
+      // Viewport is visible — but check it's not too tiny (zoom out too far).
+      // If viewport area is less than ~5% of minimap area, we should re-fit.
+      const vArea = (vNorth - vSouth) * (vEast - vWest);
+      const mArea = (currentBounds.getNorth() - currentBounds.getSouth()) *
+                    (currentBounds.getEast() - currentBounds.getWest());
+      if (mArea > 0 && vArea / mArea > 0.02) return; // viewport is visible and reasonably sized
+    }
+
+    // Fit with padding around the viewport
     const latSpan = vNorth - vSouth;
     const lonSpan = vEast - vWest;
     const padded = L.latLngBounds(
       [vSouth - latSpan * 1.5, vWest - lonSpan * 1.5],
       [vNorth + latSpan * 1.5, vEast + lonSpan * 1.5]
     );
-    map.fitBounds(padded, { animate: false, padding: [10, 10] });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, visibleBounds != null]); // only trigger on null to non-null transition
+    map.fitBounds(padded, { animate: true, duration: 0.3, padding: [10, 10] });
+  }, [map, fitBbox, visibleBounds]);
 
   // If bbox changes (different campaign), allow re-fit
   const prevBboxRef = useRef(bbox);
   useEffect(() => {
     if (prevBboxRef.current === bbox) return;
     prevBboxRef.current = bbox;
-    hasFittedToViewport.current = false;
     hasFittedBbox.current = false;
   }, [bbox]);
 
@@ -207,7 +224,7 @@ const ClickToPan = ({
   return null;
 };
 
-const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds, onViewportDrag, fitBbox }) => {
+const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds, onViewportDrag, fitBbox, annotationDots }) => {
   const [west, south, east, north] = bbox;
   // Prefer viewport center over campaign bbox center
   const mapCenter: [number, number] = visibleBounds
@@ -289,6 +306,21 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds, onViewpo
         {onViewportDrag && (
           <ClickToPan onViewportDrag={onViewportDrag} visibleBounds={visibleBounds} />
         )}
+
+        {/* Annotation dots (open mode) */}
+        {annotationDots?.map((dot, i) => (
+          <CircleMarker
+            key={i}
+            center={[dot.lat, dot.lon]}
+            radius={3}
+            pathOptions={{
+              color: 'rgb(220, 80, 60)',
+              fillColor: 'rgb(220, 80, 60)',
+              fillOpacity: 0.7,
+              weight: 1,
+            }}
+          />
+        ))}
 
         {/* Center marker (only in task mode when no visible bounds) */}
         {!visibleBounds && <Marker position={center} icon={circleIcon} />}

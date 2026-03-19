@@ -70,9 +70,13 @@ def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[Campaig
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
     """
-    Retrieve all campaigns with user role information.
+    Retrieve campaigns visible to the user, with role information.
 
-    Returns list of dicts containing campaign data plus whether the provided user is_admin/is_member flags.
+    Visibility rules:
+    - Platform admins see ALL campaigns.
+    - Regular users see public campaigns + campaigns they are a member/admin of.
+
+    Returns list of dicts containing campaign data plus is_admin/is_member flags.
     """
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
@@ -104,6 +108,10 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
                 if campaign_user.is_admin:
                     is_admin = True
                 break
+
+        # Only include public campaigns or campaigns the user is a member of
+        if not campaign.is_public and not is_member:
+            continue
 
         results.append(
             {
@@ -142,6 +150,7 @@ def create_campaign(
     *,
     name: str,
     mode: str,
+    is_public: bool = False,
     settings: CampaignSettingsCreate,
     user_id: UUID,
     imagery_editor_state=None,
@@ -164,7 +173,7 @@ def create_campaign(
     """
 
     # Create campaign first
-    campaign = Campaign(name=name, mode=mode)
+    campaign = Campaign(name=name, mode=mode, is_public=is_public)
     db.add(campaign)
     db.flush()  # Get campaign.id
 
@@ -181,6 +190,7 @@ def create_campaign(
     # Create campaign settings
     campaign_settings = CampaignSettings(
         campaign_id=campaign.id,
+        guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
         **settings.to_orm(),
     )
     db.add(campaign_settings)
@@ -330,6 +340,29 @@ def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campai
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.name = new_name
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
+    """Toggle a campaign between public and private."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign.is_public = is_public
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | None) -> Campaign:
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    campaign.settings.guide_markdown = guide_markdown
     db.commit()
     db.refresh(campaign)
     return campaign

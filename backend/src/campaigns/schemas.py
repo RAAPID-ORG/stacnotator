@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 from src.auth.schemas import UserOut
 from src.imagery.schemas import (
@@ -35,6 +35,7 @@ class CampaignSettingsOut(BaseModel):
     bbox_east: float
     bbox_north: float
     embedding_year: int | None = None
+    guide_markdown: str | None = None
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -61,8 +62,7 @@ class CampaignSettingsOut(BaseModel):
             return result
         return v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CampaignSettingsCreate(BaseModel):
@@ -96,6 +96,7 @@ class CampaignOut(BaseModel):
     name: str
     created_at: datetime
     mode: str
+    is_public: bool = False
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
@@ -103,13 +104,13 @@ class CampaignOut(BaseModel):
     basemaps: list[BasemapOut]
     time_series: list[TimeSeriesOut]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CampaignCreate(BaseModel):
     name: str
     mode: str
+    is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
@@ -121,9 +122,9 @@ class CampaignListItemOut(BaseModel):
     created_at: datetime
     is_admin: bool = False
     is_member: bool = False
+    is_public: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CampaignOutFull(CampaignOut):
@@ -166,6 +167,7 @@ class CampaignOutFull(CampaignOut):
             "name": obj.name,
             "created_at": obj.created_at,
             "mode": obj.mode,
+            "is_public": obj.is_public,
             "settings": obj.settings,
             "time_series": obj.time_series,
             "imagery_sources": obj.imagery_sources,
@@ -184,8 +186,7 @@ class CampaignUserOut(BaseModel):
     is_admin: bool
     is_authorative_reviewer: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -208,6 +209,14 @@ class CampaignUsersResponse(BaseModel):
 
 class UpdateCampaignNameRequest(BaseModel):
     name: str
+
+
+class UpdateCampaignVisibilityRequest(BaseModel):
+    is_public: bool
+
+
+class UpdateCampaignGuideRequest(BaseModel):
+    guide_markdown: str | None = None
 
 
 class UpdateCampaignBBoxRequest(BaseModel):

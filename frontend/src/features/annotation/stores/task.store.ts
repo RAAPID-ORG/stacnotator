@@ -97,14 +97,15 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
 /** Resets map state relevant to task navigation. */
 const resetMapForTaskNav = () => {
   const campaign = useCampaignStore.getState().campaign;
-  const selectedImageryId = useCampaignStore.getState().selectedImageryId;
-  const imagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
-  const defaultWindowId = imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
+  const selectedViewId = useCampaignStore.getState().selectedViewId;
+  const view = campaign?.imagery_views.find((v) => v.id === selectedViewId);
+  const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
+  const defaultCollectionId = firstWindowRef?.collection_id ?? null;
 
   useMapStore.setState({
-    activeWindowId: defaultWindowId,
+    activeCollectionId: defaultCollectionId,
     activeSliceIndex: 0,
-    windowSliceIndices: {},
+    collectionSliceIndices: {},
     emptySlices: {},
     currentMapZoom: null,
     probeTimeseriesPoint: null,

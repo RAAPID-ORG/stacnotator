@@ -192,6 +192,7 @@ def update_annotation_openmode(
         annotation_id=annotation_id,
         annotation_update=annotation_update,
         user_id=user.id,
+        campaign=campaign,
     )
 
     return annotation
@@ -226,6 +227,8 @@ def delete_annotation(
         db=db,
         annotation_id=annotation_id,
         campaign_id=campaign.id,
+        user_id=user.id,
+        campaign=campaign,
     )
 
     # If it was linked to a task, return updated statuses

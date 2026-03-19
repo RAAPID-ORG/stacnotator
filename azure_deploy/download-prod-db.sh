@@ -12,10 +12,10 @@
 #   ./azure_deploy/download-prod-db.sh
 #
 # The script will:
-#   1. Look up DB credentials from Azure Key Vault
-#   2. pg_dump the production database
-#   3. Drop & recreate the local dev database
-#   4. Restore the dump into the local dev database
+#   - Look up DB credentials from Azure Key Vault
+#   - pg_dump the production database
+#   - Drop & recreate the local dev database
+#   - Restore the dump into the local dev database
 
 set -e
 
@@ -25,7 +25,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Download Production DB to Local Dev ===${NC}"
+echo -e "${GREEN}Download Production DB to Local Dev${NC}"
 echo ""
 
 # Azure login check
@@ -44,7 +44,7 @@ fi
 echo -e "${YELLOW}Looking up Azure Postgres Flexible Server...${NC}"
 PG_SERVER=$(az postgres flexible-server list \
     --resource-group "$RESOURCE_GROUP" \
-    --query "[0].name" -o tsv 2>/dev/null)
+    --query "[0].name" -o tsv 2>/dev/null || true)
 
 if [ -z "$PG_SERVER" ]; then
     echo -e "${RED}Error: No Postgres Flexible Server found in $RESOURCE_GROUP${NC}"
@@ -56,7 +56,7 @@ echo -e "${GREEN}✓ Server: ${PG_HOST}${NC}"
 
 # Get DB credentials from Key Vault
 echo -e "${YELLOW}Fetching credentials from Key Vault...${NC}"
-KV_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
+KV_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null || true)
 
 if [ -z "$KV_NAME" ]; then
     echo -e "${RED}Error: No Key Vault found in $RESOURCE_GROUP${NC}"
@@ -117,9 +117,7 @@ BACKUP_DIR="$PROJECT_ROOT/db/backups"
 BACKUP_FILE="$BACKUP_DIR/dev_backup_$(date +%Y%m%d_%H%M%S).sql"
 
 echo ""
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Download Plan${NC}"
-echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}Download Plan${NC}"
 echo -e "  Source:  ${YELLOW}${PG_USER}@${PG_HOST}/${PG_DBNAME}${NC}"
 echo -e "  Target:  ${YELLOW}${LOCAL_USER}@localhost:${LOCAL_PORT}/${LOCAL_DB}${NC}"
 echo -e "  Backup:  ${YELLOW}${BACKUP_FILE}${NC}"
@@ -244,7 +242,5 @@ PGPASSWORD="$LOCAL_PASS" psql \
 rm -f "$DUMP_FILE"
 
 echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  Done! Local dev DB now mirrors prod.${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}Done! Local dev DB now mirrors prod.${NC}"
 echo ""

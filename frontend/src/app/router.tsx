@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
-import { CreateCampaignPage } from '~/features/campaigns/creation/CreateCampaignPage';
+import { CreateCampaignPage } from '~/features/campaigns/pages/CreateCampaignPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AnnotationPage } from 'src/features/annotation/pages/AnnotationPage';
 import { SettingsPage } from 'src/features/settings/pages/SettingsPage';

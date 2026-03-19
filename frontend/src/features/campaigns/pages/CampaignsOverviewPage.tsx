@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
-import { useLayoutStore } from 'src/features/layout/layout.store';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import {
   listAllCampaigns,
   type CampaignListItemOut,
@@ -102,6 +102,8 @@ export const CampaignsPage = () => {
           {campaigns.map((campaign, _index) => {
             const isMember = campaign.is_member ?? false;
             const isAdmin = campaign.is_admin ?? false;
+            const isPublic = campaign.is_public ?? false;
+            const canAccess = isMember || isPublic;
 
             return (
               <div
@@ -110,9 +112,16 @@ export const CampaignsPage = () => {
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-semibold text-neutral-900">
-                      {capitalizeFirst(campaign.name)}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-neutral-900">
+                        {capitalizeFirst(campaign.name)}
+                      </h3>
+                      {isPublic && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                          Public
+                        </span>
+                      )}
+                    </div>
                     {isAdmin && (
                       <button
                         onClick={(e) => {
@@ -140,29 +149,29 @@ export const CampaignsPage = () => {
 
                 <div className="border-t border-gray-200 flex">
                   <button
-                    onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotate`)}
+                    onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotate`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember
+                      canAccess
                         ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
-                    disabled={!isMember}
-                    title={!isMember ? 'You are not a member of this campaign' : ''}
+                    disabled={!canAccess}
+                    title={!canAccess ? 'You are not a member of this campaign' : ''}
                   >
                     Annotate
                   </button>
                   <div className="w-px bg-gray-200" />
                   <button
-                    onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotations`)}
+                    onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotations`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember
+                      canAccess
                         ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
-                    disabled={!isMember}
-                    title={!isMember ? 'You are not a member of this campaign' : ''}
+                    disabled={!canAccess}
+                    title={!canAccess ? 'You are not a member of this campaign' : ''}
                   >
                     Review
                   </button>

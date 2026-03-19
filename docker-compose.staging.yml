@@ -1,0 +1,105 @@
+# Staging Docker Compose Configuration
+# Spins up an isolated stack with a prod DB copy to test migrations before deploying.
+# Uses different ports and container names so it can run alongside the dev stack.
+#
+# Usage: docker compose -p stacnotator-staging -f docker-compose.staging.yml up
+
+services:
+  # PostgreSQL Database with PostGIS + pgvector (isolated instance)
+  db:
+    build:
+      context: ./db
+    image: stacnotator-db:staging
+    container_name: stacnotator-db-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stacnotator
+      POSTGRES_USER: stacnotator
+      POSTGRES_PASSWORD: staging-password
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stacnotator -d stacnotator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - stacnotator-staging-network
+
+  # Backend API (uses current source code with hot reload)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: backend-staging
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: stacnotator
+      DBUSER: stacnotator
+      DBPASS: staging-password
+      DBHOST: db
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-firebase}
+      FIREBASE_CREDENTIALS_PATH: /app/config/firebase-credentials.json
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5174,http://localhost:8001
+      EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
+      EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      ENVIRONMENT: staging
+      LOG_LEVEL: info
+    volumes:
+      - ./backend/src:/app/src:ro
+      - ./backend/alembic:/app/alembic:ro
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/logging.ini:/app/logging.ini:ro
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
+    ports:
+      - "8001:8000"
+    networks:
+      - stacnotator-staging-network
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+
+  # Frontend (Vite dev server on alternate port)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+      args:
+        VITE_API_BASE_URL: http://localhost:8001
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+    container_name: frontend-staging
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8001
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/tsconfig.json:/app/tsconfig.json:ro
+      - frontend_node_modules_staging:/app/node_modules
+    ports:
+      - "5174:5173"
+    networks:
+      - stacnotator-staging-network
+
+volumes:
+  postgres_data_staging:
+    driver: local
+  frontend_node_modules_staging:
+    driver: local
+
+networks:
+  stacnotator-staging-network:
+    driver: bridge

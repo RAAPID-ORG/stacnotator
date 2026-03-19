@@ -13,3 +13,5 @@ dist/
 .env.local
 
 openapi-ts*.log
+
+test-results/

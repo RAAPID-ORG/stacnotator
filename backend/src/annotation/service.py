@@ -394,6 +394,7 @@ def update_annotation(
     annotation_id: int,
     annotation_update: AnnotationUpdate,
     user_id: UUID,
+    campaign: Campaign | None = None,
 ) -> Annotation:
     """
     Update an existing annotation.
@@ -401,17 +402,20 @@ def update_annotation(
     Updates label, comment, and/or geometry. If geometry is updated,
     creates a new geometry record and updates the reference.
 
+    In public campaigns, only the annotation creator can update their annotations.
+
     Args:
         db: Database session
         annotation_id: ID of annotation to update
         annotation_update: Updated annotation data
         user_id: ID of user updating the annotation
+        campaign: Campaign object (used for public campaign ownership check)
 
     Returns:
         Updated annotation record
 
     Raises:
-        HTTPException: If annotation not found or update fails
+        HTTPException: If annotation not found, update fails, or ownership violated
     """
     # Get existing annotation
     annotation = db.execute(
@@ -420,6 +424,13 @@ def update_annotation(
 
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
+
+    # In public campaigns, only the creator can update their own annotations
+    if campaign and campaign.is_public and annotation.created_by_user_id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only edit your own annotations in public campaigns",
+        )
 
     try:
         # Update geometry if provided
@@ -493,6 +504,8 @@ def delete_annotation(
     db: Session,
     annotation_id: int,
     campaign_id: int,
+    user_id: UUID | None = None,
+    campaign: Campaign | None = None,
 ) -> None:
     """
     Delete a specific annotation from a campaign.
@@ -500,13 +513,17 @@ def delete_annotation(
     If the annotation is linked to a task item, the task status is updated
     to 'pending' to allow re-annotation.
 
+    In public campaigns, only the annotation creator can delete their annotations.
+
     Args:
         db: Database session
         annotation_id: ID of annotation to delete
         campaign_id: ID of campaign (used for validation)
+        user_id: ID of user requesting deletion (for ownership check)
+        campaign: Campaign object (for public campaign ownership check)
 
     Raises:
-        HTTPException: If annotation not found or doesn't belong to campaign
+        HTTPException: If annotation not found, doesn't belong to campaign, or ownership violated
     """
     # Get annotation and verify it belongs to the campaign
     annotation = db.execute(
@@ -518,6 +535,13 @@ def delete_annotation(
 
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
+
+    # In public campaigns, only the creator can delete their own annotations
+    if campaign and campaign.is_public and user_id and annotation.created_by_user_id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You can only delete your own annotations in public campaigns",
+        )
 
     try:
         # If linked to a task, reset task status to pending

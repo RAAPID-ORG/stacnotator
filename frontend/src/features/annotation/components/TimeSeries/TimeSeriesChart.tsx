@@ -4,7 +4,7 @@
  * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -16,12 +16,14 @@ import {
   Legend,
   CategoryScale,
 } from 'chart.js';
+import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
+import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 
-ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale);
+ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale, zoomPlugin);
 
 interface TimeSeriesChartProps {
   timeseries: TimeSeriesOut[];
@@ -39,6 +41,7 @@ export const TimeSeriesChart = ({
   prefetchCoordinates = [],
   probeLatLon,
 }: TimeSeriesChartProps) => {
+  const chartRef = useRef<ChartJS<'line'>>(null);
   const [data, setData] = useState<TimeSeriesData | null>(null);
   const [probeData, setProbeData] = useState<TimeSeriesData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +49,25 @@ export const TimeSeriesChart = ({
   const [error, setError] = useState<Error | null>(null);
   const [removeCloudy, setRemoveCloudy] = useState(false);
   const [opacity, setOpacity] = useState(1);
+  const [smoothEnabled, setSmoothEnabled] = useState(false);
+  const [smoothWindow, setSmoothWindow] = useState(5);
+  const [smoothOrder, setSmoothOrder] = useState(2);
+  const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  const handleResetZoom = useCallback(() => {
+    chartRef.current?.resetZoom();
+    setIsZoomed(false);
+  }, []);
+
+  const toggleDataset = useCallback((index: number) => {
+    setHiddenDatasets((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, []);
 
   const timeseriesIds = useMemo(() => timeseries.map((ts) => ts.id), [timeseries]);
 
@@ -170,21 +192,25 @@ export const TimeSeriesChart = ({
       pointBorderColor: string[];
       tension: number;
       spanGaps: boolean;
-      borderDash?: number[];
+      hidden?: boolean;
     }> = timeseries.map((ts, index) => {
       const rows = data[ts.id] ?? [];
       const rowMap = new Map(rows.map((r: TimeSeriesRow) => [r.time, r]));
 
       const color = COLORS[index % COLORS.length];
 
+      const rawData = labels.map((time) => {
+        const row = rowMap.get(time);
+        if (!row) return null;
+        if (removeCloudy && row.cloud === 1) return null;
+        return row.values;
+      });
+
+      const finalData = smoothEnabled ? savitzkyGolay(rawData, smoothWindow, smoothOrder) : rawData;
+
       return {
         label: ts.name,
-        data: labels.map((time) => {
-          const row = rowMap.get(time);
-          if (!row) return null;
-          if (removeCloudy && row.cloud === 1) return null;
-          return row.values;
-        }),
+        data: finalData,
         borderColor: color,
         backgroundColor: color,
         pointRadius: labels.map((time) => {
@@ -205,6 +231,7 @@ export const TimeSeriesChart = ({
         }),
         tension: 0.1,
         spanGaps: true,
+        hidden: hiddenDatasets.has(index),
       };
     });
 
@@ -216,14 +243,18 @@ export const TimeSeriesChart = ({
 
         const color = PROBE_COLORS[index % PROBE_COLORS.length];
 
+        const rawData = labels.map((time) => {
+          const row = rowMap.get(time);
+          if (!row) return null;
+          if (removeCloudy && row.cloud === 1) return null;
+          return row.values;
+        });
+
+        const finalData = smoothEnabled ? savitzkyGolay(rawData, smoothWindow, smoothOrder) : rawData;
+
         datasets.push({
           label: `${ts.name} (probe)`,
-          data: labels.map((time) => {
-            const row = rowMap.get(time);
-            if (!row) return null;
-            if (removeCloudy && row.cloud === 1) return null;
-            return row.values;
-          }),
+          data: finalData,
           borderColor: color,
           backgroundColor: color,
           pointRadius: labels.map((time) => {
@@ -244,13 +275,13 @@ export const TimeSeriesChart = ({
           }),
           tension: 0.1,
           spanGaps: true,
-          borderDash: [5, 3] as number[],
+          hidden: hiddenDatasets.has(timeseries.length + index),
         });
       });
     }
 
     return { labels, datasets, monthLabels };
-  }, [data, probeData, timeseries, removeCloudy]);
+  }, [data, probeData, timeseries, removeCloudy, smoothEnabled, smoothWindow, smoothOrder, hiddenDatasets]);
 
   // Error state
   if (error) {
@@ -309,44 +340,134 @@ export const TimeSeriesChart = ({
 
       {/* Header with Legend and Controls */}
       <div className="flex justify-between items-center mb-1 flex-shrink-0 gap-2">
-        {/* Legend */}
+        {/* Legend (click to toggle traces) */}
         <div className="flex items-center gap-2 flex-wrap">
           {timeseries.map((ts, index) => {
             const color = COLORS[index % COLORS.length];
+            const isHidden = hiddenDatasets.has(index);
             return (
-              <div key={ts.id} className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="text-[9px] font-bold text-neutral-700">{ts.name}</span>
-              </div>
+              <button
+                key={ts.id}
+                className="flex items-center gap-1 cursor-pointer hover:opacity-80"
+                onClick={() => toggleDataset(index)}
+                title={isHidden ? `Show ${ts.name}` : `Hide ${ts.name}`}
+              >
+                <div
+                  className="w-2 h-2 rounded-sm transition-opacity"
+                  style={{ backgroundColor: color, opacity: isHidden ? 0.3 : 1 }}
+                />
+                <span
+                  className={`text-[9px] font-bold transition-opacity ${isHidden ? 'line-through text-neutral-400' : 'text-neutral-700'}`}
+                >
+                  {ts.name}
+                </span>
+              </button>
             );
           })}
           {probeData &&
             timeseries.map((ts, index) => {
               const color = PROBE_COLORS[index % PROBE_COLORS.length];
+              const dsIndex = timeseries.length + index;
+              const isHidden = hiddenDatasets.has(dsIndex);
               return (
-                <div key={`probe-${ts.id}`} className="flex items-center gap-1">
+                <button
+                  key={`probe-${ts.id}`}
+                  className="flex items-center gap-1 cursor-pointer hover:opacity-80"
+                  onClick={() => toggleDataset(dsIndex)}
+                  title={isHidden ? `Show ${ts.name} (probe)` : `Hide ${ts.name} (probe)`}
+                >
                   <div
-                    className="w-2 h-0.5 border-t-2 border-dashed"
-                    style={{ borderColor: color }}
+                    className="w-2 h-0.5 border-t-2 transition-opacity"
+                    style={{ borderColor: color, opacity: isHidden ? 0.3 : 1 }}
                   />
-                  <span className="text-[9px] font-bold text-neutral-500">{ts.name} (probe)</span>
-                </div>
+                  <span
+                    className={`text-[9px] font-bold transition-opacity ${isHidden ? 'line-through text-neutral-400' : 'text-neutral-500'}`}
+                  >
+                    {ts.name} (probe)
+                  </span>
+                </button>
               );
             })}
+          {isZoomed && (
+            <button
+              className="text-[9px] text-brand-600 hover:text-brand-700 font-medium ml-1 cursor-pointer"
+              onClick={handleResetZoom}
+              title="Reset zoom (double-click chart)"
+            >
+              Reset zoom
+            </button>
+          )}
         </div>
 
         {/* Remove cloudy toggle */}
         <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-          <span className="text-[10px] text-neutral-600">Remove cloudy</span>
+          <span className="text-[10px] text-neutral-600" title='Removes days with clouds on the point (red dots)'>Remove cloudy</span>
           <div
             className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
             onClick={() => setRemoveCloudy(!removeCloudy)}
+            title='Removes days with clouds on the point (red dots)'
           >
             <div
               className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
             />
           </div>
         </label>
+
+        {/* Smoothing toggle + parameters */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <label className="flex items-center gap-1 cursor-pointer">
+            <span className="text-[10px] text-neutral-600" title='Savitzky-Golay Smoothing.'>Smooth</span>
+            <div
+              className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-500' : 'bg-neutral-300'}`}
+              onClick={() => setSmoothEnabled(!smoothEnabled)}
+              title='Savitzky-Golay Smoothing.'
+            >
+              <div
+                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${smoothEnabled ? 'translate-x-3' : 'translate-x-0.5'}`}
+              />
+            </div>
+          </label>
+          {smoothEnabled && (
+            <div className="flex items-center gap-1 ml-1">
+              <label className="flex items-center gap-0.5" title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)">
+                <span className="text-[9px] text-neutral-500">W</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={31}
+                  step={2}
+                  value={smoothWindow}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(5, Math.min(31, v));
+                    if (v % 2 === 0) v += 1;
+                    setSmoothWindow(v);
+                    // Ensure poly order stays valid
+                    if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
+                  }}
+                  className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+              <label className="flex items-center gap-0.5" title="Polynomial order (≥ 1, must be less than window size)">
+                <span className="text-[9px] text-neutral-500">P</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.min(5, smoothWindow - 1)}
+                  value={smoothOrder}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(1, Math.min(smoothWindow - 1, v));
+                    setSmoothOrder(v);
+                  }}
+                  className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chart with smooth transition */}
@@ -355,6 +476,7 @@ export const TimeSeriesChart = ({
         style={{ opacity }}
       >
         <Line
+          ref={chartRef}
           data={chartData}
           options={{
             responsive: true,
@@ -374,6 +496,20 @@ export const TimeSeriesChart = ({
                     const dateStr = chartData.labels[items[0].dataIndex];
                     return formatDateForTooltip(dateStr);
                   },
+                },
+              },
+              zoom: {
+                pan: {
+                  enabled: true,
+                  mode: 'x',
+                  onPan: () => setIsZoomed(true),
+                },
+                zoom: {
+                  wheel: { enabled: true, modifierKey: 'ctrl' as const },
+                  pinch: { enabled: true },
+                  drag: { enabled: true, backgroundColor: 'rgba(37,99,235,0.1)', borderColor: '#2563eb', borderWidth: 1 },
+                  mode: 'x',
+                  onZoom: () => setIsZoomed(true),
                 },
               },
             },

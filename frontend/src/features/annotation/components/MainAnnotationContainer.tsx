@@ -9,37 +9,29 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import {
-  computeTimeSlices,
   extractLatLonFromWKT,
-  formatWindowLabel,
 } from '~/shared/utils/utility';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { useStacRegistration } from '../hooks/useStacRegistration';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/**
- * Main annotation container
- * Coordinates map display, timeline, and annotation controls
- */
 export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: MainAnnotationsContainerProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
-  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
 
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
 
-  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
   const showCrosshair = useMapStore((s) => s.showCrosshair);
   const activeTool = useMapStore((s) => s.activeTool);
   const refocusTrigger = useMapStore((s) => s.refocusTrigger);
-  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
@@ -49,7 +41,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const setMapBounds = useMapStore((s) => s.setMapBounds);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
-  const setBasemapType = useMapStore((s) => s.setBasemapType);
+  const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
   const emptySlices = useMapStore((s) => s.emptySlices);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const setProbeTimeseriesPoint = useMapStore((s) => s.setProbeTimeseriesPoint);
@@ -59,12 +51,40 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
-  const [timelineDragging, setTimelineDragging] = useState(false);
+  const [_timelineDragging, setTimelineDragging] = useState(false);
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
+  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
+
+  // Resolve the active collection and its source
+  const activeCollection = useMemo(() => {
+    if (!campaign || !activeCollectionId) return null;
+    for (const src of campaign.imagery_sources) {
+      const col = src.collections.find((c) => c.id === activeCollectionId);
+      if (col) return col;
+    }
+    return null;
+  }, [campaign, activeCollectionId]);
+
+  const activeSource = useMemo(() => {
+    if (!campaign || !activeCollectionId) return null;
+    for (const src of campaign.imagery_sources) {
+      if (src.collections.some((c) => c.id === activeCollectionId)) return src;
+    }
+    return null;
+  }, [campaign, activeCollectionId]);
+
+  // Get all collections referenced in the current view
+  const viewCollections = useMemo(() => {
+    if (!campaign || !selectedView) return [];
+    return selectedView.collection_refs.map((ref) => {
+      const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
+      const collection = source?.collections.find((c) => c.id === ref.collection_id);
+      return { ...ref, collection, source };
+    }).filter((r) => r.collection && r.source);
+  }, [campaign, selectedView]);
 
   const campaignBbox = useMemo(
     () => campaign
@@ -84,37 +104,12 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     ]
   );
 
-  // STAC registration - register all slices in parallel, concurrency-limited
-  const { sliceLayerMap, allRegistered } = useStacRegistration({
-    imagery: selectedImagery,
-    bbox: campaignBbox,
-    enabled: !!selectedImagery,
-  });
-
   const openModeMapRef = useRef<OpenModeMapHandle>(null);
 
-  // Resolve the active window
-  const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
-  const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
+  // Slices from the active collection
+  const slices = activeCollection?.slices ?? [];
 
-  // Compute slices for the active window (for TimelineSidebar)
-  const slices = useMemo(() => {
-    if (!activeWindow || !selectedImagery) return [];
-    return computeTimeSlices(
-      activeWindow.window_start_date,
-      activeWindow.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeWindow?.window_start_date,
-    activeWindow?.window_end_date,
-    selectedImagery?.slicing_interval,
-    selectedImagery?.slicing_unit,
-  ]);
-
-  // Initial center: task geometry -> bbox center. Never updated by live map movement.
+  // Initial center
   const latLon = useMemo(
     () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,25 +121,23 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return [0, 0];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // computed once on mount
+  }, []);
 
-  // In task mode, pan to the task center whenever the task changes
   const center = useMemo<[number, number] | undefined>(() => {
     if (campaign?.mode !== 'tasks' || !latLon) return undefined;
     return [latLon.lat, latLon.lon];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latLon?.lat, latLon?.lon, campaign?.mode]);
 
-  // In task mode, show a crosshair at the task location
   const crosshair = useMemo(() => {
     if (campaign?.mode !== 'tasks' || !latLon) return undefined;
-    return { lat: latLon.lat, lon: latLon.lon };
+    return { lat: latLon.lat, lon: latLon.lon, color: activeSource?.crosshair_hex6 ?? undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latLon?.lat, latLon?.lon, campaign?.mode]);
+  }, [latLon?.lat, latLon?.lon, campaign?.mode, activeSource?.crosshair_hex6]);
 
-  const initialZoom = selectedImagery?.default_zoom ?? 10;
+  const initialZoom = activeSource?.default_zoom ?? 10;
 
-  // Open mode: derive the selected label and magic wand state
+  // Open mode labels
   const extendedLabels = useMemo(
     () => extendLabelsWithMetadata(campaign?.settings.labels ?? []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,7 +146,38 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
   const magicWandActive = selectedLabelId != null && (magicWandEnabled[selectedLabelId] ?? false);
 
-  // Stable callback - must be declared before early return (hook rules)
+  // Flat viz entries mirroring the store's selectedLayerIndex ordering
+  const allVizEntries = useMemo(
+    () =>
+      (campaign?.imagery_sources ?? []).flatMap((src) =>
+        src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name })),
+      ),
+    [campaign?.imagery_sources],
+  );
+
+  /** Handle layer selection from LayerSelector dropdown */
+  const handleLayerSelect = useCallback(
+    (layerId: string) => {
+      setActiveLayerId(layerId);
+      const layer = mapLayers.find((l) => l.id === layerId);
+      if (layer?.layerType === 'basemap') {
+        setSelectedBasemapId(layer.id);
+        setShowBasemap(true);
+      } else {
+        // Extract viz name from layer id: tile-c{id}-s{idx}-v{vizName}
+        const vIdx = layerId.indexOf('-v');
+        if (vIdx !== -1) {
+          const vizName = layerId.slice(vIdx + 2);
+          const entryIdx = allVizEntries.findIndex((e) => e.vizName === vizName);
+          if (entryIdx !== -1) {
+            setSelectedLayerIndex(entryIdx); // also sets showBasemap=false
+          }
+        }
+      }
+    },
+    [mapLayers, allVizEntries, setActiveLayerId, setSelectedBasemapId, setShowBasemap, setSelectedLayerIndex],
+  );
+
   const handleTimeseriesClick = useCallback((lat: number, lon: number) => {
     if (campaign?.mode === 'tasks') {
       setProbeTimeseriesPoint({ lat, lon });
@@ -162,21 +186,24 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     }
   }, [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]);
 
-  if (!campaign || !selectedImagery) return null;
+  if (!campaign || !activeSource) return null;
 
   const isTaskMode = campaign.mode === 'tasks';
   const isOpenMode = campaign.mode === 'open';
 
+  // Number of collections that are shown as windows
+  const windowCollections = viewCollections.filter((r) => r.show_as_window);
+
   return (
     <div className="flex h-full w-full">
       <TimelineSidebar
-        imagery={selectedImagery}
-        activeWindowId={activeWindowId ?? selectedImagery.default_main_window_id ?? null}
-        slices={slices}
+        campaign={campaign}
+        selectedViewId={selectedViewId}
+        activeCollectionId={activeCollectionId}
         activeSliceIndex={activeSliceIndex}
         collapsed={timelineCollapsed}
         onToggleCollapse={() => setTimelineCollapsed((c) => !c)}
-        onWindowChange={setActiveWindowId}
+        onCollectionChange={setActiveCollectionId}
         onSliceChange={setActiveSliceIndex}
         onDraggingChange={setTimelineDragging}
         emptySlices={emptySlices}
@@ -187,41 +214,25 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         {isTaskMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
 
-            {/* Layer selector */}
             {mapLayers.length > 0 && (
               <LayerSelector
                 layers={mapLayers}
                 selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                onLayerSelect={(layerId) => {
-                  setActiveLayerId(layerId);
-                  const layer = mapLayers.find((l) => l.id === layerId);
-                  if (layer?.layerType === 'basemap') {
-                    setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
-                    setShowBasemap(true);
-                  } else {
-                    const match = layerId.match(/-v(\d+)$/);
-                    if (match) {
-                      const templateId = Number(match[1]);
-                      const idx = (selectedImagery.visualization_url_templates ?? [])
-                        .findIndex((t) => t.id === templateId);
-                      if (idx !== -1) setSelectedLayerIndex(idx);
-                    }
-                  }
-                }}
+                onLayerSelect={handleLayerSelect}
               />
             )}
 
-            {/* Window selector */}
-            {selectedImagery.windows.length > 1 && (
+            {/* Collection selector */}
+            {viewCollections.length > 1 && (
               <select
-                value={currentActiveWindowId ?? ''}
-                onChange={(e) => setActiveWindowId(Number(e.target.value))}
+                value={activeCollectionId ?? ''}
+                onChange={(e) => setActiveCollectionId(Number(e.target.value))}
                 className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select window"
+                title="Select collection (shift + a/d)"
               >
-                {selectedImagery.windows.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {formatWindowLabel(w.window_start_date, w.window_end_date, selectedImagery.window_unit)}
+                {viewCollections.map((r) => (
+                  <option key={r.collection_id} value={r.collection_id}>
+                    {r.collection!.name}
                   </option>
                 ))}
               </select>
@@ -233,35 +244,33 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 value={activeSliceIndex}
                 onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
                 className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select time slice"
+                title="Select time slice (a/d)"
               >
                 {slices.map((slice, idx) => {
-                  const isEmpty = !!emptySlices[`${currentActiveWindowId}-${idx}`];
+                  const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                   return (
                     <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                      {slice.label}{isEmpty ? ' (empty)' : ''}
+                      {slice.name}{isEmpty ? ' (empty)' : ''}
                     </option>
                   );
                 })}
               </select>
             )}
 
-            {/* Recenter button */}
             <button
               onClick={triggerRefocus}
               className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
-              title="Recenter map"
+              title="Recenter map (Space)"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
               </svg>
             </button>
 
-            {/* Crosshair toggle */}
             <button
               onClick={toggleCrosshair}
               className={`px-2 py-1.5 bg-white rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer ${showCrosshair ? 'text-neutral-900' : 'text-neutral-400'}`}
-              title={showCrosshair ? 'Hide crosshair' : 'Show crosshair'}
+              title={showCrosshair ? 'Hide crosshair (O)' : 'Show crosshair (O)'}
             >
               <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
                 <circle cx="10" cy="10" r="1.5" />
@@ -272,17 +281,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
-            {/* View sync toggle - link pan/zoom of small windows to the main map */}
-            {selectedImagery.windows.length > 1 && (
+            {windowCollections.length > 1 && (
               <button
                 onClick={toggleViewSync}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={viewSyncEnabled ? 'Unlink small windows from main map pan/zoom' : 'Link small windows to main map pan/zoom'}
+                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
+                title={viewSyncEnabled ? 'Unlink (sync) small windows from main map pan/zoom (L)' : 'Link (sync) small windows to main map pan/zoom (L)'}
               >
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   {viewSyncEnabled ? (
                     <>
-                      {/* Linked icon: two rectangles connected by a chain link */}
                       <rect x="1" y="3" width="7" height="6" rx="1" />
                       <rect x="12" y="11" width="7" height="6" rx="1" />
                       <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
@@ -290,7 +297,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                     </>
                   ) : (
                     <>
-                      {/* Unlinked icon: two rectangles with broken link */}
                       <rect x="1" y="3" width="7" height="6" rx="1" />
                       <rect x="12" y="11" width="7" height="6" rx="1" />
                       <path d="M8 8l0.5 0.5" />
@@ -302,7 +308,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </button>
             )}
 
-            {/* Timeseries probe tool */}
             {campaign.time_series.length > 0 && (
               <button
                 onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
@@ -322,41 +327,25 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         {isOpenMode && (
           <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
 
-            {/* Layer selector */}
             {mapLayers.length > 0 && (
               <LayerSelector
                 layers={mapLayers}
                 selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                onLayerSelect={(layerId) => {
-                  setActiveLayerId(layerId);
-                  const layer = mapLayers.find((l) => l.id === layerId);
-                  if (layer?.layerType === 'basemap') {
-                    setBasemapType(layer.id as Parameters<typeof setBasemapType>[0]);
-                    setShowBasemap(true);
-                  } else {
-                    const match = layerId.match(/-v(\d+)$/);
-                    if (match) {
-                      const templateId = Number(match[1]);
-                      const idx = (selectedImagery.visualization_url_templates ?? [])
-                        .findIndex((t) => t.id === templateId);
-                      if (idx !== -1) setSelectedLayerIndex(idx);
-                    }
-                  }
-                }}
+                onLayerSelect={handleLayerSelect}
               />
             )}
 
-            {/* Window selector */}
-            {selectedImagery.windows.length > 1 && (
+            {/* Collection selector */}
+            {viewCollections.length > 1 && (
               <select
-                value={currentActiveWindowId ?? ''}
-                onChange={(e) => setActiveWindowId(Number(e.target.value))}
+                value={activeCollectionId ?? ''}
+                onChange={(e) => setActiveCollectionId(Number(e.target.value))}
                 className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select window"
+                title="Select collection"
               >
-                {selectedImagery.windows.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {formatWindowLabel(w.window_start_date, w.window_end_date, selectedImagery.window_unit)}
+                {viewCollections.map((r) => (
+                  <option key={r.collection_id} value={r.collection_id}>
+                    {r.collection!.name}
                   </option>
                 ))}
               </select>
@@ -371,17 +360,16 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 title="Select time slice"
               >
                 {slices.map((slice, idx) => {
-                  const isEmpty = !!emptySlices[`${currentActiveWindowId}-${idx}`];
+                  const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                   return (
                     <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                      {slice.label}{isEmpty ? ' (empty)' : ''}
+                      {slice.name}{isEmpty ? ' (empty)' : ''}
                     </option>
                   );
                 })}
               </select>
             )}
 
-            {/* Fit annotations button */}
             <button
               onClick={() => openModeMapRef.current?.fitAnnotations()}
               className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
@@ -394,7 +382,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
-            {/* Crosshair toggle */}
             <button
               onClick={toggleCrosshair}
               className={`px-2 py-1.5 bg-white rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer ${showCrosshair ? 'text-neutral-900' : 'text-neutral-400'}`}
@@ -409,12 +396,11 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               </svg>
             </button>
 
-            {/* View sync toggle - link pan/zoom of small windows to the main map */}
-            {selectedImagery.windows.length > 1 && (
+            {windowCollections.length > 1 && (
               <button
                 onClick={toggleViewSync}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={viewSyncEnabled ? 'Unlink small windows from main map pan/zoom' : 'Link small windows to main map pan/zoom'}
+                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
+                title={viewSyncEnabled ? 'Unlink (sync) small windows from main map pan/zoom (L)' : 'Link (sync) small windows to main map pan/zoom (L)'}
               >
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   {viewSyncEnabled ? (
@@ -439,11 +425,10 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
           </div>
         )}
 
-        {/* Map - task mode uses TaskModeMap; open mode uses OpenModeMap with drawing */}
+        {/* Map */}
         {isTaskMode ? (
           <TaskModeMap
-            imagery={selectedImagery}
-            sliceLayerMap={sliceLayerMap}
+            campaign={campaign}
             initialCenter={initialCenter}
             initialZoom={initialZoom}
             center={center}
@@ -460,8 +445,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         ) : (
           <OpenModeMap
             ref={openModeMapRef}
-            imagery={selectedImagery}
-            sliceLayerMap={sliceLayerMap}
+            campaign={campaign}
             initialCenter={initialCenter}
             initialZoom={initialZoom}
             refocusTrigger={refocusTrigger}
@@ -475,18 +459,6 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={timeseriesPoint}
           />
-        )}
-
-        {/* Loading overlay - shown until STAC registrations complete */}
-        {!allRegistered && (
-          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-3 px-8 py-6 bg-white rounded-2xl border border-neutral-200 shadow-2xl">
-              <LoadingSpinner
-                size="lg"
-                text="Loading imagery…"
-              />
-            </div>
-          </div>
         )}
       </div>
     </div>

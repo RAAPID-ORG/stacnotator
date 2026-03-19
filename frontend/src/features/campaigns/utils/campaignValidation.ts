@@ -1,5 +1,5 @@
 import type { CampaignCreate } from '~/api/client';
-import type { ImageryStepState } from '~/features/campaigns/creation/steps/imagery/types';
+import type { ImageryStepState } from '~/features/campaigns/components/creation/steps/imagery/types';
 
 export type FieldErrors = Record<string, string>;
 

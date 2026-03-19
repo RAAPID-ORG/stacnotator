@@ -1,44 +1,39 @@
 import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
 import WindowMap from './Map/WindowMap';
-import type { ImageryWindowOut } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
-import { useStacRegistration } from '../hooks/useStacRegistration';
+import { extractLatLonFromWKT } from '~/shared/utils/utility';
 
 interface ImageryContainerProps {
-  window: ImageryWindowOut;
+  collectionId: number;
+  sourceId: number;
 }
 
-/**
- * Imagery container component that displays STAC imagery in a map
- */
-const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
+const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourceId }) => {
   const isDraggingRef = useRef(false);
 
-  // Get state from store
   const campaign = useCampaignStore((s) => s.campaign);
-  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
 
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
 
   const refocusTrigger = useMapStore((s) => s.refocusTrigger);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
-  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
-  const windowSliceIndices = useMapStore((s) => s.windowSliceIndices);
+  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
   const currentMapCenter = useMapStore((s) => s.currentMapCenter);
   const currentMapZoom = useMapStore((s) => s.currentMapZoom);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
-  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
   const emptySlices = useMapStore((s) => s.emptySlices);
 
-  // Compute derived values
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
+  // Resolve collection and source from campaign
+  const source = campaign?.imagery_sources.find((s) => s.id === sourceId) ?? null;
+  const collection = source?.collections.find((c) => c.id === collectionId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
@@ -50,57 +45,35 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       ] as [number, number, number, number])
     : null;
 
-  // Determine if this window is the active window
-  const isActiveWindow =
-    !!selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
+  const isActiveCollection = collectionId === activeCollectionId;
 
-  // Compute slices for this window
-  const slices = useMemo(() => {
-    if (!selectedImagery) return [];
-    return computeTimeSlices(
-      window.window_start_date,
-      window.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
-  }, [
-    window.window_start_date,
-    window.window_end_date,
-    selectedImagery?.slicing_interval,
-    selectedImagery?.slicing_unit,
-  ]);
+  const slices = collection?.slices ?? [];
 
-  // Use global slice index for active window, stored index for others
-  const currentSliceIndex = isActiveWindow
+  // Use global slice index for active collection, stored index for others
+  const currentSliceIndex = isActiveCollection
     ? activeSliceIndex
-    : (windowSliceIndices[window.id] ?? 0);
+    : (collectionSliceIndices[collectionId] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // Resolve tile URL from pre-registered STAC registrations
-  const { sliceLayerMap } = useStacRegistration({
-    imagery: selectedImagery,
-    bbox: campaignBbox ?? [0, 0, 0, 0],
-    enabled: !!selectedImagery && !!campaignBbox,
-  });
-  const sliceKey = `${window.id}-${currentSliceIndex}`;
-  const searchId = sliceLayerMap.get(sliceKey);
-  const vizTemplate = selectedImagery?.visualization_url_templates[selectedLayerIndex]
-    ?? selectedImagery?.visualization_url_templates[0];
-  const tileUrl = searchId && vizTemplate
-    ? vizTemplate.visualization_url.replace(/\{searchId\}/g, searchId)
-    : '';
-  const loading = !searchId;
-  const datesReady = !loading;
+  // Resolve tile URL from pre-resolved slice tile_urls
+  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
+    src.visualizations.map((v) => v.name),
+  );
+  const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
-  // Memoize latLon extraction to prevent recalculations
+  const tileUrl = activeSlice?.tile_urls.find(
+    (t) => t.visualization_name === activeVizName,
+  )?.tile_url ?? '';
+  const loading = !activeSlice || !tileUrl;
+
+  // Memoize latLon extraction
   const latLon = useMemo(
     () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentTask?.geometry.geometry]
   );
 
-  // Initial center for map mount - task location or bbox center, computed once
+  // Initial center for map mount
   const initialCenter = useMemo<[number, number]>(() => {
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
@@ -108,130 +81,115 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reactive center - follows the main map when this is the active window,
-  // or when viewSyncEnabled is on for non-active windows.
+  // Reactive center - follows the main map when active or synced
   const center = useMemo<[number, number] | undefined>(() => {
-    if (isActiveWindow || viewSyncEnabled) {
+    if (isActiveCollection || viewSyncEnabled) {
       if (currentMapCenter) return currentMapCenter;
     }
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveWindow, viewSyncEnabled]);
+  }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveCollection, viewSyncEnabled]);
 
-  // Determine zoom level
   const zoom = useMemo(() => {
-    if (isActiveWindow || viewSyncEnabled) {
+    if (isActiveCollection || viewSyncEnabled) {
       if (currentMapZoom !== null) return currentMapZoom;
     }
-    return selectedImagery?.default_zoom ?? 10;
-  }, [currentMapZoom, selectedImagery?.default_zoom, isActiveWindow, viewSyncEnabled]);
+    return source?.default_zoom ?? 10;
+  }, [currentMapZoom, source?.default_zoom, isActiveCollection, viewSyncEnabled]);
 
-  // Crosshair at task location
   const crosshair = !isOpenMode && latLon
-    ? { lat: latLon.lat, lon: latLon.lon, color: selectedImagery?.crosshair_hex6 ?? undefined }
+    ? { lat: latLon.lat, lon: latLon.lon, color: source?.crosshair_hex6 ?? undefined }
     : undefined;
 
-  // True once every slice for this window has been confirmed empty.
-  // Only relevant in task mode - in open mode we always show the map.
-  const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${window.id}-${i}`]);
+  // True once every slice for this collection has been confirmed empty
+  const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
 
-  // Empty-tile alert state - reset whenever the tileUrl changes
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
   useEffect(() => { setEmptyTileAlert(null); }, [tileUrl]);
 
-  // Stable ref so the OL tile-error callback always reads current values
-  // without needing to be recreated whenever deps change.
   const emptyTilesStateRef = useRef({
-    window,
+    collectionId,
     activeSlice,
-    sliceKey,
-    isActiveWindow,
+    sliceKey: `${collectionId}-${currentSliceIndex}`,
+    isActiveCollection,
     slices,
     currentSliceIndex,
     emptySlices,
     markSliceEmpty,
     setActiveSliceIndex,
-    setWindowSliceIndex: useMapStore.getState().setWindowSliceIndex,
+    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
     setEmptyTileAlert,
+    collectionName: collection?.name ?? '',
   });
-  // Keep ref in sync every render so the callback always sees fresh values
   emptyTilesStateRef.current = {
-    window,
+    collectionId,
     activeSlice,
-    sliceKey,
-    isActiveWindow,
+    sliceKey: `${collectionId}-${currentSliceIndex}`,
+    isActiveCollection,
     slices,
     currentSliceIndex,
     emptySlices,
     markSliceEmpty,
     setActiveSliceIndex,
-    setWindowSliceIndex: useMapStore.getState().setWindowSliceIndex,
+    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
     setEmptyTileAlert,
+    collectionName: collection?.name ?? '',
   };
 
-  // Stable callback passed to WindowMap - never recreated, always reads ref
-  // In open mode this is omitted: empty-tile detection is based on where we
-  // scrolled to and would incorrectly hide valid imagery elsewhere.
   const handleEmptyTiles = useCallback(() => {
-    if (isOpenMode) return; // never fire in open mode
+    if (isOpenMode) return;
     const {
-      window: win,
+      collectionId: colId,
       activeSlice: slice,
       sliceKey: key,
-      isActiveWindow: isActive,
+      isActiveCollection: isActive,
       slices: allSlices,
       currentSliceIndex: curIdx,
       emptySlices: empty,
       markSliceEmpty: mark,
       setActiveSliceIndex: setActive,
-      setWindowSliceIndex: setStored,
+      setCollectionSliceIndex: setStored,
       setEmptyTileAlert: setAlert,
+      collectionName,
     } = emptyTilesStateRef.current;
 
-    const windowLabel = `Window ${win.window_index + 1}`;
-    const sliceLabel = slice?.label ?? '';
-    const alertLabel = sliceLabel ? `${windowLabel} - ${sliceLabel}` : windowLabel;
+    const sliceLabel = slice?.name ?? '';
+    const alertLabel = sliceLabel ? `${collectionName} - ${sliceLabel}` : collectionName;
 
-    // Persist into store so keyboard nav and timeline can skip this slice
     mark(key);
 
-    // Auto-advance to the next non-empty slice
     const nextIndex = allSlices.findIndex(
-      (_, i) => i !== curIdx && !empty[`${win.id}-${i}`]
+      (_, i) => i !== curIdx && !empty[`${colId}-${i}`]
     );
 
     if (nextIndex !== -1) {
       if (isActive) {
         setActive(nextIndex);
       } else {
-        setStored(win.id, nextIndex);
+        setStored(colId, nextIndex);
       }
-      // Don't show alert - we silently skipped it
       return;
     }
 
-    // All slices are empty - show the alert
     setAlert(alertLabel);
   }, []); // stable - all state read from ref
 
-  // Early return AFTER all hooks
-  if (!selectedImagery || !campaignBbox) return null;
+  if (!collection || !campaignBbox) return null;
 
-  // Handle click - only trigger if not dragging (makes the window "active")
   const handleMouseDown = () => { isDraggingRef.current = false; };
   const handleMouseMove = () => { isDraggingRef.current = true; };
   const handleMouseUp = () => {
-    if (!isDraggingRef.current) setActiveWindowId(window.id);
+    if (!isDraggingRef.current) setActiveCollectionId(collectionId);
     isDraggingRef.current = false;
   };
 
   const handleSliceChange = (index: number) => {
-    if (isActiveWindow) {
+    if (isActiveCollection) {
       setActiveSliceIndex(index);
     } else {
-      useMapStore.getState().setWindowSliceIndex(window.id, index);
+      useMapStore.getState().setCollectionSliceIndex(collectionId, index);
     }
   };
 
@@ -242,7 +200,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Slice selector - empty slices are hidden */}
       {slices.length > 1 && (
         <div className="absolute bottom-1 right-1 z-[1000]">
           <select
@@ -254,11 +211,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             title="Select time slice"
           >
             {slices.map((slice, idx) => {
-              const key = `${window.id}-${idx}`;
+              const key = `${collectionId}-${idx}`;
               const isEmpty = !isOpenMode && emptySlices[key];
               return (
                 <option key={idx} value={idx} disabled={!!isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                  {slice.label}{isEmpty ? ' (empty)' : ''}
+                  {slice.name}{isEmpty ? ' (empty)' : ''}
                 </option>
               );
             })}
@@ -266,14 +223,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
         </div>
       )}
 
-      {/* Status overlays */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">
           Loading…
         </div>
       )}
 
-      {/* All-slices-empty: full-panel message replaces the map */}
       {allSlicesEmpty ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
           <svg className="w-6 h-6 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -286,7 +241,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
         </div>
       ) : (
         <>
-          {/* Partial-empty alert - shown only when some (not all) slices are empty and we couldn't auto-advance */}
           {emptyTileAlert && (
             <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
               <span className="flex-1">
@@ -303,7 +257,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             </div>
           )}
 
-          {datesReady && (tileUrl || isOpenMode) ? (
+          {!loading && (tileUrl || isOpenMode) ? (
             <WindowMap
               initialCenter={initialCenter}
               initialZoom={zoom}

@@ -1,7 +1,29 @@
+/**
+ * @deprecated This component uses legacy imagery types (ImageryCreate) that no longer exist
+ * in the API. The new creation flow uses the step-by-step imagery editor (StepImagery).
+ * The settings page now displays imagery sources in a read-only format via ImageryTab.
+ * Retained for reference only.
+ */
 import { useState, useEffect } from 'react';
-import type { ImageryCreate, ImageryVisualizationUrlTemplateCreate } from '~/api/client';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
-import { MonthPicker } from '~/features/campaigns/creation/steps/imagery/MonthPicker';
+import { MonthPicker } from '~/features/campaigns/components/creation/steps/imagery/MonthPicker';
+
+// Legacy type placeholders - removed from the API client.
+type ImageryVisualizationUrlTemplateCreate = { name: string; visualization_url: string };
+type ImageryCreate = {
+  name: string;
+  start_ym: string;
+  end_ym: string;
+  crosshair_hex6: string;
+  default_zoom: number;
+  window_interval?: number;
+  window_unit?: string;
+  slicing_interval?: number;
+  slicing_unit?: string;
+  registration_url: string;
+  search_body: string;
+  visualization_url_templates: ImageryVisualizationUrlTemplateCreate[];
+};
 
 interface ImageryEditorProps {
   value: ImageryCreate;

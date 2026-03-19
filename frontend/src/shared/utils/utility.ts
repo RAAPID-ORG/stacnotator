@@ -457,7 +457,7 @@ export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
     return { lon: parseFloat(pointMatch[1]), lat: parseFloat(pointMatch[2]) };
   }
 
-  // LINESTRING – average of all vertices
+  // LINESTRING - average of all vertices
   const lineMatch = normalized.match(/^LINESTRING\s*\((.+)\)$/);
   if (lineMatch) {
     const pairs = lineMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));
@@ -467,7 +467,7 @@ export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
     return { lon: sumLon / pairs.length, lat: sumLat / pairs.length };
   }
 
-  // POLYGON – average of exterior ring vertices (skip closing vertex)
+  // POLYGON - average of exterior ring vertices (skip closing vertex)
   const polyMatch = normalized.match(/^POLYGON\s*\(\((.+?)\)/);
   if (polyMatch) {
     const pairs = polyMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));

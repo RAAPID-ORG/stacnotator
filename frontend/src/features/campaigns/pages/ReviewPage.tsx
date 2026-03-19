@@ -4,8 +4,8 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { TaskModeReview } from '../review/TaskModeReview';
-import { OpenModeReview } from '../review/OpenModeReview';
+import { TaskModeReview } from '../components/review/TaskModeReview';
+import { OpenModeReview } from '../components/review/OpenModeReview';
 
 export const ReviewPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();

@@ -44,7 +44,7 @@ def create_imagery_from_editor_state(
     Handles frontend-to-DB id mapping so views can reference DB-assigned collection/source ids.
 
     Returns dict with keys 'sources', 'views', 'basemaps' containing ORM objects.
-    Does NOT commit — caller is responsible for commit.
+    Does NOT commit - caller is responsible for commit.
     """
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
@@ -108,6 +108,7 @@ def _create_source(
         name=src.name,
         crosshair_hex6=src.crosshair_hex6,
         default_zoom=src.default_zoom,
+        display_order=src_idx,
     )
     db.add(source)
     db.flush()
@@ -238,7 +239,7 @@ def _register_stac_collection(
                     )
     except Exception:
         logger.warning(
-            "STAC registration failed for collection %s — tile URLs left as templates",
+            "STAC registration failed for collection %s - tile URLs left as templates",
             collection.name,
             exc_info=True,
         )

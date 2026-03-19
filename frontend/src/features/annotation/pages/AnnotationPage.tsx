@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
@@ -12,18 +12,7 @@ import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { useStacRegistration } from '../hooks/useStacRegistration';
 
-/**
- * Main annotation page for labeling campaign tasks.
- * State managed through Zustand stores.
- *
- * STAC registrations start here (page level) so the loading spinner
- * covers both campaign data fetching and STAC search-ID resolution.
- * The module-level cache in useStacRegistration ensures downstream
- * consumers (MainAnnotationContainer, ImageryContainer) share results
- * without duplicate requests.
- */
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,7 +22,6 @@ export const AnnotationPage = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
-  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
 
   // UI store
@@ -42,31 +30,8 @@ export const AnnotationPage = () => {
   const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
-  // Start STAC registrations as soon as campaign data is available
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) ?? null;
-  const campaignBbox = useMemo(
-    () => campaign
-      ? ([
-          campaign.settings.bbox_west,
-          campaign.settings.bbox_south,
-          campaign.settings.bbox_east,
-          campaign.settings.bbox_north,
-        ] as [number, number, number, number])
-      : ([0, 0, 0, 0] as [number, number, number, number]),
-    [campaign?.settings.bbox_west, campaign?.settings.bbox_south, campaign?.settings.bbox_east, campaign?.settings.bbox_north]
-  );
-  const { allRegistered } = useStacRegistration({
-    imagery: selectedImagery,
-    bbox: campaignBbox,
-    enabled: !!selectedImagery,
-  });
-
-  // Gate only on the INITIAL load. Once the annotator has been shown,
-  // keep it mounted so the OL map survives imagery switches. The
-  // MainAnnotationContainer shows its own in-map spinner while STAC
-  // registrations are in progress for a newly selected imagery.
   const [hasBeenReady, setHasBeenReady] = useState(false);
-  const isReady = !isLoadingCampaign && allRegistered;
+  const isReady = !isLoadingCampaign && !!campaign;
   useEffect(() => {
     if (isReady && !hasBeenReady) setHasBeenReady(true);
   }, [isReady, hasBeenReady]);

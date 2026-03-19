@@ -26,6 +26,7 @@ class Campaign(Base):
         nullable=False,
     )
     mode: Mapped[str | None] = mapped_column(String(20), nullable=False)  # tasks or open-world
+    is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     # Relationships
     settings: Mapped["CampaignSettings"] = relationship(
@@ -50,7 +51,10 @@ class Campaign(Base):
         cascade="all, delete-orphan",
     )
     imagery_sources: Mapped[list["ImagerySource"]] = relationship(  # noqa: F821
-        "ImagerySource", back_populates="campaign", cascade="all, delete-orphan"
+        "ImagerySource",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="ImagerySource.display_order",
     )
     basemaps: Mapped[list["Basemap"]] = relationship(  # noqa: F821
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
@@ -104,6 +108,9 @@ class CampaignSettings(Base):
     # Year from which to source satellite embeddings (e.g. 2024).
     # NULL means embeddings are not configured / not used.
     embedding_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Markdown guide document shown to annotators
+    guide_markdown: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")

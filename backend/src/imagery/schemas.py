@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, ConfigDict, computed_field
 
 # ============================================================================
-# Slice / Collection / Source – Output Schemas
+# Slice / Collection / Source - Output Schemas
 # ============================================================================
 
 
@@ -12,8 +12,7 @@ class SliceTileUrlOut(BaseModel):
     visualization_name: str
     tile_url: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImagerySliceOut(BaseModel):
@@ -24,16 +23,14 @@ class ImagerySliceOut(BaseModel):
     display_order: int
     tile_urls: list[SliceTileUrlOut]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CollectionStacConfigOut(BaseModel):
     registration_url: str
     search_body: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageryCollectionOut(BaseModel):
@@ -44,8 +41,7 @@ class ImageryCollectionOut(BaseModel):
     slices: list[ImagerySliceOut]
     stac_config: CollectionStacConfigOut | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class VisualizationTemplateOut(BaseModel):
@@ -53,8 +49,7 @@ class VisualizationTemplateOut(BaseModel):
     name: str
     display_order: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImagerySourceOut(BaseModel):
@@ -62,11 +57,11 @@ class ImagerySourceOut(BaseModel):
     name: str
     crosshair_hex6: str
     default_zoom: int
+    display_order: int
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BasemapOut(BaseModel):
@@ -74,8 +69,7 @@ class BasemapOut(BaseModel):
     name: str
     url: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ViewCollectionRefItem(BaseModel):
@@ -89,8 +83,7 @@ class CanvasLayoutOut(BaseModel):
     user_id: UUID | None
     layout_data: list
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageryViewOut(BaseModel):
@@ -129,8 +122,7 @@ class ImageryViewOut(BaseModel):
         instance._personal_canvas_layout = personal_layout
         return instance
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================================================
@@ -180,8 +172,8 @@ class BasemapCreate(BaseModel):
 
 
 class ViewCollectionRefCreate(BaseModel):
-    collection_id: str  # frontend temp id — mapped by service
-    source_id: str  # frontend temp id — mapped by service
+    collection_id: str  # frontend temp id - mapped by service
+    source_id: str  # frontend temp id - mapped by service
     show_as_window: bool = True
 
 

@@ -1,9 +1,10 @@
-# Development Dockerfile with Vite HMR support
-FROM node:20-alpine
+# Development Dockerfile with Vite HMR support + Playwright E2E
+# Uses Debian-based node image (not Alpine as in prod!!) so that
+# `npx playwright install --with-deps` can install Chromium system libs.
+FROM node:20
 
 WORKDIR /app
 
-# Build the application
 # Accept build arguments for Vite environment variables
 ARG VITE_API_BASE_URL
 ARG VITE_FIREBASE_API_KEY
@@ -20,6 +21,10 @@ ENV VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
 COPY package.json package-lock.json* ./
 
 RUN npm install
+
+# Install Playwright Chromium + OS-level deps (fonts, GTK, NSS, etc.)
+# This is cached as a Docker layer - only re-runs when package.json changes.
+RUN npx playwright install --with-deps chromium
 
 # Copy application files (source will be mounted as volume in dev)
 COPY . .

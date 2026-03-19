@@ -3,6 +3,7 @@ import OLMap from "ol/Map";
 import View from "ol/View";
 import { fromLonLat } from "ol/proj";
 import ScaleLine from "ol/control/ScaleLine";
+import Attribution from "ol/control/Attribution";
 import "ol/ol.css";
 
 
@@ -29,6 +30,10 @@ const BaseMap = ({
       controls: [
         new ScaleLine({
           units: 'metric',
+        }),
+        new Attribution({
+          collapsible: true,
+          collapsed: true,
         }),
       ],
       view: new View({

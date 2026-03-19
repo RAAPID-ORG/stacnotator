@@ -32,6 +32,7 @@ class ImagerySource(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
     default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="14", nullable=False)
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")  # noqa: F821
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
