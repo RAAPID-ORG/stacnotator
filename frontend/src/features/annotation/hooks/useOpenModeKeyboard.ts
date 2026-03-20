@@ -3,6 +3,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
 
 /**
@@ -29,6 +30,7 @@ export const useOpenModeKeyboard = () => {
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
   const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
+  const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   useEffect(() => {
     if (!campaign || campaign.mode !== 'open') return;
@@ -146,6 +148,10 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           triggerFitAnnotations();
           break;
+        case 'g':
+          e.preventDefault();
+          toggleGuide();
+          break;
         case 'w':
           e.preventDefault();
           goToPreviousAnnotation();
@@ -161,5 +167,5 @@ export const useOpenModeKeyboard = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [campaign, setSelectedLabelId, setActiveTool, setTimeseriesPoint, triggerFitAnnotations, toggleViewSync, goToPreviousAnnotation, goToNextAnnotation]);
+  }, [campaign, setSelectedLabelId, setActiveTool, setTimeseriesPoint, triggerFitAnnotations, toggleViewSync, goToPreviousAnnotation, goToNextAnnotation, toggleGuide]);
 };

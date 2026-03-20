@@ -26,10 +26,8 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'B', description: 'Skip annotation' },
   { key: 'C', description: 'Focus comment' },
   { key: 'Escape', description: 'Unfocus input' },
+  { key: 'G', description: 'Toggle campaign guide' },
   { key: 'H', description: 'Toggle keyboard help' },
-  { key: 'L', description: 'Toggle view link (sync windows)' },
-  { key: 'I', description: 'Cycle imagery source' },
-  { key: 'Shift+I', description: 'Cycle visualization' },
 ];
 
 /**
@@ -214,13 +212,10 @@ export const AnnotationToolbar = () => {
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
-  const [showGuide, setShowGuide] = useState(false);
-
   const imageryDropdownRef = useRef<HTMLDivElement>(null);
   const taskFilterDropdownRef = useRef<HTMLDivElement>(null);
   const saveDropdownRef = useRef<HTMLDivElement>(null);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
-  const guideRef = useRef<HTMLDivElement>(null);
 
   // Get state from store
   const campaign = useCampaignStore((s) => s.campaign);
@@ -238,6 +233,8 @@ export const AnnotationToolbar = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
   const showKeyboardHelp = useLayoutStore((state) => state.showKeyboardHelp);
   const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
+  const showGuide = useLayoutStore((state) => state.showGuide);
+  const toggleGuide = useLayoutStore((state) => state.toggleGuide);
   const setShowKeyboardHelp = useLayoutStore((state) => state.setShowKeyboardHelp);
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
   const toggleFullscreen = useLayoutStore((state) => state.toggleFullscreen);
@@ -262,9 +259,6 @@ export const AnnotationToolbar = () => {
       }
       if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
         setShowExportDropdown(false);
-      }
-      if (guideRef.current && !guideRef.current.contains(event.target as Node)) {
-        setShowGuide(false);
       }
     };
 
@@ -662,23 +656,23 @@ export const AnnotationToolbar = () => {
         </button>
 
         {/* Campaign Guide */}
-        <div className="relative" ref={guideRef}>
+        <div className="relative">
           <button
-            onClick={() => setShowGuide(!showGuide)}
+            onClick={toggleGuide}
             className={`flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showGuide ? 'bg-neutral-100' : ''}`}
-            title="Campaign guide"
+            title="Campaign guide (G)"
             type="button"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+              <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
             </svg>
           </button>
           {showGuide && (
             <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
                 <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">Campaign Guide</span>
-                <button onClick={() => setShowGuide(false)} className="text-neutral-400 hover:text-neutral-600" type="button">
+                <button onClick={toggleGuide} className="text-neutral-400 hover:text-neutral-600" type="button">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
@@ -762,6 +756,7 @@ export const AnnotationToolbar = () => {
                     { key: 'I', description: 'Cycle imagery source' },
                     { key: 'Shift+I', description: 'Cycle visualization' },
                     { key: 'V', description: 'Cycle view' },
+                    { key: 'G', description: 'Toggle campaign guide' },
                     { key: 'H', description: 'Toggle keyboard help' },
                   ] as { key: string; description: string }[]).map((shortcut) => (
                     <div key={shortcut.key} className="flex justify-between items-center text-xs">

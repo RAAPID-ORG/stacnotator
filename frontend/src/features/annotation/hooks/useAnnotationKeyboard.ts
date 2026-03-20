@@ -50,6 +50,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   const showAlert = useLayoutStore((s) => s.showAlert);
   const toggleKeyboardHelp = useLayoutStore((s) => s.toggleKeyboardHelp);
+  const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
 
@@ -439,6 +440,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           toggleKeyboardHelp();
           break;
 
+        // Toggle campaign guide
+        case 'g':
+        case 'G':
+          e.preventDefault();
+          toggleGuide();
+          break;
+
         // Toggle view sync
         case 'l':
         case 'L':
@@ -488,6 +496,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     handleSubmit,
     handleSkip,
     toggleKeyboardHelp,
+    toggleGuide,
     cycleSource,
     cycleVisualization,
     cycleView,

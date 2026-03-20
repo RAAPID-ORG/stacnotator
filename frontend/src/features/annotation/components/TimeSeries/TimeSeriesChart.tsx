@@ -50,8 +50,8 @@ export const TimeSeriesChart = ({
   const [removeCloudy, setRemoveCloudy] = useState(false);
   const [opacity, setOpacity] = useState(1);
   const [smoothEnabled, setSmoothEnabled] = useState(false);
-  const [smoothWindow, setSmoothWindow] = useState(5);
-  const [smoothOrder, setSmoothOrder] = useState(2);
+  const [smoothWindow, setSmoothWindow] = useState(7);
+  const [smoothOrder, setSmoothOrder] = useState(3);
   const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
 

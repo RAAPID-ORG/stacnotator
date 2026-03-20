@@ -283,7 +283,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                 const confirmed = await showConfirmDialog({
                   title: newValue ? 'Make Campaign Public?' : 'Make Campaign Private?',
                   description: newValue
-                    ? 'This will allow any authenticated user to view and add annotations to this campaign. They can only edit or delete their own annotations.'
+                    ? 'This will allow any user to view and add annotations to this campaign. They can only edit or delete their own annotations.'
                     : 'This will restrict access to campaign members only. Non-members will lose access immediately.',
                   confirmText: newValue ? 'Make Public' : 'Make Private',
                   cancelText: 'Cancel',
