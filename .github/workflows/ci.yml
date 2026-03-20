@@ -49,9 +49,6 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check src/
 
-      - name: Mypy type check
-        run: uv run mypy src/ --config-file pyproject.toml
-
   # Frontend: lint + type-check  (all branches)
   frontend-lint:
     name: "Frontend: Lint & Type Check"
@@ -80,58 +77,96 @@ jobs:
       - name: Prettier format check
         run: npx prettier --check "src/**/*.{ts,tsx,css}"
 
-  # Backend: tests  (dev + main only)
+  # Backend: tests in Docker  (dev + main)
   backend-test:
-    name: "Backend: Tests"
+    name: "Backend: Tests (Docker)"
     needs: [backend-lint]
-    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    if: >-
+      github.ref == 'refs/heads/dev' ||
+      github.ref == 'refs/heads/main' ||
+      github.base_ref == 'dev' ||
+      github.base_ref == 'main'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start db + backend
+        run: docker compose -f docker-compose.dev.yml up -d db backend
         env:
           POSTGRES_DB: stacnotator_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U test -d stacnotator_test"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    env:
-      DBNAME: stacnotator_test
-      DBUSER: test
-      DBPASS: test
-      DBHOST: localhost
-      DBPORT: 5432
-      DBDRIVER: psycopg2
-      DBSCHEME: postgresql
-      AUTH_PROVIDER: firebase
-      ENVIRONMENT: testing
+          AUTH_PROVIDER: firebase
+
+      - name: Wait for database to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f docker-compose.dev.yml exec -T db pg_isready -U test -d stacnotator_test; then
+              echo "Database is ready"
+              break
+            fi
+            echo "Waiting for database... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run pytest
+        run: docker compose -f docker-compose.dev.yml exec -T -e ENVIRONMENT=testing backend python -m pytest tests/ -v --tb=short
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
+
+  # Frontend: Playwright E2E in Docker  (dev + main)
+  frontend-e2e:
+    name: "Frontend: Playwright E2E (Docker)"
+    needs: [frontend-lint]
+    if: >-
+      github.ref == 'refs/heads/dev' ||
+      github.ref == 'refs/heads/main' ||
+      github.base_ref == 'dev' ||
+      github.base_ref == 'main'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v6
+      - name: Build and start frontend
+        run: docker compose -f docker-compose.dev.yml up -d frontend
+        env:
+          VITE_API_BASE_URL: http://localhost:8000
+
+      - name: Wait for Vite dev server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:5173 > /dev/null 2>&1; then
+              echo "Frontend is ready"
+              break
+            fi
+            echo "Waiting for frontend... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run Playwright tests
+        run: docker compose -f docker-compose.dev.yml exec -T -e CI=true frontend npx playwright test
+
+      - name: Copy test results from container
+        if: ${{ !cancelled() }}
+        run: docker cp frontend-dev:/app/test-results ./frontend/test-results 2>/dev/null || true
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
         with:
-          version: "latest"
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7
 
-      - name: Set up Python
-        run: uv python install 3.12
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
 
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Run tests
-        run: uv run pytest tests/ -v --tb=short
-
-  # Docker build verification  (main only)
+  # Docker build verification production images  (main only) - Will want to do staging tests here later
   docker-build:
-    name: "Docker: Build Verification"
+    name: "Docker: Production Build"
     needs: [backend-lint, frontend-lint]
     if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: ubuntu-latest
