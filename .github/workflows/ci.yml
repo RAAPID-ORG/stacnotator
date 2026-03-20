@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, development]
+    branches: [main, develop]
   pull_request:
-    branches: [main, development]
+    branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,14 +77,14 @@ jobs:
       - name: Prettier format check
         run: npx prettier --check "src/**/*.{ts,tsx,css}"
 
-  # Backend: tests in Docker  (development + main)
+  # Backend: tests in Docker  (develop + main)
   backend-test:
     name: "Backend: Tests (Docker)"
     needs: [backend-lint]
     if: >-
-      github.ref == 'refs/heads/development' ||
+      github.ref == 'refs/heads/develop' ||
       github.ref == 'refs/heads/main' ||
-      github.base_ref == 'development' ||
+      github.base_ref == 'develop' ||
       github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
@@ -116,14 +116,14 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.dev.yml down -v
 
-  # Frontend: Playwright E2E in Docker  (development + main)
+  # Frontend: Playwright E2E in Docker  (develop + main)
   frontend-e2e:
     name: "Frontend: Playwright E2E (Docker)"
     needs: [frontend-lint]
     if: >-
-      github.ref == 'refs/heads/development' ||
+      github.ref == 'refs/heads/develop' ||
       github.ref == 'refs/heads/main' ||
-      github.base_ref == 'development' ||
+      github.base_ref == 'develop' ||
       github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
