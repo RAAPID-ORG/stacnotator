@@ -36,6 +36,7 @@ class CampaignSettingsOut(BaseModel):
     bbox_north: float
     embedding_year: int | None = None
     guide_markdown: str | None = None
+    sample_extent_meters: float | None = None
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -72,6 +73,7 @@ class CampaignSettingsCreate(BaseModel):
     bbox_east: float
     bbox_north: float
     embedding_year: int | None = None
+    sample_extent_meters: float | None = None
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
@@ -88,6 +90,7 @@ class CampaignSettingsCreate(BaseModel):
             "bbox_east": self.bbox_east,
             "bbox_north": self.bbox_north,
             "embedding_year": self.embedding_year,
+            "sample_extent_meters": self.sample_extent_meters,
         }
 
 
@@ -217,6 +220,10 @@ class UpdateCampaignVisibilityRequest(BaseModel):
 
 class UpdateCampaignGuideRequest(BaseModel):
     guide_markdown: str | None = None
+
+
+class UpdateSampleExtentRequest(BaseModel):
+    sample_extent_meters: float | None = None
 
 
 class UpdateCampaignBBoxRequest(BaseModel):

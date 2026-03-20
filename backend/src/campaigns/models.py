@@ -112,6 +112,10 @@ class CampaignSettings(Base):
     # Markdown guide document shown to annotators
     guide_markdown: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Side length (in meters) of the square extent around each task centroid.
+    # NULL means no extent is drawn (only crosshair shown for point tasks).
+    sample_extent_meters: Mapped[float | None] = mapped_column(nullable=True)
+
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
 

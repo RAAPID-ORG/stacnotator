@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import type { CampaignCreate } from '~/api/client';
 import type { ImageryStepState, ImagerySource, ImageryView, Basemap, ViewCollectionRef } from './imagery/types';
-import { emptySource, emptyView, emptyBasemap, resolveCollection, swap, DEFAULT_BASEMAPS, STAC_PRESETS } from './imagery/types';
+import { emptySource, emptyView, emptyBasemap, swap, DEFAULT_BASEMAPS, STAC_PRESETS } from './imagery/types';
 import { ImagerySourceEditor } from './imagery/ImagerySourceEditor';
 import { CanvasPreview } from './imagery/CanvasPreview';
-import { IconTrash, IconPlus, IconSettings, IconChevronDown, IconChevronUp, IconStac, IconClose } from '~/shared/ui/Icons';
+import { IconTrash, IconPlus, IconSettings, IconChevronDown, IconChevronUp, IconStac } from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
 import { Tooltip } from './imagery/Tooltip';
 
@@ -34,8 +34,6 @@ export const StepImagery = ({
 
   /** Which source is currently being edited (panel open), or null */
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
-  /** Which source is currently being dragged */
-  const [draggingSourceId, setDraggingSourceId] = useState<string | null>(null);
   /** Which view tab is active -starts on the initial view */
   const [activeViewId, setActiveViewId] = useState<string | null>(
     () => state.views[0]?.id ?? null,
@@ -77,11 +75,19 @@ export const StepImagery = ({
 
     const views = s.views.map((v) => ({
       name: v.name,
-      collection_refs: v.collectionRefs.map((ref) => ({
-        collection_id: ref.collectionId,
-        source_id: ref.sourceId,
-        show_as_window: ref.showAsWindow,
-      })),
+      collection_refs: v.collectionRefs
+        .map((ref) => {
+          const srcIdx = s.sources.findIndex((src) => src.id === ref.sourceId);
+          if (srcIdx === -1) return null;
+          const colIdx = s.sources[srcIdx].collections.findIndex((c) => c.id === ref.collectionId);
+          if (colIdx === -1) return null;
+          return {
+            collection_id: String(colIdx),
+            source_id: String(srcIdx),
+            show_as_window: ref.showAsWindow,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => r !== null),
     }));
 
     const basemaps = s.basemaps.map((b) => ({ name: b.name, url: b.url }));
@@ -131,10 +137,6 @@ export const StepImagery = ({
       views: nextViews,
     });
     if (editingSourceId === id) setEditingSourceId(null);
-  };
-
-  const moveSource = (index: number, direction: -1 | 1) => {
-    updateState({ ...state, sources: swap(state.sources, index, index + direction) });
   };
 
   const addView = () => {
@@ -198,6 +200,14 @@ export const StepImagery = ({
 
   const editingSource = state.sources.find((s) => s.id === editingSourceId) ?? null;
 
+  /* Compute which sources are not assigned to ANY view */
+  const allAssignedSourceIds = new Set(
+    state.views.flatMap((v) => v.collectionRefs.map((r) => r.sourceId)),
+  );
+  const sourcesNotInAnyView = new Set(
+    state.sources.filter((s) => !allAssignedSourceIds.has(s.id)).map((s) => s.id),
+  );
+
   /* Refs for speech-bubble positioning */
   const tileRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -259,84 +269,61 @@ export const StepImagery = ({
               <span>Each collection assigned to a view becomes a map window. You always have one main map; The windows appear as small thumbnails. You can hide windows you don't need - they can still be seen through navigation on the timeline (layer selector).</span>
             </div>
             <div className="pt-1.5 border-t border-neutral-100 text-neutral-500 leading-relaxed">
-              <strong className="text-neutral-600">Workflow:</strong> Create sources below → configure their collections &amp; slices → drag sources into the canvas preview to assign them to a view.
+              <strong className="text-neutral-600">Workflow:</strong> Create sources below → configure their collections &amp; slices → add sources to views using the canvas preview above.
             </div>
           </div>
         )}
       </div>
 
-      <div className="sticky top-0 z-20 -mx-1 px-1 pt-1 pb-2 bg-white">
+      <div>
         <CanvasPreview
           sources={state.sources}
           views={state.views}
           basemaps={state.basemaps}
           activeViewId={activeViewId}
-          draggingSourceId={draggingSourceId}
           onActiveViewChange={setActiveViewId}
           onAddView={addView}
           onUpdateView={updateView}
           onRemoveView={removeView}
           onToggleSourceInView={toggleSourceInView}
           onAddSource={() => setShowSourcePicker(true)}
+          sourcesNotInAnyView={sourcesNotInAnyView}
         />
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-neutral-800 uppercase tracking-wide flex items-center gap-1">
+          <h3 className="text-xs font-semibold text-neutral-800 uppercase tracking-wide">
             Imagery Sources
-            <Tooltip text="Each source represents an imagery provider (e.g. Sentinel-2, Landsat). Click a source tile to configure it, or drag it into the canvas above to add it to a view." />
           </h3>
         </div>
 
         <div className="flex flex-wrap gap-2 relative">
           {state.sources.map((source, index) => {
             const isEditing = editingSourceId === source.id;
+            const notInAnyView = sourcesNotInAnyView.has(source.id);
 
             return (
-              <div key={source.id} className="flex items-center gap-0.5 shrink-0">
-                {/* Reorder arrows */}
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); moveSource(index, -1); }}
-                    disabled={index === 0}
-                    className="text-neutral-300 hover:text-neutral-600 disabled:opacity-0 transition-all cursor-pointer disabled:cursor-default p-0"
-                    title="Move left"
-                  >
-                    <IconChevronUp className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); moveSource(index, 1); }}
-                    disabled={index === state.sources.length - 1}
-                    className="text-neutral-300 hover:text-neutral-600 disabled:opacity-0 transition-all cursor-pointer disabled:cursor-default p-0"
-                    title="Move right"
-                  >
-                    <IconChevronDown className="w-3 h-3" />
-                  </button>
-                </div>
+              <div key={source.id} className="shrink-0 flex flex-col items-center gap-1">
                 <button
                   ref={(el) => { tileRefs.current[source.id] = el; }}
                   type="button"
                   onClick={() => { setEditingSourceId(isEditing ? null : source.id); setPendingPresetId(null); }}
                   title="Click to configure"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/x-source-id', source.id);
-                    e.dataTransfer.effectAllowed = 'copy';
-                    setDraggingSourceId(source.id);
-                    // Defer editor close so the drag event registers first
-                    requestAnimationFrame(() => setEditingSourceId(null));
-                  }}
-                  onDragEnd={() => setDraggingSourceId(null)}
                   className={`group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
                     px-4 py-3 shrink-0
                     ${isEditing
                       ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-md'
-                      : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
+                      : notInAnyView
+                        ? 'border-red-300 bg-red-50/40 text-neutral-800 hover:border-red-400 hover:bg-red-50'
+                        : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
                     }`}
                 >
+                  {notInAnyView && !isEditing && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white leading-none" title="Not added to any view">
+                      !
+                    </span>
+                  )}
                   <IconSettings className={`absolute inset-0 m-auto w-4 h-4 transition-opacity ${
                     isEditing
                       ? 'opacity-0'
@@ -348,6 +335,9 @@ export const StepImagery = ({
                     {source.name || 'Untitled'}
                   </span>
                 </button>
+                {notInAnyView && (
+                  <span className="text-[9px] text-red-500 font-medium leading-none">Not in any view</span>
+                )}
               </div>
             );
           })}

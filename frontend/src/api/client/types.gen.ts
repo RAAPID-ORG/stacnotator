@@ -385,6 +385,16 @@ export type BodyIngestAnnotationTasksFromCsv = {
 };
 
 /**
+ * Body_ingestAnnotationTasksFromGeojson
+ */
+export type BodyIngestAnnotationTasksFromGeojson = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * BulkUserActionRequest
  *
  * Request body for bulk user operations.
@@ -588,6 +598,10 @@ export type CampaignSettingsCreate = {
      * Embedding Year
      */
     embedding_year?: number | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -622,6 +636,10 @@ export type CampaignSettingsOut = {
      * Guide Markdown
      */
     guide_markdown?: string | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -1349,6 +1367,16 @@ export type UpdateEmbeddingYearRequest = {
      * Embedding Year
      */
     embedding_year?: number | null;
+};
+
+/**
+ * UpdateSampleExtentRequest
+ */
+export type UpdateSampleExtentRequest = {
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -2342,6 +2370,36 @@ export type UpdateCampaignBboxResponses = {
 
 export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
 
+export type UpdateSampleExtentData = {
+    body: UpdateSampleExtentRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/sample-extent';
+};
+
+export type UpdateSampleExtentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateSampleExtentError = UpdateSampleExtentErrors[keyof UpdateSampleExtentErrors];
+
+export type UpdateSampleExtentResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateSampleExtentResponse = UpdateSampleExtentResponses[keyof UpdateSampleExtentResponses];
+
 export type UpdateEmbeddingYearData = {
     body: UpdateEmbeddingYearRequest;
     path: {
@@ -2783,6 +2841,34 @@ export type IngestAnnotationTasksFromCsvErrors = {
 export type IngestAnnotationTasksFromCsvError = IngestAnnotationTasksFromCsvErrors[keyof IngestAnnotationTasksFromCsvErrors];
 
 export type IngestAnnotationTasksFromCsvResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type IngestAnnotationTasksFromGeojsonData = {
+    body: BodyIngestAnnotationTasksFromGeojson;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
+};
+
+export type IngestAnnotationTasksFromGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IngestAnnotationTasksFromGeojsonError = IngestAnnotationTasksFromGeojsonErrors[keyof IngestAnnotationTasksFromGeojsonErrors];
+
+export type IngestAnnotationTasksFromGeojsonResponses = {
     /**
      * Successful Response
      */

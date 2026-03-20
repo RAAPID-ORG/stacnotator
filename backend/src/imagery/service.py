@@ -324,9 +324,31 @@ def _create_views(
         db.add(view)
         db.flush()
 
+        # Build default view layout data for window collections
+        # Windows are placed in rows below the main canvas (which ends at y=36).
+        # With a 60-col grid and w=10, we fit 6 windows per row.
+        window_refs = [r for r in mapped_refs if r.get("show_as_window")]
+        COLS_PER_ROW = 6
+        WINDOW_W = 10
+        WINDOW_H = 11
+        START_Y = 36  # directly below the main canvas
+        view_layout_data = []
+        for w_idx, ref in enumerate(window_refs):
+            row = w_idx // COLS_PER_ROW
+            col = w_idx % COLS_PER_ROW
+            view_layout_data.append(
+                {
+                    "i": str(ref["collection_id"]),
+                    "x": col * WINDOW_W,
+                    "y": START_Y + row * WINDOW_H,
+                    "w": WINDOW_W,
+                    "h": WINDOW_H,
+                }
+            )
+
         # Create default canvas layout for this view
         canvas_layout = CanvasLayout(
-            layout_data=[],
+            layout_data=view_layout_data,
             user_id=None,
             campaign_id=campaign_id,
             view_id=view.id,

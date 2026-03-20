@@ -13,6 +13,41 @@ import { useMapStore } from './map.store';
 import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
 import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
+import type { ImageryViewOut } from '~/api/client';
+
+/** Generate default window layout items for collections in a view that have show_as_window.
+ *  Only used as a fallback when the backend didn't store a view layout (legacy campaigns). */
+function generateFallbackWindowLayout(view: ImageryViewOut): Layout {
+  const windowRefs = view.collection_refs.filter((r) => r.show_as_window);
+  const COLS_PER_ROW = 6;
+  const WINDOW_W = 10;
+  const WINDOW_H = 11;
+  const START_Y = 36; // directly below the main canvas
+  return windowRefs.map((ref, idx) => ({
+    i: String(ref.collection_id),
+    x: (idx % COLS_PER_ROW) * WINDOW_W,
+    y: START_Y + Math.floor(idx / COLS_PER_ROW) * WINDOW_H,
+    w: WINDOW_W,
+    h: WINDOW_H,
+  }));
+}
+
+/** Merge main layout with view layout.
+ *  The backend always creates a view layout, so viewLayout should always exist.
+ *  The fallback generation only covers legacy campaigns created before view layouts were added. */
+function buildMergedLayout(
+  mainLayout: Layout,
+  viewLayout: Layout | undefined,
+  view: ImageryViewOut | undefined,
+): Layout {
+  if (viewLayout) return [...mainLayout, ...viewLayout];
+  // Fallback: view exists but has no stored layout (legacy campaign)
+  if (view) {
+    const generated = generateFallbackWindowLayout(view);
+    return [...mainLayout, ...generated];
+  }
+  return mainLayout;
+}
 
 interface CampaignStore {
   // State
@@ -86,7 +121,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
       const viewLayout = (firstView?.personal_canvas_layout?.layout_data ||
         firstView?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
-      const mergedLayout = viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
+      const mergedLayout = buildMergedLayout(mainLayout, viewLayout, firstView);
 
       // Map initial state for open mode
       let initialMapCenter: [number, number] | null = null;
@@ -145,7 +180,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
     const viewLayout = (view?.personal_canvas_layout?.layout_data ||
       view?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
-    const mergedLayout = viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
+    const mergedLayout = buildMergedLayout(mainLayout, viewLayout, view);
 
     // Find the first show_as_window collection in the new view
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);

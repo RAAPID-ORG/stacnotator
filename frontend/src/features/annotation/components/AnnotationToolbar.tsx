@@ -328,10 +328,10 @@ export const AnnotationToolbar = () => {
     });
     if (!confirmed) return;
 
-    // Merge main and imagery layouts
+    // Merge main + view layouts (view layout is always created by the backend)
     const mainLayout = campaign.default_main_canvas_layout!.layout_data as Layout;
-    const viewLayout = selectedView?.default_canvas_layout?.layout_data as Layout | undefined;
-    const mergedLayout = viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
+    const viewLayout = (selectedView?.default_canvas_layout?.layout_data ?? []) as Layout;
+    const mergedLayout: Layout = [...mainLayout, ...viewLayout];
 
     resetLayout(mergedLayout);
     showAlert('Layout reset to defaults', 'success');

@@ -26,6 +26,7 @@ from src.campaigns.schemas import (
     UpdateCampaignNameRequest,
     UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
+    UpdateSampleExtentRequest,
 )
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute
@@ -196,6 +197,16 @@ def update_campaign_bbox(
 ):
     bbox = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     return service.update_campaign_bbox(db, campaign_id, bbox)
+
+
+@router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)
+def update_sample_extent(
+    campaign_id: int,
+    req: UpdateSampleExtentRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_sample_extent(db, campaign_id, req.sample_extent_meters)
 
 
 @router.patch("/{campaign_id}/embedding-year", response_model=EmbeddingYearUpdateResponse)

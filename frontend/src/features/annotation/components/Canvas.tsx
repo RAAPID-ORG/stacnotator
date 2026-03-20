@@ -13,7 +13,7 @@ import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import {
-  extractLatLonFromWKT,
+  extractCentroidFromWKT,
   convertWKTToGeoJSON,
   type LatLon,
 } from '~/shared/utils/utility';
@@ -174,7 +174,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     if (isOpenMode && timeseriesPoint) {
       return timeseriesPoint;
     }
-    return currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null;
+    return currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpenMode, timeseriesPoint, currentTask?.geometry.geometry]);
 
@@ -306,7 +306,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 latLon={latLon}
                 prefetchCoordinates={visibleTasks
                   .slice(currentTaskIndex + 1, currentTaskIndex + 4)
-                  .map((task) => extractLatLonFromWKT(task.geometry.geometry))
+                  .map((task) => extractCentroidFromWKT(task.geometry.geometry))
                   .filter((coord): coord is LatLon => coord !== null)}
                 probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
               />

@@ -10,7 +10,7 @@ import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { formatTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
-import { extractLatLonFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import Statistics from '~/features/annotation/components/Statistics';
 import { AnnotationDistributionMap } from '~/features/annotation/components/AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
@@ -272,7 +272,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             </thead>
             <tbody>
               {filteredTasks.map((task) => {
-                const latLon = extractLatLonFromWKT(task.geometry.geometry);
+                const latLon = extractCentroidFromWKT(task.geometry.geometry);
                 const taskStatus = task.task_status as TaskStatus;
                 const assignments = task.assignments || [];
                 const annotations = task.annotations || [];

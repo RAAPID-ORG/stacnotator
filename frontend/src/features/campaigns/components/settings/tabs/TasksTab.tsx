@@ -71,8 +71,8 @@ export const TasksTab: React.FC<Props> = ({
                   : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
               }`}
             >
-              <div className="font-medium">Upload CSV</div>
-              <div className="text-xs mt-1 opacity-90">Upload tasks from a CSV file</div>
+              <div className="font-medium">Upload File</div>
+              <div className="text-xs mt-1 opacity-90">Upload tasks from CSV or GeoJSON</div>
             </button>
             <button
               onClick={() => setTaskFile(null)}
@@ -92,14 +92,16 @@ export const TasksTab: React.FC<Props> = ({
 
         {taskFile !== null && (
           <div>
-            <h3 className="text-md font-semibold text-neutral-900 mb-3">Upload Tasks from CSV</h3>
+            <h3 className="text-md font-semibold text-neutral-900 mb-3">Upload Task Locations</h3>
             <p className="text-sm text-neutral-500 mb-4">
-              Upload a CSV file with task locations. Format: <code>id,lon,lat</code>
+              Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
+              <strong>GeoJSON</strong> file with Point / Polygon features.
+              Polygon geometries are preserved and shown as sample extents during annotation.
             </p>
             <div className="flex gap-4 items-center">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.geojson,.json"
                 onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
                 disabled={uploadingTasks}
                 className="flex-1 px-3 py-2 border border-neutral-300 rounded disabled:bg-neutral-50 disabled:cursor-not-allowed"
@@ -138,7 +140,7 @@ export const TasksTab: React.FC<Props> = ({
           />
         ) : (
           <p className="text-sm text-neutral-500">
-            No annotation tasks yet. Upload a CSV file or generate tasks using sampling above.
+            No annotation tasks yet. Upload a file or generate tasks using sampling above.
           </p>
         )}
       </div>

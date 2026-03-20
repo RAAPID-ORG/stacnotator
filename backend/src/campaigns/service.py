@@ -383,6 +383,20 @@ def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
     return campaign
 
 
+def update_sample_extent(
+    db: Session, campaign_id: int, sample_extent_meters: float | None
+) -> Campaign:
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    campaign.settings.sample_extent_meters = sample_extent_meters
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
 def update_embedding_year(
     db: Session,
     campaign_id: int,

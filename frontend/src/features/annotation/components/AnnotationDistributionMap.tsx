@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 
 interface AnnotationDistributionMapProps {
   tasks: AnnotationTaskOut[];
@@ -13,18 +14,6 @@ interface AnnotationDistributionMapProps {
     north: number;
   };
 }
-
-// Helper to parse WKT point geometry
-const parseWKTPoint = (wkt: string): [number, number] | null => {
-  // Handle "POINT (lon lat)" format
-  const match = wkt.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-  if (match) {
-    const lon = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    return [lat, lon]; // Leaflet uses [lat, lon]
-  }
-  return null;
-};
 
 // Generate distinct colors for labels
 const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
@@ -117,8 +106,9 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
     // Add markers for each task
     tasks.forEach((task) => {
-      const coords = parseWKTPoint(task.geometry.geometry);
-      if (!coords) return;
+      const centroid = extractCentroidFromWKT(task.geometry.geometry);
+      if (!centroid) return;
+      const coords: [number, number] = [centroid.lat, centroid.lon];
 
       const annotations = task.annotations || [];
 

@@ -13,7 +13,13 @@ import { useEffect, useRef, memo, useState } from 'react';
 import BaseMap from './BaseMap';
 import type OLMap from 'ol/Map';
 import Overlay from 'ol/Overlay';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
 import { fromLonLat, toLonLat } from 'ol/proj';
+import { Style, Fill, Stroke } from 'ol/style';
+import { GeoJSON as OLGeoJSON } from 'ol/format';
+import type OLFeature from 'ol/Feature';
+import type { Geometry } from 'ol/geom';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
@@ -30,6 +36,7 @@ interface TaskModeMapProps {
     refocusTrigger?: number;
     crosshair?: { lat: number; lon: number; color?: string };
     showCrosshair?: boolean;
+    sampleExtent?: GeoJSON.Polygon | GeoJSON.MultiPolygon | null;
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
     activeLayerId?: string;
     onViewChange?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void;
@@ -49,6 +56,7 @@ const TaskModeMap = ({
     refocusTrigger,
     crosshair,
     showCrosshair = true,
+    sampleExtent,
     onLayersChange,
     activeLayerId: controlledActiveLayerId,
     onViewChange,
@@ -64,6 +72,7 @@ const TaskModeMap = ({
     const crosshairOverlayRef = useRef<Overlay | null>(null);
     const crosshairElRef = useRef<HTMLDivElement | null>(null);
     const probeOverlayRef = useRef<Overlay | null>(null);
+    const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
     const onViewChangeRef = useRef(onViewChange);
@@ -176,6 +185,19 @@ const TaskModeMap = ({
             overlay.setPosition(undefined);
         }
     }, [crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
+
+    // Sample extent polygon overlay
+    useEffect(() => {
+        const source = extentSourceRef.current;
+        if (!source) return;
+        source.clear();
+        if (!sampleExtent) return;
+        const features = new OLGeoJSON().readFeatures(
+            { type: 'Feature', geometry: sampleExtent },
+            { featureProjection: 'EPSG:3857' },
+        );
+        source.addFeatures(features as OLFeature<Geometry>[]);
+    }, [sampleExtent]);
 
     // Probe marker overlay
     useEffect(() => {
@@ -296,6 +318,19 @@ const TaskModeMap = ({
                     });
                     map.addOverlay(probeOverlay);
                     probeOverlayRef.current = probeOverlay;
+
+                    // Sample extent vector layer
+                    const extentSource = new VectorSource<OLFeature<Geometry>>();
+                    extentSourceRef.current = extentSource;
+                    const extentLayer = new VectorLayer({
+                        source: extentSource,
+                        zIndex: 5,
+                        style: new Style({
+                            fill: new Fill({ color: 'rgba(255,255,255,0.08)' }),
+                            stroke: new Stroke({ color: '#ef4444', width: 1.5, lineDash: [6, 4] }),
+                        }),
+                    });
+                    map.addLayer(extentLayer);
                 }}
             />
         </div>

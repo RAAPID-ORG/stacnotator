@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
 import { formatTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 
 interface TaskLocationsMapProps {
   tasks: AnnotationTaskOut[];
@@ -14,18 +15,6 @@ interface TaskLocationsMapProps {
     north: number;
   };
 }
-
-// Helper to parse WKT point geometry
-const parseWKTPoint = (wkt: string): [number, number] | null => {
-  // Handle "POINT (lon lat)" format
-  const match = wkt.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-  if (match) {
-    const lon = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    return [lat, lon]; // Leaflet uses [lat, lon]
-  }
-  return null;
-};
 
 export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox }) => {
   const mapRef = useRef<L.Map | null>(null);
@@ -88,8 +77,9 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
     // Add markers for each task
     tasks.forEach((task) => {
-      const coords = parseWKTPoint(task.geometry.geometry);
-      if (!coords) return;
+      const centroid = extractCentroidFromWKT(task.geometry.geometry);
+      if (!centroid) return;
+      const coords: [number, number] = [centroid.lat, centroid.lon];
 
       const taskStatus = task.task_status as TaskStatus;
       const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';

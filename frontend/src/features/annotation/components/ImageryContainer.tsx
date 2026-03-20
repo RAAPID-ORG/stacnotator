@@ -3,7 +3,7 @@ import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { extractLatLonFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT, convertWKTToGeoJSON, computeExtentGeoJSON } from '~/shared/utils/utility';
 
 interface ImageryContainerProps {
   collectionId: number;
@@ -26,6 +26,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const currentMapCenter = useMapStore((s) => s.currentMapCenter);
   const currentMapZoom = useMapStore((s) => s.currentMapZoom);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
+  const showCrosshair = useMapStore((s) => s.showCrosshair);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
@@ -66,9 +67,9 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   )?.tile_url ?? '';
   const loading = !activeSlice || !tileUrl;
 
-  // Memoize latLon extraction
+  // Memoize latLon extraction (supports all geometry types via centroid)
   const latLon = useMemo(
-    () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
+    () => (currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentTask?.geometry.geometry]
   );
@@ -99,9 +100,30 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     return source?.default_zoom ?? 10;
   }, [currentMapZoom, source?.default_zoom, isActiveCollection, viewSyncEnabled]);
 
-  const crosshair = !isOpenMode && latLon
+  // Detect whether the current task has a polygon geometry
+  const isPolygonTask = useMemo(() => {
+    if (isOpenMode || !currentTask) return false;
+    const geojson = convertWKTToGeoJSON(currentTask.geometry.geometry);
+    return !!geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTask?.geometry.geometry, isOpenMode]);
+
+  const crosshair = !isOpenMode && latLon && !isPolygonTask
     ? { lat: latLon.lat, lon: latLon.lon, color: source?.crosshair_hex6 ?? undefined }
     : undefined;
+
+  // Compute sample extent GeoJSON for the current task
+  const sampleExtent = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
+    if (isOpenMode || !currentTask) return null;
+    const wkt = currentTask.geometry.geometry;
+    const geojson = convertWKTToGeoJSON(wkt);
+    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon')) return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+    if (latLon && campaign?.settings.sample_extent_meters) {
+      return computeExtentGeoJSON(latLon.lat, latLon.lon, campaign.settings.sample_extent_meters);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTask?.geometry.geometry, isOpenMode, campaign?.settings.sample_extent_meters, latLon?.lat, latLon?.lon]);
 
   // True once every slice for this collection has been confirmed empty
   const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
@@ -265,10 +287,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               zoom={zoom}
               tileUrl={tileUrl}
               crosshair={crosshair}
-              showCrosshair={!isOpenMode}
+              showCrosshair={!isOpenMode && showCrosshair}
               refocusTrigger={refocusTrigger}
               detectionKey={currentTaskIndex}
               onEmptyTiles={handleEmptyTiles}
+              sampleExtent={showCrosshair ? sampleExtent : null}
             />
           ) : (
             !loading && (

@@ -3,6 +3,33 @@ export interface LatLon {
   lon: number;
 }
 
+/**
+ * Compute a square extent polygon (GeoJSON) around a lat/lon point given a size in meters.
+ * Returns a closed ring polygon in WGS84 coordinates.
+ */
+export const computeExtentGeoJSON = (
+  lat: number,
+  lon: number,
+  sizeMeters: number,
+): GeoJSON.Polygon => {
+  const half = sizeMeters / 2;
+  // Approximate degree offsets from meters
+  const dLat = half / 111_320;
+  const dLon = half / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [lon - dLon, lat - dLat],
+        [lon + dLon, lat - dLat],
+        [lon + dLon, lat + dLat],
+        [lon - dLon, lat + dLat],
+        [lon - dLon, lat - dLat],
+      ],
+    ],
+  };
+};
+
 export interface TimeSlice {
   index: number;
   startDate: string;
@@ -432,6 +459,26 @@ export const convertWKTToGeoJSON = (wkt: string): GeoJSON.Geometry | null => {
     };
   }
 
+  // Parse MULTIPOLYGON
+  const multiPolyMatch = normalized.match(/^MULTIPOLYGON\s*\(\(\((.+)\)\)\)$/);
+  if (multiPolyMatch) {
+    const polygonsRaw = multiPolyMatch[1].split(/\)\)\s*,\s*\(\(/);
+    const polygons = polygonsRaw.map((polyStr) => {
+      const rings = polyStr.split(/\)\s*,\s*\(/).map((ring) => {
+        const cleanRing = ring.replace(/^\(/, '').replace(/\)$/, '');
+        return cleanRing.split(',').map((pair) => {
+          const [lon, lat] = pair.trim().split(/\s+/);
+          return [parseFloat(lon), parseFloat(lat)];
+        });
+      });
+      return rings;
+    });
+    return {
+      type: 'MultiPolygon',
+      coordinates: polygons,
+    };
+  }
+
   return null;
 };
 
@@ -472,6 +519,22 @@ export const extractCentroidFromWKT = (wkt: string): LatLon | null => {
   if (polyMatch) {
     const pairs = polyMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));
     // Drop last vertex if it duplicates the first (closed ring)
+    const ring =
+      pairs.length > 1 &&
+      pairs[0][0] === pairs[pairs.length - 1][0] &&
+      pairs[0][1] === pairs[pairs.length - 1][1]
+        ? pairs.slice(0, -1)
+        : pairs;
+    if (ring.length === 0) return null;
+    const sumLon = ring.reduce((s, p) => s + p[0], 0);
+    const sumLat = ring.reduce((s, p) => s + p[1], 0);
+    return { lon: sumLon / ring.length, lat: sumLat / ring.length };
+  }
+
+  // MULTIPOLYGON - centroid of the first polygon's exterior ring
+  const multiPolyMatch = normalized.match(/^MULTIPOLYGON\s*\(\(\((.+?)\)/);
+  if (multiPolyMatch) {
+    const pairs = multiPolyMatch[1].split(',').map((p) => p.trim().split(/\s+/).map(Number));
     const ring =
       pairs.length > 1 &&
       pairs[0][0] === pairs[pairs.length - 1][0] &&

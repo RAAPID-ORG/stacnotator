@@ -25,6 +25,7 @@ import {
   getCampaign,
   getCampaignUsers,
   ingestAnnotationTasksFromCsv,
+  ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
   unassignUserFromTask,
   assignReviewers,
@@ -287,10 +288,19 @@ export const CampaignSettingsPage = () => {
     if (!taskFile) return;
     try {
       setUploadingTasks(true);
-      const { data: _data } = await ingestAnnotationTasksFromCsv({
-        path: { campaign_id: numericCampaignId },
-        body: { file: taskFile },
-      });
+      const name = taskFile.name.toLowerCase();
+
+      if (name.endsWith('.geojson') || name.endsWith('.json')) {
+        await ingestAnnotationTasksFromGeojson({
+          path: { campaign_id: numericCampaignId },
+          body: { file: taskFile },
+        });
+      } else {
+        await ingestAnnotationTasksFromCsv({
+          path: { campaign_id: numericCampaignId },
+          body: { file: taskFile },
+        });
+      }
 
       setTaskFile(null);
       showAlert('Annotation task(s) uploaded successfully', 'success');

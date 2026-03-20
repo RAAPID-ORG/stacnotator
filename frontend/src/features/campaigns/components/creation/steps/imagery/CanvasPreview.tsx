@@ -1,20 +1,21 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ImagerySource, ImageryView, Basemap, ImagerySlice } from './types';
 import { resolveCollection, sliceDateRange } from './types';
-import { IconPlus, IconEyeSlash, IconEye, IconTrash, IconLayers } from '~/shared/ui/Icons';
+import { IconPlus, IconEyeSlash, IconEye, IconTrash, IconLayers, IconDragHandle } from '~/shared/ui/Icons';
 
 interface CanvasPreviewProps {
   sources: ImagerySource[];
   views: ImageryView[];
   basemaps: Basemap[];
   activeViewId: string | null;
-  draggingSourceId: string | null;
   onActiveViewChange: (id: string) => void;
   onAddView: () => void;
   onUpdateView: (id: string, updates: Partial<ImageryView>) => void;
   onRemoveView: (id: string) => void;
   onToggleSourceInView: (sourceId: string) => void;
   onAddSource?: () => void;
+  /** Sources that are not assigned to ANY view (across all views) */
+  sourcesNotInAnyView?: Set<string>;
   className?: string;
 }
 
@@ -107,41 +108,23 @@ export const CanvasPreview = ({
   views,
   basemaps,
   activeViewId,
-  draggingSourceId,
   onActiveViewChange,
   onAddView,
   onUpdateView,
   onRemoveView,
   onToggleSourceInView,
   onAddSource,
+  sourcesNotInAnyView,
   className = '',
 }: CanvasPreviewProps) => {
   const activeView = views.find((v) => v.id === activeViewId) ?? views[0] ?? null;
   const [editingViewName, setEditingViewName] = useState<string | null>(null);
-  const [dragOverSources, setDragOverSources] = useState(false);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [selectedCollectionIndex, setSelectedCollectionIndex] = useState(0);
   const [selectedSliceIndex, setSelectedSliceIndex] = useState(0);
   const [selectedVizIndex, setSelectedVizIndex] = useState(0);
-  const dragCounter = useRef(0);
-  const sourcesBoxRef = useRef<HTMLDivElement>(null);
-
-  /* Close source picker when clicking outside the sources box */
-  useEffect(() => {
-    if (!showSourcePicker) return;
-    const handler = (e: MouseEvent) => {
-      if (sourcesBoxRef.current && !sourcesBoxRef.current.contains(e.target as Node)) {
-        setShowSourcePicker(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showSourcePicker]);
-
-  /* Determine if the source being dragged can be dropped (has collections) */
-  const dragSource = draggingSourceId ? sources.find((s) => s.id === draggingSourceId) ?? null : null;
-  const dragPermitted = dragSource ? dragSource.collections.length > 0 : true;
+  const [addSourceOpen, setAddSourceOpen] = useState(false);
+  const addSourceRef = useRef<HTMLDivElement>(null);
 
   /* Resolve all collections for the active view -preserving original order */
   const allRefs = activeView?.collectionRefs ?? [];
@@ -157,11 +140,16 @@ export const CanvasPreview = ({
   const resolvedWindows = allResolved.filter((rw) => rw.ref.showAsWindow);
   const hiddenWindows = allResolved.filter((rw) => !rw.ref.showAsWindow);
 
-  /* Which sources are assigned to this view */
+  /* Which sources are assigned to this view - ordered by first appearance in collectionRefs */
   const assignedSourceIds = new Set(allRefs.map((r) => r.sourceId));
-  const assignedSources = sources.filter((s) => assignedSourceIds.has(s.id));
+  const orderedAssignedSourceIds: string[] = [];
+  for (const ref of allRefs) {
+    if (!orderedAssignedSourceIds.includes(ref.sourceId)) orderedAssignedSourceIds.push(ref.sourceId);
+  }
+  const assignedSources = orderedAssignedSourceIds
+    .map((id) => sources.find((s) => s.id === id))
+    .filter(Boolean) as ImagerySource[];
   const unassignedSources = sources.filter((s) => !assignedSourceIds.has(s.id));
-  const dragAlreadyAssigned = dragSource ? assignedSourceIds.has(dragSource.id) : false;
 
   /* Selected source and its collections in this view */
   const effectiveSelectedSourceId = selectedSourceId && assignedSourceIds.has(selectedSourceId)
@@ -202,45 +190,27 @@ export const CanvasPreview = ({
     });
   };
 
-  /* Drag-and-drop handlers -use counter to handle nested element enter/leave */
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/x-source-id')) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-    }
-  }, []);
+  /** Reorder sources within this view via drag-and-drop */
+  const dragSourceIdx = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/x-source-id')) {
-      e.preventDefault();
-      dragCounter.current += 1;
-      if (dragCounter.current === 1) {
-        setDragOverSources(true);
-      }
+  const reorderSourceInView = useCallback((fromIdx: number, toIdx: number) => {
+    if (!activeView || fromIdx === toIdx) return;
+    // Get unique source IDs in the order they first appear in collectionRefs
+    const ordered: string[] = [];
+    for (const ref of activeView.collectionRefs) {
+      if (!ordered.includes(ref.sourceId)) ordered.push(ref.sourceId);
     }
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    dragCounter.current -= 1;
-    if (dragCounter.current <= 0) {
-      dragCounter.current = 0;
-      setDragOverSources(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current = 0;
-    setDragOverSources(false);
-    const sourceId = e.dataTransfer.getData('application/x-source-id');
-    if (sourceId) {
-      const source = sources.find((s) => s.id === sourceId);
-      if (source && source.collections.length > 0) {
-        onToggleSourceInView(sourceId);
-        setSelectedSourceId(sourceId);
-      }
-    }
-  }, [onToggleSourceInView, sources]);
+    if (fromIdx < 0 || toIdx < 0 || fromIdx >= ordered.length || toIdx >= ordered.length) return;
+    // Move element
+    const [moved] = ordered.splice(fromIdx, 1);
+    ordered.splice(toIdx, 0, moved);
+    // Rebuild collectionRefs in new source order
+    const reordered = ordered.flatMap((sid) =>
+      activeView.collectionRefs.filter((r) => r.sourceId === sid),
+    );
+    onUpdateView(activeView.id, { collectionRefs: reordered });
+  }, [activeView, onUpdateView]);
 
   return (
     <div className={`rounded-lg bg-neutral-100 border border-neutral-200 overflow-hidden ${className}`}>
@@ -316,155 +286,143 @@ export const CanvasPreview = ({
       <div className="p-3">
         <div className="flex gap-1.5" style={{ minHeight: 280 }}>
 
-          {/* Sources box (droppable) */}
+          {/* Sources box */}
           <div
-            ref={sourcesBoxRef}
-            className={`w-[110px] shrink-0 bg-white rounded border overflow-hidden flex flex-col transition-colors ${
-              dragOverSources
-                ? (dragPermitted && !dragAlreadyAssigned
-                    ? 'border-brand-500 bg-brand-50/30 ring-2 ring-brand-300/40'
-                    : 'border-orange-400 bg-orange-50/30 ring-2 ring-orange-200/40')
-                : assignedSources.length === 0 && sources.length > 0
-                  ? 'border-dashed border-neutral-300'
-                  : 'border-neutral-200'
+            className={`w-[140px] shrink-0 bg-white rounded border overflow-hidden flex flex-col ${
+              assignedSources.length === 0 && sources.length > 0
+                ? 'border-amber-300 bg-amber-50/30'
+                : 'border-neutral-200'
             }`}
-            onDragOver={handleDragOver}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
           >
-            {/* Sources section */}
+            {/* Sources section header */}
             <div className="px-2 py-1 border-b border-neutral-100">
               <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Sources</span>
             </div>
             <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
-              {/* Drag feedback overlay -not permitted / already assigned */}
-              {dragOverSources && (!dragPermitted || dragAlreadyAssigned) && (
-                <div className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-md border border-dashed border-orange-300 bg-orange-50/60 mb-1">
-                  <svg className="w-4 h-4 text-orange-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="10" cy="10" r="8" />
-                    <line x1="10" y1="6" x2="10" y2="10" />
-                    <circle cx="10" cy="13.5" r="0.5" fill="currentColor" stroke="none" />
-                  </svg>
-                  <span className="text-[10px] text-orange-700 text-center leading-tight px-1 font-medium">
-                    {dragAlreadyAssigned ? 'Already added' : 'Add collections to this source first'}
+              {assignedSources.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-1.5 py-4 px-2">
+                  <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center">
+                    <IconPlus className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
+                  <span className="text-[10px] text-amber-600 text-center leading-tight font-medium">
+                    Add sources to this view
+                  </span>
+                  <span className="text-[9px] text-neutral-400 text-center leading-tight">
+                    Sources must be assigned to a view to appear in the annotation canvas
                   </span>
                 </div>
               )}
 
-              {/* Drag feedback -permitted */}
-              {dragOverSources && dragPermitted && !dragAlreadyAssigned && (
-                <div className="flex flex-col items-center justify-center gap-1 py-3 rounded-md border-2 border-dashed border-brand-400 bg-brand-50/50 mb-1">
-                  <IconPlus className="w-4 h-4 text-brand-500" />
-                  <span className="text-[10px] text-brand-600 text-center leading-tight px-1 font-medium">
-                    Drop to add
-                  </span>
-                </div>
-              )}
-
-              {!dragOverSources && assignedSources.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (sources.length === 0) {
-                      // No sources exist -create a new one
-                      onAddSource?.();
-                    } else if (unassignedSources.length > 0) {
-                      // Sources exist but none assigned -show picker
-                      setShowSourcePicker(!showSourcePicker);
-                    }
-                  }}
-                  className="w-full flex flex-col items-center justify-center gap-1 py-4 rounded-md border border-dashed border-neutral-200 hover:border-brand-300 hover:bg-brand-50/30 transition-colors cursor-pointer"
-                >
-                  <IconPlus className="w-3.5 h-3.5 text-neutral-300" />
-                  <span className="text-[10px] text-center leading-tight px-1 text-neutral-400">
-                    {sources.length === 0
-                      ? 'Create an imagery source first'
-                      : 'Drag or add sources'}
-                  </span>
-                </button>
-              )}
-
-              {assignedSources.map((source) => {
+              {assignedSources.map((source, idx) => {
                 const isSelected = source.id === effectiveSelectedSourceId;
                 return (
-                  <button
+                  <div
                     key={source.id}
-                    type="button"
-                    onClick={() => { setSelectedSourceId(source.id); setSelectedCollectionIndex(0); setSelectedSliceIndex(0); }}
-                    className={`group w-full text-left px-1.5 py-1 rounded text-[11px] leading-tight cursor-pointer transition-colors truncate flex items-center gap-1 ${
-                      isSelected
-                        ? 'bg-brand-500 text-white font-medium'
-                        : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
-                    title={source.name || 'Untitled'}
+                    draggable
+                    onDragStart={() => { dragSourceIdx.current = idx; }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                    onDrop={() => {
+                      if (dragSourceIdx.current !== null) reorderSourceInView(dragSourceIdx.current, idx);
+                      dragSourceIdx.current = null;
+                      setDragOverIdx(null);
+                    }}
+                    onDragEnd={() => { dragSourceIdx.current = null; setDragOverIdx(null); }}
+                    className={`group flex items-center gap-0.5 rounded transition-colors cursor-grab active:cursor-grabbing ${
+                      isSelected ? 'bg-brand-500 text-white' : 'text-neutral-600 hover:bg-neutral-100'
+                    } ${dragOverIdx === idx ? 'ring-1 ring-brand-400 ring-offset-1' : ''}`}
                   >
-                    <IconLayers className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white/70' : 'text-neutral-400'}`} />
-                    <span className="truncate">{source.name || 'Untitled'}</span>
+                    {/* Drag grip */}
+                    <span className={`shrink-0 px-0.5 ${isSelected ? 'text-white/40' : 'text-neutral-300'}`}>
+                      <IconDragHandle className="w-2.5 h-2.5" />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedSourceId(source.id); setSelectedCollectionIndex(0); setSelectedSliceIndex(0); }}
+                      className={`flex-1 min-w-0 text-left px-1 py-1 text-[11px] leading-tight cursor-pointer flex items-center gap-1 ${
+                        isSelected ? 'font-medium' : ''
+                      }`}
+                      title={source.name || 'Untitled'}
+                    >
+                      <IconLayers className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white/70' : 'text-neutral-400'}`} />
+                      <span className="break-words whitespace-normal leading-snug">{source.name || 'Untitled'}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onToggleSourceInView(source.id); }}
-                      className={`ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                      className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 ${
                         isSelected ? 'text-white/50 hover:text-white' : 'text-neutral-300 hover:text-red-500'
                       }`}
                       title="Remove from view"
                     >
                       <IconTrash className="w-2.5 h-2.5" />
                     </button>
-                  </button>
+                  </div>
                 );
               })}
 
-              {/* Add source picker -allows selecting from unassigned sources */}
-              {!dragOverSources && (
-                <div className="relative mt-0.5">
-                  {/* Drag hint when sources exist but some aren't assigned */}
-                  {!showSourcePicker && unassignedSources.length > 0 && (
-                    <div className="flex items-center justify-center gap-1 py-1.5 rounded border border-dashed border-neutral-200 text-neutral-400 mb-0.5">
-                      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10 3v14M3 10h14" />
-                      </svg>
-                      <span className="text-[9px]">Drag source tiles here</span>
-                    </div>
-                  )}
-                  {showSourcePicker && (
-                    <div
-                      className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-neutral-200 rounded-md shadow-lg z-30 overflow-hidden"
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {unassignedSources.length === 0 ? (
-                        <div className="px-2 py-2 text-[10px] text-neutral-500 text-center">
+              {/* Add source button + custom dropdown */}
+              <div className="mt-0.5 relative" ref={addSourceRef}>
+                <button
+                  type="button"
+                  onClick={() => setAddSourceOpen((v) => !v)}
+                  className="w-full flex items-center justify-center gap-1 px-1.5 py-1.5 text-[11px] text-neutral-500 rounded border border-dashed border-neutral-200 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50/40 transition-colors cursor-pointer"
+                >
+                  <IconPlus className="w-3 h-3" />
+                  <span>Add source</span>
+                </button>
+                {addSourceOpen && (
+                  <>
+                    {/* Backdrop to close */}
+                    <div className="fixed inset-0 z-30" onClick={() => setAddSourceOpen(false)} />
+                    <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-lg shadow-lg border border-neutral-200 overflow-hidden">
+                      {unassignedSources.length > 0 && (
+                        <div className="py-1">
+                          <div className="px-2.5 py-1 text-[9px] font-semibold text-neutral-400 uppercase tracking-wider">Available</div>
+                          {unassignedSources.map((src) => {
+                            const hasCollections = src.collections.length > 0;
+                            return (
+                              <button
+                                key={src.id}
+                                type="button"
+                                disabled={!hasCollections}
+                                onClick={() => {
+                                  onToggleSourceInView(src.id);
+                                  setSelectedSourceId(src.id);
+                                  setAddSourceOpen(false);
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 text-[11px] flex items-center gap-1.5 transition-colors ${
+                                  hasCollections
+                                    ? 'text-neutral-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer'
+                                    : 'text-neutral-300 cursor-not-allowed'
+                                }`}
+                              >
+                                <IconLayers className={`w-3 h-3 shrink-0 ${hasCollections ? 'text-neutral-400' : 'text-neutral-200'}`} />
+                                <span className="truncate">{src.name || 'Untitled'}</span>
+                                {!hasCollections && <span className="text-[9px] text-neutral-300 ml-auto shrink-0">no collections</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {unassignedSources.length === 0 && sources.length > 0 && (
+                        <div className="px-2.5 py-2.5 text-[11px] text-neutral-400 text-center">
                           All sources already added
                         </div>
-                      ) : (
-                        unassignedSources.map((src) => {
-                          const hasCollections = src.collections.length > 0;
-                          return (
-                            <button
-                              key={src.id}
-                              type="button"
-                              disabled={!hasCollections}
-                              onClick={() => {
-                                onToggleSourceInView(src.id);
-                                setSelectedSourceId(src.id);
-                                setShowSourcePicker(false);
-                              }}
-                              className="w-full text-left px-2 py-1.5 text-[11px] hover:bg-brand-50 cursor-pointer transition-colors flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
-                              title={hasCollections ? `Add "${src.name || 'Untitled'}" to view` : 'No collections -configure source first'}
-                            >
-                              <IconLayers className="w-3 h-3 text-neutral-400 shrink-0" />
-                              <span className="truncate font-medium text-neutral-700">{src.name || 'Untitled'}</span>
-                              {!hasCollections && (
-                                <span className="text-[9px] text-orange-500 shrink-0 ml-auto">No collections</span>
-                              )}
-                            </button>
-                          );
-                        })
                       )}
+                      <div className="border-t border-neutral-100">
+                        <button
+                          type="button"
+                          onClick={() => { onAddSource?.(); setAddSourceOpen(false); }}
+                          className="w-full text-left px-2.5 py-2 text-[11px] text-brand-600 hover:bg-brand-50 transition-colors cursor-pointer flex items-center gap-1.5 font-medium"
+                        >
+                          <IconPlus className="w-3 h-3" />
+                          <span>Create new source…</span>
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Basemaps section (bottom of sources box) */}
@@ -615,6 +573,18 @@ export const CanvasPreview = ({
               )}
             </div>
 
+            {/* Warning when too many visible windows */}
+            {resolvedWindows.length > 12 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-amber-300 bg-amber-50 text-amber-800 text-[11px]">
+                <svg className="w-3.5 h-3.5 shrink-0 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+                </svg>
+                <span>
+                  <strong>{resolvedWindows.length}</strong> visible windows may slow performance. Consider hiding some or splitting across views.
+                </span>
+              </div>
+            )}
+
             {/* Small windows grid -always shows all visible windows regardless of selected source */}
             {resolvedWindows.length > 0 && (
               <div className="grid grid-cols-4 gap-1.5">
@@ -657,6 +627,23 @@ export const CanvasPreview = ({
             )}
           </div>
         </div>
+
+        {/* Warning: sources not assigned to any view */}
+        {sourcesNotInAnyView && sourcesNotInAnyView.size > 0 && (
+          <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded border border-red-200 bg-red-50/60">
+            <svg className="w-3.5 h-3.5 shrink-0 text-red-400 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+            </svg>
+            <div className="text-[11px] text-red-700 leading-relaxed">
+              <span className="font-semibold">{sourcesNotInAnyView.size === 1 ? '1 source' : `${sourcesNotInAnyView.size} sources`} not in any view:</span>{' '}
+              {sources
+                .filter((s) => sourcesNotInAnyView.has(s.id))
+                .map((s) => s.name || 'Untitled')
+                .join(', ')}
+              <span className="text-red-500"> - add {sourcesNotInAnyView.size === 1 ? 'it' : 'them'} to a view above or {sourcesNotInAnyView.size === 1 ? 'it' : 'they'} won't appear for annotators.</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

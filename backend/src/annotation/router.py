@@ -154,6 +154,28 @@ async def ingest_annotation_tasks_from_csv(
     service.create_annotation_tasks_from_csv(db, campaign.id, contents)
 
 
+@router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
+async def ingest_annotation_tasks_from_geojson(
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    file: UploadFile = File(...),
+):
+    """
+    Ingest annotation tasks from a GeoJSON file.
+
+    Each feature becomes one annotation task. Supported geometry types:
+    Point, Polygon, MultiPolygon. Polygon geometries are stored as-is and
+    displayed as the sample extent during annotation.
+    """
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".geojson") or fname.endswith(".json")):
+        raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
+
+    contents = await file.read()
+    num_created = service.create_annotation_tasks_from_geojson(db, campaign.id, contents)
+    return {"num_tasks_created": num_created}
+
+
 # ============================================================================
 # Open-Mode Annotation
 # ============================================================================

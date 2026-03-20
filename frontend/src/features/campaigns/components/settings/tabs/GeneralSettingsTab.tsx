@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { CampaignOut, CampaignSettingsCreate } from '~/api/client';
-import { updateCampaignGuide, updateCampaignVisibility, updateEmbeddingYear } from '~/api/client';
+import { updateCampaignGuide, updateCampaignVisibility, updateEmbeddingYear, updateSampleExtent } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -44,6 +44,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const [savingGuide, setSavingGuide] = useState(false);
   const guideChanged = guideMarkdown !== (campaign.settings.guide_markdown ?? '');
 
+  // Sample extent local state
+  const [sampleExtent, setSampleExtent] = useState<string>(
+    campaign.settings.sample_extent_meters != null ? String(campaign.settings.sample_extent_meters) : ''
+  );
+  const [savingExtent, setSavingExtent] = useState(false);
+  const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
+  const extentValid = parsedExtent === null || (Number.isFinite(parsedExtent) && parsedExtent > 0);
+  const extentChanged = parsedExtent !== (campaign.settings.sample_extent_meters ?? null);
   const handleSaveGuide = async () => {
     if (!guideChanged) return;
     try {
@@ -64,6 +72,29 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       showAlert(msg, 'error');
     } finally {
       setSavingGuide(false);
+    }
+  };
+
+  const handleSaveExtent = async () => {
+    if (!extentChanged || !extentValid) return;
+    try {
+      setSavingExtent(true);
+      await updateSampleExtent({
+        path: { campaign_id: campaign.id },
+        body: { sample_extent_meters: parsedExtent },
+      });
+      if (onCampaignUpdated) {
+        onCampaignUpdated({
+          ...campaign,
+          settings: { ...campaign.settings, sample_extent_meters: parsedExtent },
+        });
+      }
+      showAlert('Sample extent updated', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update sample extent';
+      showAlert(msg, 'error');
+    } finally {
+      setSavingExtent(false);
     }
   };
 
@@ -186,6 +217,45 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           Save Settings
         </button>
       </div>
+
+      {/* Sample Extent - task mode only */}
+      {campaign.mode === 'tasks' && (
+        <div className="bg-white rounded-lg border border-neutral-300 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-1">Sample Extent</h2>
+          <p className="text-sm text-neutral-500 mb-4">
+            Size of the area around each task centroid that should be annotated.
+            This is shown as a rectangle on the map during annotation.
+            Leave empty if tasks were uploaded as polygons or if no extent overlay is needed.
+          </p>
+          <div className="flex gap-4 items-end">
+            <div className="w-56">
+              <label className="block text-sm font-medium text-neutral-700 mb-2">Extent (meters)</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={sampleExtent}
+                onChange={(e) => setSampleExtent(e.target.value)}
+                disabled={savingExtent}
+                placeholder="e.g. 100"
+                className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed ${
+                  !extentValid ? 'border-red-400' : 'border-neutral-300'
+                }`}
+              />
+              {!extentValid && (
+                <p className="mt-1 text-xs text-red-500">Must be a positive number</p>
+              )}
+            </div>
+            <button
+              onClick={handleSaveExtent}
+              disabled={savingExtent || !extentChanged || !extentValid}
+              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {savingExtent ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Annotation Labels</h2>

@@ -9,7 +9,9 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import {
-  extractLatLonFromWKT,
+  extractCentroidFromWKT,
+  computeExtentGeoJSON,
+  convertWKTToGeoJSON,
 } from '~/shared/utils/utility';
 import { extendLabelsWithMetadata } from './ControlsOpenMode';
 
@@ -111,7 +113,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   // Initial center
   const latLon = useMemo(
-    () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
+    () => (currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentTask?.geometry.geometry]
   );
@@ -129,11 +131,34 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latLon?.lat, latLon?.lon, campaign?.mode]);
 
+  // Detect whether the current task has a polygon geometry (uploaded from GeoJSON)
+  const isPolygonTask = useMemo(() => {
+    if (!currentTask) return false;
+    const geojson = convertWKTToGeoJSON(currentTask.geometry.geometry);
+    return !!geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTask?.geometry.geometry]);
+
   const crosshair = useMemo(() => {
-    if (campaign?.mode !== 'tasks' || !latLon) return undefined;
+    if (campaign?.mode !== 'tasks' || !latLon || isPolygonTask) return undefined;
     return { lat: latLon.lat, lon: latLon.lon, color: activeSource?.crosshair_hex6 ?? undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latLon?.lat, latLon?.lon, campaign?.mode, activeSource?.crosshair_hex6]);
+  }, [latLon?.lat, latLon?.lon, campaign?.mode, activeSource?.crosshair_hex6, isPolygonTask]);
+
+  // Compute sample extent GeoJSON for the current task
+  const sampleExtent = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
+    if (campaign?.mode !== 'tasks' || !currentTask) return null;
+    const wkt = currentTask.geometry.geometry;
+    const geojson = convertWKTToGeoJSON(wkt);
+    // If the task geometry is already a polygon/multipolygon, use it directly
+    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon')) return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+    // If it's a point with sample_extent_meters, compute a square extent
+    if (latLon && campaign.settings.sample_extent_meters) {
+      return computeExtentGeoJSON(latLon.lat, latLon.lon, campaign.settings.sample_extent_meters);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTask?.geometry.geometry, campaign?.mode, campaign?.settings.sample_extent_meters, latLon?.lat, latLon?.lon]);
 
   const initialZoom = activeSource?.default_zoom ?? 10;
 
@@ -435,6 +460,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             refocusTrigger={refocusTrigger}
             crosshair={crosshair}
             showCrosshair={showCrosshair}
+            sampleExtent={showCrosshair ? sampleExtent : null}
             activeLayerId={activeLayerId}
             onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
             onViewChange={(newCenter, zoom, bounds) => { setMapCenter(newCenter); setMapZoom(zoom); setMapBounds(bounds); }}

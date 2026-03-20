@@ -76,7 +76,7 @@ const MapController = ({
     // Check if the viewport is already fully visible in the current minimap view
     const currentBounds = map.getBounds();
     if (currentBounds.contains(viewportBounds)) {
-      // Viewport is visible — but check it's not too tiny (zoom out too far).
+      // Viewport is visible - but check it's not too tiny (zoom out too far).
       // If viewport area is less than ~5% of minimap area, we should re-fit.
       const vArea = (vNorth - vSouth) * (vEast - vWest);
       const mArea = (currentBounds.getNorth() - currentBounds.getSouth()) *

@@ -1,12 +1,13 @@
 import io
+import json
 from uuid import UUID
 
 import numpy as np
 import pandas as pd
 from fastapi import HTTPException
 from geoalchemy2.shape import to_shape
-from shapely.geometry import mapping
-from sqlalchemy import insert, select
+from shapely.geometry import mapping, shape
+from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.constants import (
@@ -235,6 +236,125 @@ def create_annotation_tasks_from_csv(
 
         db.execute(insert(AnnotationTask), task_records)
         db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Import failed. No geometries or task items were created.",
+        ) from None
+
+
+def create_annotation_tasks_from_geojson(
+    db: Session,
+    campaign_id: int,
+    contents: bytes,
+) -> int:
+    """
+    Create annotation tasks from an uploaded GeoJSON file.
+
+    Each Feature becomes one task. Point features store a POINT geometry;
+    Polygon / MultiPolygon features store the full polygon geometry so it
+    can be used as sample extent during annotation.
+
+    Args:
+        db: Database session
+        campaign_id: ID of campaign to create tasks for
+        contents: GeoJSON file contents as bytes
+
+    Returns:
+        Number of tasks created
+
+    Raises:
+        HTTPException: On invalid input or DB failure
+    """
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024:.0f}MB",
+        )
+
+    try:
+        geojson = json.loads(contents.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid GeoJSON file") from exc
+
+    # Normalise into a flat list of features
+    if geojson.get("type") == "FeatureCollection":
+        features = geojson.get("features", [])
+    elif geojson.get("type") == "Feature":
+        features = [geojson]
+    elif geojson.get("type") in ("Point", "Polygon", "MultiPolygon", "LineString"):
+        features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported GeoJSON type")
+
+    if not features:
+        raise HTTPException(status_code=400, detail="GeoJSON contains no features")
+
+    allowed_types = {"Point", "Polygon", "MultiPolygon"}
+    geometry_records: list[dict] = []
+    raw_data: list[dict] = []
+
+    for idx, feat in enumerate(features):
+        geom_json = feat.get("geometry")
+        if not geom_json:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx} has no geometry",
+            )
+        geom_type = geom_json.get("type")
+        if geom_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: unsupported geometry type '{geom_type}'. "
+                f"Allowed: {sorted(allowed_types)}",
+            )
+
+        # Validate with Shapely
+        try:
+            geom = shape(geom_json)
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+            if geom.is_empty:
+                raise ValueError("empty geometry")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: invalid geometry – {exc}",
+            ) from exc
+
+        geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
+        raw_data.append(feat.get("properties") or {})
+
+    # Get the current max annotation_number for this campaign
+    max_num = db.scalar(
+        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
+            AnnotationTask.campaign_id == campaign_id
+        )
+    )
+
+    try:
+        geo_result = db.execute(
+            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
+            geometry_records,
+        )
+        geometry_ids = [row.id for row in geo_result]
+
+        task_records = [
+            {
+                "annotation_number": max_num + i + 1,
+                "campaign_id": campaign_id,
+                "geometry_id": gid,
+                "status": "pending",
+                "raw_source_data": rd,
+            }
+            for i, (gid, rd) in enumerate(zip(geometry_ids, raw_data, strict=True))
+        ]
+
+        db.execute(insert(AnnotationTask), task_records)
+        db.commit()
+        return len(task_records)
 
     except Exception:
         db.rollback()

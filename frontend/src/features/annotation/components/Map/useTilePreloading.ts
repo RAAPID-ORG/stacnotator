@@ -12,7 +12,7 @@ import { TilePreloader } from './tilePreloader';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
-import { extractLatLonFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
@@ -169,7 +169,7 @@ export function useTilePreloading({
     const currentTask = tasks[idx];
     if (!currentTask) return;
 
-    const latLon = extractLatLonFromWKT(currentTask.geometry.geometry);
+    const latLon = extractCentroidFromWKT(currentTask.geometry.geometry);
     if (!latLon) return;
 
     const zoom = defaultZoomRef.current;
@@ -197,7 +197,7 @@ export function useTilePreloading({
     const nextTask = tasks[nextIdx];
     if (!nextTask) return;
 
-    const latLon = extractLatLonFromWKT(nextTask.geometry.geometry);
+    const latLon = extractCentroidFromWKT(nextTask.geometry.geometry);
     if (!latLon) return;
 
     const zoom = defaultZoomRef.current;

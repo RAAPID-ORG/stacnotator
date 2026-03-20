@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
-import { extractLatLonFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import {
   getUserTaskStatuses,
   getTaskStatusColor,
@@ -171,7 +171,7 @@ export const AnnotationTasksTable = ({
           </thead>
           <tbody>
             {tasks.map((task) => {
-              const latLon = extractLatLonFromWKT(task.geometry.geometry);
+              const latLon = extractCentroidFromWKT(task.geometry.geometry);
               const isAssigning = assigningTaskId === task.id;
               return (
                 <tr
