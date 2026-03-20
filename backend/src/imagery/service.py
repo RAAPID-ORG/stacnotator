@@ -136,11 +136,22 @@ def _create_source(
 
         # STAC config
         if col_create.stac_config:
+            # Capture viz URL templates (with {searchId} placeholders) so we can
+            # re-register later when the campaign bbox changes.
+            viz_url_templates = (
+                [
+                    {"viz_name": vu.visualization_name, "url_template": vu.tile_url}
+                    for vu in col_create.slices[0].tile_urls
+                ]
+                if col_create.slices and col_create.slices[0].tile_urls
+                else None
+            )
             db.add(
                 CollectionStacConfig(
                     collection_id=collection.id,
                     registration_url=col_create.stac_config.registration_url,
                     search_body=col_create.stac_config.search_body,
+                    viz_url_templates=viz_url_templates,
                 )
             )
 
@@ -243,6 +254,77 @@ def _register_stac_collection(
             collection.name,
             exc_info=True,
         )
+
+
+# ============================================================================
+# STAC Re-registration (bbox change)
+# ============================================================================
+
+
+def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
+    """
+    Re-register STAC mosaics for every STAC-based collection in a campaign
+    using a new bounding box.  Returns the number of collections updated.
+
+    Requires that ``viz_url_templates`` was previously persisted on each
+    ``CollectionStacConfig``.  Collections without stored templates are skipped.
+    """
+    sources = db.query(ImagerySource).filter(ImagerySource.campaign_id == campaign_id).all()
+
+    updated = 0
+    for source in sources:
+        for collection in source.collections:
+            stac = collection.stac_config
+            if not stac or not stac.viz_url_templates:
+                continue
+
+            slices = (
+                db.query(ImagerySlice)
+                .filter(ImagerySlice.collection_id == collection.id)
+                .order_by(ImagerySlice.display_order)
+                .all()
+            )
+            if not slices:
+                continue
+
+            slice_descriptors = [
+                {"index": i, "start_date": s.start_date, "end_date": s.end_date}
+                for i, s in enumerate(slices)
+            ]
+
+            try:
+                results = register_collection_slices(
+                    registration_url=stac.registration_url,
+                    search_body=stac.search_body,
+                    bbox=bbox,
+                    slices=slice_descriptors,
+                    viz_url_templates=stac.viz_url_templates,
+                )
+
+                for result in results:
+                    idx = result["slice_index"]
+                    if idx < len(slices):
+                        db.query(SliceTileUrl).filter(
+                            SliceTileUrl.slice_id == slices[idx].id
+                        ).delete()
+                        for tile in result["tile_urls"]:
+                            db.add(
+                                SliceTileUrl(
+                                    slice_id=slices[idx].id,
+                                    visualization_name=tile["viz_name"],
+                                    tile_url=tile["url"],
+                                )
+                            )
+                updated += 1
+            except Exception:
+                logger.warning(
+                    "STAC re-registration failed for collection %s (id=%s)",
+                    collection.name,
+                    collection.id,
+                    exc_info=True,
+                )
+
+    return updated
 
 
 def _create_basemaps(

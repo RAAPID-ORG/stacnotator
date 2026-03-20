@@ -10,6 +10,11 @@ NASA Harvest's geospatial imagery annotation platform.
 
 ### Development Setup (with Hot Reloading)
 
+#### Prequisites
+
+- Ensure you have `docker` and `docker-compose` installed. Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/#docker-desktop-recommended). The easiest way might be through `Docker Desktop`.
+- Have a Google Account that you can use for the `Firebase` setup.
+
 #### Step 0 - Firebase Setup
 
 STACNotator uses Firebase for authentication. Set up a project and download credentials:

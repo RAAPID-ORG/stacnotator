@@ -250,7 +250,6 @@ export const StepImagery = ({
         >
           <span className="text-sm text-neutral-700">
             <span className="font-medium">How imagery configuration works</span>
-            <span className="text-neutral-400 ml-2 text-xs">-sources → collections → views</span>
           </span>
           {showGuide ? <IconChevronUp className="w-4 h-4 text-neutral-400" /> : <IconChevronDown className="w-4 h-4 text-neutral-400" />}
         </button>
@@ -264,12 +263,12 @@ export const StepImagery = ({
               <span className="font-semibold text-brand-700 text-right">3. Slice</span>
               <span>A sub-period within a collection (e.g. <em>Week 1, Week 2</em>). Annotators can switch between slices to find cloud-free imagery. One slice is marked as the <strong>cover</strong> (default visible). Often you might want to use some form of composite (i.e median) as the cover, and then have weekly slices to see all imagery in detail.</span>
               <span className="font-semibold text-brand-700 text-right">4. View</span>
-              <span>A layout tab in the canvas above. Each view can include different sources. Often you might want to have one per source to not overcrowd the screen.</span>
+              <span>A layout tab in the canvas above. Each view can include different sources. Often you might want to have one view per source to not overcrowd the screen. Sources can be part of different views.</span>
               <span className="font-semibold text-brand-700 text-right">5. Window</span>
               <span>Each collection assigned to a view becomes a map window. You always have one main map; The windows appear as small thumbnails. You can hide windows you don't need - they can still be seen through navigation on the timeline (layer selector).</span>
             </div>
             <div className="pt-1.5 border-t border-neutral-100 text-neutral-500 leading-relaxed">
-              <strong className="text-neutral-600">Workflow:</strong> Create sources below → configure their collections &amp; slices → add sources to views using the canvas preview above.
+              <strong className="text-neutral-600">Workflow:</strong> Create sources below → configure their collections &amp; slices → add sources to views using the canvas preview above → select windows.
             </div>
           </div>
         )}
@@ -348,13 +347,13 @@ export const StepImagery = ({
             className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
           >
             <IconPlus className="w-4 h-4 text-neutral-400" />
-            <span className="text-[11px] text-neutral-500 ml-1">Add Source</span>
+            <span className="text-[11px] text-neutral-500 ml-1">Create Source</span>
           </button>
         </div>
       </div>
 
       {showSourcePicker && (
-        <Modal title="Add Imagery Source" onClose={() => setShowSourcePicker(false)}>
+        <Modal title="Create Imagery Source" onClose={() => setShowSourcePicker(false)}>
             <div className="p-3 space-y-1">
               <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-4 pt-1 pb-0.5">STAC Presets</p>
               {STAC_PRESETS.map((preset) => (
