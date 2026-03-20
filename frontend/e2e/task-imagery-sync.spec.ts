@@ -508,16 +508,14 @@ test.describe('Imagery controls do not move crosshair', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
   });
 
-  test('viz switch l: crosshair stays at TASK_1, new tiles still at TASK_1 area', async ({
+  test('view sync toggle l: crosshair stays at TASK_1', async ({
     annotationPage,
     api,
   }) => {
     const page = annotationPage;
-    const snap = api.requests.length;
     await page.keyboard.press('l');
 
-    await assertCrosshairAt(page, TASK_1.id, 'after viz l');
-    assertTilesFetchedForTask(api.requests, snap, TASK_1.id, 'viz tiles');
+    await assertCrosshairAt(page, TASK_1.id, 'after view sync l');
 
     api.clear();
     await selectAndSubmit(page, '1');
@@ -595,7 +593,7 @@ test.describe('Chaos scenarios', () => {
     const snap = api.requests.length;
 
     await page.keyboard.press('s');
-    await page.keyboard.press('l');
+    await page.keyboard.press('l'); // view sync toggle (no nav effect)
     await page.keyboard.press('d');
     await waitNavSettled(page);
 

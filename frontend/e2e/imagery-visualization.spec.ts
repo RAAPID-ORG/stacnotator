@@ -104,15 +104,15 @@ test.describe('Imagery and Visualization', () => {
     expect(cardCount).toBeGreaterThanOrEqual(4);
   });
 
-  test('keyboard L cycles visualization layer', async ({ annotationPage }) => {
+  test('keyboard Shift+I cycles visualization layer', async ({ annotationPage }) => {
     const page = annotationPage;
     const header = page.locator('[data-tour="main-map"]');
 
     // Initial layer should be "True Color" (first viz)
     await expect(header).toContainText('True Color');
 
-    // Press L to cycle to next layer
-    await page.keyboard.press('l');
+    // Press Shift+I to cycle to next visualization within the current source
+    await page.keyboard.press('Shift+i');
     await expect(header).toContainText('False Color', { timeout: 3000 });
   });
 });
