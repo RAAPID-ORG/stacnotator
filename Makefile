@@ -4,7 +4,7 @@
 	typecheck typecheck-backend typecheck-frontend \
 	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
-	staging-up staging-down staging-logs
+	staging-up staging-down staging-logs dev-restore-backup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -105,6 +105,16 @@ dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID
 		$(MAKE) dev-seed; \
 	fi
 	@echo "Database reset complete!"
+
+dev-restore-backup: ## Restore dev DB from a local SQL backup (use FILE="db/backups/prod_xxx.sql")
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make dev-restore-backup FILE=db/backups/<backup>.sql"; \
+		echo ""; \
+		echo "Available backups:"; \
+		ls -1t db/backups/*.sql 2>/dev/null || echo "  (none found in db/backups/)"; \
+		exit 1; \
+	fi
+	./scripts/dev-restore-backup.sh $(FILE)
 
 dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
