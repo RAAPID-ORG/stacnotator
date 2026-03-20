@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ImagerySource, ImageryView, Basemap, ImagerySlice } from './types';
 import { resolveCollection, sliceDateRange } from './types';
 import { IconPlus, IconEyeSlash, IconEye, IconTrash, IconLayers, IconDragHandle } from '~/shared/ui/Icons';
@@ -124,7 +125,16 @@ export const CanvasPreview = ({
   const [selectedSliceIndex, setSelectedSliceIndex] = useState(0);
   const [selectedVizIndex, setSelectedVizIndex] = useState(0);
   const [addSourceOpen, setAddSourceOpen] = useState(false);
-  const addSourceRef = useRef<HTMLDivElement>(null);
+  const addSourceBtnRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  // Compute dropdown position when opened
+  useEffect(() => {
+    if (addSourceOpen && addSourceBtnRef.current) {
+      const rect = addSourceBtnRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 160) });
+    }
+  }, [addSourceOpen]);
 
   /* Resolve all collections for the active view -preserving original order */
   const allRefs = activeView?.collectionRefs ?? [];
@@ -360,9 +370,10 @@ export const CanvasPreview = ({
                 );
               })}
 
-              {/* Add source button + custom dropdown */}
-              <div className="mt-0.5 relative" ref={addSourceRef}>
+              {/* Add source button + portal dropdown */}
+              <div className="mt-0.5">
                 <button
+                  ref={addSourceBtnRef}
                   type="button"
                   onClick={() => setAddSourceOpen((v) => !v)}
                   className="w-full flex items-center justify-center gap-1 px-1.5 py-1.5 text-[11px] text-neutral-500 rounded border border-dashed border-neutral-200 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50/40 transition-colors cursor-pointer"
@@ -370,11 +381,14 @@ export const CanvasPreview = ({
                   <IconPlus className="w-3 h-3" />
                   <span>Add source</span>
                 </button>
-                {addSourceOpen && (
+                {addSourceOpen && dropdownPos && createPortal(
                   <>
                     {/* Backdrop to close */}
-                    <div className="fixed inset-0 z-30" onClick={() => setAddSourceOpen(false)} />
-                    <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-lg shadow-lg border border-neutral-200 overflow-hidden">
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setAddSourceOpen(false)} />
+                    <div
+                      className="fixed z-[9999] bg-white rounded-lg shadow-lg border border-neutral-200 overflow-hidden"
+                      style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                    >
                       {unassignedSources.length > 0 && (
                         <div className="py-1">
                           <div className="px-2.5 py-1 text-[9px] font-semibold text-neutral-400 uppercase tracking-wider">Available</div>
@@ -420,7 +434,8 @@ export const CanvasPreview = ({
                         </button>
                       </div>
                     </div>
-                  </>
+                  </>,
+                  document.body,
                 )}
               </div>
             </div>
