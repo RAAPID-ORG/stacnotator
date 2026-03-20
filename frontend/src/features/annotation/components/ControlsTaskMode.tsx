@@ -110,10 +110,9 @@ export const AnnotationControls = ({
       if (exists) {
         onGoToTask(annotationNumber);
       } else {
-        useLayoutStore.getState().showAlert(
-          `Point #${annotationNumber} is not in the current filter`,
-          'error'
-        );
+        useLayoutStore
+          .getState()
+          .showAlert(`Point #${annotationNumber} is not in the current filter`, 'error');
       }
     }
   };

@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import type { CampaignOut, CampaignSettingsCreate } from '~/api/client';
-import { updateCampaignGuide, updateCampaignVisibility, updateEmbeddingYear, updateSampleExtent } from '~/api/client';
+import {
+  updateCampaignGuide,
+  updateCampaignVisibility,
+  updateEmbeddingYear,
+  updateSampleExtent,
+} from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -46,7 +51,9 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
   // Sample extent local state
   const [sampleExtent, setSampleExtent] = useState<string>(
-    campaign.settings.sample_extent_meters != null ? String(campaign.settings.sample_extent_meters) : ''
+    campaign.settings.sample_extent_meters != null
+      ? String(campaign.settings.sample_extent_meters)
+      : ''
   );
   const [savingExtent, setSavingExtent] = useState(false);
   const parsedExtent = sampleExtent.trim() === '' ? null : Number(sampleExtent);
@@ -223,13 +230,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <div className="bg-white rounded-lg border border-neutral-300 p-6">
           <h2 className="text-lg font-semibold text-neutral-900 mb-1">Sample Extent</h2>
           <p className="text-sm text-neutral-500 mb-4">
-            Size of the area around each task centroid that should be annotated.
-            This is shown as a rectangle on the map during annotation.
-            Leave empty if tasks were uploaded as polygons or if no extent overlay is needed.
+            Size of the area around each task centroid that should be annotated. This is shown as a
+            rectangle on the map during annotation. Leave empty if tasks were uploaded as polygons
+            or if no extent overlay is needed.
           </p>
           <div className="flex gap-4 items-end">
             <div className="w-56">
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Extent (meters)</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Extent (meters)
+              </label>
               <input
                 type="number"
                 min="1"
@@ -279,7 +288,8 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           Changing this will recompute all embeddings for the campaign.
           {!campaign.settings.embedding_year && (
             <span className="block mt-1 text-orange-600 font-medium">
-              No embedding year set - KNN-embeddings (AEF) based validation is currently unavailable for annotators.
+              No embedding year set - KNN-embeddings (AEF) based validation is currently unavailable
+              for annotators.
             </span>
           )}
         </p>
@@ -366,7 +376,10 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                     body: { is_public: newValue },
                   });
                   if (onCampaignUpdated && data) onCampaignUpdated(data);
-                  showAlert(newValue ? 'Campaign is now public' : 'Campaign is now private', 'success');
+                  showAlert(
+                    newValue ? 'Campaign is now public' : 'Campaign is now private',
+                    'success'
+                  );
                 } catch (err) {
                   const msg = err instanceof Error ? err.message : 'Failed to update visibility';
                   showAlert(msg, 'error');

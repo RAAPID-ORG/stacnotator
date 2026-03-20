@@ -77,7 +77,11 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     const m = new Map<string, UserInfo>();
     annotations.forEach((ann) => {
       if (!m.has(ann.created_by_user_id)) {
-        m.set(ann.created_by_user_id, { id: ann.created_by_user_id, email: null, displayName: null });
+        m.set(ann.created_by_user_id, {
+          id: ann.created_by_user_id,
+          email: null,
+          displayName: null,
+        });
       }
     });
     return Array.from(m.values());
@@ -87,8 +91,13 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
 
   const filteredAnnotations = useMemo(() => {
     const filtered = annotations.filter((ann) => {
-      if (selectedUserIds.length > 0 && !selectedUserIds.includes(ann.created_by_user_id)) return false;
-      if (selectedLabelIds.length > 0 && (ann.label_id === null || !selectedLabelIds.includes(ann.label_id))) return false;
+      if (selectedUserIds.length > 0 && !selectedUserIds.includes(ann.created_by_user_id))
+        return false;
+      if (
+        selectedLabelIds.length > 0 &&
+        (ann.label_id === null || !selectedLabelIds.includes(ann.label_id))
+      )
+        return false;
       if (searchQuery && !ann.id.toString().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
@@ -96,7 +105,8 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     if (sortOption === 'default') return filtered;
     return [...filtered].sort((a, b) => {
       if (sortOption === 'confidence-asc' || sortOption === 'confidence-desc') {
-        const ca = a.confidence ?? Infinity, cb = b.confidence ?? Infinity;
+        const ca = a.confidence ?? Infinity,
+          cb = b.confidence ?? Infinity;
         if (ca === Infinity && cb === Infinity) return 0;
         if (ca === Infinity) return 1;
         if (cb === Infinity) return -1;
@@ -119,7 +129,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   const handleNavigateToAnnotation = (ann: AnnotationOut) => {
     const centroid = extractCentroidFromWKT(ann.geometry.geometry);
     if (centroid) {
-      navigate(`/campaigns/${campaignId}/annotate?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`);
+      navigate(
+        `/campaigns/${campaignId}/annotate?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`
+      );
     } else {
       navigate(`/campaigns/${campaignId}/annotate?review=true`);
     }
@@ -155,11 +167,16 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             {capitalizeFirst(campaign.name)} - Annotations
           </h1>
           <p className="text-sm text-neutral-600 mt-1">
-            {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode campaign
+            {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode
+            campaign
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ExportDropdown campaignId={campaignId} campaign={campaign} disabled={annotations.length === 0} />
+          <ExportDropdown
+            campaignId={campaignId}
+            campaign={campaign}
+            disabled={annotations.length === 0}
+          />
           <button
             onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
             className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
@@ -268,9 +285,17 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
               className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-neutral-500 hover:text-neutral-700">
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-neutral-500 hover:text-neutral-700"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             )}
@@ -285,14 +310,26 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
       {/* Annotations Table */}
       {filteredAnnotations.length === 0 ? (
         <div className="text-center py-12 bg-white border border-neutral-300 rounded-lg">
-          <svg className="w-12 h-12 text-neutral-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <svg
+            className="w-12 h-12 text-neutral-400 mx-auto mb-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
           </svg>
           <p className="text-neutral-700 mb-2">
             {annotations.length === 0 ? 'No annotations yet' : 'No annotations match your filters'}
           </p>
           <p className="text-neutral-500 text-sm">
-            {annotations.length === 0 ? 'Start annotating to see entries here' : 'Try adjusting your filter criteria'}
+            {annotations.length === 0
+              ? 'Start annotating to see entries here'
+              : 'Try adjusting your filter criteria'}
           </p>
         </div>
       ) : (
@@ -323,7 +360,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                     onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
                     onMouseLeave={() => setHighlightedAnnotationId(null)}
                   >
-                    <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">{ann.id}</td>
+                    <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
+                      {ann.id}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
                         {getLabelName(ann.label_id)}
@@ -344,13 +383,24 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                       {centroid ? `${centroid.lat.toFixed(5)}, ${centroid.lon.toFixed(5)}` : '-'}
                     </td>
                     <td className="px-4 py-3 text-neutral-600 text-xs">
-                      {createdAt.toLocaleDateString()} {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {createdAt.toLocaleDateString()}{' '}
+                      {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-4 py-3">
                       {ann.comment?.trim() ? (
                         <span className="relative group cursor-help">
-                          <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          <svg
+                            className="w-4 h-4 text-neutral-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                            />
                           </svg>
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
                             <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
@@ -382,10 +432,16 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
       {/* Footer */}
       {filteredAnnotations.length > 0 && (
         <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-          <span>Showing: <strong className="text-neutral-900">{filteredAnnotations.length}</strong></span>
-          <span>Total: <strong className="text-neutral-900">{annotations.length}</strong></span>
+          <span>
+            Showing: <strong className="text-neutral-900">{filteredAnnotations.length}</strong>
+          </span>
+          <span>
+            Total: <strong className="text-neutral-900">{annotations.length}</strong>
+          </span>
           {stats.withConfidence > 0 && (
-            <span>With Confidence: <strong className="text-neutral-900">{stats.withConfidence}</strong></span>
+            <span>
+              With Confidence: <strong className="text-neutral-900">{stats.withConfidence}</strong>
+            </span>
           )}
         </div>
       )}

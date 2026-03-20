@@ -46,8 +46,8 @@ repos:
         pass_filenames: false
 
       - id: prettier-frontend
-        name: prettier --check (frontend)
-        entry: bash -c 'cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"'
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{ts,tsx,css}"'
         language: system
         files: ^frontend/src/.*\.(ts|tsx|css)$
         pass_filenames: false

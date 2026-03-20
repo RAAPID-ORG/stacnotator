@@ -1,5 +1,10 @@
 import React from 'react';
-import type { ImagerySourceOut, TimeSeriesCreate, TimeSeriesOut, CampaignSettingsOut } from '~/api/client';
+import type {
+  ImagerySourceOut,
+  TimeSeriesCreate,
+  TimeSeriesOut,
+  CampaignSettingsOut,
+} from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/components/creation/steps/StepAddTimeseries';
 
 interface Props {
@@ -37,15 +42,19 @@ export const TimeseriesTab: React.FC<Props> = ({
           provide temporal context.
         </p>
         <StepAddTimeseries
-          form={{
-            name: campaignName,
-            mode: campaignMode as 'tasks' | 'open',
-            settings: campaignSettings ?? ({} as CampaignSettingsOut),
-            imagery_editor_state: null,
-            timeseries_configs: newTimeseries,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- form shape adaptor between CampaignSettingsOut and CampaignCreate
-          } as any}
-          setForm={(form: Record<string, unknown>) => setNewTimeseries((form.timeseries_configs as TimeSeriesCreate[]) || [])}
+          form={
+            {
+              name: campaignName,
+              mode: campaignMode as 'tasks' | 'open',
+              settings: campaignSettings ?? ({} as CampaignSettingsOut),
+              imagery_editor_state: null,
+              timeseries_configs: newTimeseries,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- form shape adaptor between CampaignSettingsOut and CampaignCreate
+            } as any
+          }
+          setForm={(form: Record<string, unknown>) =>
+            setNewTimeseries((form.timeseries_configs as TimeSeriesCreate[]) || [])
+          }
         />
 
         {newTimeseries.length > 0 && (

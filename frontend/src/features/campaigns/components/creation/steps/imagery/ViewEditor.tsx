@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import type { ImageryView, ImagerySource, ViewCollectionRef } from './types';
 import { allCollectionsFlat, swap, sliceDateRange } from './types';
-import { IconTrash, IconChevronDown, IconChevronUp, IconMap, IconEye, IconEyeSlash } from '~/shared/ui/Icons';
+import {
+  IconTrash,
+  IconChevronDown,
+  IconChevronUp,
+  IconMap,
+  IconEye,
+  IconEyeSlash,
+} from '~/shared/ui/Icons';
 import { Tooltip } from './Tooltip';
 
 interface ViewEditorProps {
@@ -26,15 +33,12 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
     if (isReferenced(sourceId, collectionId)) {
       onChange({
         collectionRefs: view.collectionRefs.filter(
-          (r) => !(r.sourceId === sourceId && r.collectionId === collectionId),
+          (r) => !(r.sourceId === sourceId && r.collectionId === collectionId)
         ),
       });
     } else {
       onChange({
-        collectionRefs: [
-          ...view.collectionRefs,
-          { collectionId, sourceId, showAsWindow: true },
-        ],
+        collectionRefs: [...view.collectionRefs, { collectionId, sourceId, showAsWindow: true }],
       });
     }
   };
@@ -44,7 +48,7 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
       collectionRefs: view.collectionRefs.map((r) =>
         r.sourceId === sourceId && r.collectionId === collectionId
           ? { ...r, showAsWindow: !r.showAsWindow }
-          : r,
+          : r
       ),
     });
   };
@@ -145,9 +149,7 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
               .filter((s) => s.collections.length > 0)
               .map((source) => {
                 const sourceRefs = view.collectionRefs.filter((r) => r.sourceId === source.id);
-                const allSelected = source.collections.every((c) =>
-                  isReferenced(source.id, c.id),
-                );
+                const allSelected = source.collections.every((c) => isReferenced(source.id, c.id));
                 const noneSelected = sourceRefs.length === 0;
 
                 return (
@@ -158,9 +160,7 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
                     <div className="flex items-center justify-between px-3 py-2 bg-neutral-50">
                       <span className="text-xs font-medium text-neutral-700">
                         {source.name || 'Untitled Source'}
-                        <span className="text-neutral-400 ml-1">
-                          ({source.collections.length})
-                        </span>
+                        <span className="text-neutral-400 ml-1">({source.collections.length})</span>
                       </span>
                       <div className="flex items-center gap-2">
                         {!allSelected && (
@@ -186,7 +186,7 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
                     <div className="divide-y divide-neutral-100">
                       {source.collections.map((col) => {
                         const ref = view.collectionRefs.find(
-                          (r) => r.sourceId === source.id && r.collectionId === col.id,
+                          (r) => r.sourceId === source.id && r.collectionId === col.id
                         );
                         const selected = !!ref;
                         return (
@@ -253,9 +253,14 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
                   const col = source?.collections.find((c) => c.id === ref.collectionId);
                   if (!source || !col) return null;
                   return (
-                    <div key={`${ref.sourceId}-${ref.collectionId}`} className="flex items-center justify-between px-3 py-1.5">
+                    <div
+                      key={`${ref.sourceId}-${ref.collectionId}`}
+                      className="flex items-center justify-between px-3 py-1.5"
+                    >
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[10px] text-neutral-400 w-4 text-right shrink-0">{i + 1}</span>
+                        <span className="text-[10px] text-neutral-400 w-4 text-right shrink-0">
+                          {i + 1}
+                        </span>
                         <span className="text-xs text-neutral-700 truncate">
                           {col.name || sliceDateRange(col.slices) || 'Untitled'}
                         </span>
@@ -266,7 +271,9 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
                       <div className="flex items-center gap-0.5">
                         <button
                           type="button"
-                          onClick={() => onChange({ collectionRefs: swap(view.collectionRefs, i, i - 1) })}
+                          onClick={() =>
+                            onChange({ collectionRefs: swap(view.collectionRefs, i, i - 1) })
+                          }
                           disabled={i === 0}
                           className="text-neutral-400 hover:text-neutral-600 disabled:text-neutral-200 transition-colors cursor-pointer disabled:cursor-default p-0.5"
                           title="Move up"
@@ -275,7 +282,9 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
                         </button>
                         <button
                           type="button"
-                          onClick={() => onChange({ collectionRefs: swap(view.collectionRefs, i, i + 1) })}
+                          onClick={() =>
+                            onChange({ collectionRefs: swap(view.collectionRefs, i, i + 1) })
+                          }
                           disabled={i === view.collectionRefs.length - 1}
                           className="text-neutral-400 hover:text-neutral-600 disabled:text-neutral-200 transition-colors cursor-pointer disabled:cursor-default p-0.5"
                           title="Move down"

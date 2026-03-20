@@ -71,36 +71,43 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
     }
 
     if (source.visualizations.length === 0) {
-      errors[`${prefix}_viz`] = `Source "${source.name || si + 1}": At least one visualization is required.`;
+      errors[`${prefix}_viz`] =
+        `Source "${source.name || si + 1}": At least one visualization is required.`;
     } else {
       const emptyViz = source.visualizations.filter((v) => !v.name.trim());
       if (emptyViz.length > 0) {
-        errors[`${prefix}_viz_names`] = `Source "${source.name || si + 1}": ${emptyViz.length} visualization(s) have no name.`;
+        errors[`${prefix}_viz_names`] =
+          `Source "${source.name || si + 1}": ${emptyViz.length} visualization(s) have no name.`;
       }
     }
 
     if (source.collections.length === 0) {
-      errors[`${prefix}_collections`] = `Source "${source.name || si + 1}": At least one collection is required.`;
+      errors[`${prefix}_collections`] =
+        `Source "${source.name || si + 1}": At least one collection is required.`;
     } else {
       source.collections.forEach((col, ci) => {
         const cp = `${prefix}_col_${ci}`;
 
         if (col.slices.length === 0) {
-          errors[`${cp}_slices`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
+          errors[`${cp}_slices`] =
+            `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
         }
 
         if (col.data.type === 'stac') {
           if (!col.data.registrationUrl.trim()) {
-            errors[`${cp}_regurl`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Registration URL is required.`;
+            errors[`${cp}_regurl`] =
+              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Registration URL is required.`;
           }
           if (!col.data.searchBody.trim()) {
-            errors[`${cp}_search`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Search body is required.`;
+            errors[`${cp}_search`] =
+              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Search body is required.`;
           }
         }
 
         const emptyVizUrls = col.data.vizUrls.filter((v) => !v.url.trim());
         if (emptyVizUrls.length > 0) {
-          errors[`${cp}_vizurls`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
+          errors[`${cp}_vizurls`] =
+            `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
         }
       });
     }
@@ -112,7 +119,8 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
   } else {
     const hasAssignedView = imageryState.views.some((v) => v.collectionRefs.length > 0);
     if (!hasAssignedView) {
-      errors.views_empty = 'At least one view must have collections assigned. Drag a source into the canvas preview.';
+      errors.views_empty =
+        'At least one view must have collections assigned. Drag a source into the canvas preview.';
     }
   }
 
@@ -165,7 +173,10 @@ export interface FullValidationResult {
   stepsWithErrors: number[];
 }
 
-export function validateFullForm(form: CampaignCreate, imageryState: ImageryStepState): FullValidationResult {
+export function validateFullForm(
+  form: CampaignCreate,
+  imageryState: ImageryStepState
+): FullValidationResult {
   const campaign = validateCampaignStep(form);
   const settings = validateSettingsStep(form);
   const imagery = validateImageryStep(imageryState);

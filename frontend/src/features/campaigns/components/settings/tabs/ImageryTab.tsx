@@ -22,10 +22,7 @@ export const ImageryTab: React.FC<Props> = ({ imagery, setDeleteConfirm }) => {
             <p className="text-sm text-neutral-500">No imagery sources added yet.</p>
           ) : (
             imagery.map((src) => (
-              <div
-                key={src.id}
-                className="rounded-lg border border-neutral-300 p-4 space-y-3"
-              >
+              <div key={src.id} className="rounded-lg border border-neutral-300 p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium text-neutral-900">{src.name}</h4>
                   <button

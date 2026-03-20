@@ -180,22 +180,22 @@ export const DEFAULT_BASEMAPS: Basemap[] = [
 export const emptyStacConfig = (vizNames: string[]): StacConfig => {
   const year = new Date().getFullYear();
   return {
-  registrationUrl: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
-  searchBody: '',
-  collectionPeriodInterval: 1,
-  collectionPeriodUnit: 'months',
-  slicePeriodInterval: 1,
-  slicePeriodUnit: 'weeks',
-  startDate: `${year}-01`,
-  endDate: `${year}-12`,
-  vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
-  generateCoverSlice: false,
-  coverSliceMode: 'nth',
-  coverSliceNth: 1,
-  coverSliceName: 'Median Mosaic',
-  cloudCover: 90,
-  coverRegistrationUrl: '',
-  coverSearchBody: '',
+    registrationUrl: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
+    searchBody: '',
+    collectionPeriodInterval: 1,
+    collectionPeriodUnit: 'months',
+    slicePeriodInterval: 1,
+    slicePeriodUnit: 'weeks',
+    startDate: `${year}-01`,
+    endDate: `${year}-12`,
+    vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
+    generateCoverSlice: false,
+    coverSliceMode: 'nth',
+    coverSliceNth: 1,
+    coverSliceName: 'Median Mosaic',
+    cloudCover: 90,
+    coverRegistrationUrl: '',
+    coverSearchBody: '',
   };
 };
 
@@ -206,9 +206,13 @@ export type StacPreset = {
 };
 
 const PC_REGISTER_URL = 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register';
-const PC_TILES_BASE = 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}';
+const PC_TILES_BASE =
+  'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}';
 
-const BASE_PRESET_CONFIG: Omit<StacConfig, 'startDate' | 'endDate' | 'vizUrls' | 'searchBody' | 'cloudCover'> = {
+const BASE_PRESET_CONFIG: Omit<
+  StacConfig,
+  'startDate' | 'endDate' | 'vizUrls' | 'searchBody' | 'cloudCover'
+> = {
   registrationUrl: PC_REGISTER_URL,
   collectionPeriodInterval: 1,
   collectionPeriodUnit: 'months',
@@ -225,7 +229,7 @@ const BASE_PRESET_CONFIG: Omit<StacConfig, 'startDate' | 'endDate' | 'vizUrls' |
 function makeSearchBody(
   collections: string[],
   cloudCover: number | null,
-  extraFilters: object[] = [],
+  extraFilters: object[] = []
 ): string {
   const args: object[] = [
     {
@@ -250,7 +254,7 @@ function makeSearchBody(
       collections,
     },
     null,
-    2,
+    2
   );
 }
 
@@ -261,11 +265,9 @@ export const STAC_PRESETS: StacPreset[] = [
     config: {
       ...BASE_PRESET_CONFIG,
       cloudCover: 90,
-      searchBody: makeSearchBody(
-        ['sentinel-2-l2a'],
-        90,
-        [{ op: '=', args: [{ property: 'collection' }, 'sentinel-2-l2a'] }],
-      ),
+      searchBody: makeSearchBody(['sentinel-2-l2a'], 90, [
+        { op: '=', args: [{ property: 'collection' }, 'sentinel-2-l2a'] },
+      ]),
       vizUrls: [
         {
           vizName: 'True Color',
@@ -284,11 +286,9 @@ export const STAC_PRESETS: StacPreset[] = [
     config: {
       ...BASE_PRESET_CONFIG,
       cloudCover: 70,
-      searchBody: makeSearchBody(
-        ['landsat-c2-l2'],
-        70,
-        [{ op: '=', args: [{ property: 'collection' }, 'landsat-c2-l2'] }],
-      ),
+      searchBody: makeSearchBody(['landsat-c2-l2'], 70, [
+        { op: '=', args: [{ property: 'collection' }, 'landsat-c2-l2'] },
+      ]),
       vizUrls: [
         {
           vizName: 'True Color',
@@ -318,11 +318,9 @@ export const STAC_PRESETS: StacPreset[] = [
     config: {
       ...BASE_PRESET_CONFIG,
       cloudCover: 90,
-      searchBody: makeSearchBody(
-        ['naip'],
-        null,
-        [{ op: '=', args: [{ property: 'collection' }, 'naip'] }],
-      ),
+      searchBody: makeSearchBody(['naip'], null, [
+        { op: '=', args: [{ property: 'collection' }, 'naip'] },
+      ]),
       vizUrls: [
         {
           vizName: 'True Color',
@@ -335,7 +333,7 @@ export const STAC_PRESETS: StacPreset[] = [
 
 export function resolveCollection(
   sources: ImagerySource[],
-  ref: ViewCollectionRef,
+  ref: ViewCollectionRef
 ): { source: ImagerySource; collection: CollectionItem } | null {
   const source = sources.find((s) => s.id === ref.sourceId);
   if (!source) return null;
@@ -345,11 +343,9 @@ export function resolveCollection(
 }
 
 export function allCollectionsFlat(
-  sources: ImagerySource[],
+  sources: ImagerySource[]
 ): { source: ImagerySource; collection: CollectionItem }[] {
-  return sources.flatMap((s) =>
-    s.collections.map((c) => ({ source: s, collection: c })),
-  );
+  return sources.flatMap((s) => s.collections.map((c) => ({ source: s, collection: c })));
 }
 
 export function swap<T>(arr: T[], i: number, j: number): T[] {

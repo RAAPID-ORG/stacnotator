@@ -23,7 +23,16 @@ import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 
-ChartJS.register(LineElement, PointElement, LinearScale, Title, Tooltip, Legend, CategoryScale, zoomPlugin);
+ChartJS.register(
+  LineElement,
+  PointElement,
+  LinearScale,
+  Title,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  zoomPlugin
+);
 
 interface TimeSeriesChartProps {
   timeseries: TimeSeriesOut[];
@@ -250,7 +259,9 @@ export const TimeSeriesChart = ({
           return row.values;
         });
 
-        const finalData = smoothEnabled ? savitzkyGolay(rawData, smoothWindow, smoothOrder) : rawData;
+        const finalData = smoothEnabled
+          ? savitzkyGolay(rawData, smoothWindow, smoothOrder)
+          : rawData;
 
         datasets.push({
           label: `${ts.name} (probe)`,
@@ -281,7 +292,16 @@ export const TimeSeriesChart = ({
     }
 
     return { labels, datasets, monthLabels };
-  }, [data, probeData, timeseries, removeCloudy, smoothEnabled, smoothWindow, smoothOrder, hiddenDatasets]);
+  }, [
+    data,
+    probeData,
+    timeseries,
+    removeCloudy,
+    smoothEnabled,
+    smoothWindow,
+    smoothOrder,
+    hiddenDatasets,
+  ]);
 
   // Error state
   if (error) {
@@ -401,11 +421,16 @@ export const TimeSeriesChart = ({
 
         {/* Remove cloudy toggle */}
         <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-          <span className="text-[10px] text-neutral-600" title='Removes days with clouds on the point (red dots)'>Remove cloudy</span>
+          <span
+            className="text-[10px] text-neutral-600"
+            title="Removes days with clouds on the point (red dots)"
+          >
+            Remove cloudy
+          </span>
           <div
             className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
             onClick={() => setRemoveCloudy(!removeCloudy)}
-            title='Removes days with clouds on the point (red dots)'
+            title="Removes days with clouds on the point (red dots)"
           >
             <div
               className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
@@ -416,11 +441,13 @@ export const TimeSeriesChart = ({
         {/* Smoothing toggle + parameters */}
         <div className="flex items-center gap-1 flex-shrink-0">
           <label className="flex items-center gap-1 cursor-pointer">
-            <span className="text-[10px] text-neutral-600" title='Savitzky-Golay Smoothing.'>Smooth</span>
+            <span className="text-[10px] text-neutral-600" title="Savitzky-Golay Smoothing.">
+              Smooth
+            </span>
             <div
               className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-500' : 'bg-neutral-300'}`}
               onClick={() => setSmoothEnabled(!smoothEnabled)}
-              title='Savitzky-Golay Smoothing.'
+              title="Savitzky-Golay Smoothing."
             >
               <div
                 className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${smoothEnabled ? 'translate-x-3' : 'translate-x-0.5'}`}
@@ -429,7 +456,10 @@ export const TimeSeriesChart = ({
           </label>
           {smoothEnabled && (
             <div className="flex items-center gap-1 ml-1">
-              <label className="flex items-center gap-0.5" title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)">
+              <label
+                className="flex items-center gap-0.5"
+                title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+              >
                 <span className="text-[9px] text-neutral-500">W</span>
                 <input
                   type="number"
@@ -449,7 +479,10 @@ export const TimeSeriesChart = ({
                   className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
                 />
               </label>
-              <label className="flex items-center gap-0.5" title="Polynomial order (≥ 1, must be less than window size)">
+              <label
+                className="flex items-center gap-0.5"
+                title="Polynomial order (≥ 1, must be less than window size)"
+              >
                 <span className="text-[9px] text-neutral-500">P</span>
                 <input
                   type="number"
@@ -507,7 +540,12 @@ export const TimeSeriesChart = ({
                 zoom: {
                   wheel: { enabled: true, modifierKey: 'ctrl' as const },
                   pinch: { enabled: true },
-                  drag: { enabled: true, backgroundColor: 'rgba(37,99,235,0.1)', borderColor: '#2563eb', borderWidth: 1 },
+                  drag: {
+                    enabled: true,
+                    backgroundColor: 'rgba(37,99,235,0.1)',
+                    borderColor: '#2563eb',
+                    borderWidth: 1,
+                  },
                   mode: 'x',
                   onZoom: () => setIsZoomed(true),
                 },

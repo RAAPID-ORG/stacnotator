@@ -29,7 +29,12 @@ export const UserFilterDropdown = ({
               ? `${selectedUserIds.length} user${selectedUserIds.length > 1 ? 's' : ''} selected`
               : 'All users'}
           </span>
-          <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className="w-4 h-4 text-neutral-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -70,7 +75,9 @@ export const UserFilterDropdown = ({
                         className="w-4 h-4 text-brand-600 border-neutral-300 rounded focus:ring-brand-500"
                       />
                       <span className="ml-2 text-sm text-neutral-700">
-                        {isCurrentUser && <span className="font-medium text-brand-600">(You) </span>}
+                        {isCurrentUser && (
+                          <span className="font-medium text-brand-600">(You) </span>
+                        )}
                         {displayName}
                       </span>
                     </label>

@@ -16,7 +16,12 @@ interface StacGeneratorProps {
   initialPresetId?: string | null;
 }
 
-export const StacGenerator = ({ vizNames, onGenerate, onClose, initialPresetId }: StacGeneratorProps) => {
+export const StacGenerator = ({
+  vizNames,
+  onGenerate,
+  onClose,
+  initialPresetId,
+}: StacGeneratorProps) => {
   const [config, setConfig] = useState<StacConfig>(() => emptyStacConfig(vizNames));
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [showJson, setShowJson] = useState(false);
@@ -199,7 +204,12 @@ export const StacGenerator = ({ vizNames, onGenerate, onClose, initialPresetId }
 
         slices.push({
           id: createId(),
-          name: formatSliceLabel(sliceStart.toISOString().slice(0, 10), sliceEndDate.toISOString().slice(0, 10), config.slicePeriodUnit, slices.length),
+          name: formatSliceLabel(
+            sliceStart.toISOString().slice(0, 10),
+            sliceEndDate.toISOString().slice(0, 10),
+            config.slicePeriodUnit,
+            slices.length
+          ),
           startDate: sliceStart.toISOString().slice(0, 10),
           endDate: sliceEndDate.toISOString().slice(0, 10),
         });
@@ -219,7 +229,11 @@ export const StacGenerator = ({ vizNames, onGenerate, onClose, initialPresetId }
 
       collections.push({
         id: createId(),
-        name: formatWindowLabel(colStart.toISOString().slice(0, 10), colEndDate.toISOString().slice(0, 10), config.collectionPeriodUnit),
+        name: formatWindowLabel(
+          colStart.toISOString().slice(0, 10),
+          colEndDate.toISOString().slice(0, 10),
+          config.collectionPeriodUnit
+        ),
         slices,
         coverSliceIndex: Math.max(0, coverSliceIndex),
         windowInterval: config.collectionPeriodInterval,
@@ -285,323 +299,360 @@ export const StacGenerator = ({ vizNames, onGenerate, onClose, initialPresetId }
   );
 
   return (
-    <Modal title="Generate Temporal Series" onClose={onClose} maxWidth="max-w-xl" scrollable footer={footer}>
+    <Modal
+      title="Generate Temporal Series"
+      onClose={onClose}
+      maxWidth="max-w-xl"
+      scrollable
+      footer={footer}
+    >
       <div className="p-5 space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-700 font-medium">Preset</label>
-            <select
-              value={selectedPreset}
-              onChange={(e) => applyPreset(e.target.value)}
-              className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-            >
-              <option value="">Select a preset...</option>
-              {STAC_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
-          </div>
+        <div className="space-y-1">
+          <label className="text-xs text-neutral-700 font-medium">Preset</label>
+          <select
+            value={selectedPreset}
+            onChange={(e) => applyPreset(e.target.value)}
+            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+          >
+            <option value="">Select a preset...</option>
+            {STAC_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700 flex items-center gap-1">
-                Start Month
-                <Tooltip text="First month of the temporal range for slice generation." />
-              </label>
-              <MonthPicker
-                value={config.startDate}
-                onChange={(v) => update('startDate', v)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700 flex items-center gap-1">
-                End Month (inclusive)
-                <Tooltip text="Last month of the temporal range (inclusive). This month will be included as its own collection." />
-              </label>
-              <MonthPicker
-                value={config.endDate}
-                onChange={(v) => update('endDate', v)}
-              />
-            </div>
-          </div>
-
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs text-neutral-700 flex items-center gap-1">
-              Max Cloud Cover (%)
-              <Tooltip text="Maximum allowed cloud cover percentage. Applied as an eo:cloud_cover filter in the search body." />
+              Start Month
+              <Tooltip text="First month of the temporal range for slice generation." />
+            </label>
+            <MonthPicker value={config.startDate} onChange={(v) => update('startDate', v)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 flex items-center gap-1">
+              End Month (inclusive)
+              <Tooltip text="Last month of the temporal range (inclusive). This month will be included as its own collection." />
+            </label>
+            <MonthPicker value={config.endDate} onChange={(v) => update('endDate', v)} />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-neutral-700 flex items-center gap-1">
+            Max Cloud Cover (%)
+            <Tooltip text="Maximum allowed cloud cover percentage. Applied as an eo:cloud_cover filter in the search body." />
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={config.cloudCover}
+            onChange={(e) =>
+              update('cloudCover', Math.max(0, Math.min(100, Number(e.target.value))))
+            }
+            className="w-32 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 flex items-center gap-1">
+              Collection Period
+              <Tooltip text="How often to create a new collection. E.g. 1 month means each month is a collection." />
             </label>
             <input
               type="number"
-              min="0"
-              max="100"
-              value={config.cloudCover}
-              onChange={(e) => update('cloudCover', Math.max(0, Math.min(100, Number(e.target.value))))}
-              className="w-32 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              min="1"
+              value={config.collectionPeriodInterval}
+              onChange={(e) =>
+                update('collectionPeriodInterval', Math.max(1, Number(e.target.value)))
+              }
+              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
             />
           </div>
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700">Collection Unit</label>
+            <select
+              value={config.collectionPeriodUnit}
+              onChange={(e) =>
+                update('collectionPeriodUnit', e.target.value as 'weeks' | 'months' | 'years')
+              }
+              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+            >
+              <option value="weeks">Weeks</option>
+              <option value="months">Months</option>
+              <option value="years">Years</option>
+            </select>
+          </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700 flex items-center gap-1">
-                Collection Period
-                <Tooltip text="How often to create a new collection. E.g. 1 month means each month is a collection." />
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={config.collectionPeriodInterval}
-                onChange={(e) => update('collectionPeriodInterval', Math.max(1, Number(e.target.value)))}
-                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Collection Unit</label>
-              <select
-                value={config.collectionPeriodUnit}
-                onChange={(e) => update('collectionPeriodUnit', e.target.value as 'weeks' | 'months' | 'years')}
-                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
-              >
-                <option value="weeks">Weeks</option>
-                <option value="months">Months</option>
-                <option value="years">Years</option>
-              </select>
-            </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 flex items-center gap-1">
+              Slice Period
+              <Tooltip text="How to divide each collection into slices. E.g. 1 week creates weekly slices within each collection." />
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={config.slicePeriodInterval}
+              onChange={(e) => update('slicePeriodInterval', Math.max(1, Number(e.target.value)))}
+              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700">Slice Unit</label>
+            <select
+              value={config.slicePeriodUnit}
+              onChange={(e) =>
+                update('slicePeriodUnit', e.target.value as 'days' | 'weeks' | 'months' | 'years')
+              }
+              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+            >
+              <option value="days">Days</option>
+              <option value="weeks">Weeks</option>
+              <option value="months">Months</option>
+              <option value="years">Years</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Cover slice */}
+        <div className="rounded-md border border-neutral-200 p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+              Cover Slice
+              <Tooltip text="Each collection needs a cover slice - the representative image shown by default. You can either pick one of the regular slices or add a custom cover layer (e.g. a median mosaic)." />
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700 flex items-center gap-1">
-                Slice Period
-                <Tooltip text="How to divide each collection into slices. E.g. 1 week creates weekly slices within each collection." />
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={config.slicePeriodInterval}
-                onChange={(e) => update('slicePeriodInterval', Math.max(1, Number(e.target.value)))}
-                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-neutral-700">Slice Unit</label>
-              <select
-                value={config.slicePeriodUnit}
-                onChange={(e) => update('slicePeriodUnit', e.target.value as 'days' | 'weeks' | 'months' | 'years')}
-                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
-              >
-                <option value="days">Days</option>
-                <option value="weeks">Weeks</option>
-                <option value="months">Months</option>
-                <option value="years">Years</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Cover slice */}
-          <div className="rounded-md border border-neutral-200 p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                Cover Slice
-                <Tooltip text="Each collection needs a cover slice - the representative image shown by default. You can either pick one of the regular slices or add a custom cover layer (e.g. a median mosaic)." />
-              </span>
-            </div>
-
-            {/* Mode selector */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { update('coverSliceMode', 'nth'); update('generateCoverSlice', false); }}
-                className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
-                  config.coverSliceMode === 'nth'
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                }`}
-              >
-                Use n-th slice
-              </button>
-              <button
-                type="button"
-                onClick={() => { update('coverSliceMode', 'custom'); update('generateCoverSlice', true); }}
-                className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
-                  config.coverSliceMode === 'custom'
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                }`}
-              >
-                Custom cover layer
-              </button>
-            </div>
-
-            {config.coverSliceMode === 'nth' ? (
-              <div className="space-y-1">
-                <label className="text-[11px] text-neutral-500 flex items-center gap-1">
-                  Slice number (1-based)
-                  <Tooltip text="Which regular slice to use as the cover. E.g. 1 = the first slice of each collection." />
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={config.coverSliceNth}
-                  onChange={(e) => update('coverSliceNth', Math.max(1, Number(e.target.value)))}
-                  className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
-                />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] text-neutral-500">Cover slice name</label>
-                  <input
-                    type="text"
-                    value={config.coverSliceName}
-                    onChange={(e) => update('coverSliceName', e.target.value)}
-                    placeholder="e.g. Median Mosaic"
-                    className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
-                  />
-                </div>
-
-                {/* Collapsible cover STAC details */}
-                <div className="rounded border border-neutral-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowCoverAdvanced(!showCoverAdvanced)}
-                    className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-neutral-50 transition-colors"
-                  >
-                    <span className="text-[11px] text-neutral-500 font-medium">Cover STAC Details</span>
-                    {showCoverAdvanced ? (
-                      <IconChevronUp className="w-3 h-3 text-neutral-400" />
-                    ) : (
-                      <IconChevronDown className="w-3 h-3 text-neutral-400" />
-                    )}
-                  </button>
-                  {showCoverAdvanced && (
-                    <div className="px-2 pb-2 space-y-2 border-t border-neutral-100">
-                      <div className="space-y-1 pt-2">
-                        <label className="text-[11px] text-neutral-500 flex items-center gap-1">
-                          Cover Registration URL
-                          <Tooltip text="Separate STAC registration endpoint for the cover slice. Leave empty to use the main registration URL." />
-                        </label>
-                        <input
-                          type="url"
-                          placeholder={config.registrationUrl || 'Same as main registration URL'}
-                          value={config.coverRegistrationUrl}
-                          onChange={(e) => update('coverRegistrationUrl', e.target.value)}
-                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] text-neutral-500 flex items-center gap-1">
-                          Cover Search Body
-                          <Tooltip text="Separate JSON search body for the cover slice. Leave empty to use the main search body." />
-                        </label>
-                        <AutoSizeTextarea
-                          placeholder={config.searchBody ? 'Same as main search body' : '{"collections": [...], ...}'}
-                          value={config.coverSearchBody}
-                          onChange={(val) => update('coverSearchBody', val)}
-                          minRows={2}
-                          className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Collapsible STAC Details */}
-          <div className="rounded-md border border-neutral-200">
+          {/* Mode selector */}
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
+              onClick={() => {
+                update('coverSliceMode', 'nth');
+                update('generateCoverSlice', false);
+              }}
+              className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                config.coverSliceMode === 'nth'
+                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+              }`}
             >
-              <span className="text-xs text-neutral-700 font-medium">STAC Details</span>
-              {showAdvanced ? (
-                <IconChevronUp className="w-3.5 h-3.5 text-neutral-400" />
-              ) : (
-                <IconChevronDown className="w-3.5 h-3.5 text-neutral-400" />
-              )}
+              Use n-th slice
             </button>
-
-            {showAdvanced && (
-              <div className="px-3 pb-3 space-y-4 border-t border-neutral-100">
-                <div className="space-y-1 pt-3">
-                  <label className="text-xs text-neutral-700 flex items-center gap-1">
-                    Registration URL
-                    <Tooltip text="STAC TiTiler mosaic registration endpoint. Used to create a searchId for tile access." />
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/mosaic/register"
-                    value={config.registrationUrl}
-                    onChange={(e) => update('registrationUrl', e.target.value)}
-                    className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Search Body
-                      <Tooltip text="JSON payload sent to the registration endpoint. Use {startDatetimePlaceholder} and {endDatetimePlaceholder} for temporal windowing, {campaignBBoxPlaceholder} for spatial filtering." />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowJson(!showJson)}
-                      className={`flex items-center gap-1 text-xs transition-colors cursor-pointer ${
-                        showJson ? 'text-brand-700' : 'text-neutral-500 hover:text-neutral-700'
-                      }`}
-                    >
-                      <IconCode className="w-3 h-3" />
-                      JSON
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-neutral-500">
-                    Use <code className="bg-neutral-100 px-1 rounded">{'{startDatetimePlaceholder}'}</code>,{' '}
-                    <code className="bg-neutral-100 px-1 rounded">{'{endDatetimePlaceholder}'}</code>, and{' '}
-                    <code className="bg-neutral-100 px-1 rounded">{'{campaignBBoxPlaceholder}'}</code> as dynamic placeholders.
-                  </p>
-                  <AutoSizeTextarea
-                    placeholder='{"collections": ["sentinel-2-l2a"], ...}'
-                    value={config.searchBody}
-                    onChange={(val) => update('searchBody', val)}
-                    minRows={3}
-                    className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                    Visualization URL Templates
-                    <Tooltip text="Tile URL templates for each visualization. Use {searchId}, {z}, {x}, {y} placeholders." />
-                  </label>
-
-                  {config.vizUrls.map((viz, i) => (
-                    <div key={i} className="space-y-1.5 p-2 rounded bg-neutral-50 border border-neutral-100">
-                      <span className="text-xs font-medium text-neutral-700">{viz.vizName || '(unnamed)'}</span>
-                      <input
-                        type="text"
-                        placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
-                        value={viz.url}
-                        onChange={(e) => updateVizUrl(i, 'url', e.target.value)}
-                        className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                update('coverSliceMode', 'custom');
+                update('generateCoverSlice', true);
+              }}
+              className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                config.coverSliceMode === 'custom'
+                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+              }`}
+            >
+              Custom cover layer
+            </button>
           </div>
 
-          {preview.collections > 0 && (
-            <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
-              This will generate <strong>{preview.collections}</strong> collection{preview.collections !== 1 ? 's' : ''}, each with{' '}
-              <strong>{preview.slicesPerCollection}</strong> slice{preview.slicesPerCollection !== 1 ? 's' : ''}{' '}
-              {config.coverSliceMode === 'custom' && config.generateCoverSlice && '(incl. custom cover) '}
-              {config.coverSliceMode === 'nth' && `(cover = slice #${config.coverSliceNth}) `}
-              and {config.vizUrls.length} visualization{config.vizUrls.length !== 1 ? 's' : ''}.
+          {config.coverSliceMode === 'nth' ? (
+            <div className="space-y-1">
+              <label className="text-[11px] text-neutral-500 flex items-center gap-1">
+                Slice number (1-based)
+                <Tooltip text="Which regular slice to use as the cover. E.g. 1 = the first slice of each collection." />
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={config.coverSliceNth}
+                onChange={(e) => update('coverSliceNth', Math.max(1, Number(e.target.value)))}
+                className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+              />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[11px] text-neutral-500">Cover slice name</label>
+                <input
+                  type="text"
+                  value={config.coverSliceName}
+                  onChange={(e) => update('coverSliceName', e.target.value)}
+                  placeholder="e.g. Median Mosaic"
+                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                />
+              </div>
+
+              {/* Collapsible cover STAC details */}
+              <div className="rounded border border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCoverAdvanced(!showCoverAdvanced)}
+                  className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-neutral-50 transition-colors"
+                >
+                  <span className="text-[11px] text-neutral-500 font-medium">
+                    Cover STAC Details
+                  </span>
+                  {showCoverAdvanced ? (
+                    <IconChevronUp className="w-3 h-3 text-neutral-400" />
+                  ) : (
+                    <IconChevronDown className="w-3 h-3 text-neutral-400" />
+                  )}
+                </button>
+                {showCoverAdvanced && (
+                  <div className="px-2 pb-2 space-y-2 border-t border-neutral-100">
+                    <div className="space-y-1 pt-2">
+                      <label className="text-[11px] text-neutral-500 flex items-center gap-1">
+                        Cover Registration URL
+                        <Tooltip text="Separate STAC registration endpoint for the cover slice. Leave empty to use the main registration URL." />
+                      </label>
+                      <input
+                        type="url"
+                        placeholder={config.registrationUrl || 'Same as main registration URL'}
+                        value={config.coverRegistrationUrl}
+                        onChange={(e) => update('coverRegistrationUrl', e.target.value)}
+                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-neutral-500 flex items-center gap-1">
+                        Cover Search Body
+                        <Tooltip text="Separate JSON search body for the cover slice. Leave empty to use the main search body." />
+                      </label>
+                      <AutoSizeTextarea
+                        placeholder={
+                          config.searchBody
+                            ? 'Same as main search body'
+                            : '{"collections": [...], ...}'
+                        }
+                        value={config.coverSearchBody}
+                        onChange={(val) => update('coverSearchBody', val)}
+                        minRows={2}
+                        className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
+
+        {/* Collapsible STAC Details */}
+        <div className="rounded-md border border-neutral-200">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
+          >
+            <span className="text-xs text-neutral-700 font-medium">STAC Details</span>
+            {showAdvanced ? (
+              <IconChevronUp className="w-3.5 h-3.5 text-neutral-400" />
+            ) : (
+              <IconChevronDown className="w-3.5 h-3.5 text-neutral-400" />
+            )}
+          </button>
+
+          {showAdvanced && (
+            <div className="px-3 pb-3 space-y-4 border-t border-neutral-100">
+              <div className="space-y-1 pt-3">
+                <label className="text-xs text-neutral-700 flex items-center gap-1">
+                  Registration URL
+                  <Tooltip text="STAC TiTiler mosaic registration endpoint. Used to create a searchId for tile access." />
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/mosaic/register"
+                  value={config.registrationUrl}
+                  onChange={(e) => update('registrationUrl', e.target.value)}
+                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-neutral-700 flex items-center gap-1">
+                    Search Body
+                    <Tooltip text="JSON payload sent to the registration endpoint. Use {startDatetimePlaceholder} and {endDatetimePlaceholder} for temporal windowing, {campaignBBoxPlaceholder} for spatial filtering." />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowJson(!showJson)}
+                    className={`flex items-center gap-1 text-xs transition-colors cursor-pointer ${
+                      showJson ? 'text-brand-700' : 'text-neutral-500 hover:text-neutral-700'
+                    }`}
+                  >
+                    <IconCode className="w-3 h-3" />
+                    JSON
+                  </button>
+                </div>
+                <p className="text-[11px] text-neutral-500">
+                  Use{' '}
+                  <code className="bg-neutral-100 px-1 rounded">
+                    {'{startDatetimePlaceholder}'}
+                  </code>
+                  ,{' '}
+                  <code className="bg-neutral-100 px-1 rounded">{'{endDatetimePlaceholder}'}</code>,
+                  and{' '}
+                  <code className="bg-neutral-100 px-1 rounded">{'{campaignBBoxPlaceholder}'}</code>{' '}
+                  as dynamic placeholders.
+                </p>
+                <AutoSizeTextarea
+                  placeholder='{"collections": ["sentinel-2-l2a"], ...}'
+                  value={config.searchBody}
+                  onChange={(val) => update('searchBody', val)}
+                  minRows={3}
+                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                  Visualization URL Templates
+                  <Tooltip text="Tile URL templates for each visualization. Use {searchId}, {z}, {x}, {y} placeholders." />
+                </label>
+
+                {config.vizUrls.map((viz, i) => (
+                  <div
+                    key={i}
+                    className="space-y-1.5 p-2 rounded bg-neutral-50 border border-neutral-100"
+                  >
+                    <span className="text-xs font-medium text-neutral-700">
+                      {viz.vizName || '(unnamed)'}
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
+                      value={viz.url}
+                      onChange={(e) => updateVizUrl(i, 'url', e.target.value)}
+                      className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {preview.collections > 0 && (
+          <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
+            This will generate <strong>{preview.collections}</strong> collection
+            {preview.collections !== 1 ? 's' : ''}, each with{' '}
+            <strong>{preview.slicesPerCollection}</strong> slice
+            {preview.slicesPerCollection !== 1 ? 's' : ''}{' '}
+            {config.coverSliceMode === 'custom' &&
+              config.generateCoverSlice &&
+              '(incl. custom cover) '}
+            {config.coverSliceMode === 'nth' && `(cover = slice #${config.coverSliceNth}) `}
+            and {config.vizUrls.length} visualization{config.vizUrls.length !== 1 ? 's' : ''}.
+          </div>
+        )}
+      </div>
     </Modal>
   );
 };

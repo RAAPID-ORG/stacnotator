@@ -113,7 +113,9 @@ export const useMapStore = create<MapStore>((set) => ({
   setActiveSliceIndex: (index) => set({ activeSliceIndex: index }),
 
   setCollectionSliceIndex: (collectionId, index) =>
-    set((s) => ({ collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index } })),
+    set((s) => ({
+      collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index },
+    })),
 
   markSliceEmpty: (sliceKey) =>
     set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),
@@ -132,8 +134,10 @@ export const useMapStore = create<MapStore>((set) => ({
   triggerFitAnnotations: () => set((s) => ({ fitAnnotationsTrigger: s.fitAnnotationsTrigger + 1 })),
   triggerZoomIn: () => set((s) => ({ zoomInTrigger: s.zoomInTrigger + 1 })),
   triggerZoomOut: () => set((s) => ({ zoomOutTrigger: s.zoomOutTrigger + 1 })),
-  triggerPan: (direction) => set((s) => ({ panTrigger: { direction, count: s.panTrigger.count + 1 } })),
-  triggerPanToCenter: (center) => set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
+  triggerPan: (direction) =>
+    set((s) => ({ panTrigger: { direction, count: s.panTrigger.count + 1 } })),
+  triggerPanToCenter: (center) =>
+    set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
 
   setActiveTool: (tool) =>

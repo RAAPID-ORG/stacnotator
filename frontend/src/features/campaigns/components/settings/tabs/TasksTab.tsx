@@ -95,8 +95,8 @@ export const TasksTab: React.FC<Props> = ({
             <h3 className="text-md font-semibold text-neutral-900 mb-3">Upload Task Locations</h3>
             <p className="text-sm text-neutral-500 mb-4">
               Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
-              <strong>GeoJSON</strong> file with Point / Polygon features.
-              Polygon geometries are preserved and shown as sample extents during annotation.
+              <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
+              preserved and shown as sample extents during annotation.
             </p>
             <div className="flex gap-4 items-center">
               <input

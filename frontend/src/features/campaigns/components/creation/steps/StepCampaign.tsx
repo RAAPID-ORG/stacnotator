@@ -52,8 +52,8 @@ export const StepCampaign = ({
             <div className="flex-1">
               <div className="font-medium text-sm text-neutral-900">Open</div>
               <div className="text-sm text-neutral-600">
-                Imagery that can be navigated open-world like and annotations such as polygons can be placed
-                manually.
+                Imagery that can be navigated open-world like and annotations such as polygons can
+                be placed manually.
               </div>
             </div>
           </label>
@@ -72,8 +72,8 @@ export const StepCampaign = ({
           <div className="flex-1">
             <div className="font-medium text-sm text-neutral-900">Public campaign</div>
             <div className="text-sm text-neutral-600">
-              Anyone can view and add annotations to this campaign. Users can only edit
-              or delete their own annotations. Task assignment is still restricted to campaign members.
+              Anyone can view and add annotations to this campaign. Users can only edit or delete
+              their own annotations. Task assignment is still restricted to campaign members.
             </div>
           </div>
         </label>

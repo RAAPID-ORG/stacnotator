@@ -37,10 +37,8 @@ export const Modal = ({
           </button>
         </div>
         <div className={scrollable ? 'overflow-y-auto' : ''}>{children}</div>
-        {footer && (
-          <div className="px-5 py-3 border-t border-neutral-200 shrink-0">{footer}</div>
-        )}
+        {footer && <div className="px-5 py-3 border-t border-neutral-200 shrink-0">{footer}</div>}
       </div>
     </div>,
-    document.body,
+    document.body
   );

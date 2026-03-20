@@ -10,7 +10,7 @@ export interface LatLon {
 export const computeExtentGeoJSON = (
   lat: number,
   lon: number,
-  sizeMeters: number,
+  sizeMeters: number
 ): GeoJSON.Polygon => {
   const half = sizeMeters / 2;
   // Approximate degree offsets from meters

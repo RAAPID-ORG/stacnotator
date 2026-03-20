@@ -23,7 +23,6 @@ interface TourStep {
   scrollIntoView?: boolean;
 }
 
-
 const buildTourSteps = (campaignMode: 'tasks' | 'open'): TourStep[] => {
   if (campaignMode === 'open') {
     return buildOpenModeSteps();
@@ -38,9 +37,8 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Welcome to STACNotator!',
     content: (
       <p>
-        This guided tour will walk you through all the key features of the
-        annotation workspace. Almost every action has a keyboard shortcut,
-        making your workflow fast and seamless.
+        This guided tour will walk you through all the key features of the annotation workspace.
+        Almost every action has a keyboard shortcut, making your workflow fast and seamless.
       </p>
     ),
     placement: 'bottom',
@@ -52,9 +50,8 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Imagery Source',
     content: (
       <p>
-        Use this dropdown to switch between the different imagery sources
-        configured for this campaign. Each source may have its own time-windows,
-        slices, and visualization layers.
+        Use this dropdown to switch between the different imagery sources configured for this
+        campaign. Each source may have its own time-windows, slices, and visualization layers.
       </p>
     ),
     placement: 'bottom',
@@ -66,9 +63,8 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Task Filter',
     content: (
       <p>
-        Filter which tasks are visible - by assignee, status, or a combination.
-        Useful when you want to focus on &quot;pending&quot; tasks or review a
-        specific user&apos;s work.
+        Filter which tasks are visible - by assignee, status, or a combination. Useful when you want
+        to focus on &quot;pending&quot; tasks or review a specific user&apos;s work.
       </p>
     ),
     placement: 'bottom',
@@ -80,9 +76,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Main Map Window',
     content: (
       <p>
-        This is the primary map view. It shows the selected imagery at the
-        current window &amp; slice. Use your mouse to pan and scroll to zoom, or
-        try the keyboard shortcuts you&apos;ll learn next.
+        This is the primary map view. It shows the selected imagery at the current window &amp;
+        slice. Use your mouse to pan and scroll to zoom, or try the keyboard shortcuts you&apos;ll
+        learn next.
       </p>
     ),
     placement: 'right',
@@ -94,10 +90,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Timeline Sidebar',
     content: (
       <p>
-        The vertical timeline shows all <strong>windows</strong> in
-        chronological order. The highlighted segment is the active window.
-        Click or drag along the timeline to quickly jump to a different window.
-        Dots inside the active segment represent <strong>slices</strong>.
+        The vertical timeline shows all <strong>windows</strong> in chronological order. The
+        highlighted segment is the active window. Click or drag along the timeline to quickly jump
+        to a different window. Dots inside the active segment represent <strong>slices</strong>.
       </p>
     ),
     placement: 'right',
@@ -110,14 +105,12 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          A <strong>Window</strong> is a broad time range (e.g. a year or
-          season). A <strong>Slice</strong> is a finer subdivision inside that
-          window (e.g. individual months).
+          A <strong>Window</strong> is a broad time range (e.g. a year or season). A{' '}
+          <strong>Slice</strong> is a finer subdivision inside that window (e.g. individual months).
         </p>
         <p>
-          The main map always shows one slice at a time. The smaller imagery
-          panels (below) show the <em>same</em> slice but for <em>different</em>{' '}
-          windows so you can compare across time.
+          The main map always shows one slice at a time. The smaller imagery panels (below) show the{' '}
+          <em>same</em> slice but for <em>different</em> windows so you can compare across time.
         </p>
       </div>
     ),
@@ -152,8 +145,8 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Shift+D</kbd> to go to the <strong>next window</strong> and{' '}
-          <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
+          Press <kbd className="tour-kbd">Shift+D</kbd> to go to the <strong>next window</strong>{' '}
+          and <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
         </p>
         <p className="text-sm text-neutral-500 italic">
           Try pressing Shift+D and then Shift+A to navigate both directions.
@@ -173,11 +166,10 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          You can <strong>hold</strong>{' '}
-          <kbd className="tour-kbd">A</kbd> / <kbd className="tour-kbd">D</kbd> or{' '}
-          <kbd className="tour-kbd">Shift+A</kbd> / <kbd className="tour-kbd">Shift+D</kbd>{' '}
-          to smoothly cycle through slices or windows without releasing the
-          key. This is great for spotting changes across time in a flickering
+          You can <strong>hold</strong> <kbd className="tour-kbd">A</kbd> /{' '}
+          <kbd className="tour-kbd">D</kbd> or <kbd className="tour-kbd">Shift+A</kbd> /{' '}
+          <kbd className="tour-kbd">Shift+D</kbd> to smoothly cycle through slices or windows
+          without releasing the key. This is great for spotting changes across time in a flickering
           animation style.
         </p>
         <p className="text-sm text-neutral-500 italic">
@@ -196,11 +188,21 @@ const buildTaskModeSteps = (): TourStep[] => [
       <div className="space-y-2">
         <p>These buttons control the map display:</p>
         <ul className="list-disc list-inside space-y-1 text-sm">
-          <li><strong>Window selector</strong> - choose a window directly</li>
-          <li><strong>Slice selector</strong> - choose a slice directly</li>
-          <li><strong>Recenter</strong> - snap back to the task location (Space)</li>
-          <li><strong>Crosshair</strong> - toggle the crosshair overlay (O)</li>
-          <li><strong>Timeseries probe</strong> - click map to inspect time series</li>
+          <li>
+            <strong>Window selector</strong> - choose a window directly
+          </li>
+          <li>
+            <strong>Slice selector</strong> - choose a slice directly
+          </li>
+          <li>
+            <strong>Recenter</strong> - snap back to the task location (Space)
+          </li>
+          <li>
+            <strong>Crosshair</strong> - toggle the crosshair overlay (O)
+          </li>
+          <li>
+            <strong>Timeseries probe</strong> - click map to inspect time series
+          </li>
         </ul>
       </div>
     ),
@@ -214,12 +216,10 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Space</kbd> to recenter the map on the
-          current task location.
+          Press <kbd className="tour-kbd">Space</kbd> to recenter the map on the current task
+          location.
         </p>
-        <p className="text-sm text-neutral-500 italic">
-          Try pressing Space now.
-        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing Space now.</p>
       </div>
     ),
     placement: 'bottom',
@@ -234,12 +234,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">O</kbd> to toggle the crosshair
-          overlay on the map.
+          Press <kbd className="tour-kbd">O</kbd> to toggle the crosshair overlay on the map.
         </p>
-        <p className="text-sm text-neutral-500 italic">
-          Try pressing O now.
-        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing O now.</p>
       </div>
     ),
     placement: 'bottom',
@@ -254,14 +251,11 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          These smaller panels each show a <strong>different window</strong> at
-          the same geographic location. Click a panel&apos;s header to make it the{' '}
-          <strong>active window</strong> in the main map.
+          These smaller panels each show a <strong>different window</strong> at the same geographic
+          location. Click a panel&apos;s header to make it the <strong>active window</strong> in the
+          main map.
         </p>
-        <p>
-          This lets you quickly compare how a location looks across different
-          time periods.
-        </p>
+        <p>This lets you quickly compare how a location looks across different time periods.</p>
       </div>
     ),
     placement: 'top',
@@ -274,13 +268,12 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          The time series chart shows spectral indices (e.g. NDVI) for the task
-          location over time. Vertical bars indicate the currently selected
-          window/slice.
+          The time series chart shows spectral indices (e.g. NDVI) for the task location over time.
+          Vertical bars indicate the currently selected window/slice.
         </p>
         <p>
-          Use the <strong>timeseries probe</strong> tool in the map controls to
-          click anywhere on the map and see its time series.
+          Use the <strong>timeseries probe</strong> tool in the map controls to click anywhere on
+          the map and see its time series.
         </p>
       </div>
     ),
@@ -293,9 +286,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Minimap',
     content: (
       <p>
-        The minimap gives you a bird&apos;s-eye overview of the campaign area.
-        The marker shows the current task location. Coordinates are shown
-        in the header - click the copy icon to grab them or hit the link to open in Google Earth.
+        The minimap gives you a bird&apos;s-eye overview of the campaign area. The marker shows the
+        current task location. Coordinates are shown in the header - click the copy icon to grab
+        them or hit the link to open in Google Earth.
       </p>
     ),
     placement: 'left',
@@ -309,10 +302,18 @@ const buildTaskModeSteps = (): TourStep[] => [
       <div className="space-y-2">
         <p>This panel is where you actually annotate:</p>
         <ul className="list-disc list-inside space-y-1 text-sm">
-          <li>Select a <strong>label</strong> (or press number keys 1-9)</li>
-          <li>Optionally add a <strong>comment</strong> (press C to focus)</li>
-          <li>Set your <strong>confidence</strong> level (Q/E to adjust)</li>
-          <li>Press <strong>Enter</strong> to submit, <strong>B</strong> to skip</li>
+          <li>
+            Select a <strong>label</strong> (or press number keys 1-9)
+          </li>
+          <li>
+            Optionally add a <strong>comment</strong> (press C to focus)
+          </li>
+          <li>
+            Set your <strong>confidence</strong> level (Q/E to adjust)
+          </li>
+          <li>
+            Press <strong>Enter</strong> to submit, <strong>B</strong> to skip
+          </li>
         </ul>
       </div>
     ),
@@ -348,12 +349,10 @@ const buildTaskModeSteps = (): TourStep[] => [
       <div className="space-y-2">
         <p>
           Press <kbd className="tour-kbd">Alt+↑</kbd> to <strong>zoom in</strong> and{' '}
-          <kbd className="tour-kbd">Alt+↓</kbd> to <strong>zoom out</strong>.
-          You can also scroll with the mouse wheel.
+          <kbd className="tour-kbd">Alt+↓</kbd> to <strong>zoom out</strong>. You can also scroll
+          with the mouse wheel.
         </p>
-        <p className="text-sm text-neutral-500 italic">
-          Try pressing Alt+↑ now to zoom in.
-        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing Alt+↑ now to zoom in.</p>
       </div>
     ),
     placement: 'bottom',
@@ -369,16 +368,14 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">L</kbd> to cycle through available
-          visualization layers (e.g. True Color, NDVI, basemaps, etc.).
+          Press <kbd className="tour-kbd">L</kbd> to cycle through available visualization layers
+          (e.g. True Color, NDVI, basemaps, etc.).
         </p>
         <p>
-          Press <kbd className="tour-kbd">I</kbd> to cycle through imagery
-          sources configured for this campaign.
+          Press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources configured for
+          this campaign.
         </p>
-        <p>
-          You can also use the dropdowns in the toolbar and map controls.
-        </p>
+        <p>You can also use the dropdowns in the toolbar and map controls.</p>
       </div>
     ),
     placement: 'left',
@@ -390,20 +387,16 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Review Mode',
     content: (
       <div className="space-y-2">
-        <p>
-          STACNotator has two ways to review annotations:
-        </p>
+        <p>STACNotator has two ways to review annotations:</p>
         <ul className="list-disc list-inside space-y-1 text-sm">
           <li>
-            <strong>Review toggle</strong> (eye icon) - enables review mode
-            directly on this annotation page. You&apos;ll see all annotators&apos;
-            labels for each task in the controls panel, and authoritative
-            reviewers can submit a final label.
+            <strong>Review toggle</strong> (eye icon) - enables review mode directly on this
+            annotation page. You&apos;ll see all annotators&apos; labels for each task in the
+            controls panel, and authoritative reviewers can submit a final label.
           </li>
           <li>
-            <strong>Review list</strong> (list icon) - navigates to a
-            dedicated review page with a table overview of all annotations,
-            agreement statistics, and filtering options.
+            <strong>Review list</strong> (list icon) - navigates to a dedicated review page with a
+            table overview of all annotations, agreement statistics, and filtering options.
           </li>
         </ul>
       </div>
@@ -417,9 +410,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Layout Controls',
     content: (
       <p>
-        Click <strong>Edit Layout</strong> to drag and resize all the panels to
-        your liking. Save as a personal or default layout for the campaign.
-        Use the fullscreen button to maximize the annotation workspace.
+        Click <strong>Edit Layout</strong> to drag and resize all the panels to your liking. Save as
+        a personal or default layout for the campaign. Use the fullscreen button to maximize the
+        annotation workspace.
       </p>
     ),
     placement: 'bottom',
@@ -432,12 +425,10 @@ const buildTaskModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">H</kbd> at any time to see the full
-          keyboard shortcuts reference. You can also click this button.
+          Press <kbd className="tour-kbd">H</kbd> at any time to see the full keyboard shortcuts
+          reference. You can also click this button.
         </p>
-        <p className="text-sm text-neutral-500 italic">
-          Try pressing H now.
-        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing H now.</p>
       </div>
     ),
     placement: 'bottom',
@@ -453,8 +444,8 @@ const buildTaskModeSteps = (): TourStep[] => [
       <div className="space-y-2">
         <p>
           You&apos;re all set! STACNotator is designed to be <strong>keyboard-first</strong> -
-          nearly every action has a shortcut, so you can annotate efficiently
-          without ever reaching for the mouse. Here&apos;s your cheat-sheet:
+          nearly every action has a shortcut, so you can annotate efficiently without ever reaching
+          for the mouse. Here&apos;s your cheat-sheet:
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
           <span className="text-neutral-600">Navigate tasks</span>
@@ -487,8 +478,8 @@ const buildTaskModeSteps = (): TourStep[] => [
           <kbd className="tour-kbd text-center">H</kbd>
         </div>
         <p className="text-sm text-neutral-500 mt-2">
-          Press <kbd className="tour-kbd">H</kbd> anytime for the full reference.
-          You can restart this tour from the toolbar.
+          Press <kbd className="tour-kbd">H</kbd> anytime for the full reference. You can restart
+          this tour from the toolbar.
         </p>
       </div>
     ),
@@ -503,9 +494,8 @@ const buildOpenModeSteps = (): TourStep[] => [
     title: 'Welcome to Open Mode!',
     content: (
       <p>
-        In open mode you draw annotations directly on the map. This tour
-        will guide you through the key features. Like task mode, almost every
-        action has a keyboard shortcut.
+        In open mode you draw annotations directly on the map. This tour will guide you through the
+        key features. Like task mode, almost every action has a keyboard shortcut.
       </p>
     ),
     placement: 'bottom',
@@ -515,9 +505,7 @@ const buildOpenModeSteps = (): TourStep[] => [
   {
     target: '[data-tour="imagery-selector"]',
     title: 'Imagery Source',
-    content: (
-      <p>Switch between configured imagery sources here.</p>
-    ),
+    content: <p>Switch between configured imagery sources here.</p>,
     placement: 'bottom',
   },
 
@@ -529,8 +517,7 @@ const buildOpenModeSteps = (): TourStep[] => [
       <p>
         This is your drawing canvas. Use the tools (<kbd className="tour-kbd">V</kbd>,{' '}
         <kbd className="tour-kbd">R</kbd>, <kbd className="tour-kbd">E</kbd>,{' '}
-        <kbd className="tour-kbd">T</kbd>) to pan, annotate, edit features, or
-        probe time series.
+        <kbd className="tour-kbd">T</kbd>) to pan, annotate, edit features, or probe time series.
       </p>
     ),
     placement: 'right',
@@ -542,13 +529,10 @@ const buildOpenModeSteps = (): TourStep[] => [
     title: 'Annotation Controls',
     content: (
       <div className="space-y-2">
+        <p>Select a label, choose your drawing tool, and toggle magic-wand segmentation here.</p>
         <p>
-          Select a label, choose your drawing tool, and toggle magic-wand
-          segmentation here.
-        </p>
-        <p>
-          Press number keys <kbd className="tour-kbd">1-9</kbd> to quickly
-          select a label and switch to the annotate tool.
+          Press number keys <kbd className="tour-kbd">1-9</kbd> to quickly select a label and switch
+          to the annotate tool.
         </p>
       </div>
     ),
@@ -582,13 +566,11 @@ const buildOpenModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">A</kbd> / <kbd className="tour-kbd">D</kbd> to
-          navigate between slices, and <kbd className="tour-kbd">Shift+A</kbd> /{' '}
+          Press <kbd className="tour-kbd">A</kbd> / <kbd className="tour-kbd">D</kbd> to navigate
+          between slices, and <kbd className="tour-kbd">Shift+A</kbd> /{' '}
           <kbd className="tour-kbd">Shift+D</kbd> to navigate between windows.
         </p>
-        <p className="text-sm text-neutral-500 italic">
-          Try pressing D now.
-        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing D now.</p>
       </div>
     ),
     placement: 'bottom',
@@ -604,8 +586,7 @@ const buildOpenModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Space</kbd> to fit the view to all
-          your annotations.
+          Press <kbd className="tour-kbd">Space</kbd> to fit the view to all your annotations.
         </p>
       </div>
     ),
@@ -621,9 +602,8 @@ const buildOpenModeSteps = (): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          You&apos;re ready to start annotating in open mode! STACNotator is
-          designed to be <strong>keyboard-first</strong> - here&apos;s your
-          cheat-sheet:
+          You&apos;re ready to start annotating in open mode! STACNotator is designed to be{' '}
+          <strong>keyboard-first</strong> - here&apos;s your cheat-sheet:
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
           <span className="text-neutral-600">Pan tool</span>
@@ -656,15 +636,14 @@ const buildOpenModeSteps = (): TourStep[] => [
           <kbd className="tour-kbd text-center">H</kbd>
         </div>
         <p className="text-sm text-neutral-500 mt-2">
-          Press <kbd className="tour-kbd">H</kbd> anytime for the full reference.
-          You can restart this tour from the toolbar.
+          Press <kbd className="tour-kbd">H</kbd> anytime for the full reference. You can restart
+          this tour from the toolbar.
         </p>
       </div>
     ),
     placement: 'bottom',
   },
 ];
-
 
 interface GuidedTourProps {
   isOpen: boolean;
@@ -741,7 +720,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
 
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentStep, keyFulfilled]);
 
   // Position tooltip relative to the highlighted element
@@ -919,11 +898,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
         )}
 
         {/* Tooltip */}
-        <div
-          ref={tooltipRef}
-          className="tour-tooltip"
-          style={tooltipStyle}
-        >
+        <div ref={tooltipRef} className="tour-tooltip" style={tooltipStyle}>
           {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 rounded-t-xl overflow-hidden">
             <div

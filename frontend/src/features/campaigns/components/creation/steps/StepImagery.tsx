@@ -1,10 +1,30 @@
 import { useState, useRef, useEffect } from 'react';
 import type { CampaignCreate } from '~/api/client';
-import type { ImageryStepState, ImagerySource, ImageryView, Basemap, ViewCollectionRef } from './imagery/types';
-import { emptySource, emptyView, emptyBasemap, swap, DEFAULT_BASEMAPS, STAC_PRESETS } from './imagery/types';
+import type {
+  ImageryStepState,
+  ImagerySource,
+  ImageryView,
+  Basemap,
+  ViewCollectionRef,
+} from './imagery/types';
+import {
+  emptySource,
+  emptyView,
+  emptyBasemap,
+  swap,
+  DEFAULT_BASEMAPS,
+  STAC_PRESETS,
+} from './imagery/types';
 import { ImagerySourceEditor } from './imagery/ImagerySourceEditor';
 import { CanvasPreview } from './imagery/CanvasPreview';
-import { IconTrash, IconPlus, IconSettings, IconChevronDown, IconChevronUp, IconStac } from '~/shared/ui/Icons';
+import {
+  IconTrash,
+  IconPlus,
+  IconSettings,
+  IconChevronDown,
+  IconChevronUp,
+  IconStac,
+} from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
 import { Tooltip } from './imagery/Tooltip';
 
@@ -35,9 +55,7 @@ export const StepImagery = ({
   /** Which source is currently being edited (panel open), or null */
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
   /** Which view tab is active -starts on the initial view */
-  const [activeViewId, setActiveViewId] = useState<string | null>(
-    () => state.views[0]?.id ?? null,
-  );
+  const [activeViewId, setActiveViewId] = useState<string | null>(() => state.views[0]?.id ?? null);
   /** Whether the intro guide is expanded */
   const [showGuide, setShowGuide] = useState(true);
   /** Whether the + Source picker is open */
@@ -67,9 +85,10 @@ export const StepImagery = ({
             .filter((v) => v.url)
             .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
         })),
-        stac_config: col.data.type === 'stac' && col.data.registrationUrl
-          ? { registration_url: col.data.registrationUrl, search_body: col.data.searchBody }
-          : null,
+        stac_config:
+          col.data.type === 'stac' && col.data.registrationUrl
+            ? { registration_url: col.data.registrationUrl, search_body: col.data.searchBody }
+            : null,
       })),
     }));
 
@@ -202,10 +221,10 @@ export const StepImagery = ({
 
   /* Compute which sources are not assigned to ANY view */
   const allAssignedSourceIds = new Set(
-    state.views.flatMap((v) => v.collectionRefs.map((r) => r.sourceId)),
+    state.views.flatMap((v) => v.collectionRefs.map((r) => r.sourceId))
   );
   const sourcesNotInAnyView = new Set(
-    state.sources.filter((s) => !allAssignedSourceIds.has(s.id)).map((s) => s.id),
+    state.sources.filter((s) => !allAssignedSourceIds.has(s.id)).map((s) => s.id)
   );
 
   /* Refs for speech-bubble positioning */
@@ -251,24 +270,52 @@ export const StepImagery = ({
           <span className="text-sm text-neutral-700">
             <span className="font-medium">How imagery configuration works</span>
           </span>
-          {showGuide ? <IconChevronUp className="w-4 h-4 text-neutral-400" /> : <IconChevronDown className="w-4 h-4 text-neutral-400" />}
+          {showGuide ? (
+            <IconChevronUp className="w-4 h-4 text-neutral-400" />
+          ) : (
+            <IconChevronDown className="w-4 h-4 text-neutral-400" />
+          )}
         </button>
         {showGuide && (
           <div className="px-4 pb-3 pt-0 border-t border-neutral-200 text-xs text-neutral-600 space-y-2">
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 mt-2">
               <span className="font-semibold text-brand-700 text-right">1. Source</span>
-              <span>A data provider (e.g. <em>Sentinel-2</em> or <em>Landsat</em>). Each source has a default zoom, crosshair color, and one or more visualizations that you would like to show (like True Color, NDVI).</span>
+              <span>
+                A data provider (e.g. <em>Sentinel-2</em> or <em>Landsat</em>). Each source has a
+                default zoom, crosshair color, and one or more visualizations that you would like to
+                show (like True Color, NDVI).
+              </span>
               <span className="font-semibold text-brand-700 text-right">2. Collection</span>
-              <span>A time window of imagery within a source (e.g. <em>January 2024</em>). STAC collections search data from a catalog that is shown through TiTiler; Manual/XYZ collections use a direct tile URL.</span>
+              <span>
+                A time window of imagery within a source (e.g. <em>January 2024</em>). STAC
+                collections search data from a catalog that is shown through TiTiler; Manual/XYZ
+                collections use a direct tile URL.
+              </span>
               <span className="font-semibold text-brand-700 text-right">3. Slice</span>
-              <span>A sub-period within a collection (e.g. <em>Week 1, Week 2</em>). Annotators can switch between slices to find cloud-free imagery. One slice is marked as the <strong>cover</strong> (default visible). Often you might want to use some form of composite (i.e median) as the cover, and then have weekly slices to see all imagery in detail.</span>
+              <span>
+                A sub-period within a collection (e.g. <em>Week 1, Week 2</em>). Annotators can
+                switch between slices to find cloud-free imagery. One slice is marked as the{' '}
+                <strong>cover</strong> (default visible). Often you might want to use some form of
+                composite (i.e median) as the cover, and then have weekly slices to see all imagery
+                in detail.
+              </span>
               <span className="font-semibold text-brand-700 text-right">4. View</span>
-              <span>A layout tab in the canvas above. Each view can include different sources. Often you might want to have one view per source to not overcrowd the screen. Sources can be part of different views.</span>
+              <span>
+                A layout tab in the canvas above. Each view can include different sources. Often you
+                might want to have one view per source to not overcrowd the screen. Sources can be
+                part of different views.
+              </span>
               <span className="font-semibold text-brand-700 text-right">5. Window</span>
-              <span>Each collection assigned to a view becomes a map window. You always have one main map; The windows appear as small thumbnails. You can hide windows you don't need - they can still be seen through navigation on the timeline (layer selector).</span>
+              <span>
+                Each collection assigned to a view becomes a map window. You always have one main
+                map; The windows appear as small thumbnails. You can hide windows you don't need -
+                they can still be seen through navigation on the timeline (layer selector).
+              </span>
             </div>
             <div className="pt-1.5 border-t border-neutral-100 text-neutral-500 leading-relaxed">
-              <strong className="text-neutral-600">Workflow:</strong> Create sources below → configure their collections &amp; slices → add sources to views using the canvas preview above → select windows.
+              <strong className="text-neutral-600">Workflow:</strong> Create sources below →
+              configure their collections &amp; slices → add sources to views using the canvas
+              preview above → select windows.
             </div>
           </div>
         )}
@@ -305,37 +352,50 @@ export const StepImagery = ({
             return (
               <div key={source.id} className="shrink-0 flex flex-col items-center gap-1">
                 <button
-                  ref={(el) => { tileRefs.current[source.id] = el; }}
+                  ref={(el) => {
+                    tileRefs.current[source.id] = el;
+                  }}
                   type="button"
-                  onClick={() => { setEditingSourceId(isEditing ? null : source.id); setPendingPresetId(null); }}
+                  onClick={() => {
+                    setEditingSourceId(isEditing ? null : source.id);
+                    setPendingPresetId(null);
+                  }}
                   title="Click to configure"
                   className={`group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
                     px-4 py-3 shrink-0
-                    ${isEditing
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-md'
-                      : notInAnyView
-                        ? 'border-red-300 bg-red-50/40 text-neutral-800 hover:border-red-400 hover:bg-red-50'
-                        : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
+                    ${
+                      isEditing
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-md'
+                        : notInAnyView
+                          ? 'border-red-300 bg-red-50/40 text-neutral-800 hover:border-red-400 hover:bg-red-50'
+                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
                     }`}
                 >
                   {notInAnyView && !isEditing && (
-                    <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white leading-none" title="Not added to any view">
+                    <span
+                      className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white leading-none"
+                      title="Not added to any view"
+                    >
                       !
                     </span>
                   )}
-                  <IconSettings className={`absolute inset-0 m-auto w-4 h-4 transition-opacity ${
-                    isEditing
-                      ? 'opacity-0'
-                      : 'opacity-0 group-hover:opacity-100 text-brand-600'
-                  }`} />
-                  <span className={`text-xs font-medium leading-tight truncate max-w-[120px] transition-opacity ${
-                    isEditing ? 'opacity-100' : 'group-hover:opacity-0'
-                  }`}>
+                  <IconSettings
+                    className={`absolute inset-0 m-auto w-4 h-4 transition-opacity ${
+                      isEditing ? 'opacity-0' : 'opacity-0 group-hover:opacity-100 text-brand-600'
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium leading-tight truncate max-w-[120px] transition-opacity ${
+                      isEditing ? 'opacity-100' : 'group-hover:opacity-0'
+                    }`}
+                  >
                     {source.name || 'Untitled'}
                   </span>
                 </button>
                 {notInAnyView && (
-                  <span className="text-[9px] text-red-500 font-medium leading-none">Not in any view</span>
+                  <span className="text-[9px] text-red-500 font-medium leading-none">
+                    Not in any view
+                  </span>
                 )}
               </div>
             );
@@ -354,33 +414,35 @@ export const StepImagery = ({
 
       {showSourcePicker && (
         <Modal title="Create Imagery Source" onClose={() => setShowSourcePicker(false)}>
-            <div className="p-3 space-y-1">
-              <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-4 pt-1 pb-0.5">STAC Presets</p>
-              {STAC_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => addSourceFromPreset(preset.id)}
-                  className="w-full text-left px-4 py-2.5 rounded-lg bg-brand-50/50 border border-brand-100 hover:bg-brand-100 cursor-pointer transition-colors"
-                >
-                  <span className="text-sm font-medium text-brand-700 flex items-center gap-1.5">
-                    <IconStac className="w-3.5 h-3.5 text-brand-500" />
-                    {preset.label}
-                  </span>
-                </button>
-              ))}
-              <div className="border-t border-neutral-100 my-1.5" />
+          <div className="p-3 space-y-1">
+            <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-4 pt-1 pb-0.5">
+              STAC Presets
+            </p>
+            {STAC_PRESETS.map((preset) => (
               <button
+                key={preset.id}
                 type="button"
-                onClick={addSource}
-                className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
+                onClick={() => addSourceFromPreset(preset.id)}
+                className="w-full text-left px-4 py-2.5 rounded-lg bg-brand-50/50 border border-brand-100 hover:bg-brand-100 cursor-pointer transition-colors"
               >
-                <span className="text-sm font-medium text-neutral-800">Manual (empty source)</span>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Start from scratch with an empty source configuration.
-                </p>
+                <span className="text-sm font-medium text-brand-700 flex items-center gap-1.5">
+                  <IconStac className="w-3.5 h-3.5 text-brand-500" />
+                  {preset.label}
+                </span>
               </button>
-            </div>
+            ))}
+            <div className="border-t border-neutral-100 my-1.5" />
+            <button
+              type="button"
+              onClick={addSource}
+              className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
+            >
+              <span className="text-sm font-medium text-neutral-800">Manual (empty source)</span>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Start from scratch with an empty source configuration.
+              </p>
+            </button>
+          </div>
         </Modal>
       )}
 
@@ -395,7 +457,10 @@ export const StepImagery = ({
           }}
           onTransitionEnd={handleEditorTransitionEnd}
         >
-          <div className="absolute left-0 right-0 flex z-10" style={{ pointerEvents: 'none', top: 0 }}>
+          <div
+            className="absolute left-0 right-0 flex z-10"
+            style={{ pointerEvents: 'none', top: 0 }}
+          >
             {(() => {
               const sourceForTriangle = editingSource ?? renderedSource;
               const tileEl = tileRefs.current[sourceForTriangle.id];

@@ -38,7 +38,7 @@ function generateFallbackWindowLayout(view: ImageryViewOut): Layout {
 function buildMergedLayout(
   mainLayout: Layout,
   viewLayout: Layout | undefined,
-  view: ImageryViewOut | undefined,
+  view: ImageryViewOut | undefined
 ): Layout {
   if (viewLayout) return [...mainLayout, ...viewLayout];
   // Fallback: view exists but has no stored layout (legacy campaign)
@@ -66,7 +66,11 @@ interface CampaignStore {
   isEditingLayout: boolean;
 
   // Actions
-  loadCampaign: (campaignId: number, initialTaskId?: number, isReviewMode?: boolean) => Promise<void>;
+  loadCampaign: (
+    campaignId: number,
+    initialTaskId?: number,
+    isReviewMode?: boolean
+  ) => Promise<void>;
   setSelectedViewId: (id: number | null) => void;
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
@@ -212,8 +216,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     }
 
     try {
-      const mainItems = currentLayout.filter(
-        (item) => ['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
+      const mainItems = currentLayout.filter((item) =>
+        ['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
       );
       const viewItems = currentLayout.filter(
         (item) => !['main', 'timeseries', 'minimap', 'controls'].includes(item.i)

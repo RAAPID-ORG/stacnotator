@@ -23,10 +23,7 @@ export const CreateCampaignPage = () => {
   const hideLoadingOverlay = useLayoutStore((s) => s.hideLoadingOverlay);
 
   useEffect(() => {
-    setBreadcrumbs([
-      { label: 'Campaigns', path: '/campaigns' },
-      { label: 'New Campaign' },
-    ]);
+    setBreadcrumbs([{ label: 'Campaigns', path: '/campaigns' }, { label: 'New Campaign' }]);
   }, [setBreadcrumbs]);
 
   const [step, setStep] = useState(1);
@@ -48,7 +45,10 @@ export const CreateCampaignPage = () => {
 
   const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
 
-  const validation: FullValidationResult = useMemo(() => validateFullForm(form, imageryState), [form, imageryState]);
+  const validation: FullValidationResult = useMemo(
+    () => validateFullForm(form, imageryState),
+    [form, imageryState]
+  );
 
   const totalErrors = useMemo(
     () =>
@@ -56,7 +56,7 @@ export const CreateCampaignPage = () => {
       Object.keys(validation.settings.errors).length +
       Object.keys(validation.imagery.errors).length +
       Object.keys(validation.timeseries.errors).length,
-    [validation],
+    [validation]
   );
 
   const currentStepConfig =
@@ -86,7 +86,14 @@ export const CreateCampaignPage = () => {
       case 'StepSettings':
         return <StepSettings form={form} setForm={setForm} />;
       case 'StepImagery':
-        return <StepImagery form={form} setForm={setForm} imageryState={imageryState} setImageryState={setImageryState} />;
+        return (
+          <StepImagery
+            form={form}
+            setForm={setForm}
+            imageryState={imageryState}
+            setImageryState={setImageryState}
+          />
+        );
       case 'StepAddTimeseries':
         return <StepAddTimeseries form={form} setForm={setForm} />;
       case 'StepReview':
@@ -143,9 +150,7 @@ export const CreateCampaignPage = () => {
         </div>
 
         {/* Step content */}
-        <div className="bg-white rounded-lg border border-neutral-200 p-6">
-          {getStepContent()}
-        </div>
+        <div className="bg-white rounded-lg border border-neutral-200 p-6">{getStepContent()}</div>
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-6 pb-8">

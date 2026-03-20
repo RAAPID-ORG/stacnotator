@@ -41,7 +41,7 @@ export const useOpenModeKeyboard = () => {
 
     // Pre-compute source → viz index ranges for I / Shift+I cycling
     const allVizEntries = campaign.imagery_sources.flatMap((src) =>
-      src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name })),
+      src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
     );
     // Build unique source groups with their start/end indices into allVizEntries
     const sourceGroups: { name: string; startIdx: number; count: number }[] = [];
@@ -167,5 +167,15 @@ export const useOpenModeKeyboard = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [campaign, setSelectedLabelId, setActiveTool, setTimeseriesPoint, triggerFitAnnotations, toggleViewSync, goToPreviousAnnotation, goToNextAnnotation, toggleGuide]);
+  }, [
+    campaign,
+    setSelectedLabelId,
+    setActiveTool,
+    setTimeseriesPoint,
+    triggerFitAnnotations,
+    toggleViewSync,
+    goToPreviousAnnotation,
+    goToNextAnnotation,
+    toggleGuide,
+  ]);
 };

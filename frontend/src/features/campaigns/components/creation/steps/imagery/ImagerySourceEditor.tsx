@@ -3,7 +3,16 @@ import type { ImagerySource, CollectionItem } from './types';
 import { emptyManualCollection, emptyStacCollection, swap } from './types';
 import { CollectionEditor } from './CollectionEditor';
 import { StacGenerator } from './StacGenerator';
-import { IconTrash, IconChevronDown, IconChevronUp, IconStac, IconSettings, IconClock, IconPlus, IconClose } from '~/shared/ui/Icons';
+import {
+  IconTrash,
+  IconChevronDown,
+  IconChevronUp,
+  IconStac,
+  IconSettings,
+  IconClock,
+  IconPlus,
+  IconClose,
+} from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
 import { Tooltip } from './Tooltip';
 
@@ -17,7 +26,13 @@ interface ImagerySourceEditorProps {
   onPresetConsumed?: () => void;
 }
 
-export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetId, onPresetConsumed }: ImagerySourceEditorProps) => {
+export const ImagerySourceEditor = ({
+  source,
+  onChange,
+  onRemove,
+  initialPresetId,
+  onPresetConsumed,
+}: ImagerySourceEditorProps) => {
   const [showStacGenerator, setShowStacGenerator] = useState(false);
   const [showNewCollectionPicker, setShowNewCollectionPicker] = useState(false);
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
@@ -83,15 +98,13 @@ export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetI
   const renameVisualization = (index: number, newName: string) => {
     const oldName = source.visualizations[index].name;
     onChange({
-      visualizations: source.visualizations.map((v, i) =>
-        i === index ? { name: newName } : v,
-      ),
+      visualizations: source.visualizations.map((v, i) => (i === index ? { name: newName } : v)),
       collections: source.collections.map((c) => ({
         ...c,
         data: {
           ...c.data,
           vizUrls: c.data.vizUrls.map((vu) =>
-            vu.vizName === oldName ? { ...vu, vizName: newName } : vu,
+            vu.vizName === oldName ? { ...vu, vizName: newName } : vu
           ),
         },
       })),
@@ -211,7 +224,11 @@ export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetI
             </button>
 
             {source.collections.map((collection) => {
-              const displayName = collection.name || (collection.slices.length > 0 ? `${collection.slices[0]?.startDate?.slice(0, 7) ?? ''} - ${collection.slices[collection.slices.length - 1]?.endDate?.slice(0, 7) ?? ''}` : 'Untitled');
+              const displayName =
+                collection.name ||
+                (collection.slices.length > 0
+                  ? `${collection.slices[0]?.startDate?.slice(0, 7) ?? ''} - ${collection.slices[collection.slices.length - 1]?.endDate?.slice(0, 7) ?? ''}`
+                  : 'Untitled');
               const typeLabel = collection.data.type === 'stac' ? 'STAC' : 'XYZ';
               return (
                 <button
@@ -257,45 +274,50 @@ export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetI
       {/* New collection picker modal */}
       {showNewCollectionPicker && (
         <Modal title="Add Collection" onClose={() => setShowNewCollectionPicker(false)}>
-            <div className="p-3 space-y-1">
-              <button
-                type="button"
-                onClick={() => { setShowStacGenerator(true); setShowNewCollectionPicker(false); }}
-                className="w-full text-left px-4 py-3.5 rounded-lg bg-brand-50 border border-brand-200 hover:bg-brand-100 cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-semibold text-brand-700 flex items-center gap-1.5">
-                  <IconStac className="w-3.5 h-3.5 text-brand-500" />
-                  STAC Temporal Series
-                  <span className="ml-auto text-[10px] font-medium bg-brand-500 text-white px-1.5 py-0.5 rounded-full">Recommended</span>
+          <div className="p-3 space-y-1">
+            <button
+              type="button"
+              onClick={() => {
+                setShowStacGenerator(true);
+                setShowNewCollectionPicker(false);
+              }}
+              className="w-full text-left px-4 py-3.5 rounded-lg bg-brand-50 border border-brand-200 hover:bg-brand-100 cursor-pointer transition-colors"
+            >
+              <span className="text-sm font-semibold text-brand-700 flex items-center gap-1.5">
+                <IconStac className="w-3.5 h-3.5 text-brand-500" />
+                STAC Temporal Series
+                <span className="ml-auto text-[10px] font-medium bg-brand-500 text-white px-1.5 py-0.5 rounded-full">
+                  Recommended
                 </span>
-                <p className="text-xs text-brand-600/70 mt-0.5">
-                  Auto-generate multiple collections from a time range and period interval.
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={addSingleStacCollection}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium text-neutral-800 flex items-center gap-1.5">
-                  <IconStac className="w-3.5 h-3.5 text-neutral-500" />
-                  Single STAC Collection
-                </span>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Add one STAC collection with its own registration and search config.
-                </p>
-              </button>
-              <button
-                type="button"
-                onClick={addManualCollection}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium text-neutral-800">Manual XYZ</span>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  Add a collection with direct XYZ tile URLs.
-                </p>
-              </button>
-            </div>
+              </span>
+              <p className="text-xs text-brand-600/70 mt-0.5">
+                Auto-generate multiple collections from a time range and period interval.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={addSingleStacCollection}
+              className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
+            >
+              <span className="text-sm font-medium text-neutral-800 flex items-center gap-1.5">
+                <IconStac className="w-3.5 h-3.5 text-neutral-500" />
+                Single STAC Collection
+              </span>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Add one STAC collection with its own registration and search config.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={addManualCollection}
+              className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
+            >
+              <span className="text-sm font-medium text-neutral-800">Manual XYZ</span>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Add a collection with direct XYZ tile URLs.
+              </p>
+            </button>
+          </div>
         </Modal>
       )}
 
@@ -307,13 +329,16 @@ export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetI
           maxWidth="max-w-xl"
           scrollable
         >
-              <CollectionEditor
-                collection={source.collections.find((c) => c.id === editingCollectionId)!}
-                vizNames={vizNames}
-                onChange={(updates) => updateCollection(editingCollectionId, updates)}
-                onRemove={() => { removeCollection(editingCollectionId); setEditingCollectionId(null); }}
-                inModal
-              />
+          <CollectionEditor
+            collection={source.collections.find((c) => c.id === editingCollectionId)!}
+            vizNames={vizNames}
+            onChange={(updates) => updateCollection(editingCollectionId, updates)}
+            onRemove={() => {
+              removeCollection(editingCollectionId);
+              setEditingCollectionId(null);
+            }}
+            inModal
+          />
         </Modal>
       )}
 
@@ -321,7 +346,10 @@ export const ImagerySourceEditor = ({ source, onChange, onRemove, initialPresetI
         <StacGenerator
           vizNames={vizNames}
           onGenerate={handleStacGenerate}
-          onClose={() => { setShowStacGenerator(false); onPresetConsumed?.(); }}
+          onClose={() => {
+            setShowStacGenerator(false);
+            onPresetConsumed?.();
+          }}
           initialPresetId={initialPresetId}
         />
       )}

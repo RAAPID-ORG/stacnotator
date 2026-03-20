@@ -49,9 +49,13 @@ export const MonthPicker = ({ value, onChange, disabled, className }: MonthPicke
         disabled={disabled}
         className={`${selectClass} w-[4.5rem]`}
       >
-        <option value="" disabled>Mon</option>
+        <option value="" disabled>
+          Mon
+        </option>
         {MONTHS.map((m) => (
-          <option key={m.value} value={m.value}>{m.label}</option>
+          <option key={m.value} value={m.value}>
+            {m.label}
+          </option>
         ))}
       </select>
       <select
@@ -60,9 +64,13 @@ export const MonthPicker = ({ value, onChange, disabled, className }: MonthPicke
         disabled={disabled}
         className={`${selectClass} w-[5rem]`}
       >
-        <option value="" disabled>Year</option>
+        <option value="" disabled>
+          Year
+        </option>
         {YEARS.map((y) => (
-          <option key={y} value={String(y)}>{y}</option>
+          <option key={y} value={String(y)}>
+            {y}
+          </option>
         ))}
       </select>
     </div>

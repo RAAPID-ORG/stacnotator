@@ -42,10 +42,10 @@ export const HomePage = () => {
           <div>
             <h3 className="font-semibold text-amber-800">Development Notice</h3>
             <p className="text-sm text-amber-700 mt-1">
-              This software is under active development and is not yet fully mature.
-              Features may change, and results should be independently verified.
-              No warranty or liability is provided regarding the correctness or
-              completeness of any outputs produced by this platform.
+              This software is under active development and is not yet fully mature. Features may
+              change, and results should be independently verified. No warranty or liability is
+              provided regarding the correctness or completeness of any outputs produced by this
+              platform.
             </p>
           </div>
         </div>

@@ -32,8 +32,8 @@ const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
 };
 
 // Status colors for tasks without a labeled annotation
-const PENDING_COLOR = '#9CA3AF';  // gray
-const SKIPPED_COLOR = '#8B5CF6';  // violet
+const PENDING_COLOR = '#9CA3AF'; // gray
+const SKIPPED_COLOR = '#8B5CF6'; // violet
 
 export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps> = ({
   tasks,

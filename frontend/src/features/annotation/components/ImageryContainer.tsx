@@ -3,7 +3,11 @@ import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { extractCentroidFromWKT, convertWKTToGeoJSON, computeExtentGeoJSON } from '~/shared/utils/utility';
+import {
+  extractCentroidFromWKT,
+  convertWKTToGeoJSON,
+  computeExtentGeoJSON,
+} from '~/shared/utils/utility';
 
 interface ImageryContainerProps {
   collectionId: number;
@@ -58,13 +62,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   // Resolve tile URL from pre-resolved slice tile_urls
   const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => v.name),
+    src.visualizations.map((v) => v.name)
   );
   const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
-  const tileUrl = activeSlice?.tile_urls.find(
-    (t) => t.visualization_name === activeVizName,
-  )?.tile_url ?? '';
+  const tileUrl =
+    activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName)?.tile_url ?? '';
   const loading = !activeSlice || !tileUrl;
 
   // Memoize latLon extraction (supports all geometry types via centroid)
@@ -77,7 +80,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   // Initial center for map mount
   const initialCenter = useMemo<[number, number]>(() => {
     if (latLon) return [latLon.lat, latLon.lon];
-    if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
+    if (campaignBbox)
+      return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return [0, 0];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -88,7 +92,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       if (currentMapCenter) return currentMapCenter;
     }
     if (latLon) return [latLon.lat, latLon.lon];
-    if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
+    if (campaignBbox)
+      return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveCollection, viewSyncEnabled]);
@@ -108,28 +113,39 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTask?.geometry.geometry, isOpenMode]);
 
-  const crosshair = !isOpenMode && latLon && !isPolygonTask
-    ? { lat: latLon.lat, lon: latLon.lon, color: source?.crosshair_hex6 ?? undefined }
-    : undefined;
+  const crosshair =
+    !isOpenMode && latLon && !isPolygonTask
+      ? { lat: latLon.lat, lon: latLon.lon, color: source?.crosshair_hex6 ?? undefined }
+      : undefined;
 
   // Compute sample extent GeoJSON for the current task
   const sampleExtent = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
     if (isOpenMode || !currentTask) return null;
     const wkt = currentTask.geometry.geometry;
     const geojson = convertWKTToGeoJSON(wkt);
-    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon')) return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon'))
+      return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
     if (latLon && campaign?.settings.sample_extent_meters) {
       return computeExtentGeoJSON(latLon.lat, latLon.lon, campaign.settings.sample_extent_meters);
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTask?.geometry.geometry, isOpenMode, campaign?.settings.sample_extent_meters, latLon?.lat, latLon?.lon]);
+  }, [
+    currentTask?.geometry.geometry,
+    isOpenMode,
+    campaign?.settings.sample_extent_meters,
+    latLon?.lat,
+    latLon?.lon,
+  ]);
 
   // True once every slice for this collection has been confirmed empty
-  const allSlicesEmpty = !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
+  const allSlicesEmpty =
+    !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
-  useEffect(() => { setEmptyTileAlert(null); }, [tileUrl]);
+  useEffect(() => {
+    setEmptyTileAlert(null);
+  }, [tileUrl]);
 
   const emptyTilesStateRef = useRef({
     collectionId,
@@ -182,9 +198,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
     mark(key);
 
-    const nextIndex = allSlices.findIndex(
-      (_, i) => i !== curIdx && !empty[`${colId}-${i}`]
-    );
+    const nextIndex = allSlices.findIndex((_, i) => i !== curIdx && !empty[`${colId}-${i}`]);
 
     if (nextIndex !== -1) {
       if (isActive) {
@@ -200,8 +214,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   if (!collection || !campaignBbox) return null;
 
-  const handleMouseDown = () => { isDraggingRef.current = false; };
-  const handleMouseMove = () => { isDraggingRef.current = true; };
+  const handleMouseDown = () => {
+    isDraggingRef.current = false;
+  };
+  const handleMouseMove = () => {
+    isDraggingRef.current = true;
+  };
   const handleMouseUp = () => {
     if (!isDraggingRef.current) setActiveCollectionId(collectionId);
     isDraggingRef.current = false;
@@ -236,8 +254,14 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               const key = `${collectionId}-${idx}`;
               const isEmpty = !isOpenMode && emptySlices[key];
               return (
-                <option key={idx} value={idx} disabled={!!isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                  {slice.name}{isEmpty ? ' (empty)' : ''}
+                <option
+                  key={idx}
+                  value={idx}
+                  disabled={!!isEmpty}
+                  style={isEmpty ? { color: '#aaa' } : undefined}
+                >
+                  {slice.name}
+                  {isEmpty ? ' (empty)' : ''}
                 </option>
               );
             })}
@@ -253,9 +277,18 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
       {allSlicesEmpty ? (
         <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
-          <svg className="w-6 h-6 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5" />
+          <svg
+            className="w-6 h-6 text-neutral-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5"
+            />
           </svg>
           <span className="text-[10px] font-medium text-neutral-400 text-center px-2 leading-snug">
             No imagery available
@@ -269,7 +302,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
                 No imagery data for <strong>{emptyTileAlert}</strong>
               </span>
               <button
-                onClick={(e) => { e.stopPropagation(); setEmptyTileAlert(null); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEmptyTileAlert(null);
+                }}
                 onMouseDown={(e) => e.stopPropagation()}
                 className="ml-1 text-amber-600 hover:text-amber-900 font-bold leading-none"
                 title="Dismiss"

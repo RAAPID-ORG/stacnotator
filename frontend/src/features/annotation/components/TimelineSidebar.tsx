@@ -39,22 +39,28 @@ const TimelineSidebar = ({
   const isDraggingRef = useRef(false);
 
   const onCollectionChangeRef = useRef(onCollectionChange);
-  const onSliceChangeRef      = useRef(onSliceChange);
-  const onDraggingChangeRef   = useRef(onDraggingChange);
-  useEffect(() => { onCollectionChangeRef.current = onCollectionChange; }, [onCollectionChange]);
-  useEffect(() => { onSliceChangeRef.current      = onSliceChange;      }, [onSliceChange]);
-  useEffect(() => { onDraggingChangeRef.current    = onDraggingChange;   }, [onDraggingChange]);
+  const onSliceChangeRef = useRef(onSliceChange);
+  const onDraggingChangeRef = useRef(onDraggingChange);
+  useEffect(() => {
+    onCollectionChangeRef.current = onCollectionChange;
+  }, [onCollectionChange]);
+  useEffect(() => {
+    onSliceChangeRef.current = onSliceChange;
+  }, [onSliceChange]);
+  useEffect(() => {
+    onDraggingChangeRef.current = onDraggingChange;
+  }, [onDraggingChange]);
 
   const [isDragging, setIsDragging] = useState(false);
-  const dragCollectionIdRef  = useRef<number | null>(null);
-  const dragSliceIndexRef    = useRef<number>(0);
+  const dragCollectionIdRef = useRef<number | null>(null);
+  const dragSliceIndexRef = useRef<number>(0);
   const [dragCollectionId, setDragCollectionId] = useState<number | null>(null);
-  const [dragSliceIndex,   setDragSliceIndex]   = useState<number>(0);
+  const [dragSliceIndex, setDragSliceIndex] = useState<number>(0);
   const [tooltip, setTooltip] = useState<{ y: number; text: string } | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const allStepsRef = useRef<TimelineStep[]>([]);
-  const yToStepRef  = useRef<(clientY: number) => TimelineStep | null>(() => null);
+  const yToStepRef = useRef<(clientY: number) => TimelineStep | null>(() => null);
 
   // Resolve the current view's collections
   const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
@@ -62,11 +68,13 @@ const TimelineSidebar = ({
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const viewCollections = useMemo(() => {
     if (!selectedView) return [];
-    return selectedView.collection_refs.map((ref) => {
-      const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-      const collection = source?.collections.find((c) => c.id === ref.collection_id);
-      return { ...ref, collection, source };
-    }).filter((r) => r.collection);
+    return selectedView.collection_refs
+      .map((ref) => {
+        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
+        const collection = source?.collections.find((c) => c.id === ref.collection_id);
+        return { ...ref, collection, source };
+      })
+      .filter((r) => r.collection);
   }, [selectedView, campaign.imagery_sources]);
 
   // Compute overall date range from all collections' slices
@@ -107,17 +115,19 @@ const TimelineSidebar = ({
     const rect = track.getBoundingClientRect();
     const relY = Math.max(0, Math.min(clientY - rect.top, rect.height - 1));
     const frac = relY / rect.height;
-    const idx  = Math.floor(frac * steps.length);
+    const idx = Math.floor(frac * steps.length);
     return steps[Math.min(idx, steps.length - 1)];
   }, []);
 
-  const liveCollectionId = isDragging ? (dragCollectionId ?? activeCollectionId) : activeCollectionId;
-  const liveSliceIndex   = isDragging ? dragSliceIndex : activeSliceIndex;
+  const liveCollectionId = isDragging
+    ? (dragCollectionId ?? activeCollectionId)
+    : activeCollectionId;
+  const liveSliceIndex = isDragging ? dragSliceIndex : activeSliceIndex;
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const pointerMoveHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const pointerUpHandlerRef   = useRef<(e: PointerEvent) => void>(() => {});
+  const pointerUpHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
 
   pointerMoveHandlerRef.current = (e: PointerEvent) => {
     if (!isDraggingRef.current) return;
@@ -132,7 +142,7 @@ const TimelineSidebar = ({
     })();
 
     dragCollectionIdRef.current = step.collectionId;
-    dragSliceIndexRef.current   = landingSlice;
+    dragSliceIndexRef.current = landingSlice;
 
     onCollectionChangeRef.current?.(step.collectionId);
     onSliceChangeRef.current?.(landingSlice);
@@ -141,8 +151,8 @@ const TimelineSidebar = ({
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
         const track = trackRef.current;
-        const cId   = dragCollectionIdRef.current;
-        const sIdx  = dragSliceIndexRef.current;
+        const cId = dragCollectionIdRef.current;
+        const sIdx = dragSliceIndexRef.current;
         setDragCollectionId(cId);
         setDragSliceIndex(sIdx);
         if (track && cId !== null) {
@@ -168,7 +178,7 @@ const TimelineSidebar = ({
     }
 
     document.removeEventListener('pointermove', stablePointerMove, { capture: true } as any);
-    document.removeEventListener('pointerup',   stablePointerUp,   { capture: true } as any);
+    document.removeEventListener('pointerup', stablePointerUp, { capture: true } as any);
 
     setIsDragging(false);
     setTooltip(null);
@@ -190,27 +200,33 @@ const TimelineSidebar = ({
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const stablePointerMove = useRef((e: PointerEvent) => pointerMoveHandlerRef.current(e)).current;
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const stablePointerUp   = useRef((e: PointerEvent) => pointerUpHandlerRef.current(e)).current;
+  const stablePointerUp = useRef((e: PointerEvent) => pointerUpHandlerRef.current(e)).current;
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  useEffect(() => () => {
-    document.removeEventListener('pointermove', stablePointerMove, { capture: true } as any);
-    document.removeEventListener('pointerup',   stablePointerUp,   { capture: true } as any);
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-  }, [stablePointerMove, stablePointerUp]);
+  useEffect(
+    () => () => {
+      document.removeEventListener('pointermove', stablePointerMove, { capture: true } as any);
+      document.removeEventListener('pointerup', stablePointerUp, { capture: true } as any);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    },
+    [stablePointerMove, stablePointerUp]
+  );
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const startDrag = useCallback((e: React.PointerEvent) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    isDraggingRef.current = true;
-    setIsDragging(true);
-    onDraggingChangeRef.current?.(true);
-    document.addEventListener('pointermove', stablePointerMove, { capture: true, passive: true });
-    document.addEventListener('pointerup',   stablePointerUp,   { capture: true });
-    pointerMoveHandlerRef.current(e.nativeEvent);
-  }, [stablePointerMove, stablePointerUp]);
+  const startDrag = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingRef.current = true;
+      setIsDragging(true);
+      onDraggingChangeRef.current?.(true);
+      document.addEventListener('pointermove', stablePointerMove, { capture: true, passive: true });
+      document.addEventListener('pointerup', stablePointerUp, { capture: true });
+      pointerMoveHandlerRef.current(e.nativeEvent);
+    },
+    [stablePointerMove, stablePointerUp]
+  );
 
   const totalCollections = viewCollections.length;
 
@@ -218,7 +234,20 @@ const TimelineSidebar = ({
     if (!d) return '';
     const date = new Date(d);
     if (isNaN(date.getTime())) return d;
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
@@ -229,17 +258,29 @@ const TimelineSidebar = ({
         className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-4 h-10 bg-neutral-200 hover:bg-neutral-300 text-neutral-500 hover:text-neutral-700 rounded-r border border-l-0 border-neutral-300 transition-colors cursor-pointer flex items-center justify-center"
         title={collapsed ? 'Show timeline' : 'Hide timeline'}
       >
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor"
+        <svg
+          width="8"
+          height="14"
+          viewBox="0 0 8 14"
+          fill="currentColor"
           className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}
         >
-          <path d="M7 1L1 7L7 13" stroke="currentColor" strokeWidth="2"
-            strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path
+            d="M7 1L1 7L7 13"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
         </svg>
       </button>
 
-      <div className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-300 h-full bg-white ${
-        collapsed ? 'w-0' : 'w-[56px]'
-      }`}>
+      <div
+        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-300 h-full bg-white ${
+          collapsed ? 'w-0' : 'w-[56px]'
+        }`}
+      >
         {!collapsed && (
           <div className="h-full flex flex-col px-1 py-1 select-none">
             <div className="text-[9px] font-medium text-neutral-500 mb-1 text-center leading-tight">
@@ -256,8 +297,8 @@ const TimelineSidebar = ({
               {viewCollections.map(({ collection }, index) => {
                 if (!collection) return null;
                 const isActive = collection.id === liveCollectionId;
-                const segH     = `${100 / totalCollections}%`;
-                const slices   = collection.slices;
+                const segH = `${100 / totalCollections}%`;
+                const slices = collection.slices;
                 const hasSlices = isActive && slices.length > 1;
 
                 return (
@@ -267,18 +308,24 @@ const TimelineSidebar = ({
                     style={{ height: segH, minHeight: segH }}
                   >
                     {isActive ? (
-                      <div className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
-                        border-2 border-brand-500 rounded bg-brand-50 z-10 py-1 gap-0.5">
+                      <div
+                        className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
+                        border-2 border-brand-500 rounded bg-brand-50 z-10 py-1 gap-0.5"
+                      >
                         <span className="text-[8px] font-bold text-brand-700 leading-tight text-center px-0.5 break-words w-full">
                           {collection.name}
                         </span>
                       </div>
                     ) : (
-                      <div className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
-                        group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10">
+                      <div
+                        className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
+                        group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10"
+                      >
                         <div className="w-2.5 h-px bg-brand-400 group-hover:bg-brand-500 transition-colors" />
-                        <span className="text-[7.5px] text-neutral-400 group-hover:text-brand-600
-                          leading-tight text-center px-0.5 mt-0.5 break-words w-full transition-colors">
+                        <span
+                          className="text-[7.5px] text-neutral-400 group-hover:text-brand-600
+                          leading-tight text-center px-0.5 mt-0.5 break-words w-full transition-colors"
+                        >
                           {collection.name}
                         </span>
                       </div>
@@ -292,8 +339,10 @@ const TimelineSidebar = ({
                   className="absolute left-full ml-2 z-50 pointer-events-none"
                   style={{ top: Math.max(0, tooltip.y - 16) }}
                 >
-                  <div className="bg-neutral-900 text-white text-[10px] rounded px-2 py-1
-                    shadow-lg whitespace-nowrap border border-neutral-700 leading-snug">
+                  <div
+                    className="bg-neutral-900 text-white text-[10px] rounded px-2 py-1
+                    shadow-lg whitespace-nowrap border border-neutral-700 leading-snug"
+                  >
                     {tooltip.text}
                   </div>
                 </div>

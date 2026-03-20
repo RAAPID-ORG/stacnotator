@@ -62,17 +62,25 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     return selectedView.collection_refs
       .map((ref) => {
         const source = campaign.imagery_sources.find((s) =>
-          s.collections.some((c) => c.id === ref.collection_id),
+          s.collections.some((c) => c.id === ref.collection_id)
         );
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         if (!source || !collection) return null;
         return { ...ref, collection, source };
       })
-      .filter(Boolean) as { collection_id: number; source_id: number; show_as_window: boolean; collection: { id: number; slices: { name: string }[] }; source: { id: number } }[];
+      .filter(Boolean) as {
+      collection_id: number;
+      source_id: number;
+      show_as_window: boolean;
+      collection: { id: number; slices: { name: string }[] };
+      source: { id: number };
+    }[];
   }, [selectedView, campaign]);
 
   // Current active collection and its position
-  const currentCollectionIndex = viewCollections.findIndex((c) => c.collection_id === activeCollectionId);
+  const currentCollectionIndex = viewCollections.findIndex(
+    (c) => c.collection_id === activeCollectionId
+  );
   const currentEntry = viewCollections[currentCollectionIndex];
   const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
 
@@ -84,7 +92,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       }
       return -1;
     },
-    [emptySlices],
+    [emptySlices]
   );
 
   const selectLabelByIndex = useCallback(
@@ -94,7 +102,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         setSelectedLabelId(selectedLabelId === targetLabelId ? null : targetLabelId);
       }
     },
-    [labels, setSelectedLabelId, selectedLabelId],
+    [labels, setSelectedLabelId, selectedLabelId]
   );
 
   const processDigitBuffer = useCallback(() => {
@@ -118,7 +126,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         digitTimeoutRef.current = setTimeout(processDigitBuffer, DIGIT_INPUT_TIMEOUT_MS);
       }
     },
-    [labels.length, processDigitBuffer],
+    [labels.length, processDigitBuffer]
   );
 
   // Navigate slices with collection wrap-around
@@ -151,7 +159,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           const prevCount = prev.collection.slices.length;
           let landing = -1;
           for (let i = prevCount - 1; i >= 0; i--) {
-            if (!emptySlices[`${prev.collection_id}-${i}`]) { landing = i; break; }
+            if (!emptySlices[`${prev.collection_id}-${i}`]) {
+              landing = i;
+              break;
+            }
           }
           if (landing < 0) return;
           setActiveCollectionId(prev.collection_id);
@@ -159,14 +170,25 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         }
       }
     },
-    [activeSliceIndex, currentSliceCount, currentCollectionIndex, currentEntry, viewCollections, emptySlices, setActiveSliceIndex, setActiveCollectionId, firstNonEmptySlice],
+    [
+      activeSliceIndex,
+      currentSliceCount,
+      currentCollectionIndex,
+      currentEntry,
+      viewCollections,
+      emptySlices,
+      setActiveSliceIndex,
+      setActiveCollectionId,
+      firstNonEmptySlice,
+    ]
   );
 
   // Navigate collections directly (Shift+A/D)
   const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {
       if (viewCollections.length === 0) return;
-      const targetIdx = direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
+      const targetIdx =
+        direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
       const target = viewCollections[targetIdx];
       if (!target) return;
 
@@ -175,18 +197,30 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       setActiveCollectionId(target.collection_id);
 
       if (isStoredEmpty) {
-        const fallback = firstNonEmptySlice(target.collection_id, target.collection.slices.length, storedSlice);
+        const fallback = firstNonEmptySlice(
+          target.collection_id,
+          target.collection.slices.length,
+          storedSlice
+        );
         if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
       }
     },
-    [currentCollectionIndex, viewCollections, setActiveCollectionId, setActiveSliceIndex, firstNonEmptySlice, collectionSliceIndices, emptySlices],
+    [
+      currentCollectionIndex,
+      viewCollections,
+      setActiveCollectionId,
+      setActiveSliceIndex,
+      firstNonEmptySlice,
+      collectionSliceIndices,
+      emptySlices,
+    ]
   );
 
   // Pre-compute source → viz index ranges for I / Shift+I cycling
   const sourceGroups = useMemo(() => {
     const groups: { name: string; startIdx: number; count: number }[] = [];
     let offset = 0;
-    for (const src of (campaign?.imagery_sources ?? [])) {
+    for (const src of campaign?.imagery_sources ?? []) {
       groups.push({ name: src.name, startIdx: offset, count: src.visualizations.length });
       offset += src.visualizations.length;
     }
@@ -209,7 +243,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       currentEntryIdx = sourceGroups.length + (bmIdx >= 0 ? bmIdx : 0);
     } else {
       currentEntryIdx = sourceGroups.findIndex(
-        (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count,
+        (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
       );
       if (currentEntryIdx === -1) currentEntryIdx = 0;
     }
@@ -225,13 +259,22 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       setShowBasemap(true);
       setSelectedBasemapId(basemapIds[bmIdx]);
     }
-  }, [sourceGroups, basemapIds, selectedLayerIndex, selectedBasemapId, showBasemap, setSelectedLayerIndex, setShowBasemap, setSelectedBasemapId]);
+  }, [
+    sourceGroups,
+    basemapIds,
+    selectedLayerIndex,
+    selectedBasemapId,
+    showBasemap,
+    setSelectedLayerIndex,
+    setShowBasemap,
+    setSelectedBasemapId,
+  ]);
 
   /** Shift+I: cycle visualizations within the current source */
   const cycleVisualization = useCallback(() => {
     if (showBasemap || sourceGroups.length === 0) return;
     const currentGroup = sourceGroups.find(
-      (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count,
+      (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
     );
     if (!currentGroup || currentGroup.count <= 1) return;
     const posInGroup = selectedLayerIndex - currentGroup.startIdx;

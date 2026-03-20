@@ -90,7 +90,11 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
   if (!currentUserId) return { selectedLabelId: null, comment: '', confidence: 5 };
   const userAnn = task.annotations.find((a) => a.created_by_user_id === currentUserId);
   return userAnn
-    ? { selectedLabelId: userAnn.label_id, comment: userAnn.comment || '', confidence: userAnn.confidence ?? 5 }
+    ? {
+        selectedLabelId: userAnn.label_id,
+        comment: userAnn.comment || '',
+        confidence: userAnn.confidence ?? 5,
+      }
     : { selectedLabelId: null, comment: '', confidence: 5 };
 };
 
@@ -218,7 +222,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
           if (validationRes.data?.status === 'mismatch') {
             const proceed = await useLayoutStore.getState().showConfirmDialog({
               title: 'Label Mismatch Detected',
-              description: 'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
+              description:
+                'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
               confirmText: 'Submit Anyway',
               cancelText: 'Go Back',
               isDangerous: true,
@@ -356,7 +361,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   setComment: (comment) => set({ comment }),
   setConfidence: (confidence) => set({ confidence }),
   toggleMagicWand: (labelId) =>
-    set((s) => ({ magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] } })),
+    set((s) => ({
+      magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
+    })),
   setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
   setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
   resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),

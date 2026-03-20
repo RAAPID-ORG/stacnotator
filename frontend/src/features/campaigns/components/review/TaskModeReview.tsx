@@ -1,11 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import {
-  getAllAnnotationTasks,
-  type AnnotationTaskOut,
-  type CampaignOut,
-} from '~/api/client';
+import { getAllAnnotationTasks, type AnnotationTaskOut, type CampaignOut } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { formatTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
@@ -61,7 +57,10 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        if (!task.id.toString().includes(query) && !task.annotation_number.toString().includes(query))
+        if (
+          !task.id.toString().includes(query) &&
+          !task.annotation_number.toString().includes(query)
+        )
           return false;
       }
       return true;
@@ -75,7 +74,8 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
           const vals = t.annotations.map((x) => x.confidence).filter((c): c is number => c != null);
           return vals.length ? Math.min(...vals) : Infinity;
         };
-        const ca = getMinConf(a), cb = getMinConf(b);
+        const ca = getMinConf(a),
+          cb = getMinConf(b);
         if (ca === Infinity && cb === Infinity) return 0;
         if (ca === Infinity) return 1;
         if (cb === Infinity) return -1;
@@ -92,7 +92,11 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     tasks.forEach((t) =>
       t.assignments?.forEach((a) => {
         if (!m.has(a.user_id))
-          m.set(a.user_id, { id: a.user_id, email: a.user_email || null, displayName: a.user_display_name || null });
+          m.set(a.user_id, {
+            id: a.user_id,
+            email: a.user_email || null,
+            displayName: a.user_display_name || null,
+          });
       })
     );
     return Array.from(m.values()).sort((a, b) =>
@@ -100,14 +104,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     );
   }, [tasks]);
 
-  const stats = useMemo(() => ({
-    total: tasks.length,
-    completed: tasks.filter((t) => t.task_status === 'done').length,
-    partial: tasks.filter((t) => t.task_status === 'partial').length,
-    conflicting: tasks.filter((t) => t.task_status === 'conflicting').length,
-    pending: tasks.filter((t) => t.task_status === 'pending').length,
-    skipped: tasks.filter((t) => t.task_status === 'skipped').length,
-  }), [tasks]);
+  const stats = useMemo(
+    () => ({
+      total: tasks.length,
+      completed: tasks.filter((t) => t.task_status === 'done').length,
+      partial: tasks.filter((t) => t.task_status === 'partial').length,
+      conflicting: tasks.filter((t) => t.task_status === 'conflicting').length,
+      pending: tasks.filter((t) => t.task_status === 'pending').length,
+      skipped: tasks.filter((t) => t.task_status === 'skipped').length,
+    }),
+    [tasks]
+  );
 
   const handleNavigateToTask = (taskId: number) => {
     navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
@@ -136,7 +143,11 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ExportDropdown campaignId={campaignId} campaign={campaign} disabled={tasks.length === 0} />
+          <ExportDropdown
+            campaignId={campaignId}
+            campaign={campaign}
+            disabled={tasks.length === 0}
+          />
           <button
             onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
             className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
@@ -175,21 +186,21 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-neutral-700">Status:</label>
             <div className="flex gap-1">
-              {(['all', 'pending', 'partial', 'conflicting', 'done', 'skipped'] as StatusFilter[]).map(
-                (status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                      statusFilter === status
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                    }`}
-                  >
-                    {status === 'all' ? 'All' : capitalizeFirst(status)}
-                  </button>
-                )
-              )}
+              {(
+                ['all', 'pending', 'partial', 'conflicting', 'done', 'skipped'] as StatusFilter[]
+              ).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    statusFilter === status
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                  }`}
+                >
+                  {status === 'all' ? 'All' : capitalizeFirst(status)}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -227,9 +238,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
               className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-neutral-500 hover:text-neutral-700">
+              <button
+                onClick={() => setSearchQuery('')}
+                className="text-neutral-500 hover:text-neutral-700"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             )}
@@ -238,13 +257,25 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
         {/* Filter Results Summary */}
         <div className="mt-3 pt-3 border-t border-neutral-200 flex items-center justify-between text-sm text-neutral-600">
-          <span>Showing {filteredTasks.length} of {tasks.length} tasks</span>
+          <span>
+            Showing {filteredTasks.length} of {tasks.length} tasks
+          </span>
           <div className="flex items-center gap-4">
-            <span>Complete: <strong className="text-neutral-900">{stats.completed}</strong></span>
-            <span>Partial: <strong className="text-neutral-900">{stats.partial}</strong></span>
-            <span>Conflicting: <strong className="text-neutral-900">{stats.conflicting}</strong></span>
-            <span>Pending: <strong className="text-neutral-900">{stats.pending}</strong></span>
-            <span>Skipped: <strong className="text-neutral-900">{stats.skipped}</strong></span>
+            <span>
+              Complete: <strong className="text-neutral-900">{stats.completed}</strong>
+            </span>
+            <span>
+              Partial: <strong className="text-neutral-900">{stats.partial}</strong>
+            </span>
+            <span>
+              Conflicting: <strong className="text-neutral-900">{stats.conflicting}</strong>
+            </span>
+            <span>
+              Pending: <strong className="text-neutral-900">{stats.pending}</strong>
+            </span>
+            <span>
+              Skipped: <strong className="text-neutral-900">{stats.skipped}</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -252,8 +283,18 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       {/* Tasks Table */}
       {filteredTasks.length === 0 ? (
         <div className="text-center py-12 bg-white border border-neutral-300 rounded-lg">
-          <svg className="w-12 h-12 text-neutral-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          <svg
+            className="w-12 h-12 text-neutral-400 mx-auto mb-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            />
           </svg>
           <p className="text-neutral-700 mb-2">No tasks match your filters</p>
           <p className="text-neutral-500 text-sm">Try adjusting your filter criteria</p>
@@ -276,16 +317,21 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                 const taskStatus = task.task_status as TaskStatus;
                 const assignments = task.assignments || [];
                 const annotations = task.annotations || [];
-                const isAssignedToMe = currentUser && assignments.some((a) => a.user_id === currentUser.id);
+                const isAssignedToMe =
+                  currentUser && assignments.some((a) => a.user_id === currentUser.id);
 
                 return (
                   <tr
                     key={task.id}
                     className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isAssignedToMe ? 'bg-brand-50/30' : 'bg-white'}`}
                   >
-                    <td className="px-4 py-3 text-neutral-900 font-medium">{task.annotation_number}</td>
+                    <td className="px-4 py-3 text-neutral-900 font-medium">
+                      {task.annotation_number}
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}>
+                      <span
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
+                      >
                         {formatTaskStatus(taskStatus)}
                       </span>
                     </td>
@@ -296,15 +342,27 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                       <div className="flex flex-wrap gap-1">
                         {annotations.length > 0 ? (
                           annotations.map((ann) => {
-                            const annotator = assignments.find((a) => a.user_id === ann.created_by_user_id);
+                            const annotator = assignments.find(
+                              (a) => a.user_id === ann.created_by_user_id
+                            );
                             const isCurrentUser = ann.created_by_user_id === currentUser?.id;
                             const displayName = isCurrentUser
                               ? currentUser.display_name || currentUser.email || 'You'
-                              : annotator?.user_display_name || annotator?.user_email || ann.created_by_user_id?.substring(0, 8) || 'Unknown';
+                              : annotator?.user_display_name ||
+                                annotator?.user_email ||
+                                ann.created_by_user_id?.substring(0, 8) ||
+                                'Unknown';
 
-                            const assignmentForAnn = assignments.find((a) => a.user_id === ann.created_by_user_id);
-                            const isSkippedAnn = assignmentForAnn?.status === 'skipped' || ann.label_id == null;
-                            const label = ann.label_id ? `#${ann.label_id}` : isSkippedAnn ? 'Skipped' : '-';
+                            const assignmentForAnn = assignments.find(
+                              (a) => a.user_id === ann.created_by_user_id
+                            );
+                            const isSkippedAnn =
+                              assignmentForAnn?.status === 'skipped' || ann.label_id == null;
+                            const label = ann.label_id
+                              ? `#${ann.label_id}`
+                              : isSkippedAnn
+                                ? 'Skipped'
+                                : '-';
                             const confidence = ann.confidence != null ? `${ann.confidence}/5` : '-';
                             const hasComment = ann.comment && ann.comment.trim() !== '';
 
@@ -313,17 +371,34 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 key={ann.id}
                                 className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-700'}`}
                               >
-                                <span className="font-medium" title="Annotator">{displayName}</span>
+                                <span className="font-medium" title="Annotator">
+                                  {displayName}
+                                </span>
                                 <span className="text-neutral-400">|</span>
                                 <span title="Label ID">{label}</span>
                                 <span className="text-neutral-400">|</span>
-                                <span className={ann.confidence != null ? 'font-bold' : ''} title="Confidence rating">{confidence}</span>
+                                <span
+                                  className={ann.confidence != null ? 'font-bold' : ''}
+                                  title="Confidence rating"
+                                >
+                                  {confidence}
+                                </span>
                                 {hasComment && (
                                   <>
                                     <span className="text-neutral-400">|</span>
                                     <span className="relative group cursor-help">
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                        />
                                       </svg>
                                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
                                         <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
@@ -342,7 +417,11 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                         )}
                         {/* Placeholder labels for assigned users who haven't annotated yet */}
                         {assignments
-                          .filter((a) => a.status === 'pending' && !annotations.some((ann) => ann.created_by_user_id === a.user_id))
+                          .filter(
+                            (a) =>
+                              a.status === 'pending' &&
+                              !annotations.some((ann) => ann.created_by_user_id === a.user_id)
+                          )
                           .map((a) => {
                             const isCurrentUser = a.user_id === currentUser?.id;
                             const displayName = isCurrentUser
@@ -381,12 +460,39 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       {/* Footer Stats */}
       {filteredTasks.length > 0 && (
         <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-          <span>Filtered: <strong className="text-neutral-900">{filteredTasks.length}</strong></span>
-          <span>Complete: <strong className="text-neutral-900">{filteredTasks.filter((t) => t.task_status === 'done').length}</strong></span>
-          <span>Partial: <strong className="text-neutral-900">{filteredTasks.filter((t) => t.task_status === 'partial').length}</strong></span>
-          <span>Conflicting: <strong className="text-neutral-900">{filteredTasks.filter((t) => t.task_status === 'conflicting').length}</strong></span>
-          <span>Pending: <strong className="text-neutral-900">{filteredTasks.filter((t) => t.task_status === 'pending').length}</strong></span>
-          <span>Skipped: <strong className="text-neutral-900">{filteredTasks.filter((t) => t.task_status === 'skipped').length}</strong></span>
+          <span>
+            Filtered: <strong className="text-neutral-900">{filteredTasks.length}</strong>
+          </span>
+          <span>
+            Complete:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => t.task_status === 'done').length}
+            </strong>
+          </span>
+          <span>
+            Partial:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => t.task_status === 'partial').length}
+            </strong>
+          </span>
+          <span>
+            Conflicting:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => t.task_status === 'conflicting').length}
+            </strong>
+          </span>
+          <span>
+            Pending:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => t.task_status === 'pending').length}
+            </strong>
+          </span>
+          <span>
+            Skipped:{' '}
+            <strong className="text-neutral-900">
+              {filteredTasks.filter((t) => t.task_status === 'skipped').length}
+            </strong>
+          </span>
         </div>
       )}
     </div>

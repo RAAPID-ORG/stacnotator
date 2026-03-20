@@ -29,7 +29,13 @@ function PlaceholderBadge({ label, present }: { label: string; present: boolean 
   );
 }
 
-export const CollectionEditor = ({ collection, vizNames, onChange, onRemove, inModal }: CollectionEditorProps) => {
+export const CollectionEditor = ({
+  collection,
+  vizNames,
+  onChange,
+  onRemove,
+  inModal,
+}: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
 
   const typeLabel = collection.data.type === 'stac' ? 'STAC' : 'XYZ';
@@ -131,7 +137,9 @@ export const CollectionEditor = ({ collection, vizNames, onChange, onRemove, inM
       )}
 
       {(inModal || expanded) && (
-        <div className={`space-y-3 ${inModal ? 'px-5 py-4' : 'px-3 pb-3 pt-1 border-t border-neutral-100'}`}>
+        <div
+          className={`space-y-3 ${inModal ? 'px-5 py-4' : 'px-3 pb-3 pt-1 border-t border-neutral-100'}`}
+        >
           {/* Name field - in modal mode, show it here since no header */}
           {inModal && (
             <div className="space-y-1">
@@ -241,113 +249,117 @@ export const CollectionEditor = ({ collection, vizNames, onChange, onRemove, inM
           </div>
 
           {/* STAC-specific fields */}
-          {collection.data.type === 'stac' && (() => {
-            const stac = collection.data as StacCollectionData;
+          {collection.data.type === 'stac' &&
+            (() => {
+              const stac = collection.data as StacCollectionData;
 
-            /* Check which required placeholders are present in the search body */
-            const hasStart = stac.searchBody.includes('{startDatetimePlaceholder}');
-            const hasEnd = stac.searchBody.includes('{endDatetimePlaceholder}');
-            const hasBbox = stac.searchBody.includes('{campaignBBoxPlaceholder}');
+              /* Check which required placeholders are present in the search body */
+              const hasStart = stac.searchBody.includes('{startDatetimePlaceholder}');
+              const hasEnd = stac.searchBody.includes('{endDatetimePlaceholder}');
+              const hasBbox = stac.searchBody.includes('{campaignBBoxPlaceholder}');
 
-            /* Extract cloud_cover value from search body if present */
-            const cloudMatch = stac.searchBody.match(/"eo:cloud_cover"\s*\}\s*,\s*(\d+)/);
-            const cloudCoverValue = cloudMatch ? cloudMatch[1] : '';
+              /* Extract cloud_cover value from search body if present */
+              const cloudMatch = stac.searchBody.match(/"eo:cloud_cover"\s*\}\s*,\s*(\d+)/);
+              const cloudCoverValue = cloudMatch ? cloudMatch[1] : '';
 
-            const updateCloudCover = (val: string) => {
-              const num = parseInt(val, 10);
-              if (isNaN(num) && val !== '') return;
-              try {
-                const body = JSON.parse(stac.searchBody);
-                const args = body?.filter?.args;
-                if (Array.isArray(args)) {
-                  const ccIdx = args.findIndex((a: any) =>
-                    a?.args?.[0]?.property === 'eo:cloud_cover',
-                  );
-                  if (ccIdx >= 0 && val !== '') {
-                    args[ccIdx].args[1] = num;
-                  } else if (ccIdx >= 0 && val === '') {
-                    args.splice(ccIdx, 1);
-                  } else if (val !== '') {
-                    args.push({ op: '<=', args: [{ property: 'eo:cloud_cover' }, num] });
+              const updateCloudCover = (val: string) => {
+                const num = parseInt(val, 10);
+                if (isNaN(num) && val !== '') return;
+                try {
+                  const body = JSON.parse(stac.searchBody);
+                  const args = body?.filter?.args;
+                  if (Array.isArray(args)) {
+                    const ccIdx = args.findIndex(
+                      (a: any) => a?.args?.[0]?.property === 'eo:cloud_cover'
+                    );
+                    if (ccIdx >= 0 && val !== '') {
+                      args[ccIdx].args[1] = num;
+                    } else if (ccIdx >= 0 && val === '') {
+                      args.splice(ccIdx, 1);
+                    } else if (val !== '') {
+                      args.push({ op: '<=', args: [{ property: 'eo:cloud_cover' }, num] });
+                    }
+                    onChange({ data: { ...stac, searchBody: JSON.stringify(body, null, 2) } });
                   }
-                  onChange({ data: { ...stac, searchBody: JSON.stringify(body, null, 2) } });
+                } catch {
+                  /* non-JSON body, ignore */
                 }
-              } catch {
-                /* non-JSON body, ignore */
-              }
-            };
+              };
 
-            return (
-              <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 flex items-center gap-1">
-                    Registration URL
-                    <Tooltip text="STAC TiTiler mosaic registration endpoint for this collection." />
-                  </label>
-                  <input
-                    type="url"
-                    value={stac.registrationUrl}
-                    onChange={(e) =>
-                      onChange({
-                        data: { ...stac, registrationUrl: e.target.value },
-                      })
-                    }
-                    placeholder="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-                    className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
-                  />
-                </div>
+              return (
+                <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      Registration URL
+                      <Tooltip text="STAC TiTiler mosaic registration endpoint for this collection." />
+                    </label>
+                    <input
+                      type="url"
+                      value={stac.registrationUrl}
+                      onChange={(e) =>
+                        onChange({
+                          data: { ...stac, registrationUrl: e.target.value },
+                        })
+                      }
+                      placeholder="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
+                      className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                    />
+                  </div>
 
-                {/* Cloud Cover */}
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 flex items-center gap-1">
-                    Max Cloud Cover (%)
-                    <Tooltip text="Maximum cloud cover percentage for filtering scenes. Leave empty to disable." />
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={cloudCoverValue}
-                    onChange={(e) => updateCloudCover(e.target.value)}
-                    placeholder="e.g. 90"
-                    className="w-24 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
-                  />
-                </div>
+                  {/* Cloud Cover */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      Max Cloud Cover (%)
+                      <Tooltip text="Maximum cloud cover percentage for filtering scenes. Leave empty to disable." />
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={cloudCoverValue}
+                      onChange={(e) => updateCloudCover(e.target.value)}
+                      placeholder="e.g. 90"
+                      className="w-24 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                    />
+                  </div>
 
-                {/* Search Body */}
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700 flex items-center gap-1">
-                    Search Body
-                    <Tooltip text="JSON payload for mosaic registration. Required placeholders: {startDatetimePlaceholder}, {endDatetimePlaceholder}, {campaignBBoxPlaceholder}." />
-                  </label>
-                  <AutoSizeTextarea
-                    value={stac.searchBody}
-                    onChange={(val) =>
-                      onChange({
-                        data: { ...stac, searchBody: val },
-                      })
-                    }
-                    className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none resize-none"
-                  />
-                  {/* Required placeholder indicators */}
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    <PlaceholderBadge label="{startDatetimePlaceholder}" present={hasStart} />
-                    <PlaceholderBadge label="{endDatetimePlaceholder}" present={hasEnd} />
-                    <PlaceholderBadge label="{campaignBBoxPlaceholder}" present={hasBbox} />
+                  {/* Search Body */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      Search Body
+                      <Tooltip text="JSON payload for mosaic registration. Required placeholders: {startDatetimePlaceholder}, {endDatetimePlaceholder}, {campaignBBoxPlaceholder}." />
+                    </label>
+                    <AutoSizeTextarea
+                      value={stac.searchBody}
+                      onChange={(val) =>
+                        onChange({
+                          data: { ...stac, searchBody: val },
+                        })
+                      }
+                      className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none resize-none"
+                    />
+                    {/* Required placeholder indicators */}
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      <PlaceholderBadge label="{startDatetimePlaceholder}" present={hasStart} />
+                      <PlaceholderBadge label="{endDatetimePlaceholder}" present={hasEnd} />
+                      <PlaceholderBadge label="{campaignBBoxPlaceholder}" present={hasBbox} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* Visualization URLs */}
           <div className="space-y-2">
             <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
               Visualization URLs
-              <Tooltip text={collection.data.type === 'stac'
-                ? 'Tile URL templates. Must include {searchId}, {z}, {x}, {y} placeholders.'
-                : 'XYZ tile URLs. Use {z}, {x}, {y} placeholders.'
-              } />
+              <Tooltip
+                text={
+                  collection.data.type === 'stac'
+                    ? 'Tile URL templates. Must include {searchId}, {z}, {x}, {y} placeholders.'
+                    : 'XYZ tile URLs. Use {z}, {x}, {y} placeholders.'
+                }
+              />
             </label>
             {vizNames.map((vizName) => {
               const url = getVizUrl(vizName);
@@ -372,7 +384,10 @@ export const CollectionEditor = ({ collection, vizNames, onChange, onRemove, inM
                   {url && missingParams.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {missingParams.map((p) => (
-                        <span key={p} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200">
+                        <span
+                          key={p}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
+                        >
                           ✗ {p}
                         </span>
                       ))}

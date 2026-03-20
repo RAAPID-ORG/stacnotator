@@ -289,7 +289,8 @@ export const AnnotationToolbar = () => {
     if (shouldBeDefault) {
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Save as Default Layout?',
-        description: 'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.',
+        description:
+          'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.',
         confirmText: 'Save Default',
         cancelText: 'Cancel',
         isDangerous: true,
@@ -380,7 +381,10 @@ export const AnnotationToolbar = () => {
   };
 
   return (
-    <header data-tour="toolbar" className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0">
+    <header
+      data-tour="toolbar"
+      className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0"
+    >
       <div className="flex items-center gap-2">
         {/* Views Dropdown */}
         <div className="relative" ref={imageryDropdownRef} data-tour="imagery-selector">
@@ -388,7 +392,7 @@ export const AnnotationToolbar = () => {
             onClick={() => setShowImageryDropdown(!showImageryDropdown)}
             className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
             type="button"
-            title='Switch View (v)'
+            title="Switch View (v)"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M3.5 3C2.67157 3 2 3.67157 2 4.5V15.5C2 16.3284 2.67157 17 3.5 17H16.5C17.3284 17 18 16.3284 18 15.5V4.5C18 3.67157 17.3284 3 16.5 3H3.5ZM3 4.5C3 4.22386 3.22386 4 3.5 4H16.5C16.7761 4 17 4.22386 17 4.5V11.7929L14.8536 9.64645C14.6583 9.45118 14.3417 9.45118 14.1464 9.64645L11 12.7929L8.85355 10.6464C8.65829 10.4512 8.34171 10.4512 8.14645 10.6464L3 15.7929V4.5ZM3.20711 16L8 11.2071L10.1464 13.3536C10.3417 13.5488 10.6583 13.5488 10.8536 13.3536L14 10.2071L17 13.2071V15.5C17 15.7761 16.7761 16 16.5 16H3.5C3.39645 16 3.29871 15.9682 3.20711 16ZM13 7.5C13 8.32843 12.3284 9 11.5 9C10.6716 9 10 8.32843 10 7.5C10 6.67157 10.6716 6 11.5 6C12.3284 6 13 6.67157 13 7.5Z" />
@@ -500,24 +504,24 @@ export const AnnotationToolbar = () => {
 
         {/* Campaign Settings Button (admin only) */}
         {isCampaignAdmin && (
-        <button
-          onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
-          type="button"
-          title="Campaign Settings"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            xmlns="http://www.w3.org/2000/svg"
-            className="shrink-0 transition text-text-400 group-hover:text-text-100 cursor-pointer"
+          <button
+            onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
+            type="button"
+            title="Campaign Settings"
           >
-            <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
-          </svg>
-          <span>Settings</span>
-        </button>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              className="shrink-0 transition text-text-400 group-hover:text-text-100 cursor-pointer"
+            >
+              <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
+            </svg>
+            <span>Settings</span>
+          </button>
         )}
 
         {/* Export Dropdown */}
@@ -596,14 +600,14 @@ export const AnnotationToolbar = () => {
                     <div className="text-[10px] text-gray-500">Only for you</div>
                   </button>
                   {isCampaignAdmin && (
-                  <button
-                    onClick={() => handleSaveLayout(true)}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
-                    type="button"
-                  >
-                    <div className="font-medium">Save as Default</div>
-                    <div className="text-[10px] text-gray-500">For all users</div>
-                  </button>
+                    <button
+                      onClick={() => handleSaveLayout(true)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
+                      type="button"
+                    >
+                      <div className="font-medium">Save as Default</div>
+                      <div className="text-[10px] text-gray-500">For all users</div>
+                    </button>
                   )}
                 </div>
               )}
@@ -648,7 +652,16 @@ export const AnnotationToolbar = () => {
           title="Take guided tour"
           type="button"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="10" />
             <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -663,7 +676,16 @@ export const AnnotationToolbar = () => {
             title="Campaign guide (G)"
             type="button"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
               <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
             </svg>
@@ -671,10 +693,26 @@ export const AnnotationToolbar = () => {
           {showGuide && (
             <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col">
               <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
-                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">Campaign Guide</span>
-                <button onClick={toggleGuide} className="text-neutral-400 hover:text-neutral-600" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                  Campaign Guide
+                </span>
+                <button
+                  onClick={toggleGuide}
+                  className="text-neutral-400 hover:text-neutral-600"
+                  type="button"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
               </div>
@@ -698,7 +736,14 @@ export const AnnotationToolbar = () => {
             title="Keyboard shortcuts"
             type="button"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+            >
               <rect x="2" y="5" width="16" height="11" rx="2" />
               <line x1="5" y1="8.5" x2="7" y2="8.5" />
               <line x1="9" y1="8.5" x2="11" y2="8.5" />
@@ -717,17 +762,21 @@ export const AnnotationToolbar = () => {
               </div>
               {campaign.mode === 'open' ? (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">Tools</div>
-                  {([
-                    { key: 'V', description: 'Pan tool' },
-                    { key: 'R', description: 'Annotate tool' },
-                    { key: 'E', description: 'Edit tool' },
-                    { key: 'T', description: 'Timeseries probe' },
-                    { key: '1-9', description: 'Select label & annotate' },
-                    { key: 'Space', description: 'Fit view to annotations' },
-                    { key: 'Alt+drag', description: 'Move feature' },
-                    { key: 'Escape', description: 'Cancel / deselect edit' },
-                  ] as { key: string; description: string }[]).map((shortcut) => (
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
+                    Tools
+                  </div>
+                  {(
+                    [
+                      { key: 'V', description: 'Pan tool' },
+                      { key: 'R', description: 'Annotate tool' },
+                      { key: 'E', description: 'Edit tool' },
+                      { key: 'T', description: 'Timeseries probe' },
+                      { key: '1-9', description: 'Select label & annotate' },
+                      { key: 'Space', description: 'Fit view to annotations' },
+                      { key: 'Alt+drag', description: 'Move feature' },
+                      { key: 'Escape', description: 'Cancel / deselect edit' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
                     <div key={shortcut.key} className="flex justify-between items-center text-xs">
                       <span className="text-neutral-600">{shortcut.description}</span>
                       <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
@@ -735,11 +784,15 @@ export const AnnotationToolbar = () => {
                       </kbd>
                     </div>
                   ))}
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">Navigation</div>
-                  {([
-                    { key: 'A / D', description: 'Previous / Next slice' },
-                    { key: 'Shift+A / D', description: 'Previous / Next collection' },
-                  ] as { key: string; description: string }[]).map((shortcut) => (
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                    Navigation
+                  </div>
+                  {(
+                    [
+                      { key: 'A / D', description: 'Previous / Next slice' },
+                      { key: 'Shift+A / D', description: 'Previous / Next collection' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
                     <div key={shortcut.key} className="flex justify-between items-center text-xs">
                       <span className="text-neutral-600">{shortcut.description}</span>
                       <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
@@ -747,18 +800,22 @@ export const AnnotationToolbar = () => {
                       </kbd>
                     </div>
                   ))}
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">Map</div>
-                  {([
-                    { key: '↑ ↓ ← →', description: 'Pan map' },
-                    { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
-                    { key: 'O', description: 'Toggle crosshair' },
-                    { key: 'L', description: 'Toggle view link (sync)' },
-                    { key: 'I', description: 'Cycle imagery source' },
-                    { key: 'Shift+I', description: 'Cycle visualization' },
-                    { key: 'V', description: 'Cycle view' },
-                    { key: 'G', description: 'Toggle campaign guide' },
-                    { key: 'H', description: 'Toggle keyboard help' },
-                  ] as { key: string; description: string }[]).map((shortcut) => (
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                    Map
+                  </div>
+                  {(
+                    [
+                      { key: '↑ ↓ ← →', description: 'Pan map' },
+                      { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
+                      { key: 'O', description: 'Toggle crosshair' },
+                      { key: 'L', description: 'Toggle view link (sync)' },
+                      { key: 'I', description: 'Cycle imagery source' },
+                      { key: 'Shift+I', description: 'Cycle visualization' },
+                      { key: 'V', description: 'Cycle view' },
+                      { key: 'G', description: 'Toggle campaign guide' },
+                      { key: 'H', description: 'Toggle keyboard help' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
                     <div key={shortcut.key} className="flex justify-between items-center text-xs">
                       <span className="text-neutral-600">{shortcut.description}</span>
                       <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">

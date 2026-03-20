@@ -12,11 +12,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
-import {
-  extractCentroidFromWKT,
-  convertWKTToGeoJSON,
-  type LatLon,
-} from '~/shared/utils/utility';
+import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 
 /**
@@ -84,7 +80,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   });
   const totalTasksForCounter = tasksInAssignmentScope.length;
   const completedTasksForCounter = tasksInAssignmentScope.filter((task) => {
-    return task.task_status === 'done' || task.task_status === 'skipped' || task.task_status === 'conflicting';
+    return (
+      task.task_status === 'done' ||
+      task.task_status === 'skipped' ||
+      task.task_status === 'conflicting'
+    );
   }).length;
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
@@ -107,13 +107,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         const geojson = convertWKTToGeoJSON(ann.geometry.geometry);
         if (!geojson) return null;
         // Compute centroid from geometry coordinates
-        const coords = geojson.type === 'Point'
-          ? [geojson.coordinates as [number, number]]
-          : geojson.type === 'Polygon'
-            ? (geojson.coordinates as number[][][])[0]
-            : geojson.type === 'LineString'
-              ? (geojson.coordinates as number[][])
-              : [];
+        const coords =
+          geojson.type === 'Point'
+            ? [geojson.coordinates as [number, number]]
+            : geojson.type === 'Polygon'
+              ? (geojson.coordinates as number[][][])[0]
+              : geojson.type === 'LineString'
+                ? (geojson.coordinates as number[][])
+                : [];
         if (coords.length === 0) return null;
         const sumLon = coords.reduce((s, c) => s + (c as number[])[0], 0);
         const sumLat = coords.reduce((s, c) => s + (c as number[])[1], 0);
@@ -138,17 +139,20 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   // Resolve active collection and source for header display
   const activeSource = useMemo(() => {
     if (!campaign || !activeCollectionId) return null;
-    return campaign.imagery_sources.find((s) =>
-      s.collections.some((c) => c.id === activeCollectionId),
-    ) ?? null;
+    return (
+      campaign.imagery_sources.find((s) =>
+        s.collections.some((c) => c.id === activeCollectionId)
+      ) ?? null
+    );
   }, [campaign, activeCollectionId]);
 
-  const activeCollection = activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
+  const activeCollection =
+    activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
   const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
 
   // Visualization name for header
   const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name })),
+    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
   );
   const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
@@ -190,7 +194,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderMainHeader = () => {
     const currentLayerName = showBasemap
       ? (campaign.basemaps.find((b) => `basemap-${b.id}` === selectedBasemapId)?.name ?? 'Basemap')
-      : (activeVizEntry?.vizName || 'Layer');
+      : activeVizEntry?.vizName || 'Layer';
 
     return (
       <div className="flex items-center justify-between">
@@ -322,7 +326,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               center={center}
               bbox={campaignBbox || [0, 0, 0, 0]}
               visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
-              onViewportDrag={campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined}
+              onViewportDrag={
+                campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+              }
               fitBbox={campaign?.mode === 'tasks'}
               annotationDots={annotationDots}
             />

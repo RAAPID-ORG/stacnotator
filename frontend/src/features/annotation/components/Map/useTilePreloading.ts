@@ -26,16 +26,15 @@ function groupId(prefix: string, collectionId: number, sliceIndex: number): stri
   return `${prefix}-c${collectionId}-s${sliceIndex}`;
 }
 
-function parseGroupId(gid: string): { prefix: string; collectionId: number; sliceIndex: number } | null {
+function parseGroupId(
+  gid: string
+): { prefix: string; collectionId: number; sliceIndex: number } | null {
   const m = gid.match(/^(\w+)-c(\d+)-s(\d+)$/);
   if (!m) return null;
   return { prefix: m[1], collectionId: Number(m[2]), sliceIndex: Number(m[3]) };
 }
 
-function estimateExtent(
-  center: [number, number],
-  zoom: number,
-): [number, number, number, number] {
+function estimateExtent(center: [number, number], zoom: number): [number, number, number, number] {
   const degreesPerTile = 360 / Math.pow(2, zoom);
   const halfW = (degreesPerTile * 4) / 2;
   const halfH = (degreesPerTile * 3) / 2;
@@ -49,7 +48,7 @@ function buildCollectionJobs(
   zoom: number,
   prefix: string,
   getPriority: (collectionId: number) => number,
-  excludeCollectionId?: number | null,
+  excludeCollectionId?: number | null
 ): PreloadJob[] {
   const jobs: PreloadJob[] = [];
 
@@ -142,7 +141,7 @@ export function useTilePreloading({
 
       const { emptySlices } = useMapStore.getState();
       const firstValid = collection.slices.findIndex(
-        (_, i) => !emptySlices[`${parsed.collectionId}-${i}`],
+        (_, i) => !emptySlices[`${parsed.collectionId}-${i}`]
       );
 
       if (firstValid !== -1 && firstValid !== parsed.sliceIndex) {
@@ -176,9 +175,12 @@ export function useTilePreloading({
     const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
 
     const jobs = buildCollectionJobs(
-      camp, extent, zoom, PREFIX_CURRENT,
+      camp,
+      extent,
+      zoom,
+      PREFIX_CURRENT,
       () => PRIORITY_OTHER_COLLECTIONS,
-      colId,
+      colId
     );
 
     if (jobs.length > 0) p.enqueueMany(jobs);
@@ -213,9 +215,8 @@ export function useTilePreloading({
     }
 
     const defaultColId = activeCollectionIdRef.current;
-    const jobs = buildCollectionJobs(
-      camp, extent, zoom, PREFIX_NEXT,
-      (colId) => colId === defaultColId ? PRIORITY_NEXT_TASK_DEFAULT : PRIORITY_NEXT_TASK_OTHER,
+    const jobs = buildCollectionJobs(camp, extent, zoom, PREFIX_NEXT, (colId) =>
+      colId === defaultColId ? PRIORITY_NEXT_TASK_DEFAULT : PRIORITY_NEXT_TASK_OTHER
     );
 
     if (jobs.length > 0) p.enqueueMany(jobs);
@@ -252,7 +253,9 @@ export function useTilePreloading({
       }
     };
 
-    return () => { if (p) p.onIdle = undefined; };
+    return () => {
+      if (p) p.onIdle = undefined;
+    };
   }, [enabled, enqueueNextTask]);
 
   useEffect(() => {

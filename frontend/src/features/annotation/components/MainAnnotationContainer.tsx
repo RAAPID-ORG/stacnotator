@@ -19,7 +19,9 @@ interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: MainAnnotationsContainerProps) => {
+export const MainAnnotationsContainer = ({
+  commentInputRef: _commentInputRef,
+}: MainAnnotationsContainerProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
 
@@ -81,22 +83,25 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   // Get all collections referenced in the current view
   const viewCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
-    return selectedView.collection_refs.map((ref) => {
-      const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-      const collection = source?.collections.find((c) => c.id === ref.collection_id);
-      return { ...ref, collection, source };
-    }).filter((r) => r.collection && r.source);
+    return selectedView.collection_refs
+      .map((ref) => {
+        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
+        const collection = source?.collections.find((c) => c.id === ref.collection_id);
+        return { ...ref, collection, source };
+      })
+      .filter((r) => r.collection && r.source);
   }, [campaign, selectedView]);
 
   const campaignBbox = useMemo(
-    () => campaign
-      ? ([
-          campaign.settings.bbox_west,
-          campaign.settings.bbox_south,
-          campaign.settings.bbox_east,
-          campaign.settings.bbox_north,
-        ] as [number, number, number, number])
-      : ([0, 0, 0, 0] as [number, number, number, number]),
+    () =>
+      campaign
+        ? ([
+            campaign.settings.bbox_west,
+            campaign.settings.bbox_south,
+            campaign.settings.bbox_east,
+            campaign.settings.bbox_north,
+          ] as [number, number, number, number])
+        : ([0, 0, 0, 0] as [number, number, number, number]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       campaign?.settings.bbox_west,
@@ -120,7 +125,8 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
 
   const initialCenter = useMemo<[number, number]>(() => {
     if (latLon) return [latLon.lat, latLon.lon];
-    if (campaignBbox) return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
+    if (campaignBbox)
+      return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return [0, 0];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -151,14 +157,21 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
     const wkt = currentTask.geometry.geometry;
     const geojson = convertWKTToGeoJSON(wkt);
     // If the task geometry is already a polygon/multipolygon, use it directly
-    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon')) return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon'))
+      return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
     // If it's a point with sample_extent_meters, compute a square extent
     if (latLon && campaign.settings.sample_extent_meters) {
       return computeExtentGeoJSON(latLon.lat, latLon.lon, campaign.settings.sample_extent_meters);
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTask?.geometry.geometry, campaign?.mode, campaign?.settings.sample_extent_meters, latLon?.lat, latLon?.lon]);
+  }, [
+    currentTask?.geometry.geometry,
+    campaign?.mode,
+    campaign?.settings.sample_extent_meters,
+    latLon?.lat,
+    latLon?.lon,
+  ]);
 
   const initialZoom = activeSource?.default_zoom ?? 10;
 
@@ -166,7 +179,7 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const extendedLabels = useMemo(
     () => extendLabelsWithMetadata(campaign?.settings.labels ?? []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [campaign?.settings.labels],
+    [campaign?.settings.labels]
   );
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
   const magicWandActive = selectedLabelId != null && (magicWandEnabled[selectedLabelId] ?? false);
@@ -175,9 +188,9 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
   const allVizEntries = useMemo(
     () =>
       (campaign?.imagery_sources ?? []).flatMap((src) =>
-        src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name })),
+        src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
       ),
-    [campaign?.imagery_sources],
+    [campaign?.imagery_sources]
   );
 
   /** Handle layer selection from LayerSelector dropdown */
@@ -200,16 +213,26 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         }
       }
     },
-    [mapLayers, allVizEntries, setActiveLayerId, setSelectedBasemapId, setShowBasemap, setSelectedLayerIndex],
+    [
+      mapLayers,
+      allVizEntries,
+      setActiveLayerId,
+      setSelectedBasemapId,
+      setShowBasemap,
+      setSelectedLayerIndex,
+    ]
   );
 
-  const handleTimeseriesClick = useCallback((lat: number, lon: number) => {
-    if (campaign?.mode === 'tasks') {
-      setProbeTimeseriesPoint({ lat, lon });
-    } else {
-      setTimeseriesPoint({ lat, lon });
-    }
-  }, [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]);
+  const handleTimeseriesClick = useCallback(
+    (lat: number, lon: number) => {
+      if (campaign?.mode === 'tasks') {
+        setProbeTimeseriesPoint({ lat, lon });
+      } else {
+        setTimeseriesPoint({ lat, lon });
+      }
+    },
+    [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
+  );
 
   if (!campaign || !activeSource) return null;
 
@@ -234,11 +257,12 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         emptySlices={emptySlices}
       />
       <div className="flex-1 min-w-0 h-full relative">
-
         {/* Top-right controls for task mode */}
         {isTaskMode && (
-          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
-
+          <div
+            className="absolute top-2 right-2 z-[1000] flex gap-2 items-center"
+            data-tour="map-controls"
+          >
             {mapLayers.length > 0 && (
               <LayerSelector
                 layers={mapLayers}
@@ -274,8 +298,14 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 {slices.map((slice, idx) => {
                   const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                   return (
-                    <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                      {slice.name}{isEmpty ? ' (empty)' : ''}
+                    <option
+                      key={idx}
+                      value={idx}
+                      disabled={isEmpty}
+                      style={isEmpty ? { color: '#aaa' } : undefined}
+                    >
+                      {slice.name}
+                      {isEmpty ? ' (empty)' : ''}
                     </option>
                   );
                 })}
@@ -310,9 +340,22 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               <button
                 onClick={toggleViewSync}
                 className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={viewSyncEnabled ? 'Unlink (sync) small windows from main map pan/zoom (L)' : 'Link (sync) small windows to main map pan/zoom (L)'}
+                title={
+                  viewSyncEnabled
+                    ? 'Unlink (sync) small windows from main map pan/zoom (L)'
+                    : 'Link (sync) small windows to main map pan/zoom (L)'
+                }
               >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   {viewSyncEnabled ? (
                     <>
                       <rect x="1" y="3" width="7" height="6" rx="1" />
@@ -337,10 +380,25 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               <button
                 onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
                 className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${activeTool === 'timeseries' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}
-                title={activeTool === 'timeseries' ? 'Deactivate timeseries probe' : 'Activate timeseries probe'}
+                title={
+                  activeTool === 'timeseries'
+                    ? 'Deactivate timeseries probe'
+                    : 'Activate timeseries probe'
+                }
               >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <polyline points="2,16 5,10 8,12 11,6 14,9 17,3" strokeLinejoin="round" strokeLinecap="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <polyline
+                    points="2,16 5,10 8,12 11,6 14,9 17,3"
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
                   <circle cx="14" cy="14" r="4" fill="none" />
                   <line x1="17" y1="17" x2="19" y2="19" />
                 </svg>
@@ -350,8 +408,10 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
         )}
 
         {isOpenMode && (
-          <div className="absolute top-2 right-2 z-[1000] flex gap-2 items-center" data-tour="map-controls">
-
+          <div
+            className="absolute top-2 right-2 z-[1000] flex gap-2 items-center"
+            data-tour="map-controls"
+          >
             {mapLayers.length > 0 && (
               <LayerSelector
                 layers={mapLayers}
@@ -387,8 +447,14 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
                 {slices.map((slice, idx) => {
                   const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                   return (
-                    <option key={idx} value={idx} disabled={isEmpty} style={isEmpty ? { color: '#aaa' } : undefined}>
-                      {slice.name}{isEmpty ? ' (empty)' : ''}
+                    <option
+                      key={idx}
+                      value={idx}
+                      disabled={isEmpty}
+                      style={isEmpty ? { color: '#aaa' } : undefined}
+                    >
+                      {slice.name}
+                      {isEmpty ? ' (empty)' : ''}
                     </option>
                   );
                 })}
@@ -400,10 +466,19 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
               title="Fit view to all annotations (Space)"
             >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <rect x="3" y="3" width="14" height="14" rx="1" />
-                <path d="M3 7h14M3 13h14M7 3v14M13 3v14" strokeWidth="1" opacity="0.4"/>
-                <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none"/>
+                <path d="M3 7h14M3 13h14M7 3v14M13 3v14" strokeWidth="1" opacity="0.4" />
+                <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
               </svg>
             </button>
 
@@ -425,9 +500,22 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
               <button
                 onClick={toggleViewSync}
                 className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={viewSyncEnabled ? 'Unlink (sync) small windows from main map pan/zoom (L)' : 'Link (sync) small windows to main map pan/zoom (L)'}
+                title={
+                  viewSyncEnabled
+                    ? 'Unlink (sync) small windows from main map pan/zoom (L)'
+                    : 'Link (sync) small windows to main map pan/zoom (L)'
+                }
               >
-                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   {viewSyncEnabled ? (
                     <>
                       <rect x="1" y="3" width="7" height="6" rx="1" />
@@ -462,8 +550,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             showCrosshair={showCrosshair}
             sampleExtent={showCrosshair ? sampleExtent : null}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
-            onViewChange={(newCenter, zoom, bounds) => { setMapCenter(newCenter); setMapZoom(zoom); setMapBounds(bounds); }}
+            onLayersChange={(layers, id) => {
+              setMapLayers(layers);
+              setActiveLayerId(id);
+            }}
+            onViewChange={(newCenter, zoom, bounds) => {
+              setMapCenter(newCenter);
+              setMapZoom(zoom);
+              setMapBounds(bounds);
+            }}
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
@@ -477,8 +572,15 @@ export const MainAnnotationsContainer = ({ commentInputRef: _commentInputRef }: 
             refocusTrigger={refocusTrigger}
             showCrosshair={showCrosshair}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => { setMapLayers(layers); setActiveLayerId(id); }}
-            onViewChange={(newCenter, zoom, bounds) => { setMapCenter(newCenter); setMapZoom(zoom); setMapBounds(bounds); }}
+            onLayersChange={(layers, id) => {
+              setMapLayers(layers);
+              setActiveLayerId(id);
+            }}
+            onViewChange={(newCenter, zoom, bounds) => {
+              setMapCenter(newCenter);
+              setMapZoom(zoom);
+              setMapBounds(bounds);
+            }}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
             magicWandActive={magicWandActive}

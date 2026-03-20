@@ -583,10 +583,7 @@ export const CampaignSettingsPage = () => {
           )}
 
           {activeTab === 'imagery' && (
-            <ImageryTab
-              imagery={imagery}
-              setDeleteConfirm={setDeleteConfirm}
-            />
+            <ImageryTab imagery={imagery} setDeleteConfirm={setDeleteConfirm} />
           )}
 
           {activeTab === 'timeseries' && (

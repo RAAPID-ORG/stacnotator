@@ -32,7 +32,7 @@ export const Tooltip = ({ text }: { text: string }) => {
             {text}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800" />
           </div>,
-          document.body,
+          document.body
         )}
     </span>
   );

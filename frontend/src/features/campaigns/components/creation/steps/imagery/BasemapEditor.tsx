@@ -47,7 +47,10 @@ export const BasemapEditor = ({ basemaps, onChange }: BasemapEditorProps) => {
       )}
 
       {basemaps.map((basemap) => (
-        <div key={basemap.id} className="flex gap-2 items-start p-2 rounded border border-neutral-200 bg-white">
+        <div
+          key={basemap.id}
+          className="flex gap-2 items-start p-2 rounded border border-neutral-200 bg-white"
+        >
           <div className="flex-1 space-y-2">
             <input
               type="text"

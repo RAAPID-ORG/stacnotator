@@ -26,7 +26,7 @@ import sgFilter from 'ml-savitzky-golay';
 export function savitzkyGolay(
   data: (number | null)[],
   windowSize: number,
-  polyOrder: number,
+  polyOrder: number
 ): (number | null)[] {
   // Validate & clamp parameters
   windowSize = Math.max(5, windowSize);

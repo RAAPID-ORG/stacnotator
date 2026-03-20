@@ -1,5 +1,13 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Rectangle, Marker, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Rectangle,
+  Marker,
+  CircleMarker,
+  useMap,
+  useMapEvents,
+} from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -58,10 +66,10 @@ const MapController = ({
     if (!fitBbox || hasFittedBbox.current) return;
     hasFittedBbox.current = true;
     const [west, south, east, north] = bbox;
-    map.fitBounds(
-      L.latLngBounds([south, west], [north, east]),
-      { animate: false, padding: [10, 10] }
-    );
+    map.fitBounds(L.latLngBounds([south, west], [north, east]), {
+      animate: false,
+      padding: [10, 10],
+    });
   }, [map, bbox, fitBbox]);
 
   // Open mode: continuously adjust minimap so the main viewport is always visible
@@ -79,8 +87,9 @@ const MapController = ({
       // Viewport is visible - but check it's not too tiny (zoom out too far).
       // If viewport area is less than ~5% of minimap area, we should re-fit.
       const vArea = (vNorth - vSouth) * (vEast - vWest);
-      const mArea = (currentBounds.getNorth() - currentBounds.getSouth()) *
-                    (currentBounds.getEast() - currentBounds.getWest());
+      const mArea =
+        (currentBounds.getNorth() - currentBounds.getSouth()) *
+        (currentBounds.getEast() - currentBounds.getWest());
       if (mArea > 0 && vArea / mArea > 0.02) return; // viewport is visible and reasonably sized
     }
 
@@ -224,7 +233,14 @@ const ClickToPan = ({
   return null;
 };
 
-const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds, onViewportDrag, fitBbox, annotationDots }) => {
+const MiniMap: React.FC<MiniMapProps> = ({
+  center,
+  bbox,
+  visibleBounds,
+  onViewportDrag,
+  fitBbox,
+  annotationDots,
+}) => {
   const [west, south, east, north] = bbox;
   // Prefer viewport center over campaign bbox center
   const mapCenter: [number, number] = visibleBounds
@@ -280,10 +296,7 @@ const MiniMap: React.FC<MiniMapProps> = ({ center, bbox, visibleBounds, onViewpo
 
         {/* Draggable visible bounds rectangle (when drag callback is provided) */}
         {visibleBounds && onViewportDrag && (
-          <DraggableViewport
-            visibleBounds={visibleBounds}
-            onViewportDrag={onViewportDrag}
-          />
+          <DraggableViewport visibleBounds={visibleBounds} onViewportDrag={onViewportDrag} />
         )}
 
         {/* Static visible bounds rectangle (when no drag callback) */}

@@ -15,7 +15,6 @@
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
 
-
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
 
@@ -23,7 +22,7 @@ export interface PreloadJob {
   priority: number;
   groupId: string;
   urlTemplate: string; // Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}).
-  extent: [number, number, number, number];  // Map extent in EPSG:4326 [west, south, east, north].
+  extent: [number, number, number, number]; // Map extent in EPSG:4326 [west, south, east, north].
   zoom: number;
 }
 
@@ -33,7 +32,7 @@ const defaultGrid = createXYZ();
 export function tileUrlsForExtent(
   urlTemplate: string,
   extent: [number, number, number, number],
-  zoom: number,
+  zoom: number
 ): string[] {
   const mercExtent = transformExtent(extent, 'EPSG:4326', 'EPSG:3857');
   const z = Math.round(zoom);
@@ -47,7 +46,7 @@ export function tileUrlsForExtent(
         urlTemplate
           .replace(/\{z\}/g, String(z))
           .replace(/\{x\}/g, String(x))
-          .replace(/\{y\}/g, String(y)),
+          .replace(/\{y\}/g, String(y))
       );
     }
   }
@@ -77,7 +76,10 @@ export class TilePreloader {
   private inflightControllers = new Set<AbortController>();
 
   // Per-group error/success counters for empty-tile detection.
-  private groupStats = new Map<string, { errors: number; successes: number; emptyFired: boolean }>();
+  private groupStats = new Map<
+    string,
+    { errors: number; successes: number; emptyFired: boolean }
+  >();
 
   // Fired when the queue is empty and nothing is in-flight.
   onIdle?: () => void;
@@ -115,8 +117,12 @@ export class TilePreloader {
     this.drain();
   }
 
-  get isPaused() { return this.paused; }
-  get queueSize() { return this.tileQueue.length; }
+  get isPaused() {
+    return this.paused;
+  }
+  get queueSize() {
+    return this.tileQueue.length;
+  }
 
   abort(groupId: string) {
     this.tileQueue = this.tileQueue.filter((t) => t.groupId !== groupId);

@@ -328,9 +328,16 @@ const OpenModeControls = () => {
             <span className="font-bold text-neutral-900 text-xs">Edit Tool</span>
             <div className="text-[10px] text-neutral-600 flex flex-col gap-1">
               <p>Click a geometry to select it and show its vertices.</p>
-              <p>Drag a <strong>vertex</strong> to move it.</p>
-              <p>Click an <strong>edge midpoint</strong> to insert a new vertex.</p>
-              <p>Hold <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Alt</kbd> + drag to move the whole feature.</p>
+              <p>
+                Drag a <strong>vertex</strong> to move it.
+              </p>
+              <p>
+                Click an <strong>edge midpoint</strong> to insert a new vertex.
+              </p>
+              <p>
+                Hold <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Alt</kbd> + drag to
+                move the whole feature.
+              </p>
               <p className="text-neutral-500">
                 Use <kbd className="px-1 bg-neutral-100 rounded text-[9px]">✓</kbd> to save,{' '}
                 <kbd className="px-1 bg-neutral-100 rounded text-[9px]">🗑</kbd> to delete, or{' '}
@@ -376,7 +383,14 @@ const OpenModeControls = () => {
                 className="flex-1 flex items-center justify-center gap-1 p-1.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300 transition-colors cursor-pointer"
                 title="Previous annotation (older)"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
                 <span>Prev</span>
@@ -390,7 +404,14 @@ const OpenModeControls = () => {
                 title="Next annotation (newer)"
               >
                 <span>Next</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>

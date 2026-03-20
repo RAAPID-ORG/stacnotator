@@ -3,10 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import {
-  listAllCampaigns,
-  type CampaignListItemOut,
-} from '~/api/client';
+import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 export const CampaignsPage = () => {
