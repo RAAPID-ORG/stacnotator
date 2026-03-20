@@ -21,37 +21,27 @@ import DrawingLayer from './DrawingLayer';
 import { LayerManager } from './layerManager';
 import type { Layer } from './Layer';
 
-import type { ImageryWithWindowsOut } from '~/api/client';
-import type { SliceLayerMap } from '../../hooks/useStacRegistration';
+import type { CampaignOutFull } from '~/api/client';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../ControlsOpenMode';
 import { useSliceLayers } from './useSliceLayers';
 
-// Props
-
 interface OpenModeMapProps {
-    imagery: ImageryWithWindowsOut | null;
-    sliceLayerMap: SliceLayerMap;
+    campaign: CampaignOutFull;
     initialCenter: [number, number];
     initialZoom: number;
-    /** Called on every view change so the store can sync window maps. */
     onViewChange?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void;
-    /** Called once the first active imagery layer finishes rendering. */
     onReady?: () => void;
-    /** Controlled active layer id. */
     activeLayerId?: string;
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
     selectedLabel: ExtendedLabel | null;
     activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
     magicWandActive: boolean;
     onTimeseriesClick?: (lat: number, lon: number) => void;
-    /** Increment to snap back to initialCenter/initialZoom. */
     refocusTrigger?: number;
-    /** Timeseries probe point to display on the map. */
     probePoint?: { lat: number; lon: number } | null;
-    /** Whether to show the center crosshair overlay. */
     showCrosshair?: boolean;
 }
 
@@ -63,8 +53,7 @@ export interface OpenModeMapHandle {
 // Component
 
 const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
-    imagery,
-    sliceLayerMap,
+    campaign,
     initialCenter,
     initialZoom,
     onViewChange,
@@ -88,13 +77,10 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
-    // Shared layer management
-
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
-        imagery,
+        campaign,
         layerManager: layerManagerRef.current,
         mapReady: mapReadyRef.current,
-        sliceLayerMap,
         onReady,
         onLayersChange,
         preloadDepth: Infinity,
@@ -108,7 +94,37 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(({
         const map = mapRef.current;
         if (!map) return;
 
-        const annotations = useAnnotationStore.getState().annotations;
+        const store = useAnnotationStore.getState();
+        const { currentAnnotationIndex } = store;
+
+        // If navigating to a specific annotation, fit only that one
+        if (currentAnnotationIndex >= 0) {
+            const sorted = store.getSortedAnnotations();
+            const target = sorted[currentAnnotationIndex];
+            if (target) {
+                const geoJSON = convertWKTToGeoJSON(target.geometry.geometry);
+                if (geoJSON) {
+                    try {
+                        const geom = geoJsonFormat.current.readGeometry(geoJSON, {
+                            featureProjection: 'EPSG:3857',
+                        });
+                        const ext = geom.getExtent();
+                        if (!isEmpty(ext)) {
+                            map.getView().fit(ext, {
+                                padding: [100, 100, 100, 100],
+                                maxZoom: 18,
+                                duration: 400,
+                            });
+                            return;
+                        }
+                    } catch {
+                        // fall through to fit all
+                    }
+                }
+            }
+        }
+
+        const annotations = store.annotations;
         if (annotations.length === 0) return;
 
         const combined = createEmpty();

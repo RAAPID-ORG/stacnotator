@@ -15,15 +15,18 @@ from src.campaigns.schemas import (
     AssignUsersToCampaignRequest,
     CampaignCreate,
     CampaignOut,
-    CampaignOutWithImageryWindows,
+    CampaignOutFull,
     CampaignsListResponse,
     CampaignStatistics,
     CampaignUsersResponse,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     UpdateCampaignBBoxRequest,
+    UpdateCampaignGuideRequest,
     UpdateCampaignNameRequest,
+    UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
+    UpdateSampleExtentRequest,
 )
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute
@@ -55,6 +58,7 @@ def list_all_campaigns(
                 "created_at": campaign.created_at,
                 "is_admin": data["is_admin"],
                 "is_member": data["is_member"],
+                "is_public": campaign.is_public,
             }
         )
 
@@ -83,9 +87,10 @@ def create_campaign(
         db,
         name=campaign.name,
         mode=campaign.mode,
+        is_public=campaign.is_public,
         settings=campaign.settings,
         user_id=user.id,
-        imagery_configs=campaign.imagery_configs,
+        imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
     )
 
@@ -103,16 +108,16 @@ def add_users_to_campaign(
     service.add_users_to_campaign_bulk(db, campaign.id, users_to_assign.user_ids)
 
 
-@router.get("/{campaign_id}/detailed", response_model=CampaignOutWithImageryWindows)
+@router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)
 def get_campaign_with_imagery_windows(
     campaign_id: int,
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    """Get campaign with detailed imagery windows and layouts (both default and personal)"""
+    """Get campaign with detailed imagery views and layouts (both default and personal)"""
     campaign_with_layouts = service.get_campaign_with_layouts(db, campaign_id)
-    return CampaignOutWithImageryWindows.from_orm(campaign_with_layouts, user_id=user.id)
+    return CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
 
 
 @router.post(
@@ -162,6 +167,27 @@ def update_campaign_name(
     return service.update_campaign_name(db, campaign_id, req.name)
 
 
+@router.patch("/{campaign_id}/visibility", response_model=CampaignOut)
+def update_campaign_visibility(
+    campaign_id: int,
+    req: UpdateCampaignVisibilityRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Toggle a campaign between public and private. Only campaign admins can change this."""
+    return service.update_campaign_visibility(db, campaign_id, req.is_public)
+
+
+@router.patch("/{campaign_id}/guide", response_model=CampaignOut)
+def update_campaign_guide(
+    campaign_id: int,
+    req: UpdateCampaignGuideRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_campaign_guide(db, campaign_id, req.guide_markdown)
+
+
 @router.patch("/{campaign_id}/bbox", response_model=CampaignOut)
 def update_campaign_bbox(
     campaign_id: int,
@@ -171,6 +197,16 @@ def update_campaign_bbox(
 ):
     bbox = req.model_dump() if hasattr(req, "model_dump") else req.dict()
     return service.update_campaign_bbox(db, campaign_id, bbox)
+
+
+@router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)
+def update_sample_extent(
+    campaign_id: int,
+    req: UpdateSampleExtentRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_sample_extent(db, campaign_id, req.sample_extent_meters)
 
 
 @router.patch("/{campaign_id}/embedding-year", response_model=EmbeddingYearUpdateResponse)

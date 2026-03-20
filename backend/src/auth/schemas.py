@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class UserOut(BaseModel):
@@ -10,8 +10,7 @@ class UserOut(BaseModel):
     email: str
     display_name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserOutDetailed(UserOut):
@@ -23,8 +22,7 @@ class UserOutDetailed(UserOut):
     external_uid: str
     display_name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BulkUserActionRequest(BaseModel):
@@ -40,5 +38,4 @@ class BulkUserActionResponse(BaseModel):
     not_found: list[str]
     already_in_state: list[UserOutDetailed]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -73,6 +73,10 @@ export type AnnotationFromTaskOut = {
      */
     created_at: string;
     /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
      * Confidence
      */
     confidence: number | null;
@@ -106,6 +110,10 @@ export type AnnotationOut = {
      * Created At
      */
     created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
     /**
      * Confidence
      */
@@ -317,6 +325,38 @@ export type AssignUsersToCampaignRequest = {
 };
 
 /**
+ * BasemapCreate
+ */
+export type BasemapCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * BasemapOut
+ */
+export type BasemapOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
  * Body_generateTasksFromSampling
  */
 export type BodyGenerateTasksFromSampling = {
@@ -338,6 +378,16 @@ export type BodyGenerateTasksFromSampling = {
  * Body_ingestAnnotationTasksFromCsv
  */
 export type BodyIngestAnnotationTasksFromCsv = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_ingestAnnotationTasksFromGeojson
+ */
+export type BodyIngestAnnotationTasksFromGeojson = {
     /**
      * File
      */
@@ -388,11 +438,12 @@ export type CampaignCreate = {
      * Mode
      */
     mode: string;
-    settings: CampaignSettingsCreate;
     /**
-     * Imagery Configs
+     * Is Public
      */
-    imagery_configs?: Array<ImageryCreate> | null;
+    is_public?: boolean;
+    settings: CampaignSettingsCreate;
+    imagery_editor_state?: ImageryEditorStateCreate | null;
     /**
      * Timeseries Configs
      */
@@ -423,6 +474,10 @@ export type CampaignListItemOut = {
      * Is Member
      */
     is_member?: boolean;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
 };
 
 /**
@@ -445,11 +500,23 @@ export type CampaignOut = {
      * Mode
      */
     mode: string;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
     settings: CampaignSettingsOut;
     /**
-     * Imagery
+     * Imagery Sources
      */
-    imagery: Array<ImageryOut>;
+    imagery_sources: Array<ImagerySourceOut>;
+    /**
+     * Imagery Views
+     */
+    imagery_views: Array<ImageryViewOut>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapOut>;
     /**
      * Time Series
      */
@@ -457,9 +524,11 @@ export type CampaignOut = {
 };
 
 /**
- * CampaignOutWithImageryWindows
+ * CampaignOutFull
+ *
+ * Campaign with canvas layout information extracted.
  */
-export type CampaignOutWithImageryWindows = {
+export type CampaignOutFull = {
     /**
      * Id
      */
@@ -476,22 +545,28 @@ export type CampaignOutWithImageryWindows = {
      * Mode
      */
     mode: string;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
     settings: CampaignSettingsOut;
     /**
-     * Imagery
+     * Imagery Sources
      */
-    imagery: Array<ImageryWithWindowsOut>;
+    imagery_sources: Array<ImagerySourceOut>;
+    /**
+     * Imagery Views
+     */
+    imagery_views: Array<ImageryViewOut>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapOut>;
     /**
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
-    /**
-     * Get the default main canvas layout for this campaign.
-     */
     readonly default_main_canvas_layout: CanvasLayoutOut | null;
-    /**
-     * Get the personal main canvas layout for the current user.
-     */
     readonly personal_main_canvas_layout: CanvasLayoutOut | null;
 };
 
@@ -523,6 +598,10 @@ export type CampaignSettingsCreate = {
      * Embedding Year
      */
     embedding_year?: number | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -553,6 +632,14 @@ export type CampaignSettingsOut = {
      * Embedding Year
      */
     embedding_year?: number | null;
+    /**
+     * Guide Markdown
+     */
+    guide_markdown?: string | null;
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -638,8 +725,6 @@ export type CampaignsListResponse = {
 
 /**
  * CanvasLayoutCreate
- *
- * Request body to create or update a canvas layout.
  */
 export type CanvasLayoutCreate = {
     /**
@@ -647,13 +732,13 @@ export type CanvasLayoutCreate = {
      */
     main_layout_data: Array<unknown>;
     /**
-     * Imagery Layout Data
+     * View Layout Data
      */
-    imagery_layout_data?: Array<unknown> | null;
+    view_layout_data?: Array<unknown> | null;
     /**
-     * Imagery Id
+     * View Id
      */
-    imagery_id?: number | null;
+    view_id?: number | null;
 };
 
 /**
@@ -666,18 +751,13 @@ export type CanvasLayoutCreateRequest = {
      */
     should_be_default?: boolean;
     /**
-     * Imagery Id
+     * View Id
      */
-    imagery_id: number;
+    view_id: number;
 };
 
 /**
  * CanvasLayoutOut
- *
- * Frontend Canvas layout configuration.
- *
- * Can be either personal or might be the default for the campaign.
- * Typically one layout is either the general section or imagery specific.
  */
 export type CanvasLayoutOut = {
     /**
@@ -695,13 +775,31 @@ export type CanvasLayoutOut = {
 };
 
 /**
- * CreateImageryResponse
+ * CollectionStacConfigCreate
  */
-export type CreateImageryResponse = {
+export type CollectionStacConfigCreate = {
     /**
-     * New Items
+     * Registration Url
      */
-    new_items: Array<ImageryOut>;
+    registration_url: string;
+    /**
+     * Search Body
+     */
+    search_body: string;
+};
+
+/**
+ * CollectionStacConfigOut
+ */
+export type CollectionStacConfigOut = {
+    /**
+     * Registration Url
+     */
+    registration_url: string;
+    /**
+     * Search Body
+     */
+    search_body: string;
 };
 
 /**
@@ -784,31 +882,161 @@ export type HttpValidationError = {
 };
 
 /**
- * ImageryBulkCreate
+ * ImageryCollectionCreate
  */
-export type ImageryBulkCreate = {
-    /**
-     * Items
-     */
-    items: Array<ImageryCreate>;
-};
-
-/**
- * ImageryCreate
- */
-export type ImageryCreate = {
+export type ImageryCollectionCreate = {
     /**
      * Name
      */
     name: string;
     /**
-     * Start Ym
+     * Cover Slice Index
      */
-    start_ym: string;
+    cover_slice_index?: number;
     /**
-     * End Ym
+     * Slices
      */
-    end_ym: string;
+    slices: Array<ImagerySliceCreate>;
+    stac_config?: CollectionStacConfigCreate | null;
+};
+
+/**
+ * ImageryCollectionOut
+ */
+export type ImageryCollectionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Cover Slice Index
+     */
+    cover_slice_index: number;
+    /**
+     * Display Order
+     */
+    display_order: number;
+    /**
+     * Slices
+     */
+    slices: Array<ImagerySliceOut>;
+    stac_config?: CollectionStacConfigOut | null;
+};
+
+/**
+ * ImageryEditorStateCreate
+ *
+ * Full imagery editor state sent from the frontend on campaign creation.
+ */
+export type ImageryEditorStateCreate = {
+    /**
+     * Sources
+     */
+    sources: Array<ImagerySourceCreate>;
+    /**
+     * Views
+     */
+    views: Array<ImageryViewCreate>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapCreate>;
+};
+
+/**
+ * ImagerySliceCreate
+ */
+export type ImagerySliceCreate = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Tile Urls
+     */
+    tile_urls?: Array<SliceTileUrlCreate>;
+};
+
+/**
+ * ImagerySliceOut
+ */
+export type ImagerySliceOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Display Order
+     */
+    display_order: number;
+    /**
+     * Tile Urls
+     */
+    tile_urls: Array<SliceTileUrlOut>;
+};
+
+/**
+ * ImagerySourceCreate
+ */
+export type ImagerySourceCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Crosshair Hex6
+     */
+    crosshair_hex6?: string;
+    /**
+     * Default Zoom
+     */
+    default_zoom?: number;
+    /**
+     * Visualizations
+     */
+    visualizations: Array<VisualizationTemplateCreate>;
+    /**
+     * Collections
+     */
+    collections: Array<ImageryCollectionCreate>;
+};
+
+/**
+ * ImagerySourceOut
+ */
+export type ImagerySourceOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
     /**
      * Crosshair Hex6
      */
@@ -818,51 +1046,37 @@ export type ImageryCreate = {
      */
     default_zoom: number;
     /**
-     * Window Interval
+     * Display Order
      */
-    window_interval?: number | null;
+    display_order: number;
     /**
-     * Window Unit
+     * Visualizations
      */
-    window_unit?: string | null;
+    visualizations: Array<VisualizationTemplateOut>;
     /**
-     * Slicing Interval
+     * Collections
      */
-    slicing_interval?: number | null;
-    /**
-     * Slicing Unit
-     */
-    slicing_unit?: string | null;
-    /**
-     * Registration Url
-     */
-    registration_url: string;
-    /**
-     * Search Body
-     */
-    search_body: string;
-    /**
-     * Visualization Url Templates
-     */
-    visualization_url_templates: Array<ImageryVisualizationUrlTemplateCreate>;
+    collections: Array<ImageryCollectionOut>;
 };
 
 /**
- * ImageryOut
- *
- * Represents an imagery dataset configuration within a campaign.
- *
- * Windows define time-windows for seperate visualization chunks of the
- * start and end year-month range. The windows are defined by the window_interval
- * and window_unit fields. For example, a window_interval of 3 and window_unit of
- * 'months' would create 3-month windows within the overall date range.
- *
- * Slicing defines how the imagery data is further sliced within each window. Tjis
- * is often useful to e.g see all imagery within a month. The slicing_interval and slicing_unit
- * fields define this behavior. For example, a slicing_interval of 1 and slicing_unit of
- * 'week' would slice the data into weekly chunks within each window.
+ * ImageryViewCreate
  */
-export type ImageryOut = {
+export type ImageryViewCreate = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Collection Refs
+     */
+    collection_refs?: Array<ViewCollectionRefCreate>;
+};
+
+/**
+ * ImageryViewOut
+ */
+export type ImageryViewOut = {
     /**
      * Id
      */
@@ -872,220 +1086,14 @@ export type ImageryOut = {
      */
     name: string;
     /**
-     * Start Ym
+     * Display Order
      */
-    start_ym: string;
+    display_order: number;
     /**
-     * End Ym
+     * Collection Refs
      */
-    end_ym: string;
-    /**
-     * Crosshair Hex6
-     */
-    crosshair_hex6: string;
-    /**
-     * Default Zoom
-     */
-    default_zoom: number;
-    /**
-     * Window Interval
-     */
-    window_interval: number | null;
-    /**
-     * Window Unit
-     */
-    window_unit: string | null;
-    /**
-     * Slicing Interval
-     */
-    slicing_interval: number | null;
-    /**
-     * Slicing Unit
-     */
-    slicing_unit: string | null;
-    /**
-     * Registration Url
-     */
-    registration_url: string;
-    /**
-     * Search Body
-     */
-    search_body: {
-        [key: string]: unknown;
-    };
-    /**
-     * Visualization Url Templates
-     */
-    visualization_url_templates: Array<ImageryVisualizationUrlTemplateOut>;
-};
-
-/**
- * ImageryUpdate
- *
- * Update schema for imagery - excludes temporal fields that cannot be changed
- * after creation (start_ym, end_ym, window_interval, window_unit, slicing_interval, slicing_unit).
- */
-export type ImageryUpdate = {
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Crosshair Hex6
-     */
-    crosshair_hex6?: string | null;
-    /**
-     * Default Zoom
-     */
-    default_zoom?: number | null;
-    /**
-     * Registration Url
-     */
-    registration_url?: string | null;
-    /**
-     * Search Body
-     */
-    search_body?: string | null;
-    /**
-     * Visualization Url Templates
-     */
-    visualization_url_templates?: Array<ImageryVisualizationUrlTemplateCreate> | null;
-};
-
-/**
- * ImageryVisualizationUrlTemplateCreate
- *
- * Defines a (TiTiler) visualization URL template for imagery.
- * The URL must contain {z}, {x}, {y} placeholders for tile access and {searchId} for the search ID.
- */
-export type ImageryVisualizationUrlTemplateCreate = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Visualization Url
-     */
-    visualization_url: string;
-};
-
-/**
- * ImageryVisualizationUrlTemplateOut
- *
- * TiTiler visualization URL template for imagery.
- */
-export type ImageryVisualizationUrlTemplateOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Visualization Url
-     */
-    visualization_url: string;
-};
-
-/**
- * ImageryWindowOut
- */
-export type ImageryWindowOut = {
-    /**
-     * Window Start Date
-     */
-    window_start_date: string;
-    /**
-     * Window End Date
-     */
-    window_end_date: string;
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Window Index
-     */
-    window_index: number;
-};
-
-/**
- * ImageryWithWindowsOut
- *
- * Imagery with associated time-windows.
- */
-export type ImageryWithWindowsOut = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Start Ym
-     */
-    start_ym: string;
-    /**
-     * End Ym
-     */
-    end_ym: string;
-    /**
-     * Crosshair Hex6
-     */
-    crosshair_hex6: string;
-    /**
-     * Default Zoom
-     */
-    default_zoom: number;
-    /**
-     * Window Interval
-     */
-    window_interval: number | null;
-    /**
-     * Window Unit
-     */
-    window_unit: string | null;
-    /**
-     * Slicing Interval
-     */
-    slicing_interval: number | null;
-    /**
-     * Slicing Unit
-     */
-    slicing_unit: string | null;
-    /**
-     * Registration Url
-     */
-    registration_url: string;
-    /**
-     * Search Body
-     */
-    search_body: {
-        [key: string]: unknown;
-    };
-    /**
-     * Visualization Url Templates
-     */
-    visualization_url_templates: Array<ImageryVisualizationUrlTemplateOut>;
-    /**
-     * Default Main Window Id
-     */
-    default_main_window_id: number;
-    /**
-     * Windows
-     */
-    windows: Array<ImageryWindowOut>;
-    /**
-     * Get the default canvas layout for this imagery.
-     */
+    collection_refs: Array<ViewCollectionRefItem>;
     readonly default_canvas_layout: CanvasLayoutOut | null;
-    /**
-     * Get the personal canvas layout for the current user.
-     */
     readonly personal_canvas_layout: CanvasLayoutOut | null;
 };
 
@@ -1131,6 +1139,38 @@ export type PairwiseAgreement = {
      * Shared Tasks
      */
     shared_tasks: number;
+};
+
+/**
+ * SliceTileUrlCreate
+ */
+export type SliceTileUrlCreate = {
+    /**
+     * Visualization Name
+     */
+    visualization_name: string;
+    /**
+     * Tile Url
+     */
+    tile_url: string;
+};
+
+/**
+ * SliceTileUrlOut
+ */
+export type SliceTileUrlOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Visualization Name
+     */
+    visualization_name: string;
+    /**
+     * Tile Url
+     */
+    tile_url: string;
 };
 
 /**
@@ -1288,6 +1328,16 @@ export type UpdateCampaignBBoxRequest = {
 };
 
 /**
+ * UpdateCampaignGuideRequest
+ */
+export type UpdateCampaignGuideRequest = {
+    /**
+     * Guide Markdown
+     */
+    guide_markdown?: string | null;
+};
+
+/**
  * UpdateCampaignNameRequest
  */
 export type UpdateCampaignNameRequest = {
@@ -1295,6 +1345,16 @@ export type UpdateCampaignNameRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * UpdateCampaignVisibilityRequest
+ */
+export type UpdateCampaignVisibilityRequest = {
+    /**
+     * Is Public
+     */
+    is_public: boolean;
 };
 
 /**
@@ -1307,6 +1367,16 @@ export type UpdateEmbeddingYearRequest = {
      * Embedding Year
      */
     embedding_year?: number | null;
+};
+
+/**
+ * UpdateSampleExtentRequest
+ */
+export type UpdateSampleExtentRequest = {
+    /**
+     * Sample Extent Meters
+     */
+    sample_extent_meters?: number | null;
 };
 
 /**
@@ -1408,9 +1478,73 @@ export type ValidationError = {
 };
 
 /**
- * CampaignOutWithImageryWindows
+ * ViewCollectionRefCreate
  */
-export type CampaignOutWithImageryWindowsWritable = {
+export type ViewCollectionRefCreate = {
+    /**
+     * Collection Id
+     */
+    collection_id: string;
+    /**
+     * Source Id
+     */
+    source_id: string;
+    /**
+     * Show As Window
+     */
+    show_as_window?: boolean;
+};
+
+/**
+ * ViewCollectionRefItem
+ */
+export type ViewCollectionRefItem = {
+    /**
+     * Collection Id
+     */
+    collection_id: number;
+    /**
+     * Source Id
+     */
+    source_id: number;
+    /**
+     * Show As Window
+     */
+    show_as_window?: boolean;
+};
+
+/**
+ * VisualizationTemplateCreate
+ */
+export type VisualizationTemplateCreate = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * VisualizationTemplateOut
+ */
+export type VisualizationTemplateOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Display Order
+     */
+    display_order: number;
+};
+
+/**
+ * CampaignOut
+ */
+export type CampaignOutWritable = {
     /**
      * Id
      */
@@ -1427,11 +1561,23 @@ export type CampaignOutWithImageryWindowsWritable = {
      * Mode
      */
     mode: string;
+    /**
+     * Is Public
+     */
+    is_public?: boolean;
     settings: CampaignSettingsOut;
     /**
-     * Imagery
+     * Imagery Sources
      */
-    imagery: Array<ImageryWithWindowsOutWritable>;
+    imagery_sources: Array<ImagerySourceOut>;
+    /**
+     * Imagery Views
+     */
+    imagery_views: Array<ImageryViewOutWritable>;
+    /**
+     * Basemaps
+     */
+    basemaps: Array<BasemapOut>;
     /**
      * Time Series
      */
@@ -1439,11 +1585,11 @@ export type CampaignOutWithImageryWindowsWritable = {
 };
 
 /**
- * ImageryWithWindowsOut
+ * CampaignOutFull
  *
- * Imagery with associated time-windows.
+ * Campaign with canvas layout information extracted.
  */
-export type ImageryWithWindowsOutWritable = {
+export type CampaignOutFullWritable = {
     /**
      * Id
      */
@@ -1453,59 +1599,56 @@ export type ImageryWithWindowsOutWritable = {
      */
     name: string;
     /**
-     * Start Ym
+     * Created At
      */
-    start_ym: string;
+    created_at: string;
     /**
-     * End Ym
+     * Mode
      */
-    end_ym: string;
+    mode: string;
     /**
-     * Crosshair Hex6
+     * Is Public
      */
-    crosshair_hex6: string;
+    is_public?: boolean;
+    settings: CampaignSettingsOut;
     /**
-     * Default Zoom
+     * Imagery Sources
      */
-    default_zoom: number;
+    imagery_sources: Array<ImagerySourceOut>;
     /**
-     * Window Interval
+     * Imagery Views
      */
-    window_interval: number | null;
+    imagery_views: Array<ImageryViewOutWritable>;
     /**
-     * Window Unit
+     * Basemaps
      */
-    window_unit: string | null;
+    basemaps: Array<BasemapOut>;
     /**
-     * Slicing Interval
+     * Time Series
      */
-    slicing_interval: number | null;
+    time_series: Array<TimeSeriesOut>;
+};
+
+/**
+ * ImageryViewOut
+ */
+export type ImageryViewOutWritable = {
     /**
-     * Slicing Unit
+     * Id
      */
-    slicing_unit: string | null;
+    id: number;
     /**
-     * Registration Url
+     * Name
      */
-    registration_url: string;
+    name: string;
     /**
-     * Search Body
+     * Display Order
      */
-    search_body: {
-        [key: string]: unknown;
-    };
+    display_order: number;
     /**
-     * Visualization Url Templates
+     * Collection Refs
      */
-    visualization_url_templates: Array<ImageryVisualizationUrlTemplateOut>;
-    /**
-     * Default Main Window Id
-     */
-    default_main_window_id: number;
-    /**
-     * Windows
-     */
-    windows: Array<ImageryWindowOut>;
+    collection_refs: Array<ViewCollectionRefItem>;
 };
 
 export type MeData = {
@@ -2006,7 +2149,7 @@ export type GetCampaignWithImageryWindowsResponses = {
     /**
      * Successful Response
      */
-    200: CampaignOutWithImageryWindows;
+    200: CampaignOutFull;
 };
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
@@ -2137,6 +2280,66 @@ export type UpdateCampaignNameResponses = {
 
 export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
 
+export type UpdateCampaignVisibilityData = {
+    body: UpdateCampaignVisibilityRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/visibility';
+};
+
+export type UpdateCampaignVisibilityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignVisibilityError = UpdateCampaignVisibilityErrors[keyof UpdateCampaignVisibilityErrors];
+
+export type UpdateCampaignVisibilityResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignVisibilityResponse = UpdateCampaignVisibilityResponses[keyof UpdateCampaignVisibilityResponses];
+
+export type UpdateCampaignGuideData = {
+    body: UpdateCampaignGuideRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/guide';
+};
+
+export type UpdateCampaignGuideErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignGuideError = UpdateCampaignGuideErrors[keyof UpdateCampaignGuideErrors];
+
+export type UpdateCampaignGuideResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignGuideResponse = UpdateCampaignGuideResponses[keyof UpdateCampaignGuideResponses];
+
 export type UpdateCampaignBboxData = {
     body: UpdateCampaignBBoxRequest;
     path: {
@@ -2166,6 +2369,36 @@ export type UpdateCampaignBboxResponses = {
 };
 
 export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
+
+export type UpdateSampleExtentData = {
+    body: UpdateSampleExtentRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/sample-extent';
+};
+
+export type UpdateSampleExtentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateSampleExtentError = UpdateSampleExtentErrors[keyof UpdateSampleExtentErrors];
+
+export type UpdateSampleExtentResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateSampleExtentResponse = UpdateSampleExtentResponses[keyof UpdateSampleExtentResponses];
 
 export type UpdateEmbeddingYearData = {
     body: UpdateEmbeddingYearRequest;
@@ -2614,6 +2847,34 @@ export type IngestAnnotationTasksFromCsvResponses = {
     200: unknown;
 };
 
+export type IngestAnnotationTasksFromGeojsonData = {
+    body: BodyIngestAnnotationTasksFromGeojson;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotation-task-geojson';
+};
+
+export type IngestAnnotationTasksFromGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IngestAnnotationTasksFromGeojsonError = IngestAnnotationTasksFromGeojsonErrors[keyof IngestAnnotationTasksFromGeojsonErrors];
+
+export type IngestAnnotationTasksFromGeojsonResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type CreateAnnotationOpenmodeData = {
     body: AnnotationCreate;
     path: {
@@ -2981,7 +3242,7 @@ export type GenerateTasksFromSamplingResponses = {
 export type GenerateTasksFromSamplingResponse = GenerateTasksFromSamplingResponses[keyof GenerateTasksFromSamplingResponses];
 
 export type CreateImageryData = {
-    body: ImageryBulkCreate;
+    body: ImageryEditorStateCreate;
     path: {
         /**
          * Campaign Id
@@ -3005,80 +3266,10 @@ export type CreateImageryResponses = {
     /**
      * Successful Response
      */
-    200: CreateImageryResponse;
+    201: unknown;
 };
 
-export type CreateImageryResponse2 = CreateImageryResponses[keyof CreateImageryResponses];
-
-export type DeleteImageryData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Imagery Id
-         */
-        imagery_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/{imagery_id}';
-};
-
-export type DeleteImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteImageryError = DeleteImageryErrors[keyof DeleteImageryErrors];
-
-export type DeleteImageryResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteImageryResponse = DeleteImageryResponses[keyof DeleteImageryResponses];
-
-export type UpdateImageryData = {
-    body: ImageryUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Imagery Id
-         */
-        imagery_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/{imagery_id}';
-};
-
-export type UpdateImageryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateImageryError = UpdateImageryErrors[keyof UpdateImageryErrors];
-
-export type UpdateImageryResponses = {
-    /**
-     * Successful Response
-     */
-    200: ImageryOut;
-};
-
-export type UpdateImageryResponse = UpdateImageryResponses[keyof UpdateImageryResponses];
-
-export type CreateNewCanvasLayoutForImageryData = {
+export type CreateNewCanvasLayoutData = {
     body: CanvasLayoutCreateRequest;
     path: {
         /**
@@ -3090,18 +3281,52 @@ export type CreateNewCanvasLayoutForImageryData = {
     url: '/api/{campaign_id}/new-layout';
 };
 
-export type CreateNewCanvasLayoutForImageryErrors = {
+export type CreateNewCanvasLayoutErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateNewCanvasLayoutForImageryError = CreateNewCanvasLayoutForImageryErrors[keyof CreateNewCanvasLayoutForImageryErrors];
+export type CreateNewCanvasLayoutError = CreateNewCanvasLayoutErrors[keyof CreateNewCanvasLayoutErrors];
 
-export type CreateNewCanvasLayoutForImageryResponses = {
+export type CreateNewCanvasLayoutResponses = {
     /**
      * Successful Response
      */
     201: unknown;
 };
+
+export type DeleteSourceData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}';
+};
+
+export type DeleteSourceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteSourceError = DeleteSourceErrors[keyof DeleteSourceErrors];
+
+export type DeleteSourceResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteSourceResponse = DeleteSourceResponses[keyof DeleteSourceResponses];

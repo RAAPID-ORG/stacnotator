@@ -2,77 +2,49 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
-import type { ImageryWithWindowsOut } from '~/api/client';
-import type { SliceLayerMap } from '../../hooks/useStacRegistration';
+import type { CampaignOutFull } from '~/api/client';
 import { useMapStore } from '../../stores/map.store';
-import { computeTimeSlices } from '~/shared/utils/utility';
+import { useCampaignStore } from '../../stores/campaign.store';
 
-// Basemap definitions
-
-export const BASEMAP_LAYERS = [
-    new XYZLayer({
-        id: 'carto-light',
-        name: 'CartoDB Light',
-        layerType: 'basemap',
-        urlTemplate: 'https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-        attribution: '© OpenStreetMap, © CARTO',
-        maxZoom: 19,
-    }),
-    new XYZLayer({
-        id: 'esri-world-imagery',
-        name: 'ESRI World Imagery',
-        layerType: 'basemap',
-        urlTemplate:
-            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        attribution: 'Tiles © Esri',
-        maxZoom: 17,   // source tile limit - global coverage is solid at z17; OL stretches beyond
-    }),
-    new XYZLayer({
-        id: 'opentopomap',
-        name: 'OpenTopoMap',
-        layerType: 'basemap',
-        urlTemplate: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        attribution: '© OpenTopoMap contributors',
-        maxZoom: 17,   // source tile limit
-    }),
-];
-
-// Layer ID convention
-
-/** Stable layer ID: `stac-w{windowId}-s{sliceIndex}-v{templateId}` */
-export function makeLayerId(windowId: number, sliceIndex: number, templateId: number): string {
-    return `stac-w${windowId}-s${sliceIndex}-v${templateId}`;
+/** Return an attribution string for known basemap providers based on their URL pattern. */
+function getBasemapAttribution(url: string): string | undefined {
+    const u = url.toLowerCase();
+    if (u.includes('carto'))
+        return '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    if (u.includes('opentopomap'))
+        return '&copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>) &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    if (u.includes('arcgisonline') || u.includes('esri'))
+        return '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Sources: Esri, Maxar, Earthstar Geographics';
+    if (u.includes('openstreetmap'))
+        return '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    return undefined;
 }
 
-// Hook
+/** Stable layer ID: `tile-c{collectionId}-s{sliceIndex}-v{vizName}` */
+export function makeLayerId(collectionId: number, sliceIndex: number, vizName: string): string {
+    return `tile-c${collectionId}-s${sliceIndex}-v${vizName}`;
+}
 
 interface UseSliceLayersOptions {
-    imagery: ImageryWithWindowsOut | null;
+    campaign: CampaignOutFull | null;
     layerManager: LayerManager | null;
     mapReady: boolean;
-    /** Pre-resolved STAC tile URLs (from useStacRegistration). */
-    sliceLayerMap: SliceLayerMap;
-    /** Called once when the active layer finishes rendering. */
     onReady?: () => void;
-    /** Called whenever the UI-visible layer list changes. */
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
-    /** OL preload depth for imagery layers. Use Infinity for open mode. */
     preloadDepth?: number;
 }
 
 /**
  * Manages OL layer registration + active layer selection.
  *
- * - Registers basemap layers once on init
- * - Registers all STAC imagery layers at once when sliceLayerMap arrives
- * - Activates the correct layer when window/slice/viz selection changes
- * - Builds the UI layer list for the LayerSelector
+ * - Registers basemap layers from campaign.basemaps
+ * - Registers imagery layers from pre-resolved slice tile_urls
+ * - Builds UI layer list: one entry per (source × visualization) + basemaps
  */
 export function useSliceLayers({
-    imagery,
+    campaign,
     layerManager,
     mapReady,
-    sliceLayerMap,
     onReady,
     onLayersChange,
     preloadDepth,
@@ -80,66 +52,60 @@ export function useSliceLayers({
     const [layers, setLayers] = useState<Layer[]>([]);
     const [activeLayerId, setActiveLayerId] = useState('');
 
-    // Store subscriptions
-    const activeWindowId = useMapStore((s) => s.activeWindowId);
+    const activeCollectionId = useMapStore((s) => s.activeCollectionId);
     const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
     const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
     const showBasemap = useMapStore((s) => s.showBasemap);
-    const basemapType = useMapStore((s) => s.basemapType);
+    const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
+    const selectedViewId = useCampaignStore((s) => s.selectedViewId);
 
-    const effectiveActiveWindowId =
-        activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
-
-    const vizTemplates = imagery?.visualization_url_templates ?? [];
-    const activeVizTemplate = vizTemplates[selectedLayerIndex] ?? vizTemplates[0] ?? null;
-
-    // Refs for one-shot callbacks
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
     const hasCalledOnReadyRef = useRef(false);
-    const prevImageryIdRef = useRef<number | null>(null);
+    const prevViewIdRef = useRef<number | null>(null);
 
-    // Activate the correct layer for the current selection
+    // Resolve active collection and its source
+    const activeSource = (() => {
+        if (!campaign || !activeCollectionId) return null;
+        return campaign.imagery_sources.find((s) =>
+            s.collections.some((c) => c.id === activeCollectionId),
+        ) ?? null;
+    })();
+
+    const activeCollection = activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
+
+    // Build the flat list of viz names from all sources (for layer cycling)
+    const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
+        src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name, vizId: v.id })),
+    );
+    const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
     const activateCorrectLayer = useCallback((lm: LayerManager) => {
-        if (!imagery) return;
+        if (!campaign || !activeCollection || !activeSource) return;
 
-        // Determine which layer to activate
         let targetId: string;
 
-        if (showBasemap) {
-            // Basemap mode: activate the selected basemap layer
-            targetId = basemapType;
+        if (showBasemap && selectedBasemapId) {
+            targetId = selectedBasemapId;
         } else {
-            // STAC imagery mode: activate the correct viz layer
-            if (!activeVizTemplate) return;
-            targetId = makeLayerId(
-                effectiveActiveWindowId ?? imagery.windows[0]?.id,
-                activeSliceIndex,
-                activeVizTemplate.id,
-            );
+            if (!activeVizEntry) return;
+            targetId = makeLayerId(activeCollection.id, activeSliceIndex, activeVizEntry.vizName);
         }
 
         lm.setActiveLayer(targetId);
         setActiveLayerId(targetId);
 
-        // Fire onReady once after the first active layer renders
         if (!hasCalledOnReadyRef.current && onReadyRef.current) {
             hasCalledOnReadyRef.current = true;
             lm.onceActiveLayerRendered(() => { onReadyRef.current?.(); });
         }
 
-        // Build deduplicated layer list for the selector UI:
-        // one entry per viz template (at the current window + slice) + basemaps
+        // Build UI layer list: one entry per viz (at current collection+slice) + basemaps
         const allLayers = lm.getLayers();
         const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
-        const vizLayers = (imagery.visualization_url_templates ?? [])
-            .map((t) => {
-                const id = makeLayerId(
-                    effectiveActiveWindowId ?? imagery.windows[0]?.id,
-                    activeSliceIndex,
-                    t.id,
-                );
+        const vizLayers = allVizEntries
+            .map((v) => {
+                const id = makeLayerId(activeCollection.id, activeSliceIndex, v.vizName);
                 return allLayers.find((l) => l.id === id) ?? null;
             })
             .filter((l): l is Layer => l !== null);
@@ -148,88 +114,84 @@ export function useSliceLayers({
         setLayers(uiLayers);
         onLayersChange?.(uiLayers, targetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [imagery?.id, effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id, showBasemap, basemapType]);
+    }, [campaign?.id, activeCollectionId, activeSliceIndex, activeVizEntry?.vizName, showBasemap, selectedBasemapId]);
 
-    // Register STAC slice layers (called once when sliceLayerMap arrives complete)
-    const syncSliceLayers = useCallback((lm: LayerManager, isImageryChange = false) => {
-        if (!imagery) return;
+    const syncLayers = useCallback((lm: LayerManager, isViewChange = false) => {
+        if (!campaign) return;
 
-        if (isImageryChange) {
+        if (isViewChange) {
             lm.getLayers()
-                .filter((l) => l.id.startsWith('stac-'))
+                .filter((l) => l.id.startsWith('tile-'))
                 .forEach((l) => lm.removeLayer(l.id));
-            // Reset ready gate so onReady fires again for the new imagery
             hasCalledOnReadyRef.current = false;
         }
 
         const newLayers: XYZLayer[] = [];
 
-        for (const window of imagery.windows) {
-            const slices = computeTimeSlices(
-                window.window_start_date,
-                window.window_end_date,
-                imagery.slicing_interval,
-                imagery.slicing_unit,
-            );
-            for (const slice of slices) {
-                const sliceKey = `${window.id}-${slice.index}`;
-                const searchId = sliceLayerMap.get(sliceKey);
-                if (!searchId) continue;
+        for (const source of campaign.imagery_sources) {
+            for (const collection of source.collections) {
+                for (let si = 0; si < collection.slices.length; si++) {
+                    const slice = collection.slices[si];
+                    for (const tileUrl of slice.tile_urls) {
+                        const layerId = makeLayerId(collection.id, si, tileUrl.visualization_name);
+                        if (lm.getLayerById(layerId)) continue;
 
-                for (const tpl of vizTemplates) {
-                    const layerId = makeLayerId(window.id, slice.index, tpl.id);
-                    if (lm.getLayerById(layerId)) continue;
-
-                    newLayers.push(new XYZLayer({
-                        id: layerId,
-                        name: tpl.name,
-                        layerType: 'imagery',
-                        urlTemplate: tpl.visualization_url.replace(/\{searchId\}/g, searchId),
-                        preload: preloadDepth,
-                    }));
+                        newLayers.push(new XYZLayer({
+                            id: layerId,
+                            name: `${source.name} - ${tileUrl.visualization_name}`,
+                            layerType: 'imagery',
+                            urlTemplate: tileUrl.tile_url,
+                            preload: preloadDepth,
+                        }));
+                    }
                 }
             }
         }
 
-        if (newLayers.length > 0) {
-            lm.registerLayers(newLayers);
-        }
-
+        if (newLayers.length > 0) lm.registerLayers(newLayers);
         activateCorrectLayer(lm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sliceLayerMap, imagery?.id, activateCorrectLayer]);
+    }, [campaign?.id, activateCorrectLayer]);
 
-    // Init basemaps on first mount
     const initLayers = useCallback((lm: LayerManager) => {
-        for (const bm of BASEMAP_LAYERS) {
-            lm.registerLayer(bm);
-        }
-        lm.setActiveLayer(BASEMAP_LAYERS[0].id);
+        // Register basemaps from backend
+        const basemaps = (campaign?.basemaps ?? []).map(
+            (b) => new XYZLayer({
+                id: `basemap-${b.id}`,
+                name: b.name,
+                layerType: 'basemap',
+                urlTemplate: b.url,
+                attribution: getBasemapAttribution(b.url),
+            }),
+        );
+        for (const bm of basemaps) lm.registerLayer(bm);
+
+        const defaultBasemapId = basemaps[0]?.id ?? '';
+        if (defaultBasemapId) lm.setActiveLayer(defaultBasemapId);
         const initial = lm.getLayers();
         setLayers(initial);
-        setActiveLayerId(BASEMAP_LAYERS[0].id);
-        onLayersChange?.(initial, BASEMAP_LAYERS[0].id);
+        setActiveLayerId(defaultBasemapId);
+        onLayersChange?.(initial, defaultBasemapId);
 
-        // Register any already-resolved slices
-        syncSliceLayers(lm);
+        syncLayers(lm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [syncSliceLayers]);
+    }, [syncLayers]);
 
-    // Sync when sliceLayerMap grows or imagery changes (e.g. new imagery selected, or windows/slices change)
+    // Re-sync when view changes
     useEffect(() => {
-        if (!layerManager || !mapReady || !imagery) return;
-        const isImageryChange = imagery.id !== prevImageryIdRef.current;
-        prevImageryIdRef.current = imagery.id;
-        syncSliceLayers(layerManager, isImageryChange);
+        if (!layerManager || !mapReady || !campaign) return;
+        const isViewChange = selectedViewId !== prevViewIdRef.current;
+        prevViewIdRef.current = selectedViewId;
+        syncLayers(layerManager, isViewChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sliceLayerMap, imagery?.id]);
+    }, [selectedViewId, campaign?.id]);
 
     // Re-activate when selection changes
     useEffect(() => {
-        if (!layerManager || !mapReady || !imagery) return;
+        if (!layerManager || !mapReady || !campaign) return;
         activateCorrectLayer(layerManager);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [effectiveActiveWindowId, activeSliceIndex, activeVizTemplate?.id, showBasemap, basemapType]);
+    }, [activeCollectionId, activeSliceIndex, activeVizEntry?.vizName, showBasemap, selectedBasemapId]);
 
     // Dispose on unmount
     useEffect(() => {

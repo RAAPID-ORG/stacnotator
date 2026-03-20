@@ -19,7 +19,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Configure Application Secrets ===${NC}"
+echo -e "${GREEN}Configure Application Secrets${NC}"
 echo -e "${BLUE}This adds Earth Engine and Firebase secret references to the backend container app${NC}"
 echo ""
 
@@ -90,9 +90,7 @@ echo -e "${GREEN}✓ Backend identity: ${BACKEND_IDENTITY_ID}${NC}"
 echo ""
 
 # Show what will be configured
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Configuration Summary${NC}"
-echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}Configuration Summary${NC}"
 echo -e "${YELLOW}Resource Group:${NC} $RESOURCE_GROUP"
 echo -e "${YELLOW}Key Vault:     ${NC} $KV_NAME"
 echo -e "${YELLOW}Backend App:   ${NC} backend"
@@ -105,7 +103,6 @@ echo -e "${BLUE}Environment variables to be set:${NC}"
 echo -e "  • EE_PRIVATE_KEY (secret reference)"
 echo -e "  • EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT"
 echo -e "  • FIREBASE_CREDENTIALS (secret reference)"
-echo -e "${BLUE}========================================${NC}"
 echo ""
 
 # Confirmation prompt (skip if CI environment variable is set)

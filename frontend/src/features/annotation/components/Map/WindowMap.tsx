@@ -46,6 +46,8 @@ interface WindowMapProps {
      * Resets whenever tileUrl changes.
      */
     onEmptyTiles?: () => void;
+    /** GeoJSON polygon representing sample extent to render on map */
+    sampleExtent?: GeoJSON.Polygon | GeoJSON.MultiPolygon | null;
 }
 
 const geoJsonFormat = new OLGeoJSON();
@@ -71,6 +73,7 @@ const WindowMap = ({
     refocusTrigger,
     detectionKey,
     onEmptyTiles,
+    sampleExtent,
 }: WindowMapProps) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<OLMap | null>(null);
@@ -86,6 +89,7 @@ const WindowMap = ({
     const annotations = useAnnotationStore((state) => state.annotations);
     const campaign = useCampaignStore((state) => state.campaign);
     const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
+    const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
 
     // Create the map once on mount
     useEffect(() => {
@@ -125,9 +129,21 @@ const WindowMap = ({
             zIndex: 10,
         });
 
+        // Sample extent vector layer
+        const extentSource = new VectorSource<OLFeature<Geometry>>();
+        extentSourceRef.current = extentSource;
+        const extentLayer = new VectorLayer({
+            source: extentSource,
+            zIndex: 5,
+            style: new Style({
+                fill: new Fill({ color: 'rgba(255,255,255,0.08)' }),
+                stroke: new Stroke({ color: '#ef4444', width: 1.5, lineDash: [6, 4] }),
+            }),
+        });
+
         const map = new OLMap({
             target: containerRef.current,
-            layers: [tileLayer, annotationLayer],
+            layers: [tileLayer, annotationLayer, extentLayer],
             maxTilesLoading: 4,  // small - windows only load what's visible, main map gets priority
             view: new View({
                 center: fromLonLat([initialCenter[1], initialCenter[0]]),
@@ -169,6 +185,7 @@ const WindowMap = ({
             mapRef.current = null;
             tileLayerRef.current = null;
             annotationSourceRef.current = null;
+            extentSourceRef.current = null;
             overlayRef.current = null;
             overlayElRef.current = null;
         };
@@ -285,6 +302,19 @@ const WindowMap = ({
             duration: 300,
         });
     }, [refocusTrigger]);
+
+    // Sample extent polygon overlay
+    useEffect(() => {
+        const source = extentSourceRef.current;
+        if (!source) return;
+        source.clear();
+        if (!sampleExtent) return;
+        const features = geoJsonFormat.readFeatures(
+            { type: 'Feature', geometry: sampleExtent },
+            { featureProjection: 'EPSG:3857' },
+        );
+        source.addFeatures(features as OLFeature<Geometry>[]);
+    }, [sampleExtent]);
 
     // Update crosshair overlay position and color
     useEffect(() => {

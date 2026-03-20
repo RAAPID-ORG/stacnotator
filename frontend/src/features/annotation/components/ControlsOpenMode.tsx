@@ -2,6 +2,7 @@ import type { LabelBase } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { useAnnotationStore } from '../stores/annotation.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -136,6 +137,11 @@ const OpenModeControls = () => {
   const activeTool = useMapStore((s) => s.activeTool);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
+  const annotations = useAnnotationStore((s) => s.annotations);
+  const currentAnnotationIndex = useAnnotationStore((s) => s.currentAnnotationIndex);
+  const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
+  const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
+  const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
 
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
@@ -357,6 +363,46 @@ const OpenModeControls = () => {
           </div>
         )}
 
+        {/* Annotation Navigation */}
+        {annotations.length > 0 && (
+          <div className="flex flex-col gap-1 w-full">
+            <span className="font-bold text-neutral-900 text-xs">Navigate</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  const ann = goToPreviousAnnotation();
+                  if (ann) triggerFitAnnotations();
+                }}
+                className="flex-1 flex items-center justify-center gap-1 p-1.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300 transition-colors cursor-pointer"
+                title="Previous annotation (older)"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                <span>Prev</span>
+              </button>
+              <button
+                onClick={() => {
+                  const ann = goToNextAnnotation();
+                  if (ann) triggerFitAnnotations();
+                }}
+                className="flex-1 flex items-center justify-center gap-1 p-1.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300 transition-colors cursor-pointer"
+                title="Next annotation (newer)"
+              >
+                <span>Next</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-[9px] text-neutral-400 text-center">
+              {currentAnnotationIndex >= 0
+                ? `${currentAnnotationIndex + 1} / ${annotations.length}`
+                : `${annotations.length} annotation${annotations.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+        )}
+
         {/* Keyboard Shortcuts Help */}
         <div className="pt-2 border-t border-neutral-200 w-full">
           <span className="font-bold text-neutral-900 text-[10px]">Shortcuts</span>
@@ -378,6 +424,18 @@ const OpenModeControls = () => {
             <div className="flex justify-between text-[9px] text-neutral-500">
               <span>Cancel edit</span>
               <kbd className="px-1 bg-neutral-100 rounded">Esc</kbd>
+            </div>
+            <div className="flex justify-between text-[9px] text-neutral-500">
+              <span>Link (sync) windows</span>
+              <kbd className="px-1 bg-neutral-100 rounded">L</kbd>
+            </div>
+            <div className="flex justify-between text-[9px] text-neutral-500">
+              <span>Cycle imagery source</span>
+              <kbd className="px-1 bg-neutral-100 rounded">I</kbd>
+            </div>
+            <div className="flex justify-between text-[9px] text-neutral-500">
+              <span>Cycle visualization</span>
+              <kbd className="px-1 bg-neutral-100 rounded">Shift+I</kbd>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import type { CampaignCreate } from '~/api/client';
+import type { ImageryStepState } from '~/features/campaigns/components/creation/steps/imagery/types';
 
 export type FieldErrors = Record<string, string>;
 
@@ -30,7 +31,6 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
     return { errors, isValid: false };
   }
 
-  // Bounding box - all four values must be filled and logically valid
   const { bbox_west, bbox_south, bbox_east, bbox_north } = s;
 
   if (bbox_west == null || bbox_south == null || bbox_east == null || bbox_north == null) {
@@ -41,7 +41,6 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
     errors.bbox = 'South latitude must be less than North latitude.';
   }
 
-  // Labels - at least one non-empty label required
   if (!s.labels || s.labels.length === 0) {
     errors.labels = 'At least one label is required.';
   } else {
@@ -54,39 +53,68 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
   return { errors, isValid: Object.keys(errors).length === 0 };
 }
 
-export function validateImageryStep(form: CampaignCreate): StepValidationResult {
+export function validateImageryStep(imageryState: ImageryStepState): StepValidationResult {
   const errors: FieldErrors = {};
-  const items = form.imagery_configs ?? [];
 
-  if (items.length === 0) {
-    errors.imagery = 'At least one imagery source is required.';
+  // Must have at least one source
+  if (imageryState.sources.length === 0) {
+    errors.sources = 'Add at least one imagery source.';
     return { errors, isValid: false };
   }
 
-  items.forEach((img, i) => {
-    const prefix = `imagery_${i}`;
-    if (!img.name.trim()) {
-      errors[`${prefix}_name`] = `Imagery ${i + 1}: Name is required.`;
+  // Validate each source
+  imageryState.sources.forEach((source, si) => {
+    const prefix = `source_${si}`;
+
+    if (!source.name.trim()) {
+      errors[`${prefix}_name`] = `Source ${si + 1}: Name is required.`;
     }
-    if (!img.start_ym) {
-      errors[`${prefix}_start`] = `Imagery ${i + 1}: Start date is required.`;
-    }
-    if (!img.end_ym) {
-      errors[`${prefix}_end`] = `Imagery ${i + 1}: End date is required.`;
-    }
-    if (img.start_ym && img.end_ym && img.start_ym > img.end_ym) {
-      errors[`${prefix}_dates`] = `Imagery ${i + 1}: Start date must be before end date.`;
-    }
-    if (!img.visualization_url_templates || img.visualization_url_templates.length === 0) {
-      errors[`${prefix}_tiles`] = `Imagery ${i + 1}: At least one tile URL template is required.`;
+
+    if (source.visualizations.length === 0) {
+      errors[`${prefix}_viz`] = `Source "${source.name || si + 1}": At least one visualization is required.`;
     } else {
-      img.visualization_url_templates.forEach((t, j) => {
-        if (!t.visualization_url.trim()) {
-          errors[`${prefix}_tile_${j}_url`] = `Imagery ${i + 1}, Tile ${j + 1}: URL is required.`;
+      const emptyViz = source.visualizations.filter((v) => !v.name.trim());
+      if (emptyViz.length > 0) {
+        errors[`${prefix}_viz_names`] = `Source "${source.name || si + 1}": ${emptyViz.length} visualization(s) have no name.`;
+      }
+    }
+
+    if (source.collections.length === 0) {
+      errors[`${prefix}_collections`] = `Source "${source.name || si + 1}": At least one collection is required.`;
+    } else {
+      source.collections.forEach((col, ci) => {
+        const cp = `${prefix}_col_${ci}`;
+
+        if (col.slices.length === 0) {
+          errors[`${cp}_slices`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
+        }
+
+        if (col.data.type === 'stac') {
+          if (!col.data.registrationUrl.trim()) {
+            errors[`${cp}_regurl`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Registration URL is required.`;
+          }
+          if (!col.data.searchBody.trim()) {
+            errors[`${cp}_search`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Search body is required.`;
+          }
+        }
+
+        const emptyVizUrls = col.data.vizUrls.filter((v) => !v.url.trim());
+        if (emptyVizUrls.length > 0) {
+          errors[`${cp}_vizurls`] = `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
         }
       });
     }
   });
+
+  // Validate views
+  if (imageryState.views.length === 0) {
+    errors.views = 'At least one view is required.';
+  } else {
+    const hasAssignedView = imageryState.views.some((v) => v.collectionRefs.length > 0);
+    if (!hasAssignedView) {
+      errors.views_empty = 'At least one view must have collections assigned. Drag a source into the canvas preview.';
+    }
+  }
 
   return { errors, isValid: Object.keys(errors).length === 0 };
 }
@@ -95,7 +123,7 @@ export function validateTimeseriesStep(form: CampaignCreate): StepValidationResu
   const errors: FieldErrors = {};
   const items = form.timeseries_configs ?? [];
 
-  // Timeseries is optional - no items = valid
+  // Timeseries is optional
   if (items.length === 0) {
     return { errors, isValid: true };
   }
@@ -137,10 +165,10 @@ export interface FullValidationResult {
   stepsWithErrors: number[];
 }
 
-export function validateFullForm(form: CampaignCreate): FullValidationResult {
+export function validateFullForm(form: CampaignCreate, imageryState: ImageryStepState): FullValidationResult {
   const campaign = validateCampaignStep(form);
   const settings = validateSettingsStep(form);
-  const imagery = validateImageryStep(form);
+  const imagery = validateImageryStep(imageryState);
   const timeseries = validateTimeseriesStep(form);
 
   const stepsWithErrors: number[] = [];

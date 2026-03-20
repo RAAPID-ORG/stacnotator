@@ -1,16 +1,16 @@
 import { create } from 'zustand';
 
 interface MapStore {
-  // Window & slice navigation
-  activeWindowId: number | null;
+  // Collection & slice navigation (was window & slice)
+  activeCollectionId: number | null;
   activeSliceIndex: number;
-  windowSliceIndices: Record<number, number>;
+  collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
 
   // Layer selection
   selectedLayerIndex: number;
   showBasemap: boolean;
-  basemapType: 'carto-light' | 'esri-world-imagery' | 'opentopomap';
+  selectedBasemapId: string | null;
 
   // Map viewport (synced across all map instances)
   currentMapCenter: [number, number] | null;
@@ -23,7 +23,7 @@ interface MapStore {
   zoomInTrigger: number;
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
-  panToCenterTrigger: number; // external pan-to-center (e.g. from minimap)
+  panToCenterTrigger: number;
   showCrosshair: boolean;
 
   // View sync: link small windows' pan/zoom to the main map
@@ -35,15 +35,15 @@ interface MapStore {
   probeTimeseriesPoint: { lat: number; lon: number } | null;
 
   // Actions
-  setActiveWindowId: (id: number | null) => void;
+  setActiveCollectionId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
-  setWindowSliceIndex: (windowId: number, index: number) => void;
+  setCollectionSliceIndex: (collectionId: number, index: number) => void;
   markSliceEmpty: (sliceKey: string) => void;
   clearEmptySlices: () => void;
 
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
-  setBasemapType: (type: 'carto-light' | 'esri-world-imagery' | 'opentopomap') => void;
+  setSelectedBasemapId: (id: string | null) => void;
 
   setMapCenter: (center: [number, number]) => void;
   setMapZoom: (zoom: number) => void;
@@ -66,14 +66,14 @@ interface MapStore {
 }
 
 const initialState = {
-  activeWindowId: null as number | null,
+  activeCollectionId: null as number | null,
   activeSliceIndex: 0,
-  windowSliceIndices: {} as Record<number, number>,
+  collectionSliceIndices: {} as Record<number, number>,
   emptySlices: {} as Record<string, true>,
 
   selectedLayerIndex: 0,
   showBasemap: false,
-  basemapType: 'carto-light' as const,
+  selectedBasemapId: null as string | null,
 
   currentMapCenter: null as [number, number] | null,
   currentMapZoom: null as number | null,
@@ -96,23 +96,24 @@ const initialState = {
 export const useMapStore = create<MapStore>((set) => ({
   ...initialState,
 
-  setActiveWindowId: (id) =>
+  setActiveCollectionId: (id) =>
     set((s) => {
-      const newIndices = { ...s.windowSliceIndices };
-      if (s.activeWindowId !== null) {
-        newIndices[s.activeWindowId] = s.activeSliceIndex;
+      const newIndices = { ...s.collectionSliceIndices };
+      if (s.activeCollectionId !== null) {
+        newIndices[s.activeCollectionId] = s.activeSliceIndex;
       }
       return {
-        activeWindowId: id,
+        activeCollectionId: id,
         activeSliceIndex: id !== null ? (newIndices[id] ?? 0) : 0,
-        windowSliceIndices: newIndices,
+        collectionSliceIndices: newIndices,
+        showBasemap: false,
       };
     }),
 
   setActiveSliceIndex: (index) => set({ activeSliceIndex: index }),
 
-  setWindowSliceIndex: (windowId, index) =>
-    set((s) => ({ windowSliceIndices: { ...s.windowSliceIndices, [windowId]: index } })),
+  setCollectionSliceIndex: (collectionId, index) =>
+    set((s) => ({ collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index } })),
 
   markSliceEmpty: (sliceKey) =>
     set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),
@@ -121,7 +122,7 @@ export const useMapStore = create<MapStore>((set) => ({
 
   setSelectedLayerIndex: (index) => set({ selectedLayerIndex: index, showBasemap: false }),
   setShowBasemap: (show) => set({ showBasemap: show }),
-  setBasemapType: (type) => set({ basemapType: type }),
+  setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
 
   setMapCenter: (center) => set({ currentMapCenter: center }),
   setMapZoom: (zoom) => set({ currentMapZoom: zoom }),

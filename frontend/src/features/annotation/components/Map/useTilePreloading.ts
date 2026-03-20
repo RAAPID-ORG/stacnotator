@@ -2,56 +2,38 @@
  * useTilePreloading - background tile preloading for task mode.
  *
  * Priority levels (lower = higher priority):
- *   P1 - Other windows/slices for the current task (default viewport).
- *   P2 - Next task's default window slices.
- *   P3 - Next task's other window slices.
- *
- * All preloading uses a fixed extent: the default zoom centred on the
- * task's location. User pan/zoom does NOT trigger re-preloading -
- * preloading runs exactly once per task after the active layer finishes
- * its initial load. In the future we might want to trigger re-preloading
- * for the current tasks hidden layers on pan/zoom, but for now this is
- * a simpler approach to implement.
- *
- * Empty-slice handling:
- *   All slices for each window are enqueued with per-slice groupIds.
- *   The TilePreloader counts errors vs. successes per group (same
- *   threshold as WindowMap) and fires onGroupEmpty when a slice is
- *   detected as empty. We then call markSliceEmpty in the map store
- *   and auto-advance to the first non-empty slice.
+ *   P1 - Other collections/slices for the current task (default viewport).
+ *   P2 - Next task's default collection slices.
+ *   P3 - Next task's other collection slices.
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { TilePreloader } from './tilePreloader';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
-import type { SliceLayerMap } from '../../hooks/useStacRegistration';
-import type { ImageryWithWindowsOut, AnnotationTaskOut } from '~/api/client';
-import { extractLatLonFromWKT, computeTimeSlices } from '~/shared/utils/utility';
+import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
 
-const PRIORITY_OTHER_WINDOWS = 1;
+const PRIORITY_OTHER_COLLECTIONS = 1;
 const PRIORITY_NEXT_TASK_DEFAULT = 2;
 const PRIORITY_NEXT_TASK_OTHER = 3;
 
-const PREFIX_CURRENT = 'cur'; // Group ID prefix for current-task preloads.
-const PREFIX_NEXT = 'nxt'; // Group ID prefix for next-task preloads.
+const PREFIX_CURRENT = 'cur';
+const PREFIX_NEXT = 'nxt';
 
-
-// Build a group ID that encodes prefix + windowId + sliceIndex.
-function groupId(prefix: string, windowId: number, sliceIndex: number): string {
-  return `${prefix}-w${windowId}-s${sliceIndex}`;
+function groupId(prefix: string, collectionId: number, sliceIndex: number): string {
+  return `${prefix}-c${collectionId}-s${sliceIndex}`;
 }
 
-// Parse a group ID back into its components. Returns null if malformed.
-function parseGroupId(gid: string): { prefix: string; windowId: number; sliceIndex: number } | null {
-  const m = gid.match(/^(\w+)-w(\d+)-s(\d+)$/);
+function parseGroupId(gid: string): { prefix: string; collectionId: number; sliceIndex: number } | null {
+  const m = gid.match(/^(\w+)-c(\d+)-s(\d+)$/);
   if (!m) return null;
-  return { prefix: m[1], windowId: Number(m[2]), sliceIndex: Number(m[3]) };
+  return { prefix: m[1], collectionId: Number(m[2]), sliceIndex: Number(m[3]) };
 }
 
 function estimateExtent(
-  center: [number, number], // [lat, lon]
+  center: [number, number],
   zoom: number,
 ): [number, number, number, number] {
   const degreesPerTile = 360 / Math.pow(2, zoom);
@@ -61,43 +43,33 @@ function estimateExtent(
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
 }
 
-// Build preload jobs for all slices of the given windows.
-function buildSliceJobs(
-  windows: ImageryWithWindowsOut['windows'],
-  imagery: ImageryWithWindowsOut,
-  sliceLayerMap: SliceLayerMap,
+function buildCollectionJobs(
+  campaign: CampaignOutFull,
   extent: [number, number, number, number],
   zoom: number,
   prefix: string,
-  getPriority: (windowId: number) => number,
+  getPriority: (collectionId: number) => number,
+  excludeCollectionId?: number | null,
 ): PreloadJob[] {
-  const vizTemplate = imagery.visualization_url_templates[0];
-  if (!vizTemplate) return [];
-
   const jobs: PreloadJob[] = [];
 
-  for (const win of windows) {
-    const slices = computeTimeSlices(
-      win.window_start_date,
-      win.window_end_date,
-      imagery.slicing_interval,
-      imagery.slicing_unit,
-    );
+  for (const source of campaign.imagery_sources) {
+    for (const collection of source.collections) {
+      if (excludeCollectionId != null && collection.id === excludeCollectionId) continue;
 
-    for (const slice of slices) {
-      const searchId = sliceLayerMap.get(`${win.id}-${slice.index}`);
-      if (!searchId) continue;
+      for (let si = 0; si < collection.slices.length; si++) {
+        const slice = collection.slices[si];
+        const tileUrl = slice.tile_urls[0]?.tile_url;
+        if (!tileUrl) continue;
 
-      const urlTemplate = vizTemplate.visualization_url.replace(
-        /\{searchId\}/g, searchId,
-      );
-      jobs.push({
-        priority: getPriority(win.id),
-        groupId: groupId(prefix, win.id, slice.index),
-        urlTemplate,
-        extent,
-        zoom,
-      });
+        jobs.push({
+          priority: getPriority(collection.id),
+          groupId: groupId(prefix, collection.id, si),
+          urlTemplate: tileUrl,
+          extent,
+          zoom,
+        });
+      }
     }
   }
 
@@ -106,9 +78,8 @@ function buildSliceJobs(
 
 interface UseTilePreloadingOptions {
   layerManager: LayerManager | null;
-  imagery: ImageryWithWindowsOut | null;
-  sliceLayerMap: SliceLayerMap;
-  activeWindowId: number | null;
+  campaign: CampaignOutFull | null;
+  activeCollectionId: number | null;
   visibleTasks: AnnotationTaskOut[];
   currentTaskIndex: number;
   defaultZoom: number;
@@ -117,9 +88,8 @@ interface UseTilePreloadingOptions {
 
 export function useTilePreloading({
   layerManager,
-  imagery,
-  sliceLayerMap,
-  activeWindowId,
+  campaign,
+  activeCollectionId,
   visibleTasks,
   currentTaskIndex,
   defaultZoom,
@@ -129,13 +99,10 @@ export function useTilePreloading({
   const hasEnqueuedCurrentRef = useRef(false);
   const hasEnqueuedNextRef = useRef(false);
 
-  // Keep latest values in refs so callbacks don't need deps
-  const imageryRef = useRef(imagery);
-  imageryRef.current = imagery;
-  const sliceLayerMapRef = useRef(sliceLayerMap);
-  sliceLayerMapRef.current = sliceLayerMap;
-  const activeWindowIdRef = useRef(activeWindowId);
-  activeWindowIdRef.current = activeWindowId;
+  const campaignRef = useRef(campaign);
+  campaignRef.current = campaign;
+  const activeCollectionIdRef = useRef(activeCollectionId);
+  activeCollectionIdRef.current = activeCollectionId;
   const visibleTasksRef = useRef(visibleTasks);
   visibleTasksRef.current = visibleTasks;
   const currentTaskIndexRef = useRef(currentTaskIndex);
@@ -143,53 +110,44 @@ export function useTilePreloading({
   const defaultZoomRef = useRef(defaultZoom);
   defaultZoomRef.current = defaultZoom;
 
-  // Store actions
-  const setWindowSliceIndex = useMapStore((s) => s.setWindowSliceIndex);
+  const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
-  const setWindowSliceIndexRef = useRef(setWindowSliceIndex);
-  setWindowSliceIndexRef.current = setWindowSliceIndex;
+  const setCollectionSliceIndexRef = useRef(setCollectionSliceIndex);
+  setCollectionSliceIndexRef.current = setCollectionSliceIndex;
   const markSliceEmptyRef = useRef(markSliceEmpty);
   markSliceEmptyRef.current = markSliceEmpty;
 
-  // Create / dispose the preloader
   useEffect(() => {
     if (!enabled) return;
     const p = new TilePreloader();
     preloaderRef.current = p;
 
-    // When a slice group is detected as empty, mark it in the store and
-    // auto-advance inactive windows to the first non-empty slice.
     p.onGroupEmpty = (gid) => {
       const parsed = parseGroupId(gid);
       if (!parsed) return;
 
-      const sliceKey = `${parsed.windowId}-${parsed.sliceIndex}`;
+      const sliceKey = `${parsed.collectionId}-${parsed.sliceIndex}`;
       markSliceEmptyRef.current(sliceKey);
 
-      // Auto-advance: find the first non-empty slice for this window.
-      // Only update the stored slice index for non-active windows;
-      // the active window's slice is managed by ImageryContainer.
-      const img = imageryRef.current;
-      if (!img) return;
-      const win = img.windows.find((w) => w.id === parsed.windowId);
-      if (!win) return;
+      const camp = campaignRef.current;
+      if (!camp) return;
+
+      // Find the collection
+      let collection = null;
+      for (const src of camp.imagery_sources) {
+        collection = src.collections.find((c) => c.id === parsed.collectionId) ?? null;
+        if (collection) break;
+      }
+      if (!collection) return;
 
       const { emptySlices } = useMapStore.getState();
-      const slices = computeTimeSlices(
-        win.window_start_date,
-        win.window_end_date,
-        img.slicing_interval,
-        img.slicing_unit,
-      );
-
-      const firstValid = slices.findIndex(
-        (_, i) => !emptySlices[`${parsed.windowId}-${i}`],
+      const firstValid = collection.slices.findIndex(
+        (_, i) => !emptySlices[`${parsed.collectionId}-${i}`],
       );
 
       if (firstValid !== -1 && firstValid !== parsed.sliceIndex) {
-        // Only set for non-active windows - active window handled by ImageryContainer
-        if (parsed.windowId !== activeWindowIdRef.current) {
-          setWindowSliceIndexRef.current(parsed.windowId, firstValid);
+        if (parsed.collectionId !== activeCollectionIdRef.current) {
+          setCollectionSliceIndexRef.current(parsed.collectionId, firstValid);
         }
       }
     };
@@ -200,45 +158,38 @@ export function useTilePreloading({
     };
   }, [enabled]);
 
-  /**
-   * Enqueue tiles for all slices of all non-active windows (P1).
-   * Uses the default viewport (default zoom + current task center), NOT
-   * the user's current pan/zoom position.
-   */
-  const enqueueCurrentOtherWindows = useCallback(() => {
+  const enqueueCurrentOtherCollections = useCallback(() => {
     const p = preloaderRef.current;
-    const img = imageryRef.current;
-    const winId = activeWindowIdRef.current;
+    const camp = campaignRef.current;
+    const colId = activeCollectionIdRef.current;
     const tasks = visibleTasksRef.current;
     const idx = currentTaskIndexRef.current;
-    if (!p || !img || winId == null || tasks.length === 0) return;
+    if (!p || !camp || tasks.length === 0) return;
 
     const currentTask = tasks[idx];
     if (!currentTask) return;
 
-    const latLon = extractLatLonFromWKT(currentTask.geometry.geometry);
+    const latLon = extractCentroidFromWKT(currentTask.geometry.geometry);
     if (!latLon) return;
 
     const zoom = defaultZoomRef.current;
     const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
 
-    const otherWindows = img.windows.filter((w) => w.id !== winId);
-    const jobs = buildSliceJobs(
-      otherWindows, img, sliceLayerMapRef.current,
-      extent, zoom, PREFIX_CURRENT,
-      () => PRIORITY_OTHER_WINDOWS,
+    const jobs = buildCollectionJobs(
+      camp, extent, zoom, PREFIX_CURRENT,
+      () => PRIORITY_OTHER_COLLECTIONS,
+      colId,
     );
 
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  // Enqueue tiles for all slices of all windows for next task (P2+P3).
   const enqueueNextTask = useCallback(() => {
     const p = preloaderRef.current;
-    const img = imageryRef.current;
+    const camp = campaignRef.current;
     const tasks = visibleTasksRef.current;
     const idx = currentTaskIndexRef.current;
-    if (!p || !img || tasks.length === 0) return;
+    if (!p || !camp || tasks.length === 0) return;
 
     const nextIdx = idx >= tasks.length - 1 ? 0 : idx + 1;
     if (nextIdx === idx) return;
@@ -246,32 +197,30 @@ export function useTilePreloading({
     const nextTask = tasks[nextIdx];
     if (!nextTask) return;
 
-    const latLon = extractLatLonFromWKT(nextTask.geometry.geometry);
+    const latLon = extractCentroidFromWKT(nextTask.geometry.geometry);
     if (!latLon) return;
 
     const zoom = defaultZoomRef.current;
     const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
-    const defaultWindowId = img.default_main_window_id ?? img.windows[0]?.id;
 
     // Abort previous next-task groups
-    for (const win of img.windows) {
-      const slices = computeTimeSlices(
-        win.window_start_date, win.window_end_date,
-        img.slicing_interval, img.slicing_unit,
-      );
-      for (const s of slices) p.abort(groupId(PREFIX_NEXT, win.id, s.index));
+    for (const src of camp.imagery_sources) {
+      for (const col of src.collections) {
+        for (let si = 0; si < col.slices.length; si++) {
+          p.abort(groupId(PREFIX_NEXT, col.id, si));
+        }
+      }
     }
 
-    const jobs = buildSliceJobs(
-      img.windows, img, sliceLayerMapRef.current,
-      extent, zoom, PREFIX_NEXT,
-      (winId) => winId === defaultWindowId ? PRIORITY_NEXT_TASK_DEFAULT : PRIORITY_NEXT_TASK_OTHER,
+    const defaultColId = activeCollectionIdRef.current;
+    const jobs = buildCollectionJobs(
+      camp, extent, zoom, PREFIX_NEXT,
+      (colId) => colId === defaultColId ? PRIORITY_NEXT_TASK_DEFAULT : PRIORITY_NEXT_TASK_OTHER,
     );
 
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  // Wire up LayerManager busy/idle to pause/resume + trigger P1 once
   useEffect(() => {
     if (!enabled || !layerManager) return;
     const p = preloaderRef.current;
@@ -282,19 +231,16 @@ export function useTilePreloading({
         p.pause();
       } else {
         p.resume();
-        // Trigger P1 exactly once after the active layer's initial load.
-        // Subsequent pan/zoom busy to idle transitions are ignored.
         if (!hasEnqueuedCurrentRef.current) {
           hasEnqueuedCurrentRef.current = true;
-          enqueueCurrentOtherWindows();
+          enqueueCurrentOtherCollections();
         }
       }
     });
 
     return unsub;
-  }, [enabled, layerManager, enqueueCurrentOtherWindows]);
+  }, [enabled, layerManager, enqueueCurrentOtherCollections]);
 
-  // Once P1 is done, trigger P2+P3
   useEffect(() => {
     const p = preloaderRef.current;
     if (!p || !enabled) return;
@@ -309,7 +255,6 @@ export function useTilePreloading({
     return () => { if (p) p.onIdle = undefined; };
   }, [enabled, enqueueNextTask]);
 
-  // On task navigation, clear everything
   useEffect(() => {
     const p = preloaderRef.current;
     if (!p) return;
@@ -319,14 +264,4 @@ export function useTilePreloading({
     hasEnqueuedCurrentRef.current = false;
     hasEnqueuedNextRef.current = false;
   }, [currentTaskIndex]);
-
-  // When sliceLayerMap updates, trigger if idle
-  useEffect(() => {
-    if (!enabled || !layerManager) return;
-    if (!layerManager.busy && !hasEnqueuedCurrentRef.current) {
-      hasEnqueuedCurrentRef.current = true;
-      enqueueCurrentOtherWindows();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sliceLayerMap]);
 }

@@ -32,6 +32,9 @@ interface LayoutStore {
   // Keyboard help state
   showKeyboardHelp: boolean;
 
+  // Campaign guide state
+  showGuide: boolean;
+
   // Guided tour state
   showGuidedTour: boolean;
 
@@ -53,6 +56,7 @@ interface LayoutStore {
   clearBreadcrumbs: () => void;
   toggleKeyboardHelp: () => void;
   setShowKeyboardHelp: (show: boolean) => void;
+  toggleGuide: () => void;
   setShowGuidedTour: (show: boolean) => void;
   toggleFullscreen: () => void;
   setIsFullscreen: (isFullscreen: boolean) => void;
@@ -86,6 +90,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     loadingOverlayText: 'Loading...',
     breadcrumbs: [],
     showKeyboardHelp: false,
+    showGuide: false,
     showGuidedTour: false,
     isFullscreen: false,
     sidebarCollapsed: false,
@@ -111,6 +116,8 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     toggleKeyboardHelp: () => set((state) => ({ showKeyboardHelp: !state.showKeyboardHelp })),
 
     setShowKeyboardHelp: (show) => set({ showKeyboardHelp: show }),
+
+    toggleGuide: () => set((state) => ({ showGuide: !state.showGuide })),
 
     setShowGuidedTour: (show) => set({ showGuidedTour: show }),
 

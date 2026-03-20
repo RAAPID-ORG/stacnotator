@@ -3,6 +3,8 @@
 
 NASA Harvest's geospatial imagery annotation platform.
 
+>[\Important\]
+>Ths software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing.
 
 ## Quick Start
 
@@ -139,19 +141,9 @@ make pre-commit-install
 
 ## Production Deployment
 
-STACNotator supports multiple deployment options:
+STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Docker Compose** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.)
 - **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
+   - We also provide local staging environment that copies the DB state from the production deployment for local tests before deployment.  Run `make staging-up` to fetch the production DB from Azure, instantiate locally and run some tests and experiments, before new deployments. You can run this next to your dev DB and containers.
 
-### Production Checklist
-
-- [ ] Strong `POSTGRES_PASSWORD` generated (32+ characters)
-- [ ] Firebase credentials secured (permissions 600)
-- [ ] CORS origins restricted to your domain
-- [ ] `.env` file excluded from git
-- [ ] Workers tuned for your CPU count (see Worker Configuration)
-- [ ] Database not exposed publicly (remove `ports:` in docker-compose.prod.yml)
-- [ ] Domain DNS pointed to your server
-- [ ] Firewall configured (allow ports 80, 443)
-- [ ] Do your own security checklist - this is just an initial reccomendation
+- **Docker Compose (Possible deprecated)** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.). This method might not fully be supported anymore, as we did not continue to maintain it after switching to Azure Container Apps for our deployments. You might want to test it out first and open up an issue if encountering any troubles.

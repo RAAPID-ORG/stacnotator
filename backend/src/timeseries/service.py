@@ -33,24 +33,46 @@ def add_ndvi_band_to_ee_image(image: ee.Image, nir: str, red: str, name: str = "
 
 def add_modis_cloud_mask(image):
     """
-    Add a cloud mask for MODIS imagery based on the 'State' band
+    Add a cloud mask for MODIS MOD09Q1 imagery based on the 'State' band.
+    Bits 0-1: cloud state (00=clear, 01=cloudy, 10=mixed, 11=not set).
     """
-    # Select the 'State' band and cast it to a number
     cloud_bits = image.select("State").toUint16().bitwiseAnd(3)  # bits 0-1
     is_cloud = cloud_bits.eq(1).Or(cloud_bits.eq(2))  # Cloudy or Mixed
-    # Create an image from the cloud mask and rename it
     cloud_mask = ee.Image(is_cloud).rename("cloud")
     return image.addBands(cloud_mask)
 
 
 def add_s2_cloud_mask(image):
     """
-    Add a cloud mask for Sentinel2 imagery based on the 'QA60' band
+    Add a cloud mask for Sentinel-2 using Google CloudScore+ (cs_cdf band).
+
+    The cs_cdf band ranges from 0 (cloudy) to 1 (clear). We threshold at 0.6
+    as recommended by Google for general applications.
+
+    Assumes the CloudScore+ cs_cdf band has been linked to the image via a join
+    (see _build_s2_collection_with_cloudscore).
+
+    Fallback: if no cs_cdf band is available, uses QA60 bitmask.
+
+    Reference: https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_CLOUD_SCORE_PLUS_V1_S2_HARMONIZED
     """
-    qa = image.select("QA60")
-    cloud = qa.bitwiseAnd(1 << 10).Or(qa.bitwiseAnd(1 << 11))  # opaque or cirrus
-    # Create an image from the cloud mask and rename it
-    cloud_mask = ee.Image(cloud.neq(0)).rename("cloud")  # 1 = cloudy, 0 = clear
+    CS_THRESHOLD = 0.6
+
+    has_cs = image.bandNames().contains("cs_cdf")
+
+    # CloudScore+ path: cs_cdf < threshold -> cloudy
+    cs_cloud = image.select(["cs_cdf"]).lt(CS_THRESHOLD).rename("cloud")
+
+    # QA60 fallback path
+    qa_cloud = (
+        image.select(["QA60"])
+        .bitwiseAnd(1 << 10)
+        .Or(image.select(["QA60"]).bitwiseAnd(1 << 11))
+        .neq(0)
+        .rename("cloud")
+    )
+
+    cloud_mask = ee.Image(ee.Algorithms.If(has_cs, cs_cloud, qa_cloud))
     return image.addBands(cloud_mask)
 
 
@@ -60,16 +82,40 @@ ds_configs = {
         "collection_id": "MODIS/061/MOD09Q1",
         "NDVI": {
             "bands": {"nir": "sur_refl_b02", "red": "sur_refl_b01"},
-            "scale": 30,  # Or rather 250? Check with Christian/Josef
+            "scale": 250,
         },
         "cloudmask_callable": add_modis_cloud_mask,
+        "link_cloudscore": False,
     },
     "SENTINEL2": {
         "collection_id": "COPERNICUS/S2_SR_HARMONIZED",
         "NDVI": {"bands": {"nir": "B8", "red": "B4"}, "scale": 10},
         "cloudmask_callable": add_s2_cloud_mask,
+        "link_cloudscore": True,
     },
 }
+
+
+def _link_cloudscore_plus(s2_collection: ee.ImageCollection) -> ee.ImageCollection:
+    """
+    Link CloudScore+ cs_cdf band to each image in an S2 collection via inner join.
+
+    This adds the cs_cdf band from GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED
+    to matching S2 images (matched by system:index).
+    """
+    cs_plus = ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+
+    # Use a saveFirst join keyed on system:index
+    join = ee.Join.saveFirst("cs_match")
+    link_filter = ee.Filter.equals(leftField="system:index", rightField="system:index")
+
+    joined = ee.ImageCollection(join.apply(s2_collection, cs_plus, link_filter))
+
+    def _add_cs_band(image):
+        cs_image = ee.Image(image.get("cs_match"))
+        return image.addBands(cs_image.select(["cs_cdf"]))
+
+    return joined.map(_add_cs_band)
 
 
 def fetch_ndvi_timeseries_ee(
@@ -99,9 +145,15 @@ def fetch_ndvi_timeseries_ee(
         ee.ImageCollection(config["collection_id"])
         .filterDate(start_date, end_date)
         .filterBounds(point)
-        .map(lambda img: add_ndvi_band_to_ee_image(img, **config["NDVI"]["bands"]))
-        .map(config["cloudmask_callable"])
     )
+
+    # Link CloudScore+ for Sentinel-2 (adds cs_cdf band to each image)
+    if config.get("link_cloudscore"):
+        collection = _link_cloudscore_plus(collection)
+
+    collection = collection.map(
+        lambda img: add_ndvi_band_to_ee_image(img, **config["NDVI"]["bands"])
+    ).map(config["cloudmask_callable"])
 
     # Extract NDVI & cloud values at the point over time
     region_data = (
@@ -250,12 +302,12 @@ def create_timeseries_bulk(
     # If this is the first timeseries for the campaign, add timeseries entry to all main layouts
     if existing_count == 0:
         # Get all main canvas layouts for this campaign (default and personal)
-        # Main layouts have imagery_id = None
+        # Main layouts have view_id = None
         main_layouts = (
             db.query(CanvasLayout)
             .filter(
                 CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.imagery_id.is_(None),
+                CanvasLayout.view_id.is_(None),
             )
             .all()
         )
@@ -333,7 +385,7 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
             db.query(CanvasLayout)
             .filter(
                 CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.imagery_id.is_(None),
+                CanvasLayout.view_id.is_(None),
             )
             .all()
         )

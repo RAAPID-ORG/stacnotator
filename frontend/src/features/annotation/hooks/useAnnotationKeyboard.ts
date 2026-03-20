@@ -4,40 +4,18 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { computeTimeSlices } from '~/shared/utils/utility';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/**
- * Keyboard shortcuts for the annotation page
- *
- * Navigation:
- * - Arrow Keys: Pan maps (up/down/left/right)
- * - Alt + Arrow Up/Down: Zoom in/out
- * - Space: Recenter maps
- * - O: Toggle crosshair on/off
- * - W: Previous task
- * - S: Next task
- * - A/D: Switch to next/previous imagery slice
- * - Shift+A/D: Switch to next/previous imagery window
- * - C: Focus on comment box
- * - Esc: Unfocus from input fields
- * - Enter: Submit annotation + comment
- * - B: Skip annotation
- * - Number keys: Select label by index (supports multi-digit)
- * - Q/E: Decrease/increase confidence level
- * - H: Hide/show help dialog
- */
 export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboardOptions) => {
   const digitBuffer = useRef<string>('');
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Store selectors
   const campaign = useCampaignStore((s) => s.campaign);
-  const selectedImageryId = useCampaignStore((s) => s.selectedImageryId);
-  const setSelectedImageryId = useCampaignStore((s) => s.setSelectedImageryId);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const setSelectedViewId = useCampaignStore((s) => s.setSelectedViewId);
 
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
@@ -52,267 +30,224 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setConfidence = useTaskStore((s) => s.setConfidence);
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
 
-  const activeWindowId = useMapStore((s) => s.activeWindowId);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerZoomIn = useMapStore((s) => s.triggerZoomIn);
   const triggerZoomOut = useMapStore((s) => s.triggerZoomOut);
   const triggerPan = useMapStore((s) => s.triggerPan);
-  const setActiveWindowId = useMapStore((s) => s.setActiveWindowId);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const showBasemap = useMapStore((s) => s.showBasemap);
-  const basemapType = useMapStore((s) => s.basemapType);
+  const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
-  const setBasemapType = useMapStore((s) => s.setBasemapType);
+  const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
   const emptySlices = useMapStore((s) => s.emptySlices);
-  const windowSliceIndices = useMapStore((s) => s.windowSliceIndices);
+  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
 
   const showAlert = useLayoutStore((s) => s.showAlert);
   const toggleKeyboardHelp = useLayoutStore((s) => s.toggleKeyboardHelp);
+  const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
-  // Derived values
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
 
-  // Sort windows by window_index for proper ordering
-  const sortedWindows = useMemo(() => {
-    const wins = selectedImagery?.windows ?? [];
-    return [...wins].sort((a, b) => (a.window_index ?? 0) - (b.window_index ?? 0));
-  }, [selectedImagery?.windows]);
+  // Derive the selected view and its ordered collections
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
 
-  // Get current window and its position in sorted order
-  const currentWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
-  const currentWindowSortedIndex = sortedWindows.findIndex((w) => w.id === currentWindowId);
-  const currentWindow = sortedWindows[currentWindowSortedIndex];
+  const viewCollections = useMemo(() => {
+    if (!selectedView || !campaign) return [];
+    return selectedView.collection_refs
+      .map((ref) => {
+        const source = campaign.imagery_sources.find((s) =>
+          s.collections.some((c) => c.id === ref.collection_id),
+        );
+        const collection = source?.collections.find((c) => c.id === ref.collection_id);
+        if (!source || !collection) return null;
+        return { ...ref, collection, source };
+      })
+      .filter(Boolean) as { collection_id: number; source_id: number; show_as_window: boolean; collection: { id: number; slices: { name: string }[] }; source: { id: number } }[];
+  }, [selectedView, campaign]);
 
-  // Compute slices for the current window using the same utility as the UI
-  const slices = useMemo(() => {
-    if (!currentWindow || !selectedImagery) return [];
-    return computeTimeSlices(
-      currentWindow.window_start_date,
-      currentWindow.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-  }, [currentWindow, selectedImagery]);
+  // Current active collection and its position
+  const currentCollectionIndex = viewCollections.findIndex((c) => c.collection_id === activeCollectionId);
+  const currentEntry = viewCollections[currentCollectionIndex];
+  const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
 
-  const currentSliceCount = Math.max(1, slices.length);
-
-  // Helper to get slice count for a window
-  const getSliceCountForWindow = useCallback(
-    (window: typeof currentWindow) => {
-      if (!window || !selectedImagery) return 1;
-      const windowSlices = computeTimeSlices(
-        window.window_start_date,
-        window.window_end_date,
-        selectedImagery.slicing_interval,
-        selectedImagery.slicing_unit
-      );
-      return Math.max(1, windowSlices.length);
-    },
-    [selectedImagery]
-  );
-
-  /**
-   * Find the first non-empty slice index for a window, searching forward from
-   * `startIndex` (wrapping is not needed - just find the first valid one).
-   * Returns -1 if all slices are empty.
-   */
   const firstNonEmptySlice = useCallback(
-    (windowId: number, totalSlices: number, preferredIndex = 0): number => {
-      // Try from preferredIndex forward, then from 0
+    (collectionId: number, totalSlices: number, preferredIndex = 0): number => {
       for (let offset = 0; offset < totalSlices; offset++) {
         const i = (preferredIndex + offset) % totalSlices;
-        if (!emptySlices[`${windowId}-${i}`]) return i;
+        if (!emptySlices[`${collectionId}-${i}`]) return i;
       }
-      return -1; // All slices empty
+      return -1;
     },
-    [emptySlices]
+    [emptySlices],
   );
 
-  // Select label by index (1-based)
   const selectLabelByIndex = useCallback(
     (index: number) => {
       if (index > 0 && index <= labels.length) {
         const targetLabelId = labels[index - 1].id;
-        // Toggle: deselect if already selected, otherwise select
         setSelectedLabelId(selectedLabelId === targetLabelId ? null : targetLabelId);
       }
     },
-    [labels, setSelectedLabelId, selectedLabelId]
+    [labels, setSelectedLabelId, selectedLabelId],
   );
 
-  // Process digit buffer
   const processDigitBuffer = useCallback(() => {
     const num = parseInt(digitBuffer.current, 10);
-    if (!isNaN(num) && num > 0) {
-      selectLabelByIndex(num);
-    }
+    if (!isNaN(num) && num > 0) selectLabelByIndex(num);
     digitBuffer.current = '';
   }, [selectLabelByIndex]);
 
-  // Handle digit input with smart immediate selection
   const handleDigitInput = useCallback(
     (digit: string) => {
       if (digitTimeoutRef.current) {
         clearTimeout(digitTimeoutRef.current);
         digitTimeoutRef.current = null;
       }
-
       digitBuffer.current += digit;
       const currentNum = parseInt(digitBuffer.current, 10);
-
-      // Immediate selection conditions:
-      // 1. Number already exceeds label count
-      // 2. Number * 10 would exceed label count (no valid next digit possible)
-      // 3. Already have 2+ digits
       const canAddMoreDigits = currentNum * 10 <= labels.length;
-
       if (currentNum > labels.length || !canAddMoreDigits || digitBuffer.current.length >= 2) {
         processDigitBuffer();
       } else {
-        // Wait briefly for potential second digit
         digitTimeoutRef.current = setTimeout(processDigitBuffer, DIGIT_INPUT_TIMEOUT_MS);
       }
     },
-    [labels.length, processDigitBuffer]
+    [labels.length, processDigitBuffer],
   );
 
-  // Navigate slices with window wrap-around when reaching boundaries,
-  // automatically skipping slices marked as empty.
+  // Navigate slices with collection wrap-around
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
-      if (!currentWindow) return;
-
-      // Build the ordered list of non-empty slice indices for the current window
+      if (!currentEntry) return;
+      const colId = currentEntry.collection_id;
       const nonEmpty: number[] = [];
       for (let i = 0; i < currentSliceCount; i++) {
-        if (!emptySlices[`${currentWindow.id}-${i}`]) nonEmpty.push(i);
+        if (!emptySlices[`${colId}-${i}`]) nonEmpty.push(i);
       }
 
       if (direction === 'next') {
-        // Find next non-empty slice after the current index within this window
-        const nextInWindow = nonEmpty.find((i) => i > activeSliceIndex);
-        if (nextInWindow !== undefined) {
-          setActiveSliceIndex(nextInWindow);
-        } else if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          // Move to next window - land on its first non-empty slice
-          const nextWindow = sortedWindows[currentWindowSortedIndex + 1];
-          const nextCount = getSliceCountForWindow(nextWindow);
-          const landingSlice = firstNonEmptySlice(nextWindow.id, nextCount, 0);
-          setActiveWindowId(nextWindow.id);
-          if (landingSlice > 0) setTimeout(() => setActiveSliceIndex(landingSlice), 0);
+        const nextInCol = nonEmpty.find((i) => i > activeSliceIndex);
+        if (nextInCol !== undefined) {
+          setActiveSliceIndex(nextInCol);
+        } else if (currentCollectionIndex < viewCollections.length - 1) {
+          const next = viewCollections[currentCollectionIndex + 1];
+          const nextCount = next.collection.slices.length;
+          const landing = firstNonEmptySlice(next.collection_id, nextCount, 0);
+          setActiveCollectionId(next.collection_id);
+          if (landing > 0) setTimeout(() => setActiveSliceIndex(landing), 0);
         }
       } else {
-        // Find previous non-empty slice before the current index within this window
-        const prevInWindow = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
-        if (prevInWindow !== undefined) {
-          setActiveSliceIndex(prevInWindow);
-        } else if (currentWindowSortedIndex > 0) {
-          // Move to previous window - land on its last non-empty slice
-          const prevWindow = sortedWindows[currentWindowSortedIndex - 1];
-          const prevCount = getSliceCountForWindow(prevWindow);
-          // Search backward from the last slice to find last non-empty
-          let landingSlice = -1;
+        const prevInCol = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
+        if (prevInCol !== undefined) {
+          setActiveSliceIndex(prevInCol);
+        } else if (currentCollectionIndex > 0) {
+          const prev = viewCollections[currentCollectionIndex - 1];
+          const prevCount = prev.collection.slices.length;
+          let landing = -1;
           for (let i = prevCount - 1; i >= 0; i--) {
-            if (!emptySlices[`${prevWindow.id}-${i}`]) { landingSlice = i; break; }
+            if (!emptySlices[`${prev.collection_id}-${i}`]) { landing = i; break; }
           }
-          if (landingSlice < 0) return; // all empty - don't switch
-          setActiveWindowId(prevWindow.id);
-          setTimeout(() => setActiveSliceIndex(landingSlice), 0);
+          if (landing < 0) return;
+          setActiveCollectionId(prev.collection_id);
+          setTimeout(() => setActiveSliceIndex(landing), 0);
         }
       }
     },
-    [
-      activeSliceIndex,
-      currentSliceCount,
-      currentWindowSortedIndex,
-      currentWindow,
-      sortedWindows,
-      emptySlices,
-      setActiveSliceIndex,
-      setActiveWindowId,
-      getSliceCountForWindow,
-      firstNonEmptySlice,
-    ]
+    [activeSliceIndex, currentSliceCount, currentCollectionIndex, currentEntry, viewCollections, emptySlices, setActiveSliceIndex, setActiveCollectionId, firstNonEmptySlice],
   );
 
-  // Navigate windows directly (Shift+A/D), landing on the stored per-window slice
-  const navigateWindow = useCallback(
+  // Navigate collections directly (Shift+A/D)
+  const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {
-      if (sortedWindows.length === 0) return;
+      if (viewCollections.length === 0) return;
+      const targetIdx = direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
+      const target = viewCollections[targetIdx];
+      if (!target) return;
 
-      let targetWindow: typeof currentWindow | undefined;
-      if (direction === 'next') {
-        if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          targetWindow = sortedWindows[currentWindowSortedIndex + 1];
-        }
-      } else {
-        if (currentWindowSortedIndex > 0) {
-          targetWindow = sortedWindows[currentWindowSortedIndex - 1];
-        }
-      }
-
-      if (!targetWindow) return;
-
-      // setActiveWindowId restores from windowSliceIndices[id] ?? 0
-      // If that stored slice is empty, override to the nearest non-empty one
-      const targetCount = getSliceCountForWindow(targetWindow);
-      const storedSlice = windowSliceIndices[targetWindow.id] ?? 0;
-      const isStoredEmpty = emptySlices[`${targetWindow.id}-${storedSlice}`];
-
-      setActiveWindowId(targetWindow.id);
+      const storedSlice = collectionSliceIndices[target.collection_id] ?? 0;
+      const isStoredEmpty = emptySlices[`${target.collection_id}-${storedSlice}`];
+      setActiveCollectionId(target.collection_id);
 
       if (isStoredEmpty) {
-        const fallback = firstNonEmptySlice(targetWindow.id, targetCount, storedSlice);
+        const fallback = firstNonEmptySlice(target.collection_id, target.collection.slices.length, storedSlice);
         if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
       }
     },
-    [currentWindowSortedIndex, sortedWindows, setActiveWindowId, setActiveSliceIndex, getSliceCountForWindow, firstNonEmptySlice, windowSliceIndices, emptySlices]
+    [currentCollectionIndex, viewCollections, setActiveCollectionId, setActiveSliceIndex, firstNonEmptySlice, collectionSliceIndices, emptySlices],
   );
 
-  const BASEMAP_TYPES = ['carto-light', 'esri-world-imagery', 'opentopomap'] as const;
+  // Pre-compute source → viz index ranges for I / Shift+I cycling
+  const sourceGroups = useMemo(() => {
+    const groups: { name: string; startIdx: number; count: number }[] = [];
+    let offset = 0;
+    for (const src of (campaign?.imagery_sources ?? [])) {
+      groups.push({ name: src.name, startIdx: offset, count: src.visualizations.length });
+      offset += src.visualizations.length;
+    }
+    return groups;
+  }, [campaign?.imagery_sources]);
 
-  const cycleLayer = useCallback(() => {
-    const templates = selectedImagery?.visualization_url_templates ?? [];
-    const vizCount = templates.length;
-    const basemapCount = BASEMAP_TYPES.length;
-    const totalCount = vizCount + basemapCount;
-    if (totalCount === 0) return;
+  const basemaps = campaign?.basemaps ?? [];
+  const basemapIds = useMemo(() => basemaps.map((b) => `basemap-${b.id}`), [basemaps]);
 
-    // Compute current position in the flat list: [viz0..vizN-1, basemap0..basemap2]
-    let currentPos: number;
+  /** I: cycle through imagery sources + individual basemaps (jump to first viz of next source) */
+  const cycleSource = useCallback(() => {
+    // Each imagery source group is one entry, each basemap is one entry
+    const totalEntries = sourceGroups.length + basemapIds.length;
+    if (totalEntries <= 1) return;
+
+    let currentEntryIdx: number;
     if (showBasemap) {
-      const bmIdx = BASEMAP_TYPES.indexOf(basemapType as typeof BASEMAP_TYPES[number]);
-      currentPos = vizCount + (bmIdx >= 0 ? bmIdx : 0);
+      // Find which basemap is currently active
+      const bmIdx = basemapIds.indexOf(selectedBasemapId ?? '');
+      currentEntryIdx = sourceGroups.length + (bmIdx >= 0 ? bmIdx : 0);
     } else {
-      currentPos = selectedLayerIndex;
+      currentEntryIdx = sourceGroups.findIndex(
+        (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count,
+      );
+      if (currentEntryIdx === -1) currentEntryIdx = 0;
     }
 
-    const nextPos = (currentPos + 1) % totalCount;
+    const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
 
-    if (nextPos < vizCount) {
-      setSelectedLayerIndex(nextPos); // also sets showBasemap: false
+    if (nextEntryIdx < sourceGroups.length) {
+      // Switch to an imagery source (first viz)
+      setSelectedLayerIndex(sourceGroups[nextEntryIdx].startIdx);
     } else {
-      const bmIdx = nextPos - vizCount;
-      setBasemapType(BASEMAP_TYPES[bmIdx]);
+      // Switch to a specific basemap
+      const bmIdx = nextEntryIdx - sourceGroups.length;
       setShowBasemap(true);
+      setSelectedBasemapId(basemapIds[bmIdx]);
     }
-  }, [selectedImagery, selectedLayerIndex, showBasemap, basemapType, setSelectedLayerIndex, setShowBasemap, setBasemapType]);
+  }, [sourceGroups, basemapIds, selectedLayerIndex, selectedBasemapId, showBasemap, setSelectedLayerIndex, setShowBasemap, setSelectedBasemapId]);
 
-  // Cycle through imagery sources
-  const cycleImagery = useCallback(() => {
-    if (!campaign || campaign.imagery.length <= 1) return;
-    const imageryList = campaign.imagery;
-    const currentIdx = imageryList.findIndex((img) => img.id === selectedImageryId);
-    const nextIdx = (currentIdx + 1) % imageryList.length;
-    setSelectedImageryId(imageryList[nextIdx].id);
-  }, [campaign, selectedImageryId, setSelectedImageryId]);
+  /** Shift+I: cycle visualizations within the current source */
+  const cycleVisualization = useCallback(() => {
+    if (showBasemap || sourceGroups.length === 0) return;
+    const currentGroup = sourceGroups.find(
+      (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count,
+    );
+    if (!currentGroup || currentGroup.count <= 1) return;
+    const posInGroup = selectedLayerIndex - currentGroup.startIdx;
+    const nextPos = (posInGroup + 1) % currentGroup.count;
+    setSelectedLayerIndex(currentGroup.startIdx + nextPos);
+  }, [sourceGroups, selectedLayerIndex, showBasemap, setSelectedLayerIndex]);
 
-  // Submit handler
+  // Cycle views
+  const cycleView = useCallback(() => {
+    if (!campaign || campaign.imagery_views.length <= 1) return;
+    const views = campaign.imagery_views;
+    const currentIdx = views.findIndex((v) => v.id === selectedViewId);
+    const nextIdx = (currentIdx + 1) % views.length;
+    setSelectedViewId(views[nextIdx].id);
+  }, [campaign, selectedViewId, setSelectedViewId]);
+
   const handleSubmit = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
 
@@ -404,12 +339,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           if (!isNavigating) nextTask();
           break;
 
-        // Slice/Window navigation: A/D for slices, Shift+A/D for windows
+        // Slice/Collection navigation: A/D for slices, Shift+A/D for collections
         case 'a':
         case 'A':
           e.preventDefault();
           if (e.shiftKey) {
-            navigateWindow('prev');
+            navigateCollection('prev');
           } else {
             navigateSlice('prev');
           }
@@ -418,7 +353,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'D':
           e.preventDefault();
           if (e.shiftKey) {
-            navigateWindow('next');
+            navigateCollection('next');
           } else {
             navigateSlice('next');
           }
@@ -437,7 +372,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'v':
         case 'V':
           e.preventDefault();
-          useMapStore.getState().toggleViewSync();
+          cycleView();
           break;
 
         // Arrow keys: pan by default, zoom with Alt modifier
@@ -505,18 +440,29 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           toggleKeyboardHelp();
           break;
 
-        // Cycle visualization layer
+        // Toggle campaign guide
+        case 'g':
+        case 'G':
+          e.preventDefault();
+          toggleGuide();
+          break;
+
+        // Toggle view sync
         case 'l':
         case 'L':
           e.preventDefault();
-          cycleLayer();
+          useMapStore.getState().toggleViewSync();
           break;
 
-        // Cycle imagery source
+        // Cycle imagery source / visualization
         case 'i':
         case 'I':
           e.preventDefault();
-          cycleImagery();
+          if (e.shiftKey) {
+            cycleVisualization();
+          } else {
+            cycleSource();
+          }
           break;
       }
     };
@@ -525,12 +471,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      // Clear any pending digit timeout on cleanup
       if (digitTimeoutRef.current) {
         clearTimeout(digitTimeoutRef.current);
         digitTimeoutRef.current = null;
       }
-      // Clear digit buffer on cleanup
       digitBuffer.current = '';
     };
   }, [
@@ -541,7 +485,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     previousTask,
     nextTask,
     navigateSlice,
-    navigateWindow,
+    navigateCollection,
     triggerRefocus,
     toggleCrosshair,
     triggerZoomIn,
@@ -552,8 +496,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     handleSubmit,
     handleSkip,
     toggleKeyboardHelp,
-    cycleLayer,
-    cycleImagery,
+    toggleGuide,
+    cycleSource,
+    cycleVisualization,
+    cycleView,
   ]);
 
   // Removed duplicate cleanup useEffect - consolidated above

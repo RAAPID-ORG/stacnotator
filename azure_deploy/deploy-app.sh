@@ -20,7 +20,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Stacnotator Application Deployment ===${NC}"
+echo -e "${GREEN}Stacnotator Application Deployment${NC}"
 echo -e "${BLUE}Infrastructure: Managed by Terraform${NC}"
 echo -e "${BLUE}Application: Managed by this script${NC}"
 echo ""
@@ -111,9 +111,7 @@ fi
 echo -e "${GREEN}✓ Frontend container app found${NC}"
 
 echo ""
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Deployment Configuration${NC}"
-echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}Deployment Configuration${NC}"
 echo -e "${YELLOW}Resource Group:${NC} $RESOURCE_GROUP"
 echo -e "${YELLOW}Image Tag:     ${NC} $IMAGE_TAG"
 echo -e "${YELLOW}ACR:           ${NC} $ACR_NAME"
@@ -126,7 +124,6 @@ echo ""
 echo -e "${BLUE}Container apps to be updated:${NC}"
 echo -e "  • backend  (in $RESOURCE_GROUP)"
 echo -e "  • frontend (in $RESOURCE_GROUP)"
-echo -e "${BLUE}========================================${NC}"
 echo ""
 
 # Confirmation prompt (skip if CI environment variable is set)
@@ -304,9 +301,7 @@ echo -e "${GREEN}✓ CORS updated${NC}"
 echo ""
 
 # Summary
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   Deployment Complete! ${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}Deployment Complete!${NC}"
 echo ""
 echo -e "${BLUE}Frontend:${NC} https://$FRONTEND_URL"
 echo -e "${BLUE}Backend:${NC}  https://$BACKEND_URL"

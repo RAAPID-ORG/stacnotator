@@ -30,8 +30,8 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
-from src.imagery.models import Imagery
-from src.imagery.service import create_imagery_with_layouts_bulk_no_commit
+from src.imagery.models import ImageryView
+from src.imagery.service import create_imagery_from_editor_state
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import _add_timeseries_entry_to_layout
 
@@ -70,9 +70,13 @@ def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[Campaig
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
     """
-    Retrieve all campaigns with user role information.
+    Retrieve campaigns visible to the user, with role information.
 
-    Returns list of dicts containing campaign data plus whether the provided user is_admin/is_member flags.
+    Visibility rules:
+    - Platform admins see ALL campaigns.
+    - Regular users see public campaigns + campaigns they are a member/admin of.
+
+    Returns list of dicts containing campaign data plus is_admin/is_member flags.
     """
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
@@ -105,6 +109,10 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
                     is_admin = True
                 break
 
+        # Only include public campaigns or campaigns the user is a member of
+        if not campaign.is_public and not is_member:
+            continue
+
         results.append(
             {
                 "campaign": campaign,
@@ -125,7 +133,7 @@ def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
         db.query(Campaign)
         .options(
             joinedload(Campaign.canvas_layouts),
-            joinedload(Campaign.imagery).joinedload(Imagery.canvas_layouts),
+            joinedload(Campaign.imagery_views).joinedload(ImageryView.canvas_layouts),
         )
         .filter(Campaign.id == campaign_id)
         .first()
@@ -142,9 +150,10 @@ def create_campaign(
     *,
     name: str,
     mode: str,
+    is_public: bool = False,
     settings: CampaignSettingsCreate,
     user_id: UUID,
-    imagery_configs: list | None = None,
+    imagery_editor_state=None,
     timeseries_configs: list | None = None,
 ) -> Campaign:
     """
@@ -156,7 +165,7 @@ def create_campaign(
         mode: Campaign mode (e.g., 'tasks' or 'open-world')
         settings: Campaign configuration settings
         user_id: ID of user to set as admin
-        imagery_configs: Optional list of imagery configurations to create
+        imagery_editor_state: Optional imagery editor state to persist
         timeseries_configs: Optional list of timeseries configurations to create
 
     Returns:
@@ -164,23 +173,24 @@ def create_campaign(
     """
 
     # Create campaign first
-    campaign = Campaign(name=name, mode=mode)
+    campaign = Campaign(name=name, mode=mode, is_public=is_public)
     db.add(campaign)
     db.flush()  # Get campaign.id
 
     # Create default main canvas layout for the campaign
     default_layout = CanvasLayout(
         layout_data=DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
-        user_id=None,  # Default layout for all users
+        user_id=None,
         campaign_id=campaign.id,
-        imagery_id=None,  # Main campaign layout, not imagery-specific
-        is_default=True,  # Mark as default
+        view_id=None,
+        is_default=True,
     )
     db.add(default_layout)
 
     # Create campaign settings
     campaign_settings = CampaignSettings(
         campaign_id=campaign.id,
+        guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
         **settings.to_orm(),
     )
     db.add(campaign_settings)
@@ -224,11 +234,11 @@ def create_campaign(
             db.refresh(campaign)
 
     # Create imagery if provided
-    if imagery_configs:
-        create_imagery_with_layouts_bulk_no_commit(
+    if imagery_editor_state:
+        create_imagery_from_editor_state(
             db,
             campaign=campaign,
-            imagery_items=imagery_configs,
+            editor_state=imagery_editor_state,
         )
 
     # Fetch and add embeddings (only when the user specified an embedding year)
@@ -335,6 +345,29 @@ def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campai
     return campaign
 
 
+def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
+    """Toggle a campaign between public and private."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    campaign.is_public = is_public
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | None) -> Campaign:
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    campaign.settings.guide_markdown = guide_markdown
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
 def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
@@ -345,6 +378,20 @@ def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
         if key not in bbox:
             raise HTTPException(status_code=422, detail=f"Missing {key} in bbox")
         setattr(campaign.settings, key, bbox[key])
+    db.commit()
+    db.refresh(campaign)
+    return campaign
+
+
+def update_sample_extent(
+    db: Session, campaign_id: int, sample_extent_meters: float | None
+) -> Campaign:
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+    campaign.settings.sample_extent_meters = sample_extent_meters
     db.commit()
     db.refresh(campaign)
     return campaign
@@ -798,7 +845,7 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     Cascading deletes will automatically remove:
     - Campaign settings
     - Canvas layouts (both default and personal)
-    - Imagery and imagery windows
+    - Imagery sources, views, and basemaps
     - Timeseries
     - Annotations
     - Annotation task items

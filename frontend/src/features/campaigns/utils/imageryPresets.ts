@@ -1,4 +1,24 @@
-import type { ImageryCreate } from '~/api/client';
+/**
+ * @deprecated This file uses legacy imagery types that no longer exist in the API.
+ * The new creation flow uses the step-by-step imagery editor (StepImagery).
+ * Retained for reference only.
+ */
+
+// Legacy type placeholder - ImageryCreate was removed from the API client.
+type ImageryCreate = {
+  name: string;
+  start_ym: string;
+  end_ym: string;
+  crosshair_hex6: string;
+  default_zoom: number;
+  window_interval?: number;
+  window_unit?: string;
+  slicing_interval?: number;
+  slicing_unit?: string;
+  registration_url: string;
+  search_body: string;
+  visualization_url_templates: { name: string; visualization_url: string }[];
+};
 
 export type ImageryPreset = {
   id: string;

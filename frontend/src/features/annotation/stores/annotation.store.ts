@@ -15,6 +15,8 @@ interface OpenAnnotationStore {
   annotations: AnnotationOut[];
   isLoadingAnnotations: boolean;
   isSaving: boolean;
+  /** Index into the annotations array sorted by updated_at for prev/next navigation. -1 = no selection */
+  currentAnnotationIndex: number;
 
   loadAnnotations: (campaignId: number) => Promise<void>;
   saveAnnotation: (
@@ -24,6 +26,14 @@ interface OpenAnnotationStore {
   ) => Promise<AnnotationOut | null>;
   updateAnnotationGeometry: (annotationId: number, geometry: GeoJSON.Geometry) => Promise<void>;
   deleteAnnotation: (annotationId: number) => Promise<void>;
+  /** Navigate to previous annotation (older by updated_at) */
+  goToPreviousAnnotation: () => AnnotationOut | null;
+  /** Navigate to next annotation (newer by updated_at) */
+  goToNextAnnotation: () => AnnotationOut | null;
+  /** Get sorted annotations list (by updated_at descending - newest first) */
+  getSortedAnnotations: () => AnnotationOut[];
+  /** Set current annotation index directly */
+  setCurrentAnnotationIndex: (index: number) => void;
   reset: () => void;
 }
 
@@ -31,6 +41,7 @@ const initialState = {
   annotations: [] as AnnotationOut[],
   isLoadingAnnotations: false,
   isSaving: false,
+  currentAnnotationIndex: -1,
 };
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
@@ -131,6 +142,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       set((s) => ({
         annotations: s.annotations.filter((a) => a.id !== annotationId),
         isSaving: false,
+        currentAnnotationIndex: -1,
       }));
       useLayoutStore.getState().showAlert('Annotation deleted successfully', 'success');
     } catch (error) {
@@ -140,6 +152,55 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       console.error('Delete annotation error:', error);
     }
   },
+
+  getSortedAnnotations: () => {
+    const { annotations } = get();
+    return [...annotations].sort((a, b) => {
+      const aDate = a.updated_at || a.created_at;
+      const bDate = b.updated_at || b.created_at;
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    });
+  },
+
+  goToPreviousAnnotation: () => {
+    const sorted = get().getSortedAnnotations();
+    if (sorted.length === 0) return null;
+    const { currentAnnotationIndex } = get();
+    // Previous = newer in the list (lower index when sorted newest-first)
+    let newIndex: number;
+    if (currentAnnotationIndex < 0) {
+      // No selection yet -> start at the first (newest)
+      newIndex = 0;
+    } else if (currentAnnotationIndex <= 0) {
+      // Already at the start -> wrap to end
+      newIndex = sorted.length - 1;
+    } else {
+      newIndex = currentAnnotationIndex - 1;
+    }
+    set({ currentAnnotationIndex: newIndex });
+    return sorted[newIndex] ?? null;
+  },
+
+  goToNextAnnotation: () => {
+    const sorted = get().getSortedAnnotations();
+    if (sorted.length === 0) return null;
+    const { currentAnnotationIndex } = get();
+    // Next = older in the list (higher index when sorted newest-first)
+    let newIndex: number;
+    if (currentAnnotationIndex < 0) {
+      // No selection yet -> start at the first (newest)
+      newIndex = 0;
+    } else if (currentAnnotationIndex >= sorted.length - 1) {
+      // Already at the end -> wrap to start
+      newIndex = 0;
+    } else {
+      newIndex = currentAnnotationIndex + 1;
+    }
+    set({ currentAnnotationIndex: newIndex });
+    return sorted[newIndex] ?? null;
+  },
+
+  setCurrentAnnotationIndex: (index) => set({ currentAnnotationIndex: index }),
 
   reset: () => set(initialState),
 }));

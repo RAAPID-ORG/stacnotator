@@ -10,10 +10,7 @@ from src.database import get_db
 from src.imagery import service
 from src.imagery.schemas import (
     CanvasLayoutCreateRequest,
-    CreateImageryResponse,
-    ImageryBulkCreate,
-    ImageryOut,
-    ImageryUpdate,
+    ImageryEditorStateCreate,
 )
 from src.utils import FunctionNameOperationIdRoute
 
@@ -25,98 +22,51 @@ router = APIRouter(
 )
 
 
-@router.post(
-    "/{campaign_id}/imagery",
-    response_model=CreateImageryResponse,
-)
+@router.post("/{campaign_id}/imagery", status_code=201)
 def create_imagery(
     campaign_id: int,
-    imagery: ImageryBulkCreate,
+    editor_state: ImageryEditorStateCreate,
     campaign: Campaign = Depends(require_campaign_admin),
     db: Session = Depends(get_db),
 ):
-    # TODO validate tile urls and search body and url
-    new_items = service.create_imagery_with_layouts_bulk_no_commit(
+    result = service.create_imagery_from_editor_state(
         db,
         campaign=campaign,
-        imagery_items=imagery.items,
+        editor_state=editor_state,
     )
     db.commit()
-    return {"new_items": new_items}
+    return {
+        "sources": len(result["sources"]),
+        "views": len(result["views"]),
+        "basemaps": len(result["basemaps"]),
+    }
 
 
-@router.patch(
-    "/{campaign_id}/imagery/{imagery_id}",
-    response_model=ImageryOut,
-)
-def update_imagery(
-    campaign_id: int,
-    imagery_id: int,
-    updates: ImageryUpdate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Update an imagery configuration.
-    Excludes temporal fields (start_ym, end_ym, window_*, slicing_*) which cannot be changed currently.
-    TODO implement allowing to change temporal fields but needs handling of windows.
-    """
-    # Convert Pydantic model to dict, excluding None values
-    update_dict = updates.model_dump(exclude_none=True)
-
-    updated_imagery = service.update_imagery(
-        db=db,
-        imagery_id=imagery_id,
-        campaign_id=campaign_id,
-        updates=update_dict,
-    )
-
-    return updated_imagery
-
-
-@router.post(
-    "/{campaign_id}/new-layout",
-    status_code=201,
-)
-def create_new_canvas_layout_for_imagery(
+@router.post("/{campaign_id}/new-layout", status_code=201)
+def create_new_canvas_layout(
     canvas_layout_req: CanvasLayoutCreateRequest,
     campaign_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
 ):
-    """
-    Create or update canvas layout for imagery visualization.
-
-    If should_be_default is True, requires campaign admin role and updates
-    the default campaign-wide layout. Otherwise, creates/updates a personal
-    layout for the authenticated user.
-    """
     result = service.create_new_canvas_layout(
         db=db,
         campaign_id=campaign_id,
-        imagery_id=canvas_layout_req.imagery_id,
+        view_id=canvas_layout_req.view_id,
         layout_data=canvas_layout_req.layout,
         should_be_default=canvas_layout_req.should_be_default,
         user_id=user.id,
     )
-
     return result
 
 
-@router.delete("/{campaign_id}/imagery/{imagery_id}", status_code=204)
-def delete_imagery(
+@router.delete("/{campaign_id}/imagery/sources/{source_id}", status_code=204)
+def delete_source(
     campaign_id: int,
-    imagery_id: int,
+    source_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """
-    Delete an imagery entry and all associated data.
-    """
-    service.delete_imagery(
-        db=db,
-        imagery_id=imagery_id,
-        campaign_id=campaign_id,
-    )
+    service.delete_source(db=db, source_id=source_id, campaign_id=campaign_id)
     return

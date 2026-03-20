@@ -13,55 +13,50 @@ import { useEffect, useRef, memo, useState } from 'react';
 import BaseMap from './BaseMap';
 import type OLMap from 'ol/Map';
 import Overlay from 'ol/Overlay';
+import VectorLayer from 'ol/layer/Vector';
+import VectorSource from 'ol/source/Vector';
 import { fromLonLat, toLonLat } from 'ol/proj';
+import { Style, Fill, Stroke } from 'ol/style';
+import { GeoJSON as OLGeoJSON } from 'ol/format';
+import type OLFeature from 'ol/Feature';
+import type { Geometry } from 'ol/geom';
 import type { Layer } from './Layer';
-import type { ImageryWithWindowsOut } from '~/api/client';
-import type { SliceLayerMap } from '../../hooks/useStacRegistration';
+import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
 import { useMapStore } from '../../stores/map.store';
 
-// Props
-
 interface TaskModeMapProps {
-    imagery?: ImageryWithWindowsOut | null;
-    sliceLayerMap: SliceLayerMap;
+    campaign: CampaignOutFull;
     initialCenter?: [number, number];
     initialZoom?: number;
-    /** Reactive: pan the map to this position when it changes. */
     center?: [number, number];
-    /** When this increments the map recenters to `center`. */
     refocusTrigger?: number;
     crosshair?: { lat: number; lon: number; color?: string };
     showCrosshair?: boolean;
+    sampleExtent?: GeoJSON.Polygon | GeoJSON.MultiPolygon | null;
     onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
-    /** Controlled active layer id from outside. */
     activeLayerId?: string;
-    /** Called on every pan/zoom so consumers can sync other maps. */
     onViewChange?: (center: [number, number], zoom: number, bounds: [number, number, number, number]) => void;
-    /** Called once the active imagery layer has finished loading. */
     onReady?: () => void;
-    /** Currently active tool (pan, timeseries, etc.). */
     activeTool?: 'pan' | 'annotate' | 'edit' | 'timeseries';
-    /** Called when the user clicks the map while timeseries tool is active. */
     onTimeseriesClick?: (lat: number, lon: number) => void;
-    /** Timeseries probe point to display on the map. */
     probePoint?: { lat: number; lon: number } | null;
 }
 
 // Component
 
 const TaskModeMap = ({
-    imagery = null,
-    sliceLayerMap,
+    campaign,
     initialCenter,
     initialZoom,
     center,
     refocusTrigger,
     crosshair,
     showCrosshair = true,
+    sampleExtent,
     onLayersChange,
     activeLayerId: controlledActiveLayerId,
     onViewChange,
@@ -77,9 +72,9 @@ const TaskModeMap = ({
     const crosshairOverlayRef = useRef<Overlay | null>(null);
     const crosshairElRef = useRef<HTMLDivElement | null>(null);
     const probeOverlayRef = useRef<Overlay | null>(null);
+    const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
-    // Keep callbacks in refs to avoid re-registering OL listeners
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
     const onTimeseriesClickRef = useRef(onTimeseriesClick);
@@ -88,34 +83,29 @@ const TaskModeMap = ({
     // Store subscriptions for preloading
     const visibleTasks = useTaskStore((s) => s.visibleTasks);
     const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
-    const activeWindowId = useMapStore((s) => s.activeWindowId);
+    const activeCollectionId = useMapStore((s) => s.activeCollectionId);
     const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
     const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
     const panTrigger = useMapStore((s) => s.panTrigger);
 
-    // Resolved active window ID
-    const effectiveActiveWindowId = activeWindowId ?? imagery?.default_main_window_id ?? imagery?.windows[0]?.id ?? null;
-
     // Shared layer management
     const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
-        imagery: imagery ?? null,
+        campaign,
         layerManager: layerManagerRef.current,
         mapReady: mapReadyRef.current,
-        sliceLayerMap,
         onReady,
         onLayersChange,
     });
 
-    // Tile preloading (task mode only - keeps other windows + next task warm)
+    // Tile preloading (task mode only)
     useTilePreloading({
         layerManager,
-        imagery: imagery ?? null,
-        sliceLayerMap,
-        activeWindowId: effectiveActiveWindowId,
+        campaign,
+        activeCollectionId,
         visibleTasks,
         currentTaskIndex,
-        defaultZoom: imagery?.default_zoom ?? 10,
-        enabled: imagery !== null,
+        defaultZoom: initialZoom ?? 10,
+        enabled: !!campaign,
     });
 
     // Pan to center + reset zoom on task navigation
@@ -181,13 +171,33 @@ const TaskModeMap = ({
     // Crosshair overlay
     useEffect(() => {
         const overlay = crosshairOverlayRef.current;
+        const el = crosshairElRef.current;
         if (!overlay) return;
         if (crosshair && showCrosshair) {
+            // Update SVG stroke color in case the active source changed
+            if (el) {
+                const color = `#${crosshair.color ?? 'ff0000'}`;
+                const lines = el.querySelectorAll('line');
+                lines.forEach((line) => line.setAttribute('stroke', color));
+            }
             overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
         } else {
             overlay.setPosition(undefined);
         }
-    }, [crosshair?.lat, crosshair?.lon, showCrosshair]);
+    }, [crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
+
+    // Sample extent polygon overlay
+    useEffect(() => {
+        const source = extentSourceRef.current;
+        if (!source) return;
+        source.clear();
+        if (!sampleExtent) return;
+        const features = new OLGeoJSON().readFeatures(
+            { type: 'Feature', geometry: sampleExtent },
+            { featureProjection: 'EPSG:3857' },
+        );
+        source.addFeatures(features as OLFeature<Geometry>[]);
+    }, [sampleExtent]);
 
     // Probe marker overlay
     useEffect(() => {
@@ -236,6 +246,11 @@ const TaskModeMap = ({
                     layerManagerRef.current = lm;
                     mapReadyRef.current = true;
 
+                    // Expose map instance for E2E testing (dev/test only)
+                    if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+                        (window as any).__OL_MAP__ = map;
+                    }
+
                     // Expose to state so hooks (e.g. useTilePreloading) can subscribe
                     setLayerManager(lm);
 
@@ -282,6 +297,11 @@ const TaskModeMap = ({
                     map.addOverlay(overlay);
                     crosshairOverlayRef.current = overlay;
 
+                    // Expose crosshair overlay for E2E testing
+                    if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+                        (window as any).__OL_CROSSHAIR__ = overlay;
+                    }
+
                     if (crosshair && showCrosshair) {
                         overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
                     }
@@ -298,6 +318,19 @@ const TaskModeMap = ({
                     });
                     map.addOverlay(probeOverlay);
                     probeOverlayRef.current = probeOverlay;
+
+                    // Sample extent vector layer
+                    const extentSource = new VectorSource<OLFeature<Geometry>>();
+                    extentSourceRef.current = extentSource;
+                    const extentLayer = new VectorLayer({
+                        source: extentSource,
+                        zIndex: 5,
+                        style: new Style({
+                            fill: new Fill({ color: 'rgba(255,255,255,0.08)' }),
+                            stroke: new Stroke({ color: '#ef4444', width: 1.5, lineDash: [6, 4] }),
+                        }),
+                    });
+                    map.addLayer(extentLayer);
                 }}
             />
         </div>
