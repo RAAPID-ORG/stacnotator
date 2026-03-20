@@ -31,7 +31,7 @@ from src.campaigns.schemas import (
     PairwiseAgreement,
 )
 from src.imagery.models import ImageryView
-from src.imagery.service import create_imagery_from_editor_state
+from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import _add_timeseries_entry_to_layout
 
@@ -378,6 +378,24 @@ def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
         if key not in bbox:
             raise HTTPException(status_code=422, detail=f"Missing {key} in bbox")
         setattr(campaign.settings, key, bbox[key])
+
+    # Re-register STAC mosaics with the new extent
+    new_bbox = [bbox["bbox_west"], bbox["bbox_south"], bbox["bbox_east"], bbox["bbox_north"]]
+    try:
+        count = re_register_stac_collections(db, campaign_id, new_bbox)
+        if count:
+            logger.info(
+                "Re-registered STAC mosaics for %d collection(s) in campaign %d",
+                count,
+                campaign_id,
+            )
+    except Exception:
+        logger.warning(
+            "STAC re-registration failed during bbox update for campaign %d",
+            campaign_id,
+            exc_info=True,
+        )
+
     db.commit()
     db.refresh(campaign)
     return campaign

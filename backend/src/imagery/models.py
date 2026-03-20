@@ -104,6 +104,9 @@ class CollectionStacConfig(Base):
     )
     registration_url: Mapped[str] = mapped_column(Text, nullable=False)
     search_body: Mapped[str] = mapped_column(Text, nullable=False)
+    # Tile URL templates with {searchId} placeholders, persisted so we can re-register
+    # when the campaign bbox changes.  Format: [{"viz_name": "...", "url_template": "..."}]
+    viz_url_templates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 

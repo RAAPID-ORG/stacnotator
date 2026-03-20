@@ -24,6 +24,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
   const rectangleRef = useRef<L.Rectangle | null>(null);
   const markersRef = useRef<{ nw: L.Marker | null; se: L.Marker | null }>({ nw: null, se: null });
   const isUpdatingFromDragRef = useRef(false);
+  const prevBboxRef = useRef<string>('');
 
   // Country search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,6 +96,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
     }
 
     const { bbox_west, bbox_south, bbox_east, bbox_north } = value;
+    const bboxKey = `${bbox_west},${bbox_south},${bbox_east},${bbox_north}`;
 
     // Validate bbox
     if (
@@ -118,10 +120,13 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
         markersRef.current.se.remove();
         markersRef.current.se = null;
       }
+      prevBboxRef.current = '';
       return;
     }
 
     const bounds = L.latLngBounds([bbox_south, bbox_west], [bbox_north, bbox_east]);
+    const bboxActuallyChanged = bboxKey !== prevBboxRef.current;
+    prevBboxRef.current = bboxKey;
 
     if (rectangleRef.current) {
       // Update existing rectangle and markers
@@ -265,9 +270,11 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
       markersRef.current.se = createMarker(bbox_south, bbox_east, false);
     }
 
-    // Fit map to bbox with padding
-    mapRef.current.fitBounds(bounds, { padding: [50, 50] });
-  }, [value, onChange]);
+    // Only re-fit the map when coordinates actually changed (not on re-renders)
+    if (bboxActuallyChanged) {
+      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [value.bbox_west, value.bbox_south, value.bbox_east, value.bbox_north, onChange]);
 
   return (
     <div className="space-y-4">
