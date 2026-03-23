@@ -55,6 +55,7 @@ interface OpenModeMapProps {
   refocusTrigger?: number;
   probePoint?: { lat: number; lon: number } | null;
   showCrosshair?: boolean;
+  crosshairColor?: string;
 }
 
 /** Imperative handle exposed to parents via ref */
@@ -81,6 +82,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       refocusTrigger,
       probePoint,
       showCrosshair = true,
+      crosshairColor,
     },
     ref
   ) => {
@@ -210,6 +212,56 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       map.getView().setCenter(fromLonLat([newCenter[1], newCenter[0]]));
     }, [panToCenterTrigger]);
 
+    // Keyboard zoom in
+    const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
+    useEffect(() => {
+      if (!zoomInTrigger || !mapRef.current) return;
+      const view = mapRef.current.getView();
+      const currentZoom = view.getZoom();
+      if (currentZoom !== undefined) {
+        view.animate({ zoom: currentZoom + 1, duration: 200 });
+      }
+    }, [zoomInTrigger]);
+
+    // Keyboard zoom out
+    const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
+    useEffect(() => {
+      if (!zoomOutTrigger || !mapRef.current) return;
+      const view = mapRef.current.getView();
+      const currentZoom = view.getZoom();
+      if (currentZoom !== undefined) {
+        view.animate({ zoom: currentZoom - 1, duration: 200 });
+      }
+    }, [zoomOutTrigger]);
+
+    // Keyboard pan
+    const panTrigger = useMapStore((s) => s.panTrigger);
+    useEffect(() => {
+      if (!panTrigger.count || !mapRef.current) return;
+      const view = mapRef.current.getView();
+      const resolution = view.getResolution();
+      const currentCenter = view.getCenter();
+      if (!resolution || !currentCenter) return;
+
+      const panDistance = resolution * 100;
+      let [x, y] = currentCenter;
+      switch (panTrigger.direction) {
+        case 'up':
+          y += panDistance;
+          break;
+        case 'down':
+          y -= panDistance;
+          break;
+        case 'left':
+          x -= panDistance;
+          break;
+        case 'right':
+          x += panDistance;
+          break;
+      }
+      view.animate({ center: [x, y], duration: 150 });
+    }, [panTrigger]);
+
     // External active layer control
 
     useEffect(() => {
@@ -303,7 +355,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
                   y1="10"
                   x2="20"
                   y2="10"
-                  stroke="#ffffff"
+                  stroke={crosshairColor ? `#${crosshairColor}` : '#ffffff'}
                   strokeWidth="1.5"
                   opacity="0.7"
                 />
@@ -312,7 +364,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
                   y1="0"
                   x2="10"
                   y2="20"
-                  stroke="#ffffff"
+                  stroke={crosshairColor ? `#${crosshairColor}` : '#ffffff'}
                   strokeWidth="1.5"
                   opacity="0.7"
                 />

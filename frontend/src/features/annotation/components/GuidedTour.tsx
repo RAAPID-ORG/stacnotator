@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore, type TaskFilter } from '../stores/task.store';
 
 interface TourStep {
   /** CSS selector for the element to highlight (data-tour="...") */
@@ -23,14 +24,18 @@ interface TourStep {
   scrollIntoView?: boolean;
 }
 
-const buildTourSteps = (campaignMode: 'tasks' | 'open'): TourStep[] => {
+interface TourConfig {
+  hasTimeseries: boolean;
+}
+
+const buildTourSteps = (campaignMode: 'tasks' | 'open', config: TourConfig): TourStep[] => {
   if (campaignMode === 'open') {
-    return buildOpenModeSteps();
+    return buildOpenModeSteps(config);
   }
-  return buildTaskModeSteps();
+  return buildTaskModeSteps(config);
 };
 
-const buildTaskModeSteps = (): TourStep[] => [
+const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
   // Welcome
   {
     target: '[data-tour="toolbar"]',
@@ -47,11 +52,12 @@ const buildTaskModeSteps = (): TourStep[] => [
   // Imagery selector
   {
     target: '[data-tour="imagery-selector"]',
-    title: 'Imagery Source',
+    title: 'Canvas Views',
     content: (
       <p>
-        Use this dropdown to switch between the different imagery sources configured for this
-        campaign. Each source may have its own time-windows, slices, and visualization layers.
+        Use this dropdown to switch between the different canvas views configured for this campaign.
+        Each view may have its own time-windows, slices, and visualization layers and help you to
+        organize different imagery sources meaningfully.
       </p>
     ),
     placement: 'bottom',
@@ -90,9 +96,9 @@ const buildTaskModeSteps = (): TourStep[] => [
     title: 'Timeline Sidebar',
     content: (
       <p>
-        The vertical timeline shows all <strong>windows</strong> in chronological order. The
-        highlighted segment is the active window. Click or drag along the timeline to quickly jump
-        to a different window. Dots inside the active segment represent <strong>slices</strong>.
+        The vertical timeline shows all <strong>windows</strong> in chronological order. A window
+        hereby represent a collection of imagery. The highlighted segment is the active window.
+        Click or drag along the timeline to quickly jump to a different window.
       </p>
     ),
     placement: 'right',
@@ -147,6 +153,9 @@ const buildTaskModeSteps = (): TourStep[] => [
         <p>
           Press <kbd className="tour-kbd">Shift+D</kbd> to go to the <strong>next window</strong>{' '}
           and <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
+          Often times you will want to through imagery in these bigger steps rather then
+          individually by slice as the first slice (cover slice) is often supposed to be
+          representative of the whole window. These are also preloaded to make you workflow faster.
         </p>
         <p className="text-sm text-neutral-500 italic">
           Try pressing Shift+D and then Shift+A to navigate both directions.
@@ -201,7 +210,7 @@ const buildTaskModeSteps = (): TourStep[] => [
             <strong>Crosshair</strong> - toggle the crosshair overlay (O)
           </li>
           <li>
-            <strong>Timeseries probe</strong> - click map to inspect time series
+            <strong>Timeseries probe</strong> - click map to inspect time series of this point
           </li>
         </ul>
       </div>
@@ -252,8 +261,7 @@ const buildTaskModeSteps = (): TourStep[] => [
       <div className="space-y-2">
         <p>
           These smaller panels each show a <strong>different window</strong> at the same geographic
-          location. Click a panel&apos;s header to make it the <strong>active window</strong> in the
-          main map.
+          location. Click a panel to make it the <strong>active window</strong> in the main map.
         </p>
         <p>This lets you quickly compare how a location looks across different time periods.</p>
       </div>
@@ -261,24 +269,56 @@ const buildTaskModeSteps = (): TourStep[] => [
     placement: 'top',
   },
 
-  // Timeseries chart
+  // Window sync / link
   {
-    target: '[data-tour="timeseries"]',
-    title: 'Time Series Chart',
+    target: '[data-tour="map-controls"]',
+    title: 'Window Sync (View Link)',
     content: (
       <div className="space-y-2">
         <p>
-          The time series chart shows spectral indices (e.g. NDVI) for the task location over time.
-          Vertical bars indicate the currently selected window/slice.
+          Press <kbd className="tour-kbd">L</kbd> to toggle <strong>view sync</strong>. When
+          enabled, all imagery window panels share the same slice index and visualization layer as
+          the main map - so navigating slices updates every panel at once.
         </p>
         <p>
-          Use the <strong>timeseries probe</strong> tool in the map controls to click anywhere on
-          the map and see its time series.
+          <strong>Tip:</strong> Turning view sync <em>off</em> can noticeably speed up imagery
+          loading, because only the main map needs to fetch new tiles when you navigate. The smaller
+          panels will stay on their current slice until you click them.
         </p>
       </div>
     ),
     placement: 'left',
   },
+
+  // Timeseries chart (only if configured)
+  ...(hasTimeseries
+    ? [
+        {
+          target: '[data-tour="timeseries"]',
+          title: 'Time Series Chart',
+          content: (
+            <div className="space-y-2">
+              <p>
+                The time series chart shows spectral indices (e.g. NDVI) for the task location over
+                time. Vertical bars indicate the currently selected window/slice.
+              </p>
+              <p>
+                Use the <strong>timeseries probe</strong> tool in the map controls to click anywhere
+                on the map and see its time series.
+              </p>
+              <p>
+                The chart toolbar offers two useful filters: <strong>Remove Cloudy</strong> hides
+                observations that were flagged as cloud-covered, and <strong>Smooth</strong> applies
+                a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When
+                smoothing is enabled you can adjust the <strong>window size</strong> and{' '}
+                <strong>polynomial order</strong> to fine-tune the result.
+              </p>
+            </div>
+          ),
+          placement: 'left' as const,
+        },
+      ]
+    : []),
 
   // Minimap
   {
@@ -309,7 +349,7 @@ const buildTaskModeSteps = (): TourStep[] => [
             Optionally add a <strong>comment</strong> (press C to focus)
           </li>
           <li>
-            Set your <strong>confidence</strong> level (Q/E to adjust)
+            Adjust your <strong>confidence</strong> level with the slider
           </li>
           <li>
             Press <strong>Enter</strong> to submit, <strong>B</strong> to skip
@@ -341,10 +381,10 @@ const buildTaskModeSteps = (): TourStep[] => [
     requiredPressCount: 1,
   },
 
-  // Practice: zoom
+  // Practice: zoom & pan
   {
     target: '[data-tour="main-map"]',
-    title: 'Practice: Zoom',
+    title: 'Practice: Zoom & Pan',
     content: (
       <div className="space-y-2">
         <p>
@@ -352,7 +392,14 @@ const buildTaskModeSteps = (): TourStep[] => [
           <kbd className="tour-kbd">Alt+↓</kbd> to <strong>zoom out</strong>. You can also scroll
           with the mouse wheel.
         </p>
-        <p className="text-sm text-neutral-500 italic">Try pressing Alt+↑ now to zoom in.</p>
+        <p>
+          Use the <strong>arrow keys</strong> (<kbd className="tour-kbd">↑</kbd>{' '}
+          <kbd className="tour-kbd">↓</kbd> <kbd className="tour-kbd">←</kbd>{' '}
+          <kbd className="tour-kbd">→</kbd>) to <strong>pan</strong> the map without the mouse.
+        </p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing Alt+↑ to zoom in, then use arrow keys to pan around.
+        </p>
       </div>
     ),
     placement: 'bottom',
@@ -361,21 +408,42 @@ const buildTaskModeSteps = (): TourStep[] => [
     requiredPressCount: 1,
   },
 
-  // Layer cycling
+  // Imagery source switching
   {
-    target: '[data-tour="map-controls"]',
-    title: 'Layer & Imagery Cycling',
+    target: '[data-tour="imagery-selector"]',
+    title: 'Switching Imagery Sources',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">L</kbd> to cycle through available visualization layers
-          (e.g. True Color, NDVI, basemaps, etc.).
+          Open the <strong>imagery source</strong> dropdown to switch between the different sources
+          configured for this view (e.g. Sentinel-2, basemaps, etc.).
         </p>
         <p>
-          Press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources configured for
-          this campaign.
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources
+          without opening the dropdown.
         </p>
-        <p>You can also use the dropdowns in the toolbar and map controls.</p>
+      </div>
+    ),
+    placement: 'bottom',
+  },
+
+  // Visualization switching
+  {
+    target: '[data-tour="map-controls"]',
+    title: 'Switching Visualization Layers',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Press <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within
+          the current source (e.g. True Color → False Color → NDVI). You can also use the
+          visualization dropdown in the map controls.
+        </p>
+        <p>
+          <strong>Note:</strong> Visualization options are only available for imagery sources that
+          have them configured. For example, basemaps typically do not have multiple visualization
+          layers - only sources like Sentinel-2 with pre-configured band combinations will show
+          visualization options.
+        </p>
       </div>
     ),
     placement: 'left',
@@ -392,7 +460,19 @@ const buildTaskModeSteps = (): TourStep[] => [
           <li>
             <strong>Review toggle</strong> (eye icon) - enables review mode directly on this
             annotation page. You&apos;ll see all annotators&apos; labels for each task in the
-            controls panel, and authoritative reviewers can submit a final label.
+            controls panel. If multiple annotators disagree on a task, there are two ways to resolve
+            this:
+            <ul className="list-disc list-inside space-y-1 text-sm">
+              <li>Update your label to match others if you think they are correct</li>
+              <li>
+                Update your comment to explain why you think the other annotators are wrong or why
+                you disagree with them and wait for them to revisit this point.
+              </li>
+              <li>
+                Authorized reviewers can bypass the consensus finding by setting a label that has
+                precendence over the other labels.
+              </li>
+            </ul>
           </li>
           <li>
             <strong>Review list</strong> (list icon) - navigates to a dedicated review page with a
@@ -460,14 +540,16 @@ const buildTaskModeSteps = (): TourStep[] => [
           <kbd className="tour-kbd text-center">Space</kbd>
           <span className="text-neutral-600">Toggle crosshair</span>
           <kbd className="tour-kbd text-center">O</kbd>
-          <span className="text-neutral-600">Cycle layers</span>
-          <kbd className="tour-kbd text-center">L</kbd>
+          <span className="text-neutral-600">Pan map</span>
+          <kbd className="tour-kbd text-center">Arrow keys</kbd>
           <span className="text-neutral-600">Cycle imagery</span>
           <kbd className="tour-kbd text-center">I</kbd>
+          <span className="text-neutral-600">Cycle visualization</span>
+          <kbd className="tour-kbd text-center">Shift+I</kbd>
+          <span className="text-neutral-600">Toggle view sync</span>
+          <kbd className="tour-kbd text-center">L</kbd>
           <span className="text-neutral-600">Select label</span>
           <kbd className="tour-kbd text-center">1-9</kbd>
-          <span className="text-neutral-600">Confidence</span>
-          <kbd className="tour-kbd text-center">Q / E</kbd>
           <span className="text-neutral-600">Comment</span>
           <kbd className="tour-kbd text-center">C</kbd>
           <span className="text-neutral-600">Submit</span>
@@ -487,8 +569,8 @@ const buildTaskModeSteps = (): TourStep[] => [
   },
 ];
 
-const buildOpenModeSteps = (): TourStep[] => [
-  // Welcome
+const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
+  // 1. Welcome
   {
     target: '[data-tour="toolbar"]',
     title: 'Welcome to Open Mode!',
@@ -501,68 +583,83 @@ const buildOpenModeSteps = (): TourStep[] => [
     placement: 'bottom',
   },
 
-  // Imagery selector
+  // 2. Canvas View dropdown
   {
     target: '[data-tour="imagery-selector"]',
-    title: 'Imagery Source',
-    content: <p>Switch between configured imagery sources here.</p>,
+    title: 'Canvas View',
+    content: (
+      <div className="space-y-2">
+        <p>
+          This dropdown selects the active <strong>canvas view</strong>. A view is a campaign-level
+          grouping that defines which imagery sources and time-windows are shown together - think of
+          it as a &ldquo;preset&rdquo; for the whole annotation workspace.
+        </p>
+        <p>
+          Switching views may change the available windows, slices, imagery sources, and
+          visualization layers all at once.
+        </p>
+      </div>
+    ),
     placement: 'bottom',
   },
 
-  // Main map
+  // 3. Timeline Sidebar
   {
-    target: '[data-tour="main-map"]',
-    title: 'Main Map',
+    target: '[data-tour="timeline-sidebar"]',
+    title: 'Timeline Sidebar',
     content: (
       <p>
-        This is your drawing canvas. Use the tools (<kbd className="tour-kbd">V</kbd>,{' '}
-        <kbd className="tour-kbd">R</kbd>, <kbd className="tour-kbd">E</kbd>,{' '}
-        <kbd className="tour-kbd">T</kbd>) to pan, annotate, edit features, or probe time series.
+        The vertical timeline shows all <strong>windows</strong> in chronological order. The
+        highlighted segment is the active window. Click or <strong>drag</strong> along the timeline
+        to quickly jump to a different window - this is often faster than pressing{' '}
+        <kbd className="tour-kbd">Shift+A/D</kbd>.
       </p>
     ),
     placement: 'right',
   },
 
-  // Annotation controls
+  // 4. Windows vs Slices explainer
   {
-    target: '[data-tour="controls"]',
-    title: 'Annotation Controls',
-    content: (
-      <div className="space-y-2">
-        <p>Select a label, choose your drawing tool, and toggle magic-wand segmentation here.</p>
-        <p>
-          Press number keys <kbd className="tour-kbd">1-9</kbd> to quickly select a label and switch
-          to the annotate tool.
-        </p>
-      </div>
-    ),
-    placement: 'left',
-  },
-
-  // Practice: tool switching
-  {
-    target: '[data-tour="main-map"]',
-    title: 'Practice: Tool Switching',
+    target: '[data-tour="timeline-sidebar"]',
+    title: 'Windows & Slices',
     content: (
       <div className="space-y-2">
         <p>
-          <kbd className="tour-kbd">V</kbd> = Pan &nbsp;
-          <kbd className="tour-kbd">R</kbd> = Annotate &nbsp;
-          <kbd className="tour-kbd">E</kbd> = Edit &nbsp;
-          <kbd className="tour-kbd">T</kbd> = Timeseries
+          A <strong>Window</strong> is a broad time range (e.g. a year or season). A{' '}
+          <strong>Slice</strong> is a finer subdivision inside that window (e.g. individual months).
         </p>
-        <p className="text-sm text-neutral-500 italic">Try pressing V or R now.</p>
+        <p>
+          The main map always shows one slice at a time. The smaller imagery panels show the{' '}
+          <em>same</em> slice but for <em>different</em> windows so you can compare across time.
+        </p>
       </div>
     ),
-    placement: 'bottom',
-    requiredKeys: ['v', 'r', 'e', 't'],
-    requiredKeyLabel: 'V, R, E, or T',
+    placement: 'right',
   },
 
-  // Practice: navigate slices
+  // 5. Imagery Windows
+  {
+    target: '[data-tour="imagery-windows"]',
+    title: 'Imagery Windows',
+    content: (
+      <div className="space-y-2">
+        <p>
+          These smaller panels each show a <strong>different window</strong> at the same geographic
+          location. Click a panel to make it the <strong>active window</strong> in the main map.
+        </p>
+        <p>
+          This lets you quickly compare how a location looks across different time periods. The main
+          map will update to show that window&apos;s imagery at full size.
+        </p>
+      </div>
+    ),
+    placement: 'top',
+  },
+
+  // 6. Practice: navigate slices & windows
   {
     target: '[data-tour="main-map"]',
-    title: 'Practice: Navigate Slices',
+    title: 'Practice: Navigate Slices & Windows',
     content: (
       <div className="space-y-2">
         <p>
@@ -579,23 +676,248 @@ const buildOpenModeSteps = (): TourStep[] => [
     requiredPressCount: 1,
   },
 
-  // Practice: fit view
+  // 7. Imagery Sources & Visualizations
   {
-    target: '[data-tour="main-map"]',
-    title: 'Practice: Fit View',
+    target: '[data-tour="map-controls"]',
+    title: 'Imagery Sources & Visualizations',
     content: (
       <div className="space-y-2">
+        <p>
+          The <strong>imagery source</strong> and <strong>visualization</strong> dropdowns in the
+          top-right of the map let you switch which satellite imagery or basemap is displayed and
+          which band combination (e.g. True Color, NDVI) is applied.
+        </p>
+        <p>
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources and{' '}
+          <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within the
+          current source.
+        </p>
+        <p className="text-sm text-neutral-500">
+          Note: The <em>canvas view</em> dropdown in the toolbar selects which view is active, while
+          these controls switch the imagery source and visualization <em>within</em> that view.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 8. View sync / link
+  {
+    target: '[data-tour="map-controls"]',
+    title: 'Window Sync (View Link)',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Press <kbd className="tour-kbd">L</kbd> to toggle <strong>view sync</strong>. When
+          enabled, all imagery window panels share the same slice index and visualization layer as
+          the main map - so navigating slices updates every panel at once.
+        </p>
+        <p>
+          <strong>Tip:</strong> Turning view sync <em>off</em> can noticeably speed up imagery
+          loading, because only the main map needs to fetch new tiles when you navigate.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 9. Main map
+  {
+    target: '[data-tour="main-map"]',
+    title: 'Main Map',
+    content: (
+      <p>
+        This is your drawing canvas. Use the tools (<kbd className="tour-kbd">V</kbd>,{' '}
+        <kbd className="tour-kbd">R</kbd>, <kbd className="tour-kbd">E</kbd>
+        {hasTimeseries ? (
+          <>
+            , <kbd className="tour-kbd">T</kbd>
+          </>
+        ) : null}
+        ) to pan, annotate, edit features
+        {hasTimeseries ? ', or probe time series' : ''}. Use the mouse wheel to zoom and click-drag
+        to pan.
+      </p>
+    ),
+    placement: 'right',
+  },
+
+  // 10. Annotation controls
+  {
+    target: '[data-tour="controls"]',
+    title: 'Annotation Controls',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Select a label, choose your drawing tool, and start annotating. The labels section shows
+          the available annotation classes and their geometry types (point, polygon, line).
+        </p>
+        <p>
+          Press number keys <kbd className="tour-kbd">1-9</kbd> to quickly select a label and switch
+          to the annotate tool.
+        </p>
+        <p>
+          The <strong>magic wand</strong> icon on polygon labels enables automatic segmentation -
+          click once on the map and it generates a polygon boundary for you. Note: this feature is
+          currently deactivated and will be available in a future update.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 11. Practice: tool switching
+  {
+    target: '[data-tour="main-map"]',
+    title: 'Practice: Tool Switching',
+    content: (
+      <div className="space-y-2">
+        <p>
+          <kbd className="tour-kbd">V</kbd> = Pan &nbsp;
+          <kbd className="tour-kbd">R</kbd> = Annotate &nbsp;
+          <kbd className="tour-kbd">E</kbd> = Edit
+          {hasTimeseries ? (
+            <>
+              &nbsp; <kbd className="tour-kbd">T</kbd> = Timeseries
+            </>
+          ) : null}
+        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing V or R now.</p>
+      </div>
+    ),
+    placement: 'bottom',
+    requiredKeys: hasTimeseries ? ['v', 'r', 'e', 't'] : ['v', 'r', 'e'],
+    requiredKeyLabel: hasTimeseries ? 'V, R, E, or T' : 'V, R, or E',
+  },
+
+  // 12. Navigate annotations
+  {
+    target: '[data-tour="controls"]',
+    title: 'Navigating Annotations',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Once you have created annotations, use the <strong>Prev</strong> / <strong>Next</strong>{' '}
+          buttons in the controls panel (or press <kbd className="tour-kbd">W</kbd> /{' '}
+          <kbd className="tour-kbd">S</kbd>) to step through your annotations. The map will zoom to
+          each one.
+        </p>
         <p>
           Press <kbd className="tour-kbd">Space</kbd> to fit the view to all your annotations.
         </p>
       </div>
     ),
-    placement: 'bottom',
-    requiredKeys: [' '],
-    requiredKeyLabel: 'Space',
+    placement: 'left',
   },
 
-  // Finish
+  // 13. Practice: Zoom & Pan
+  {
+    target: '[data-tour="main-map"]',
+    title: 'Practice: Zoom & Pan',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Press <kbd className="tour-kbd">Alt+↑</kbd> to <strong>zoom in</strong> and{' '}
+          <kbd className="tour-kbd">Alt+↓</kbd> to <strong>zoom out</strong>. You can also scroll
+          with the mouse wheel.
+        </p>
+        <p>
+          Use the <strong>arrow keys</strong> (<kbd className="tour-kbd">↑</kbd>{' '}
+          <kbd className="tour-kbd">↓</kbd> <kbd className="tour-kbd">←</kbd>{' '}
+          <kbd className="tour-kbd">→</kbd>) to <strong>pan</strong> the map without the mouse.
+        </p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing Alt+↑ to zoom in, then use arrow keys to pan around.
+        </p>
+      </div>
+    ),
+    placement: 'bottom',
+    requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
+    requiredKeyLabel: 'Alt+↑ or Alt+↓',
+    requiredPressCount: 1,
+  },
+
+  // 14. Minimap
+  {
+    target: '[data-tour="minimap"]',
+    title: 'Minimap',
+    content: (
+      <div className="space-y-2">
+        <p>
+          The minimap gives you a bird&apos;s-eye overview of the campaign area. In open mode you
+          can <strong>drag the visible bounding box</strong> in the minimap to quickly navigate to a
+          different part of the campaign area.
+        </p>
+        <p>
+          The header shows the <strong>coordinates of the current viewport center</strong> (where
+          the crosshair sits). Click the <strong>copy icon</strong> to copy them to your clipboard,
+          or click the <strong>link icon</strong> to open the location in Google Earth.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 14. Timeseries chart (only if configured)
+  ...(hasTimeseries
+    ? [
+        {
+          target: '[data-tour="timeseries"]',
+          title: 'Time Series Chart',
+          content: (
+            <div className="space-y-2">
+              <p>
+                The time series chart shows spectral indices (e.g. NDVI) over time. Use the{' '}
+                <strong>Timeseries</strong> tool (<kbd className="tour-kbd">T</kbd>) and click
+                anywhere on the map to load its time series.
+              </p>
+              <p>
+                The chart toolbar offers two useful filters: <strong>Remove Cloudy</strong> hides
+                cloud-flagged observations, and <strong>Smooth</strong> applies a Savitzky-Golay
+                filter so seasonal patterns are easier to spot. When smoothing is enabled you can
+                adjust the <strong>window size</strong> and <strong>polynomial order</strong> to
+                fine-tune the result.
+              </p>
+            </div>
+          ),
+          placement: 'left' as const,
+        },
+      ]
+    : []),
+
+  // 15. Layout controls
+  {
+    target: '[data-tour="layout-controls"]',
+    title: 'Layout Controls',
+    content: (
+      <p>
+        Click <strong>Edit Layout</strong> to drag and resize all the panels to your liking. Save as
+        a personal or default layout for the campaign. Use the fullscreen button to maximize the
+        annotation workspace.
+      </p>
+    ),
+    placement: 'bottom',
+  },
+
+  // 16. Keyboard help
+  {
+    target: '[data-tour="keyboard-help"]',
+    title: 'Keyboard Help',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Press <kbd className="tour-kbd">H</kbd> at any time to see the full keyboard shortcuts
+          reference. You can also click this button.
+        </p>
+        <p className="text-sm text-neutral-500 italic">Try pressing H now.</p>
+      </div>
+    ),
+    placement: 'bottom',
+    requiredKeys: ['h'],
+    requiredKeyLabel: 'H',
+  },
+
+  // 17. Finish
   {
     target: '[data-tour="toolbar"]',
     title: 'Tour Complete',
@@ -612,26 +934,36 @@ const buildOpenModeSteps = (): TourStep[] => [
           <kbd className="tour-kbd text-center">R</kbd>
           <span className="text-neutral-600">Edit tool</span>
           <kbd className="tour-kbd text-center">E</kbd>
-          <span className="text-neutral-600">Timeseries tool</span>
-          <kbd className="tour-kbd text-center">T</kbd>
+          {hasTimeseries && (
+            <>
+              <span className="text-neutral-600">Timeseries tool</span>
+              <kbd className="tour-kbd text-center">T</kbd>
+            </>
+          )}
           <span className="text-neutral-600">Navigate slices</span>
           <kbd className="tour-kbd text-center">A / D</kbd>
           <span className="text-neutral-600">Navigate windows</span>
           <kbd className="tour-kbd text-center">Shift+A / D</kbd>
           <span className="text-neutral-600">Zoom in/out</span>
           <kbd className="tour-kbd text-center">Alt+↑ / ↓</kbd>
-          <span className="text-neutral-600">Fit view</span>
+          <span className="text-neutral-600">Pan map</span>
+          <kbd className="tour-kbd text-center">Arrow keys</kbd>
+          <span className="text-neutral-600">Fit to annotations</span>
           <kbd className="tour-kbd text-center">Space</kbd>
+          <span className="text-neutral-600">Navigate annotations</span>
+          <kbd className="tour-kbd text-center">W / S</kbd>
           <span className="text-neutral-600">Select label</span>
           <kbd className="tour-kbd text-center">1-9</kbd>
           <span className="text-neutral-600">Move feature</span>
           <kbd className="tour-kbd text-center">Alt+drag</kbd>
           <span className="text-neutral-600">Cancel edit</span>
           <kbd className="tour-kbd text-center">Esc</kbd>
-          <span className="text-neutral-600">Cycle layers</span>
-          <kbd className="tour-kbd text-center">L</kbd>
           <span className="text-neutral-600">Cycle imagery</span>
           <kbd className="tour-kbd text-center">I</kbd>
+          <span className="text-neutral-600">Cycle visualization</span>
+          <kbd className="tour-kbd text-center">Shift+I</kbd>
+          <span className="text-neutral-600">Toggle view sync</span>
+          <kbd className="tour-kbd text-center">L</kbd>
           <span className="text-neutral-600">Help</span>
           <kbd className="tour-kbd text-center">H</kbd>
         </div>
@@ -658,8 +990,29 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const tooltipRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  // Auto-filter: when tour opens with no visible tasks, broaden the filter
+  const savedFilterRef = useRef<TaskFilter | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const { visibleTasks, taskFilter, setTaskFilter } = useTaskStore.getState();
+    const mode = (campaign?.mode ?? 'tasks') as 'tasks' | 'open';
+
+    if (mode === 'tasks' && visibleTasks.length === 0) {
+      // Save the current filter so we can restore it when the tour closes
+      savedFilterRef.current = { ...taskFilter };
+      // Broaden to all users, all statuses
+      setTaskFilter({
+        assignedTo: [],
+        statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+      });
+    }
+  }, [isOpen, campaign?.mode]);
+
   const mode = (campaign?.mode ?? 'tasks') as 'tasks' | 'open';
-  const steps = buildTourSteps(mode);
+  const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
+  const steps = buildTourSteps(mode, { hasTimeseries });
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;
 
@@ -789,7 +1142,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     });
   }, [step]);
 
-  // Reposition on step change and window resize
+  // Reposition on step change, window resize, and periodically (to track dropdowns etc.)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -799,8 +1152,12 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     const handleResize = () => positionTooltip();
     window.addEventListener('resize', handleResize);
 
+    // Periodically reposition to track interactive changes (dropdowns, toggles)
+    const interval = setInterval(positionTooltip, 300);
+
     return () => {
       clearTimeout(timer);
+      clearInterval(interval);
       window.removeEventListener('resize', handleResize);
     };
   }, [isOpen, currentStep, positionTooltip, keyFulfilled]);
@@ -816,6 +1173,11 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
 
   const handleNext = useCallback(() => {
     if (isLastStep) {
+      // Restore saved filter if we auto-broadened it
+      if (savedFilterRef.current) {
+        useTaskStore.getState().setTaskFilter(savedFilterRef.current);
+        savedFilterRef.current = null;
+      }
       onClose();
     } else {
       setCurrentStep((s) => s + 1);
@@ -827,6 +1189,11 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   }, []);
 
   const handleSkip = useCallback(() => {
+    // Restore saved filter if we auto-broadened it
+    if (savedFilterRef.current) {
+      useTaskStore.getState().setTaskFilter(savedFilterRef.current);
+      savedFilterRef.current = null;
+    }
     onClose();
   }, [onClose]);
 
@@ -837,6 +1204,11 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
+        // Restore saved filter if we auto-broadened it
+        if (savedFilterRef.current) {
+          useTaskStore.getState().setTaskFilter(savedFilterRef.current);
+          savedFilterRef.current = null;
+        }
         onClose();
       }
     };
@@ -855,11 +1227,11 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
       {/* Overlay with spotlight cutout */}
       <div
         ref={overlayRef}
-        className="fixed inset-0 z-[10000] pointer-events-auto"
-        style={{ isolation: 'isolate' }}
+        className="fixed inset-0 z-[10000]"
+        style={{ isolation: 'isolate', pointerEvents: 'none' }}
       >
-        {/* Semi-transparent backdrop */}
-        <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'auto' }}>
+        {/* Semi-transparent backdrop - purely visual, clicks pass through */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
           <defs>
             <mask id="tour-spotlight-mask">
               <rect width="100%" height="100%" fill="white" />
@@ -898,7 +1270,11 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
         )}
 
         {/* Tooltip */}
-        <div ref={tooltipRef} className="tour-tooltip" style={tooltipStyle}>
+        <div
+          ref={tooltipRef}
+          className="tour-tooltip"
+          style={{ ...tooltipStyle, pointerEvents: 'auto' }}
+        >
           {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 rounded-t-xl overflow-hidden">
             <div

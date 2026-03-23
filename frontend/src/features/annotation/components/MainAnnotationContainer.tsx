@@ -571,6 +571,7 @@ export const MainAnnotationsContainer = ({
             initialZoom={initialZoom}
             refocusTrigger={refocusTrigger}
             showCrosshair={showCrosshair}
+            crosshairColor={activeSource?.crosshair_hex6 ?? undefined}
             activeLayerId={activeLayerId}
             onLayersChange={(layers, id) => {
               setMapLayers(layers);

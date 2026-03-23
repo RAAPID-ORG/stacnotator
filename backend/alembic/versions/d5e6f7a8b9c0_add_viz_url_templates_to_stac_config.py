@@ -91,7 +91,7 @@ def upgrade() -> None:
 
         if len(slices) < 2:
             logger.info(
-                "Collection %s has < 2 slices — skipping viz_url_templates backfill",
+                "Collection %s has < 2 slices - skipping viz_url_templates backfill",
                 collection_id,
             )
             continue
@@ -150,7 +150,7 @@ def upgrade() -> None:
             )
         else:
             logger.warning(
-                "Could not derive viz_url_templates for collection %s — left as NULL",
+                "Could not derive viz_url_templates for collection %s - left as NULL",
                 collection_id,
             )
 

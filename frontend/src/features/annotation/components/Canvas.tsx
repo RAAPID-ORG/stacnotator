@@ -61,6 +61,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const showBasemap = useMapStore((s) => s.showBasemap);
   const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
   const currentMapBounds = useMapStore((s) => s.currentMapBounds);
+  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
   const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
@@ -173,14 +174,24 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }, []);
 
   // Memoize latLon extraction to prevent recalculations
-  // In open mode with timeseries tool, use the clicked point; otherwise use task geometry
+  // In open mode: always use viewport center (for minimap header / coordinates / Google Earth link)
+  // In task mode: use task geometry centroid
   const latLon = useMemo<LatLon | null>(() => {
-    if (isOpenMode && timeseriesPoint) {
-      return timeseriesPoint;
+    if (isOpenMode) {
+      if (currentMapCenter) return { lat: currentMapCenter[0], lon: currentMapCenter[1] };
+      return null;
     }
     return currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpenMode, timeseriesPoint, currentTask?.geometry.geometry]);
+  }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
+
+  // In open mode, only pass timeseries point to the chart when the user explicitly
+  // clicked with the timeseries tool — never auto-fetch for the viewport center.
+  // In task mode, latLon (task centroid) is always the chart target.
+  const timeseriesLatLon = useMemo<LatLon | null>(() => {
+    if (isOpenMode) return timeseriesPoint;
+    return latLon;
+  }, [isOpenMode, timeseriesPoint, latLon]);
 
   // Memoize center to prevent array recreation on every render
   const center = useMemo<[number, number]>(
@@ -307,7 +318,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               </div>
               <TimeSeriesChart
                 timeseries={campaign.time_series}
-                latLon={latLon}
+                latLon={timeseriesLatLon}
                 prefetchCoordinates={visibleTasks
                   .slice(currentTaskIndex + 1, currentTaskIndex + 4)
                   .map((task) => extractCentroidFromWKT(task.geometry.geometry))

@@ -282,7 +282,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       });
 
       useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {} });
-      useLayoutStore.getState().showAlert('Annotation submitted successfully', 'success');
+      const successMessage =
+        labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
+      useLayoutStore.getState().showAlert(successMessage, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to submit annotation';
       useLayoutStore.getState().showAlert(message, 'error');
