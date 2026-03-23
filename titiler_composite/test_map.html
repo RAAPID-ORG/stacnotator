@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TiTiler MPC — Sentinel-2 Test</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0f0e;
+      --surface:   #131918;
+      --border:    #1e2826;
+      --accent:    #3dffa0;
+      --accent2:   #00c9ff;
+      --muted:     #4a5e58;
+      --text:      #d4ede6;
+      --text-dim:  #6b8a82;
+      --danger:    #ff5f5f;
+      --mono:      'Space Mono', monospace;
+      --sans:      'Syne', sans-serif;
+      --panel:     320px;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+    /* ── Layout ── */
+    .shell { display: flex; height: 100vh; overflow: hidden; }
+
+    #map {
+      flex: 1;
+      background: #060a09;
+      position: relative;
+    }
+
+    /* Leaflet attribution tweak */
+    .leaflet-control-attribution { background: rgba(11,15,14,0.85) !important; color: var(--muted) !important; font-size: 10px; }
+    .leaflet-control-attribution a { color: var(--muted) !important; }
+    .leaflet-bar a { background: var(--surface) !important; color: var(--accent) !important; border-color: var(--border) !important; }
+    .leaflet-bar a:hover { background: var(--border) !important; }
+
+    /* ── Side panel ── */
+    .panel {
+      width: var(--panel);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h1 {
+      font-family: var(--sans);
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .panel-header p {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .panel-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-track { background: transparent; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Form elements ── */
+    .field { display: flex; flex-direction: column; gap: 5px; }
+
+    label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 7px 10px;
+      border-radius: 3px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    input:focus, select:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* ── Buttons ── */
+    .btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 9px 14px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0b0f0e;
+      width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      width: 100%;
+    }
+    .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2px 0;
+    }
+
+    /* ── Status / log ── */
+    .status {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 8px 10px;
+      border-radius: 3px;
+      border-left: 2px solid var(--muted);
+      background: rgba(255,255,255,0.02);
+      color: var(--text-dim);
+      line-height: 1.5;
+      word-break: break-all;
+    }
+    .status.ok    { border-color: var(--accent);  color: var(--accent); }
+    .status.err   { border-color: var(--danger);  color: var(--danger); }
+    .status.info  { border-color: var(--accent2); color: var(--accent2); }
+    .status.loading { border-color: var(--muted); animation: pulse 1.2s ease-in-out infinite; }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ── Item count badge ── */
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 10px;
+      background: rgba(61,255,160,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(61,255,160,0.25);
+      border-radius: 2px;
+      padding: 1px 6px;
+    }
+
+    /* ── Tile URL preview ── */
+    .url-preview {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 8px;
+      word-break: break-all;
+      line-height: 1.6;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+    .url-preview span { color: var(--accent2); }
+
+    /* ── Section label ── */
+    .section-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Map overlay — loading spinner ── */
+    #map-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(11,15,14,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    #map-overlay.visible { display: flex; }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Map ── -->
+  <div id="map">
+    <div id="map-overlay"><div class="spinner"></div></div>
+  </div>
+
+  <!-- ── Control panel ── -->
+  <div class="panel">
+    <div class="panel-header">
+      <h1>TiTiler · MPC</h1>
+      <p>Sentinel-2 L2A composite test</p>
+    </div>
+
+    <div class="panel-body">
+
+      <!-- TiTiler URL -->
+      <div class="field">
+        <label>TiTiler URL</label>
+        <input id="titiler-url" type="text" value="http://localhost:8000" placeholder="http://localhost:8000" />
+      </div>
+
+      <hr class="divider" />
+      <div class="section-label">Search</div>
+
+      <!-- Bounding box -->
+      <div class="field">
+        <label>Bounding Box</label>
+        <div class="row">
+          <input id="bbox-minx" type="number" step="any" placeholder="Min Lng" value="-77.2" />
+          <input id="bbox-miny" type="number" step="any" placeholder="Min Lat" value="39.0" />
+        </div>
+        <div class="row">
+          <input id="bbox-maxx" type="number" step="any" placeholder="Max Lng" value="-77.0" />
+          <input id="bbox-maxy" type="number" step="any" placeholder="Max Lat" value="39.1" />
+        </div>
+      </div>
+
+      <!-- Date range -->
+      <div class="field">
+        <label>Date Range</label>
+        <div class="row">
+          <input id="date-start" type="date" value="2023-06-01" />
+          <input id="date-end"   type="date" value="2023-09-01" />
+        </div>
+      </div>
+
+      <!-- Cloud cover -->
+      <div class="field">
+        <label>Max Cloud Cover %</label>
+        <input id="cloud-cover" type="number" min="0" max="100" value="20" />
+      </div>
+
+      <button class="btn btn-primary" id="btn-search">Search MPC</button>
+      <div id="search-status" class="status">Ready — configure search and click Search MPC.</div>
+
+      <hr class="divider" />
+      <div class="section-label">Render</div>
+
+      <!-- Bands -->
+      <div class="field">
+        <label>Assets (bands)</label>
+        <select id="band-preset">
+          <option value="B04,B03,B02">True colour — B04, B03, B02</option>
+          <option value="B08,B04,B03">False colour (veg) — B08, B04, B03</option>
+          <option value="B08,B11,B04">Agriculture — B08, B11, B04</option>
+          <option value="B12,B11,B04">SWIR — B12, B11, B04</option>
+        </select>
+      </div>
+
+      <!-- Compositing method -->
+      <div class="field">
+        <label>Pixel Selection</label>
+        <select id="pixel-selection">
+          <option value="median">Median</option>
+          <option value="mean">Mean</option>
+          <option value="first">First (newest)</option>
+          <option value="highest">Highest</option>
+          <option value="lowest">Lowest</option>
+          <option value="ndvi_best">NDVI Best</option>
+        </select>
+      </div>
+
+      <div class="field" id="ndvi-field" style="display:none">
+        <label>NDVI Band Indices</label>
+        <div class="row">
+            <div class="field">
+                <label>NIR band</label>
+                <input id="nir-band" type="text" value="B08" placeholder="e.g. B08" />
+            </div>
+            <div class="field">
+                <label>Red band</label>
+                <input id="red-band" type="text" value="B04" placeholder="e.g. B04" />
+            </div>
+        </div>
+        <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim);line-height:1.6">
+            0-based position in your assets list.<br/>
+            e.g. assets B08,B04,B02 → NIR=0, Red=1
+        </span>
+      </div>
+
+
+      <hr class="divider" />
+        <div class="section-label">Masking</div>
+
+        <div class="field">
+        <label>Mask Layer</label>
+        <input id="mask-layer" type="text" placeholder="e.g. SCL" value="" />
+        </div>
+
+        <div class="field">
+        <label>Exclude Values</label>
+        <input id="mask-values" type="text" 
+                placeholder="e.g. 3,8,9,10" value="" />
+        <span style="font-family:var(--mono);font-size:9px;color:var(--text-dim);line-height:1.6">
+            Comma-separated. Sentinel-2 SCL: 3=cloud shadow, 8=cloud medium, 
+            9=cloud high, 10=cirrus.
+        </span>
+        </div>
+
+      <!-- Rescale -->
+      <div class="field">
+        <label>Rescale (min, max)</label>
+        <div class="row">
+          <input id="rescale-min" type="number" value="0"    placeholder="0" />
+          <input id="rescale-max" type="number" value="3000" placeholder="3000" />
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="btn-render" disabled>Render Composite</button>
+      <button class="btn btn-ghost"   id="btn-clear"  disabled>Clear Layer</button>
+
+      <!-- Tile URL preview -->
+      <div class="field" id="url-preview-wrap" style="display:none">
+        <label>Tile URL preview</label>
+        <div class="url-preview" id="url-preview"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Map init ────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([38.95, -77.25], 10);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  maxZoom: 19,
+}).addTo(map);
+
+// Bounding box rectangle drawn on the map
+let bboxRect = null;
+let compositeLayer = null;
+let currentItems = [];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const setStatus = (id, msg, cls = '') => {
+  const el = $(id);
+  el.textContent = msg;
+  el.className = 'status' + (cls ? ' ' + cls : '');
+};
+
+const overlay = $('map-overlay');
+const showOverlay = () => overlay.classList.add('visible');
+const hideOverlay = () => overlay.classList.remove('visible');
+
+function getBbox() {
+  return [
+    parseFloat($('bbox-minx').value),
+    parseFloat($('bbox-miny').value),
+    parseFloat($('bbox-maxx').value),
+    parseFloat($('bbox-maxy').value),
+  ];
+}
+
+function drawBbox() {
+  const [minx, miny, maxx, maxy] = getBbox();
+  if (bboxRect) map.removeLayer(bboxRect);
+  bboxRect = L.rectangle([[miny, minx], [maxy, maxx]], {
+    color: '#3dffa0',
+    weight: 1.5,
+    fillOpacity: 0.04,
+    dashArray: '4 4',
+  }).addTo(map);
+  map.fitBounds([[miny, minx], [maxy, maxx]], { padding: [40, 40] });
+}
+
+// ── MPC STAC search ──────────────────────────────────────────────────────────
+const MPC_STAC = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
+
+async function searchMPC() {
+  const [minx, miny, maxx, maxy] = getBbox();
+  const dateStart = $('date-start').value;
+  const dateEnd   = $('date-end').value;
+  const cloud     = parseInt($('cloud-cover').value);
+
+  setStatus('search-status', 'Searching Planetary Computer…', 'loading');
+  $('btn-search').disabled = true;
+  $('btn-render').disabled = true;
+
+  try {
+    const body = {
+      collections: ['sentinel-2-l2a'],
+      bbox: [minx, miny, maxx, maxy],
+      datetime: `${dateStart}T00:00:00Z/${dateEnd}T23:59:59Z`,
+      query: { 'eo:cloud_cover': { lt: cloud } },
+      sortby: [{ field: 'properties.datetime', direction: 'desc' }],
+      limit: 50,
+    };
+
+    const res = await fetch(MPC_STAC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error(`MPC returned ${res.status}`);
+
+    const data = await res.json();
+    currentItems = data.features;
+
+    if (currentItems.length === 0) {
+      setStatus('search-status', 'No items found — try widening the date range or cloud cover.', 'err');
+      return;
+    }
+
+    drawBbox();
+    setStatus(
+      'search-status',
+      `Found ${currentItems.length} item${currentItems.length > 1 ? 's' : ''} — ready to render.`,
+      'ok'
+    );
+    $('btn-render').disabled = false;
+
+  } catch (e) {
+    setStatus('search-status', `Search failed: ${e.message}`, 'err');
+  } finally {
+    $('btn-search').disabled = false;
+  }
+}
+
+// ── Custom Leaflet tile layer ─────────────────────────────────────────────────
+// Leaflet's L.TileLayer doesn't support dynamic per-tile URLs out of the box,
+// so we subclass it and override getTileUrl() to inject our item list.
+
+const CompositeTileLayer = L.TileLayer.extend({
+  initialize(titilerUrl, items, options) {
+    this._titilerUrl = titilerUrl.replace(/\/$/, '');
+    this._items = items;
+    L.TileLayer.prototype.initialize.call(this, '', options);
+  },
+
+  getTileUrl(coords) {
+    const assets   = $('band-preset').value;
+    const method   = $('pixel-selection').value;
+    const rMin     = $('rescale-min').value;
+    const rMax     = $('rescale-max').value;
+
+    const itemParams = this._items
+        .map(item => {
+            const self = item.links.find(l => l.rel === 'self')?.href || item.id;
+            return `items=${encodeURIComponent(self)}`;
+        })
+        .join('&');
+
+    const assetParams = assets.split(',')
+        .map(a => `assets=${a.trim()}`)
+        .join('&');
+
+    const ndviParams = method === 'ndvi_best'
+        ? `&nir_band=${encodeURIComponent($('nir-band').value.trim())}`
+        + `&red_band=${encodeURIComponent($('red-band').value.trim())}`
+        : '';
+
+    const maskLayer  = $('mask-layer').value.trim();
+    const maskValues = $('mask-values').value.trim();
+    const maskParams = (maskLayer && maskValues)
+        ? `&mask_layer=${encodeURIComponent(maskLayer)}`
+        + maskValues.split(',')
+            .map(v => `&mask_values=${v.trim()}`)
+            .filter(v => v !== '&mask_values=')
+            .join('')
+        : '';
+
+    return [
+        `${this._titilerUrl}/composite/${coords.z}/${coords.x}/${coords.y}`,
+        `?${itemParams}`,
+        `&${assetParams}`,
+        `&pixel_selection=${method}`,
+        `&rescale=${rMin},${rMax}`,
+        ndviParams,
+        maskParams,
+    ].join('');
+    },
+});
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderComposite() {
+  if (currentItems.length === 0) return;
+
+  const titilerUrl = $('titiler-url').value.trim();
+
+  // Remove existing layer
+  if (compositeLayer) {
+    map.removeLayer(compositeLayer);
+    compositeLayer = null;
+  }
+
+  showOverlay();
+  setStatus('search-status', `Rendering ${currentItems.length} items…`, 'loading');
+
+  compositeLayer = new CompositeTileLayer(titilerUrl, currentItems, {
+    opacity: 0.95,
+    maxZoom: 18,
+    tileSize: 256,
+    attribution: 'Sentinel-2 L2A © ESA / Microsoft Planetary Computer',
+  });
+
+  // Show a tile URL preview for debugging
+  const previewUrl = compositeLayer.getTileUrl({ z: 10, x: 292, y: 391 });
+  $('url-preview').innerHTML = previewUrl
+    .replace(/items=/g, '<br/><span>items</span>=')
+    .replace(/&assets/, '<br/><span>&amp;assets</span>')
+    .replace(/&pixel_selection/, '<br/><span>&amp;pixel_selection</span>')
+    .replace(/&rescale/, '<br/><span>&amp;rescale</span>');
+  $('url-preview-wrap').style.display = '';
+
+  let firstTileLoaded = false;
+
+  compositeLayer.on('tileload', () => {
+    if (!firstTileLoaded) {
+      firstTileLoaded = true;
+      hideOverlay();
+      setStatus('search-status', `Composite rendering — ${currentItems.length} items, ${$('pixel-selection').value}.`, 'ok');
+    }
+  });
+
+  compositeLayer.on('tileerror', e => {
+    hideOverlay();
+    setStatus('search-status', `Tile error — is TiTiler running at ${titilerUrl}?`, 'err');
+    console.error('Tile error:', e);
+  });
+
+  compositeLayer.addTo(map);
+  $('btn-clear').disabled = false;
+}
+
+function clearLayer() {
+  if (compositeLayer) {
+    map.removeLayer(compositeLayer);
+    compositeLayer = null;
+  }
+  $('btn-clear').disabled = true;
+  $('url-preview-wrap').style.display = 'none';
+  setStatus('search-status', `Layer cleared — ${currentItems.length} items still loaded.`, 'info');
+}
+
+// ── Wire up buttons ───────────────────────────────────────────────────────────
+$('btn-search').addEventListener('click', searchMPC);
+$('btn-render').addEventListener('click', renderComposite);
+$('btn-clear').addEventListener('click', clearLayer);
+
+// Redraw bbox preview when inputs change
+['bbox-minx','bbox-miny','bbox-maxx','bbox-maxy'].forEach(id => {
+  $(id).addEventListener('change', () => { if (bboxRect) drawBbox(); });
+});
+
+// Show/hide NDVI fields
+$('pixel-selection').addEventListener('change', () => {
+  $('ndvi-field').style.display =
+    $('pixel-selection').value === 'ndvi_best' ? '' : 'none';
+});
+
+</script>
+</body>
+</html>
