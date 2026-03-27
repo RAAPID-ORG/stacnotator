@@ -3,8 +3,8 @@
 
 NASA Harvest's geospatial imagery annotation platform.
 
->[\Important\]
->Ths software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing.
+> [!Important]
+> This software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing.
 
 ## Quick Start
 
