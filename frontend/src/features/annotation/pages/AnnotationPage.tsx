@@ -1,57 +1,62 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useAnnotationStore } from '../stores/annotation.store';
+import { useMapStore } from '../stores/map.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
+import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
-/**
- * Main annotation page for labeling campaign tasks
- * State managed through Zustand stores
- */
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Annotation state
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const isLoadingCampaign = useAnnotationStore((state) => state.isLoadingCampaign);
-  const loadCampaign = useAnnotationStore((state) => state.loadCampaign);
-  const reset = useAnnotationStore((state) => state.reset);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
+  // Store subscriptions
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
+  const loadCampaign = useCampaignStore((s) => s.loadCampaign);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
 
-  // UI state
+  // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
+  const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
+  const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
+
+  const [hasBeenReady, setHasBeenReady] = useState(false);
+  const isReady = !isLoadingCampaign && !!campaign;
+  useEffect(() => {
+    if (isReady && !hasBeenReady) setHasBeenReady(true);
+  }, [isReady, hasBeenReady]);
+
+  const showContent = hasBeenReady;
 
   const campaignIdNumber = Number(campaignId);
 
-  // Enable keyboard shortcuts for task mode
+  // Keyboard shortcuts
   useAnnotationKeyboard({ commentInputRef });
-
-  // Enable keyboard shortcuts for open mode
   useOpenModeKeyboard();
 
-  // Load campaign data on mount (or when campaignId changes)
+  // Load campaign
   useEffect(() => {
     if (!campaignId || Number.isNaN(campaignIdNumber)) {
       showAlert('Invalid campaign ID', 'error');
       return;
     }
 
-    // Read task query param before starting - pass it into loadCampaign so
-    // the filter + task index are set atomically in a single store update.
     const taskIdParam = searchParams.get('task');
     const reviewParam = searchParams.get('review');
     const initialTaskId = taskIdParam ? Number(taskIdParam) : undefined;
     const isReviewMode = reviewParam === 'true';
+
     if (taskIdParam || reviewParam) {
-      // Clear the query params immediately so they don't persist on reload / StrictMode re-run
       setSearchParams({}, { replace: true });
     }
 
@@ -75,12 +80,15 @@ export const AnnotationPage = () => {
 
     return () => {
       cancelled = true;
-      reset();
+      useCampaignStore.getState().reset();
+      useTaskStore.getState().reset();
+      useAnnotationStore.getState().reset();
+      useMapStore.getState().reset();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- store actions (loadCampaign, reset, showAlert) are stable singletons; searchParams/setSearchParams handled intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignIdNumber]);
 
-  // Update breadcrumbs when campaign loads
+  // Breadcrumbs
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
@@ -90,7 +98,9 @@ export const AnnotationPage = () => {
     }
   }, [campaign, setBreadcrumbs]);
 
-  if (isLoadingCampaign) {
+  // Early returns
+
+  if (!showContent) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <LoadingSpinner size="lg" text="Loading annotator..." />
@@ -98,7 +108,7 @@ export const AnnotationPage = () => {
     );
   }
 
-  if (!campaign && !isLoadingCampaign) {
+  if (!campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -109,8 +119,9 @@ export const AnnotationPage = () => {
     );
   }
 
+  // Render
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <AnnotationToolbar />
       {campaign &&
       ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
@@ -142,6 +153,7 @@ export const AnnotationPage = () => {
           </div>
         </div>
       )}
+      <GuidedTour isOpen={showGuidedTour} onClose={() => setShowGuidedTour(false)} />
     </div>
   );
 };

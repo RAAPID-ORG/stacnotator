@@ -2,7 +2,9 @@
 	lint lint-backend lint-frontend \
 	format-check format-check-backend format-check-frontend \
 	typecheck typecheck-backend typecheck-frontend \
-	ci-check pre-commit-install pre-commit-run
+	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
+	ci-check ci-check-docker pre-commit-install pre-commit-run \
+	staging-up staging-down staging-logs dev-restore-backup
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -15,6 +17,9 @@ COMPOSE_DEV = docker-compose -f docker-compose.dev.yml
 
 # Production Commands (standalone prod compose file)
 COMPOSE_PROD = docker-compose -f docker-compose.prod.yml
+
+# Staging Commands (isolated stack for pre-deploy testing)
+COMPOSE_STAGING = docker compose -p stacnotator-staging -f docker-compose.staging.yml
 
 ###################################################
 # Dev Commands
@@ -54,7 +59,7 @@ dev-shell-backend: ## Open shell in backend development container
 	$(COMPOSE_DEV) exec backend /bin/bash
 
 dev-shell-frontend: ## Open shell in frontend development container
-	$(COMPOSE_DEV) exec frontend /bin/sh
+	$(COMPOSE_DEV) exec frontend /bin/bash
 
 dev-clean: ## Remove development containers and volumes
 	$(COMPOSE_DEV) down -v --remove-orphans
@@ -78,6 +83,15 @@ dev-seed-clear: ## Clear development seed data
 dev-openapi: ## Regenerate frontend API client from backend OpenAPI schema (backend must be running)
 	cd frontend && npm run openapi-ts
 
+dev-frontend-npm: ## Install npm package in running frontend container (use PKG="package-name")
+	$(COMPOSE_DEV) exec frontend npm install $(PKG)
+
+dev-rebuild-frontend: ## Rebuild frontend with fresh node_modules (nuclear option -clears volume + image cache)
+	$(COMPOSE_DEV) rm -sf frontend
+	docker volume rm -f stacnotator_frontend_node_modules_dev
+	$(COMPOSE_DEV) build frontend --no-cache
+	$(COMPOSE_DEV) up -d frontend
+
 dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Resetting development database..."
 	$(COMPOSE_DEV) down -v
@@ -91,6 +105,16 @@ dev-reset: ## Reset development database (clear, migrate, seed; use FIREBASE_UID
 		$(MAKE) dev-seed; \
 	fi
 	@echo "Database reset complete!"
+
+dev-restore-backup: ## Restore dev DB from a local SQL backup (use FILE="db/backups/prod_xxx.sql")
+	@if [ -z "$(FILE)" ]; then \
+		echo "Usage: make dev-restore-backup FILE=db/backups/<backup>.sql"; \
+		echo ""; \
+		echo "Available backups:"; \
+		ls -1t db/backups/*.sql 2>/dev/null || echo "  (none found in db/backups/)"; \
+		exit 1; \
+	fi
+	./scripts/dev-restore-backup.sh $(FILE)
 
 dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
@@ -203,8 +227,28 @@ ssl-setup: ## Generate self-signed SSL certificates (for testing)
 	@echo "Self-signed SSL certificates created in nginx/ssl/"
 
 ###################################################
-# Code Quality
+# Code Quality Local Run
 ###################################################
+
+test-backend: ## Run backend unit tests (local, requires uv)
+	cd backend && uv run pytest -v
+
+test-e2e: ## Run frontend E2E tests (local, requires playwright)
+	cd frontend && npx playwright test
+
+test: test-backend test-e2e ## Run all tests (local)
+
+###################################################
+# Dockerised Tests  (CI/CD-ready)
+###################################################
+
+test-backend-docker: ## Run backend unit tests inside the dev container
+	$(COMPOSE_DEV) exec -T backend python -m pytest -v
+
+test-e2e-docker: ## Run Playwright E2E tests inside the frontend container (requires dev-up)
+	$(COMPOSE_DEV) exec -T -e CI=true frontend npx playwright test
+
+test-dockerized: test-backend-docker test-e2e-docker ## Run all tests inside Docker
 
 lint-backend: ## Run ruff linter on backend
 	cd backend && uv run ruff check src/
@@ -230,7 +274,8 @@ typecheck-frontend: ## Run tsc --noEmit on frontend
 
 typecheck: typecheck-backend typecheck-frontend ## Run all type checkers
 
-ci-check: lint format-check typecheck ## Run all CI checks locally
+ci-check: test lint format-check typecheck ## Run all CI checks locally
+ci-check-docker: test-docker lint format-check typecheck ## Run all CI checks (tests in Docker)
 
 ###################################################
 # Pre-commit
@@ -241,6 +286,19 @@ pre-commit-install: ## Install pre-commit hooks
 
 pre-commit-run: ## Run pre-commit on all files
 	cd backend && uv run pre-commit run --all-files
+
+###################################################
+# Staging (pre-deploy testing against prod DB copy)
+###################################################
+
+staging-up: ## Download prod DB, spin up isolated stack, run migrations, and test
+	./azure_deploy/make-staging-env.sh
+
+staging-down: ## Tear down the staging stack
+	./azure_deploy/make-staging-env.sh --down
+
+staging-logs: ## Show logs from the staging stack
+	$(COMPOSE_STAGING) logs -f
 
 ###################################################
 # Azure Deployment

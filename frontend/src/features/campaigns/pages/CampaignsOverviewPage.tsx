@@ -1,28 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
-import { useLayoutStore } from 'src/features/layout/layout.store';
-import {
-  createCampaign,
-  listAllCampaigns,
-  type CampaignCreate,
-  type CampaignListItemOut,
-} from '~/api/client';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { useLayoutStore } from '~/features/layout/layout.store';
+import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
-import { CreateCampaignModal } from '../creation/CreateCampaignModal';
 
 export const CampaignsPage = () => {
   const navigate = useNavigate();
 
   const [campaigns, setCampaigns] = useState<CampaignListItemOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
-  const showLoadingOverlay = useLayoutStore((state) => state.showLoadingOverlay);
-  const hideLoadingOverlay = useLayoutStore((state) => state.hideLoadingOverlay);
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Campaigns' }]);
@@ -46,27 +37,6 @@ export const CampaignsPage = () => {
     fetchCampaigns();
   }, [showAlert]);
 
-  const handleCreateCampaign = async (data: CampaignCreate) => {
-    try {
-      showLoadingOverlay('Creating campaign...');
-      const { data: campaign } = await createCampaign({ body: data });
-
-      setShowCreate(false);
-      showAlert('Campaign created successfully', 'success');
-
-      // Navigate to campaign settings page
-      if (campaign) {
-        navigate(`/campaigns/${campaign.id}/settings`);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create campaign';
-      showAlert(message, 'error');
-      console.error(err);
-    } finally {
-      hideLoadingOverlay();
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -81,7 +51,7 @@ export const CampaignsPage = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Campaigns</h1>
 
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => navigate('/campaigns/new')}
           className="
             ml-auto
             inline-flex items-center
@@ -118,7 +88,7 @@ export const CampaignsPage = () => {
           </svg>
           <p className="text-neutral-700 mb-4">No campaigns yet</p>
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => navigate('/campaigns/new')}
             className="px-4 py-2 text-brand-500 bg-brand-100 text-neutral-900 rounded-lg transition-colors cursor-pointer"
           >
             Create your first campaign
@@ -129,6 +99,8 @@ export const CampaignsPage = () => {
           {campaigns.map((campaign, _index) => {
             const isMember = campaign.is_member ?? false;
             const isAdmin = campaign.is_admin ?? false;
+            const isPublic = campaign.is_public ?? false;
+            const canAccess = isMember || isPublic;
 
             return (
               <div
@@ -137,9 +109,16 @@ export const CampaignsPage = () => {
               >
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-semibold text-neutral-900">
-                      {capitalizeFirst(campaign.name)}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-neutral-900">
+                        {capitalizeFirst(campaign.name)}
+                      </h3>
+                      {isPublic && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                          Public
+                        </span>
+                      )}
+                    </div>
                     {isAdmin && (
                       <button
                         onClick={(e) => {
@@ -167,29 +146,29 @@ export const CampaignsPage = () => {
 
                 <div className="border-t border-gray-200 flex">
                   <button
-                    onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotate`)}
+                    onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotate`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember
+                      canAccess
                         ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
-                    disabled={!isMember}
-                    title={!isMember ? 'You are not a member of this campaign' : ''}
+                    disabled={!canAccess}
+                    title={!canAccess ? 'You are not a member of this campaign' : ''}
                   >
                     Annotate
                   </button>
                   <div className="w-px bg-gray-200" />
                   <button
-                    onClick={() => isMember && navigate(`/campaigns/${campaign.id}/annotations`)}
+                    onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotations`)}
                     className={`flex-1 px-4 py-2 text-sm font-normal transition-colors ${
-                      isMember
+                      canAccess
                         ? 'text-neutral-700 hover:bg-neutral-100 cursor-pointer'
                         : 'text-neutral-400 cursor-not-allowed bg-neutral-50'
                     }`}
                     type="button"
-                    disabled={!isMember}
-                    title={!isMember ? 'You are not a member of this campaign' : ''}
+                    disabled={!canAccess}
+                    title={!canAccess ? 'You are not a member of this campaign' : ''}
                   >
                     Review
                   </button>
@@ -198,11 +177,6 @@ export const CampaignsPage = () => {
             );
           })}
         </div>
-      )}
-
-      {/* Create Campaign Modal */}
-      {showCreate && (
-        <CreateCampaignModal onClose={() => setShowCreate(false)} onSubmit={handleCreateCampaign} />
       )}
     </div>
   );

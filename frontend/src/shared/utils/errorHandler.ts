@@ -87,10 +87,9 @@ export const handleError = (
     useLayoutStore.getState().showAlert(displayMessage, alertType);
   }
 
-  // Future: Send to error tracking service (e.g., Sentry)
+  // Future: Send to error tracking service in production
   if (logToService && import.meta.env.PROD) {
     // TODO: Implement error tracking service integration
-    // e.g., Sentry.captureException(error, { tags: { context } });
   }
 
   return displayMessage;

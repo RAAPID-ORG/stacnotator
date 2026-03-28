@@ -260,8 +260,9 @@ def generate_random_points(
     gs = gpd.GeoSeries([geometry])
     sampled = gs.sample_points(num_samples, rng=rng)
 
-    # Extract individual points from the MultiPoint result & shuffle
-    points = list(sampled.iloc[0].geoms)
+    # Extract individual points from the result & shuffle
+    result = sampled.iloc[0]
+    points = list(result.geoms) if hasattr(result, "geoms") else [result]
     rng.shuffle(points)
 
     return points

@@ -1,3 +1,4 @@
+import { useRef, useCallback } from 'react';
 import type { LabelBase } from '~/api/client';
 
 const GEOMETRY_TYPES = [
@@ -20,14 +21,21 @@ export const LabelsEditor = ({
   readOnly = false,
   showGeometryType = false,
 }: LabelsEditorProps) => {
-  const addLabel = () => {
+  const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+
+  const addLabel = useCallback(() => {
     const nextId = value.length === 0 ? 1 : Math.max(...value.map((l) => l.id)) + 1;
     const newLabel: LabelBase = { id: nextId, name: '' };
     if (showGeometryType) {
       newLabel.geometry_type = 'polygon';
     }
     onChange([...value, newLabel]);
-  };
+
+    // Focus the new input after React re-renders
+    requestAnimationFrame(() => {
+      inputRefs.current.get(nextId)?.focus();
+    });
+  }, [value, onChange, showGeometryType]);
 
   const updateLabel = (id: number, name: string) => {
     onChange(value.map((l) => (l.id === id ? { ...l, name } : l)));
@@ -51,7 +59,17 @@ export const LabelsEditor = ({
             type="text"
             value={label.name}
             placeholder="Label name"
+            ref={(el) => {
+              if (el) inputRefs.current.set(label.id, el);
+              else inputRefs.current.delete(label.id);
+            }}
             onChange={(e) => updateLabel(label.id, e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addLabel();
+              }
+            }}
             disabled={readOnly}
             className={`flex-1 border-b border-neutral-600 outline-none ${
               readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''

@@ -53,8 +53,6 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
     If user already exists, returns existing user. Otherwise creates
     a new user record.
 
-    IMPORTANT: The first user to register is automatically granted admin role.
-
     Args:
         db: Database session
         token: Authenticated user data from external provider
@@ -87,12 +85,6 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
-
-    # Auto-grant admin role to the first user in the system
-    # This is safe because it only happens once
-    is_first_user = _admin_count(db) == 0
-    if is_first_user:
-        grant_admin(db, user.id)
 
     return user
 

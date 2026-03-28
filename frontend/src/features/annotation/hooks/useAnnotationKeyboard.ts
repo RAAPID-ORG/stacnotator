@@ -1,213 +1,296 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { DIGIT_INPUT_TIMEOUT_MS } from '~/shared/utils/constants';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import useAnnotationStore from '../annotation.store';
-import { computeTimeSlices } from '~/shared/utils/utility';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/**
- * Keyboard shortcuts for the annotation page
- *
- * Navigation:
- * - Arrow Keys: Pan maps (up/down/left/right)
- * - Alt + Arrow Up/Down: Zoom in/out
- * - Space: Recenter maps
- * - O: Toggle crosshair on/off
- * - W: Previous task
- * - S: Next task
- * - A/D: Switch to next/previous imagery slice
- * - Shift+A/D: Switch to next/previous imagery window
- * - C: Focus on comment box
- * - Esc: Unfocus from input fields
- * - Enter: Submit annotation + comment
- * - B: Skip annotation
- * - Number keys: Select label by index (supports multi-digit)
- * - Q/E: Decrease/increase confidence level
- * - H: Hide/show help dialog
- */
 export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboardOptions) => {
   const digitBuffer = useRef<string>('');
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Store selectors
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
-  const comment = useAnnotationStore((state) => state.comment);
-  const confidence = useAnnotationStore((state) => state.confidence);
-  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
-  const isNavigating = useAnnotationStore((state) => state.isNavigating);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const setSelectedViewId = useCampaignStore((s) => s.setSelectedViewId);
 
-  // Store actions
-  const nextTask = useAnnotationStore((state) => state.nextTask);
-  const previousTask = useAnnotationStore((state) => state.previousTask);
-  const triggerRefocus = useAnnotationStore((state) => state.triggerRefocus);
-  const toggleCrosshair = useAnnotationStore((state) => state.toggleCrosshair);
-  const triggerZoomIn = useAnnotationStore((state) => state.triggerZoomIn);
-  const triggerZoomOut = useAnnotationStore((state) => state.triggerZoomOut);
-  const triggerPan = useAnnotationStore((state) => state.triggerPan);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
-  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
-  const setConfidence = useAnnotationStore((state) => state.setConfidence);
-  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const showAlert = useLayoutStore((state) => state.showAlert);
-  const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
+  const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
+  const comment = useTaskStore((s) => s.comment);
+  const confidence = useTaskStore((s) => s.confidence);
+  const isSubmitting = useTaskStore((s) => s.isSubmitting);
+  const isNavigating = useTaskStore((s) => s.isNavigating);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+  const nextTask = useTaskStore((s) => s.nextTask);
+  const previousTask = useTaskStore((s) => s.previousTask);
+  const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const setConfidence = useTaskStore((s) => s.setConfidence);
+  const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
 
-  // Derived values
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const triggerRefocus = useMapStore((s) => s.triggerRefocus);
+  const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
+  const triggerZoomIn = useMapStore((s) => s.triggerZoomIn);
+  const triggerZoomOut = useMapStore((s) => s.triggerZoomOut);
+  const triggerPan = useMapStore((s) => s.triggerPan);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const showBasemap = useMapStore((s) => s.showBasemap);
+  const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
+  const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
+  const setShowBasemap = useMapStore((s) => s.setShowBasemap);
+  const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
+  const emptySlices = useMapStore((s) => s.emptySlices);
+  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
+
+  const showAlert = useLayoutStore((s) => s.showAlert);
+  const toggleKeyboardHelp = useLayoutStore((s) => s.toggleKeyboardHelp);
+  const toggleGuide = useLayoutStore((s) => s.toggleGuide);
+
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
 
-  // Sort windows by window_index for proper ordering
-  const sortedWindows = useMemo(() => {
-    const wins = selectedImagery?.windows ?? [];
-    return [...wins].sort((a, b) => (a.window_index ?? 0) - (b.window_index ?? 0));
-  }, [selectedImagery?.windows]);
+  // Derive the selected view and its ordered collections
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
 
-  // Get current window and its position in sorted order
-  const currentWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
-  const currentWindowSortedIndex = sortedWindows.findIndex((w) => w.id === currentWindowId);
-  const currentWindow = sortedWindows[currentWindowSortedIndex];
+  const viewCollections = useMemo(() => {
+    if (!selectedView || !campaign) return [];
+    return selectedView.collection_refs
+      .map((ref) => {
+        const source = campaign.imagery_sources.find((s) =>
+          s.collections.some((c) => c.id === ref.collection_id)
+        );
+        const collection = source?.collections.find((c) => c.id === ref.collection_id);
+        if (!source || !collection) return null;
+        return { ...ref, collection, source };
+      })
+      .filter(Boolean) as {
+      collection_id: number;
+      source_id: number;
+      show_as_window: boolean;
+      collection: { id: number; slices: { name: string }[] };
+      source: { id: number };
+    }[];
+  }, [selectedView, campaign]);
 
-  // Compute slices for the current window using the same utility as the UI
-  const slices = useMemo(() => {
-    if (!currentWindow || !selectedImagery) return [];
-    return computeTimeSlices(
-      currentWindow.window_start_date,
-      currentWindow.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-  }, [currentWindow, selectedImagery]);
+  // Current active collection and its position
+  const currentCollectionIndex = viewCollections.findIndex(
+    (c) => c.collection_id === activeCollectionId
+  );
+  const currentEntry = viewCollections[currentCollectionIndex];
+  const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
 
-  const currentSliceCount = Math.max(1, slices.length);
-
-  // Helper to get slice count for a window
-  const getSliceCountForWindow = useCallback(
-    (window: typeof currentWindow) => {
-      if (!window || !selectedImagery) return 1;
-      const windowSlices = computeTimeSlices(
-        window.window_start_date,
-        window.window_end_date,
-        selectedImagery.slicing_interval,
-        selectedImagery.slicing_unit
-      );
-      return Math.max(1, windowSlices.length);
+  const firstNonEmptySlice = useCallback(
+    (collectionId: number, totalSlices: number, preferredIndex = 0): number => {
+      for (let offset = 0; offset < totalSlices; offset++) {
+        const i = (preferredIndex + offset) % totalSlices;
+        if (!emptySlices[`${collectionId}-${i}`]) return i;
+      }
+      return -1;
     },
-    [selectedImagery]
+    [emptySlices]
   );
 
-  // Select label by index (1-based)
   const selectLabelByIndex = useCallback(
     (index: number) => {
       if (index > 0 && index <= labels.length) {
         const targetLabelId = labels[index - 1].id;
-        // Toggle: deselect if already selected, otherwise select
         setSelectedLabelId(selectedLabelId === targetLabelId ? null : targetLabelId);
       }
     },
     [labels, setSelectedLabelId, selectedLabelId]
   );
 
-  // Process digit buffer
   const processDigitBuffer = useCallback(() => {
     const num = parseInt(digitBuffer.current, 10);
-    if (!isNaN(num) && num > 0) {
-      selectLabelByIndex(num);
-    }
+    if (!isNaN(num) && num > 0) selectLabelByIndex(num);
     digitBuffer.current = '';
   }, [selectLabelByIndex]);
 
-  // Handle digit input with smart immediate selection
   const handleDigitInput = useCallback(
     (digit: string) => {
       if (digitTimeoutRef.current) {
         clearTimeout(digitTimeoutRef.current);
         digitTimeoutRef.current = null;
       }
-
       digitBuffer.current += digit;
       const currentNum = parseInt(digitBuffer.current, 10);
-
-      // Immediate selection conditions:
-      // 1. Number already exceeds label count
-      // 2. Number * 10 would exceed label count (no valid next digit possible)
-      // 3. Already have 2+ digits
       const canAddMoreDigits = currentNum * 10 <= labels.length;
-
       if (currentNum > labels.length || !canAddMoreDigits || digitBuffer.current.length >= 2) {
         processDigitBuffer();
       } else {
-        // Wait briefly for potential second digit
         digitTimeoutRef.current = setTimeout(processDigitBuffer, DIGIT_INPUT_TIMEOUT_MS);
       }
     },
     [labels.length, processDigitBuffer]
   );
 
-  // Navigate slices with window wrap-around when reaching boundaries
+  // Navigate slices with collection wrap-around
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
+      if (!currentEntry) return;
+      const colId = currentEntry.collection_id;
+      const nonEmpty: number[] = [];
+      for (let i = 0; i < currentSliceCount; i++) {
+        if (!emptySlices[`${colId}-${i}`]) nonEmpty.push(i);
+      }
+
       if (direction === 'next') {
-        if (activeSliceIndex < currentSliceCount - 1) {
-          // Move to next slice within current window
-          setActiveSliceIndex(activeSliceIndex + 1);
-        } else if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          // At last slice, move to next window (first slice)
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex + 1].id);
-          // setActiveWindowId resets slice to 0 automatically
+        const nextInCol = nonEmpty.find((i) => i > activeSliceIndex);
+        if (nextInCol !== undefined) {
+          setActiveSliceIndex(nextInCol);
+        } else if (currentCollectionIndex < viewCollections.length - 1) {
+          const next = viewCollections[currentCollectionIndex + 1];
+          const nextCount = next.collection.slices.length;
+          const landing = firstNonEmptySlice(next.collection_id, nextCount, 0);
+          setActiveCollectionId(next.collection_id);
+          if (landing > 0) setTimeout(() => setActiveSliceIndex(landing), 0);
         }
       } else {
-        if (activeSliceIndex > 0) {
-          // Move to previous slice within current window
-          setActiveSliceIndex(activeSliceIndex - 1);
-        } else if (currentWindowSortedIndex > 0) {
-          // At first slice, move to previous window (last slice)
-          const prevWindow = sortedWindows[currentWindowSortedIndex - 1];
-          const prevWindowSliceCount = getSliceCountForWindow(prevWindow);
-          setActiveWindowId(prevWindow.id);
-          // Need to set slice after window change
-          setTimeout(() => setActiveSliceIndex(prevWindowSliceCount - 1), 0);
+        const prevInCol = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
+        if (prevInCol !== undefined) {
+          setActiveSliceIndex(prevInCol);
+        } else if (currentCollectionIndex > 0) {
+          const prev = viewCollections[currentCollectionIndex - 1];
+          const prevCount = prev.collection.slices.length;
+          let landing = -1;
+          for (let i = prevCount - 1; i >= 0; i--) {
+            if (!emptySlices[`${prev.collection_id}-${i}`]) {
+              landing = i;
+              break;
+            }
+          }
+          if (landing < 0) return;
+          setActiveCollectionId(prev.collection_id);
+          setTimeout(() => setActiveSliceIndex(landing), 0);
         }
       }
     },
     [
       activeSliceIndex,
       currentSliceCount,
-      currentWindowSortedIndex,
-      sortedWindows,
+      currentCollectionIndex,
+      currentEntry,
+      viewCollections,
+      emptySlices,
       setActiveSliceIndex,
-      setActiveWindowId,
-      getSliceCountForWindow,
+      setActiveCollectionId,
+      firstNonEmptySlice,
     ]
   );
 
-  // Navigate windows directly (Shift+W/S)
-  const navigateWindow = useCallback(
+  // Navigate collections directly (Shift+A/D)
+  const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {
-      if (sortedWindows.length === 0) return;
+      if (viewCollections.length === 0) return;
+      const targetIdx =
+        direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
+      const target = viewCollections[targetIdx];
+      if (!target) return;
 
-      if (direction === 'next') {
-        if (currentWindowSortedIndex < sortedWindows.length - 1) {
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex + 1].id);
-        }
-      } else {
-        if (currentWindowSortedIndex > 0) {
-          setActiveWindowId(sortedWindows[currentWindowSortedIndex - 1].id);
-        }
+      const storedSlice = collectionSliceIndices[target.collection_id] ?? 0;
+      const isStoredEmpty = emptySlices[`${target.collection_id}-${storedSlice}`];
+      setActiveCollectionId(target.collection_id);
+
+      if (isStoredEmpty) {
+        const fallback = firstNonEmptySlice(
+          target.collection_id,
+          target.collection.slices.length,
+          storedSlice
+        );
+        if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
       }
     },
-    [currentWindowSortedIndex, sortedWindows, setActiveWindowId]
+    [
+      currentCollectionIndex,
+      viewCollections,
+      setActiveCollectionId,
+      setActiveSliceIndex,
+      firstNonEmptySlice,
+      collectionSliceIndices,
+      emptySlices,
+    ]
   );
 
-  // Submit handler
+  // Pre-compute source → viz index ranges for I / Shift+I cycling
+  const sourceGroups = useMemo(() => {
+    const groups: { name: string; startIdx: number; count: number }[] = [];
+    let offset = 0;
+    for (const src of campaign?.imagery_sources ?? []) {
+      groups.push({ name: src.name, startIdx: offset, count: src.visualizations.length });
+      offset += src.visualizations.length;
+    }
+    return groups;
+  }, [campaign?.imagery_sources]);
+
+  const basemaps = campaign?.basemaps ?? [];
+  const basemapIds = useMemo(() => basemaps.map((b) => `basemap-${b.id}`), [basemaps]);
+
+  /** I: cycle through imagery sources + individual basemaps (jump to first viz of next source) */
+  const cycleSource = useCallback(() => {
+    // Each imagery source group is one entry, each basemap is one entry
+    const totalEntries = sourceGroups.length + basemapIds.length;
+    if (totalEntries <= 1) return;
+
+    let currentEntryIdx: number;
+    if (showBasemap) {
+      // Find which basemap is currently active
+      const bmIdx = basemapIds.indexOf(selectedBasemapId ?? '');
+      currentEntryIdx = sourceGroups.length + (bmIdx >= 0 ? bmIdx : 0);
+    } else {
+      currentEntryIdx = sourceGroups.findIndex(
+        (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
+      );
+      if (currentEntryIdx === -1) currentEntryIdx = 0;
+    }
+
+    const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
+
+    if (nextEntryIdx < sourceGroups.length) {
+      // Switch to an imagery source (first viz)
+      setSelectedLayerIndex(sourceGroups[nextEntryIdx].startIdx);
+    } else {
+      // Switch to a specific basemap
+      const bmIdx = nextEntryIdx - sourceGroups.length;
+      setShowBasemap(true);
+      setSelectedBasemapId(basemapIds[bmIdx]);
+    }
+  }, [
+    sourceGroups,
+    basemapIds,
+    selectedLayerIndex,
+    selectedBasemapId,
+    showBasemap,
+    setSelectedLayerIndex,
+    setShowBasemap,
+    setSelectedBasemapId,
+  ]);
+
+  /** Shift+I: cycle visualizations within the current source */
+  const cycleVisualization = useCallback(() => {
+    if (showBasemap || sourceGroups.length === 0) return;
+    const currentGroup = sourceGroups.find(
+      (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
+    );
+    if (!currentGroup || currentGroup.count <= 1) return;
+    const posInGroup = selectedLayerIndex - currentGroup.startIdx;
+    const nextPos = (posInGroup + 1) % currentGroup.count;
+    setSelectedLayerIndex(currentGroup.startIdx + nextPos);
+  }, [sourceGroups, selectedLayerIndex, showBasemap, setSelectedLayerIndex]);
+
+  // Cycle views
+  const cycleView = useCallback(() => {
+    if (!campaign || campaign.imagery_views.length <= 1) return;
+    const views = campaign.imagery_views;
+    const currentIdx = views.findIndex((v) => v.id === selectedViewId);
+    const nextIdx = (currentIdx + 1) % views.length;
+    setSelectedViewId(views[nextIdx].id);
+  }, [campaign, selectedViewId, setSelectedViewId]);
+
   const handleSubmit = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
 
@@ -299,12 +382,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           if (!isNavigating) nextTask();
           break;
 
-        // Slice/Window navigation: A/D for slices, Shift+A/D for windows
+        // Slice/Collection navigation: A/D for slices, Shift+A/D for collections
         case 'a':
         case 'A':
           e.preventDefault();
           if (e.shiftKey) {
-            navigateWindow('prev');
+            navigateCollection('prev');
           } else {
             navigateSlice('prev');
           }
@@ -313,7 +396,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'D':
           e.preventDefault();
           if (e.shiftKey) {
-            navigateWindow('next');
+            navigateCollection('next');
           } else {
             navigateSlice('next');
           }
@@ -328,6 +411,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'O':
           e.preventDefault();
           toggleCrosshair();
+          break;
+        case 'v':
+        case 'V':
+          e.preventDefault();
+          cycleView();
           break;
 
         // Arrow keys: pan by default, zoom with Alt modifier
@@ -394,6 +482,31 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           toggleKeyboardHelp();
           break;
+
+        // Toggle campaign guide
+        case 'g':
+        case 'G':
+          e.preventDefault();
+          toggleGuide();
+          break;
+
+        // Toggle view sync
+        case 'l':
+        case 'L':
+          e.preventDefault();
+          useMapStore.getState().toggleViewSync();
+          break;
+
+        // Cycle imagery source / visualization
+        case 'i':
+        case 'I':
+          e.preventDefault();
+          if (e.shiftKey) {
+            cycleVisualization();
+          } else {
+            cycleSource();
+          }
+          break;
       }
     };
 
@@ -401,12 +514,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      // Clear any pending digit timeout on cleanup
       if (digitTimeoutRef.current) {
         clearTimeout(digitTimeoutRef.current);
         digitTimeoutRef.current = null;
       }
-      // Clear digit buffer on cleanup
       digitBuffer.current = '';
     };
   }, [
@@ -417,7 +528,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     previousTask,
     nextTask,
     navigateSlice,
-    navigateWindow,
+    navigateCollection,
     triggerRefocus,
     toggleCrosshair,
     triggerZoomIn,
@@ -428,6 +539,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     handleSubmit,
     handleSkip,
     toggleKeyboardHelp,
+    toggleGuide,
+    cycleSource,
+    cycleVisualization,
+    cycleView,
   ]);
 
   // Removed duplicate cleanup useEffect - consolidated above

@@ -1,6 +1,9 @@
 """
 Development database seeding script.
-Creates a sample campaign with imagery, tasks, and users for quick development.
+Creates two sample Ukraine campaigns with Sentinel-2 imagery (all 12 months, weekly slices)
+and S2 NDVI timeseries:
+  1. Task-mode campaign with 100 random sample points within Ukraine's bounding box
+  2. Open-mode campaign (same region and imagery, no tasks)
 
 Usage:
     python seed_dev_data.py              # Seed the database
@@ -8,23 +11,101 @@ Usage:
     python seed_dev_data.py FIREBASE_UID # Seed with specific Firebase UID for initial user
 """
 
+import json
 import logging
 import sys
 
-from sqlalchemy import select
+from shapely.geometry import box as shapely_box
+from sqlalchemy import insert, select
 
 from src.annotation.models import AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED
 from src.auth.models import User, UserRole
-from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
-from src.campaigns.models import Campaign, CampaignSettings, CampaignUser, CanvasLayout
+from src.campaigns.models import Campaign
+from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
+from src.campaigns.service import create_campaign
 from src.database import SessionLocal
-from src.imagery.models import Imagery, ImageryVisualizationUrlTemplate, ImageryWindow
-from src.timeseries.models import (
-    TimeSeries,  # noqa: F401 - needed for SQLAlchemy relationship resolution
+from src.imagery.schemas import (
+    CollectionStacConfigCreate,
+    ImageryCollectionCreate,
+    ImageryEditorStateCreate,
+    ImagerySliceCreate,
+    ImagerySourceCreate,
+    ImageryViewCreate,
+    SliceTileUrlCreate,
+    ViewCollectionRefCreate,
+    VisualizationTemplateCreate,
 )
+from src.sampling_design.service import generate_random_points
+from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
+from src.timeseries.schemas import TimeSeriesCreate
 
 logger = logging.getLogger(__name__)
+
+# Ukraine bounding box (WGS-84)
+UKRAINE_BBOX = dict(bbox_west=22.1, bbox_south=44.3, bbox_east=40.2, bbox_north=52.4)
+
+# Sentinel-2 Planetary Computer search body template (placeholders filled at query time)
+SENTINEL2_SEARCH_BODY = json.dumps(
+    {
+        "bbox": "{campaignBBoxPlaceholder}",
+        "filter": {
+            "op": "and",
+            "args": [
+                {
+                    "op": "anyinteracts",
+                    "args": [
+                        {"property": "datetime"},
+                        {"interval": ["{startDatetimePlaceholder}", "{endDatetimePlaceholder}"]},
+                    ],
+                },
+                {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
+                {"op": "=", "args": [{"property": "collection"}, "sentinel-2-l2a"]},
+            ],
+        },
+        "metadata": {
+            "type": "mosaic",
+            "maxzoom": 24,
+            "minzoom": 0,
+            "pixel_selection": "median",
+        },
+        "filterLang": "cql2-json",
+        "collections": ["sentinel-2-l2a"],
+    }
+)
+
+CAMPAIGN_NAME = "Ukraine Dev Campaign"
+OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
+
+
+def _ensure_user(db, firebase_uid: str) -> User:
+    """Return existing user or create a new one with admin + approved roles."""
+    user = db.execute(
+        select(User).where(User.issuer == "firebase").where(User.external_uid == firebase_uid)
+    ).scalar_one_or_none()
+
+    if not user:
+        logger.info("Creating user with Firebase UID: %s", firebase_uid)
+        user = User(
+            issuer="firebase",
+            external_uid=firebase_uid,
+            email=f"dev-{firebase_uid}@test.com",
+            display_name="Dev Test User",
+        )
+        db.add(user)
+        db.flush()
+        db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
+        db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
+        db.flush()
+    else:
+        logger.info("Using existing user: %s", user.email)
+        if not user.is_approved:
+            db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
+        if not user.is_admin:
+            db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
+        db.flush()
+
+    return user
 
 
 def seed_dev_data(firebase_uid: str = None):
@@ -32,283 +113,205 @@ def seed_dev_data(firebase_uid: str = None):
 
     Args:
         firebase_uid: Optional Firebase UID. If not provided, uses a test UID.
-                     In production, pass the actual Firebase UID from authentication.
     """
-
     db = SessionLocal()
     try:
         logger.info("Starting database seeding...")
 
-        # Check if data already exists
-        existing_campaign = db.execute(
-            select(Campaign).where(Campaign.name == "Dev Test Campaign")
-        ).scalar_one_or_none()
+        # Drop existing dev campaigns so the script is idempotent
+        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+            existing = db.execute(
+                select(Campaign).where(Campaign.name == name)
+            ).scalar_one_or_none()
+            if existing:
+                logger.info("Campaign '%s' already exists - deleting and recreating...", name)
+                db.delete(existing)
+        db.commit()
 
-        if existing_campaign:
-            logger.info("Dev campaign already exists. Deleting and recreating...")
-            db.delete(existing_campaign)
-            db.commit()
-
-        # Use provided Firebase UID or default test UID
         if firebase_uid is None:
             firebase_uid = "dev-test-uid"
-            logger.info(f"No Firebase UID provided, using test UID: {firebase_uid}")
+            logger.info("No Firebase UID provided, using test UID: %s", firebase_uid)
 
-        # Create or get user with the Firebase UID
-        user = db.execute(
-            select(User).where(User.issuer == "firebase").where(User.external_uid == firebase_uid)
-        ).scalar_one_or_none()
+        user = _ensure_user(db, firebase_uid)
 
-        if not user:
-            logger.info(f"Creating user with Firebase UID: {firebase_uid}")
-            user = User(
-                issuer="firebase",
-                external_uid=firebase_uid,
-                email=f"dev-{firebase_uid}@test.com",
-                display_name="Dev Test User",
-            )
-            db.add(user)
-            db.flush()
-
-            # Add approved and admin roles
-            approved_role = UserRole(user_id=user.id, role=ROLE_APPROVED)
-            db.add(approved_role)
-
-            admin_role = UserRole(user_id=user.id, role=ROLE_ADMIN)
-            db.add(admin_role)
-            db.flush()
-        else:
-            logger.info(f"Using existing user: {user.email}")
-            # Ensure user has approved and admin roles
-            if not user.is_approved:
-                logger.info("Adding approved role to user...")
-                approved_role = UserRole(user_id=user.id, role=ROLE_APPROVED)
-                db.add(approved_role)
-
-            if not user.is_admin:
-                logger.info("Adding admin role to user...")
-                admin_role = UserRole(user_id=user.id, role=ROLE_ADMIN)
-                db.add(admin_role)
-
-            db.flush()
-
-        # Create campaign
-        logger.info("Creating campaign...")
-        campaign = Campaign(
-            name="Dev Test Campaign",
-            mode="tasks",  # "tasks" or "open"
+        # One Sentinel-2 imagery source spanning all of 2024.
+        # One collection with 12 monthly slices, each with two visualization URL templates.
+        true_color_url = (
+            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
+            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
+            "?assets=B04&assets=B03&assets=B02&nodata=0"
+            "&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35"
+            "&collection=sentinel-2-l2a&pixel_selection=median"
         )
-        db.add(campaign)
-        db.flush()
-
-        # Create campaign settings
-        logger.info("Creating campaign settings...")
-        settings = CampaignSettings(
-            campaign_id=campaign.id,
-            labels=[
-                {"id": 1, "name": "Building", "description": "Buildings and structures"},
-                {"id": 2, "name": "Road", "description": "Roads and paths"},
-                {"id": 3, "name": "Tree", "description": "Individual trees"},
-                {"id": 4, "name": "Water", "description": "Water bodies"},
-            ],
-            # Bounding box around San Francisco area
-            bbox_west=-122.5,
-            bbox_south=37.7,
-            bbox_east=-122.3,
-            bbox_north=37.8,
+        false_color_url = (
+            "https://planetarycomputer.microsoft.com/api/data/v1/mosaic"
+            "/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
+            "?assets=B08&assets=B04&assets=B03&nodata=0"
+            "&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35"
+            "&collection=sentinel-2-l2a&pixel_selection=median"
         )
-        db.add(settings)
 
-        # Add user to campaign
-        logger.info("Adding user to campaign...")
-        campaign_user = CampaignUser(
-            campaign_id=campaign.id,
-            user_id=user.id,
-            is_admin=True,  # Make user admin of the campaign
-            is_authorative_reviewer=False,
-        )
-        db.add(campaign_user)
-
-        # Create imagery source
-        logger.info("Creating imagery source...")
-
-        # Planetary Computer Sentinel-2 mosaic configuration
-        imagery = Imagery(
-            campaign_id=campaign.id,
-            name="Sentinel-2 RGB",
-            start_ym="202401",  # January 2024
-            end_ym="202412",  # December 2024
-            window_interval=1,
-            window_unit="months",
-            slicing_interval=1,
-            slicing_unit="weeks",
-            crosshair_hex6="FF0000",
-            default_zoom=14,
-            registration_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register",
-            search_body={
-                "bbox": "{campaignBBoxPlaceholder}",
-                "filter": {
-                    "op": "and",
-                    "args": [
-                        {
-                            "op": "anyinteracts",
-                            "args": [
-                                {"property": "datetime"},
-                                {
-                                    "interval": [
-                                        "{startDatetimePlaceholder}",
-                                        "{endDatetimePlaceholder}",
-                                    ]
-                                },
-                            ],
-                        },
-                        {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 70]},
-                        {"op": "=", "args": [{"property": "collection"}, "sentinel-2-l2a"]},
+        monthly_slices = []
+        for month in range(1, 13):
+            end_month = month + 1 if month < 12 else 12
+            end_year = 2024 if month < 12 else 2024
+            monthly_slices.append(
+                ImagerySliceCreate(
+                    name=f"2024-{month:02d}",
+                    start_date=f"2024-{month:02d}-01",
+                    end_date=f"{end_year}-{end_month:02d}-{'28' if month == 12 else '01'}",
+                    tile_urls=[
+                        SliceTileUrlCreate(
+                            visualization_name="True Color", tile_url=true_color_url
+                        ),
+                        SliceTileUrlCreate(
+                            visualization_name="False Color Infrared", tile_url=false_color_url
+                        ),
                     ],
-                },
-                "metadata": {
-                    "type": "mosaic",
-                    "maxzoom": 24,
-                    "minzoom": 0,
-                    "pixel_selection": "median",
-                },
-                "filterLang": "cql2-json",
-                "collections": ["sentinel-2-l2a"],
-            },
-            default_main_window_id=None,  # Will be set after creating windows
-        )
-        db.add(imagery)
-        db.flush()
-
-        # Add visualization URL templates
-
-        viz_true_color = ImageryVisualizationUrlTemplate(
-            imagery_id=imagery.id,
-            name="True Color",
-            visualization_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=median",
-        )
-        db.add(viz_true_color)
-
-        viz_false_color = ImageryVisualizationUrlTemplate(
-            imagery_id=imagery.id,
-            name="False Color Infrared",
-            visualization_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35&collection=sentinel-2-l2a&pixel_selection=median",
-        )
-        db.add(viz_false_color)
-
-        # Create imagery windows
-        logger.info("Creating imagery windows...")
-
-        # Create 3 monthly windows
-        windows = []
-        for i in range(3):
-            month = 1 + i  # Jan, Feb, Mar 2024
-            start_date = f"20240{month}01"
-            end_date = f"20240{month + 1}01" if month < 3 else "20240401"
-
-            window = ImageryWindow(
-                imagery_id=imagery.id,
-                window_index=i,
-                window_start_date=start_date,
-                window_end_date=end_date,
+                )
             )
-            db.add(window)
-            windows.append(window)
 
-        db.flush()
-
-        # Set default main window
-        imagery.default_main_window_id = windows[1].id  # Use middle window as default
-
-        # Create default main canvas layout for the campaign
-        logger.info("Creating main canvas layout for campaign...")
-        main_canvas_layout = CanvasLayout(
-            layout_data=DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT.copy(),
-            user_id=None,
-            campaign_id=campaign.id,
-            imagery_id=None,  # Main campaign layout
-            is_default=True,
+        imagery_editor_state = ImageryEditorStateCreate(
+            sources=[
+                ImagerySourceCreate(
+                    name="Sentinel-2 Ukraine 2024",
+                    crosshair_hex6="FF0000",
+                    default_zoom=14,
+                    visualizations=[
+                        VisualizationTemplateCreate(name="True Color"),
+                        VisualizationTemplateCreate(name="False Color Infrared"),
+                    ],
+                    collections=[
+                        ImageryCollectionCreate(
+                            name="2024 Monthly Mosaics",
+                            cover_slice_index=5,
+                            stac_config=CollectionStacConfigCreate(
+                                registration_url="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register",
+                                search_body=SENTINEL2_SEARCH_BODY,
+                            ),
+                            slices=monthly_slices,
+                        ),
+                    ],
+                ),
+            ],
+            views=[
+                ImageryViewCreate(
+                    name="Default View",
+                    collection_refs=[
+                        ViewCollectionRefCreate(
+                            source_id="0", collection_id="0", show_as_window=True
+                        ),
+                    ],
+                ),
+            ],
+            basemaps=[],
         )
-        db.add(main_canvas_layout)
 
-        # Create imagery-specific canvas layout with windows
-        logger.info("Creating canvas layout for imagery...")
-
-        # Build layout data with windows arranged in a row
-        imagery_layout_data = []
-        window_width = 10
-        window_height = 8
-        x_offset = 0
-
-        for window in windows:
-            layout_entry = {
-                "i": f"{window.id}",
-                "x": x_offset,
-                "y": 0,
-                "w": window_width,
-                "h": window_height,
-            }
-            imagery_layout_data.append(layout_entry)
-            x_offset += window_width  # Place windows side by side
-
-        imagery_canvas_layout = CanvasLayout(
-            layout_data=imagery_layout_data,
-            user_id=None,
-            campaign_id=campaign.id,
-            imagery_id=imagery.id,
-            is_default=True,
-        )
-        db.add(imagery_canvas_layout)
-
-        # Create sample annotation tasks
-        logger.info("Creating annotation tasks...")
-
-        # Sample points around San Francisco
-        sample_points = [
-            (-122.4194, 37.7749),  # Downtown SF
-            (-122.4383, 37.7694),  # Golden Gate Park area
-            (-122.4156, 37.7833),  # North Beach
-            (-122.3978, 37.7911),  # Pier 39 area
-            (-122.4297, 37.7599),  # Mission District
-            (-122.4408, 37.7858),  # Richmond District
-            (-122.3892, 37.7694),  # Potrero Hill
-            (-122.4231, 37.8025),  # Fisherman's Wharf
-            (-122.4064, 37.7947),  # Telegraph Hill
-            (-122.4483, 37.7881),  # Outer Richmond
+        # S2 NDVI timeseries (from Google Earth Engine)
+        timeseries_configs = [
+            TimeSeriesCreate(
+                name="S2 NDVI",
+                start_ym="202401",
+                end_ym="202412",
+                data_source="SENTINEL2",
+                provider="EE",
+                ts_type="NDVI",
+            ),
         ]
 
-        for idx, (lon, lat) in enumerate(sample_points, start=1):
-            # Create geometry first
-            geom = AnnotationGeometry(geometry=f"SRID=4326;POINT({lon} {lat})")
-            db.add(geom)
-            db.flush()  # Get the geometry ID
+        # Campaign settings
+        settings = CampaignSettingsCreate(
+            labels=[
+                LabelBase(id=1, name="Building"),
+                LabelBase(id=2, name="Road"),
+                LabelBase(id=3, name="Tree"),
+                LabelBase(id=4, name="Water"),
+                LabelBase(id=5, name="Crop Field"),
+            ],
+            **UKRAINE_BBOX,
+        )
 
-            # Create task with geometry reference
-            task = AnnotationTask(
-                campaign_id=campaign.id,
-                annotation_number=idx,
-                geometry_id=geom.id,
-            )
-            db.add(task)
-            db.flush()  # Get the task ID
+        # Create campaign (handles layout, imagery, timeseries all at once)
+        logger.info("Creating task-mode campaign via service...")
+        campaign = create_campaign(
+            db,
+            name=CAMPAIGN_NAME,
+            mode="tasks",
+            settings=settings,
+            user_id=user.id,
+            imagery_editor_state=imagery_editor_state,
+            timeseries_configs=timeseries_configs,
+        )
+        logger.info("Campaign created: id=%d", campaign.id)
 
-            # Assign task to user
-            assignment = AnnotationTaskAssignment(
-                task_id=task.id,
-                user_id=user.id,
-            )
-            db.add(assignment)
+        # Generate 100 random points within Ukraine bbox and create tasks
+        logger.info("Generating 100 random sample points within Ukraine bounding box...")
+        ukraine_polygon = shapely_box(
+            UKRAINE_BBOX["bbox_west"],
+            UKRAINE_BBOX["bbox_south"],
+            UKRAINE_BBOX["bbox_east"],
+            UKRAINE_BBOX["bbox_north"],
+        )
+        sample_points = generate_random_points(ukraine_polygon, num_samples=100, seed=42)
+
+        logger.info("Creating %d annotation tasks...", len(sample_points))
+        geometry_records = [{"geometry": f"SRID=4326;POINT({pt.x} {pt.y})"} for pt in sample_points]
+        geometry_result = db.execute(
+            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
+            geometry_records,
+        )
+        geometry_ids = [row.id for row in geometry_result]
+
+        task_records = [
+            {
+                "annotation_number": i + 1,
+                "campaign_id": campaign.id,
+                "geometry_id": geom_id,
+                "status": "pending",
+                "raw_source_data": {
+                    "sampling_strategy": "random",
+                    "lon": pt.x,
+                    "lat": pt.y,
+                },
+            }
+            for i, (geom_id, pt) in enumerate(zip(geometry_ids, sample_points, strict=True))
+        ]
+        task_result = db.execute(
+            insert(AnnotationTask).returning(AnnotationTask.id),
+            task_records,
+        )
+        task_ids = [row.id for row in task_result]
+
+        # Assign all tasks to the seeded user
+        db.execute(
+            insert(AnnotationTaskAssignment),
+            [{"task_id": tid, "user_id": user.id} for tid in task_ids],
+        )
 
         db.commit()
 
+        # Open-mode campaign (same imagery & timeseries, no tasks)
+        logger.info("Creating open-mode campaign via service...")
+        open_campaign = create_campaign(
+            db,
+            name=OPEN_CAMPAIGN_NAME,
+            mode="open",
+            settings=settings,
+            user_id=user.id,
+            imagery_editor_state=imagery_editor_state,
+            timeseries_configs=timeseries_configs,
+        )
+        logger.info("Open-mode campaign created: id=%d", open_campaign.id)
+
         logger.info("\nDatabase seeding complete!")
-        logger.info(f"Campaign ID: {campaign.id}")
-        logger.info(f"Campaign Name: {campaign.name}")
-        logger.info(f"User: {user.email}")
-        logger.info(f"Firebase UID: {user.external_uid}")
-        logger.info(f"Imagery: {imagery.name}")
-        logger.info(f"Tasks created: {len(sample_points)}")
-        logger.info(f"Labels: {len(settings.labels)}")
+        logger.info("  Task-mode Campaign  : id=%d  name=%s", campaign.id, campaign.name)
+        logger.info("  Open-mode Campaign  : id=%d  name=%s", open_campaign.id, open_campaign.name)
+        logger.info("  User                : %s", user.email)
+        logger.info("  Firebase UID        : %s", user.external_uid)
+        logger.info("  Imagery items       : 1 source, 1 collection, 12 monthly slices")
+        logger.info("  Timeseries          : S2 NDVI (2024)")
+        logger.info("  Tasks (task-mode)   : %d", len(task_ids))
+        logger.info("  Labels              : %d", len(settings.labels))
 
     finally:
         db.close()
@@ -320,16 +323,19 @@ def clear_dev_data():
     try:
         logger.info("Clearing development data...")
 
-        campaign = db.execute(
-            select(Campaign).where(Campaign.name == "Dev Test Campaign")
-        ).scalar_one_or_none()
+        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+            campaign = db.execute(
+                select(Campaign).where(Campaign.name == name)
+            ).scalar_one_or_none()
 
-        if campaign:
-            db.delete(campaign)
-            db.commit()
-            logger.info("Development campaign deleted.")
-        else:
-            logger.info("No development campaign found.")
+            if campaign:
+                db.delete(campaign)
+                logger.info("Deleted campaign: %s", name)
+            else:
+                logger.info("No campaign found: %s", name)
+
+        db.commit()
+        logger.info("Development data cleared.")
 
     finally:
         db.close()

@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== View Container App Logs ===${NC}"
+echo -e "${GREEN}View Container App Logs${NC}"
 echo ""
 
 # Check Azure login

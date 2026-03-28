@@ -1,24 +1,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Layout } from 'react-grid-layout';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
-import useAnnotationStore, { type TaskStatus } from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
 
 const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
   { key: 'A / D', description: 'Previous / Next slice' },
-  { key: 'Shift+A / D', description: 'Previous / Next window' },
+  { key: 'Shift+A / D', description: 'Previous / Next collection' },
   { key: '↑ ↓ ← ->', description: 'Pan map' },
   { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
   { key: 'Space', description: 'Recenter maps' },
   { key: 'O', description: 'Toggle crosshair' },
+  { key: 'V', description: 'Cycle view' },
+  { key: 'L', description: 'Toggle view link (sync windows)' },
+  { key: 'I', description: 'Cycle imagery source' },
+  { key: 'Shift+I', description: 'Cycle visualization' },
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
   { key: 'C', description: 'Focus comment' },
   { key: 'Escape', description: 'Unfocus input' },
+  { key: 'G', description: 'Toggle campaign guide' },
   { key: 'H', description: 'Toggle keyboard help' },
 ];
 
@@ -26,11 +34,11 @@ const KEYBOARD_SHORTCUTS = [
  * Task filter panel component
  */
 const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const allTasks = useAnnotationStore((state) => state.allTasks);
-  const taskFilter = useAnnotationStore((state) => state.taskFilter);
-  const setTaskFilter = useAnnotationStore((state) => state.setTaskFilter);
-  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isReviewMode = useCampaignStore((s) => s.isReviewMode);
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const taskFilter = useTaskStore((s) => s.taskFilter);
+  const setTaskFilter = useTaskStore((s) => s.setTaskFilter);
   const currentUser = useAccountStore((state) => state.account);
 
   if (!campaign) return null;
@@ -72,7 +80,7 @@ const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
       // When selecting 'conflicting', automatically enable review mode and
       // show all users so conflicting tasks from all annotators are visible.
       if (!isSelected && status === 'conflicting') {
-        useAnnotationStore.setState({ isReviewMode: true });
+        useCampaignStore.setState({ isReviewMode: true });
         if (taskFilter.assignedTo.length > 0) {
           setTaskFilter({ statuses: newStatuses, assignedTo: [] });
           return;
@@ -204,27 +212,29 @@ export const AnnotationToolbar = () => {
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
-
   const imageryDropdownRef = useRef<HTMLDivElement>(null);
   const taskFilterDropdownRef = useRef<HTMLDivElement>(null);
   const saveDropdownRef = useRef<HTMLDivElement>(null);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
 
   // Get state from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
-  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const setIsEditingLayout = useAnnotationStore((state) => state.setIsEditingLayout);
-  const saveLayout = useAnnotationStore((state) => state.saveLayout);
-  const cancelLayoutEdit = useAnnotationStore((state) => state.cancelLayoutEdit);
-  const resetLayout = useAnnotationStore((state) => state.resetLayout);
-  const setSelectedImageryId = useAnnotationStore((state) => state.setSelectedImageryId);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const isReviewMode = useCampaignStore((s) => s.isReviewMode);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const setIsEditingLayout = useCampaignStore((s) => s.setIsEditingLayout);
+  const saveLayout = useCampaignStore((s) => s.saveLayout);
+  const cancelLayoutEdit = useCampaignStore((s) => s.cancelLayoutEdit);
+  const resetLayout = useCampaignStore((s) => s.resetLayout);
+  const setSelectedViewId = useCampaignStore((s) => s.setSelectedViewId);
 
   // Get UI actions from global store
   const showAlert = useLayoutStore((state) => state.showAlert);
   const showKeyboardHelp = useLayoutStore((state) => state.showKeyboardHelp);
   const toggleKeyboardHelp = useLayoutStore((state) => state.toggleKeyboardHelp);
+  const showGuide = useLayoutStore((state) => state.showGuide);
+  const toggleGuide = useLayoutStore((state) => state.toggleGuide);
   const setShowKeyboardHelp = useLayoutStore((state) => state.setShowKeyboardHelp);
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
   const toggleFullscreen = useLayoutStore((state) => state.toggleFullscreen);
@@ -258,12 +268,12 @@ export const AnnotationToolbar = () => {
 
   if (!campaign) return null;
 
-  const imagerySources = campaign.imagery;
-  const selectedImagery = imagerySources.find((img) => img.id === selectedImageryId);
+  const views = campaign.imagery_views;
+  const selectedView = views.find((v) => v.id === selectedViewId);
 
   // Check if main layout items have changed
   const hasMainLayoutChanged = () => {
-    const { currentLayout, savedLayout } = useAnnotationStore.getState();
+    const { currentLayout, savedLayout } = useCampaignStore.getState();
     if (!currentLayout || !savedLayout) return false;
 
     const mainItemKeys = ['main', 'timeseries', 'minimap'];
@@ -279,7 +289,8 @@ export const AnnotationToolbar = () => {
     if (shouldBeDefault) {
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Save as Default Layout?',
-        description: 'This will overwrite the default layout for ALL users in this campaign.',
+        description:
+          'This will overwrite the default layout for ALL users in this campaign who do not have a personal layout. If you already have a personal layout, it will not be affected. To use the new default layout as your personal layout, apply it now and then hit reset layout and save as personal.',
         confirmText: 'Save Default',
         cancelText: 'Cancel',
         isDangerous: true,
@@ -291,7 +302,7 @@ export const AnnotationToolbar = () => {
     }
 
     // Check if main layout changed and there are multiple imagery sources
-    if (hasMainLayoutChanged() && imagerySources.length > 1) {
+    if (hasMainLayoutChanged() && views.length > 1) {
       const layoutType = shouldBeDefault ? 'default' : 'personal';
       const confirmed = await useLayoutStore.getState().showConfirmDialog({
         title: 'Main Layout Modified',
@@ -318,10 +329,10 @@ export const AnnotationToolbar = () => {
     });
     if (!confirmed) return;
 
-    // Merge main and imagery layouts
+    // Merge main + view layouts (view layout is always created by the backend)
     const mainLayout = campaign.default_main_canvas_layout!.layout_data as Layout;
-    const imageryLayout = selectedImagery?.default_canvas_layout?.layout_data as Layout | undefined;
-    const mergedLayout = imageryLayout ? [...mainLayout, ...imageryLayout] : mainLayout;
+    const viewLayout = (selectedView?.default_canvas_layout?.layout_data ?? []) as Layout;
+    const mergedLayout: Layout = [...mainLayout, ...viewLayout];
 
     resetLayout(mergedLayout);
     showAlert('Layout reset to defaults', 'success');
@@ -370,46 +381,47 @@ export const AnnotationToolbar = () => {
   };
 
   return (
-    <header className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0">
+    <header
+      data-tour="toolbar"
+      className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0"
+    >
       <div className="flex items-center gap-2">
-        {/* Imagery Dropdown */}
-        <div className="relative" ref={imageryDropdownRef}>
+        {/* Views Dropdown */}
+        <div className="relative" ref={imageryDropdownRef} data-tour="imagery-selector">
           <button
             onClick={() => setShowImageryDropdown(!showImageryDropdown)}
             className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
             type="button"
+            title="Switch View (v)"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M3.5 3C2.67157 3 2 3.67157 2 4.5V15.5C2 16.3284 2.67157 17 3.5 17H16.5C17.3284 17 18 16.3284 18 15.5V4.5C18 3.67157 17.3284 3 16.5 3H3.5ZM3 4.5C3 4.22386 3.22386 4 3.5 4H16.5C16.7761 4 17 4.22386 17 4.5V11.7929L14.8536 9.64645C14.6583 9.45118 14.3417 9.45118 14.1464 9.64645L11 12.7929L8.85355 10.6464C8.65829 10.4512 8.34171 10.4512 8.14645 10.6464L3 15.7929V4.5ZM3.20711 16L8 11.2071L10.1464 13.3536C10.3417 13.5488 10.6583 13.5488 10.8536 13.3536L14 10.2071L17 13.2071V15.5C17 15.7761 16.7761 16 16.5 16H3.5C3.39645 16 3.29871 15.9682 3.20711 16ZM13 7.5C13 8.32843 12.3284 9 11.5 9C10.6716 9 10 8.32843 10 7.5C10 6.67157 10.6716 6 11.5 6C12.3284 6 13 6.67157 13 7.5Z" />
             </svg>
-            <span>{selectedImagery ? selectedImagery.name : 'Select Imagery'}</span>
+            <span>{selectedView ? selectedView.name : 'Select View'}</span>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
             </svg>
           </button>
           {showImageryDropdown && (
             <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
-              {imagerySources.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">No imagery sources available</div>
+              {views.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500">No views available</div>
               ) : (
-                imagerySources.map((imagery) => (
+                views.map((view) => (
                   <button
-                    key={imagery.id}
+                    key={view.id}
                     onClick={() => {
-                      setSelectedImageryId(imagery.id);
+                      setSelectedViewId(view.id);
                       setShowImageryDropdown(false);
                     }}
                     className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
-                      selectedImageryId === imagery.id
+                      selectedViewId === view.id
                         ? 'bg-neutral-100 text-brand-700 font-medium'
                         : 'text-neutral-900'
                     }`}
                     type="button"
                   >
-                    <div className="font-medium">{imagery.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {imagery.start_ym} - {imagery.end_ym}
-                    </div>
+                    <div className="font-medium">{view.name}</div>
                   </button>
                 ))
               )}
@@ -419,11 +431,12 @@ export const AnnotationToolbar = () => {
 
         {/* Task Filter Dropdown */}
         {campaign.mode === 'tasks' && (
-          <div className="relative" ref={taskFilterDropdownRef}>
+          <div className="relative" ref={taskFilterDropdownRef} data-tour="task-filter">
             <button
               onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
               className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
               type="button"
+              title="Filter visible tasks"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 15.5v-11ZM5.5 4a.5.5 0 0 0-.5.5V6h10V4.5a.5.5 0 0 0-.5-.5h-9ZM15 7H5v8.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V7Zm-8 2h6v1H7V9Zm0 2h6v1H7v-1Z" />
@@ -441,10 +454,10 @@ export const AnnotationToolbar = () => {
 
         {/* Review Mode Toggle + Navigate to Review Page (tasks mode only) */}
         {campaign.mode === 'tasks' && (
-          <div className="flex items-center rounded overflow-hidden">
+          <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
             {/* Toggle review mode on/off */}
             <button
-              onClick={() => useAnnotationStore.setState({ isReviewMode: !isReviewMode })}
+              onClick={() => useCampaignStore.setState({ isReviewMode: !isReviewMode })}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
                 isReviewMode
                   ? 'bg-amber-50 text-amber-700 font-medium'
@@ -489,25 +502,27 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* Campaign Settings Button */}
-        <button
-          onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
-          type="button"
-          title="Campaign Settings"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            xmlns="http://www.w3.org/2000/svg"
-            className="shrink-0 transition text-text-400 group-hover:text-text-100 cursor-pointer"
+        {/* Campaign Settings Button (admin only) */}
+        {isCampaignAdmin && (
+          <button
+            onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
+            type="button"
+            title="Campaign Settings"
           >
-            <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
-          </svg>
-          <span>Settings</span>
-        </button>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+              className="shrink-0 transition text-text-400 group-hover:text-text-100 cursor-pointer"
+            >
+              <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
+            </svg>
+            <span>Settings</span>
+          </button>
+        )}
 
         {/* Export Dropdown */}
         <div className="relative" ref={exportDropdownRef}>
@@ -551,10 +566,11 @@ export const AnnotationToolbar = () => {
       </div>
 
       {/* Right - Layout Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-tour="layout-controls">
         {!isEditingLayout ? (
           <button
             onClick={() => setIsEditingLayout(true)}
+            title="Edit canvas layout and windows"
             className="flex items-center px-3 py-1.5 text-sm text-brand-800 hover:bg-neutral-100 rounded transition-all"
           >
             ✎ Edit Layout
@@ -583,14 +599,16 @@ export const AnnotationToolbar = () => {
                     <div className="font-medium">Save as Personal</div>
                     <div className="text-[10px] text-gray-500">Only for you</div>
                   </button>
-                  <button
-                    onClick={() => handleSaveLayout(true)}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
-                    type="button"
-                  >
-                    <div className="font-medium">Save as Default</div>
-                    <div className="text-[10px] text-gray-500">For all users</div>
-                  </button>
+                  {isCampaignAdmin && (
+                    <button
+                      onClick={() => handleSaveLayout(true)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
+                      type="button"
+                    >
+                      <div className="font-medium">Save as Default</div>
+                      <div className="text-[10px] text-gray-500">For all users</div>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -627,8 +645,90 @@ export const AnnotationToolbar = () => {
           )}
         </button>
 
-        {/* Keyboard Shortcuts Help */}
+        {/* Guided Tour Button */}
+        <button
+          onClick={() => useLayoutStore.getState().setShowGuidedTour(true)}
+          className="flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
+          title="Take guided tour"
+          type="button"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
+
+        {/* Campaign Guide */}
         <div className="relative">
+          <button
+            onClick={toggleGuide}
+            className={`flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showGuide ? 'bg-neutral-100' : ''}`}
+            title="Campaign guide (G)"
+            type="button"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
+            </svg>
+          </button>
+          {showGuide && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col">
+              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
+                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                  Campaign Guide
+                </span>
+                <button
+                  onClick={toggleGuide}
+                  className="text-neutral-400 hover:text-neutral-600"
+                  type="button"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-4 py-3">
+                <div className="markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['html']}>
+                    {campaign.settings?.guide_markdown || 'No guide available for this campaign.'}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Keyboard Shortcuts Help */}
+        <div className="relative" data-tour="keyboard-help">
           <button
             onClick={toggleKeyboardHelp}
             onBlur={() => setTimeout(() => setShowKeyboardHelp(false), 150)}
@@ -636,30 +736,106 @@ export const AnnotationToolbar = () => {
             title="Keyboard shortcuts"
             type="button"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10 3.5C6.41015 3.5 3.5 6.41015 3.5 10C3.5 13.5899 6.41015 16.5 10 16.5C13.5899 16.5 16.5 13.5899 16.5 10C16.5 6.41015 13.5899 3.5 10 3.5ZM10 6C10.4142 6 10.75 6.33579 10.75 6.75V7.25C10.75 7.66421 10.4142 8 10 8C9.58579 8 9.25 7.66421 9.25 7.25V6.75C9.25 6.33579 9.58579 6 10 6ZM10 9C10.4142 9 10.75 9.33579 10.75 9.75V13.25C10.75 13.6642 10.4142 14 10 14C9.58579 14 9.25 13.6642 9.25 13.25V9.75C9.25 9.33579 9.58579 9 10 9Z"
-              />
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+            >
+              <rect x="2" y="5" width="16" height="11" rx="2" />
+              <line x1="5" y1="8.5" x2="7" y2="8.5" />
+              <line x1="9" y1="8.5" x2="11" y2="8.5" />
+              <line x1="13" y1="8.5" x2="15" y2="8.5" />
+              <line x1="5" y1="11.5" x2="7" y2="11.5" />
+              <line x1="9" y1="11.5" x2="11" y2="11.5" />
+              <line x1="13" y1="11.5" x2="15" y2="11.5" />
+              <line x1="7" y1="14" x2="13" y2="14" />
             </svg>
           </button>
 
           {showKeyboardHelp && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] p-3">
+            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] max-h-[70vh] overflow-y-auto p-3">
               <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
                 Keyboard Shortcuts
               </div>
-              <div className="space-y-1.5">
-                {KEYBOARD_SHORTCUTS.map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
+              {campaign.mode === 'open' ? (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
+                    Tools
                   </div>
-                ))}
-              </div>
+                  {(
+                    [
+                      { key: 'V', description: 'Pan tool' },
+                      { key: 'R', description: 'Annotate tool' },
+                      { key: 'E', description: 'Edit tool' },
+                      { key: 'T', description: 'Timeseries probe' },
+                      { key: '1-9', description: 'Select label & annotate' },
+                      { key: 'Space', description: 'Fit view to annotations' },
+                      { key: 'Alt+drag', description: 'Move feature' },
+                      { key: 'Escape', description: 'Cancel / deselect edit' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                    Navigation
+                  </div>
+                  {(
+                    [
+                      { key: 'A / D', description: 'Previous / Next slice' },
+                      { key: 'Shift+A / D', description: 'Previous / Next collection' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                    Map
+                  </div>
+                  {(
+                    [
+                      { key: '↑ ↓ ← →', description: 'Pan map' },
+                      { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
+                      { key: 'O', description: 'Toggle crosshair' },
+                      { key: 'L', description: 'Toggle view link (sync)' },
+                      { key: 'I', description: 'Cycle imagery source' },
+                      { key: 'Shift+I', description: 'Cycle visualization' },
+                      { key: 'V', description: 'Cycle view' },
+                      { key: 'G', description: 'Toggle campaign guide' },
+                      { key: 'H', description: 'Toggle keyboard help' },
+                    ] as { key: string; description: string }[]
+                  ).map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                      <span className="text-neutral-600">{shortcut.description}</span>
+                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                        {shortcut.key}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

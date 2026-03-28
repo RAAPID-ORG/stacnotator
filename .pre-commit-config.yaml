@@ -28,16 +28,6 @@ repos:
       - id: ruff-format
         files: ^backend/
 
-  # - repo: local
-  #   hooks:
-  #     - id: mypy-backend
-  #       name: mypy (backend)
-  #       entry: bash -c 'cd backend && uv run mypy src/ --config-file pyproject.toml'
-  #       language: system
-  #       types: [python]
-  #       files: ^backend/
-  #       pass_filenames: false
-
   # Frontend: TypeScript
   - repo: local
     hooks:
@@ -53,4 +43,11 @@ repos:
         entry: bash -c 'cd frontend && npx tsc --noEmit'
         language: system
         files: ^frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: prettier-frontend
+        name: prettier (frontend)
+        entry: bash -c 'cd frontend && npx prettier --write "src/**/*.{ts,tsx,css}"'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx|css)$
         pass_filenames: false

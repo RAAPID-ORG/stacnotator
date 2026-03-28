@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
+import { extractCentroidFromWKT } from '~/shared/utils/utility';
 
 interface AnnotationDistributionMapProps {
   tasks: AnnotationTaskOut[];
@@ -13,18 +14,6 @@ interface AnnotationDistributionMapProps {
     north: number;
   };
 }
-
-// Helper to parse WKT point geometry
-const parseWKTPoint = (wkt: string): [number, number] | null => {
-  // Handle "POINT (lon lat)" format
-  const match = wkt.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-  if (match) {
-    const lon = parseFloat(match[1]);
-    const lat = parseFloat(match[2]);
-    return [lat, lon]; // Leaflet uses [lat, lon]
-  }
-  return null;
-};
 
 // Generate distinct colors for labels
 const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
@@ -42,8 +31,9 @@ const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
   return colors;
 };
 
-// Gray color for pending tasks
-const PENDING_COLOR = '#9CA3AF';
+// Status colors for tasks without a labeled annotation
+const PENDING_COLOR = '#9CA3AF'; // gray
+const SKIPPED_COLOR = '#8B5CF6'; // violet
 
 export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps> = ({
   tasks,
@@ -116,24 +106,27 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
     // Add markers for each task
     tasks.forEach((task) => {
-      const coords = parseWKTPoint(task.geometry.geometry);
-      if (!coords) return;
+      const centroid = extractCentroidFromWKT(task.geometry.geometry);
+      if (!centroid) return;
+      const coords: [number, number] = [centroid.lat, centroid.lon];
 
       const annotations = task.annotations || [];
 
-      // Color by label: use the first annotation's label color, otherwise gray (pending)
+      // Determine marker color from task status and annotations
       let markerColor = PENDING_COLOR;
       let labelName = 'Pending';
 
-      if (annotations.length > 0) {
-        const firstAnnotation = annotations[0];
-        if (firstAnnotation.label_id) {
-          markerColor = labelColors[firstAnnotation.label_id] || PENDING_COLOR;
-          const label = labels.find((l) => l.id === firstAnnotation.label_id);
-          labelName = label?.name || `Label #${firstAnnotation.label_id}`;
-        } else {
-          labelName = 'No label';
+      if (annotations.length > 0 && annotations.some((a) => a.label_id)) {
+        // Has at least one labeled annotation - color by first label
+        const labeledAnn = annotations.find((a) => a.label_id);
+        if (labeledAnn?.label_id) {
+          markerColor = labelColors[labeledAnn.label_id] || PENDING_COLOR;
+          const label = labels.find((l) => l.id === labeledAnn.label_id);
+          labelName = label?.name || `Label #${labeledAnn.label_id}`;
         }
+      } else if (task.task_status === 'skipped') {
+        markerColor = SKIPPED_COLOR;
+        labelName = 'Skipped';
       }
 
       const icon = L.divIcon({
@@ -172,6 +165,7 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       marker.bindPopup(`
         <div class="text-sm">
           <div class="font-medium mb-1">Task #${task.annotation_number}</div>
+          <div class="text-xs text-neutral-600">Status: <span class="capitalize">${task.task_status || 'pending'}</span></div>
           <div class="text-xs text-neutral-600">Label: <span class="capitalize">${labelName}</span></div>
           <div class="text-xs text-neutral-600">Annotations: ${annotationInfo}</div>
           <div class="text-xs text-neutral-600">Assigned: ${assignedTo}</div>
@@ -194,11 +188,14 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
     })
     .filter((stat) => stat.count > 0);
 
-  // Tasks with no annotations (or no label) are pending
+  // Tasks with no annotations (or no label) that aren't skipped are pending
   const pendingCount = tasks.filter((t) => {
     const annotations = t.annotations || [];
-    return annotations.length === 0 || !annotations.some((a) => a.label_id);
+    const hasLabel = annotations.some((a) => a.label_id);
+    return !hasLabel && t.task_status !== 'skipped';
   }).length;
+
+  const skippedCount = tasks.filter((t) => t.task_status === 'skipped').length;
 
   return (
     <div className="bg-white rounded-lg border border-neutral-300 p-6">
@@ -226,6 +223,15 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
               style={{ backgroundColor: PENDING_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
             />
             <span className="text-neutral-700">Pending ({pendingCount})</span>
+          </div>
+        )}
+        {skippedCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span
+              className="w-4 h-4 rounded-full border-2 border-white"
+              style={{ backgroundColor: SKIPPED_COLOR, boxShadow: '0 0 0 1px rgba(0,0,0,0.1)' }}
+            />
+            <span className="text-neutral-700">Skipped ({skippedCount})</span>
           </div>
         )}
       </div>

@@ -15,6 +15,11 @@ def require_campaign_access(
     """
     Verify user has access to a campaign (any role).
 
+    Access is granted if:
+    - The campaign is public, OR
+    - The user is a member of the campaign, OR
+    - The user is a platform admin.
+
     Args:
         campaign_id: ID of the campaign to check access for
         db: Database session
@@ -33,6 +38,10 @@ def require_campaign_access(
             detail="Campaign not found",
         )
 
+    # Public campaigns are accessible to all authenticated users
+    if campaign.is_public:
+        return campaign
+
     has_access = (
         db.query(CampaignUser)
         .filter(
@@ -42,7 +51,7 @@ def require_campaign_access(
         .first()
     ) or is_admin(db, user.id)
 
-    if has_access is None:
+    if not has_access:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this campaign",
@@ -87,7 +96,7 @@ def require_campaign_admin(
         .first()
     ) or is_admin(db, user.id)
 
-    if has_admin_access is None:
+    if not has_admin_access:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not an admin of this campaign",

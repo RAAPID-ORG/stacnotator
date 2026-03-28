@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
-import useAnnotationStore from '../annotation.store';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -39,21 +40,22 @@ export const AnnotationControls = ({
   // Use store state for label and comment
   // Form state (selectedLabelId, comment, confidence) is populated by the store's
   // navigation actions (nextTask, previousTask, goToTask, etc.) via getFormStateForTask()
-  const selectedLabelId = useAnnotationStore((state) => state.selectedLabelId);
-  const comment = useAnnotationStore((state) => state.comment);
-  const confidence = useAnnotationStore((state) => state.confidence);
-  const isNavigating = useAnnotationStore((state) => state.isNavigating);
-  const isReviewMode = useAnnotationStore((state) => state.isReviewMode);
-  const isAuthoritativeReviewer = useAnnotationStore((state) => state.isAuthoritativeReviewer);
-  const knnValidationEnabled = useAnnotationStore((state) => state.knnValidationEnabled);
-  const skipConfirmDisabled = useAnnotationStore((state) => state.skipConfirmDisabled);
-  const campaign = useAnnotationStore((state) => state.campaign);
+  const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
+  const comment = useTaskStore((s) => s.comment);
+  const confidence = useTaskStore((s) => s.confidence);
+  const isNavigating = useTaskStore((s) => s.isNavigating);
+  const knnValidationEnabled = useTaskStore((s) => s.knnValidationEnabled);
+  const skipConfirmDisabled = useTaskStore((s) => s.skipConfirmDisabled);
+  const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const setComment = useTaskStore((s) => s.setComment);
+  const setConfidence = useTaskStore((s) => s.setConfidence);
+  const setKnnValidationEnabled = useTaskStore((s) => s.setKnnValidationEnabled);
+  const setSkipConfirmDisabled = useTaskStore((s) => s.setSkipConfirmDisabled);
+
+  const campaign = useCampaignStore((s) => s.campaign);
   const hasEmbeddingYear = campaign?.settings?.embedding_year != null;
-  const setSelectedLabelId = useAnnotationStore((state) => state.setSelectedLabelId);
-  const setComment = useAnnotationStore((state) => state.setComment);
-  const setConfidence = useAnnotationStore((state) => state.setConfidence);
-  const setKnnValidationEnabled = useAnnotationStore((state) => state.setKnnValidationEnabled);
-  const setSkipConfirmDisabled = useAnnotationStore((state) => state.setSkipConfirmDisabled);
+  const isReviewMode = useCampaignStore((s) => s.isReviewMode);
+  const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
 
   // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
@@ -103,15 +105,14 @@ export const AnnotationControls = ({
 
   const handleGoToTask = (annotationNumber: number) => {
     if (annotationNumber > 0) {
-      const visibleTasks = useAnnotationStore.getState().visibleTasks;
+      const visibleTasks = useTaskStore.getState().visibleTasks;
       const exists = visibleTasks.some((t) => t.annotation_number === annotationNumber);
       if (exists) {
         onGoToTask(annotationNumber);
       } else {
-        useLayoutStore.getState().showAlert(
-          `Point #${annotationNumber} is not in the current filter`,
-          'error'
-        );
+        useLayoutStore
+          .getState()
+          .showAlert(`Point #${annotationNumber} is not in the current filter`, 'error');
       }
     }
   };

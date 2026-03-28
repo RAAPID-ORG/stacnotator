@@ -8,13 +8,11 @@ import MainAnnotationsContainer from './MainAnnotationContainer';
 import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
-import useAnnotationStore from '../annotation.store';
-import {
-  computeTimeSlices,
-  extractLatLonFromWKT,
-  formatWindowLabel,
-  type LatLon,
-} from '~/shared/utils/utility';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
+import { useAnnotationStore } from '../stores/annotation.store';
+import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 
 /**
@@ -40,30 +38,34 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Read state directly from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const allTasks = useAnnotationStore((state) => state.allTasks);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const taskFilter = useAnnotationStore((state) => state.taskFilter);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const isEditingLayout = useAnnotationStore((state) => state.isEditingLayout);
-  const currentLayout = useAnnotationStore((state) => state.currentLayout);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
-  const showBasemap = useAnnotationStore((state) => state.showBasemap);
-  const basemapType = useAnnotationStore((state) => state.basemapType);
-  const currentMapBounds = useAnnotationStore((state) => state.currentMapBounds);
-  const timeseriesPoint = useAnnotationStore((state) => state.timeseriesPoint);
-  const probeTimeseriesPoint = useAnnotationStore((state) => state.probeTimeseriesPoint);
-  const setCurrentLayout = useAnnotationStore((state) => state.setCurrentLayout);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const isSubmitting = useAnnotationStore((state) => state.isSubmitting);
-  const submitAnnotation = useAnnotationStore((state) => state.submitAnnotation);
-  const nextTask = useAnnotationStore((state) => state.nextTask);
-  const previousTask = useAnnotationStore((state) => state.previousTask);
-  const goToTask = useAnnotationStore((state) => state.goToTask);
+  // Read state directly from stores
+  const campaign = useCampaignStore((s) => s.campaign);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const currentLayout = useCampaignStore((s) => s.currentLayout);
+  const setCurrentLayout = useCampaignStore((s) => s.setCurrentLayout);
+
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const taskFilter = useTaskStore((s) => s.taskFilter);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+  const isSubmitting = useTaskStore((s) => s.isSubmitting);
+  const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
+  const nextTask = useTaskStore((s) => s.nextTask);
+  const previousTask = useTaskStore((s) => s.previousTask);
+  const goToTask = useTaskStore((s) => s.goToTask);
+
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const showBasemap = useMapStore((s) => s.showBasemap);
+  const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
+  const currentMapBounds = useMapStore((s) => s.currentMapBounds);
+  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
+  const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
+  const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
+  const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
 
   // Get fullscreen state from UI store
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
@@ -79,10 +81,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   });
   const totalTasksForCounter = tasksInAssignmentScope.length;
   const completedTasksForCounter = tasksInAssignmentScope.filter((task) => {
-    return task.task_status === 'done' || task.task_status === 'skipped' || task.task_status === 'conflicting';
+    return (
+      task.task_status === 'done' ||
+      task.task_status === 'skipped' ||
+      task.task_status === 'conflicting'
+    );
   }).length;
 
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
+  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
     ? ([
@@ -92,6 +98,64 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         campaign.settings.bbox_north,
       ] as [number, number, number, number])
     : null;
+
+  // Annotation dots for the minimap (open mode only)
+  const annotations = useAnnotationStore((s) => s.annotations);
+  const annotationDots = useMemo(() => {
+    if (!isOpenMode) return undefined;
+    return annotations
+      .map((ann) => {
+        const geojson = convertWKTToGeoJSON(ann.geometry.geometry);
+        if (!geojson) return null;
+        // Compute centroid from geometry coordinates
+        const coords =
+          geojson.type === 'Point'
+            ? [geojson.coordinates as [number, number]]
+            : geojson.type === 'Polygon'
+              ? (geojson.coordinates as number[][][])[0]
+              : geojson.type === 'LineString'
+                ? (geojson.coordinates as number[][])
+                : [];
+        if (coords.length === 0) return null;
+        const sumLon = coords.reduce((s, c) => s + (c as number[])[0], 0);
+        const sumLat = coords.reduce((s, c) => s + (c as number[])[1], 0);
+        return { lat: sumLat / coords.length, lon: sumLon / coords.length };
+      })
+      .filter((d): d is { lat: number; lon: number } => d !== null);
+  }, [isOpenMode, annotations]);
+
+  // Collections shown as windows in the current view
+  const windowCollections = useMemo(() => {
+    if (!campaign || !selectedView) return [];
+    return selectedView.collection_refs
+      .filter((ref) => ref.show_as_window)
+      .map((ref) => {
+        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
+        const collection = source?.collections.find((c) => c.id === ref.collection_id);
+        return { ...ref, collection, source };
+      })
+      .filter((r) => r.collection && r.source);
+  }, [campaign, selectedView]);
+
+  // Resolve active collection and source for header display
+  const activeSource = useMemo(() => {
+    if (!campaign || !activeCollectionId) return null;
+    return (
+      campaign.imagery_sources.find((s) =>
+        s.collections.some((c) => c.id === activeCollectionId)
+      ) ?? null
+    );
+  }, [campaign, activeCollectionId]);
+
+  const activeCollection =
+    activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
+  const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
+
+  // Visualization name for header
+  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
+    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
+  );
+  const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
   // Measure container width
   useEffect(() => {
@@ -109,93 +173,58 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return () => resizeObserver.disconnect();
   }, []);
 
-  const currentActiveWindowId = activeWindowId ?? selectedImagery?.default_main_window_id ?? null;
-  const activeWindow = selectedImagery?.windows.find((w) => w.id === currentActiveWindowId);
-  const visualizationName =
-    selectedImagery?.visualization_url_templates?.[selectedLayerIndex]?.name;
-
-  // Compute slices for the active window
-  const slices = useMemo(() => {
-    if (!activeWindow || !selectedImagery) return [];
-    return computeTimeSlices(
-      activeWindow.window_start_date,
-      activeWindow.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
-  }, [
-    activeWindow?.window_start_date,
-    activeWindow?.window_end_date,
-    selectedImagery?.slicing_interval,
-    selectedImagery?.slicing_unit,
-  ]);
-
-  // Get the active slice for header display
-  const activeSlice = slices[activeSliceIndex] ?? slices[0];
-
   // Memoize latLon extraction to prevent recalculations
-  // In open mode with timeseries tool, use the clicked point; otherwise use task geometry
+  // In open mode: always use viewport center (for minimap header / coordinates / Google Earth link)
+  // In task mode: use task geometry centroid
   const latLon = useMemo<LatLon | null>(() => {
-    if (isOpenMode && timeseriesPoint) {
-      return timeseriesPoint;
+    if (isOpenMode) {
+      if (currentMapCenter) return { lat: currentMapCenter[0], lon: currentMapCenter[1] };
+      return null;
     }
-    return currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
-  }, [isOpenMode, timeseriesPoint, currentTask?.geometry.geometry]);
+    return currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
+
+  // In open mode, only pass timeseries point to the chart when the user explicitly
+  // clicked with the timeseries tool — never auto-fetch for the viewport center.
+  // In task mode, latLon (task centroid) is always the chart target.
+  const timeseriesLatLon = useMemo<LatLon | null>(() => {
+    if (isOpenMode) return timeseriesPoint;
+    return latLon;
+  }, [isOpenMode, timeseriesPoint, latLon]);
 
   // Memoize center to prevent array recreation on every render
   const center = useMemo<[number, number]>(
     () => (latLon ? [latLon.lat, latLon.lon] : [0, 0]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when lat/lon change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [latLon?.lat, latLon?.lon]
   );
 
   if (!campaign) return null;
 
   const renderMainHeader = () => {
-    // Get the current layer name
     const currentLayerName = showBasemap
-      ? basemapType === 'esri-world-imagery'
-        ? 'ESRI World Imagery'
-        : basemapType === 'opentopomap'
-          ? 'OpenTopoMap'
-          : 'CartoDB Light'
-      : visualizationName || 'Layer';
+      ? (campaign.basemaps.find((b) => `basemap-${b.id}` === selectedBasemapId)?.name ?? 'Basemap')
+      : activeVizEntry?.vizName || 'Layer';
 
     return (
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-neutral-900">
-          {/* Always show layer name */}
           <span className="font-medium">{currentLayerName}</span>
 
-          {/* Show imagery source and dates if not basemap */}
-          {!showBasemap && selectedImagery && (
+          {!showBasemap && activeSource && (
             <>
               <span className="text-neutral-400">·</span>
-              <span className="text-neutral-600">{selectedImagery.name}</span>
-              {activeSlice ? (
+              <span className="text-neutral-600">{activeSource.name}</span>
+              {activeSlice && (
                 <>
                   <span className="text-neutral-400">·</span>
-                  <span className="text-neutral-600">{activeSlice.label}</span>
+                  <span className="text-neutral-600">{activeSlice.name}</span>
                 </>
-              ) : (
-                activeWindow && (
-                  <>
-                    <span className="text-neutral-400">·</span>
-                    <span className="text-neutral-600">
-                      {formatWindowLabel(
-                        activeWindow.window_start_date,
-                        activeWindow.window_end_date,
-                        selectedImagery.window_unit || null
-                      )}
-                    </span>
-                  </>
-                )
               )}
-              {slices.length > 1 && (
+              {(activeCollection?.slices.length ?? 0) > 1 && (
                 <span className="text-neutral-500">
-                  ({activeSliceIndex + 1}/{slices.length})
+                  ({activeSliceIndex + 1}/{activeCollection!.slices.length})
                 </span>
               )}
             </>
@@ -229,11 +258,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </svg>
           </button>
           <a
-            href={`https://www.google.com/maps?q=${latLon.lat},${latLon.lon}&t=k`}
+            href={`https://earth.google.com/web/search/${latLon.lat},${latLon.lon}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
-            title="Open in Google Maps (satellite view)"
+            title="Open in Google Earth"
           >
             <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
               <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
@@ -248,7 +277,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   return (
     <main
       ref={containerRef}
-      className={`flex-1 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
+      className={`flex-1 min-h-0 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
         isEditingLayout ? 'is-editing' : ''
       }`}
     >
@@ -272,7 +301,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           onLayoutChange={setCurrentLayout}
         >
           {/* Main Annotation Container */}
-          <div key="main" className="grid-card">
+          <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
               {renderMainHeader()}
             </div>
@@ -281,7 +310,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
           {/* Timeseries */}
           {campaign.time_series.length > 0 && (
-            <div key="timeseries" className="grid-card">
+            <div key="timeseries" className="grid-card" data-tour="timeseries">
               <div
                 className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}
               >
@@ -289,10 +318,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               </div>
               <TimeSeriesChart
                 timeseries={campaign.time_series}
-                latLon={latLon}
+                latLon={timeseriesLatLon}
                 prefetchCoordinates={visibleTasks
                   .slice(currentTaskIndex + 1, currentTaskIndex + 4)
-                  .map((task) => extractLatLonFromWKT(task.geometry.geometry))
+                  .map((task) => extractCentroidFromWKT(task.geometry.geometry))
                   .filter((coord): coord is LatLon => coord !== null)}
                 probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
               />
@@ -300,7 +329,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           )}
 
           {/* Minimap */}
-          <div key="minimap" className="grid-card">
+          <div key="minimap" className="grid-card" data-tour="minimap">
             <div className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
@@ -308,11 +337,16 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               center={center}
               bbox={campaignBbox || [0, 0, 0, 0]}
               visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
+              onViewportDrag={
+                campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+              }
+              fitBbox={campaign?.mode === 'tasks'}
+              annotationDots={annotationDots}
             />
           </div>
 
           {/* Annotation Controls Panel */}
-          <div key="controls" className="grid-card">
+          <div key="controls" className="grid-card" data-tour="controls">
             <div className="h-full overflow-auto">
               {campaign.mode === 'tasks' ? (
                 <ControlsTaskMode
@@ -332,26 +366,24 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </div>
           </div>
 
-          {/* Imagery Windows */}
-          {selectedImagery?.windows.map((window) => {
-            const isActiveWindow = window.id === currentActiveWindowId;
+          {/* Collection Windows */}
+          {windowCollections.map(({ collection, source }, idx) => {
+            if (!collection || !source) return null;
+            const isActiveCol = collection.id === activeCollectionId;
 
             return (
               <div
-                key={window.id}
-                className={`grid-card grid-card-hoverable ${isActiveWindow ? 'active-window' : ''}`}
+                key={collection.id}
+                className={`grid-card grid-card-hoverable ${isActiveCol ? 'active-window' : ''}`}
+                {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
                   className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50`}
-                  onClick={() => setActiveWindowId(window.id)}
+                  onClick={() => setActiveCollectionId(collection.id)}
                 >
-                  {formatWindowLabel(
-                    window.window_start_date,
-                    window.window_end_date,
-                    selectedImagery.window_unit
-                  )}
+                  {collection.name}
                 </div>
-                <ImageryContainer window={window} />
+                <ImageryContainer collectionId={collection.id} sourceId={source.id} />
               </div>
             );
           })}

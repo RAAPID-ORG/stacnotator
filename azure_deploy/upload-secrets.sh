@@ -21,7 +21,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Upload Secrets to Key Vault ===${NC}"
+echo -e "${GREEN}Upload Secrets to Key Vault${NC}"
 echo -e "${BLUE}This uploads both backend secrets and frontend Firebase config${NC}"
 echo ""
 
@@ -96,13 +96,9 @@ az keyvault secret set \
 echo -e "${GREEN}✓ Earth Engine credentials uploaded${NC}"
 echo ""
 
-# ============================================================================
 # Firebase Client Configuration (for frontend) (not actual secrets just env vars)
-# ============================================================================
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Firebase Client Configuration${NC}"
-echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}Firebase Client Configuration${NC}"
 echo ""
 echo -e "${YELLOW}Get these values from Firebase Console:${NC}"
 echo -e "  https://console.firebase.google.com/"
@@ -154,13 +150,9 @@ else
     echo ""
 fi
 
-# ============================================================================
 # Summary
-# ============================================================================
 
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   Secrets Upload Complete!${NC}"
-echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}Secrets Upload Complete!${NC}"
 echo ""
 echo -e "${BLUE}Uploaded secrets:${NC}"
 echo -e "  • Firebase admin credentials (backend)"
@@ -171,8 +163,8 @@ if [ -n "$FIREBASE_API_KEY" ]; then
 fi
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo -e "1. Configure container app secrets: ./azure_deploy/configure-app-secrets.sh"
-echo -e "2. Deploy your application: ./azure_deploy/deploy-app.sh"
+echo -e "  Configure container app secrets: ./azure_deploy/configure-app-secrets.sh"
+echo -e "  Deploy your application: ./azure_deploy/deploy-app.sh"
 echo ""
 if [ -n "$FIREBASE_PROJECT_ID" ]; then
     echo -e "${YELLOW}Important: Configure authorized domains in Firebase Console${NC}"

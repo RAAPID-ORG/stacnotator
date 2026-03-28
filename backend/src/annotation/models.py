@@ -204,6 +204,13 @@ class Annotation(Base):
         nullable=False,
     )
 
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="annotations")
     geometry: Mapped[AnnotationGeometry] = relationship()

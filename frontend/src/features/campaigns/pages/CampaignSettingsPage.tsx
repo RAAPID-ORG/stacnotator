@@ -1,32 +1,31 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { TaskAssignmentModal } from '~/features/campaigns/settings/TaskAssignmentModal';
+import { TaskAssignmentModal } from '~/features/campaigns/components/settings/TaskAssignmentModal';
 import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
-} from '~/features/campaigns/settings/ReviewerAssignmentModal';
-import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
-import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
-import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
-import TabNavigator from 'src/shared/ui/TabNavigator';
+} from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
+import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import TabNavigator from '~/shared/ui/TabNavigator';
 import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
-import GeneralSettingsTab from '~/features/campaigns/settings/tabs/GeneralSettingsTab';
-import ImageryTab from '~/features/campaigns/settings/tabs/ImageryTab';
-import TimeseriesTab from '~/features/campaigns/settings/tabs/TimeseriesTab';
-import TasksTab from '~/features/campaigns/settings/tabs/TasksTab';
-import UsersTab from '~/features/campaigns/settings/tabs/UsersTab';
-import { useLayoutStore } from 'src/features/layout/layout.store';
+import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
+import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
+import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
+import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
+import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 import {
-  createImagery,
-  deleteImagery,
-  updateImagery,
+  deleteSource,
   createTimeseriesForCampaign,
   getAllAnnotationTasks,
   getCampaign,
   getCampaignUsers,
   ingestAnnotationTasksFromCsv,
+  ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
   unassignUserFromTask,
   assignReviewers,
@@ -36,9 +35,7 @@ import {
   type AnnotationTaskOut,
   type CampaignOut,
   type CampaignUserOut,
-  type ImageryOut,
-  type ImageryBulkCreate,
-  type ImageryCreate,
+  type ImagerySourceOut,
   type TimeSeriesCreate,
   type TimeSeriesOut,
   type GenerateTasksResponse,
@@ -60,9 +57,7 @@ export const CampaignSettingsPage = () => {
 
   // Form states
   const [campaignName, setCampaignName] = useState('');
-  const [imagery, setImagery] = useState<ImageryOut[]>([]);
-  const [newImagery, setNewImagery] = useState<ImageryCreate[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<string>('custom');
+  const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
   const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
   const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
@@ -102,7 +97,7 @@ export const CampaignSettingsPage = () => {
         const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
         setCampaign(data!);
         setCampaignName(data!.name);
-        setImagery(data!.imagery);
+        setImagery(data!.imagery_sources);
         setTimeseries(data!.time_series);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load campaign';
@@ -213,105 +208,25 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  const handleAddImagery = async () => {
-    if (newImagery.length === 0) return;
-    try {
-      setSaving(true);
-      const imageryToCreate: ImageryBulkCreate = { items: newImagery };
-      const { data } = await createImagery({
-        path: { campaign_id: numericCampaignId },
-        body: imageryToCreate,
-      });
-      setImagery([...imagery, ...data!.new_items]);
-      setNewImagery([]);
-      showAlert(`${data!.new_items.length} imagery source(s) added successfully`, 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add imagery';
-      showAlert(message, 'error');
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdateImagery = async (imageryId: number, updates: Partial<ImageryCreate>) => {
-    try {
-      setSaving(true);
-
-      // Filter out temporal fields that cannot be updated
-      const {
-        start_ym: _start_ym,
-        end_ym: _end_ym,
-        window_interval: _window_interval,
-        window_unit: _window_unit,
-        slicing_interval: _slicing_interval,
-        slicing_unit: _slicing_unit,
-        ...allowedUpdates
-      } = updates;
-
-      // Call the API
-      const { data, error } = await updateImagery({
-        path: {
-          campaign_id: numericCampaignId,
-          imagery_id: imageryId,
-        },
-        body: allowedUpdates,
-      });
-
-      if (error) {
-        throw new Error('Failed to update imagery');
-      }
-
-      // Update the local state with the response from the server
-      if (data) {
-        setImagery(
-          imagery.map((img) => {
-            if (img.id === imageryId) {
-              return data;
-            }
-            return img;
-          })
-        );
-      }
-
-      showAlert('Imagery updated successfully', 'success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update imagery';
-      showAlert(message, 'error');
-      console.error(err);
-      // Reload campaign to revert changes on error
-      try {
-        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
-        if (data) {
-          setImagery(data.imagery);
-        }
-      } catch (reloadErr) {
-        console.error('Failed to reload campaign:', reloadErr);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDeleteImagery = async () => {
     if (!deleteConfirm?.imageryId) return;
 
     try {
       setSaving(true);
 
-      await deleteImagery({
+      await deleteSource({
         path: {
           campaign_id: numericCampaignId,
-          imagery_id: deleteConfirm.imageryId,
+          source_id: deleteConfirm.imageryId,
         },
       });
 
       // Update local state immediately
       setImagery(imagery.filter((img) => img.id !== deleteConfirm.imageryId));
       setDeleteConfirm(null);
-      showAlert('Imagery deleted successfully', 'success');
+      showAlert('Imagery source deleted successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete imagery';
+      const message = err instanceof Error ? err.message : 'Failed to delete imagery source';
       showAlert(message, 'error');
       console.error(err);
     } finally {
@@ -373,10 +288,19 @@ export const CampaignSettingsPage = () => {
     if (!taskFile) return;
     try {
       setUploadingTasks(true);
-      const { data: _data } = await ingestAnnotationTasksFromCsv({
-        path: { campaign_id: numericCampaignId },
-        body: { file: taskFile },
-      });
+      const name = taskFile.name.toLowerCase();
+
+      if (name.endsWith('.geojson') || name.endsWith('.json')) {
+        await ingestAnnotationTasksFromGeojson({
+          path: { campaign_id: numericCampaignId },
+          body: { file: taskFile },
+        });
+      } else {
+        await ingestAnnotationTasksFromCsv({
+          path: { campaign_id: numericCampaignId },
+          body: { file: taskFile },
+        });
+      }
 
       setTaskFile(null);
       showAlert('Annotation task(s) uploaded successfully', 'success');
@@ -619,11 +543,11 @@ export const CampaignSettingsPage = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
+                onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
                 className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
                 type="button"
               >
-                View Annotations
+                Start Annotating
               </button>
             </div>
           </div>
@@ -659,17 +583,7 @@ export const CampaignSettingsPage = () => {
           )}
 
           {activeTab === 'imagery' && (
-            <ImageryTab
-              newImagery={newImagery}
-              setNewImagery={setNewImagery}
-              selectedPreset={selectedPreset}
-              setSelectedPreset={setSelectedPreset}
-              imagery={imagery}
-              handleAddImagery={handleAddImagery}
-              handleUpdateImagery={handleUpdateImagery}
-              setDeleteConfirm={setDeleteConfirm}
-              saving={saving}
-            />
+            <ImageryTab imagery={imagery} setDeleteConfirm={setDeleteConfirm} />
           )}
 
           {activeTab === 'timeseries' && (

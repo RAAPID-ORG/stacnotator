@@ -1,12 +1,19 @@
 
 # STACNotator
 
-A tool for annotating imagery from STAC Catalogs.
+NASA Harvest's geospatial imagery annotation platform.
 
+> [!Important]
+> This software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing.
 
 ## Quick Start
 
 ### Development Setup (with Hot Reloading)
+
+#### Prequisites
+
+- Ensure you have `docker` and `docker-compose` installed. Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/#docker-desktop-recommended). The easiest way might be through `Docker Desktop`.
+- Have a Google Account that you can use for the `Firebase` setup.
 
 #### Step 0 - Firebase Setup
 
@@ -105,14 +112,14 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app served by nginx. Backend Client is generated with `openapi-ts`.
+- **Frontend**: React app (Served by nginx in bare metal production deployments). Backend Client is generated with `openapi-ts`.
 - **Backend**: FastAPI application with Gunicorn workers
-- **Database**: PostgreSQL 16 with PostGIS extension
+- **Database**: PostgreSQL 16 with PostGIS and Vector extension
 - **Nginx**: Reverse proxy for production (Not used when deployed on Azure!)
 
 ## Development
 
-A seperate docker-environment is provided for development that facilitates usage.
+A seperate docker-environment is provided for development that facilitates usage with hot-reloading.
 
 ```bash
 # Build images for development, setup db and run migrations
@@ -128,38 +135,20 @@ make dev-migrate           # Run database migrations
 make dev-down              # Stop all services
 ```
 
-## Production Deployment
+### Pre-commit Hooks
 
-STACNotator supports multiple deployment options:
-
-- **Docker Compose** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.)
-- **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
-
-### Production Checklist
-
-- [ ] Strong `POSTGRES_PASSWORD` generated (32+ characters)
-- [ ] Firebase credentials secured (permissions 600)
-- [ ] CORS origins restricted to your domain
-- [ ] `.env` file excluded from git
-- [ ] **You are the first user to sign up** (for admin access)
-- [ ] Workers tuned for your CPU count (see Worker Configuration)
-- [ ] Database not exposed publicly (remove `ports:` in docker-compose.prod.yml)
-- [ ] Domain DNS pointed to your server
-- [ ] Firewall configured (allow ports 80, 443)
-
-
-## Common Tasks
+The project uses [pre-commit](https://pre-commit.com/) to enforce code quality on every commit.
 
 ```bash
-# Create database migration
-make migrate-create MSG="add new table"
-
-# View running containers
-make ps
-
-# Restart a service
-make restart-backend
-
-# Clean up everything
-make clean
+# Install hooks (one-time setup)
+make pre-commit-install
 ```
+
+## Production Deployment
+
+STACNotator supports multiple deployment options (or maybe only one at the moment):
+
+- **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
+   - We also provide local staging environment that copies the DB state from the production deployment for local tests before deployment.  Run `make staging-up` to fetch the production DB from Azure, instantiate locally and run some tests and experiments, before new deployments. You can run this next to your dev DB and containers.
+
+- **Docker Compose (Possible deprecated)** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.). This method might not fully be supported anymore, as we did not continue to maintain it after switching to Azure Container Apps for our deployments. You might want to test it out first and open up an issue if encountering any troubles.

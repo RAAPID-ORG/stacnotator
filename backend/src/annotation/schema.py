@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
@@ -27,8 +27,7 @@ class GeometryOut(BaseModel):
             return None
         return to_shape(v).wkt
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationFromTaskOut(BaseModel):
@@ -37,18 +36,17 @@ class AnnotationFromTaskOut(BaseModel):
     comment: str | None
     created_by_user_id: UUID
     created_at: datetime
+    updated_at: datetime
     confidence: int | None
     is_authoritative: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationOut(AnnotationFromTaskOut):
     geometry: GeometryOut
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationTaskAssignmentOut(BaseModel):
@@ -72,8 +70,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
             return result
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationTaskOut(BaseModel):
@@ -166,8 +163,7 @@ class AnnotationTaskOut(BaseModel):
 
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationTaskListOut(BaseModel):
@@ -194,21 +190,21 @@ class AnnotationTaskSubmitResponse(BaseModel):
     task_status: str
     assignment_status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnnotationCreate(BaseModel):
     label_id: int
     comment: str | None
     geometry_wkt: str  # Geometry in WKT format
-    confidence: str | None
+    confidence: int | None
 
 
 class AnnotationUpdate(BaseModel):
     label_id: int | None
     comment: str | None
     geometry_wkt: str | None  # Geometry in WKT format
+    confidence: int | None = None
     is_authoritative: bool | None
 
 

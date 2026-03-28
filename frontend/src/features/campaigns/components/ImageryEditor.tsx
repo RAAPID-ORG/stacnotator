@@ -1,6 +1,29 @@
+/**
+ * @deprecated This component uses legacy imagery types (ImageryCreate) that no longer exist
+ * in the API. The new creation flow uses the step-by-step imagery editor (StepImagery).
+ * The settings page now displays imagery sources in a read-only format via ImageryTab.
+ * Retained for reference only.
+ */
 import { useState, useEffect } from 'react';
-import type { ImageryCreate, ImageryVisualizationUrlTemplateCreate } from '~/api/client';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
+import { MonthPicker } from '~/features/campaigns/components/creation/steps/imagery/MonthPicker';
+
+// Legacy type placeholders - removed from the API client.
+type ImageryVisualizationUrlTemplateCreate = { name: string; visualization_url: string };
+type ImageryCreate = {
+  name: string;
+  start_ym: string;
+  end_ym: string;
+  crosshair_hex6: string;
+  default_zoom: number;
+  window_interval?: number;
+  window_unit?: string;
+  slicing_interval?: number;
+  slicing_unit?: string;
+  registration_url: string;
+  search_body: string;
+  visualization_url_templates: ImageryVisualizationUrlTemplateCreate[];
+};
 
 interface ImageryEditorProps {
   value: ImageryCreate;
@@ -140,12 +163,10 @@ export const ImageryEditor = ({
             Start Month
             {renderTooltip('Start of the imagery availability window (YYYY-MM).')}
           </label>
-          <input
-            type="month"
+          <MonthPicker
             value={yyyymmToInputMonth(localValue.start_ym)}
-            onChange={(e) => update('start_ym', inputMonthToYYYYMM(e.target.value))}
+            onChange={(v) => update('start_ym', inputMonthToYYYYMM(v))}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -153,12 +174,10 @@ export const ImageryEditor = ({
             End Month
             {renderTooltip('End of the imagery availability window (YYYY-MM).')}
           </label>
-          <input
-            type="month"
+          <MonthPicker
             value={yyyymmToInputMonth(localValue.end_ym)}
-            onChange={(e) => update('end_ym', inputMonthToYYYYMM(e.target.value))}
+            onChange={(v) => update('end_ym', inputMonthToYYYYMM(v))}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
       </div>

@@ -1,37 +1,44 @@
-import { useRef, useMemo } from 'react';
-import LeafletMap from './LeafletMap';
-import type { ImageryWindowOut } from '~/api/client';
-import useAnnotationStore from '../annotation.store';
-import { computeTimeSlices, extractLatLonFromWKT } from '~/shared/utils/utility';
-import { useStacImagery } from '../hooks/useStacImagery';
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import WindowMap from './Map/WindowMap';
+import { useCampaignStore } from '../stores/campaign.store';
+import { useTaskStore } from '../stores/task.store';
+import { useMapStore } from '../stores/map.store';
+import {
+  extractCentroidFromWKT,
+  convertWKTToGeoJSON,
+  computeExtentGeoJSON,
+} from '~/shared/utils/utility';
 
 interface ImageryContainerProps {
-  window: ImageryWindowOut;
+  collectionId: number;
+  sourceId: number;
 }
 
-/**
- * Imagery container component that displays STAC imagery in a map
- */
-const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
+const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourceId }) => {
   const isDraggingRef = useRef(false);
 
-  // Get state from store
-  const campaign = useAnnotationStore((state) => state.campaign);
-  const selectedImageryId = useAnnotationStore((state) => state.selectedImageryId);
-  const visibleTasks = useAnnotationStore((state) => state.visibleTasks);
-  const currentTaskIndex = useAnnotationStore((state) => state.currentTaskIndex);
-  const refocusTrigger = useAnnotationStore((state) => state.refocusTrigger);
-  const selectedLayerIndex = useAnnotationStore((state) => state.selectedLayerIndex);
-  const activeWindowId = useAnnotationStore((state) => state.activeWindowId);
-  const activeSliceIndex = useAnnotationStore((state) => state.activeSliceIndex);
-  const windowSliceIndices = useAnnotationStore((state) => state.windowSliceIndices);
-  const currentMapCenter = useAnnotationStore((state) => state.currentMapCenter);
-  const currentMapZoom = useAnnotationStore((state) => state.currentMapZoom);
-  const setActiveWindowId = useAnnotationStore((state) => state.setActiveWindowId);
-  const setActiveSliceIndex = useAnnotationStore((state) => state.setActiveSliceIndex);
+  const campaign = useCampaignStore((s) => s.campaign);
 
-  // Compute derived values
-  const selectedImagery = campaign?.imagery.find((img) => img.id === selectedImageryId) || null;
+  const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
+
+  const refocusTrigger = useMapStore((s) => s.refocusTrigger);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
+  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
+  const currentMapZoom = useMapStore((s) => s.currentMapZoom);
+  const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
+  const showCrosshair = useMapStore((s) => s.showCrosshair);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
+  const emptySlices = useMapStore((s) => s.emptySlices);
+
+  // Resolve collection and source from campaign
+  const source = campaign?.imagery_sources.find((s) => s.id === sourceId) ?? null;
+  const collection = source?.collections.find((c) => c.id === collectionId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
@@ -43,141 +50,196 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
       ] as [number, number, number, number])
     : null;
 
-  // Determine if this window is the active window
-  const isActiveWindow =
-    selectedImagery && window.id === (activeWindowId ?? selectedImagery.default_main_window_id);
+  const isActiveCollection = collectionId === activeCollectionId;
 
-  // Compute slices for this window
-  const slices = useMemo(() => {
-    if (!selectedImagery) return [];
-    return computeTimeSlices(
-      window.window_start_date,
-      window.window_end_date,
-      selectedImagery.slicing_interval,
-      selectedImagery.slicing_unit
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
-  }, [
-    window.window_start_date,
-    window.window_end_date,
-    selectedImagery?.slicing_interval,
-    selectedImagery?.slicing_unit,
-  ]);
+  const slices = collection?.slices ?? [];
 
-  // Use global slice index for active window, stored index for others
-  const currentSliceIndex = isActiveWindow
+  // Use global slice index for active collection, stored index for others
+  const currentSliceIndex = isActiveCollection
     ? activeSliceIndex
-    : (windowSliceIndices[window.id] ?? 0);
+    : (collectionSliceIndices[collectionId] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // Memoize latLon extraction to prevent recalculations
+  // Resolve tile URL from pre-resolved slice tile_urls
+  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
+    src.visualizations.map((v) => v.name)
+  );
+  const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+
+  const tileUrl =
+    activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName)?.tile_url ?? '';
+  const loading = !activeSlice || !tileUrl;
+
+  // Memoize latLon extraction (supports all geometry types via centroid)
   const latLon = useMemo(
-    () => (currentTask ? extractLatLonFromWKT(currentTask.geometry.geometry) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when geometry changes
+    () => (currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [currentTask?.geometry.geometry]
   );
 
-  // Determine center based on mode
-  // In open mode, use synchronized map center from store
-  // In task mode, use current task coordinates
-  const center = useMemo<[number, number]>(() => {
-    if (isOpenMode && currentMapCenter) {
-      return currentMapCenter;
-    }
-    if (latLon) {
-      return [latLon.lat, latLon.lon];
-    }
-    // Fallback to campaign bbox center
-    if (campaignBbox) {
+  // Initial center for map mount
+  const initialCenter = useMemo<[number, number]>(() => {
+    if (latLon) return [latLon.lat, latLon.lon];
+    if (campaignBbox)
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
-    }
     return [0, 0];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- using ?.property for precise dependency tracking
-  }, [isOpenMode, currentMapCenter, latLon?.lat, latLon?.lon, campaignBbox]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Determine zoom level
-  // In both open mode and task mode, use the synchronized zoom from the store
-  // so that zooming on the main map also zooms the small imagery containers
-  const zoom = useMemo(() => {
-    if (currentMapZoom !== null) {
-      return currentMapZoom;
+  // Reactive center - follows the main map when active or synced
+  const center = useMemo<[number, number] | undefined>(() => {
+    if (isActiveCollection || viewSyncEnabled) {
+      if (currentMapCenter) return currentMapCenter;
     }
-    return selectedImagery?.default_zoom ?? 10;
-  }, [currentMapZoom, selectedImagery?.default_zoom]);
+    if (latLon) return [latLon.lat, latLon.lon];
+    if (campaignBbox)
+      return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveCollection, viewSyncEnabled]);
 
-  const { tileUrls, loading, error } = useStacImagery({
-    registrationUrl: selectedImagery?.registration_url ?? '',
-    searchBody: selectedImagery?.search_body ?? {},
-    bbox: campaignBbox ?? [0, 0, 0, 0],
-    startDate: activeSlice?.startDate || window.window_start_date,
-    endDate: activeSlice?.endDate || window.window_end_date,
-    visualizationUrlTemplates: selectedImagery?.visualization_url_templates ?? [],
-    enabled: !!selectedImagery && !!campaignBbox,
+  const zoom = useMemo(() => {
+    if (isActiveCollection || viewSyncEnabled) {
+      if (currentMapZoom !== null) return currentMapZoom;
+    }
+    return source?.default_zoom ?? 10;
+  }, [currentMapZoom, source?.default_zoom, isActiveCollection, viewSyncEnabled]);
+
+  // Detect whether the current task has a polygon geometry
+  const isPolygonTask = useMemo(() => {
+    if (isOpenMode || !currentTask) return false;
+    const geojson = convertWKTToGeoJSON(currentTask.geometry.geometry);
+    return !!geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTask?.geometry.geometry, isOpenMode]);
+
+  const crosshair =
+    !isOpenMode && latLon && !isPolygonTask
+      ? { lat: latLon.lat, lon: latLon.lon, color: source?.crosshair_hex6 ?? undefined }
+      : undefined;
+
+  // Compute sample extent GeoJSON for the current task
+  const sampleExtent = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
+    if (isOpenMode || !currentTask) return null;
+    const wkt = currentTask.geometry.geometry;
+    const geojson = convertWKTToGeoJSON(wkt);
+    if (geojson && (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon'))
+      return geojson as GeoJSON.Polygon | GeoJSON.MultiPolygon;
+    if (latLon && campaign?.settings.sample_extent_meters) {
+      return computeExtentGeoJSON(latLon.lat, latLon.lon, campaign.settings.sample_extent_meters);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentTask?.geometry.geometry,
+    isOpenMode,
+    campaign?.settings.sample_extent_meters,
+    latLon?.lat,
+    latLon?.lon,
+  ]);
+
+  // True once every slice for this collection has been confirmed empty
+  const allSlicesEmpty =
+    !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
+
+  const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
+  useEffect(() => {
+    setEmptyTileAlert(null);
+  }, [tileUrl]);
+
+  const emptyTilesStateRef = useRef({
+    collectionId,
+    activeSlice,
+    sliceKey: `${collectionId}-${currentSliceIndex}`,
+    isActiveCollection,
+    slices,
+    currentSliceIndex,
+    emptySlices,
+    markSliceEmpty,
+    setActiveSliceIndex,
+    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
+    setEmptyTileAlert,
+    collectionName: collection?.name ?? '',
   });
+  emptyTilesStateRef.current = {
+    collectionId,
+    activeSlice,
+    sliceKey: `${collectionId}-${currentSliceIndex}`,
+    isActiveCollection,
+    slices,
+    currentSliceIndex,
+    emptySlices,
+    markSliceEmpty,
+    setActiveSliceIndex,
+    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
+    setEmptyTileAlert,
+    collectionName: collection?.name ?? '',
+  };
 
-  if (!selectedImagery || !campaignBbox) return null;
+  const handleEmptyTiles = useCallback(() => {
+    if (isOpenMode) return;
+    const {
+      collectionId: colId,
+      activeSlice: slice,
+      sliceKey: key,
+      isActiveCollection: isActive,
+      slices: allSlices,
+      currentSliceIndex: curIdx,
+      emptySlices: empty,
+      markSliceEmpty: mark,
+      setActiveSliceIndex: setActive,
+      setCollectionSliceIndex: setStored,
+      setEmptyTileAlert: setAlert,
+      collectionName,
+    } = emptyTilesStateRef.current;
 
-  // Use the selected layer index or fallback to first tile URL
-  const tileUrl = tileUrls.length > selectedLayerIndex ? tileUrls[selectedLayerIndex].url : '';
+    const sliceLabel = slice?.name ?? '';
+    const alertLabel = sliceLabel ? `${collectionName} - ${sliceLabel}` : collectionName;
 
-  // Handle click - only trigger if not dragging
+    mark(key);
+
+    const nextIndex = allSlices.findIndex((_, i) => i !== curIdx && !empty[`${colId}-${i}`]);
+
+    if (nextIndex !== -1) {
+      if (isActive) {
+        setActive(nextIndex);
+      } else {
+        setStored(colId, nextIndex);
+      }
+      return;
+    }
+
+    setAlert(alertLabel);
+  }, []); // stable - all state read from ref
+
+  if (!collection || !campaignBbox) return null;
+
   const handleMouseDown = () => {
     isDraggingRef.current = false;
   };
-
   const handleMouseMove = () => {
     isDraggingRef.current = true;
   };
-
   const handleMouseUp = () => {
-    if (!isDraggingRef.current) {
-      setActiveWindowId(window.id);
-    }
+    if (!isDraggingRef.current) setActiveCollectionId(collectionId);
     isDraggingRef.current = false;
   };
 
   const handleSliceChange = (index: number) => {
-    if (isActiveWindow) {
-      // Active window uses the global slice index
+    if (isActiveCollection) {
       setActiveSliceIndex(index);
     } else {
-      // Non-active windows update their stored slice index
-      useAnnotationStore.getState().setWindowSliceIndex(window.id, index);
+      useMapStore.getState().setCollectionSliceIndex(collectionId, index);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-slate-400 text-[10px]">
-        Loading imagery...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-red-400 text-[10px]">
-        Error: {error}
-      </div>
-    );
-  }
-
-  if (!tileUrl) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-white text-slate-400 text-[10px]">
-        No imagery available
-      </div>
-    );
-  }
-
   return (
     <div
-      className="flex-1 relative"
+      className="flex-1 relative overflow-hidden"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Slice selector - only show if multiple slices */}
       {slices.length > 1 && (
         <div className="absolute bottom-1 right-1 z-[1000]">
           <select
@@ -188,25 +250,94 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ window }) => {
             className="text-[9px] px-1 py-0.5 bg-white/90 border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:bg-white"
             title="Select time slice"
           >
-            {slices.map((slice, idx) => (
-              <option key={idx} value={idx}>
-                {slice.label}
-              </option>
-            ))}
+            {slices.map((slice, idx) => {
+              const key = `${collectionId}-${idx}`;
+              const isEmpty = !isOpenMode && emptySlices[key];
+              return (
+                <option
+                  key={idx}
+                  value={idx}
+                  disabled={!!isEmpty}
+                  style={isEmpty ? { color: '#aaa' } : undefined}
+                >
+                  {slice.name}
+                  {isEmpty ? ' (empty)' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}
 
-      <LeafletMap
-        center={center}
-        zoom={zoom}
-        tileUrl={tileUrl}
-        crosshairColor={selectedImagery.crosshair_hex6}
-        refocusTrigger={refocusTrigger}
-        disableKeyboard={true}
-        syncMapState={true}
-        showCrosshair={!isOpenMode}
-      />
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">
+          Loading…
+        </div>
+      )}
+
+      {allSlicesEmpty ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
+          <svg
+            className="w-6 h-6 text-neutral-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5"
+            />
+          </svg>
+          <span className="text-[10px] font-medium text-neutral-400 text-center px-2 leading-snug">
+            No imagery available
+          </span>
+        </div>
+      ) : (
+        <>
+          {emptyTileAlert && (
+            <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+              <span className="flex-1">
+                No imagery data for <strong>{emptyTileAlert}</strong>
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEmptyTileAlert(null);
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="ml-1 text-amber-600 hover:text-amber-900 font-bold leading-none"
+                title="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {!loading && (tileUrl || isOpenMode) ? (
+            <WindowMap
+              initialCenter={initialCenter}
+              initialZoom={zoom}
+              center={center}
+              zoom={zoom}
+              tileUrl={tileUrl}
+              crosshair={crosshair}
+              showCrosshair={!isOpenMode && showCrosshair}
+              refocusTrigger={refocusTrigger}
+              detectionKey={currentTaskIndex}
+              onEmptyTiles={handleEmptyTiles}
+              sampleExtent={showCrosshair ? sampleExtent : null}
+            />
+          ) : (
+            !loading && (
+              <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
+                No imagery available
+              </div>
+            )
+          )}
+        </>
+      )}
     </div>
   );
 };
