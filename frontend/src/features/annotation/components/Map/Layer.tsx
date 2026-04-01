@@ -52,7 +52,7 @@ export class XYZLayer extends Layer {
         minZoom: this.minZoom,
         maxZoom: this.maxZoom,
         crossOrigin: 'anonymous',
-        cacheSize: 512,
+        cacheSize: this.layerType === 'imagery' ? 128 : 512,
         transition: 0, // disable fade-in so tiles snap in immediately
       }),
     });

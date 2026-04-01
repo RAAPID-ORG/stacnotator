@@ -1,10 +1,14 @@
 /**
  * useTilePreloading - background tile preloading for task mode.
  *
+ * Only cover slices are prefetched (the default-visible slice per collection).
+ *
  * Priority levels (lower = higher priority):
- *   P1 - Other collections/slices for the current task (default viewport).
- *   P2 - Next task's default collection slices.
- *   P3 - Next task's other collection slices.
+ *   P1 - Current task's other collections (cover slices).
+ *   P2 - Next task's active collection (cover slice).
+ *   P3 - Next task's other collections (cover slices).
+ *   P4 - Task after next's active collection (cover slice).
+ *   P5 - Task after next's other collections (cover slices).
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -16,11 +20,14 @@ import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
-const PRIORITY_NEXT_TASK_DEFAULT = 2;
-const PRIORITY_NEXT_TASK_OTHER = 3;
+const PRIORITY_NEXT1_DEFAULT = 2;
+const PRIORITY_NEXT1_OTHER = 3;
+const PRIORITY_NEXT2_DEFAULT = 4;
+const PRIORITY_NEXT2_OTHER = 5;
 
 const PREFIX_CURRENT = 'cur';
-const PREFIX_NEXT = 'nxt';
+const PREFIX_NEXT1 = 'nxt1';
+const PREFIX_NEXT2 = 'nxt2';
 
 function groupId(prefix: string, collectionId: number, sliceIndex: number): string {
   return `${prefix}-c${collectionId}-s${sliceIndex}`;
@@ -42,7 +49,7 @@ function estimateExtent(center: [number, number], zoom: number): [number, number
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
 }
 
-function buildCollectionJobs(
+function buildCoverSliceJobs(
   campaign: CampaignOutFull,
   extent: [number, number, number, number],
   zoom: number,
@@ -56,19 +63,20 @@ function buildCollectionJobs(
     for (const collection of source.collections) {
       if (excludeCollectionId != null && collection.id === excludeCollectionId) continue;
 
-      for (let si = 0; si < collection.slices.length; si++) {
-        const slice = collection.slices[si];
-        const tileUrl = slice.tile_urls[0]?.tile_url;
-        if (!tileUrl) continue;
+      // Only prefetch the cover slice (the default-visible slice for each collection)
+      const si = collection.cover_slice_index ?? 0;
+      const slice = collection.slices[si];
+      if (!slice) continue;
+      const tileUrl = slice.tile_urls[0]?.tile_url;
+      if (!tileUrl) continue;
 
-        jobs.push({
-          priority: getPriority(collection.id),
-          groupId: groupId(prefix, collection.id, si),
-          urlTemplate: tileUrl,
-          extent,
-          zoom,
-        });
-      }
+      jobs.push({
+        priority: getPriority(collection.id),
+        groupId: groupId(prefix, collection.id, si),
+        urlTemplate: tileUrl,
+        extent,
+        zoom,
+      });
     }
   }
 
@@ -82,6 +90,8 @@ interface UseTilePreloadingOptions {
   visibleTasks: AnnotationTaskOut[];
   currentTaskIndex: number;
   defaultZoom: number;
+  /** Current map zoom level — used for prefetching current task at the zoom the user is at */
+  currentZoom?: number;
   enabled: boolean;
 }
 
@@ -92,6 +102,7 @@ export function useTilePreloading({
   visibleTasks,
   currentTaskIndex,
   defaultZoom,
+  currentZoom,
   enabled,
 }: UseTilePreloadingOptions) {
   const preloaderRef = useRef<TilePreloader | null>(null);
@@ -108,6 +119,8 @@ export function useTilePreloading({
   currentTaskIndexRef.current = currentTaskIndex;
   const defaultZoomRef = useRef(defaultZoom);
   defaultZoomRef.current = defaultZoom;
+  const currentZoomRef = useRef(currentZoom ?? defaultZoom);
+  currentZoomRef.current = currentZoom ?? defaultZoom;
 
   const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
@@ -171,10 +184,11 @@ export function useTilePreloading({
     const latLon = extractCentroidFromWKT(currentTask.geometry.geometry);
     if (!latLon) return;
 
-    const zoom = defaultZoomRef.current;
+    // Use current viewport zoom for current task (user may have zoomed in/out)
+    const zoom = currentZoomRef.current;
     const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
 
-    const jobs = buildCollectionJobs(
+    const jobs = buildCoverSliceJobs(
       camp,
       extent,
       zoom,
@@ -186,40 +200,58 @@ export function useTilePreloading({
     if (jobs.length > 0) p.enqueueMany(jobs);
   }, []);
 
-  const enqueueNextTask = useCallback(() => {
+  const enqueueNextTasks = useCallback(() => {
     const p = preloaderRef.current;
     const camp = campaignRef.current;
     const tasks = visibleTasksRef.current;
     const idx = currentTaskIndexRef.current;
     if (!p || !camp || tasks.length === 0) return;
 
-    const nextIdx = idx >= tasks.length - 1 ? 0 : idx + 1;
-    if (nextIdx === idx) return;
-
-    const nextTask = tasks[nextIdx];
-    if (!nextTask) return;
-
-    const latLon = extractCentroidFromWKT(nextTask.geometry.geometry);
-    if (!latLon) return;
-
     const zoom = defaultZoomRef.current;
-    const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+    const defaultColId = activeCollectionIdRef.current;
 
     // Abort previous next-task groups
     for (const src of camp.imagery_sources) {
       for (const col of src.collections) {
-        for (let si = 0; si < col.slices.length; si++) {
-          p.abort(groupId(PREFIX_NEXT, col.id, si));
-        }
+        const si = col.cover_slice_index ?? 0;
+        p.abort(groupId(PREFIX_NEXT1, col.id, si));
+        p.abort(groupId(PREFIX_NEXT2, col.id, si));
       }
     }
 
-    const defaultColId = activeCollectionIdRef.current;
-    const jobs = buildCollectionJobs(camp, extent, zoom, PREFIX_NEXT, (colId) =>
-      colId === defaultColId ? PRIORITY_NEXT_TASK_DEFAULT : PRIORITY_NEXT_TASK_OTHER
-    );
+    // Prefetch next 2 tasks (cover slices only)
+    const offsets = [
+      {
+        offset: 1,
+        prefix: PREFIX_NEXT1,
+        priDefault: PRIORITY_NEXT1_DEFAULT,
+        priOther: PRIORITY_NEXT1_OTHER,
+      },
+      {
+        offset: 2,
+        prefix: PREFIX_NEXT2,
+        priDefault: PRIORITY_NEXT2_DEFAULT,
+        priOther: PRIORITY_NEXT2_OTHER,
+      },
+    ];
 
-    if (jobs.length > 0) p.enqueueMany(jobs);
+    for (const { offset, prefix, priDefault, priOther } of offsets) {
+      const nextIdx = (idx + offset) % tasks.length;
+      if (nextIdx === idx) continue;
+
+      const nextTask = tasks[nextIdx];
+      if (!nextTask) continue;
+
+      const latLon = extractCentroidFromWKT(nextTask.geometry.geometry);
+      if (!latLon) continue;
+
+      const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+      const jobs = buildCoverSliceJobs(camp, extent, zoom, prefix, (colId) =>
+        colId === defaultColId ? priDefault : priOther
+      );
+
+      if (jobs.length > 0) p.enqueueMany(jobs);
+    }
   }, []);
 
   useEffect(() => {
@@ -249,14 +281,14 @@ export function useTilePreloading({
     p.onIdle = () => {
       if (!hasEnqueuedNextRef.current) {
         hasEnqueuedNextRef.current = true;
-        enqueueNextTask();
+        enqueueNextTasks();
       }
     };
 
     return () => {
       if (p) p.onIdle = undefined;
     };
-  }, [enabled, enqueueNextTask]);
+  }, [enabled, enqueueNextTasks]);
 
   useEffect(() => {
     const p = preloaderRef.current;

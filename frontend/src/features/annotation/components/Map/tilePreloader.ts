@@ -55,6 +55,7 @@ export function tileUrlsForExtent(
 
 const MAX_CONCURRENT = 50;
 const DRAIN_INTERVAL_MS = 50;
+const MAX_PRELOADED_CACHE = 5000;
 
 interface QueuedTile {
   url: string;
@@ -72,8 +73,8 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  // AbortControllers for in-flight fetches, keyed by generation.
-  private inflightControllers = new Set<AbortController>();
+  // In-flight Image elements — setting src='' aborts the request.
+  private inflightImages = new Set<HTMLImageElement>();
 
   // Per-group error/success counters for empty-tile detection.
   private groupStats = new Map<
@@ -169,6 +170,10 @@ export class TilePreloader {
       const urls = tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom);
       for (const url of urls) {
         if (this.preloaded.has(url)) continue;
+        // Evict cache when it gets too large (browser HTTP cache still has the tiles)
+        if (this.preloaded.size >= MAX_PRELOADED_CACHE) {
+          this.preloaded.clear();
+        }
         this.preloaded.add(url);
         this.tileQueue.push({ url, priority: job.priority, groupId: job.groupId });
       }
@@ -194,49 +199,55 @@ export class TilePreloader {
     const gen = this.generation;
     this.inflight++;
 
-    const controller = new AbortController();
-    this.inflightControllers.add(controller);
+    // Use Image instead of fetch() so the tile lands in the same browser
+    // cache partition that OpenLayers will read from (both use <img crossorigin="anonymous">).
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    this.inflightImages.add(img);
 
-    fetch(tile.url, { mode: 'cors', credentials: 'omit', signal: controller.signal })
-      .then((res) => res.arrayBuffer().then(() => ({ ok: res.ok, aborted: false })))
-      .catch((err) => ({ ok: false, aborted: err?.name === 'AbortError' }))
-      .then(({ ok, aborted }) => {
-        this.inflightControllers.delete(controller);
-        this.inflight = Math.max(0, this.inflight - 1);
+    const done = (ok: boolean) => {
+      this.inflightImages.delete(img);
+      this.inflight = Math.max(0, this.inflight - 1);
 
-        // Aborted fetches are not real failures - skip group stats entirely.
-        if (aborted) {
-          if (!this.disposed && gen === this.generation) this.drain();
-          this.checkIdle();
-          return;
-        }
+      // If aborted (src cleared) or generation changed, skip stats.
+      if (!img.src || this.disposed || gen !== this.generation) {
+        this.drain();
+        this.checkIdle();
+        return;
+      }
 
-        // Per-group empty-tile detection (mirrors WindowMap's heuristic)
-        const stats = this.groupStats.get(tile.groupId);
-        if (stats && !stats.emptyFired) {
-          if (ok) {
-            stats.successes++;
-          } else {
-            stats.errors++;
-            if (stats.successes === 0 && stats.errors >= EMPTY_TILE_THRESHOLD) {
-              stats.emptyFired = true;
-              this.abort(tile.groupId);
-              this.onGroupEmpty?.(tile.groupId);
-            }
+      // Per-group empty-tile detection (mirrors WindowMap's heuristic)
+      const stats = this.groupStats.get(tile.groupId);
+      if (stats && !stats.emptyFired) {
+        if (ok) {
+          stats.successes++;
+        } else {
+          stats.errors++;
+          if (stats.successes === 0 && stats.errors >= EMPTY_TILE_THRESHOLD) {
+            stats.emptyFired = true;
+            this.abort(tile.groupId);
+            this.onGroupEmpty?.(tile.groupId);
           }
         }
+      }
 
-        if (!this.disposed && gen === this.generation) this.drain();
-        this.checkIdle();
-      });
+      if (!this.disposed && gen === this.generation) this.drain();
+      this.checkIdle();
+    };
+
+    img.onload = () => done(true);
+    img.onerror = () => done(false);
+    img.src = tile.url;
   }
 
-  // Cancel all in-flight fetch requests immediately.
+  // Cancel all in-flight image loads immediately.
   private _abortInflight() {
-    for (const controller of this.inflightControllers) {
-      controller.abort();
+    for (const img of this.inflightImages) {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
     }
-    this.inflightControllers.clear();
+    this.inflightImages.clear();
     this.inflight = 0;
   }
 

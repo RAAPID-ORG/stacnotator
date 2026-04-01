@@ -88,6 +88,7 @@ const TaskModeMap = ({
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const currentMapZoom = useMapStore((s) => s.currentMapZoom);
   const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
   const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
   const panTrigger = useMapStore((s) => s.panTrigger);
@@ -109,6 +110,7 @@ const TaskModeMap = ({
     visibleTasks,
     currentTaskIndex,
     defaultZoom: initialZoom ?? 10,
+    currentZoom: currentMapZoom ?? undefined,
     enabled: !!campaign,
   });
 
