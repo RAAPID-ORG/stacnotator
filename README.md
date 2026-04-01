@@ -83,8 +83,8 @@ make dev-down
 ```
 stacnotator/
 ├── docker-compose.dev.yml       # Development configuration (standalone)
-├── docker-compose.prod.yml      # Production configuration (standalone)
-├── .env.example                 # Production configuration template
+├── docker-compose.prod.yml      # Production-like local configuration
+├── .env.example                 # Configuration template
 ├── .env.dev                     # Development configuration template
 ├── Makefile                     # Common commands (dev-* for development)
 ├── DEVELOPMENT.md               # Development workflow guide
@@ -93,13 +93,10 @@ stacnotator/
 │   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
 │   └── config/                  # Credentials (gitignored)
-├── frontend/        # React + Vite application
-│   ├── Dockerfile               # Production build
-│   ├── Dockerfile.dev           # Development server (HMR)
-│   └── app/                     # Application code
-└── nginx/                       # Reverse proxy (production only)
-    ├── nginx.conf
-    └── conf.d/
+└── frontend/        # React + Vite application
+    ├── Dockerfile               # Production build
+    ├── Dockerfile.dev           # Development server (HMR)
+    └── app/                     # Application code
 ```
 
 ## Prerequisites
@@ -112,10 +109,9 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app (Served by nginx in bare metal production deployments). Backend Client is generated with `openapi-ts`.
+- **Frontend**: React app served via its own container. Backend client is generated with `openapi-ts`.
 - **Backend**: FastAPI application with Gunicorn workers
 - **Database**: PostgreSQL 16 with PostGIS and Vector extension
-- **Nginx**: Reverse proxy for production (Not used when deployed on Azure!)
 
 ## Development
 

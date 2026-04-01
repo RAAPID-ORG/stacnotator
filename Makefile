@@ -218,14 +218,6 @@ init: ## Initialize the application (first time setup - production mode)
 	@echo "Production setup complete!"
 	@echo "=========================================="
 
-ssl-setup: ## Generate self-signed SSL certificates (for testing)
-	@mkdir -p nginx/ssl
-	openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-		-keyout nginx/ssl/key.pem \
-		-out nginx/ssl/cert.pem \
-		-subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
-	@echo "Self-signed SSL certificates created in nginx/ssl/"
-
 ###################################################
 # Code Quality Local Run
 ###################################################
@@ -304,5 +296,5 @@ staging-logs: ## Show logs from the staging stack
 # Azure Deployment
 ###################################################
 
-az-deploy: # Deploy to Azure. Requires to be on either the UMD (+TunnelAll) or Unistra VPN
+az-deploy: # Deploy to Azure. Requires VPN access and whitelisted IP.
 	./azure_deploy/deploy-app.sh

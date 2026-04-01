@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 from uuid import UUID
 
 import numpy as np
@@ -23,11 +24,26 @@ from src.annotation.models import (
 )
 from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
-from src.campaigns.models import Campaign
+from src.auth.service import is_admin as is_platform_admin
+from src.campaigns.models import Campaign, CampaignUser
+
+logger = logging.getLogger(__name__)
 
 # CSV import configuration
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
+
+
+def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
+    """Check if a user is an admin of the given campaign or a platform admin."""
+    campaign_admin = db.execute(
+        select(CampaignUser).where(
+            CampaignUser.campaign_id == campaign_id,
+            CampaignUser.user_id == user_id,
+            CampaignUser.is_admin,
+        )
+    ).scalar_one_or_none()
+    return campaign_admin is not None or is_platform_admin(db, user_id)
 
 
 # ============================================================================
@@ -506,7 +522,8 @@ def create_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to create annotation: {str(e)}") from e
+        logger.exception("Failed to create annotation")
+        raise HTTPException(status_code=400, detail="Failed to create annotation") from e
 
 
 def update_annotation(
@@ -545,11 +562,13 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    # In public campaigns, only the creator can update their own annotations
-    if campaign and campaign.is_public and annotation.created_by_user_id != user_id:
+    # Only the creator or a campaign admin can update annotations
+    if annotation.created_by_user_id != user_id and (
+        not campaign or not _is_campaign_admin(db, user_id, campaign.id)
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You can only edit your own annotations in public campaigns",
+            detail="You can only edit your own annotations",
         )
 
     try:
@@ -574,9 +593,6 @@ def update_annotation(
         if annotation_update.confidence is not None:
             annotation.confidence = annotation_update.confidence
 
-        # Update user who last modified
-        annotation.created_by_user_id = user_id
-
         db.commit()
         db.refresh(annotation)
 
@@ -584,7 +600,8 @@ def update_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Failed to update annotation: {str(e)}") from e
+        logger.exception("Failed to update annotation")
+        raise HTTPException(status_code=400, detail="Failed to update annotation") from e
 
 
 # ============================================================================
@@ -656,11 +673,15 @@ def delete_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
 
-    # In public campaigns, only the creator can delete their own annotations
-    if campaign and campaign.is_public and user_id and annotation.created_by_user_id != user_id:
+    # Only the creator or a campaign admin can delete annotations
+    if (
+        user_id
+        and annotation.created_by_user_id != user_id
+        and (not campaign or not _is_campaign_admin(db, user_id, campaign.id))
+    ):
         raise HTTPException(
             status_code=403,
-            detail="You can only delete your own annotations in public campaigns",
+            detail="You can only delete your own annotations",
         )
 
     try:
@@ -683,7 +704,8 @@ def delete_annotation(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete annotation: {str(e)}") from e
+        logger.exception("Failed to delete annotation")
+        raise HTTPException(status_code=500, detail="Failed to delete annotation") from e
 
 
 # ============================================================================

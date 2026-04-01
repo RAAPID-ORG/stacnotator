@@ -6,7 +6,7 @@ Scripts for deploying STAC Notator applications to Azure Container Apps.
 
 ### Infrastructure (Platform Engineers)
 
-**Infrastructure must be deployed first** by Platform Engineers using the `raapid-infra` Terraform repository.
+**Infrastructure must be deployed first** by Platform Engineers using Terraform.
 
 The infrastructure includes:
 - Azure Container Registry (ACR)
@@ -29,7 +29,7 @@ After infrastructure is deployed by Platform Engineers:
 ```bash
 # 1. Upload application secrets to Key Vault
 export EE_CREDS="backend/config/ee-private-key.json"
-export FIREBASE_CREDS="backend/config/firebase-adminsdk.json"
+export FIREBASE_CREDS="backend/config/firebase-credentials.json"
 export FIREBASE_API_KEY="your-firebase-api-key"
 export FIREBASE_AUTH_DOMAIN="your-app.firebaseapp.com"
 export FIREBASE_PROJECT_ID="your-firebase-project"
@@ -76,12 +76,23 @@ This script will:
 5. Update container apps with new images
 6. Configure CORS and environment variables
 
-### Environment Variables (Optional)
+### Environment Variables
 
-To skip interactive prompts (useful for CI/CD, once we et this up):
+All deploy scripts require `RESOURCE_GROUP` to be set (or will prompt for it).
+You can set these in a `.env.deploy` file and source it before running scripts:
 
 ```bash
-export RESOURCE_GROUP="rg-stacnotator-prod-northeurope"
+# Copy the example and fill in your values
+cp azure_deploy/.env.deploy.example azure_deploy/.env.deploy
+source azure_deploy/.env.deploy
+
+./azure_deploy/deploy-app.sh
+```
+
+To skip interactive prompts (useful for CI/CD):
+
+```bash
+export RESOURCE_GROUP="your-resource-group-name"
 export IMAGE_TAG="v1.2.3"  # Optional - defaults to git commit SHA
 export CI=true             # Skip confirmation prompt
 
@@ -103,7 +114,7 @@ This will stream real-time logs from the selected container app.
 
 ## Default Values
 
-- **Resource Group**: `rg-stacnotator-prod-northeurope` (configured in Terraform)
+- **Resource Group**: Set via `RESOURCE_GROUP` env var (required)
 - **Image Tag**: `latest` (prompted during deployment)
 - **Backend App Name**: `backend`
 - **Frontend App Name**: `frontend`
@@ -111,6 +122,6 @@ This will stream real-time logs from the selected container app.
 
 ## Doing a local backup of the database
 
-1. Make sure you are in the VPN from Unistra!! Otherwise this might lead to silent failures of KV access and overwriting images with empty keys.
-2. Copy the db password from Azure Portal secrets (kv-stacnotator...)
-3. Whitelist your IP-address for the DB (Azure Postgres Flexible Server -> psqlstacnotatorprodwesteurope -> Settings -> Networking)
+1. Make sure you are connected to your organization's VPN. Otherwise this might lead to silent failures of KV access and overwriting images with empty keys.
+2. Copy the db password from Azure Portal secrets (Key Vault)
+3. Whitelist your IP-address for the DB (Azure Postgres Flexible Server -> Settings -> Networking)

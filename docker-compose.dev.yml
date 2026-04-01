@@ -62,7 +62,7 @@ services:
       - ./backend/tests:/app/tests:ro
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
       # Mount credential files
-      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/firebase-credentials.json}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -50,7 +50,7 @@ def list_users(
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)
 def edit_user_info(
     user_id: UUID,
-    new_display_name: str,
+    new_display_name: str = Query(..., min_length=1, max_length=100),
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):

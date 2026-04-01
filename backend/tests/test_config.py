@@ -60,15 +60,15 @@ class TestDatabaseURL:
     def test_production_like_url(self):
         s = _make_settings_from_env(
             {
-                "DBNAME": "stacnotator_prod",
+                "DBNAME": "myapp_prod",
                 "DBUSER": "admin_user",
                 "DBPASS": "Str0ng!P@ss#2025",
-                "DBHOST": "prod-db.postgres.database.azure.com",
+                "DBHOST": "my-db.postgres.database.azure.com",
                 "DBPORT": "5432",
             }
         )
-        assert "prod-db.postgres.database.azure.com" in s.DATABASE_URL
-        assert "stacnotator_prod" in s.DATABASE_URL
+        assert "my-db.postgres.database.azure.com" in s.DATABASE_URL
+        assert "myapp_prod" in s.DATABASE_URL
 
 
 class TestCORSOrigins:
@@ -100,8 +100,8 @@ class TestCORSOrigins:
         assert s.CORS_ORIGINS == ["*"]
 
     def test_production_explicit_domain(self):
-        s = _make_settings_from_env({"CORS_ORIGINS": "https://stacnotator.azurewebsites.net"})
-        assert s.CORS_ORIGINS == ["https://stacnotator.azurewebsites.net"]
+        s = _make_settings_from_env({"CORS_ORIGINS": "https://myapp.azurewebsites.net"})
+        assert s.CORS_ORIGINS == ["https://myapp.azurewebsites.net"]
 
 
 class TestOptionalFields:

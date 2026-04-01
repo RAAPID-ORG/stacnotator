@@ -105,26 +105,17 @@ export function LoginScreen() {
         await emailProvider.login(email, password);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      if (errorMessage.includes('auth/email-already-in-use')) {
-        setError('This email is already registered. Please login instead.');
-      } else if (
-        errorMessage.includes('auth/invalid-credential') ||
-        errorMessage.includes('auth/wrong-password')
-      ) {
-        setError('Invalid email or password.');
-      } else if (errorMessage.includes('auth/user-not-found')) {
-        setError('No account found with this email. Please register first.');
-      } else if (errorMessage.includes('auth/weak-password')) {
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.includes('auth/weak-password')) {
         setError('Password is too weak. Please use a stronger password.');
       } else if (errorMessage.includes('auth/invalid-email')) {
         setError('Please enter a valid email address.');
-      } else {
+      } else if (mode === 'register') {
         setError(
-          mode === 'register'
-            ? 'Registration failed. Please try again.'
-            : 'Login failed. Please try again.'
+          'Registration failed. Please try again or sign in if you already have an account.'
         );
+      } else {
+        setError('Invalid email or password.');
       }
     } finally {
       setLoading(false);

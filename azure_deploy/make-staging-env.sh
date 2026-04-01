@@ -11,7 +11,7 @@
 #
 # Prerequisites:
 #   - Logged into Azure CLI (az login)
-#   - Connected to the Unistra VPN
+#   - Connected to your organization's VPN
 #   - Your IP whitelisted on the Azure Postgres Flexible Server networking
 #   - Docker running
 #
@@ -39,7 +39,7 @@ BACKUP_DIR="$PROJECT_ROOT/db/backups"
 
 # Staging DB credentials (must match docker-compose.staging.yml)
 STG_USER="stacnotator"
-STG_PASS="staging-password"
+STG_PASS="${STAGING_DB_PASSWORD:-changeme}"
 STG_DB="stacnotator"
 STG_PORT=5433
 
@@ -64,8 +64,11 @@ fi
 
 # Resource group
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name [rg-stacnotator-prod-westeurope]: " RESOURCE_GROUP
-    RESOURCE_GROUP=${RESOURCE_GROUP:-rg-stacnotator-prod-westeurope}
+    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
+    if [ -z "$RESOURCE_GROUP" ]; then
+        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
+        exit 1
+    fi
 fi
 
 # Discover Azure Postgres server

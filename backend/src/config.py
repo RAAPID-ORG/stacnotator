@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     DBSCHEME: str = "postgresql"
     DBDRIVER: str = "psycopg2"
 
+    ENVIRONMENT: str = "development"  # "development" | "production"
+
     AUTH_PROVIDER: str = "firebase"
 
     # Firebase credentials: can be either a file path or direct JSON content

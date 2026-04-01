@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
+
+
 async def process_uploaded_region_file(file: UploadFile) -> gpd.GeoDataFrame:
     """
     Process uploaded region file (shapefile as .zip or .geojson) and return as GeoDataFrame in EPSG:4326.
@@ -37,6 +40,15 @@ async def process_uploaded_region_file(file: UploadFile) -> gpd.GeoDataFrame:
     Raises:
         HTTPException: If file is invalid or cannot be processed
     """
+    # Check file size before processing
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE // (1024 * 1024)}MB",
+        )
+    await file.seek(0)
+
     filename = file.filename.lower() if file.filename else ""
 
     if filename.endswith(".geojson") or filename.endswith(".json"):
@@ -60,7 +72,8 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="GeoJSON must be UTF-8 encoded") from None
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read GeoJSON: {str(e)}") from e
+        logger.exception("Failed to read GeoJSON file")
+        raise HTTPException(status_code=400, detail="Failed to read GeoJSON file") from e
 
     try:
         gdf = gpd.GeoDataFrame.from_features(
@@ -71,9 +84,7 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
             else [{"type": "Feature", "geometry": geojson_data, "properties": {}}]
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to parse GeoJSON geometry: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=400, detail="Failed to parse GeoJSON geometry") from e
 
     if gdf.empty:
         raise HTTPException(status_code=400, detail="GeoJSON contains no valid geometries")
@@ -91,7 +102,7 @@ async def _process_geojson(file: UploadFile) -> gpd.GeoDataFrame:
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail=f"Failed to merge geometries. The GeoJSON may contain complex or invalid topology: {str(e)}",
+                detail="Failed to merge geometries. The file may contain complex or invalid topology.",
             ) from e
 
     return gdf
@@ -110,20 +121,26 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
             with open(zip_path, "wb") as f:
                 f.write(contents)
         except Exception as e:
-            raise HTTPException(
-                status_code=400, detail=f"Failed to save uploaded file: {str(e)}"
-            ) from e
+            raise HTTPException(status_code=400, detail="Failed to save uploaded file") from e
 
-        # Extract zip file
+        # Extract zip file (with Zip Slip protection)
         try:
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                for member in zip_ref.namelist():
+                    member_path = (temp_path / member).resolve()
+                    if not member_path.is_relative_to(temp_path.resolve()):
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Invalid zip file: contains path traversal entries",
+                        )
                 zip_ref.extractall(temp_path)
         except zipfile.BadZipFile:
             raise HTTPException(status_code=400, detail="Invalid zip file") from None
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(
-                status_code=400, detail=f"Failed to extract shapefile: {str(e)}"
-            ) from e
+            logger.exception("Failed to extract shapefile zip")
+            raise HTTPException(status_code=400, detail="Failed to extract shapefile") from e
 
         # Find .shp file
         shp_files = list(temp_path.rglob("*.shp"))
@@ -141,9 +158,7 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
         try:
             gdf = gpd.read_file(shp_path)
         except Exception as e:
-            raise HTTPException(
-                status_code=400, detail=f"Failed to read shapefile: {str(e)}"
-            ) from e
+            raise HTTPException(status_code=400, detail="Failed to read shapefile") from e
 
         if gdf.crs is None:
             raise HTTPException(
@@ -156,7 +171,7 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
                 gdf = gdf.to_crs(epsg=4326)
             except Exception as e:
                 raise HTTPException(
-                    status_code=400, detail=f"Failed to convert shapefile to EPSG:4326: {str(e)}"
+                    status_code=400, detail="Failed to convert shapefile to EPSG:4326"
                 ) from e
 
         # Fix invalid geometries before dissolving
@@ -169,7 +184,7 @@ async def _process_shapefile_zip(file: UploadFile) -> gpd.GeoDataFrame:
             except Exception as e:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Failed to merge geometries. The shapefile may contain complex or invalid topology: {str(e)}",
+                    detail="Failed to merge geometries. The file may contain complex or invalid topology.",
                 ) from e
 
         return gdf
@@ -368,4 +383,5 @@ def create_tasks_from_sampling_strategy(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create tasks: {str(e)}") from e
+        logger.exception("Failed to create tasks for campaign %d", campaign_id)
+        raise HTTPException(status_code=500, detail="Failed to create tasks") from e

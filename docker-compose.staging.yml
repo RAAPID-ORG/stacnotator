@@ -15,7 +15,7 @@ services:
     environment:
       POSTGRES_DB: stacnotator
       POSTGRES_USER: stacnotator
-      POSTGRES_PASSWORD: staging-password
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:-changeme}
     volumes:
       - postgres_data_staging:/var/lib/postgresql/data
     ports:
@@ -41,7 +41,7 @@ services:
     environment:
       DBNAME: stacnotator
       DBUSER: stacnotator
-      DBPASS: staging-password
+      DBPASS: ${STAGING_DB_PASSWORD:-changeme}
       DBHOST: db
       DBPORT: 5432
       DBDRIVER: psycopg2
@@ -58,7 +58,7 @@ services:
       - ./backend/alembic:/app/alembic:ro
       - ./backend/alembic.ini:/app/alembic.ini:ro
       - ./backend/logging.ini:/app/logging.ini:ro
-      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/firebase-credentials.json}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
     ports:
       - "8001:8000"

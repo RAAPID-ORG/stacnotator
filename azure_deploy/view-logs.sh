@@ -18,8 +18,11 @@ fi
 
 # Prompt for resource group
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name [rg-stacnotator-prod-westeurope]: " RESOURCE_GROUP
-    RESOURCE_GROUP=${RESOURCE_GROUP:-rg-stacnotator-prod-westeurope}
+    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
+    if [ -z "$RESOURCE_GROUP" ]; then
+        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
+        exit 1
+    fi
 fi
 
 # Prompt for app name

@@ -36,10 +36,11 @@ async def lifespan(app: FastAPI):
 
 
 # Initialize the FastAPI app
+_is_production = settings.ENVIRONMENT == "production"
 app = FastAPI(
     title="STACNotator",
-    openapi_url="/api/openapi.json",
-    docs_url="/api/docs",
+    openapi_url=None if _is_production else "/api/openapi.json",
+    docs_url=None if _is_production else "/api/docs",
     description="STACNotator - A Tool for Annotating Imagery from STAC Catalogs.",
     generate_unique_id_function=generate_unique_id,
     lifespan=lifespan,

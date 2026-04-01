@@ -3,42 +3,118 @@
 .env.*
 !.env.example
 !.env.dev
+!.env.deploy.example
+azure_deploy/.env.deploy
 
 # Docker
 docker-compose.override.yml
 
-# Credentials
+# Credentials & secrets
 **/config/*.json
 !**/config/.gitkeep
 **/ssl/*.pem
 **/ssl/*.key
 **/ssl/*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/secrets/
+**/credentials/
+serviceAccount*.json
+*-credentials*.json
+*.credentials
+
+# Private keys
+*.pem
+!requirements*.txt
+id_rsa
+id_ed25519
+*.ppk
+
+# Cloud provider
+.azure/
+.aws/
+aws-exports.js
 
 # Logs
 *.log
 logs/
-nginx/logs/
 
-# Backups
+# Backups & databases
 *.sql
 *.dump
+*.sqlite3
+*.db
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+._*
+.Spotlight-V100
+.Trashes
 
 # IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+*.sublime-workspace
+*.sublime-project
+.project
+.settings/
+.classpath
+*.code-workspace
 
 # Terraform
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.whl
+venv/
+.venv/
+
+# Node
+node_modules/
+.npm
+.yarn/
+*.tsbuildinfo
+*.map
 
 # Temporary files
 tmp/
 temp/
+*.tmp
+*.bak
+*.orig
+
+# Claude
+.claude
+
+# Coverage & test artifacts
+coverage/
+*.lcov
+test-results/
+playwright-report/
