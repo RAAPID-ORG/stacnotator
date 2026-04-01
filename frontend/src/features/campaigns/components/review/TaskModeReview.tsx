@@ -369,7 +369,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                             return (
                               <div
                                 key={ann.id}
-                                className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-700'}`}
+                                className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
                               >
                                 <span className="font-medium" title="Annotator">
                                   {displayName}
@@ -401,9 +401,9 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                         />
                                       </svg>
                                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
-                                        <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+                                        <div className="bg-neutral-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
                                           <div className="whitespace-pre-wrap">{ann.comment}</div>
-                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
                                         </div>
                                       </div>
                                     </span>

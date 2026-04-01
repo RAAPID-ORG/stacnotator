@@ -299,17 +299,17 @@ export const SettingsPage = () => {
         <div className="max-w-6xl mx-auto p-8">
           <div className="mb-3">
             <h1 className="text-3xl font-bold text-brand-800 mb-2">Settings</h1>
-            <p className="text-sm text-gray-600">Manage your profile and platform settings</p>
+            <p className="text-sm text-neutral-600">Manage your profile and platform settings</p>
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-4 mb-3 border-b border-gray-200">
+          <div className="flex gap-4 mb-3 border-b border-neutral-200">
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-4 py-3 border-b-2 transition-colors ${
                 activeTab === 'profile'
                   ? 'border-brand-600 text-brand-800 font-medium'
-                  : 'border-transparent text-gray-600 hover:text-brand-800'
+                  : 'border-transparent text-neutral-600 hover:text-brand-800'
               }`}
               type="button"
             >
@@ -321,7 +321,7 @@ export const SettingsPage = () => {
                 className={`px-4 py-3 border-b-2 transition-colors ${
                   activeTab === 'users'
                     ? 'border-brand-600 text-brand-800 font-medium'
-                    : 'border-transparent text-gray-600 hover:text-brand-800'
+                    : 'border-transparent text-neutral-600 hover:text-brand-800'
                 }`}
                 type="button"
               >
@@ -333,20 +333,20 @@ export const SettingsPage = () => {
           {/* Tab Content */}
           {activeTab === 'profile' && (
             <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="bg-white rounded-lg border border-neutral-200 p-6">
                 <h2 className="text-lg font-semibold text-brand-800 mb-4">Profile Information</h2>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Email</label>
                     <input
                       type="text"
                       value={account.email}
                       disabled
-                      className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 cursor-not-allowed"
+                      className="w-full border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
                       Display Name
                     </label>
                     {isEditingDisplayName ? (
@@ -356,14 +356,14 @@ export const SettingsPage = () => {
                           value={displayNameInput}
                           onChange={(e) => setDisplayNameInput(e.target.value)}
                           disabled={saving}
-                          className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          className="flex-1 border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                           placeholder="Enter display name"
                           autoFocus
                         />
                         <button
                           onClick={handleSaveDisplayName}
                           disabled={saving || !displayNameInput.trim()}
-                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                         >
                           {saving && (
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -387,7 +387,7 @@ export const SettingsPage = () => {
                         <button
                           onClick={handleCancelEditDisplayName}
                           disabled={saving}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:cursor-not-allowed transition-colors"
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Cancel
                         </button>
@@ -398,12 +398,12 @@ export const SettingsPage = () => {
                           type="text"
                           value={account.display_name || ''}
                           disabled
-                          className="flex-1 border border-gray-300 rounded px-3 py-2 bg-gray-50 cursor-not-allowed"
+                          className="flex-1 border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
                           placeholder="No display name set"
                         />
                         <button
                           onClick={handleStartEditDisplayName}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
                         >
                           Edit
                         </button>
@@ -411,7 +411,7 @@ export const SettingsPage = () => {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
                       Account Status
                     </label>
                     <div className="flex gap-2">
@@ -436,7 +436,7 @@ export const SettingsPage = () => {
 
               {/* Change Password - only for email/password-authenticated users */}
               {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="bg-white rounded-lg border border-neutral-200 p-6">
                   <h2 className="text-lg font-semibold text-brand-800 mb-4">Change Password</h2>
 
                   {!isChangingPassword ? (
@@ -446,7 +446,7 @@ export const SettingsPage = () => {
                         setPasswordError(null);
                         setPasswordSuccess(false);
                       }}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                      className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
                     >
                       Change password
                     </button>
@@ -459,7 +459,7 @@ export const SettingsPage = () => {
                       )}
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
                           Current password
                         </label>
                         <input
@@ -467,12 +467,12 @@ export const SettingsPage = () => {
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           disabled={saving}
-                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                           autoComplete="current-password"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
                           New password
                         </label>
                         <input
@@ -480,13 +480,13 @@ export const SettingsPage = () => {
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           disabled={saving}
-                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                           autoComplete="new-password"
                         />
                         <PasswordRequirementsList password={newPassword} />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
                           Confirm new password
                         </label>
                         <input
@@ -494,7 +494,7 @@ export const SettingsPage = () => {
                           value={confirmNewPassword}
                           onChange={(e) => setConfirmNewPassword(e.target.value)}
                           disabled={saving}
-                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                           autoComplete="new-password"
                         />
                       </div>
@@ -502,7 +502,7 @@ export const SettingsPage = () => {
                         <button
                           onClick={handleChangePassword}
                           disabled={saving || !newPasswordMeetsRequirements}
-                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                         >
                           {saving ? 'Saving…' : 'Update password'}
                         </button>
@@ -515,7 +515,7 @@ export const SettingsPage = () => {
                             setPasswordError(null);
                           }}
                           disabled={saving}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:cursor-not-allowed transition-colors"
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Cancel
                         </button>
@@ -529,7 +529,7 @@ export const SettingsPage = () => {
 
           {activeTab === 'users' && account.is_admin && (
             <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="bg-white rounded-lg border border-neutral-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-brand-800">
                     Platform Users ({users.length})
@@ -537,7 +537,7 @@ export const SettingsPage = () => {
                   <button
                     onClick={loadUsers}
                     disabled={isPageLoading}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors text-gray-700 flex items-center gap-2"
+                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-50 disabled:bg-neutral-50 disabled:cursor-not-allowed transition-colors text-neutral-700 flex items-center gap-2"
                   >
                     {isPageLoading && (
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

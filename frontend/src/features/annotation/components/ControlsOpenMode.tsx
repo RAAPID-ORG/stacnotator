@@ -28,7 +28,7 @@ const LABEL_COLORS = [
   '#ef4444', // red - barren/soil
   '#ec4899', // pink - special features
   '#06b6d4', // cyan - ice/snow
-  '#f97316', // orange - mixed use
+  '#a3883a', // ochre - mixed use
   '#6366f1', // indigo - infrastructure
   '#14b8a6', // teal - wetlands
 ];

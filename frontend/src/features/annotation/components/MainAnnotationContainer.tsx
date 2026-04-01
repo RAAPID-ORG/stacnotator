@@ -379,7 +379,7 @@ export const MainAnnotationsContainer = ({
             {campaign.time_series.length > 0 && (
               <button
                 onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${activeTool === 'timeseries' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}
+                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${activeTool === 'timeseries' ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}
                 title={
                   activeTool === 'timeseries'
                     ? 'Deactivate timeseries probe'

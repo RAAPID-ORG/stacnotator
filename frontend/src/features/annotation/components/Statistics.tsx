@@ -40,29 +40,29 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-        <div className="text-sm text-gray-500">Loading statistics...</div>
+      <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-4">
+        <div className="text-sm text-neutral-500">Loading statistics...</div>
       </div>
     );
   }
 
   if (error || !statistics) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-4">
         <div className="text-sm text-red-600">{error || 'No statistics available'}</div>
       </div>
     );
   }
 
   const getKrippendorffColor = (alpha: number | null | undefined) => {
-    if (alpha === null || alpha === undefined) return 'text-gray-400';
+    if (alpha === null || alpha === undefined) return 'text-neutral-400';
     if (alpha >= 0.8) return 'text-green-600';
     if (alpha >= 0.67) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getAgreementColor = (agreement: number | null | undefined) => {
-    if (agreement === null || agreement === undefined) return 'bg-gray-100 text-gray-400';
+    if (agreement === null || agreement === undefined) return 'bg-neutral-100 text-neutral-400';
     if (agreement >= 80) return 'bg-green-100 text-green-800';
     if (agreement >= 60) return 'bg-yellow-100 text-yellow-800';
     return 'bg-red-100 text-red-800';
@@ -99,18 +99,18 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 mb-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg border border-neutral-200 mb-4 shadow-sm hover:shadow-md transition-shadow">
       {/* Header - Always visible */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors rounded-lg group"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-50 transition-colors rounded-lg group"
         type="button"
       >
         <div className="flex items-center gap-4">
-          <span className="text-lg font-semibold text-gray-900">Inter-Annotator Agreement</span>
+          <span className="text-lg font-semibold text-neutral-900">Inter-Annotator Agreement</span>
           <div className="flex gap-4 text-sm">
-            <span className="text-gray-600">{statistics.total_annotations} annotations</span>
-            <span className="text-gray-600">{annotators.length} annotators</span>
+            <span className="text-neutral-600">{statistics.total_annotations} annotations</span>
+            <span className="text-neutral-600">{annotators.length} annotators</span>
             {statistics.krippendorff_alpha !== null &&
               statistics.krippendorff_alpha !== undefined && (
                 <span
@@ -122,11 +122,11 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 group-hover:text-brand-600 transition-colors">
+          <span className="text-xs text-neutral-400 group-hover:text-brand-600 transition-colors">
             {isExpanded ? 'Hide details' : 'Click for details'}
           </span>
           <svg
-            className={`w-5 h-5 text-gray-400 group-hover:text-brand-600 transition-all ${isExpanded ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-neutral-400 group-hover:text-brand-600 transition-all ${isExpanded ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -138,10 +138,10 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="px-4 pb-4 border-t border-gray-200">
+        <div className="px-4 pb-4 border-t border-neutral-200">
           {/* Krippendorff's Alpha Info */}
-          <div className="py-4 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Krippendorff's Alpha</h3>
+          <div className="py-4 border-b border-neutral-200">
+            <h3 className="text-sm font-semibold text-neutral-700 mb-2">Krippendorff's Alpha</h3>
             <div className="flex items-baseline gap-3">
               <div
                 className={`text-xl font-bold ${getKrippendorffColor(statistics.krippendorff_alpha)}`}
@@ -163,7 +163,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                           ? 'Good agreement'
                           : 'Poor agreement'}
                     </span>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-neutral-500">
                       Based on {statistics.tasks_with_multiple_annotations} multi-annotated tasks.
                       Values {'>='} 0.8 are generally considered good, but this can vary by context.
                     </span>
@@ -175,10 +175,10 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
           {/* Pairwise Agreement Matrix */}
           {annotators.length > 1 && (
             <div className="py-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
                 Pairwise Agreement Matrix
               </h3>
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-xs text-neutral-500 mb-3">
                 Agreement percentage between each pair of annotators (based on shared tasks)
               </p>
 
@@ -186,13 +186,13 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                 <table className="min-w-full text-xs border-collapse">
                   <thead>
                     <tr>
-                      <th className="border border-gray-300 bg-gray-50 px-2 py-1 text-left font-medium text-gray-700 sticky left-0 z-10">
+                      <th className="border border-neutral-300 bg-neutral-50 px-2 py-1 text-left font-medium text-neutral-700 sticky left-0 z-10">
                         Annotator
                       </th>
                       {annotators.map((annotator) => (
                         <th
                           key={annotator.user_id}
-                          className="border border-gray-300 bg-gray-50 px-2 py-1 text-center font-medium text-gray-700 min-w-[80px]"
+                          className="border border-neutral-300 bg-neutral-50 px-2 py-1 text-center font-medium text-neutral-700 min-w-[80px]"
                           title={annotator.user_email}
                         >
                           <div className="truncate max-w-[80px]">
@@ -205,7 +205,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                   <tbody>
                     {annotators.map((rowAnnotator) => (
                       <tr key={rowAnnotator.user_id}>
-                        <td className="border border-gray-300 bg-gray-50 px-2 py-1 font-medium text-gray-700 sticky left-0 z-10">
+                        <td className="border border-neutral-300 bg-neutral-50 px-2 py-1 font-medium text-neutral-700 sticky left-0 z-10">
                           <div className="truncate max-w-[120px]" title={rowAnnotator.user_email}>
                             {getUserDisplayName(rowAnnotator)}
                           </div>
@@ -220,12 +220,12 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                           return (
                             <td
                               key={colAnnotator.user_id}
-                              className={`border border-gray-300 px-2 py-1 text-center ${
-                                isDiagonal ? 'bg-gray-200' : ''
+                              className={`border border-neutral-300 px-2 py-1 text-center ${
+                                isDiagonal ? 'bg-neutral-200' : ''
                               }`}
                             >
                               {isDiagonal ? (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-neutral-400">-</span>
                               ) : agreement ? (
                                 <div>
                                   <div
@@ -238,12 +238,12 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                                       ? `${agreement.agreement_percentage.toFixed(0)}%`
                                       : 'N/A'}
                                   </div>
-                                  <div className="text-xs text-gray-400 mt-0.5">
+                                  <div className="text-xs text-neutral-400 mt-0.5">
                                     ({agreement.shared_tasks} tasks)
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-gray-400">N/A</span>
+                                <span className="text-neutral-400">N/A</span>
                               )}
                             </td>
                           );
@@ -255,7 +255,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
               </div>
 
               {/* Legend */}
-              <div className="mt-4 flex items-center gap-4 text-xs text-gray-600">
+              <div className="mt-4 flex items-center gap-4 text-xs text-neutral-600">
                 <span className="font-medium">Agreement:</span>
                 <div className="flex items-center gap-1">
                   <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
@@ -274,15 +274,15 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
           )}
 
           {annotators.length <= 1 && (
-            <div className="py-4 text-center text-sm text-gray-500">
+            <div className="py-4 text-center text-sm text-neutral-500">
               Need at least 2 annotators to show pairwise agreement.
             </div>
           )}
 
           {/* Overall Label Distribution */}
           {Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
-            <div className="py-4 border-t border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            <div className="py-4 border-t border-neutral-200">
+              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
                 Overall Label Distribution
               </h3>
               <div className="space-y-2">
@@ -290,10 +290,10 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                   .sort(([, a], [, b]) => b - a)
                   .map(([label, count]) => (
                     <div key={label} className="flex items-center gap-2">
-                      <div className="w-32 text-xs text-gray-700 truncate" title={label}>
+                      <div className="w-32 text-xs text-neutral-700 truncate" title={label}>
                         {label}
                       </div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-3 relative">
+                      <div className="flex-1 bg-neutral-200 rounded-full h-3 relative">
                         <div
                           className="bg-brand-500 h-3 rounded-full flex items-center justify-end pr-2"
                           style={{
@@ -303,7 +303,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                           <span className="text-xs text-white font-medium">{count}</span>
                         </div>
                       </div>
-                      <div className="w-16 text-xs text-gray-500 text-right">
+                      <div className="w-16 text-xs text-neutral-500 text-right">
                         {((count / statistics.total_annotations) * 100).toFixed(1)}%
                       </div>
                     </div>
@@ -315,11 +315,11 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
           {/* Per-User Label Distribution */}
           {annotators.length > 0 &&
             Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
-              <div className="py-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              <div className="py-4 border-t border-neutral-200">
+                <h3 className="text-sm font-semibold text-neutral-700 mb-3">
                   Label Distribution by Annotator
                 </h3>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-neutral-500 mb-3">
                   Comparing how each annotator uses different labels
                 </p>
 
@@ -332,21 +332,21 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                   return (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-xs">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-neutral-50">
                           <tr>
-                            <th className="border border-gray-300 px-3 py-2 text-left font-medium text-gray-700 sticky left-0 bg-gray-50 z-10">
+                            <th className="border border-neutral-300 px-3 py-2 text-left font-medium text-neutral-700 sticky left-0 bg-neutral-50 z-10">
                               Annotator
                             </th>
                             {allLabels.map((label) => (
                               <th
                                 key={label}
-                                className="border border-gray-300 px-3 py-2 text-center font-medium text-gray-700 min-w-[100px]"
+                                className="border border-neutral-300 px-3 py-2 text-center font-medium text-neutral-700 min-w-[100px]"
                                 title={label}
                               >
                                 <div className="truncate max-w-[100px]">{label}</div>
                               </th>
                             ))}
-                            <th className="border border-gray-300 px-3 py-2 text-center font-medium text-gray-700">
+                            <th className="border border-neutral-300 px-3 py-2 text-center font-medium text-neutral-700">
                               Total
                             </th>
                           </tr>
@@ -355,8 +355,8 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                           {annotators.map((annotator) => {
                             const total = annotator.total_annotations;
                             return (
-                              <tr key={annotator.user_id} className="hover:bg-gray-50">
-                                <td className="border border-gray-300 px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white z-10">
+                              <tr key={annotator.user_id} className="hover:bg-neutral-50">
+                                <td className="border border-neutral-300 px-3 py-2 font-medium text-neutral-700 sticky left-0 bg-white z-10">
                                   <div
                                     className="truncate max-w-[120px]"
                                     title={annotator.user_email}
@@ -370,16 +370,18 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                                   return (
                                     <td
                                       key={label}
-                                      className="border border-gray-300 px-3 py-2 text-center"
+                                      className="border border-neutral-300 px-3 py-2 text-center"
                                     >
                                       {count > 0 ? (
                                         <div>
-                                          <div className="font-medium text-gray-900">{count}</div>
-                                          <div className="text-gray-500">
+                                          <div className="font-medium text-neutral-900">
+                                            {count}
+                                          </div>
+                                          <div className="text-neutral-500">
                                             ({percentage.toFixed(0)}%)
                                           </div>
                                           {/* Mini bar */}
-                                          <div className="mt-1 bg-gray-200 rounded-full h-1.5 w-full">
+                                          <div className="mt-1 bg-neutral-200 rounded-full h-1.5 w-full">
                                             <div
                                               className="bg-brand-500 h-1.5 rounded-full"
                                               style={{ width: `${percentage}%` }}
@@ -387,12 +389,12 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                                           </div>
                                         </div>
                                       ) : (
-                                        <span className="text-gray-300">-</span>
+                                        <span className="text-neutral-300">-</span>
                                       )}
                                     </td>
                                   );
                                 })}
-                                <td className="border border-gray-300 px-3 py-2 text-center font-bold text-gray-900">
+                                <td className="border border-neutral-300 px-3 py-2 text-center font-bold text-neutral-900">
                                   {total}
                                 </td>
                               </tr>

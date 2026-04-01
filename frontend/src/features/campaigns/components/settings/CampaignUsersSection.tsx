@@ -206,7 +206,7 @@ export const CampaignUsersSection = ({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-gray-500">Loading users...</p>
+        <p className="text-neutral-500">Loading users...</p>
       </div>
     );
   }
@@ -222,16 +222,16 @@ export const CampaignUsersSection = ({
   return (
     <div className="space-y-8">
       {/* Add User Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-lg border border-neutral-200 p-6">
         <h2 className="text-lg font-semibold text-brand-800 mb-4">Add New User</h2>
 
         <div className="flex gap-2 items-end">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+            <label className="block text-sm font-medium text-neutral-700 mb-2">Select User</label>
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600"
+              className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600"
               disabled={addingUser || availableUsers.length === 0}
             >
               <option value="">
@@ -256,34 +256,34 @@ export const CampaignUsersSection = ({
       </div>
 
       {/* Users List */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-lg border border-neutral-200 p-6">
         <h2 className="text-lg font-semibold text-brand-800 mb-4">Campaign Users</h2>
 
         {users.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-sm">No users assigned to this campaign yet.</p>
+            <p className="text-neutral-500 text-sm">No users assigned to this campaign yet.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-4 py-3 text-left font-medium text-gray-700">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-700">Email</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-700">Role</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-700">Actions</th>
+                <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Name</th>
+                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Email</th>
+                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Role</th>
+                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => (
                   <tr
                     key={user.user.id}
-                    className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                    className="border-b border-neutral-200 hover:bg-neutral-50 transition-colors"
                   >
-                    <td className="px-4 py-3 text-gray-900 font-medium">
+                    <td className="px-4 py-3 text-neutral-900 font-medium">
                       {user.user.display_name}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs">{user.user.email}</td>
+                    <td className="px-4 py-3 text-neutral-600 text-xs">{user.user.email}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <span
@@ -307,7 +307,7 @@ export const CampaignUsersSection = ({
                         <button
                           onClick={() => handleToggleAdmin(user)}
                           disabled={saving}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           type="button"
                         >
                           {user.is_admin ? 'Revoke Admin' : 'Make Admin'}

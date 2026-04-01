@@ -109,7 +109,7 @@ export const TasksTab: React.FC<Props> = ({
               <button
                 onClick={handleUploadAnnotationTasks}
                 disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
-                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 Upload
               </button>

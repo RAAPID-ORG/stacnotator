@@ -113,7 +113,7 @@ export const AnnotationPage = () => {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-semibold text-brand-800 mb-2">Campaign not found</p>
-          <p className="text-gray-600">The requested campaign could not be loaded.</p>
+          <p className="text-neutral-600">The requested campaign could not be loaded.</p>
         </div>
       </div>
     );
@@ -131,7 +131,7 @@ export const AnnotationPage = () => {
           <div className="text-center max-w-md px-4">
             <div className="mb-4">
               <svg
-                className="mx-auto h-16 w-16 text-gray-400"
+                className="mx-auto h-16 w-16 text-neutral-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -145,8 +145,8 @@ export const AnnotationPage = () => {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Tasks Available</h3>
-            <p className="text-gray-600 mb-1">
+            <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Tasks Available</h3>
+            <p className="text-neutral-600 mb-1">
               You've completed all assigned annotation tasks for this campaign! <br />
               Change your filter settings to see more tasks that were not assigned to you.
             </p>

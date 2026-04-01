@@ -277,7 +277,7 @@ const TimelineSidebar = ({
       </button>
 
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-300 h-full bg-white ${
+        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-neutral-300 h-full bg-white ${
           collapsed ? 'w-0' : 'w-[56px]'
         }`}
       >

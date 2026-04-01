@@ -118,7 +118,7 @@ export const ExportDropdown = ({ campaignId, campaign, disabled }: ExportDropdow
             type="button"
           >
             <div className="font-medium">GeoJSON</div>
-            <div className="text-xs text-gray-500">FeatureCollection (.geojson)</div>
+            <div className="text-xs text-neutral-500">FeatureCollection (.geojson)</div>
           </button>
           <button
             onClick={() => handleExport('csv')}
@@ -126,7 +126,7 @@ export const ExportDropdown = ({ campaignId, campaign, disabled }: ExportDropdow
             type="button"
           >
             <div className="font-medium">CSV</div>
-            <div className="text-xs text-gray-500">Tabular export (.csv)</div>
+            <div className="text-xs text-neutral-500">Tabular export (.csv)</div>
           </button>
         </div>
       )}

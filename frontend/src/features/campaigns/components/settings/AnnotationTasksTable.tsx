@@ -202,7 +202,7 @@ export const AnnotationTasksTable = ({
                       </span>
                       {/* Tooltip showing per-user status */}
                       {task.assignments && task.assignments.length > 0 && (
-                        <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap">
+                        <div className="absolute z-10 invisible group-hover:visible bg-neutral-900 text-white text-xs rounded py-2 px-3 bottom-full left-1/2 transform -translate-x-1/2 mb-2 whitespace-nowrap">
                           <div className="font-semibold mb-1">User Status:</div>
                           {Array.from(getUserTaskStatuses(task)).map(([userId, status]) => {
                             const user = campaignUsers.find((u) => u.user.id === userId);
@@ -224,7 +224,7 @@ export const AnnotationTasksTable = ({
                             );
                           })}
                           <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                            <div className="border-4 border-transparent border-t-gray-900"></div>
+                            <div className="border-4 border-transparent border-t-neutral-900"></div>
                           </div>
                         </div>
                       )}
@@ -250,7 +250,7 @@ export const AnnotationTasksTable = ({
                                     ? 'bg-green-100 text-green-700'
                                     : userStatus === 'skipped'
                                       ? 'bg-violet-100 text-violet-700'
-                                      : 'bg-gray-100 text-gray-700'
+                                      : 'bg-neutral-100 text-neutral-700'
                                 }`}
                                 title={`${user?.user.display_name || 'Unknown'} - ${userStatus}`}
                               >

@@ -383,7 +383,7 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0"
+      className="flex items-center justify-between px-4 py-0 bg-white border-b border-neutral-200 flex-shrink-0"
     >
       <div className="flex items-center gap-2">
         {/* Views Dropdown */}
@@ -405,7 +405,7 @@ export const AnnotationToolbar = () => {
           {showImageryDropdown && (
             <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
               {views.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">No views available</div>
+                <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>
               ) : (
                 views.map((view) => (
                   <button
@@ -550,7 +550,7 @@ export const AnnotationToolbar = () => {
                 type="button"
               >
                 <div className="font-medium">GeoJSON</div>
-                <div className="text-[10px] text-gray-500">FeatureCollection (.geojson)</div>
+                <div className="text-[10px] text-neutral-500">FeatureCollection (.geojson)</div>
               </button>
               <button
                 onClick={() => handleExport('csv')}
@@ -558,7 +558,7 @@ export const AnnotationToolbar = () => {
                 type="button"
               >
                 <div className="font-medium">CSV</div>
-                <div className="text-[10px] text-gray-500">Tabular export (.csv)</div>
+                <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
               </button>
             </div>
           )}
@@ -597,7 +597,7 @@ export const AnnotationToolbar = () => {
                     type="button"
                   >
                     <div className="font-medium">Save as Personal</div>
-                    <div className="text-[10px] text-gray-500">Only for you</div>
+                    <div className="text-[10px] text-neutral-500">Only for you</div>
                   </button>
                   {isCampaignAdmin && (
                     <button
@@ -606,7 +606,7 @@ export const AnnotationToolbar = () => {
                       type="button"
                     >
                       <div className="font-medium">Save as Default</div>
-                      <div className="text-[10px] text-gray-500">For all users</div>
+                      <div className="text-[10px] text-neutral-500">For all users</div>
                     </button>
                   )}
                 </div>
