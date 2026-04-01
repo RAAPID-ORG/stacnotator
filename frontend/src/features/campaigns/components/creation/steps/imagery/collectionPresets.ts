@@ -1,0 +1,147 @@
+/**
+ * Band presets, rescale defaults, and colormaps for known STAC collections.
+ * Ported from geo-ai-agents' collectionPresets.ts.
+ */
+
+export interface BandPreset {
+  label: string;
+  assets: string[];
+  colormap?: string;
+  rescale?: string;
+  expression?: string;
+}
+
+export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
+  'sentinel-2-l2a': [
+    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
+    { label: 'False Color (Vegetation)', assets: ['B08', 'B04', 'B03'] },
+    { label: 'Agriculture', assets: ['B11', 'B08', 'B02'] },
+    { label: 'SWIR', assets: ['B12', 'B8A', 'B04'] },
+    { label: 'Geology', assets: ['B12', 'B11', 'B02'] },
+    { label: 'NDVI (B08)', assets: ['B08'], colormap: 'rdylgn', rescale: '-1,1' },
+    { label: 'Visual (rendered)', assets: ['visual'] },
+  ],
+  'sentinel-2-l1c': [
+    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
+    { label: 'False Color (Vegetation)', assets: ['B08', 'B04', 'B03'] },
+    { label: 'Visual (rendered)', assets: ['visual'] },
+  ],
+  'landsat-c2-l2': [
+    { label: 'True Color', assets: ['red', 'green', 'blue'] },
+    { label: 'False Color', assets: ['nir08', 'red', 'green'] },
+    { label: 'SWIR', assets: ['swir16', 'nir08', 'red'] },
+    { label: 'Agriculture', assets: ['swir16', 'nir08', 'blue'] },
+  ],
+  'landsat-c2-l1': [
+    { label: 'True Color', assets: ['red', 'green', 'blue'] },
+    { label: 'False Color', assets: ['nir08', 'red', 'green'] },
+  ],
+  'cop-dem-glo-30': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
+  'cop-dem-glo-90': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
+  naip: [{ label: 'True Color (RGB)', assets: ['image'] }],
+  'hls2-s30': [
+    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
+    { label: 'False Color (Vegetation)', assets: ['B8A', 'B04', 'B03'] },
+    { label: 'Agriculture', assets: ['B11', 'B8A', 'B02'] },
+    { label: 'NDVI (B8A)', assets: ['B8A'], colormap: 'rdylgn', rescale: '0,1' },
+  ],
+  'hls2-l30': [
+    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
+    { label: 'False Color (Vegetation)', assets: ['B05', 'B04', 'B03'] },
+    { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
+  ],
+  'sentinel-1-grd': [
+    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys' },
+    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys' },
+  ],
+  'modis-13Q1-061': [
+    { label: 'NDVI', assets: ['250m_16_days_NDVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
+    { label: 'EVI', assets: ['250m_16_days_EVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
+  ],
+};
+
+export const KNOWN_RESCALE: Record<string, string> = {
+  'sentinel-2-l2a': '0,3000',
+  'sentinel-2-l1c': '0,3000',
+  'landsat-c2-l2': '7000,30000',
+  'landsat-c2-l1': '5000,40000',
+  'cop-dem-glo-30': '0,4000',
+  'cop-dem-glo-90': '0,4000',
+  'hls2-s30': '0,3000',
+  'hls2-l30': '0,3000',
+  'sentinel-1-grd': '-20,0',
+};
+
+export function guessRescale(collectionId: string): string | undefined {
+  const id = collectionId.toLowerCase();
+  if (id.includes('sentinel-2') || id.includes('hls')) return '0,3000';
+  if (id.includes('landsat')) return '7000,30000';
+  if (id.includes('dem') || id.includes('elevation')) return '0,4000';
+  if (id.includes('sentinel-1') || id.includes('sar')) return '-20,0';
+  return undefined;
+}
+
+export const COLORMAPS = [
+  { value: 'viridis', label: 'Viridis' },
+  { value: 'plasma', label: 'Plasma' },
+  { value: 'inferno', label: 'Inferno' },
+  { value: 'magma', label: 'Magma' },
+  { value: 'terrain', label: 'Terrain' },
+  { value: 'rdylgn', label: 'Red-Yellow-Green' },
+  { value: 'spectral', label: 'Spectral' },
+  { value: 'greys', label: 'Grayscale' },
+  { value: 'blues', label: 'Blues' },
+  { value: 'ylgnbu', label: 'Yellow-Green-Blue' },
+  { value: 'coolwarm', label: 'Cool-Warm' },
+];
+
+const RGB_ASSET_KEYS = new Set(['visual', 'rendered_preview', 'true_color']);
+
+export function isPreRenderedRGB(assetKey: string, roles?: string[]): boolean {
+  if (RGB_ASSET_KEYS.has(assetKey.toLowerCase())) return true;
+  if (roles?.includes('visual')) return true;
+  return false;
+}
+
+export interface AssetInfo {
+  title: string;
+  type: string;
+  roles: string[];
+}
+
+export function getRasterAssets(assets: Record<string, AssetInfo>): [string, AssetInfo][] {
+  return Object.entries(assets).filter(([key, info]) => {
+    const type = (info.type || '').toLowerCase();
+    const roles = info.roles || [];
+    return (
+      type.includes('tiff') ||
+      type.includes('geotiff') ||
+      type.includes('cog') ||
+      type.includes('jp2') ||
+      roles.includes('data') ||
+      roles.includes('visual') ||
+      (!type &&
+        !roles.length &&
+        key !== 'tilejson' &&
+        key !== 'rendered_preview' &&
+        key !== 'thumbnail')
+    );
+  });
+}
+
+/** Collections known to support eo:cloud_cover */
+const CLOUD_COVER_COLLECTIONS = new Set([
+  'sentinel-2-l2a',
+  'sentinel-2-l1c',
+  'landsat-c2-l2',
+  'landsat-c2-l1',
+  'landsat-8-c2-l2',
+  'landsat-9-c2-l2',
+]);
+
+export function supportsCloudCover(collectionId?: string): boolean {
+  if (!collectionId) return false;
+  if (CLOUD_COVER_COLLECTIONS.has(collectionId)) return true;
+  const id = collectionId.toLowerCase();
+  return id.includes('sentinel') || id.includes('landsat');
+}

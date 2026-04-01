@@ -60,7 +60,6 @@ def create_imagery_from_editor_state(
     source_id_map: dict[str, int] = {}  # fe_source_id -> db source id
     collection_id_map: dict[str, int] = {}  # fe_collection_id -> db collection id
 
-    # ---- Sources ----
     created_sources: list[ImagerySource] = []
     for src_idx, src_create in enumerate(editor_state.sources):
         source = _create_source(db, campaign.id, src_create, src_idx, bbox)
@@ -73,11 +72,9 @@ def create_imagery_from_editor_state(
 
         created_sources.append(source)
 
-    # ---- Basemaps ----
     created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
     db.flush()
 
-    # ---- Views ----
     created_views = _create_views(
         db,
         campaign.id,
@@ -152,6 +149,14 @@ def _create_source(
                     registration_url=col_create.stac_config.registration_url,
                     search_body=col_create.stac_config.search_body,
                     viz_url_templates=viz_url_templates,
+                    catalog_url=col_create.stac_config.catalog_url,
+                    stac_collection_id=col_create.stac_config.stac_collection_id,
+                    tile_provider=col_create.stac_config.tile_provider,
+                    viz_params=(
+                        col_create.stac_config.viz_params.model_dump(exclude_none=True)
+                        if col_create.stac_config.viz_params
+                        else None
+                    ),
                 )
             )
 
@@ -167,13 +172,14 @@ def _create_source(
             db.add(slice_obj)
             db.flush()
 
-            # Direct tile URLs (manual XYZ)
+            # Direct tile URLs (manual XYZ or stac_browser)
             for tile in sl_create.tile_urls:
                 db.add(
                     SliceTileUrl(
                         slice_id=slice_obj.id,
                         visualization_name=tile.visualization_name,
                         tile_url=tile.tile_url,
+                        tile_provider=tile.tile_provider,
                     )
                 )
 
@@ -609,6 +615,26 @@ def create_new_canvas_layout(
 # ============================================================================
 # Deletion
 # ============================================================================
+
+
+def update_source(db: Session, source_id: int, campaign_id: int, updates: dict) -> ImagerySource:
+    """Update display settings (crosshair_hex6, default_zoom) for an imagery source."""
+    source = (
+        db.query(ImagerySource)
+        .filter(ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id)
+        .first()
+    )
+    if not source:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source {source_id} not found in campaign {campaign_id}",
+        )
+    for key, value in updates.items():
+        if value is not None and hasattr(source, key):
+            setattr(source, key, value)
+    db.commit()
+    db.refresh(source)
+    return source
 
 
 def delete_source(db: Session, source_id: int, campaign_id: int) -> None:

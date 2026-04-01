@@ -21,6 +21,10 @@ class AuthManager implements AuthAdapter {
     return this.providers.get(id);
   }
 
+  getActiveProviderId(): string | null {
+    return this.activeProvider?.id ?? null;
+  }
+
   setActiveProvider(id: string): void {
     const provider = this.providers.get(id);
     if (provider) this.activeProvider = provider;

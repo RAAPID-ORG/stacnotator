@@ -583,7 +583,16 @@ export const CampaignSettingsPage = () => {
           )}
 
           {activeTab === 'imagery' && (
-            <ImageryTab imagery={imagery} setDeleteConfirm={setDeleteConfirm} />
+            <ImageryTab
+              imagery={imagery}
+              campaignId={numericCampaignId}
+              setDeleteConfirm={setDeleteConfirm}
+              onSourceUpdated={(sourceId, updates) => {
+                setImagery((prev) =>
+                  prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
+                );
+              }}
+            />
           )}
 
           {activeTab === 'timeseries' && (

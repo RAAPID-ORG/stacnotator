@@ -1,0 +1,1018 @@
+import { useState, useEffect } from 'react';
+import { Modal } from '~/shared/ui/Modal';
+import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from '~/shared/ui/Icons';
+import { Tooltip } from './Tooltip';
+import { MonthPicker } from './MonthPicker';
+import { fetchCatalogs, fetchCollections, searchItems } from '~/api/stacBrowser';
+import type { StacCatalog, StacCollection, StacItem, StacAssetInfo } from '~/api/stacBrowser';
+import type { CollectionItem, ImagerySlice, VizParams, NamedVizParams } from './types';
+import { createId, emptyVizParams } from './types';
+import { VizConfigPanel } from './VizConfigPanel';
+import { supportsCloudCover } from './collectionPresets';
+import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
+
+type Step = 'catalog' | 'collection' | 'configure';
+
+export interface CatalogBrowserPreset {
+  /** STAC collection ID within MPC (e.g. 'sentinel-2-l2a') */
+  stacCollectionId: string;
+  /** Human label */
+  label: string;
+}
+
+/** Presets that map directly to MPC STAC collections */
+export const MPC_PRESETS: CatalogBrowserPreset[] = [
+  { stacCollectionId: 'sentinel-2-l2a', label: 'Sentinel-2 L2A' },
+  { stacCollectionId: 'landsat-c2-l2', label: 'Landsat C2 L2' },
+  { stacCollectionId: 'naip', label: 'NAIP' },
+  { stacCollectionId: 'sentinel-1-grd', label: 'Sentinel-1 GRD' },
+  { stacCollectionId: 'cop-dem-glo-30', label: 'Copernicus DEM 30m' },
+];
+
+const MPC_API_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1';
+
+interface CatalogBrowserProps {
+  onAdd: (collections: CollectionItem[]) => void;
+  onClose: () => void;
+  campaignBbox?: number[] | null;
+  /** Initial mode: 'mosaic' for temporal series, 'single-item' for single item */
+  initialMode?: 'single-item' | 'mosaic';
+  /** When true, generates a single collection (no collection period UI) but still with slices */
+  singleCollection?: boolean;
+  /** When set, auto-navigates to this MPC collection, skipping catalog/collection selection */
+  preset?: CatalogBrowserPreset | null;
+}
+
+export const CatalogBrowser = ({
+  onAdd,
+  onClose,
+  campaignBbox,
+  initialMode = 'mosaic',
+  singleCollection = false,
+  preset = null,
+}: CatalogBrowserProps) => {
+  const [step, setStep] = useState<Step>('catalog');
+  const [catalogs, setCatalogs] = useState<StacCatalog[]>([]);
+  const [collections, setCollections] = useState<StacCollection[]>([]);
+  const [items, setItems] = useState<StacItem[]>([]);
+
+  const [selectedCatalog, setSelectedCatalog] = useState<StacCatalog | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<StacCollection | null>(null);
+
+  const [query, setQuery] = useState('');
+  const [customCatalogUrl, setCustomCatalogUrl] = useState('');
+  const [showCustomUrl, setShowCustomUrl] = useState(false);
+  const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
+
+  // Date range - default to 2024-01 through 2025-12
+  const [startDate, setStartDate] = useState('2024-01');
+  const [endDate, setEndDate] = useState('2025-12');
+  const [maxCloudCover, setMaxCloudCover] = useState<number>(90);
+
+  // Temporal slicing (mosaic mode)
+  const [collectionPeriodInterval, setCollectionPeriodInterval] = useState(1);
+  const [collectionPeriodUnit, setCollectionPeriodUnit] = useState<'weeks' | 'months' | 'years'>(
+    'months'
+  );
+  const [slicePeriodInterval, setSlicePeriodInterval] = useState(1);
+  const [slicePeriodUnit, setSlicePeriodUnit] = useState<'days' | 'weeks' | 'months' | 'years'>(
+    'weeks'
+  );
+  const [coverSliceNth, setCoverSliceNth] = useState(1);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Multiple named visualizations
+  const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
+    { name: 'True Color', vizParams: emptyVizParams() },
+  ]);
+  const [activeVizIndex, setActiveVizIndex] = useState(0);
+  const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+
+  // Load catalogs on mount (skip if preset provided)
+  useEffect(() => {
+    if (preset) {
+      // Auto-navigate: set MPC as catalog, fetch collection details, jump to configure
+      const mpcCatalog: StacCatalog = {
+        id: 'mpc',
+        title: 'Microsoft Planetary Computer',
+        url: MPC_API_URL,
+        summary: '',
+        is_mpc: true,
+        auth_required: false,
+      };
+      setSelectedCatalog(mpcCatalog);
+      setLoading(true);
+      // Fetch full collection list to get item_assets metadata
+      fetchCollections(MPC_API_URL)
+        .then((cols) => {
+          const match = cols.find((c) => c.id === preset.stacCollectionId);
+          const col = match || {
+            id: preset.stacCollectionId,
+            title: preset.label,
+            description: '',
+            keywords: [],
+          };
+          setSelectedCollection(col);
+          if (col.item_assets && Object.keys(col.item_assets).length > 0) {
+            setAvailableAssets(col.item_assets);
+          }
+          setStep('configure');
+        })
+        .catch(() => {
+          // Fallback: use minimal collection info, assets will be discovered via item search
+          setSelectedCollection({
+            id: preset.stacCollectionId,
+            title: preset.label,
+            description: '',
+            keywords: [],
+          });
+          setStep('configure');
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+    setLoading(true);
+    fetchCatalogs()
+      .then(setCatalogs)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectCatalog = (cat: StacCatalog) => {
+    if (cat.auth_required) return;
+    setSelectedCatalog(cat);
+    setStep('collection');
+    setQuery('');
+    setCollections([]);
+    setLoading(true);
+    setError('');
+    fetchCollections(cat.url)
+      .then(setCollections)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  const loadCustomCatalog = () => {
+    if (!customCatalogUrl.trim()) return;
+    const cat: StacCatalog = {
+      id: 'custom',
+      title: customCatalogUrl,
+      url: customCatalogUrl.trim(),
+      summary: 'Custom STAC catalog',
+      is_mpc: false,
+      auth_required: false,
+    };
+    selectCatalog(cat);
+  };
+
+  const selectCollection = (col: StacCollection) => {
+    setSelectedCollection(col);
+    setStep('configure');
+    setQuery('');
+    setError('');
+    setVisualizations([{ name: 'True Color', vizParams: emptyVizParams() }]);
+    setActiveVizIndex(0);
+    // Use item_assets from collection metadata for viz config (no item search needed)
+    setAvailableAssets(
+      col.item_assets && Object.keys(col.item_assets).length > 0 ? col.item_assets : {}
+    );
+    // Only narrow the default range if the collection's extent is smaller
+    if (col.temporal_extent?.start) {
+      const colStart = col.temporal_extent.start.slice(0, 7);
+      if (colStart > startDate) setStartDate(colStart);
+    }
+    if (col.temporal_extent?.end) {
+      const colEnd = col.temporal_extent.end.slice(0, 7);
+      if (colEnd < endDate) setEndDate(colEnd);
+    }
+  };
+
+  const goBack = () => {
+    if (step === 'configure') {
+      setStep('collection');
+      setItems([]);
+      setError('');
+    } else if (step === 'collection') {
+      setStep('catalog');
+      setError('');
+    }
+  };
+
+  const doSearch = async () => {
+    if (!selectedCatalog || !selectedCollection) return;
+    setLoading(true);
+    setError('');
+    try {
+      const bbox = campaignBbox || undefined;
+      const dtRange =
+        startDate && endDate ? `${startDate}-01T00:00:00Z/${endDate}-28T23:59:59Z` : undefined;
+      const result = await searchItems({
+        catalog_url: selectedCatalog.url,
+        collection_id: selectedCollection.id,
+        bbox,
+        datetime_range: dtRange,
+        limit: 200,
+      });
+      setItems(result.items);
+      // Fall back to item assets if collection metadata didn't have item_assets
+      if (Object.keys(availableAssets).length === 0 && result.items.length > 0) {
+        setAvailableAssets(result.items[0].assets);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-search in single-item mode (to list items), or when no item_assets metadata available (fallback)
+  useEffect(() => {
+    if (step !== 'configure' || !selectedCatalog || !selectedCollection || !startDate || !endDate)
+      return;
+    const needsItemSearch = mode === 'single-item' || Object.keys(availableAssets).length === 0;
+    if (needsItemSearch) {
+      doSearch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, mode, startDate, endDate, selectedCatalog?.url, selectedCollection?.id]);
+
+  // --- Visualization management ---
+  const addVisualization = () => {
+    setVisualizations((prev) => [
+      ...prev,
+      { name: `Viz ${prev.length + 1}`, vizParams: emptyVizParams() },
+    ]);
+    setActiveVizIndex(visualizations.length);
+  };
+
+  const removeVisualization = (index: number) => {
+    if (visualizations.length <= 1) return;
+    setVisualizations((prev) => prev.filter((_, i) => i !== index));
+    setActiveVizIndex((prev) => Math.min(prev, visualizations.length - 2));
+  };
+
+  const updateVizName = (index: number, name: string) => {
+    setVisualizations((prev) => prev.map((v, i) => (i === index ? { ...v, name } : v)));
+  };
+
+  const updateVizParams = (params: VizParams) => {
+    setVisualizations((prev) =>
+      prev.map((v, i) => (i === activeVizIndex ? { ...v, vizParams: params } : v))
+    );
+  };
+
+  // --- Generate collections (mosaic mode with temporal slicing) ---
+  const generateMosaicCollections = (): CollectionItem[] => {
+    if (!selectedCatalog || !selectedCollection || !startDate || !endDate) return [];
+
+    const start = new Date(startDate + '-01');
+    const endRaw = new Date(endDate + '-01');
+    endRaw.setMonth(endRaw.getMonth() + 1);
+    const end = endRaw;
+    const result: CollectionItem[] = [];
+
+    // For singleCollection mode, use the entire range as one collection period
+    const effectiveColInterval = singleCollection ? 999 : collectionPeriodInterval;
+    const effectiveColUnit = singleCollection ? ('years' as const) : collectionPeriodUnit;
+
+    let colCurrent = new Date(start);
+    while (colCurrent < end) {
+      const colStart = new Date(colCurrent);
+      let colEnd: Date;
+
+      if (effectiveColUnit === 'weeks') {
+        colEnd = new Date(colCurrent);
+        colEnd.setDate(colEnd.getDate() + effectiveColInterval * 7);
+      } else if (effectiveColUnit === 'years') {
+        colEnd = new Date(colCurrent);
+        colEnd.setFullYear(colEnd.getFullYear() + effectiveColInterval);
+      } else {
+        colEnd = new Date(colCurrent);
+        colEnd.setMonth(colEnd.getMonth() + effectiveColInterval);
+      }
+      if (colEnd > end) colEnd = new Date(end);
+      const colEndDate = new Date(colEnd);
+      colEndDate.setDate(colEndDate.getDate() - 1);
+
+      const slices: ImagerySlice[] = [];
+      let sliceCurrent = new Date(colStart);
+      while (sliceCurrent < colEnd) {
+        const sliceStart = new Date(sliceCurrent);
+        let sliceEnd: Date;
+
+        if (slicePeriodUnit === 'days') {
+          sliceEnd = new Date(sliceCurrent);
+          sliceEnd.setDate(sliceEnd.getDate() + slicePeriodInterval);
+        } else if (slicePeriodUnit === 'weeks') {
+          sliceEnd = new Date(sliceCurrent);
+          sliceEnd.setDate(sliceEnd.getDate() + slicePeriodInterval * 7);
+        } else if (slicePeriodUnit === 'years') {
+          sliceEnd = new Date(sliceCurrent);
+          sliceEnd.setFullYear(sliceEnd.getFullYear() + slicePeriodInterval);
+        } else {
+          sliceEnd = new Date(sliceCurrent);
+          sliceEnd.setMonth(sliceEnd.getMonth() + slicePeriodInterval);
+        }
+        if (sliceEnd > colEnd) sliceEnd = new Date(colEnd);
+        const sliceEndDate = new Date(sliceEnd);
+        sliceEndDate.setDate(sliceEndDate.getDate() - 1);
+
+        slices.push({
+          id: createId(),
+          name: formatSliceLabel(
+            sliceStart.toISOString().slice(0, 10),
+            sliceEndDate.toISOString().slice(0, 10),
+            slicePeriodUnit,
+            slices.length
+          ),
+          startDate: sliceStart.toISOString().slice(0, 10),
+          endDate: sliceEndDate.toISOString().slice(0, 10),
+        });
+        sliceCurrent = sliceEnd;
+      }
+
+      const coverSliceIndex = Math.min(coverSliceNth - 1, slices.length - 1);
+
+      result.push({
+        id: createId(),
+        name: formatWindowLabel(
+          colStart.toISOString().slice(0, 10),
+          colEndDate.toISOString().slice(0, 10),
+          collectionPeriodUnit
+        ),
+        slices,
+        coverSliceIndex: Math.max(0, coverSliceIndex),
+        windowInterval: collectionPeriodInterval,
+        windowUnit: collectionPeriodUnit,
+        slicingInterval: slicePeriodInterval,
+        slicingUnit: slicePeriodUnit,
+        data: {
+          type: 'stac_browser' as const,
+          catalogUrl: selectedCatalog.url,
+          stacCollectionId: selectedCollection.id,
+          isMpc: selectedCatalog.is_mpc,
+          mode: 'mosaic',
+          visualizations,
+          vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
+        },
+      });
+
+      colCurrent = colEnd;
+    }
+    return result;
+  };
+
+  const selectItem = (item: StacItem) => {
+    if (!selectedCatalog || !selectedCollection) return;
+    const col: CollectionItem = {
+      id: createId(),
+      name: `${selectedCollection.title} - ${item.id}`,
+      slices: [
+        {
+          id: createId(),
+          name: item.datetime?.slice(0, 10) || item.id,
+          startDate: item.datetime?.slice(0, 10) || '',
+          endDate: item.datetime?.slice(0, 10) || '',
+        },
+      ],
+      coverSliceIndex: 0,
+      data: {
+        type: 'stac_browser' as const,
+        catalogUrl: selectedCatalog.url,
+        stacCollectionId: selectedCollection.id,
+        isMpc: selectedCatalog.is_mpc,
+        mode: 'single-item',
+        itemHref: item.self_href || undefined,
+        visualizations,
+        vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
+      },
+    };
+    onAdd([col]);
+  };
+
+  const handleGenerate = () => {
+    if (mode === 'mosaic') {
+      const cols = generateMosaicCollections();
+      if (cols.length > 0) onAdd(cols);
+    }
+  };
+
+  // --- Fuzzy filter + rank (title/id weighted heavily) ---
+  const fuzzy = <T,>(
+    items: T[],
+    q: string,
+    primaryFields: (item: T) => unknown[],
+    secondaryFields?: (item: T) => unknown[]
+  ): T[] => {
+    const raw = q.trim().toLowerCase();
+    if (!raw) return items;
+    const tokens = raw.split(/\s+/);
+    // Also try collapsed (no separators) for queries like "sentinel2" matching "sentinel-2"
+    const collapsed = raw.replace(/[^a-z0-9]/g, '');
+
+    const scored: { item: T; score: number }[] = [];
+
+    for (const item of items) {
+      const primary = primaryFields(item)
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        .map((s) => s.toLowerCase());
+      const secondary = (secondaryFields?.(item) ?? [])
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        .map((s) => s.toLowerCase());
+
+      let totalScore = 0;
+      let allMatch = true;
+
+      for (const tok of tokens) {
+        let best = 0;
+        // Primary fields (title, id) - high weight
+        for (const text of primary) {
+          if (text === tok) {
+            best = Math.max(best, 100);
+            continue;
+          }
+          if (text.startsWith(tok)) {
+            best = Math.max(best, 80);
+            continue;
+          }
+          const words = text.split(/[\s\-_/]+/);
+          if (words.some((w) => w.startsWith(tok))) {
+            best = Math.max(best, 50);
+            continue;
+          }
+          if (text.includes(tok)) {
+            best = Math.max(best, 20);
+            continue;
+          }
+        }
+        // Secondary fields (description, keywords) - low weight
+        if (best === 0) {
+          for (const text of secondary) {
+            if (text.includes(tok)) {
+              best = Math.max(best, 5);
+              continue;
+            }
+          }
+        }
+        if (best > 0) {
+          totalScore += best;
+        } else {
+          allMatch = false;
+          break;
+        }
+      }
+
+      // Fallback: collapsed match ("sentinel2" → "sentinel-2-l2a")
+      if (!allMatch && collapsed.length >= 2) {
+        const allCollapsed = [...primary, ...secondary].join('').replace(/[^a-z0-9]/g, '');
+        if (allCollapsed.includes(collapsed)) {
+          allMatch = true;
+          totalScore = 3;
+        }
+      }
+
+      if (allMatch) scored.push({ item, score: totalScore });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map((s) => s.item);
+  };
+
+  const filteredCatalogs = fuzzy(
+    catalogs,
+    query,
+    (c) => [c.title, c.id],
+    (c) => [c.summary, c.url]
+  );
+  const filteredCollections = fuzzy(
+    collections,
+    query,
+    (c) => [c.title, c.id],
+    (c) => [c.description, ...c.keywords]
+  );
+
+  // --- Preview ---
+  const preview = (() => {
+    if (mode !== 'mosaic' || !startDate || !endDate) return null;
+    const cols = generateMosaicCollections();
+    return {
+      collections: cols.length,
+      slicesPerCollection: cols[0]?.slices.length ?? 0,
+    };
+  })();
+
+  const hasVizConfig = visualizations.some((v) => v.vizParams.assets.length > 0);
+
+  const isValid =
+    mode === 'mosaic' ? startDate && endDate && startDate <= endDate && hasVizConfig : hasVizConfig;
+
+  const stepTitle =
+    step === 'catalog'
+      ? 'Select STAC Catalog'
+      : step === 'collection'
+        ? selectedCatalog?.title || 'Collections'
+        : selectedCollection?.title || 'Configure';
+
+  const footer =
+    step === 'configure' && mode === 'mosaic' ? (
+      <div className="flex justify-between">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-sm text-neutral-600 hover:text-neutral-800 transition-colors cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={!isValid}
+          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+        >
+          {singleCollection
+            ? 'Add Collection'
+            : `Generate ${preview ? `${preview.collections} Collection${preview.collections !== 1 ? 's' : ''}` : 'Collections'}`}
+        </button>
+      </div>
+    ) : undefined;
+
+  return (
+    <Modal title={stepTitle} onClose={onClose} maxWidth="max-w-xl" scrollable footer={footer}>
+      <div className="p-4 space-y-3">
+        {/* Step indicator */}
+        <div className="flex items-center gap-1 text-[11px] text-neutral-400">
+          <button
+            type="button"
+            onClick={() => setStep('catalog')}
+            className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
+          >
+            Catalog
+          </button>
+          <span>/</span>
+          <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
+            Collection
+          </span>
+          <span>/</span>
+          <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
+            Configure
+          </span>
+          {step !== 'catalog' && (
+            <button
+              type="button"
+              onClick={goBack}
+              className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
+            >
+              ← Back
+            </button>
+          )}
+        </div>
+
+        {/* Search bar */}
+        {(step === 'catalog' || step === 'collection') && (
+          <input
+            type="text"
+            placeholder={step === 'catalog' ? 'Search catalogs...' : 'Search collections...'}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+          />
+        )}
+
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+            {error}
+          </div>
+        )}
+
+        {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
+
+        {/* ─── CATALOG LIST ─── */}
+        {step === 'catalog' && !loading && (
+          <div className="space-y-2">
+            {/* Custom URL input */}
+            <div className="rounded-md border border-neutral-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowCustomUrl(!showCustomUrl)}
+                className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
+              >
+                <span className="text-xs text-neutral-600 font-medium">
+                  Custom STAC catalog URL
+                </span>
+                {showCustomUrl ? (
+                  <IconChevronUp className="w-3 h-3 text-neutral-400" />
+                ) : (
+                  <IconChevronDown className="w-3 h-3 text-neutral-400" />
+                )}
+              </button>
+              {showCustomUrl && (
+                <div className="px-3 pb-3 flex gap-2 border-t border-neutral-100 pt-2">
+                  <input
+                    type="url"
+                    value={customCatalogUrl}
+                    onChange={(e) => setCustomCatalogUrl(e.target.value)}
+                    placeholder="https://earth-search.aws.element84.com/v1"
+                    className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-500 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={loadCustomCatalog}
+                    disabled={!customCatalogUrl.trim()}
+                    className="px-3 py-1.5 text-xs bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Load
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {filteredCatalogs.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => selectCatalog(cat)}
+                  disabled={cat.auth_required}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                    cat.auth_required
+                      ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+                  }`}
+                >
+                  <span className="text-sm font-medium flex items-center gap-1.5">
+                    {cat.title}
+                    {cat.is_mpc && (
+                      <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                        MPC
+                      </span>
+                    )}
+                    {cat.auth_required && (
+                      <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                        Auth required
+                      </span>
+                    )}
+                  </span>
+                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+                </button>
+              ))}
+              {!filteredCatalogs.length && (
+                <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── COLLECTION LIST ─── */}
+        {step === 'collection' && !loading && (
+          <div className="space-y-1 max-h-80 overflow-y-auto">
+            {filteredCollections.map((col) => (
+              <button
+                key={col.id}
+                type="button"
+                onClick={() => selectCollection(col)}
+                className="w-full text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+              >
+                <span className="text-sm font-medium">{col.title}</span>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {col.id}
+                  {col.temporal_extent?.start && (
+                    <>
+                      {' · '}
+                      {col.temporal_extent.start.slice(0, 10)} to{' '}
+                      {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                    </>
+                  )}
+                </p>
+              </button>
+            ))}
+            {!filteredCollections.length && (
+              <p className="text-xs text-neutral-400 text-center py-4">No collections found</p>
+            )}
+          </div>
+        )}
+
+        {/* ─── CONFIGURE STEP ─── */}
+        {step === 'configure' && !loading && (
+          <div className="space-y-4">
+            {/* Mode tabs */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode('mosaic')}
+                className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                  mode === 'mosaic'
+                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                }`}
+              >
+                Collection Mosaic
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('single-item')}
+                className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                  mode === 'single-item'
+                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                }`}
+              >
+                Single Item
+              </button>
+            </div>
+
+            {/* Date range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-neutral-700 flex items-center gap-1">
+                  Start Month
+                  <Tooltip text="First month of the temporal range." />
+                </label>
+                <MonthPicker value={startDate} onChange={setStartDate} />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-neutral-700 flex items-center gap-1">
+                  End Month (inclusive)
+                  <Tooltip text="Last month of the temporal range (inclusive)." />
+                </label>
+                <MonthPicker value={endDate} onChange={setEndDate} />
+              </div>
+            </div>
+
+            {/* Cloud cover */}
+            {selectedCollection && supportsCloudCover(selectedCollection.id) && (
+              <div className="space-y-1">
+                <label className="text-xs text-neutral-700 font-medium">Max cloud cover (%)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={maxCloudCover}
+                    onChange={(e) => setMaxCloudCover(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-neutral-600 w-8 text-right">{maxCloudCover}%</span>
+                </div>
+              </div>
+            )}
+
+            {/* ─── TEMPORAL STRUCTURE ─── */}
+            {mode === 'mosaic' && (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                  <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                    Temporal Structure
+                    <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
+                  </h4>
+                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                    {singleCollection
+                      ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
+                      : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
+                  </p>
+                </div>
+                <div className="p-3 space-y-3">
+                  {/* Collection period - only for temporal series (multiple collections) */}
+                  {!singleCollection && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 flex items-center gap-1">
+                          Collection Period
+                          <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={collectionPeriodInterval}
+                          onChange={(e) =>
+                            setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
+                          }
+                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700">Collection Unit</label>
+                        <select
+                          value={collectionPeriodUnit}
+                          onChange={(e) =>
+                            setCollectionPeriodUnit(e.target.value as 'weeks' | 'months' | 'years')
+                          }
+                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                        >
+                          <option value="weeks">Weeks</option>
+                          <option value="months">Months</option>
+                          <option value="years">Years</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-700 flex items-center gap-1">
+                        Slice Period
+                        <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={slicePeriodInterval}
+                        onChange={(e) =>
+                          setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
+                        }
+                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-700">Slice Unit</label>
+                      <select
+                        value={slicePeriodUnit}
+                        onChange={(e) =>
+                          setSlicePeriodUnit(
+                            e.target.value as 'days' | 'weeks' | 'months' | 'years'
+                          )
+                        }
+                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                      >
+                        <option value="days">Days</option>
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Months</option>
+                        <option value="years">Years</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      Cover Slice (n-th)
+                      <Tooltip text="Which slice to use as the default visible cover image. 1 = first slice of each collection." />
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={coverSliceNth}
+                      onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
+                      className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Item results (single-item mode only) */}
+            {mode === 'single-item' && items.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-neutral-700 font-medium">
+                    Select an item
+                    <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={doSearch}
+                    disabled={loading}
+                    className="text-[11px] text-brand-600 hover:text-brand-800 cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? 'Searching...' : 'Refresh'}
+                  </button>
+                </div>
+                {items.length >= 200 && (
+                  <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                    Showing the maximum of 200 items. Narrow the date range to see all results.
+                  </div>
+                )}
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectItem(item)}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors text-left"
+                    >
+                      {item.thumbnail && (
+                        <img
+                          src={item.thumbnail}
+                          alt=""
+                          className="w-12 h-12 rounded object-cover shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium block truncate">{item.id}</span>
+                        <span className="text-[11px] text-neutral-400">
+                          {item.datetime?.slice(0, 10) || 'No date'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {mode === 'single-item' && items.length === 0 && loading && (
+              <div className="text-xs text-neutral-400 text-center py-2">
+                Searching for items...
+              </div>
+            )}
+            {Object.keys(availableAssets).length === 0 && !loading && (
+              <div className="text-xs text-neutral-400 text-center py-2">
+                No asset metadata found for this collection. Try selecting a different one.
+              </div>
+            )}
+
+            {/* ─── VISUALIZATIONS ─── */}
+            {Object.keys(availableAssets).length > 0 && selectedCollection && (
+              <div className="border-t border-neutral-200 pt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-neutral-700 font-semibold">Visualizations</label>
+                  <button
+                    type="button"
+                    onClick={addVisualization}
+                    className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer flex items-center gap-0.5"
+                  >
+                    <IconPlus className="w-3 h-3" /> Add
+                  </button>
+                </div>
+
+                {/* Viz tabs */}
+                <div className="flex flex-wrap gap-1.5">
+                  {visualizations.map((viz, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setActiveVizIndex(i)}
+                      className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer flex items-center gap-1 ${
+                        i === activeVizIndex
+                          ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                          : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                      }`}
+                    >
+                      {viz.name || `Viz ${i + 1}`}
+                      {visualizations.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeVisualization(i);
+                          }}
+                          className="text-neutral-400 hover:text-red-500 ml-0.5"
+                        >
+                          <IconTrash className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Active viz name */}
+                <div className="space-y-1">
+                  <label className="text-xs text-neutral-700">Visualization Name</label>
+                  <input
+                    type="text"
+                    value={visualizations[activeVizIndex]?.name || ''}
+                    onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
+                    placeholder="e.g. True Color"
+                    className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                  />
+                </div>
+
+                {/* Active viz config */}
+                <VizConfigPanel
+                  collectionId={selectedCollection.id}
+                  availableAssets={availableAssets}
+                  vizParams={visualizations[activeVizIndex]?.vizParams || emptyVizParams()}
+                  onChange={updateVizParams}
+                  showCompositing={mode === 'mosaic'}
+                />
+              </div>
+            )}
+
+            {/* Preview */}
+            {mode === 'mosaic' && preview && preview.collections > 0 && (
+              <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
+                This will generate <strong>{preview.collections}</strong> collection
+                {preview.collections !== 1 ? 's' : ''}, each with{' '}
+                <strong>{preview.slicesPerCollection}</strong> slice
+                {preview.slicesPerCollection !== 1 ? 's' : ''} and {visualizations.length}{' '}
+                visualization{visualizations.length !== 1 ? 's' : ''}.
+              </div>
+            )}
+
+            {/* MPC note */}
+            {selectedCatalog?.is_mpc && (
+              <div className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-1.5">
+                Tiles served via Microsoft Planetary Computer
+                {visualizations.some(
+                  (v) => v.vizParams.compositing && v.vizParams.compositing !== 'first'
+                ) && (
+                  <> (non-first compositing via local TiTiler - MPC only supports first-valid)</>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};

@@ -3,6 +3,7 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
+import { buildTileUrl } from './tileUrlBuilder';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 
@@ -148,16 +149,27 @@ export function useSliceLayers({
         for (const collection of source.collections) {
           for (let si = 0; si < collection.slices.length; si++) {
             const slice = collection.slices[si];
+            // Get viz params from stac_config if available (for dynamic URL construction)
+            const vizParams = collection.stac_config?.viz_params ?? null;
+
             for (const tileUrl of slice.tile_urls) {
               const layerId = makeLayerId(collection.id, si, tileUrl.visualization_name);
               if (lm.getLayerById(layerId)) continue;
+
+              const resolvedUrl = buildTileUrl(
+                {
+                  tile_url: tileUrl.tile_url,
+                  tile_provider: (tileUrl as { tile_provider?: string }).tile_provider,
+                },
+                vizParams
+              );
 
               newLayers.push(
                 new XYZLayer({
                   id: layerId,
                   name: `${source.name} - ${tileUrl.visualization_name}`,
                   layerType: 'imagery',
-                  urlTemplate: tileUrl.tile_url,
+                  urlTemplate: resolvedUrl,
                   preload: preloadDepth,
                 })
               );

@@ -53,6 +53,12 @@ services:
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
       ENVIRONMENT: staging
       LOG_LEVEL: info
+      # GDAL config for cloud-optimized raster access (TiTiler)
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
     volumes:
       - ./backend/src:/app/src:ro
       - ./backend/alembic:/app/alembic:ro

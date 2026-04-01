@@ -800,6 +800,10 @@ export type CollectionStacConfigOut = {
      * Search Body
      */
     search_body: string;
+    /**
+     * Viz Params
+     */
+    viz_params?: Record<string, unknown> | null;
 };
 
 /**

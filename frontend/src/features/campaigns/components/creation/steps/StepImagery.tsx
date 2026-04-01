@@ -7,14 +7,9 @@ import type {
   Basemap,
   ViewCollectionRef,
 } from './imagery/types';
-import {
-  emptySource,
-  emptyView,
-  emptyBasemap,
-  swap,
-  DEFAULT_BASEMAPS,
-  STAC_PRESETS,
-} from './imagery/types';
+import { emptySource, emptyView, emptyBasemap, swap, DEFAULT_BASEMAPS } from './imagery/types';
+import { MPC_PRESETS } from './imagery/CatalogBrowser';
+import type { CatalogBrowserPreset } from './imagery/CatalogBrowser';
 import { ImagerySourceEditor } from './imagery/ImagerySourceEditor';
 import { CanvasPreview } from './imagery/CanvasPreview';
 import {
@@ -61,7 +56,7 @@ export const StepImagery = ({
   /** Whether the + Source picker is open */
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   /** When a preset source is created, pass the preset ID so StacGenerator opens automatically */
-  const [pendingPresetId, setPendingPresetId] = useState<string | null>(null);
+  const [pendingPreset, setPendingPreset] = useState<CatalogBrowserPreset | null>(null);
 
   const updateState = (next: ImageryStepState) => {
     setState(next);
@@ -88,7 +83,28 @@ export const StepImagery = ({
         stac_config:
           col.data.type === 'stac' && col.data.registrationUrl
             ? { registration_url: col.data.registrationUrl, search_body: col.data.searchBody }
-            : null,
+            : col.data.type === 'stac_browser'
+              ? {
+                  registration_url: '',
+                  search_body: '',
+                  catalog_url: col.data.catalogUrl,
+                  stac_collection_id: col.data.stacCollectionId,
+                  tile_provider: col.data.isMpc ? 'mpc' : 'self_hosted',
+                  viz_params: col.data.visualizations?.[0]?.vizParams
+                    ? {
+                        assets: col.data.visualizations[0].vizParams.assets,
+                        asset_as_band: col.data.visualizations[0].vizParams.assetAsBand,
+                        rescale: col.data.visualizations[0].vizParams.rescale || undefined,
+                        colormap_name: col.data.visualizations[0].vizParams.colormapName,
+                        color_formula: col.data.visualizations[0].vizParams.colorFormula,
+                        expression: col.data.visualizations[0].vizParams.expression,
+                        resampling: col.data.visualizations[0].vizParams.resampling,
+                        compositing: col.data.visualizations[0].vizParams.compositing,
+                        nodata: col.data.visualizations[0].vizParams.nodata,
+                      }
+                    : undefined,
+                }
+              : null,
       })),
     }));
 
@@ -122,20 +138,16 @@ export const StepImagery = ({
     updateState({ ...state, sources: [...state.sources, src] });
     setEditingSourceId(src.id);
     setShowSourcePicker(false);
-    setPendingPresetId(null);
+    setPendingPreset(null);
   };
 
-  const addSourceFromPreset = (presetId: string) => {
-    const preset = STAC_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
+  const addSourceFromPreset = (preset: CatalogBrowserPreset) => {
     const src = emptySource();
     src.name = preset.label;
-    // Set visualizations from preset viz URLs
-    src.visualizations = preset.config.vizUrls.map((v) => ({ name: v.vizName }));
     updateState({ ...state, sources: [...state.sources, src] });
     setEditingSourceId(src.id);
     setShowSourcePicker(false);
-    setPendingPresetId(presetId);
+    setPendingPreset(preset);
   };
 
   const updateSource = (id: string, updates: Partial<ImagerySource>) => {
@@ -358,7 +370,7 @@ export const StepImagery = ({
                   type="button"
                   onClick={() => {
                     setEditingSourceId(isEditing ? null : source.id);
-                    setPendingPresetId(null);
+                    setPendingPreset(null);
                   }}
                   title="Click to configure"
                   className={`group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
@@ -418,16 +430,19 @@ export const StepImagery = ({
             <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-4 pt-1 pb-0.5">
               STAC Presets
             </p>
-            {STAC_PRESETS.map((preset) => (
+            {MPC_PRESETS.map((preset) => (
               <button
-                key={preset.id}
+                key={preset.stacCollectionId}
                 type="button"
-                onClick={() => addSourceFromPreset(preset.id)}
+                onClick={() => addSourceFromPreset(preset)}
                 className="w-full text-left px-4 py-2.5 rounded-lg bg-brand-50/50 border border-brand-100 hover:bg-brand-100 cursor-pointer transition-colors"
               >
                 <span className="text-sm font-medium text-brand-700 flex items-center gap-1.5">
                   <IconStac className="w-3.5 h-3.5 text-brand-500" />
                   {preset.label}
+                  <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold ml-auto">
+                    MPC
+                  </span>
                 </span>
               </button>
             ))}
@@ -437,7 +452,7 @@ export const StepImagery = ({
               onClick={addSource}
               className="w-full text-left px-4 py-2.5 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
             >
-              <span className="text-sm font-medium text-neutral-800">Manual (empty source)</span>
+              <span className="text-sm font-medium text-neutral-800">Manual</span>
               <p className="text-xs text-neutral-500 mt-0.5">
                 Start from scratch with an empty source configuration.
               </p>
@@ -522,8 +537,8 @@ export const StepImagery = ({
                 source={renderedSource}
                 onChange={(updates) => updateSource(renderedSource.id, updates)}
                 onRemove={() => removeSource(renderedSource.id)}
-                initialPresetId={editingSourceId === renderedSource.id ? pendingPresetId : null}
-                onPresetConsumed={() => setPendingPresetId(null)}
+                initialPreset={editingSourceId === renderedSource.id ? pendingPreset : null}
+                onPresetConsumed={() => setPendingPreset(null)}
               />
             </div>
           </div>

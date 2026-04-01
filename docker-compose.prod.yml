@@ -55,6 +55,12 @@ services:
       KEEPALIVE: ${KEEPALIVE:-5}
       MAX_REQUESTS: ${MAX_REQUESTS:-1000}
       MAX_REQUESTS_JITTER: ${MAX_REQUESTS_JITTER:-50}
+      # GDAL config for cloud-optimized raster access (TiTiler)
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
     volumes:
       - ./backend/logs:/app/logs
       # Mount credential files from host paths defined in .env

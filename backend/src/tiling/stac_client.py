@@ -1,0 +1,122 @@
+"""pystac_client wrapper with MPC signing support."""
+
+import logging
+
+import planetary_computer as pc
+import pystac_client
+
+from src.tiling.token_manager import is_planetary_computer
+
+logger = logging.getLogger(__name__)
+
+
+def get_client(catalog_url: str) -> pystac_client.Client:
+    """Get a pystac Client for the given catalog URL.
+
+    For MPC, applies the planetary_computer modifier so that
+    returned items have signed asset URLs.
+    """
+    kwargs = {}
+    if is_planetary_computer(catalog_url):
+        kwargs["modifier"] = pc.sign_inplace
+
+    return pystac_client.Client.open(catalog_url, **kwargs)
+
+
+def list_collections(catalog_url: str) -> list[dict]:
+    """List collections from a STAC API catalog."""
+    client = get_client(catalog_url)
+    results = []
+    for col in client.get_collections():
+        extent = col.extent
+        temporal = None
+        if extent and extent.temporal and extent.temporal.intervals:
+            interval = extent.temporal.intervals[0]
+            temporal = {
+                "start": interval[0].isoformat() if interval[0] else None,
+                "end": interval[1].isoformat() if interval[1] else None,
+            }
+        spatial = None
+        if extent and extent.spatial and extent.spatial.bboxes:
+            spatial = extent.spatial.bboxes[0]
+
+        # Extract item_assets from the item-assets extension (available on most STAC APIs)
+        item_assets = {}
+        raw_item_assets = (col.extra_fields or {}).get("item_assets", {})
+        for key, asset_def in raw_item_assets.items():
+            item_assets[key] = {
+                "title": asset_def.get("title", key),
+                "type": asset_def.get("type", ""),
+                "roles": asset_def.get("roles", []),
+            }
+
+        results.append(
+            {
+                "id": col.id,
+                "title": col.title or col.id,
+                "description": col.description or "",
+                "temporal_extent": temporal,
+                "spatial_extent": spatial,
+                "keywords": getattr(col, "keywords", []) or [],
+                "item_assets": item_assets,
+            }
+        )
+    return results
+
+
+def search_items(
+    catalog_url: str,
+    collection_id: str,
+    bbox: list[float] | None = None,
+    datetime_range: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Search STAC items and return simplified results."""
+    client = get_client(catalog_url)
+    search_kwargs: dict = {"collections": [collection_id], "max_items": limit}
+    if bbox:
+        search_kwargs["bbox"] = bbox
+    if datetime_range:
+        search_kwargs["datetime"] = datetime_range
+
+    search = client.search(**search_kwargs)
+    results = []
+    for item in search.items():
+        # Find thumbnail
+        thumbnail = None
+        fallback = None
+        for thumb_key in ("rendered_preview", "thumbnail", "preview"):
+            if thumb_key not in item.assets:
+                continue
+            asset = item.assets[thumb_key]
+            media = (asset.media_type or "").lower()
+            if "png" in media or "jpeg" in media or "jpg" in media:
+                thumbnail = asset.href
+                break
+            if fallback is None:
+                fallback = asset.href
+        if not thumbnail:
+            thumbnail = fallback
+
+        # Build assets info
+        assets_info = {}
+        for key, asset in item.assets.items():
+            assets_info[key] = {
+                "title": asset.title or key,
+                "type": asset.media_type or "",
+                "roles": asset.roles or [],
+            }
+
+        results.append(
+            {
+                "id": item.id,
+                "datetime": item.datetime.isoformat() if item.datetime else None,
+                "bbox": list(item.bbox) if item.bbox else None,
+                "geometry": item.geometry,
+                "properties": dict(item.properties),
+                "assets": assets_info,
+                "thumbnail": thumbnail,
+                "self_href": item.get_self_href(),
+            }
+        )
+    return results

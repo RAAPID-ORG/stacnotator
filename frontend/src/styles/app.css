@@ -66,7 +66,7 @@
 
   /* Typography */
   --font-sans:
-    'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Sora', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
     'Segoe UI Symbol', 'Noto Color Emoji';
   --font-mono: 'JetBrains Mono', monospace;
 
@@ -96,8 +96,8 @@
 }
 
 html {
-  font-size: 1.125rem; /* 18px base */
-  line-height: 1.6;
+  font-size: 1rem; /* 16px base - standard for Tailwind sizing */
+  line-height: 1.5;
 }
 
 /* Global button cursor */

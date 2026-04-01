@@ -26,13 +26,43 @@ export interface ManualCollectionData {
   vizUrls: VisualizationUrl[];
 }
 
+export interface VizParams {
+  assets: string[];
+  assetAsBand: boolean;
+  rescale: string;
+  colormapName?: string;
+  colorFormula?: string;
+  expression?: string;
+  resampling?: string;
+  compositing?: string;
+  nodata?: number;
+}
+
+export interface NamedVizParams {
+  name: string;
+  vizParams: VizParams;
+}
+
+export interface StacBrowserCollectionData {
+  type: 'stac_browser';
+  catalogUrl: string;
+  stacCollectionId: string;
+  isMpc: boolean;
+  mode: 'single-item' | 'mosaic';
+  itemHref?: string;
+  mosaicId?: string;
+  /** Named visualizations - each defines a rendering config (bands, colormap, etc.) */
+  visualizations: NamedVizParams[];
+  vizUrls: VisualizationUrl[];
+}
+
 export interface CollectionItem {
   id: string;
   name: string;
   slices: ImagerySlice[];
   /** Index into slices[] that serves as the "cover" / representative image (e.g. a median mosaic). Defaults to 0. */
   coverSliceIndex: number;
-  data: StacCollectionData | ManualCollectionData;
+  data: StacCollectionData | ManualCollectionData | StacBrowserCollectionData;
   /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
   windowInterval?: number | null;
   /** Temporal window grouping unit (maps to ImageryCreate.window_unit) */
@@ -105,6 +135,12 @@ export interface StacConfig {
 }
 
 export const createId = (): string => crypto.randomUUID().slice(0, 8);
+
+export const emptyVizParams = (): VizParams => ({
+  assets: [],
+  assetAsBand: false,
+  rescale: '',
+});
 
 export const emptySlice = (): ImagerySlice => ({
   id: createId(),

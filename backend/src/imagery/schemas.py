@@ -11,6 +11,7 @@ class SliceTileUrlOut(BaseModel):
     id: int
     visualization_name: str
     tile_url: str
+    tile_provider: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,6 +30,10 @@ class ImagerySliceOut(BaseModel):
 class CollectionStacConfigOut(BaseModel):
     registration_url: str
     search_body: str
+    catalog_url: str | None = None
+    stac_collection_id: str | None = None
+    tile_provider: str | None = None
+    viz_params: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -133,6 +138,7 @@ class ImageryViewOut(BaseModel):
 class SliceTileUrlCreate(BaseModel):
     visualization_name: str
     tile_url: str
+    tile_provider: str | None = None
 
 
 class ImagerySliceCreate(BaseModel):
@@ -142,9 +148,27 @@ class ImagerySliceCreate(BaseModel):
     tile_urls: list[SliceTileUrlCreate] = []
 
 
+class VizParamsCreate(BaseModel):
+    """Structured visualization parameters for TiTiler tile rendering."""
+
+    assets: list[str] = []
+    asset_as_band: bool = False
+    rescale: str | None = None
+    colormap_name: str | None = None
+    color_formula: str | None = None
+    expression: str | None = None
+    resampling: str | None = None
+    compositing: str | None = None
+    nodata: float | None = None
+
+
 class CollectionStacConfigCreate(BaseModel):
-    registration_url: str
-    search_body: str
+    registration_url: str = ""
+    search_body: str = ""
+    catalog_url: str | None = None
+    stac_collection_id: str | None = None
+    tile_provider: str | None = None
+    viz_params: VizParamsCreate | None = None
 
 
 class ImageryCollectionCreate(BaseModel):
@@ -193,6 +217,13 @@ class ImageryEditorStateCreate(BaseModel):
 # ============================================================================
 # Update / Layout Request Schemas
 # ============================================================================
+
+
+class ImagerySourceUpdate(BaseModel):
+    """Partial update for an imagery source's display settings."""
+
+    crosshair_hex6: str | None = None
+    default_zoom: int | None = None
 
 
 class CanvasLayoutCreate(BaseModel):

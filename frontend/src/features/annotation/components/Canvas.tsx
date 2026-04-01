@@ -186,7 +186,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
 
   // In open mode, only pass timeseries point to the chart when the user explicitly
-  // clicked with the timeseries tool — never auto-fetch for the viewport center.
+  // clicked with the timeseries tool - never auto-fetch for the viewport center.
   // In task mode, latLon (task centroid) is always the chart target.
   const timeseriesLatLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) return timeseriesPoint;

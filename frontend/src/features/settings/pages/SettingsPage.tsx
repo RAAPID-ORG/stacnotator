@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
@@ -14,6 +14,11 @@ import {
   type UserOutDetailed,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
+import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
+import {
+  PasswordRequirementsList,
+  passwordMeetsAllRequirements,
+} from 'src/features/auth/ui/PasswordRequirements';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
@@ -24,6 +29,14 @@ export const SettingsPage = () => {
   // Display name editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
+
+  // Change password state
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -212,6 +225,55 @@ export const SettingsPage = () => {
     }
   };
 
+  const emailProvider = authManager.getProvider(AUTH_PROVIDERS.EMAIL);
+  const supportsChangePassword = !!emailProvider?.changePassword;
+
+  const newPasswordMeetsRequirements = useMemo(() => {
+    return passwordMeetsAllRequirements(newPassword);
+  }, [newPassword]);
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in all fields.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+    if (!newPasswordMeetsRequirements) {
+      setPasswordError(
+        'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await emailProvider!.changePassword!(currentPassword, newPassword);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setIsChangingPassword(false);
+      showAlert('Password changed successfully', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
+        setPasswordError('Current password is incorrect.');
+      } else if (msg.includes('auth/weak-password')) {
+        setPasswordError('New password is too weak.');
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStartEditDisplayName = () => {
     setDisplayNameInput(account?.display_name || '');
     setIsEditingDisplayName(true);
@@ -371,6 +433,97 @@ export const SettingsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Change Password - only for email/password-authenticated users */}
+              {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h2 className="text-lg font-semibold text-brand-800 mb-4">Change Password</h2>
+
+                  {!isChangingPassword ? (
+                    <button
+                      onClick={() => {
+                        setIsChangingPassword(true);
+                        setPasswordError(null);
+                        setPasswordSuccess(false);
+                      }}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                    >
+                      Change password
+                    </button>
+                  ) : (
+                    <div className="space-y-4 max-w-md">
+                      {passwordError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                          {passwordError}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Current password
+                        </label>
+                        <input
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          autoComplete="current-password"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          New password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          autoComplete="new-password"
+                        />
+                        <PasswordRequirementsList password={newPassword} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Confirm new password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleChangePassword}
+                          disabled={saving || !newPasswordMeetsRequirements}
+                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {saving ? 'Saving…' : 'Update password'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsChangingPassword(false);
+                            setCurrentPassword('');
+                            setNewPassword('');
+                            setConfirmNewPassword('');
+                            setPasswordError(null);
+                          }}
+                          disabled={saving}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

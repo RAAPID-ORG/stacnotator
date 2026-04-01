@@ -108,6 +108,13 @@ class CollectionStacConfig(Base):
     # when the campaign bbox changes.  Format: [{"viz_name": "...", "url_template": "..."}]
     viz_url_templates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
+    # ── New fields for STAC catalog browser / TiTiler integration ──
+    catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Structured viz params: {"assets": [...], "rescale": "0,3000", "colormap_name": ...}
+    viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 
 
@@ -150,6 +157,8 @@ class SliceTileUrl(Base):
     )
     visualization_name: Mapped[str] = mapped_column(String, nullable=False)
     tile_url: Mapped[str] = mapped_column(Text, nullable=False)
+    # 'mpc' | 'self_hosted' | null (= direct URL, backward compat)
+    tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     slice: Mapped["ImagerySlice"] = relationship(back_populates="tile_urls")
 

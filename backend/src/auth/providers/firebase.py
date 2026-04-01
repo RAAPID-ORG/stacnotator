@@ -77,6 +77,8 @@ class FirebaseAuthProvider(AuthProvider):
                 "uid": decoded["uid"],
                 "email": email,
             }
+        except ExternalAuthEmailNotVerified:
+            raise  # Re-raise so the dependency layer can return a specific 403
         except Exception as e:
-            logger.warning(f"Firebase authentication failed: {e}")
+            logger.warning("Firebase authentication failed: %s", e)
             return None

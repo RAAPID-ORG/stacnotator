@@ -11,6 +11,7 @@ from src.imagery import service
 from src.imagery.schemas import (
     CanvasLayoutCreateRequest,
     ImageryEditorStateCreate,
+    ImagerySourceUpdate,
 )
 from src.utils import FunctionNameOperationIdRoute
 
@@ -59,6 +60,22 @@ def create_new_canvas_layout(
         user_id=user.id,
     )
     return result
+
+
+@router.patch("/{campaign_id}/imagery/sources/{source_id}")
+def update_source(
+    campaign_id: int,
+    source_id: int,
+    body: ImagerySourceUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_source(
+        db=db,
+        source_id=source_id,
+        campaign_id=campaign_id,
+        updates=body.model_dump(exclude_none=True),
+    )
 
 
 @router.delete("/{campaign_id}/imagery/sources/{source_id}", status_code=204)
