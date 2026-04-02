@@ -2,8 +2,6 @@
 
 from pydantic import BaseModel
 
-# ── Catalog ────────────────────────────────────────────────────────────
-
 
 class StacCatalogOut(BaseModel):
     id: str
@@ -14,16 +12,10 @@ class StacCatalogOut(BaseModel):
     auth_required: bool
 
 
-# ── Shared ─────────────────────────────────────────────────────────────
-
-
 class AssetInfo(BaseModel):
     title: str
     type: str
     roles: list[str]
-
-
-# ── Collection ─────────────────────────────────────────────────────────
 
 
 class TemporalExtent(BaseModel):
@@ -39,9 +31,6 @@ class StacCollectionOut(BaseModel):
     spatial_extent: list[float] | None = None
     keywords: list[str] = []
     item_assets: dict[str, AssetInfo] = {}
-
-
-# ── Search ─────────────────────────────────────────────────────────────
 
 
 class SearchRequest(BaseModel):
@@ -68,36 +57,15 @@ class SearchResponse(BaseModel):
     count: int
 
 
-# ── Mosaic ─────────────────────────────────────────────────────────────
-
-
 class MosaicRegisterRequest(BaseModel):
     catalog_url: str
     collection_id: str
     bbox: list[float]
     datetime_range: str
     max_items: int | None = None
-    pixel_selection: str = "first"
 
 
 class MosaicRegisterResponse(BaseModel):
     mosaic_id: str
     item_count: int
     assets: dict[str, AssetInfo]
-
-
-# ── Stats ──────────────────────────────────────────────────────────────
-
-
-class StatsRequest(BaseModel):
-    catalog_url: str
-    collection_id: str
-    assets: list[str]
-    bbox: list[float] | None = None
-    datetime_range: str | None = None
-    max_cloud_cover: float | None = None
-
-
-class StatsResponse(BaseModel):
-    rescale: str
-    source: str

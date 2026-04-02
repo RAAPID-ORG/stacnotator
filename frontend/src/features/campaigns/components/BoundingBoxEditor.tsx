@@ -274,7 +274,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
     if (bboxActuallyChanged) {
       mapRef.current.fitBounds(bounds, { padding: [50, 50] });
     }
-  }, [value.bbox_west, value.bbox_south, value.bbox_east, value.bbox_north, onChange]);
+  }, [value, value.bbox_west, value.bbox_south, value.bbox_east, value.bbox_north, onChange]);
 
   return (
     <div className="space-y-4">

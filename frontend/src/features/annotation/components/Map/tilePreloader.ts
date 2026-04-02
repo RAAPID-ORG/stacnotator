@@ -73,7 +73,7 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  // In-flight Image elements — setting src='' aborts the request.
+  // In-flight Image elements - setting src='' aborts the request.
   private inflightImages = new Set<HTMLImageElement>();
 
   // Per-group error/success counters for empty-tile detection.

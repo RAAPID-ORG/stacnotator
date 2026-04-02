@@ -227,7 +227,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     return groups;
   }, [campaign?.imagery_sources]);
 
-  const basemaps = campaign?.basemaps ?? [];
+  const basemaps = useMemo(() => campaign?.basemaps ?? [], [campaign?.basemaps]);
   const basemapIds = useMemo(() => basemaps.map((b) => `basemap-${b.id}`), [basemaps]);
 
   /** I: cycle through imagery sources + individual basemaps (jump to first viz of next source) */

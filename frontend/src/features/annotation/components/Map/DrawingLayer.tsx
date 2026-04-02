@@ -174,7 +174,6 @@ const DrawingLayer = ({
       sourceRef.current = null;
       vectorLayerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, map is stable
   }, [map]);
 
   // 2. Sync annotation features from store into VectorSource
@@ -279,10 +278,10 @@ const DrawingLayer = ({
     // pointermove fires on every mouse-move including during vertex drags,
     // keeping the buttons locked to the feature bounding box in real time.
     const handler = () => refreshEditControlsPosRef.current();
-    map.on('pointermove', handler as any);
+    map.on('pointermove', handler as unknown as () => void);
     map.on('moveend', handler);
     return () => {
-      map.un('pointermove', handler as any);
+      map.un('pointermove', handler as unknown as () => void);
       map.un('moveend', handler);
     };
   }, [map, selectedFeatureId]);
@@ -353,7 +352,6 @@ const DrawingLayer = ({
     snapInteractionRef.current = snap;
 
     map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, selectedLabel, saveAnnotation]);
 
   // 3b. Magic-wand interaction (single click -> auto polygon)
@@ -379,15 +377,14 @@ const DrawingLayer = ({
       }
     };
 
-    map.on('click', handleClick as any);
+    map.on('click', handleClick as unknown as () => void);
     map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
 
     return () => {
       controller.abort();
-      map.un('click', handleClick as any);
+      map.un('click', handleClick as unknown as () => void);
       map.getTargetElement()?.style.setProperty('cursor', '');
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, selectedLabel, saveAnnotation]);
 
   // 3c. Edit interaction (select + modify + translate)
@@ -463,10 +460,10 @@ const DrawingLayer = ({
       });
       map.getTargetElement()?.style.setProperty('cursor', features.length > 0 ? 'pointer' : '');
     };
-    map.on('pointermove', handlePointerMove as any);
+    map.on('pointermove', handlePointerMove as unknown as () => void);
 
     return () => {
-      map.un('pointermove', handlePointerMove as any);
+      map.un('pointermove', handlePointerMove as unknown as () => void);
     };
   }, [map, extendedLabels]); // refreshEditControlsPos intentionally omitted - called via stable ref
 
@@ -477,11 +474,11 @@ const DrawingLayer = ({
       probeMarkerRef.current = { lat, lon };
       onTimeseriesClickRef.current?.(lat, lon);
     };
-    map.on('click', handleClick as any);
+    map.on('click', handleClick as unknown as () => void);
     map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
 
     return () => {
-      map.un('click', handleClick as any);
+      map.un('click', handleClick as unknown as () => void);
       probeMarkerRef.current = null;
       map.getTargetElement()?.style.setProperty('cursor', '');
     };

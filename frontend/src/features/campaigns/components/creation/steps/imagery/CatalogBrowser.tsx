@@ -8,7 +8,8 @@ import type { StacCatalog, StacCollection, StacItem, StacAssetInfo } from '~/api
 import type { CollectionItem, ImagerySlice, VizParams, NamedVizParams } from './types';
 import { createId, emptyVizParams } from './types';
 import { VizConfigPanel } from './VizConfigPanel';
-import { supportsCloudCover } from './collectionPresets';
+import { VizParamsInlineEditor } from './VizParamsInlineEditor';
+import { StacQueryEditor } from './StacQueryEditor';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 
 type Step = 'catalog' | 'collection' | 'configure';
@@ -64,9 +65,9 @@ export const CatalogBrowser = ({
   const [showCustomUrl, setShowCustomUrl] = useState(false);
   const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
 
-  // Date range - default to 2024-01 through 2025-12
+  // Date range - default to 2024-01 through 2024-12
   const [startDate, setStartDate] = useState('2024-01');
-  const [endDate, setEndDate] = useState('2025-12');
+  const [endDate, setEndDate] = useState('2024-12');
   const [maxCloudCover, setMaxCloudCover] = useState<number>(90);
 
   // Temporal slicing (mosaic mode)
@@ -79,9 +80,52 @@ export const CatalogBrowser = ({
     'weeks'
   );
   const [coverSliceNth, setCoverSliceNth] = useState(1);
+  const [coverMode, setCoverMode] = useState<'nth' | 'custom'>('nth');
+  /** Per-viz params for the custom cover slice (e.g. different compositing) */
+  const [coverVisualizations, setCoverVisualizations] = useState<NamedVizParams[]>([]);
+  /** Custom CQL2-JSON search query (null = auto-generated) */
+  const [searchQuery, setSearchQuery] = useState<Record<string, unknown> | null>(null);
+  /** Custom search query for cover slice (null = same as regular) */
+  const [coverSearchQuery, setCoverSearchQuery] = useState<Record<string, unknown> | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  /** Build the canonical search query from UI state. Single source of truth for queries. */
+  const buildAutoQuery = (): Record<string, unknown> | null => {
+    if (!selectedCollection) return null;
+    const hasCloudCover = selectedCollection.has_cloud_cover ?? false;
+    const cloudCoverFilter =
+      hasCloudCover && maxCloudCover < 100
+        ? [
+            {
+              op: 'or',
+              args: [
+                { op: 'isNull', args: [{ property: 'eo:cloud_cover' }] },
+                { op: '<=', args: [{ property: 'eo:cloud_cover' }, maxCloudCover] },
+              ],
+            },
+          ]
+        : [];
+    return {
+      collections: [selectedCollection.id],
+      filter: {
+        op: 'and',
+        args: [
+          {
+            op: 'anyinteracts',
+            args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
+          },
+          ...cloudCoverFilter,
+        ],
+      },
+      filterLang: 'cql2-json',
+    };
+  };
+
+  /** Effective query: user's custom override, or the auto-generated one */
+  const effectiveQuery = searchQuery ?? buildAutoQuery();
+  const effectiveCoverQuery = coverSearchQuery ?? buildAutoQuery();
 
   // Multiple named visualizations
   const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
@@ -239,23 +283,33 @@ export const CatalogBrowser = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, mode, startDate, endDate, selectedCatalog?.url, selectedCollection?.id]);
 
-  // --- Visualization management ---
   const addVisualization = () => {
-    setVisualizations((prev) => [
-      ...prev,
-      { name: `Viz ${prev.length + 1}`, vizParams: emptyVizParams() },
-    ]);
+    const newViz = { name: `Viz ${visualizations.length + 1}`, vizParams: emptyVizParams() };
+    setVisualizations((prev) => [...prev, newViz]);
     setActiveVizIndex(visualizations.length);
+    // Sync cover visualizations
+    if (coverMode === 'custom') {
+      setCoverVisualizations((prev) => [
+        ...prev,
+        { ...newViz, vizParams: { ...newViz.vizParams, compositing: 'median' } },
+      ]);
+    }
   };
 
   const removeVisualization = (index: number) => {
     if (visualizations.length <= 1) return;
     setVisualizations((prev) => prev.filter((_, i) => i !== index));
     setActiveVizIndex((prev) => Math.min(prev, visualizations.length - 2));
+    if (coverMode === 'custom') {
+      setCoverVisualizations((prev) => prev.filter((_, i) => i !== index));
+    }
   };
 
   const updateVizName = (index: number, name: string) => {
     setVisualizations((prev) => prev.map((v, i) => (i === index ? { ...v, name } : v)));
+    if (coverMode === 'custom') {
+      setCoverVisualizations((prev) => prev.map((v, i) => (i === index ? { ...v, name } : v)));
+    }
   };
 
   const updateVizParams = (params: VizParams) => {
@@ -264,13 +318,21 @@ export const CatalogBrowser = ({
     );
   };
 
-  // --- Generate collections (mosaic mode with temporal slicing) ---
+  // Generate collections (mosaic mode with temporal slicing)
+
+  /** Create a UTC date from YYYY-MM-DD string to avoid timezone issues */
+  const utcDate = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d));
+  const toDateStr = (d: Date) =>
+    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+
   const generateMosaicCollections = (): CollectionItem[] => {
     if (!selectedCatalog || !selectedCollection || !startDate || !endDate) return [];
 
-    const start = new Date(startDate + '-01');
-    const endRaw = new Date(endDate + '-01');
-    endRaw.setMonth(endRaw.getMonth() + 1);
+    const [startY, startM] = startDate.split('-').map(Number);
+    const [endY, endM] = endDate.split('-').map(Number);
+    const start = utcDate(startY, startM - 1, 1);
+    const endRaw = utcDate(endY, endM - 1, 1);
+    endRaw.setUTCMonth(endRaw.getUTCMonth() + 1);
     const end = endRaw;
     const result: CollectionItem[] = [];
 
@@ -285,17 +347,17 @@ export const CatalogBrowser = ({
 
       if (effectiveColUnit === 'weeks') {
         colEnd = new Date(colCurrent);
-        colEnd.setDate(colEnd.getDate() + effectiveColInterval * 7);
+        colEnd.setUTCDate(colEnd.getUTCDate() + effectiveColInterval * 7);
       } else if (effectiveColUnit === 'years') {
         colEnd = new Date(colCurrent);
-        colEnd.setFullYear(colEnd.getFullYear() + effectiveColInterval);
+        colEnd.setUTCFullYear(colEnd.getUTCFullYear() + effectiveColInterval);
       } else {
         colEnd = new Date(colCurrent);
-        colEnd.setMonth(colEnd.getMonth() + effectiveColInterval);
+        colEnd.setUTCMonth(colEnd.getUTCMonth() + effectiveColInterval);
       }
       if (colEnd > end) colEnd = new Date(end);
       const colEndDate = new Date(colEnd);
-      colEndDate.setDate(colEndDate.getDate() - 1);
+      colEndDate.setUTCDate(colEndDate.getUTCDate() - 1);
 
       const slices: ImagerySlice[] = [];
       let sliceCurrent = new Date(colStart);
@@ -305,46 +367,57 @@ export const CatalogBrowser = ({
 
         if (slicePeriodUnit === 'days') {
           sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setDate(sliceEnd.getDate() + slicePeriodInterval);
+          sliceEnd.setUTCDate(sliceEnd.getUTCDate() + slicePeriodInterval);
         } else if (slicePeriodUnit === 'weeks') {
           sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setDate(sliceEnd.getDate() + slicePeriodInterval * 7);
+          sliceEnd.setUTCDate(sliceEnd.getUTCDate() + slicePeriodInterval * 7);
         } else if (slicePeriodUnit === 'years') {
           sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setFullYear(sliceEnd.getFullYear() + slicePeriodInterval);
+          sliceEnd.setUTCFullYear(sliceEnd.getUTCFullYear() + slicePeriodInterval);
         } else {
           sliceEnd = new Date(sliceCurrent);
-          sliceEnd.setMonth(sliceEnd.getMonth() + slicePeriodInterval);
+          sliceEnd.setUTCMonth(sliceEnd.getUTCMonth() + slicePeriodInterval);
         }
         if (sliceEnd > colEnd) sliceEnd = new Date(colEnd);
         const sliceEndDate = new Date(sliceEnd);
-        sliceEndDate.setDate(sliceEndDate.getDate() - 1);
+        sliceEndDate.setUTCDate(sliceEndDate.getUTCDate() - 1);
 
         slices.push({
           id: createId(),
           name: formatSliceLabel(
-            sliceStart.toISOString().slice(0, 10),
-            sliceEndDate.toISOString().slice(0, 10),
+            toDateStr(sliceStart),
+            toDateStr(sliceEndDate),
             slicePeriodUnit,
             slices.length
           ),
-          startDate: sliceStart.toISOString().slice(0, 10),
-          endDate: sliceEndDate.toISOString().slice(0, 10),
+          startDate: toDateStr(sliceStart),
+          endDate: toDateStr(sliceEndDate),
         });
         sliceCurrent = sliceEnd;
       }
 
-      const coverSliceIndex = Math.min(coverSliceNth - 1, slices.length - 1);
+      let finalSlices = slices;
+      let finalCoverIndex: number;
+
+      if (coverMode === 'custom') {
+        // Insert a cover slice at index 0 spanning the full collection window
+        const coverSlice: ImagerySlice = {
+          id: createId(),
+          name: 'Cover',
+          startDate: toDateStr(colStart),
+          endDate: toDateStr(colEndDate),
+        };
+        finalSlices = [coverSlice, ...slices];
+        finalCoverIndex = 0;
+      } else {
+        finalCoverIndex = Math.max(0, Math.min(coverSliceNth - 1, slices.length - 1));
+      }
 
       result.push({
         id: createId(),
-        name: formatWindowLabel(
-          colStart.toISOString().slice(0, 10),
-          colEndDate.toISOString().slice(0, 10),
-          collectionPeriodUnit
-        ),
-        slices,
-        coverSliceIndex: Math.max(0, coverSliceIndex),
+        name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), collectionPeriodUnit),
+        slices: finalSlices,
+        coverSliceIndex: finalCoverIndex,
         windowInterval: collectionPeriodInterval,
         windowUnit: collectionPeriodUnit,
         slicingInterval: slicePeriodInterval,
@@ -355,7 +428,11 @@ export const CatalogBrowser = ({
           stacCollectionId: selectedCollection.id,
           isMpc: selectedCatalog.is_mpc,
           mode: 'mosaic',
+          maxCloudCover,
           visualizations,
+          coverVisualizations: coverMode === 'custom' ? coverVisualizations : undefined,
+          searchQuery: effectiveQuery ?? undefined,
+          coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
         },
       });
@@ -386,6 +463,7 @@ export const CatalogBrowser = ({
         isMpc: selectedCatalog.is_mpc,
         mode: 'single-item',
         itemHref: item.self_href || undefined,
+        maxCloudCover,
         visualizations,
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
       },
@@ -400,7 +478,7 @@ export const CatalogBrowser = ({
     }
   };
 
-  // --- Fuzzy filter + rank (title/id weighted heavily) ---
+  // Fuzzy filter + rank (title/id weighted heavily)
   const fuzzy = <T,>(
     items: T[],
     q: string,
@@ -494,7 +572,6 @@ export const CatalogBrowser = ({
     (c) => [c.description, ...c.keywords]
   );
 
-  // --- Preview ---
   const preview = (() => {
     if (mode !== 'mosaic' || !startDate || !endDate) return null;
     const cols = generateMosaicCollections();
@@ -542,475 +619,583 @@ export const CatalogBrowser = ({
   return (
     <Modal title={stepTitle} onClose={onClose} maxWidth="max-w-xl" scrollable footer={footer}>
       <div className="p-4 space-y-3">
-        {/* Step indicator */}
-        <div className="flex items-center gap-1 text-[11px] text-neutral-400">
-          <button
-            type="button"
-            onClick={() => setStep('catalog')}
-            className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
-          >
-            Catalog
-          </button>
-          <span>/</span>
-          <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
-            Collection
-          </span>
-          <span>/</span>
-          <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
-            Configure
-          </span>
-          {step !== 'catalog' && (
-            <button
-              type="button"
-              onClick={goBack}
-              className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
-            >
-              ← Back
-            </button>
-          )}
-        </div>
-
-        {/* Search bar */}
-        {(step === 'catalog' || step === 'collection') && (
-          <input
-            type="text"
-            placeholder={step === 'catalog' ? 'Search catalogs...' : 'Search collections...'}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-          />
-        )}
-
-        {error && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
-            {error}
+        {/* Full-screen loading for preset initialization */}
+        {loading && preset && (
+          <div className="flex flex-col items-center justify-center py-12 text-neutral-400">
+            <div className="w-6 h-6 border-2 border-neutral-300 border-t-brand-500 rounded-full animate-spin mb-3" />
+            <span className="text-sm">Loading {preset.label}...</span>
           </div>
         )}
 
-        {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
-
-        {/* ─── CATALOG LIST ─── */}
-        {step === 'catalog' && !loading && (
-          <div className="space-y-2">
-            {/* Custom URL input */}
-            <div className="rounded-md border border-neutral-200 overflow-hidden">
+        {/* Normal UI (hidden during preset loading) */}
+        {!(loading && preset) && (
+          <>
+            {/* Step indicator */}
+            <div className="flex items-center gap-1 text-[11px] text-neutral-400">
               <button
                 type="button"
-                onClick={() => setShowCustomUrl(!showCustomUrl)}
-                className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
+                onClick={() => setStep('catalog')}
+                className={`cursor-pointer hover:text-neutral-600 ${step === 'catalog' ? 'text-brand-600 font-medium' : ''}`}
               >
-                <span className="text-xs text-neutral-600 font-medium">
-                  Custom STAC catalog URL
-                </span>
-                {showCustomUrl ? (
-                  <IconChevronUp className="w-3 h-3 text-neutral-400" />
-                ) : (
-                  <IconChevronDown className="w-3 h-3 text-neutral-400" />
-                )}
+                Catalog
               </button>
-              {showCustomUrl && (
-                <div className="px-3 pb-3 flex gap-2 border-t border-neutral-100 pt-2">
-                  <input
-                    type="url"
-                    value={customCatalogUrl}
-                    onChange={(e) => setCustomCatalogUrl(e.target.value)}
-                    placeholder="https://earth-search.aws.element84.com/v1"
-                    className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-500 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={loadCustomCatalog}
-                    disabled={!customCatalogUrl.trim()}
-                    className="px-3 py-1.5 text-xs bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    Load
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {filteredCatalogs.map((cat) => (
+              <span>/</span>
+              <span className={step === 'collection' ? 'text-brand-600 font-medium' : ''}>
+                Collection
+              </span>
+              <span>/</span>
+              <span className={step === 'configure' ? 'text-brand-600 font-medium' : ''}>
+                Configure
+              </span>
+              {step !== 'catalog' && (
                 <button
-                  key={cat.id}
                   type="button"
-                  onClick={() => selectCatalog(cat)}
-                  disabled={cat.auth_required}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                    cat.auth_required
-                      ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-                      : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
-                  }`}
+                  onClick={goBack}
+                  className="ml-auto text-neutral-500 hover:text-neutral-700 cursor-pointer text-xs"
                 >
-                  <span className="text-sm font-medium flex items-center gap-1.5">
-                    {cat.title}
-                    {cat.is_mpc && (
-                      <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
-                        MPC
-                      </span>
-                    )}
-                    {cat.auth_required && (
-                      <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-                        Auth required
-                      </span>
-                    )}
-                  </span>
-                  <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+                  ← Back
                 </button>
-              ))}
-              {!filteredCatalogs.length && (
-                <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
               )}
             </div>
-          </div>
-        )}
 
-        {/* ─── COLLECTION LIST ─── */}
-        {step === 'collection' && !loading && (
-          <div className="space-y-1 max-h-80 overflow-y-auto">
-            {filteredCollections.map((col) => (
-              <button
-                key={col.id}
-                type="button"
-                onClick={() => selectCollection(col)}
-                className="w-full text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
-              >
-                <span className="text-sm font-medium">{col.title}</span>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {col.id}
-                  {col.temporal_extent?.start && (
-                    <>
-                      {' · '}
-                      {col.temporal_extent.start.slice(0, 10)} to{' '}
-                      {col.temporal_extent.end?.slice(0, 10) || 'present'}
-                    </>
-                  )}
-                </p>
-              </button>
-            ))}
-            {!filteredCollections.length && (
-              <p className="text-xs text-neutral-400 text-center py-4">No collections found</p>
+            {/* Search bar */}
+            {(step === 'catalog' || step === 'collection') && (
+              <input
+                type="text"
+                placeholder={step === 'catalog' ? 'Search catalogs...' : 'Search collections...'}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+                className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              />
             )}
-          </div>
-        )}
 
-        {/* ─── CONFIGURE STEP ─── */}
-        {step === 'configure' && !loading && (
-          <div className="space-y-4">
-            {/* Mode tabs */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setMode('mosaic')}
-                className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                  mode === 'mosaic'
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                }`}
-              >
-                Collection Mosaic
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('single-item')}
-                className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                  mode === 'single-item'
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                }`}
-              >
-                Single Item
-              </button>
-            </div>
-
-            {/* Date range */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-700 flex items-center gap-1">
-                  Start Month
-                  <Tooltip text="First month of the temporal range." />
-                </label>
-                <MonthPicker value={startDate} onChange={setStartDate} />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-700 flex items-center gap-1">
-                  End Month (inclusive)
-                  <Tooltip text="Last month of the temporal range (inclusive)." />
-                </label>
-                <MonthPicker value={endDate} onChange={setEndDate} />
-              </div>
-            </div>
-
-            {/* Cloud cover */}
-            {selectedCollection && supportsCloudCover(selectedCollection.id) && (
-              <div className="space-y-1">
-                <label className="text-xs text-neutral-700 font-medium">Max cloud cover (%)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={maxCloudCover}
-                    onChange={(e) => setMaxCloudCover(Number(e.target.value))}
-                    className="flex-1"
-                  />
-                  <span className="text-xs text-neutral-600 w-8 text-right">{maxCloudCover}%</span>
-                </div>
+            {error && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-1.5">
+                {error}
               </div>
             )}
 
-            {/* ─── TEMPORAL STRUCTURE ─── */}
-            {mode === 'mosaic' && (
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
-                <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
-                  <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                    Temporal Structure
-                    <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
-                  </h4>
-                  <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
-                    {singleCollection
-                      ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
-                      : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
-                  </p>
-                </div>
-                <div className="p-3 space-y-3">
-                  {/* Collection period - only for temporal series (multiple collections) */}
-                  {!singleCollection && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700 flex items-center gap-1">
-                          Collection Period
-                          <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={collectionPeriodInterval}
-                          onChange={(e) =>
-                            setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
-                          }
-                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Collection Unit</label>
-                        <select
-                          value={collectionPeriodUnit}
-                          onChange={(e) =>
-                            setCollectionPeriodUnit(e.target.value as 'weeks' | 'months' | 'years')
-                          }
-                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
-                        >
-                          <option value="weeks">Weeks</option>
-                          <option value="months">Months</option>
-                          <option value="years">Years</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
+            {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-neutral-700 flex items-center gap-1">
-                        Slice Period
-                        <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
-                      </label>
+            {/* ─── CATALOG LIST ─── */}
+            {step === 'catalog' && !loading && (
+              <div className="space-y-2">
+                {/* Custom URL input */}
+                <div className="rounded-md border border-neutral-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomUrl(!showCustomUrl)}
+                    className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
+                  >
+                    <span className="text-xs text-neutral-600 font-medium">
+                      Custom STAC catalog URL
+                    </span>
+                    {showCustomUrl ? (
+                      <IconChevronUp className="w-3 h-3 text-neutral-400" />
+                    ) : (
+                      <IconChevronDown className="w-3 h-3 text-neutral-400" />
+                    )}
+                  </button>
+                  {showCustomUrl && (
+                    <div className="px-3 pb-3 flex gap-2 border-t border-neutral-100 pt-2">
                       <input
-                        type="number"
-                        min="1"
-                        value={slicePeriodInterval}
-                        onChange={(e) =>
-                          setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
-                        }
-                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                        type="url"
+                        value={customCatalogUrl}
+                        onChange={(e) => setCustomCatalogUrl(e.target.value)}
+                        placeholder="https://earth-search.aws.element84.com/v1"
+                        className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-500 outline-none"
                       />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-neutral-700">Slice Unit</label>
-                      <select
-                        value={slicePeriodUnit}
-                        onChange={(e) =>
-                          setSlicePeriodUnit(
-                            e.target.value as 'days' | 'weeks' | 'months' | 'years'
-                          )
-                        }
-                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                      <button
+                        type="button"
+                        onClick={loadCustomCatalog}
+                        disabled={!customCatalogUrl.trim()}
+                        className="px-3 py-1.5 text-xs bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
                       >
-                        <option value="days">Days</option>
-                        <option value="weeks">Weeks</option>
-                        <option value="months">Months</option>
-                        <option value="years">Years</option>
-                      </select>
+                        Load
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Cover Slice (n-th)
-                      <Tooltip text="Which slice to use as the default visible cover image. 1 = first slice of each collection." />
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={coverSliceNth}
-                      onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
-                      className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
-                    />
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {/* Item results (single-item mode only) */}
-            {mode === 'single-item' && items.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-neutral-700 font-medium">
-                    Select an item
-                    <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={doSearch}
-                    disabled={loading}
-                    className="text-[11px] text-brand-600 hover:text-brand-800 cursor-pointer disabled:opacity-50"
-                  >
-                    {loading ? 'Searching...' : 'Refresh'}
-                  </button>
-                </div>
-                {items.length >= 200 && (
-                  <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                    Showing the maximum of 200 items. Narrow the date range to see all results.
-                  </div>
-                )}
-                <div className="space-y-1 max-h-60 overflow-y-auto">
-                  {items.map((item) => (
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {filteredCatalogs.map((cat) => (
                     <button
-                      key={item.id}
+                      key={cat.id}
                       type="button"
-                      onClick={() => selectItem(item)}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors text-left"
-                    >
-                      {item.thumbnail && (
-                        <img
-                          src={item.thumbnail}
-                          alt=""
-                          className="w-12 h-12 rounded object-cover shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <span className="text-xs font-medium block truncate">{item.id}</span>
-                        <span className="text-[11px] text-neutral-400">
-                          {item.datetime?.slice(0, 10) || 'No date'}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {mode === 'single-item' && items.length === 0 && loading && (
-              <div className="text-xs text-neutral-400 text-center py-2">
-                Searching for items...
-              </div>
-            )}
-            {Object.keys(availableAssets).length === 0 && !loading && (
-              <div className="text-xs text-neutral-400 text-center py-2">
-                No asset metadata found for this collection. Try selecting a different one.
-              </div>
-            )}
-
-            {/* ─── VISUALIZATIONS ─── */}
-            {Object.keys(availableAssets).length > 0 && selectedCollection && (
-              <div className="border-t border-neutral-200 pt-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-neutral-700 font-semibold">Visualizations</label>
-                  <button
-                    type="button"
-                    onClick={addVisualization}
-                    className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer flex items-center gap-0.5"
-                  >
-                    <IconPlus className="w-3 h-3" /> Add
-                  </button>
-                </div>
-
-                {/* Viz tabs */}
-                <div className="flex flex-wrap gap-1.5">
-                  {visualizations.map((viz, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setActiveVizIndex(i)}
-                      className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer flex items-center gap-1 ${
-                        i === activeVizIndex
-                          ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                          : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                      onClick={() => selectCatalog(cat)}
+                      disabled={cat.auth_required}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                        cat.auth_required
+                          ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+                          : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
                       }`}
                     >
-                      {viz.name || `Viz ${i + 1}`}
-                      {visualizations.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeVisualization(i);
-                          }}
-                          className="text-neutral-400 hover:text-red-500 ml-0.5"
-                        >
-                          <IconTrash className="w-2.5 h-2.5" />
-                        </button>
-                      )}
+                      <span className="text-sm font-medium flex items-center gap-1.5">
+                        {cat.title}
+                        {cat.is_mpc && (
+                          <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                            MPC
+                          </span>
+                        )}
+                        {cat.auth_required && (
+                          <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                            Auth required
+                          </span>
+                        )}
+                      </span>
+                      <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
                     </button>
                   ))}
+                  {!filteredCatalogs.length && (
+                    <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ─── COLLECTION LIST ─── */}
+            {step === 'collection' && !loading && (
+              <div className="space-y-1 max-h-80 overflow-y-auto">
+                {filteredCollections.map((col) => (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => selectCollection(col)}
+                    className="w-full text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+                  >
+                    <span className="text-sm font-medium">{col.title}</span>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      {col.id}
+                      {col.temporal_extent?.start && (
+                        <>
+                          {' · '}
+                          {col.temporal_extent.start.slice(0, 10)} to{' '}
+                          {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                        </>
+                      )}
+                    </p>
+                  </button>
+                ))}
+                {!filteredCollections.length && (
+                  <p className="text-xs text-neutral-400 text-center py-4">No collections found</p>
+                )}
+              </div>
+            )}
+
+            {/* ─── CONFIGURE STEP ─── */}
+            {step === 'configure' && !loading && (
+              <div className="space-y-4">
+                {selectedCatalog && !selectedCatalog.is_mpc && (
+                  <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                    Non-MPC STAC catalogs are experimental. Tile serving goes through our backend
+                    which may be slower than Planetary Computer's Tiler.
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMode('mosaic')}
+                    className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                      mode === 'mosaic'
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                    }`}
+                  >
+                    Collection Mosaic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('single-item')}
+                    className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                      mode === 'single-item'
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                    }`}
+                  >
+                    Single Item
+                  </button>
                 </div>
 
-                {/* Active viz name */}
-                <div className="space-y-1">
-                  <label className="text-xs text-neutral-700">Visualization Name</label>
-                  <input
-                    type="text"
-                    value={visualizations[activeVizIndex]?.name || ''}
-                    onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
-                    placeholder="e.g. True Color"
-                    className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                {/* Date range */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      Start Month
+                      <Tooltip text="First month of the temporal range." />
+                    </label>
+                    <MonthPicker value={startDate} onChange={setStartDate} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 flex items-center gap-1">
+                      End Month (inclusive)
+                      <Tooltip text="Last month of the temporal range (inclusive)." />
+                    </label>
+                    <MonthPicker value={endDate} onChange={setEndDate} />
+                  </div>
+                </div>
+
+                {/* Cloud cover */}
+                {selectedCollection && selectedCollection.has_cloud_cover && (
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 font-medium">
+                      Max cloud cover (%)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={maxCloudCover}
+                        onChange={(e) => setMaxCloudCover(Number(e.target.value))}
+                        className="flex-1"
+                      />
+                      <span className="text-xs text-neutral-600 w-8 text-right">
+                        {maxCloudCover}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── CUSTOM SEARCH QUERY ─── */}
+                {mode === 'mosaic' && selectedCollection && buildAutoQuery() && (
+                  <StacQueryEditor
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    autoQuery={buildAutoQuery()!}
                   />
-                </div>
+                )}
 
-                {/* Active viz config */}
-                <VizConfigPanel
-                  collectionId={selectedCollection.id}
-                  availableAssets={availableAssets}
-                  vizParams={visualizations[activeVizIndex]?.vizParams || emptyVizParams()}
-                  onChange={updateVizParams}
-                  showCompositing={mode === 'mosaic'}
-                />
-              </div>
-            )}
+                {/* ─── TEMPORAL STRUCTURE ─── */}
+                {mode === 'mosaic' && (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                    <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                      <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                        Temporal Structure
+                        <Tooltip text="Controls how the date range is divided into collections and slices. Collections are top-level time windows (e.g. months). Each collection is split into slices (e.g. weeks) that annotators can browse to find the best imagery." />
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                        {singleCollection
+                          ? 'The full date range becomes one collection, divided into slices that annotators can switch between.'
+                          : 'The date range is split into collections (e.g. one per month). Each collection is further divided into slices (e.g. weeks) for annotators to browse.'}
+                      </p>
+                    </div>
+                    <div className="p-3 space-y-3">
+                      {/* Collection period - only for temporal series (multiple collections) */}
+                      {!singleCollection && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-xs text-neutral-700 flex items-center gap-1">
+                              Collection Period
+                              <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={collectionPeriodInterval}
+                              onChange={(e) =>
+                                setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
+                              }
+                              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-xs text-neutral-700">Collection Unit</label>
+                            <select
+                              value={collectionPeriodUnit}
+                              onChange={(e) =>
+                                setCollectionPeriodUnit(
+                                  e.target.value as 'weeks' | 'months' | 'years'
+                                )
+                              }
+                              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            >
+                              <option value="weeks">Weeks</option>
+                              <option value="months">Months</option>
+                              <option value="years">Years</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
 
-            {/* Preview */}
-            {mode === 'mosaic' && preview && preview.collections > 0 && (
-              <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
-                This will generate <strong>{preview.collections}</strong> collection
-                {preview.collections !== 1 ? 's' : ''}, each with{' '}
-                <strong>{preview.slicesPerCollection}</strong> slice
-                {preview.slicesPerCollection !== 1 ? 's' : ''} and {visualizations.length}{' '}
-                visualization{visualizations.length !== 1 ? 's' : ''}.
-              </div>
-            )}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-700 flex items-center gap-1">
+                            Slice Period
+                            <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={slicePeriodInterval}
+                            onChange={(e) =>
+                              setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
+                            }
+                            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-700">Slice Unit</label>
+                          <select
+                            value={slicePeriodUnit}
+                            onChange={(e) =>
+                              setSlicePeriodUnit(
+                                e.target.value as 'days' | 'weeks' | 'months' | 'years'
+                              )
+                            }
+                            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                          >
+                            <option value="days">Days</option>
+                            <option value="weeks">Weeks</option>
+                            <option value="months">Months</option>
+                            <option value="years">Years</option>
+                          </select>
+                        </div>
+                      </div>
 
-            {/* MPC note */}
-            {selectedCatalog?.is_mpc && (
-              <div className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-md px-3 py-1.5">
-                Tiles served via Microsoft Planetary Computer
+                      {/* Cover Slice */}
+                      <div className="space-y-2">
+                        <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                          Cover Slice
+                          <Tooltip text="The cover slice is the default visible image. Use n-th to pick an existing slice, or custom to add a separate cover with its own date range and visualization params (e.g. a median composite spanning the full window)." />
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="radio"
+                              name="coverMode"
+                              checked={coverMode === 'nth'}
+                              onChange={() => setCoverMode('nth')}
+                            />
+                            Use n-th slice
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="radio"
+                              name="coverMode"
+                              checked={coverMode === 'custom'}
+                              onChange={() => {
+                                setCoverMode('custom');
+                                // Initialize cover visualizations from regular ones with median compositing
+                                if (coverVisualizations.length === 0) {
+                                  setCoverVisualizations(
+                                    visualizations.map((v) => ({
+                                      ...v,
+                                      vizParams: { ...v.vizParams, compositing: 'median' },
+                                    }))
+                                  );
+                                }
+                              }}
+                            />
+                            Custom cover
+                          </label>
+                        </div>
+
+                        {coverMode === 'nth' && (
+                          <input
+                            type="number"
+                            min="1"
+                            value={coverSliceNth}
+                            onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
+                            className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+                          />
+                        )}
+
+                        {coverMode === 'custom' && (
+                          <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
+                            <p className="text-[11px] text-neutral-500">
+                              The cover slice spans the full collection window. Configure
+                              visualization params per visualization below (e.g. use median
+                              compositing for the cover).
+                            </p>
+                            {coverVisualizations.map((cv, cvIdx) => (
+                              <div
+                                key={cvIdx}
+                                className="p-2 rounded border border-neutral-200 bg-white space-y-1.5"
+                              >
+                                <span className="text-xs font-medium text-neutral-700">
+                                  {cv.name}
+                                </span>
+                                <VizParamsInlineEditor
+                                  vizParams={cv.vizParams}
+                                  onChange={(key, value) => {
+                                    setCoverVisualizations((prev) =>
+                                      prev.map((v, i) =>
+                                        i === cvIdx
+                                          ? { ...v, vizParams: { ...v.vizParams, [key]: value } }
+                                          : v
+                                      )
+                                    );
+                                  }}
+                                  showCompositing
+                                />
+                              </div>
+                            ))}
+
+                            {selectedCollection && buildAutoQuery() && (
+                              <StacQueryEditor
+                                value={coverSearchQuery}
+                                onChange={setCoverSearchQuery}
+                                autoQuery={buildAutoQuery()!}
+                                label="Cover Slice Search Query"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Item results (single-item mode only) */}
+                {mode === 'single-item' && items.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs text-neutral-700 font-medium">
+                        Select an item
+                        <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={doSearch}
+                        disabled={loading}
+                        className="text-[11px] text-brand-600 hover:text-brand-800 cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? 'Searching...' : 'Refresh'}
+                      </button>
+                    </div>
+                    {items.length >= 200 && (
+                      <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
+                        Showing the maximum of 200 items. Narrow the date range to see all results.
+                      </div>
+                    )}
+                    <div className="space-y-1 max-h-60 overflow-y-auto">
+                      {items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => selectItem(item)}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors text-left"
+                        >
+                          {item.thumbnail && (
+                            <img
+                              src={item.thumbnail}
+                              alt=""
+                              className="w-12 h-12 rounded object-cover shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-xs font-medium block truncate">{item.id}</span>
+                            <span className="text-[11px] text-neutral-400">
+                              {item.datetime?.slice(0, 10) || 'No date'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {mode === 'single-item' && items.length === 0 && loading && (
+                  <div className="text-xs text-neutral-400 text-center py-2">
+                    Searching for items...
+                  </div>
+                )}
+                {Object.keys(availableAssets).length === 0 && !loading && (
+                  <div className="text-xs text-neutral-400 text-center py-2">
+                    No asset metadata found for this collection. Try selecting a different one.
+                  </div>
+                )}
+
+                {/* ─── VISUALIZATIONS ─── */}
+                {Object.keys(availableAssets).length > 0 && selectedCollection && (
+                  <div className="rounded-lg border border-neutral-200 overflow-hidden">
+                    {/* Tab bar */}
+                    <div className="flex items-center bg-neutral-50 border-b border-neutral-200 px-2 pt-2 gap-1">
+                      {visualizations.map((viz, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActiveVizIndex(i)}
+                          className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer flex items-center gap-1.5 ${
+                            i === activeVizIndex
+                              ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
+                              : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
+                          }`}
+                        >
+                          {viz.name || `Viz ${i + 1}`}
+                          {visualizations.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeVisualization(i);
+                              }}
+                              className="text-neutral-400 hover:text-red-500"
+                            >
+                              <IconTrash className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addVisualization}
+                        className="text-xs text-neutral-400 hover:text-brand-700 transition-colors cursor-pointer px-2 py-1.5 flex items-center gap-0.5"
+                        title="Add visualization"
+                      >
+                        <IconPlus className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Tab content */}
+                    <div className="p-3 space-y-3 bg-white">
+                      {/* Viz name */}
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700">Visualization Name</label>
+                        <input
+                          type="text"
+                          value={visualizations[activeVizIndex]?.name || ''}
+                          onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
+                          placeholder="e.g. True Color"
+                          className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Viz config */}
+                      <VizConfigPanel
+                        collectionId={selectedCollection.id}
+                        availableAssets={availableAssets}
+                        vizParams={visualizations[activeVizIndex]?.vizParams || emptyVizParams()}
+                        onChange={updateVizParams}
+                        showCompositing={mode === 'mosaic'}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Preview */}
+                {mode === 'mosaic' && preview && preview.collections > 0 && (
+                  <div className="rounded-md bg-brand-50 border border-brand-200 px-3 py-2 text-xs text-brand-800">
+                    This will generate <strong>{preview.collections}</strong> collection
+                    {preview.collections !== 1 ? 's' : ''}, each with{' '}
+                    <strong>{preview.slicesPerCollection}</strong> slice
+                    {preview.slicesPerCollection !== 1 ? 's' : ''} and {visualizations.length}{' '}
+                    visualization{visualizations.length !== 1 ? 's' : ''}.
+                  </div>
+                )}
+
+                {/* Compositing note */}
                 {visualizations.some(
                   (v) => v.vizParams.compositing && v.vizParams.compositing !== 'first'
                 ) && (
-                  <> (non-first compositing via local TiTiler - MPC only supports first-valid)</>
+                  <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                    Non-first-valid compositing (e.g. median, mean) may be slow as tiles are
+                    composited on the fly.
+                  </div>
                 )}
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </Modal>

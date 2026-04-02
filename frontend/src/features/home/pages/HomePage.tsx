@@ -109,7 +109,7 @@ export const HomePage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {recentCampaigns.map((campaign) => {
                 const isMember = campaign.is_member ?? false;
-                const isAdmin = campaign.is_admin ?? false;
+                const _isAdmin = campaign.is_admin ?? false;
                 const isPublic = campaign.is_public ?? false;
                 const canAccess = isMember || isPublic;
 

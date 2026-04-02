@@ -13,11 +13,13 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { TilePreloader } from './tilePreloader';
+import { buildTileUrl } from './tileUrlBuilder';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
+import { useCampaignStore } from '../../stores/campaign.store';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
 const PRIORITY_NEXT1_DEFAULT = 2;
@@ -55,25 +57,33 @@ function buildCoverSliceJobs(
   zoom: number,
   prefix: string,
   getPriority: (collectionId: number) => number,
-  excludeCollectionId?: number | null
+  excludeCollectionId?: number | null,
+  /** When set, only prefetch collections in this set (active view's collections) */
+  allowedCollectionIds?: Set<number> | null
 ): PreloadJob[] {
   const jobs: PreloadJob[] = [];
 
   for (const source of campaign.imagery_sources) {
     for (const collection of source.collections) {
       if (excludeCollectionId != null && collection.id === excludeCollectionId) continue;
+      if (allowedCollectionIds && !allowedCollectionIds.has(collection.id)) continue;
 
       // Only prefetch the cover slice (the default-visible slice for each collection)
       const si = collection.cover_slice_index ?? 0;
       const slice = collection.slices[si];
       if (!slice) continue;
-      const tileUrl = slice.tile_urls[0]?.tile_url;
-      if (!tileUrl) continue;
+      const tileUrlEntry = slice.tile_urls[0];
+      if (!tileUrlEntry) continue;
+
+      const resolvedUrl = buildTileUrl({
+        tile_url: tileUrlEntry.tile_url,
+        tile_provider: tileUrlEntry.tile_provider,
+      });
 
       jobs.push({
         priority: getPriority(collection.id),
         groupId: groupId(prefix, collection.id, si),
-        urlTemplate: tileUrl,
+        urlTemplate: resolvedUrl,
         extent,
         zoom,
       });
@@ -90,7 +100,7 @@ interface UseTilePreloadingOptions {
   visibleTasks: AnnotationTaskOut[];
   currentTaskIndex: number;
   defaultZoom: number;
-  /** Current map zoom level — used for prefetching current task at the zoom the user is at */
+  /** Current map zoom level - used for prefetching current task at the zoom the user is at */
   currentZoom?: number;
   enabled: boolean;
 }
@@ -128,6 +138,18 @@ export function useTilePreloading({
   setCollectionSliceIndexRef.current = setCollectionSliceIndex;
   const markSliceEmptyRef = useRef(markSliceEmpty);
   markSliceEmptyRef.current = markSliceEmpty;
+
+  /** Collection IDs belonging to the first (active) view - only these get prefetched */
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const viewCollectionIdsRef = useRef<Set<number> | null>(null);
+  if (campaign && selectedViewId != null) {
+    const view = campaign.imagery_views.find((v) => v.id === selectedViewId);
+    viewCollectionIdsRef.current = view
+      ? new Set(view.collection_refs.map((r) => r.collection_id))
+      : null;
+  } else {
+    viewCollectionIdsRef.current = null;
+  }
 
   useEffect(() => {
     if (!enabled) return;
@@ -194,7 +216,8 @@ export function useTilePreloading({
       zoom,
       PREFIX_CURRENT,
       () => PRIORITY_OTHER_COLLECTIONS,
-      colId
+      colId,
+      viewCollectionIdsRef.current
     );
 
     if (jobs.length > 0) p.enqueueMany(jobs);
@@ -246,8 +269,14 @@ export function useTilePreloading({
       if (!latLon) continue;
 
       const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
-      const jobs = buildCoverSliceJobs(camp, extent, zoom, prefix, (colId) =>
-        colId === defaultColId ? priDefault : priOther
+      const jobs = buildCoverSliceJobs(
+        camp,
+        extent,
+        zoom,
+        prefix,
+        (colId) => (colId === defaultColId ? priDefault : priOther),
+        undefined,
+        viewCollectionIdsRef.current
       );
 
       if (jobs.length > 0) p.enqueueMany(jobs);

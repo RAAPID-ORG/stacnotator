@@ -801,9 +801,37 @@ export type CollectionStacConfigOut = {
      */
     search_body: string;
     /**
+     * Catalog Url
+     */
+    catalog_url?: string | null;
+    /**
+     * Stac Collection Id
+     */
+    stac_collection_id?: string | null;
+    /**
+     * Tile Provider
+     */
+    tile_provider?: string | null;
+    /**
      * Viz Params
      */
     viz_params?: Record<string, unknown> | null;
+    /**
+     * Cover Viz Params
+     */
+    cover_viz_params?: Record<string, unknown> | null;
+    /**
+     * Max Cloud Cover
+     */
+    max_cloud_cover?: number | null;
+    /**
+     * Search Query
+     */
+    search_query?: Record<string, unknown> | null;
+    /**
+     * Cover Search Query
+     */
+    cover_search_query?: Record<string, unknown> | null;
 };
 
 /**
@@ -1175,6 +1203,22 @@ export type SliceTileUrlOut = {
      * Tile Url
      */
     tile_url: string;
+    /**
+     * Tile Provider
+     */
+    tile_provider?: string | null;
+    /**
+     * Mosaic Id
+     */
+    mosaic_id?: string | null;
+    /**
+     * Mosaic Status
+     */
+    mosaic_status?: string | null;
+    /**
+     * Registered At
+     */
+    registered_at?: string | null;
 };
 
 /**

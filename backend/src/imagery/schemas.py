@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -12,6 +13,19 @@ class SliceTileUrlOut(BaseModel):
     visualization_name: str
     tile_url: str
     tile_provider: str | None = None
+    mosaic_id: str | None = None
+    mosaic_status: str | None = None
+    registered_at: datetime | None = None
+
+    @classmethod
+    def from_orm_with_mosaic(cls, obj: object) -> "SliceTileUrlOut":
+        """Create from ORM object, pulling status/timestamp from the mosaic relationship."""
+        instance = cls.model_validate(obj)
+        mosaic = getattr(obj, "mosaic", None)
+        if mosaic:
+            instance.mosaic_status = mosaic.status
+            instance.registered_at = mosaic.registered_at
+        return instance
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,8 +46,11 @@ class CollectionStacConfigOut(BaseModel):
     search_body: str
     catalog_url: str | None = None
     stac_collection_id: str | None = None
-    tile_provider: str | None = None
     viz_params: dict | None = None
+    cover_viz_params: dict | None = None
+    max_cloud_cover: float | None = None
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -138,7 +155,6 @@ class ImageryViewOut(BaseModel):
 class SliceTileUrlCreate(BaseModel):
     visualization_name: str
     tile_url: str
-    tile_provider: str | None = None
 
 
 class ImagerySliceCreate(BaseModel):
@@ -160,6 +176,11 @@ class VizParamsCreate(BaseModel):
     resampling: str | None = None
     compositing: str | None = None
     nodata: float | None = None
+    mask_layer: str | None = None
+    mask_values: list[int] | None = None
+    nir_band: str | None = None
+    red_band: str | None = None
+    max_items: int | None = None
 
 
 class CollectionStacConfigCreate(BaseModel):
@@ -167,8 +188,11 @@ class CollectionStacConfigCreate(BaseModel):
     search_body: str = ""
     catalog_url: str | None = None
     stac_collection_id: str | None = None
-    tile_provider: str | None = None
     viz_params: VizParamsCreate | None = None
+    cover_viz_params: VizParamsCreate | None = None
+    max_cloud_cover: float | None = None
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
 
 
 class ImageryCollectionCreate(BaseModel):
@@ -219,11 +243,16 @@ class ImageryEditorStateCreate(BaseModel):
 # ============================================================================
 
 
+class VisualizationUpdate(BaseModel):
+    name: str
+
+
 class ImagerySourceUpdate(BaseModel):
     """Partial update for an imagery source's display settings."""
 
     crosshair_hex6: str | None = None
     default_zoom: int | None = None
+    visualizations: list[VisualizationUpdate] | None = None
 
 
 class CanvasLayoutCreate(BaseModel):

@@ -28,7 +28,7 @@ export const TimeseriesTab: React.FC<Props> = ({
   setDeleteConfirm,
   saving,
   campaignName,
-  imagery,
+  imagery: _imagery,
   campaignMode,
   campaignSettings,
 }) => {

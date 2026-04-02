@@ -76,9 +76,16 @@ export const StepImagery = ({
           name: sl.name || undefined,
           start_date: sl.startDate,
           end_date: sl.endDate,
-          tile_urls: col.data.vizUrls
-            .filter((v) => v.url)
-            .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
+          tile_urls:
+            col.data.type === 'stac_browser'
+              ? [] // URLs resolved at registration time from viz_params
+              : col.data.type === 'manual' && sl.vizUrls
+                ? sl.vizUrls
+                    .filter((v) => v.url)
+                    .map((v) => ({ visualization_name: v.vizName, tile_url: v.url }))
+                : col.data.vizUrls
+                    .filter((v) => v.url)
+                    .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
         })),
         stac_config:
           col.data.type === 'stac' && col.data.registrationUrl
@@ -89,7 +96,6 @@ export const StepImagery = ({
                   search_body: '',
                   catalog_url: col.data.catalogUrl,
                   stac_collection_id: col.data.stacCollectionId,
-                  tile_provider: col.data.isMpc ? 'mpc' : 'self_hosted',
                   viz_params: col.data.visualizations?.[0]?.vizParams
                     ? {
                         assets: col.data.visualizations[0].vizParams.assets,
@@ -101,8 +107,34 @@ export const StepImagery = ({
                         resampling: col.data.visualizations[0].vizParams.resampling,
                         compositing: col.data.visualizations[0].vizParams.compositing,
                         nodata: col.data.visualizations[0].vizParams.nodata,
+                        mask_layer: col.data.visualizations[0].vizParams.maskLayer,
+                        mask_values: col.data.visualizations[0].vizParams.maskValues,
+                        nir_band: col.data.visualizations[0].vizParams.nirBand,
+                        red_band: col.data.visualizations[0].vizParams.redBand,
+                        max_items: col.data.visualizations[0].vizParams.maxItems,
                       }
                     : undefined,
+                  cover_viz_params: col.data.coverVisualizations?.[0]?.vizParams
+                    ? {
+                        assets: col.data.coverVisualizations[0].vizParams.assets,
+                        asset_as_band: col.data.coverVisualizations[0].vizParams.assetAsBand,
+                        rescale: col.data.coverVisualizations[0].vizParams.rescale || undefined,
+                        colormap_name: col.data.coverVisualizations[0].vizParams.colormapName,
+                        color_formula: col.data.coverVisualizations[0].vizParams.colorFormula,
+                        expression: col.data.coverVisualizations[0].vizParams.expression,
+                        resampling: col.data.coverVisualizations[0].vizParams.resampling,
+                        compositing: col.data.coverVisualizations[0].vizParams.compositing,
+                        nodata: col.data.coverVisualizations[0].vizParams.nodata,
+                        mask_layer: col.data.coverVisualizations[0].vizParams.maskLayer,
+                        mask_values: col.data.coverVisualizations[0].vizParams.maskValues,
+                        nir_band: col.data.coverVisualizations[0].vizParams.nirBand,
+                        red_band: col.data.coverVisualizations[0].vizParams.redBand,
+                        max_items: col.data.coverVisualizations[0].vizParams.maxItems,
+                      }
+                    : undefined,
+                  max_cloud_cover: col.data.maxCloudCover,
+                  search_query: col.data.searchQuery ?? null,
+                  cover_search_query: col.data.coverSearchQuery ?? null,
                 }
               : null,
       })),
@@ -190,7 +222,7 @@ export const StepImagery = ({
     if (activeViewId === id) setActiveViewId(next[0]?.id ?? null);
   };
 
-  const moveView = (index: number, direction: -1 | 1) => {
+  const _moveView = (index: number, direction: -1 | 1) => {
     updateState({ ...state, views: swap(state.views, index, index + direction) });
   };
 
@@ -333,22 +365,6 @@ export const StepImagery = ({
         )}
       </div>
 
-      <div>
-        <CanvasPreview
-          sources={state.sources}
-          views={state.views}
-          basemaps={state.basemaps}
-          activeViewId={activeViewId}
-          onActiveViewChange={setActiveViewId}
-          onAddView={addView}
-          onUpdateView={updateView}
-          onRemoveView={removeView}
-          onToggleSourceInView={toggleSourceInView}
-          onAddSource={() => setShowSourcePicker(true)}
-          sourcesNotInAnyView={sourcesNotInAnyView}
-        />
-      </div>
-
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-neutral-800 uppercase tracking-wide">
@@ -357,7 +373,7 @@ export const StepImagery = ({
         </div>
 
         <div className="flex flex-wrap gap-2 relative">
-          {state.sources.map((source, index) => {
+          {state.sources.map((source, _index) => {
             const isEditing = editingSourceId === source.id;
             const notInAnyView = sourcesNotInAnyView.has(source.id);
 
@@ -422,7 +438,109 @@ export const StepImagery = ({
             <span className="text-[11px] text-neutral-500 ml-1">Create Source</span>
           </button>
         </div>
+
+        {renderedSource && (
+          <div
+            ref={editorRef}
+            className="relative !mt-0 pt-3 overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: editorVisible ? '2000px' : '0px',
+              opacity: editorVisible ? 1 : 0,
+              paddingTop: editorVisible ? undefined : '0px',
+            }}
+            onTransitionEnd={handleEditorTransitionEnd}
+          >
+            <div
+              className="absolute left-0 right-0 flex z-10"
+              style={{ pointerEvents: 'none', top: 0 }}
+            >
+              {(() => {
+                const sourceForTriangle = editingSource ?? renderedSource;
+                const tileEl = tileRefs.current[sourceForTriangle.id];
+                const parentEl = tileEl?.parentElement;
+                if (tileEl && parentEl) {
+                  const tileRect = tileEl.getBoundingClientRect();
+                  const parentRect = parentEl.getBoundingClientRect();
+                  const offset = tileRect.left - parentRect.left + tileRect.width / 2;
+                  return (
+                    <div style={{ marginLeft: offset - 12 }}>
+                      <svg width="24" height="14" viewBox="0 0 24 14" fill="none">
+                        <path d="M12 0L24 14H0L12 0Z" fill="rgb(65 120 93)" />
+                      </svg>
+                    </div>
+                  );
+                }
+                return (
+                  <div style={{ marginLeft: 40 }}>
+                    <svg width="24" height="14" viewBox="0 0 24 14" fill="none">
+                      <path d="M12 0L24 14H0L12 0Z" fill="rgb(65 120 93)" />
+                    </svg>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="rounded-lg border-2 border-brand-500 bg-white shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-brand-500 text-white">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <IconSettings className="w-4 h-4 text-white/80 shrink-0" />
+                  <input
+                    type="text"
+                    value={renderedSource.name}
+                    onChange={(e) => updateSource(renderedSource.id, { name: e.target.value })}
+                    placeholder="Source name…"
+                    className="bg-transparent border-0 border-b border-white/30 focus:border-white outline-none text-sm font-medium text-white placeholder-white/40 py-0 px-0 min-w-0 flex-1"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => removeSource(renderedSource.id)}
+                    className="text-white/60 hover:text-white transition-colors cursor-pointer p-1"
+                    title="Delete source"
+                  >
+                    <IconTrash className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSourceId(null)}
+                    className="text-white/60 hover:text-white transition-colors cursor-pointer text-xs px-2 py-0.5 rounded hover:bg-white/10"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="p-4">
+                <ImagerySourceEditor
+                  source={renderedSource}
+                  onChange={(updates) => updateSource(renderedSource.id, updates)}
+                  onRemove={() => removeSource(renderedSource.id)}
+                  initialPreset={editingSourceId === renderedSource.id ? pendingPreset : null}
+                  onPresetConsumed={() => setPendingPreset(null)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {state.sources.length > 0 && (
+        <div>
+          <CanvasPreview
+            sources={state.sources}
+            views={state.views}
+            basemaps={state.basemaps}
+            activeViewId={activeViewId}
+            onActiveViewChange={setActiveViewId}
+            onAddView={addView}
+            onUpdateView={updateView}
+            onRemoveView={removeView}
+            onToggleSourceInView={toggleSourceInView}
+            onAddSource={() => setShowSourcePicker(true)}
+            sourcesNotInAnyView={sourcesNotInAnyView}
+          />
+        </div>
+      )}
 
       {showSourcePicker && (
         <Modal title="Create Imagery Source" onClose={() => setShowSourcePicker(false)}>
@@ -459,90 +577,6 @@ export const StepImagery = ({
             </button>
           </div>
         </Modal>
-      )}
-
-      {renderedSource && (
-        <div
-          ref={editorRef}
-          className="relative !mt-0 pt-3 overflow-hidden transition-all duration-300 ease-in-out"
-          style={{
-            maxHeight: editorVisible ? '2000px' : '0px',
-            opacity: editorVisible ? 1 : 0,
-            paddingTop: editorVisible ? undefined : '0px',
-          }}
-          onTransitionEnd={handleEditorTransitionEnd}
-        >
-          <div
-            className="absolute left-0 right-0 flex z-10"
-            style={{ pointerEvents: 'none', top: 0 }}
-          >
-            {(() => {
-              const sourceForTriangle = editingSource ?? renderedSource;
-              const tileEl = tileRefs.current[sourceForTriangle.id];
-              const parentEl = tileEl?.parentElement;
-              if (tileEl && parentEl) {
-                const tileRect = tileEl.getBoundingClientRect();
-                const parentRect = parentEl.getBoundingClientRect();
-                const offset = tileRect.left - parentRect.left + tileRect.width / 2;
-                return (
-                  <div style={{ marginLeft: offset - 12 }}>
-                    <svg width="24" height="14" viewBox="0 0 24 14" fill="none">
-                      <path d="M12 0L24 14H0L12 0Z" fill="rgb(65 120 93)" />
-                    </svg>
-                  </div>
-                );
-              }
-              return (
-                <div style={{ marginLeft: 40 }}>
-                  <svg width="24" height="14" viewBox="0 0 24 14" fill="none">
-                    <path d="M12 0L24 14H0L12 0Z" fill="rgb(65 120 93)" />
-                  </svg>
-                </div>
-              );
-            })()}
-          </div>
-
-          <div className="rounded-lg border-2 border-brand-500 bg-white shadow-lg overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 bg-brand-500 text-white">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <IconSettings className="w-4 h-4 text-white/80 shrink-0" />
-                <input
-                  type="text"
-                  value={renderedSource.name}
-                  onChange={(e) => updateSource(renderedSource.id, { name: e.target.value })}
-                  placeholder="Source name…"
-                  className="bg-transparent border-0 border-b border-white/30 focus:border-white outline-none text-sm font-medium text-white placeholder-white/40 py-0 px-0 min-w-0 flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => removeSource(renderedSource.id)}
-                  className="text-white/60 hover:text-white transition-colors cursor-pointer p-1"
-                  title="Delete source"
-                >
-                  <IconTrash className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingSourceId(null)}
-                  className="text-white/60 hover:text-white transition-colors cursor-pointer text-xs px-2 py-0.5 rounded hover:bg-white/10"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div className="p-4">
-              <ImagerySourceEditor
-                source={renderedSource}
-                onChange={(updates) => updateSource(renderedSource.id, updates)}
-                onRemove={() => removeSource(renderedSource.id)}
-                initialPreset={editingSourceId === renderedSource.id ? pendingPreset : null}
-                onPresetConsumed={() => setPendingPreset(null)}
-              />
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Basemaps */}

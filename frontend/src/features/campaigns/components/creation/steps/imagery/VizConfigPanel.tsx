@@ -236,7 +236,16 @@ export const VizConfigPanel = ({
             <option value="median">Median</option>
             <option value="max">Maximum</option>
             <option value="min">Minimum</option>
+            {collectionId.includes('sentinel-2') && (
+              <option value="ndvi_best">Best NDVI pixel</option>
+            )}
           </select>
+          {vizParams.compositing && vizParams.compositing !== 'first' && (
+            <p className="text-[10px] text-amber-600 mt-1">
+              Mean, median, max, min, and NDVI best compositing are experimental and slower than
+              first valid pixel - each tile reads multiple scenes.
+            </p>
+          )}
         </div>
       )}
 
@@ -293,6 +302,42 @@ export const VizConfigPanel = ({
                 <option value="lanczos">Lanczos</option>
                 <option value="average">Average</option>
               </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-neutral-700">Mask Layer</label>
+              <input
+                type="text"
+                value={vizParams.maskLayer ?? ''}
+                onChange={(e) => update('maskLayer', e.target.value || undefined)}
+                placeholder="e.g. SCL"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              />
+              <p className="text-[10px] text-neutral-400">
+                Asset name used as pixel mask (e.g. SCL for Sentinel-2 Scene Classification)
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-neutral-700">Mask Values (exclude)</label>
+              <input
+                type="text"
+                value={vizParams.maskValues?.join(', ') ?? ''}
+                onChange={(e) =>
+                  update(
+                    'maskValues',
+                    e.target.value
+                      ? e.target.value
+                          .split(',')
+                          .map((v) => parseInt(v.trim(), 10))
+                          .filter((v) => !isNaN(v))
+                      : undefined
+                  )
+                }
+                placeholder="e.g. 0, 1, 8, 9, 10"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              />
+              <p className="text-[10px] text-neutral-400">
+                Pixel values in the mask layer to exclude (clouds, nodata, shadows, etc.)
+              </p>
             </div>
           </div>
         )}

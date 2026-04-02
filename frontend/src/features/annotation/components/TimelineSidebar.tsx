@@ -65,7 +65,6 @@ const TimelineSidebar = ({
   // Resolve the current view's collections
   const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const viewCollections = useMemo(() => {
     if (!selectedView) return [];
     return selectedView.collection_refs
@@ -91,7 +90,6 @@ const TimelineSidebar = ({
     return { start: earliest, end: latest };
   }, [viewCollections]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const allSteps = useMemo<TimelineStep[]>(() => {
     return viewCollections.map((r, ci) => {
       const col = r.collection!;
@@ -107,7 +105,6 @@ const TimelineSidebar = ({
   }, [viewCollections]);
 
   allStepsRef.current = allSteps;
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   yToStepRef.current = useCallback((clientY: number): TimelineStep | null => {
     const track = trackRef.current;
     const steps = allStepsRef.current;
@@ -122,11 +119,9 @@ const TimelineSidebar = ({
   const liveCollectionId = isDragging
     ? (dragCollectionId ?? activeCollectionId)
     : activeCollectionId;
-  const liveSliceIndex = isDragging ? dragSliceIndex : activeSliceIndex;
+  const _liveSliceIndex = isDragging ? dragSliceIndex : activeSliceIndex;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const pointerMoveHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const pointerUpHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
 
   pointerMoveHandlerRef.current = (e: PointerEvent) => {
@@ -177,8 +172,12 @@ const TimelineSidebar = ({
       rafRef.current = null;
     }
 
-    document.removeEventListener('pointermove', stablePointerMove, { capture: true } as any);
-    document.removeEventListener('pointerup', stablePointerUp, { capture: true } as any);
+    document.removeEventListener('pointermove', stablePointerMove, {
+      capture: true,
+    } as AddEventListenerOptions);
+    document.removeEventListener('pointerup', stablePointerUp, {
+      capture: true,
+    } as AddEventListenerOptions);
 
     setIsDragging(false);
     setTooltip(null);
@@ -197,22 +196,22 @@ const TimelineSidebar = ({
     }
   };
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const stablePointerMove = useRef((e: PointerEvent) => pointerMoveHandlerRef.current(e)).current;
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const stablePointerUp = useRef((e: PointerEvent) => pointerUpHandlerRef.current(e)).current;
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(
     () => () => {
-      document.removeEventListener('pointermove', stablePointerMove, { capture: true } as any);
-      document.removeEventListener('pointerup', stablePointerUp, { capture: true } as any);
+      document.removeEventListener('pointermove', stablePointerMove, {
+        capture: true,
+      } as AddEventListenerOptions);
+      document.removeEventListener('pointerup', stablePointerUp, {
+        capture: true,
+      } as AddEventListenerOptions);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     },
     [stablePointerMove, stablePointerUp]
   );
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const startDrag = useCallback(
     (e: React.PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -255,7 +254,7 @@ const TimelineSidebar = ({
     <div className="relative h-full" data-tour="timeline-sidebar">
       <button
         onClick={onToggleCollapse}
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-4 h-10 bg-neutral-200 hover:bg-neutral-300 text-neutral-500 hover:text-neutral-700 rounded-r border border-l-0 border-neutral-300 transition-colors cursor-pointer flex items-center justify-center"
+        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-5 h-10 bg-neutral-100 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-r border border-l-0 border-neutral-200 transition-colors cursor-pointer flex items-center justify-center"
         title={collapsed ? 'Show timeline' : 'Hide timeline'}
       >
         <svg
@@ -277,13 +276,13 @@ const TimelineSidebar = ({
       </button>
 
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-neutral-300 h-full bg-white ${
+        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-neutral-200 h-full bg-white ${
           collapsed ? 'w-0' : 'w-[56px]'
         }`}
       >
         {!collapsed && (
           <div className="h-full flex flex-col px-1 py-1 select-none">
-            <div className="text-[9px] font-medium text-neutral-500 mb-1 text-center leading-tight">
+            <div className="text-[10px] font-medium text-neutral-500 mb-1 text-center leading-tight">
               {formatDateLabel(dateRange.start)}
             </div>
 
@@ -294,12 +293,12 @@ const TimelineSidebar = ({
             >
               <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-brand-300 pointer-events-none" />
 
-              {viewCollections.map(({ collection }, index) => {
+              {viewCollections.map(({ collection }, _index) => {
                 if (!collection) return null;
                 const isActive = collection.id === liveCollectionId;
                 const segH = `${100 / totalCollections}%`;
                 const slices = collection.slices;
-                const hasSlices = isActive && slices.length > 1;
+                const _hasSlices = isActive && slices.length > 1;
 
                 return (
                   <div
@@ -349,7 +348,7 @@ const TimelineSidebar = ({
               )}
             </div>
 
-            <div className="text-[9px] font-medium text-neutral-500 mt-1 text-center leading-tight">
+            <div className="text-[10px] font-medium text-neutral-500 mt-1 text-center leading-tight">
               {formatDateLabel(dateRange.end)}
             </div>
           </div>

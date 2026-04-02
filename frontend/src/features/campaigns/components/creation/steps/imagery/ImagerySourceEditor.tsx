@@ -29,7 +29,7 @@ interface ImagerySourceEditorProps {
 export const ImagerySourceEditor = ({
   source,
   onChange,
-  onRemove,
+  onRemove: _onRemove,
   initialPreset,
   onPresetConsumed,
 }: ImagerySourceEditorProps) => {
@@ -248,10 +248,17 @@ export const ImagerySourceEditor = ({
                     ? 'Catalog'
                     : 'XYZ';
               return (
-                <button
+                <div
                   key={collection.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditingCollectionId(collection.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingCollectionId(collection.id);
+                    }
+                  }}
                   title="Click to configure"
                   className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
                     px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/5"
@@ -281,7 +288,7 @@ export const ImagerySourceEditor = ({
                   >
                     <IconTrash className="w-3 h-3" />
                   </button>
-                </button>
+                </div>
               );
             })}
           </div>

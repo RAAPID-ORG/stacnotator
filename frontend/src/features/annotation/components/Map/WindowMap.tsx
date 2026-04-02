@@ -185,6 +185,8 @@ const WindowMap = ({
     mapRef.current = map;
 
     return () => {
+      // Clear tile source to abort in-flight tile requests
+      tileLayer.setSource(null as unknown as XYZ);
       map.setTarget(undefined);
       mapRef.current = null;
       tileLayerRef.current = null;
@@ -225,7 +227,6 @@ const WindowMap = ({
     });
 
     tileLayerRef.current.setSource(source);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tileUrl, detectionKey]);
 
   // Sync center+zoom from main map (store-driven).
@@ -311,7 +312,7 @@ const WindowMap = ({
       zoom: initialZoom,
       duration: 300,
     });
-  }, [refocusTrigger]);
+  }, [refocusTrigger, center, initialZoom]);
 
   // Sample extent polygon overlay
   useEffect(() => {
@@ -342,7 +343,7 @@ const WindowMap = ({
     } else {
       overlay.setPosition(undefined);
     }
-  }, [crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
+  }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 };

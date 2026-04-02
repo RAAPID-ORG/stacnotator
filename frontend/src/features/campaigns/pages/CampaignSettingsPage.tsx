@@ -592,6 +592,14 @@ export const CampaignSettingsPage = () => {
                   prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
                 );
               }}
+              onCollectionVizUpdated={async () => {
+                try {
+                  const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+                  if (data) setImagery(data.imagery_sources);
+                } catch {
+                  /* silent refresh */
+                }
+              }}
             />
           )}
 

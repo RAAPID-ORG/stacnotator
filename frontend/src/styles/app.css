@@ -27,7 +27,7 @@
   --color-neutral-100: rgb(237, 236, 235);
   --color-neutral-50: rgb(247, 246, 245);
 
-  /* Accent Colors — Muted Slate-Blue */
+  /* Accent Colors - Muted Slate-Blue */
   --color-accent-50: rgb(244 247 250);
   --color-accent-100: rgb(226 234 242);
   --color-accent-200: rgb(194 212 228);
@@ -39,7 +39,7 @@
   --color-accent-800: rgb(36 60 85);
   --color-accent-900: rgb(26 45 65);
 
-  /* Amber Colors — Muted Ochre (for editing state) */
+  /* Amber Colors - Muted Ochre (for editing state) */
   --color-amber-50: rgb(250 247 235);
   --color-amber-100: rgb(243 236 210);
   --color-amber-200: rgb(230 216 168);
@@ -63,7 +63,7 @@
   --color-danger: rgb(163 84 68);
   --color-info: rgb(82 118 170);
 
-  /* Red — Terracotta/Clay */
+  /* Red - Terracotta/Clay */
   --color-red-50: rgb(252 244 241);
   --color-red-100: rgb(246 226 218);
   --color-red-200: rgb(234 196 183);
@@ -75,7 +75,7 @@
   --color-red-800: rgb(88 40 32);
   --color-red-900: rgb(65 30 24);
 
-  /* Yellow — Warm Sand */
+  /* Yellow - Warm Sand */
   --color-yellow-50: rgb(252 249 238);
   --color-yellow-100: rgb(246 240 212);
   --color-yellow-200: rgb(235 222 172);
@@ -87,7 +87,7 @@
   --color-yellow-800: rgb(90 72 28);
   --color-yellow-900: rgb(65 52 20);
 
-  /* Green — Muted Sage */
+  /* Green - Muted Sage */
   --color-green-50: rgb(240 247 243);
   --color-green-100: rgb(218 236 224);
   --color-green-200: rgb(180 214 192);
@@ -99,7 +99,7 @@
   --color-green-800: rgb(32 64 42);
   --color-green-900: rgb(22 46 30);
 
-  /* Blue — Muted Slate-Blue */
+  /* Blue - Muted Slate-Blue */
   --color-blue-50: rgb(244 247 252);
   --color-blue-100: rgb(228 234 248);
   --color-blue-200: rgb(196 210 238);
@@ -152,6 +152,13 @@ button {
   cursor: pointer;
 }
 
+/* Brand-colored radio buttons and checkboxes */
+input[type='radio'],
+input[type='checkbox'],
+input[type='range'] {
+  accent-color: var(--color-brand-500);
+}
+
 /* Canvas Grid Layout Styles */
 .react-grid-layout > div {
   transition: none !important;
@@ -159,59 +166,53 @@ button {
 
 .grid-card {
   background: white;
-  border: 1px solid var(--color-neutral-200);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
   transition: all 0.15s ease-in-out;
 }
 
 .grid-card-hoverable:hover {
-  border-color: var(--color-brand-500);
-  outline: 1px solid var(--color-brand-500);
-  outline-offset: -1px;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  border-color: var(--color-brand-400);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
 }
 
 .card-header {
-  background: var(--color-neutral-50);
-  padding: 6px 10px;
+  background: var(--color-neutral-100);
+  padding: 5px 10px;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--color-neutral-700);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
+  font-weight: 600;
+  color: var(--color-neutral-600);
+  letter-spacing: 0.01em;
   border-bottom: 1px solid var(--color-neutral-200);
   user-select: none;
 }
 
 .active-window {
   border-color: var(--color-brand-500) !important;
-  outline: 1px solid var(--color-brand-500) !important;
-  outline-offset: -1px;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08) !important;
   transition: all 0.15s ease-in-out;
 }
 
 .is-editing .grid-card {
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
 }
 
 .is-editing .grid-card:hover {
-  outline: 2px solid var(--color-amber-400);
-  outline-offset: -2px;
+  border-color: var(--color-amber-400);
+  box-shadow:
+    0 0 0 1px var(--color-amber-400),
+    0 2px 8px rgb(0 0 0 / 0.08);
   z-index: 50 !important;
 }
 
 .editable {
   cursor: move !important;
   background: var(--color-amber-50) !important;
-  color: var(--color-amber-900) !important;
+  color: var(--color-amber-800) !important;
 }
 
 .react-resizable-handle {

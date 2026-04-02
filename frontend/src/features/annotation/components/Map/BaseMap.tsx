@@ -42,6 +42,12 @@ const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10 }: MapProps) => {
     onMapReady?.(map);
 
     return () => {
+      // Clear all tile sources to abort in-flight tile requests
+      map.getLayers().forEach((layer) => {
+        if ('setSource' in layer && typeof layer.setSource === 'function') {
+          (layer as unknown as { setSource: (s: null) => void }).setSource(null);
+        }
+      });
       map.setTarget(undefined);
     };
     // onMapReady is intentionally excluded - it's a one-time setup callback

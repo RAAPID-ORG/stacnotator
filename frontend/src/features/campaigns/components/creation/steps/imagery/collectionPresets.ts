@@ -51,8 +51,8 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
   ],
   'sentinel-1-grd': [
-    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys' },
-    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys' },
+    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys', rescale: '0,10000' },
+    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys', rescale: '0,5000' },
   ],
   'modis-13Q1-061': [
     { label: 'NDVI', assets: ['250m_16_days_NDVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
@@ -69,7 +69,7 @@ export const KNOWN_RESCALE: Record<string, string> = {
   'cop-dem-glo-90': '0,4000',
   'hls2-s30': '0,3000',
   'hls2-l30': '0,3000',
-  'sentinel-1-grd': '-20,0',
+  'sentinel-1-grd': '0,10000',
 };
 
 export function guessRescale(collectionId: string): string | undefined {
@@ -77,7 +77,7 @@ export function guessRescale(collectionId: string): string | undefined {
   if (id.includes('sentinel-2') || id.includes('hls')) return '0,3000';
   if (id.includes('landsat')) return '7000,30000';
   if (id.includes('dem') || id.includes('elevation')) return '0,4000';
-  if (id.includes('sentinel-1') || id.includes('sar')) return '-20,0';
+  if (id.includes('sentinel-1') || id.includes('sar')) return '0,10000';
   return undefined;
 }
 
@@ -127,21 +127,4 @@ export function getRasterAssets(assets: Record<string, AssetInfo>): [string, Ass
         key !== 'thumbnail')
     );
   });
-}
-
-/** Collections known to support eo:cloud_cover */
-const CLOUD_COVER_COLLECTIONS = new Set([
-  'sentinel-2-l2a',
-  'sentinel-2-l1c',
-  'landsat-c2-l2',
-  'landsat-c2-l1',
-  'landsat-8-c2-l2',
-  'landsat-9-c2-l2',
-]);
-
-export function supportsCloudCover(collectionId?: string): boolean {
-  if (!collectionId) return false;
-  if (CLOUD_COVER_COLLECTIONS.has(collectionId)) return true;
-  const id = collectionId.toLowerCase();
-  return id.includes('sentinel') || id.includes('landsat');
 }

@@ -243,9 +243,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     <div className="flex flex-col gap-0">
       <span>Minimap</span>
       {latLon && (
-        <div className="flex items-center gap-1.5 font-normal text-neutral-900 text-[10px] -mt-1">
-          <span>
-            lat: {latLon.lat.toFixed(5)} | lon: {latLon.lon.toFixed(5)}
+        <div className="flex items-center gap-1.5 font-normal text-neutral-500 text-[11px]">
+          <span className="tabular-nums">
+            {latLon.lat.toFixed(5)}, {latLon.lon.toFixed(5)}
           </span>
           <button
             onClick={() => copyToClipboard(`${latLon.lat},${latLon.lon}`)}
@@ -288,7 +288,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           gridConfig={{
             cols: 60,
             rowHeight: 15,
-            margin: [4, 4],
+            margin: [6, 6],
           }}
           dragConfig={{
             enabled: isEditingLayout,
@@ -378,7 +378,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
-                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50`}
+                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50 ${isActiveCol ? '!bg-brand-500 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
                 >
                   {collection.name}

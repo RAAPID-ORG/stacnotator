@@ -95,7 +95,12 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
 
-    const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
+    const {
+      layers: _layers,
+      activeLayerId: _activeLayerId,
+      setActiveLayerId,
+      initLayers,
+    } = useSliceLayers({
       campaign,
       layerManager: layerManagerRef.current,
       mapReady: mapReadyRef.current,

@@ -48,6 +48,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      TILER_BASE_URL: http://tiler:8001
       # Gunicorn settings
       WORKERS: ${WORKERS:-4}
       TIMEOUT: ${TIMEOUT:-60}
@@ -55,19 +56,50 @@ services:
       KEEPALIVE: ${KEEPALIVE:-5}
       MAX_REQUESTS: ${MAX_REQUESTS:-1000}
       MAX_REQUESTS_JITTER: ${MAX_REQUESTS_JITTER:-50}
-      # GDAL config for cloud-optimized raster access (TiTiler)
-      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
-      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "YES"
-      GDAL_HTTP_MULTIPLEX: "YES"
-      VSI_CACHE: "TRUE"
-      VSI_CACHE_SIZE: "536870912"
     volumes:
       - ./backend/logs:/app/logs
-      # Mount credential files from host paths defined in .env
       - ${FIREBASE_CREDENTIALS_PATH_HOST}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST}:/app/config/ee-private-key.json:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - stacnotator-network
+
+  # Tiler Service (tile serving, independently scalable)
+  tiler:
+    build:
+      context: ./tiler
+      dockerfile: Dockerfile
+    container_name: tiler
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: ${POSTGRES_DB:-stacnotator}
+      DBUSER: ${POSTGRES_USER:-stacnotator}
+      DBPASS: ${POSTGRES_PASSWORD:?Database password required}
+      DBHOST: db
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      WORKERS: ${TILER_WORKERS:-2}
+      TIMEOUT: ${TILER_TIMEOUT:-120}
+      MAX_REQUESTS: ${TILER_MAX_REQUESTS:-500}
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "NO"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      GDAL_HTTP_TIMEOUT: "60"
+      GDAL_HTTP_MAX_RETRY: "3"
+      GDAL_HTTP_RETRY_DELAY: "1"
+      GDAL_CACHEMAX: "256"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff"
+      CPL_VSIL_CURL_CACHE_SIZE: "128000000"
+    ports:
+      - "${TILER_PORT:-8001}:8001"
     networks:
       - stacnotator-network
 
@@ -78,6 +110,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL_PROD:-}
+        VITE_TILER_BASE_URL: ${VITE_TILER_BASE_URL_PROD:-}
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
@@ -85,6 +118,7 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - tiler
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
     networks:

@@ -110,9 +110,12 @@ export function useSliceLayers({
       // Build UI layer list: one entry per viz (at current collection+slice) + basemaps
       const allLayers = lm.getLayers();
       const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
+      const seen = new Set<string>();
       const vizLayers = allVizEntries
         .map((v) => {
           const id = makeLayerId(activeCollection.id, activeSliceIndex, v.vizName);
+          if (seen.has(id)) return null;
+          seen.add(id);
           return allLayers.find((l) => l.id === id) ?? null;
         })
         .filter((l): l is Layer => l !== null);
@@ -120,15 +123,17 @@ export function useSliceLayers({
       const uiLayers = [...vizLayers, ...basemapLayers];
       setLayers(uiLayers);
       onLayersChange?.(uiLayers, targetId);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [
-      campaign?.id,
-      activeCollectionId,
+      campaign,
+      activeCollection,
+      activeSource,
       activeSliceIndex,
-      activeVizEntry?.vizName,
+      activeVizEntry,
+      allVizEntries,
       showBasemap,
       selectedBasemapId,
+      onLayersChange,
     ]
   );
 
@@ -149,20 +154,14 @@ export function useSliceLayers({
         for (const collection of source.collections) {
           for (let si = 0; si < collection.slices.length; si++) {
             const slice = collection.slices[si];
-            // Get viz params from stac_config if available (for dynamic URL construction)
-            const vizParams = collection.stac_config?.viz_params ?? null;
-
             for (const tileUrl of slice.tile_urls) {
               const layerId = makeLayerId(collection.id, si, tileUrl.visualization_name);
               if (lm.getLayerById(layerId)) continue;
 
-              const resolvedUrl = buildTileUrl(
-                {
-                  tile_url: tileUrl.tile_url,
-                  tile_provider: (tileUrl as { tile_provider?: string }).tile_provider,
-                },
-                vizParams
-              );
+              const resolvedUrl = buildTileUrl({
+                tile_url: tileUrl.tile_url,
+                tile_provider: tileUrl.tile_provider,
+              });
 
               newLayers.push(
                 new XYZLayer({
@@ -180,9 +179,8 @@ export function useSliceLayers({
 
       if (newLayers.length > 0) lm.registerLayers(newLayers);
       activateCorrectLayer(lm);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [campaign?.id, activateCorrectLayer]
+    [campaign, activateCorrectLayer, preloadDepth]
   );
 
   const initLayers = useCallback(
@@ -208,9 +206,8 @@ export function useSliceLayers({
       onLayersChange?.(initial, defaultBasemapId);
 
       syncLayers(lm);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [syncLayers]
+    [syncLayers, campaign?.basemaps, setLayers, setActiveLayerId, onLayersChange]
   );
 
   // Re-sync when view changes

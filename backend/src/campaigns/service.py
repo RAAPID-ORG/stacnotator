@@ -234,12 +234,14 @@ def create_campaign(
             db.refresh(campaign)
 
     # Create imagery if provided
+    registration_errors: list[dict] = []
     if imagery_editor_state:
-        create_imagery_from_editor_state(
+        imagery_result = create_imagery_from_editor_state(
             db,
             campaign=campaign,
             editor_state=imagery_editor_state,
         )
+        registration_errors = imagery_result.get("registration_errors", [])
 
     # Fetch and add embeddings (only when the user specified an embedding year)
     embedding_year = campaign.settings.embedding_year
@@ -257,6 +259,8 @@ def create_campaign(
     # Commit everything together
     db.commit()
     db.refresh(campaign)
+    # Attach registration errors as transient (not persisted) for the API response
+    campaign._registration_errors = registration_errors  # type: ignore[attr-defined]
     return campaign
 
 

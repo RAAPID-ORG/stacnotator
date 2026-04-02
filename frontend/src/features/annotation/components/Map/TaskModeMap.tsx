@@ -94,7 +94,12 @@ const TaskModeMap = ({
   const panTrigger = useMapStore((s) => s.panTrigger);
 
   // Shared layer management
-  const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
+  const {
+    layers: _layers,
+    activeLayerId: _activeLayerId,
+    setActiveLayerId,
+    initLayers,
+  } = useSliceLayers({
     campaign,
     layerManager: layerManagerRef.current,
     mapReady: mapReadyRef.current,
@@ -198,7 +203,7 @@ const TaskModeMap = ({
     } else {
       overlay.setPosition(undefined);
     }
-  }, [crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
+  }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
 
   // Sample extent polygon overlay
   useEffect(() => {
@@ -233,11 +238,11 @@ const TaskModeMap = ({
       const [lon, lat] = toLonLat(e.coordinate);
       onTimeseriesClickRef.current?.(lat, lon);
     };
-    map.on('singleclick', handler as any);
+    map.on('singleclick', handler as () => void);
     map.getTargetElement().style.cursor = 'crosshair';
 
     return () => {
-      map.un('singleclick', handler as any);
+      map.un('singleclick', handler as () => void);
       map.getTargetElement().style.cursor = '';
     };
   }, [activeTool]);
@@ -262,7 +267,7 @@ const TaskModeMap = ({
 
           // Expose map instance for E2E testing (dev/test only)
           if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-            (window as any).__OL_MAP__ = map;
+            (window as unknown as Record<string, unknown>).__OL_MAP__ = map;
           }
 
           // Expose to state so hooks (e.g. useTilePreloading) can subscribe
@@ -313,7 +318,7 @@ const TaskModeMap = ({
 
           // Expose crosshair overlay for E2E testing
           if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-            (window as any).__OL_CROSSHAIR__ = overlay;
+            (window as unknown as Record<string, unknown>).__OL_CROSSHAIR__ = overlay;
           }
 
           if (crosshair && showCrosshair) {

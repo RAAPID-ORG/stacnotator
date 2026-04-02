@@ -36,11 +36,15 @@ def create_imagery(
         editor_state=editor_state,
     )
     db.commit()
-    return {
+    response = {
         "sources": len(result["sources"]),
         "views": len(result["views"]),
         "basemaps": len(result["basemaps"]),
     }
+    errors = result.get("registration_errors", [])
+    if errors:
+        response["registration_errors"] = errors
+    return response
 
 
 @router.post("/{campaign_id}/new-layout", status_code=201)
@@ -87,3 +91,72 @@ def delete_source(
 ):
     service.delete_source(db=db, source_id=source_id, campaign_id=campaign_id)
     return
+
+
+@router.post("/{campaign_id}/imagery/collections/{collection_id}/refresh")
+def refresh_collection_imagery(
+    campaign_id: int,
+    collection_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Re-search STAC catalog with stored params and update mosaic items."""
+    bbox = [
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+    ]
+    result = service.refresh_collection_imagery(db, collection_id, bbox)
+    db.commit()
+    return result
+
+
+@router.put("/{campaign_id}/imagery/collections/{collection_id}/viz-params")
+def update_viz_params(
+    campaign_id: int,
+    collection_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Update viz params for a collection and rebuild tile URLs.
+
+    Body supports per-visualization params:
+      {
+        "visualizations": {
+          "True Color": { "assets": [...], "rescale": "0,3000" },
+          "NDVI": { "assets": ["B08"], "expression": "...", "colormap_name": "rdylgn" }
+        },
+        "cover_visualizations": { ... }  // optional overrides for cover slice
+      }
+    """
+    service.update_collection_viz_params(
+        db,
+        collection_id,
+        viz_by_name=body.get("visualizations", {}),
+        cover_viz_by_name=body.get("cover_visualizations"),
+    )
+    db.commit()
+    return {"status": "updated"}
+
+
+@router.put("/{campaign_id}/imagery/collections/{collection_id}/tile-urls")
+def update_tile_urls(
+    campaign_id: int,
+    collection_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Update raw tile URLs for XYZ/manual collections.
+
+    Body: { "tile_urls": { "True Color": "https://...", "NDVI": "https://..." } }
+    """
+    service.update_collection_tile_urls(
+        db,
+        collection_id,
+        tile_urls_by_viz=body.get("tile_urls", {}),
+    )
+    db.commit()
+    return {"status": "updated"}

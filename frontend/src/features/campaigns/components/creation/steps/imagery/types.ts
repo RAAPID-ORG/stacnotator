@@ -12,6 +12,8 @@ export interface ImagerySlice {
   name: string;
   startDate: string;
   endDate: string;
+  /** Per-slice visualization URLs (used by manual XYZ collections) */
+  vizUrls?: VisualizationUrl[];
 }
 
 export interface StacCollectionData {
@@ -36,6 +38,14 @@ export interface VizParams {
   resampling?: string;
   compositing?: string;
   nodata?: number;
+  /** Asset name to use as pixel mask (e.g. "SCL" for Sentinel-2 Scene Classification) */
+  maskLayer?: string;
+  /** Values in mask layer to exclude (e.g. [0, 1, 8, 9, 10] to mask clouds/nodata in SCL) */
+  maskValues?: number[];
+  nirBand?: string;
+  redBand?: string;
+  /** Max items per tile for compositing (1-10, default 5) */
+  maxItems?: number;
 }
 
 export interface NamedVizParams {
@@ -51,8 +61,16 @@ export interface StacBrowserCollectionData {
   mode: 'single-item' | 'mosaic';
   itemHref?: string;
   mosaicId?: string;
+  /** Max cloud cover percentage (0-100) for STAC search filtering */
+  maxCloudCover?: number;
   /** Named visualizations - each defines a rendering config (bands, colormap, etc.) */
   visualizations: NamedVizParams[];
+  /** When set, the cover slice uses these visualization params instead of the regular ones (e.g. different compositing) */
+  coverVisualizations?: NamedVizParams[];
+  /** Custom CQL2-JSON search query (null/undefined = auto-generated from UI fields) */
+  searchQuery?: Record<string, unknown>;
+  /** Custom search query for cover slice (null/undefined = same as regular) */
+  coverSearchQuery?: Record<string, unknown>;
   vizUrls: VisualizationUrl[];
 }
 

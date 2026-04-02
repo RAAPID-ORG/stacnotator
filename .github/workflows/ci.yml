@@ -181,5 +181,8 @@ jobs:
       - name: Build backend image
         run: docker build -t stacnotator-backend:ci ./backend
 
+      - name: Build tiler image
+        run: docker build -t stacnotator-tiler:ci ./tiler
+
       - name: Build frontend image
         run: docker build -t stacnotator-frontend:ci ./frontend

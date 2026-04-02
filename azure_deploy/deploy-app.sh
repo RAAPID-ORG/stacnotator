@@ -122,10 +122,12 @@ echo -e "${YELLOW}Environment:   ${NC} $CAE_NAME"
 echo ""
 echo -e "${BLUE}Images to be built and pushed:${NC}"
 echo -e "  • ${ACR_NAME}.azurecr.io/backend:${IMAGE_TAG}"
+echo -e "  • ${ACR_NAME}.azurecr.io/tiler:${IMAGE_TAG}"
 echo -e "  • ${ACR_NAME}.azurecr.io/frontend:${IMAGE_TAG}"
 echo ""
 echo -e "${BLUE}Container apps to be updated:${NC}"
 echo -e "  • backend  (in $RESOURCE_GROUP)"
+echo -e "  • tiler    (in $RESOURCE_GROUP)"
 echo -e "  • frontend (in $RESOURCE_GROUP)"
 echo ""
 
@@ -158,6 +160,17 @@ docker build -t "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" -f Dockerfile .
 echo -e "${YELLOW}Pushing backend image...${NC}"
 docker push "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG"
 echo -e "${GREEN}✓ Backend image pushed${NC}"
+cd ..
+echo ""
+
+# Build and push tiler
+echo -e "${YELLOW}Building tiler image...${NC}"
+cd tiler
+docker build -t "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" -f Dockerfile .
+
+echo -e "${YELLOW}Pushing tiler image...${NC}"
+docker push "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG"
+echo -e "${GREEN}✓ Tiler image pushed${NC}"
 cd ..
 echo ""
 
@@ -206,9 +219,21 @@ echo -e "${GREEN}✓ Firebase configuration loaded${NC}"
 echo -e "${YELLOW}  Project: ${VITE_FIREBASE_PROJECT_ID}${NC}"
 echo ""
 
-# Build frontend with backend URL and Firebase config
+# Get tiler URL for frontend build
+TILER_URL=$(az containerapp show \
+    --name tiler \
+    --resource-group "$RESOURCE_GROUP" \
+    --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "")
+if [ -z "$TILER_URL" ]; then
+    # Fallback: tile requests go through backend (tiler not deployed yet)
+    TILER_URL="$BACKEND_URL"
+    echo -e "${YELLOW}Warning: Tiler container app not found, tiles will use backend URL${NC}"
+fi
+
+# Build frontend with backend URL, tiler URL, and Firebase config
 docker build \
     --build-arg VITE_API_BASE_URL="https://$BACKEND_URL" \
+    --build-arg VITE_TILER_BASE_URL="https://$TILER_URL" \
     --build-arg VITE_FIREBASE_API_KEY="$VITE_FIREBASE_API_KEY" \
     --build-arg VITE_FIREBASE_AUTH_DOMAIN="$VITE_FIREBASE_AUTH_DOMAIN" \
     --build-arg VITE_FIREBASE_PROJECT_ID="$VITE_FIREBASE_PROJECT_ID" \
@@ -229,6 +254,19 @@ az containerapp update \
     --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
     --output none
 echo -e "${GREEN}✓ Backend updated${NC}"
+
+# Update tiler container app
+echo -e "${YELLOW}Updating tiler container app...${NC}"
+if az containerapp show --name tiler -g "$RESOURCE_GROUP" &>/dev/null; then
+    az containerapp update \
+        --name tiler \
+        --resource-group "$RESOURCE_GROUP" \
+        --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
+        --output none
+    echo -e "${GREEN}✓ Tiler updated${NC}"
+else
+    echo -e "${YELLOW}Tiler container app not found - skipping (create it in Terraform first)${NC}"
+fi
 
 # Wait for backend to stabilize
 echo -e "${YELLOW}Waiting for backend to stabilize...${NC}"

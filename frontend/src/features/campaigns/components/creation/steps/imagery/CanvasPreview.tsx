@@ -37,7 +37,7 @@ type ResolvedWindow = {
 const selectClass =
   "px-2 py-1 bg-white/95 text-neutral-900 text-xs font-medium rounded shadow-sm border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%2210%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.35rem_center]";
 
-const selectClassCompact =
+const _selectClassCompact =
   "px-1.5 py-0.5 bg-white/95 text-neutral-900 text-[11px] font-medium rounded shadow-sm border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-5 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.25rem_center]";
 
 const selectClassTiny =

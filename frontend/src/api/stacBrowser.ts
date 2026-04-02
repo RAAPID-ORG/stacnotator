@@ -4,6 +4,7 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || API_BASE;
 
 export interface StacCatalog {
   id: string;
@@ -22,6 +23,7 @@ export interface StacCollection {
   spatial_extent?: number[] | null;
   keywords: string[];
   item_assets?: Record<string, StacAssetInfo>;
+  has_cloud_cover?: boolean;
 }
 
 export interface StacAssetInfo {
@@ -99,7 +101,7 @@ export async function fetchStats(params: {
   datetime_range?: string;
   max_cloud_cover?: number;
 }): Promise<{ rescale: string; source: string }> {
-  const resp = await fetch(`${API_BASE}/api/stac/stats`, {
+  const resp = await fetch(`${TILER_BASE}/api/stac/stats`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

@@ -5,9 +5,11 @@ import logging
 import planetary_computer as pc
 import pystac_client
 
-from src.tiling.token_manager import is_planetary_computer
-
 logger = logging.getLogger(__name__)
+
+
+def _is_mpc(url: str) -> bool:
+    return "planetarycomputer.microsoft.com" in url
 
 
 def get_client(catalog_url: str) -> pystac_client.Client:
@@ -17,9 +19,8 @@ def get_client(catalog_url: str) -> pystac_client.Client:
     returned items have signed asset URLs.
     """
     kwargs = {}
-    if is_planetary_computer(catalog_url):
+    if _is_mpc(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
-
     return pystac_client.Client.open(catalog_url, **kwargs)
 
 
@@ -40,7 +41,6 @@ def list_collections(catalog_url: str) -> list[dict]:
         if extent and extent.spatial and extent.spatial.bboxes:
             spatial = extent.spatial.bboxes[0]
 
-        # Extract item_assets from the item-assets extension (available on most STAC APIs)
         item_assets = {}
         raw_item_assets = (col.extra_fields or {}).get("item_assets", {})
         for key, asset_def in raw_item_assets.items():
@@ -49,6 +49,9 @@ def list_collections(catalog_url: str) -> list[dict]:
                 "type": asset_def.get("type", ""),
                 "roles": asset_def.get("roles", []),
             }
+
+        summaries = (col.extra_fields or {}).get("summaries", {})
+        has_cloud_cover = "eo:cloud_cover" in summaries
 
         results.append(
             {
@@ -59,6 +62,7 @@ def list_collections(catalog_url: str) -> list[dict]:
                 "spatial_extent": spatial,
                 "keywords": getattr(col, "keywords", []) or [],
                 "item_assets": item_assets,
+                "has_cloud_cover": has_cloud_cover,
             }
         )
     return results
@@ -82,7 +86,6 @@ def search_items(
     search = client.search(**search_kwargs)
     results = []
     for item in search.items():
-        # Find thumbnail
         thumbnail = None
         fallback = None
         for thumb_key in ("rendered_preview", "thumbnail", "preview"):
@@ -98,7 +101,6 @@ def search_items(
         if not thumbnail:
             thumbnail = fallback
 
-        # Build assets info
         assets_info = {}
         for key, asset in item.assets.items():
             assets_info[key] = {

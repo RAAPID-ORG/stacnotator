@@ -65,7 +65,7 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
     <div className="relative" onMouseLeave={() => setShowLayerDropdown(false)}>
       <button
         onMouseEnter={() => setShowLayerDropdown(true)}
-        className="px-3 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow hover:bg-neutral-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+        className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm hover:bg-white transition-colors flex items-center gap-1.5 cursor-pointer"
         title="Select layer ('i' for layer switching and 'shift + i' for visualization switching)"
       >
         <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
@@ -78,67 +78,69 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
 
       {showLayerDropdown && (
         <div
-          className="absolute top-full right-0 bg-white border border-neutral-300 rounded-bl rounded-br shadow-lg min-w-[200px] max-h-[300px] overflow-y-auto z-[1001]"
+          className="absolute top-full left-0 pt-0.5 z-[1001]"
           onMouseEnter={() => setShowLayerDropdown(true)}
           onMouseLeave={() => setShowLayerDropdown(false)}
         >
-          {/* Imagery layers - grouped by source */}
-          {imageryGroups.map((group, gi) => (
-            <div key={group.sourceName}>
-              {/* Source group header */}
-              {showHierarchy && (
-                <div className="px-3 py-1 text-[11px] font-semibold text-neutral-700 uppercase tracking-wider bg-neutral-50 border-b border-neutral-200">
-                  {group.sourceName}
-                </div>
-              )}
-              {group.layers.map((layer) => {
-                const displayName = showHierarchy ? parseLayerName(layer.name).viz : layer.name;
-                return (
-                  <label
-                    key={layer.id}
-                    className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors hover:bg-neutral-50
+          <div className="bg-white border border-neutral-200 rounded-md shadow-lg min-w-[220px] max-h-[300px] overflow-y-auto">
+            {/* Imagery layers - grouped by source */}
+            {imageryGroups.map((group, gi) => (
+              <div key={group.sourceName}>
+                {/* Source group header */}
+                {showHierarchy && (
+                  <div className="px-3 py-1.5 text-[11px] font-semibold text-neutral-500 tracking-wide bg-neutral-50 border-b border-neutral-200">
+                    {group.sourceName}
+                  </div>
+                )}
+                {group.layers.map((layer) => {
+                  const displayName = showHierarchy ? parseLayerName(layer.name).viz : layer.name;
+                  return (
+                    <label
+                      key={layer.id}
+                      className={`flex items-center px-3 py-2 text-xs text-neutral-800 cursor-pointer transition-colors hover:bg-neutral-50
                             ${showHierarchy ? 'pl-5' : ''}
-                            ${selectedLayer?.id === layer.id ? 'bg-neutral-100 text-brand-700' : ''}
+                            ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
                           `}
-                  >
-                    <input
-                      type="radio"
-                      name="layer"
-                      checked={selectedLayer?.id === layer.id}
-                      onChange={() => handleLayerSelect(layer.id)}
-                      className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
-                    />
-                    <span>{displayName}</span>
-                  </label>
-                );
-              })}
-              {/* Divider between source groups */}
-              {showHierarchy && gi < imageryGroups.length - 1 && (
-                <div className="border-t border-neutral-200"></div>
-              )}
-            </div>
-          ))}
+                    >
+                      <input
+                        type="radio"
+                        name="layer"
+                        checked={selectedLayer?.id === layer.id}
+                        onChange={() => handleLayerSelect(layer.id)}
+                        className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
+                      />
+                      <span>{displayName}</span>
+                    </label>
+                  );
+                })}
+                {/* Divider between source groups */}
+                {showHierarchy && gi < imageryGroups.length - 1 && (
+                  <div className="border-t border-neutral-200"></div>
+                )}
+              </div>
+            ))}
 
-          <div className="border-t border-neutral-300 my-1"></div>
+            <div className="border-t border-neutral-300 my-1"></div>
 
-          {/* Basemap options */}
-          {baseMapLayers.map((layer) => (
-            <label
-              key={layer.id}
-              className={`flex items-center px-3 py-2 text-sm text-neutral-900 cursor-pointer transition-colors
-                      ${selectedLayer?.id === layer.id ? 'bg-neutral-100 text-brand-700' : ''}
+            {/* Basemap options */}
+            {baseMapLayers.map((layer) => (
+              <label
+                key={layer.id}
+                className={`flex items-center px-3 py-2 text-xs text-neutral-800 cursor-pointer transition-colors hover:bg-neutral-50
+                      ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
                     `}
-            >
-              <input
-                type="radio"
-                name="layer"
-                checked={selectedLayer?.id === layer.id}
-                onChange={() => handleLayerSelect(layer.id)}
-                className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
-              />
-              <span>{layer.name}</span>
-            </label>
-          ))}
+              >
+                <input
+                  type="radio"
+                  name="layer"
+                  checked={selectedLayer?.id === layer.id}
+                  onChange={() => handleLayerSelect(layer.id)}
+                  className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
+                />
+                <span>{layer.name}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -118,9 +118,25 @@ export const CreateCampaignPage = () => {
         },
       });
       const { data: campaign } = await createCampaign({ body: form });
-      showAlert('Campaign created successfully', 'success');
+      // Check for STAC registration errors (partial success)
+      const regErrors = (campaign as Record<string, unknown>)?.registration_errors as
+        | { collection: string; slice: string; error: string }[]
+        | undefined;
+      if (regErrors && regErrors.length > 0) {
+        const summary = regErrors
+          .slice(0, 5)
+          .map((e) => `${e.collection} / ${e.slice}: ${e.error}`)
+          .join('\n');
+        const more = regErrors.length > 5 ? `\n...and ${regErrors.length - 5} more` : '';
+        showAlert(
+          `Campaign created, but ${regErrors.length} tile registration(s) failed:\n${summary}${more}`,
+          'warning'
+        );
+      } else {
+        showAlert('Campaign created successfully', 'success');
+      }
       if (campaign) {
-        navigate(`/campaigns/${campaign.id}/settings`);
+        navigate(`/campaigns/${(campaign as Record<string, unknown>).id}/settings`);
       } else {
         navigate('/campaigns');
       }

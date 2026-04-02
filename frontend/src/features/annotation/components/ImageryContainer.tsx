@@ -8,6 +8,7 @@ import {
   convertWKTToGeoJSON,
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
+import { buildTileUrl } from './Map/tileUrlBuilder';
 
 interface ImageryContainerProps {
   collectionId: number;
@@ -66,8 +67,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   );
   const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
 
-  const tileUrl =
-    activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName)?.tile_url ?? '';
+  const tileUrlEntry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
+  const tileUrl = tileUrlEntry
+    ? buildTileUrl({ tile_url: tileUrlEntry.tile_url, tile_provider: tileUrlEntry.tile_provider })
+    : '';
   const loading = !activeSlice || !tileUrl;
 
   // Memoize latLon extraction (supports all geometry types via centroid)
@@ -210,7 +213,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     }
 
     setAlert(alertLabel);
-  }, []); // stable - all state read from ref
+  }, [isOpenMode]); // stable - all state read from ref
 
   if (!collection || !campaignBbox) return null;
 
@@ -247,7 +250,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
             onChange={(e) => handleSliceChange(Number(e.target.value))}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className="text-[9px] px-1 py-0.5 bg-white/90 border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:bg-white"
+            className="text-[10px] px-1.5 py-0.5 bg-white/95 border border-neutral-200 rounded text-neutral-800 cursor-pointer hover:bg-white backdrop-blur-sm"
             title="Select time slice"
           >
             {slices.map((slice, idx) => {
@@ -290,14 +293,14 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5"
             />
           </svg>
-          <span className="text-[10px] font-medium text-neutral-400 text-center px-2 leading-snug">
+          <span className="text-[11px] font-medium text-neutral-400 text-center px-2 leading-snug">
             No imagery available
           </span>
         </div>
       ) : (
         <>
           {emptyTileAlert && (
-            <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+            <div className="absolute top-1.5 left-1.5 right-1.5 z-[1001] flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 text-[11px] text-amber-800 shadow-sm">
               <span className="flex-1">
                 No imagery data for <strong>{emptyTileAlert}</strong>
               </span>

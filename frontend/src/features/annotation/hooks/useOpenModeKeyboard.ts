@@ -40,7 +40,7 @@ export const useOpenModeKeyboard = () => {
     const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
 
     // Pre-compute source → viz index ranges for I / Shift+I cycling
-    const allVizEntries = campaign.imagery_sources.flatMap((src) =>
+    const _allVizEntries = campaign.imagery_sources.flatMap((src) =>
       src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
     );
     // Build unique source groups with their start/end indices into allVizEntries
