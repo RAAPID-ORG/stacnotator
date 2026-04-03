@@ -28,6 +28,8 @@ export const VizConfigPanel = ({
 }: VizConfigPanelProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isRgbAsset, setIsRgbAsset] = useState(false);
+  /** 'manual' = editable input (pre-filled from preset), 'auto' = tiler derives from data stats, 'none' = raw values */
+  const [rescaleMode, setRescaleMode] = useState<'manual' | 'auto' | 'none'>('manual');
 
   const rasterAssets = getRasterAssets(availableAssets);
   const presets = COLLECTION_PRESETS[collectionId] || [];
@@ -37,9 +39,9 @@ export const VizConfigPanel = ({
   const knownRescale = KNOWN_RESCALE[collectionId];
   const defaultRescale = knownRescale || guessRescale(collectionId);
 
-  // Auto-fill rescale on first render if known
+  // Auto-fill rescale on first render if known and in manual mode
   useEffect(() => {
-    if (!vizParams.rescale && defaultRescale) {
+    if (rescaleMode === 'manual' && !vizParams.rescale && defaultRescale) {
       onChange({ ...vizParams, rescale: defaultRescale });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,10 +76,21 @@ export const VizConfigPanel = ({
     if (preset.colormap) updates.colormapName = preset.colormap;
     if (preset.rescale) {
       updates.rescale = preset.rescale;
+      setRescaleMode('manual');
+    } else if (preset.colorFormula) {
+      // Color formula handles tone mapping — no rescale needed
+      updates.rescale = '';
+      setRescaleMode('none');
     } else if (knownRescale) {
       updates.rescale = knownRescale;
+      setRescaleMode('manual');
     }
     if (preset.expression) updates.expression = preset.expression;
+    if (preset.colorFormula) {
+      updates.colorFormula = preset.colorFormula;
+    } else {
+      updates.colorFormula = undefined;
+    }
     if (preset.extraParams) updates.extraParams = { ...preset.extraParams };
 
     if (
@@ -209,18 +222,58 @@ export const VizConfigPanel = ({
       )}
 
       {/* Rescale */}
-      <div className="space-y-1">
-        <label className="text-xs text-neutral-700 font-medium">Rescale (min,max)</label>
-        <input
-          type="text"
-          value={vizParams.rescale || ''}
-          onChange={(e) => update('rescale', e.target.value)}
-          placeholder={defaultRescale || 'e.g. 0,3000'}
-          className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-        />
-        <p className="text-[11px] text-neutral-400">
-          Applied to each band. Leave empty to auto-detect from data statistics.
-        </p>
+      <div className="space-y-1.5">
+        <label className="text-xs text-neutral-700 font-medium">Rescale</label>
+        <div className="flex gap-1.5">
+          {(['manual', 'auto', 'none'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setRescaleMode(mode);
+                if (mode === 'manual' && !vizParams.rescale && defaultRescale) {
+                  update('rescale', defaultRescale);
+                } else if (mode !== 'manual') {
+                  update('rescale', '');
+                }
+              }}
+              className={`flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                rescaleMode === mode
+                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+              }`}
+            >
+              {mode === 'manual' ? 'Manual' : mode === 'auto' ? 'Auto-derive' : 'None'}
+            </button>
+          ))}
+        </div>
+        {rescaleMode === 'manual' && (
+          <>
+            <input
+              type="text"
+              value={vizParams.rescale || ''}
+              onChange={(e) => update('rescale', e.target.value)}
+              placeholder={defaultRescale || 'e.g. 0,3000'}
+              className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+            />
+            <p className="text-[11px] text-neutral-400">
+              Fixed min,max applied to each band.
+              {defaultRescale ? ` Pre-filled from known defaults for this collection.` : ''}
+            </p>
+          </>
+        )}
+        {rescaleMode === 'auto' && (
+          <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
+            The tiler will sample the data to derive rescale values automatically. This adds a small
+            overhead per tile request.
+          </p>
+        )}
+        {rescaleMode === 'none' && (
+          <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
+            No rescaling — raw pixel values are served as-is. Use a color formula or ensure your
+            data range maps to 0-255 for display.
+          </p>
+        )}
       </div>
 
       {/* Compositing (mosaic mode only) */}
@@ -243,8 +296,9 @@ export const VizConfigPanel = ({
           </select>
           {vizParams.compositing && vizParams.compositing !== 'first' && (
             <p className="text-[10px] text-amber-600 mt-1">
-              Mean, median, max, min, and NDVI best compositing are experimental and slower than
-              first valid pixel - each tile reads multiple scenes.
+              Non-first-valid compositing reads multiple scenes per tile — expect ~10x slower data
+              loading. For MPC this also routes through our self-hosted tiler instead of MPC's fast
+              tile endpoint.
             </p>
           )}
         </div>

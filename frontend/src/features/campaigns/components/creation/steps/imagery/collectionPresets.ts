@@ -9,17 +9,38 @@ export interface BandPreset {
   colormap?: string;
   rescale?: string;
   expression?: string;
+  colorFormula?: string;
   /** Extra query parameters passed through to the tiler (e.g. asset_bidx=image|1,2,3) */
   extraParams?: Record<string, string>;
 }
 
 export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
   'sentinel-2-l2a': [
-    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
-    { label: 'False Color (Vegetation)', assets: ['B08', 'B04', 'B03'] },
-    { label: 'Agriculture', assets: ['B11', 'B08', 'B02'] },
-    { label: 'SWIR', assets: ['B12', 'B8A', 'B04'] },
-    { label: 'Geology', assets: ['B12', 'B11', 'B02'] },
+    {
+      label: 'True Color (RGB)',
+      assets: ['B04', 'B03', 'B02'],
+      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+    },
+    {
+      label: 'False Color (Vegetation)',
+      assets: ['B08', 'B04', 'B03'],
+      colorFormula: 'Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+    },
+    {
+      label: 'Agriculture',
+      assets: ['B11', 'B08', 'B02'],
+      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+    },
+    {
+      label: 'SWIR',
+      assets: ['B12', 'B8A', 'B04'],
+      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+    },
+    {
+      label: 'Geology',
+      assets: ['B12', 'B11', 'B02'],
+      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+    },
     { label: 'NDVI (B08)', assets: ['B08'], colormap: 'rdylgn', rescale: '-1,1' },
     { label: 'Visual (rendered)', assets: ['visual'] },
   ],
@@ -48,14 +69,34 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     },
   ],
   'hls2-s30': [
-    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
-    { label: 'False Color (Vegetation)', assets: ['B8A', 'B04', 'B03'] },
-    { label: 'Agriculture', assets: ['B11', 'B8A', 'B02'] },
+    {
+      label: 'True Color (RGB)',
+      assets: ['B04', 'B03', 'B02'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+    },
+    {
+      label: 'False Color (Vegetation)',
+      assets: ['B8A', 'B04', 'B03'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+    },
+    {
+      label: 'Agriculture',
+      assets: ['B11', 'B8A', 'B02'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+    },
     { label: 'NDVI (B8A)', assets: ['B8A'], colormap: 'rdylgn', rescale: '0,1' },
   ],
   'hls2-l30': [
-    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
-    { label: 'False Color (Vegetation)', assets: ['B05', 'B04', 'B03'] },
+    {
+      label: 'True Color (RGB)',
+      assets: ['B04', 'B03', 'B02'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+    },
+    {
+      label: 'False Color (Vegetation)',
+      assets: ['B05', 'B04', 'B03'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+    },
     { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
   ],
   'sentinel-1-grd': [

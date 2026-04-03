@@ -55,6 +55,8 @@ export interface NamedVizParams {
   vizParams: VizParams;
 }
 
+export type ItemSortOption = 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+
 export interface StacBrowserCollectionData {
   type: 'stac_browser';
   catalogUrl: string;
@@ -65,10 +67,16 @@ export interface StacBrowserCollectionData {
   mosaicId?: string;
   /** Max cloud cover percentage (0-100) for STAC search filtering */
   maxCloudCover?: number;
+  /** How to sort items in the mosaic (affects which pixel wins in first-valid compositing) */
+  itemSort?: ItemSortOption;
   /** Named visualizations - each defines a rendering config (bands, colormap, etc.) */
   visualizations: NamedVizParams[];
   /** When set, the cover slice uses these visualization params instead of the regular ones (e.g. different compositing) */
   coverVisualizations?: NamedVizParams[];
+  /** Max cloud cover for cover slice (null/undefined = same as regular) */
+  coverMaxCloudCover?: number;
+  /** Item sort for cover slice (null/undefined = same as regular) */
+  coverItemSort?: ItemSortOption;
   /** Custom CQL2-JSON search query (null/undefined = auto-generated from UI fields) */
   searchQuery?: Record<string, unknown>;
   /** Custom search query for cover slice (null/undefined = same as regular) */

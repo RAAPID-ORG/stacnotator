@@ -2,13 +2,19 @@ import { useState, useEffect } from 'react';
 import { Modal } from '~/shared/ui/Modal';
 import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from '~/shared/ui/Icons';
 import { Tooltip } from './Tooltip';
+import { InfoPopover } from './InfoPopover';
 import { MonthPicker } from './MonthPicker';
 import { fetchCatalogs, fetchCollections, searchItems } from '~/api/stacBrowser';
 import type { StacCatalog, StacCollection, StacItem, StacAssetInfo } from '~/api/stacBrowser';
-import type { CollectionItem, ImagerySlice, VizParams, NamedVizParams } from './types';
+import type {
+  CollectionItem,
+  ImagerySlice,
+  VizParams,
+  NamedVizParams,
+  ItemSortOption,
+} from './types';
 import { createId, emptyVizParams } from './types';
 import { VizConfigPanel } from './VizConfigPanel';
-import { VizParamsInlineEditor } from './VizParamsInlineEditor';
 import { StacQueryEditor } from './StacQueryEditor';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 
@@ -25,6 +31,8 @@ export interface CatalogBrowserPreset {
 export const MPC_PRESETS: CatalogBrowserPreset[] = [
   { stacCollectionId: 'sentinel-2-l2a', label: 'Sentinel-2 L2A' },
   { stacCollectionId: 'landsat-c2-l2', label: 'Landsat C2 L2' },
+  { stacCollectionId: 'hls2-s30', label: 'HLS Sentinel-2 (S30)' },
+  { stacCollectionId: 'hls2-l30', label: 'HLS Landsat (L30)' },
   { stacCollectionId: 'naip', label: 'NAIP' },
   { stacCollectionId: 'sentinel-1-grd', label: 'Sentinel-1 GRD' },
   { stacCollectionId: 'cop-dem-glo-30', label: 'Copernicus DEM 30m' },
@@ -66,9 +74,26 @@ export const CatalogBrowser = ({
   const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
 
   // Date range - default to 2024-01 through 2024-12
-  const [startDate, setStartDate] = useState('2024-01');
-  const [endDate, setEndDate] = useState('2024-12');
+  const [startDate, setStartDateRaw] = useState('2024-01');
+  const [endDate, setEndDateRaw] = useState('2024-12');
+
+  /** Set start date, bumping end date forward if it would be before start */
+  const setStartDate = (val: string) => {
+    setStartDateRaw(val);
+    if (val && endDate && val > endDate) {
+      // Bump end to same month as start
+      setEndDateRaw(val);
+    }
+  };
+  /** Set end date, pulling start date back if it would be after end */
+  const setEndDate = (val: string) => {
+    setEndDateRaw(val);
+    if (val && startDate && val < startDate) {
+      setStartDateRaw(val);
+    }
+  };
   const [maxCloudCover, setMaxCloudCover] = useState<number>(90);
+  const [itemSort, setItemSort] = useState<ItemSortOption>('date_desc');
 
   // Temporal slicing (mosaic mode)
   const [collectionPeriodInterval, setCollectionPeriodInterval] = useState(1);
@@ -83,6 +108,11 @@ export const CatalogBrowser = ({
   const [coverMode, setCoverMode] = useState<'nth' | 'custom'>('nth');
   /** Per-viz params for the custom cover slice (e.g. different compositing) */
   const [coverVisualizations, setCoverVisualizations] = useState<NamedVizParams[]>([]);
+  /** Cover slice search parameters */
+  const [coverMaxCloudCover, setCoverMaxCloudCover] = useState<number>(90);
+  const [coverItemSort, setCoverItemSort] = useState<ItemSortOption>('cloud_cover_asc');
+  /** Active viz tab index for cover slice */
+  const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
   /** Custom CQL2-JSON search query (null = auto-generated) */
   const [searchQuery, setSearchQuery] = useState<Record<string, unknown> | null>(null);
   /** Custom search query for cover slice (null = same as regular) */
@@ -91,22 +121,32 @@ export const CatalogBrowser = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  /** Build the canonical search query from UI state. Single source of truth for queries. */
-  const buildAutoQuery = (): Record<string, unknown> | null => {
+  const SORTBY_MAP: Record<ItemSortOption, Array<{ field: string; direction: string }>> = {
+    date_desc: [{ field: 'datetime', direction: 'desc' }],
+    date_asc: [{ field: 'datetime', direction: 'asc' }],
+    cloud_cover_asc: [
+      { field: 'eo:cloud_cover', direction: 'asc' },
+      { field: 'datetime', direction: 'desc' },
+    ],
+  };
+
+  /** Build a search query from given parameters. */
+  const buildQuery = (cloudCover: number, sort: ItemSortOption): Record<string, unknown> | null => {
     if (!selectedCollection) return null;
     const hasCloudCover = selectedCollection.has_cloud_cover ?? false;
     const cloudCoverFilter =
-      hasCloudCover && maxCloudCover < 100
+      hasCloudCover && cloudCover < 100
         ? [
             {
               op: 'or',
               args: [
                 { op: 'isNull', args: [{ property: 'eo:cloud_cover' }] },
-                { op: '<=', args: [{ property: 'eo:cloud_cover' }, maxCloudCover] },
+                { op: '<=', args: [{ property: 'eo:cloud_cover' }, cloudCover] },
               ],
             },
           ]
         : [];
+
     return {
       collections: [selectedCollection.id],
       filter: {
@@ -120,12 +160,18 @@ export const CatalogBrowser = ({
         ],
       },
       filterLang: 'cql2-json',
+      sortby: SORTBY_MAP[sort],
     };
   };
 
+  /** Build the canonical search query from UI state. Single source of truth for queries. */
+  const buildAutoQuery = () => buildQuery(maxCloudCover, itemSort);
+  /** Build the cover slice search query from cover-specific params. */
+  const buildCoverAutoQuery = () => buildQuery(coverMaxCloudCover, coverItemSort);
+
   /** Effective query: user's custom override, or the auto-generated one */
   const effectiveQuery = searchQuery ?? buildAutoQuery();
-  const effectiveCoverQuery = coverSearchQuery ?? buildAutoQuery();
+  const effectiveCoverQuery = coverSearchQuery ?? buildCoverAutoQuery();
 
   // Multiple named visualizations
   const [visualizations, setVisualizations] = useState<NamedVizParams[]>([
@@ -161,6 +207,19 @@ export const CatalogBrowser = ({
           setSelectedCollection(col);
           if (col.item_assets && Object.keys(col.item_assets).length > 0) {
             setAvailableAssets(col.item_assets);
+          }
+          // Default to cloud cover sort when available
+          if (col.has_cloud_cover) {
+            setItemSort('cloud_cover_asc');
+            setCoverItemSort('cloud_cover_asc');
+          }
+          // For imagery collections (those with cloud cover), enable custom cover by default
+          if (col.has_cloud_cover) {
+            setCoverMode('custom');
+            const defaultViz: NamedVizParams[] = [
+              { name: 'True Color', vizParams: { ...emptyVizParams(), compositing: 'first' } },
+            ];
+            setCoverVisualizations(defaultViz);
           }
           setStep('configure');
         })
@@ -219,6 +278,22 @@ export const CatalogBrowser = ({
     setError('');
     setVisualizations([{ name: 'True Color', vizParams: emptyVizParams() }]);
     setActiveVizIndex(0);
+    // Default to cloud cover sort when available
+    const defaultSort = col.has_cloud_cover ? 'cloud_cover_asc' : 'date_desc';
+    setItemSort(defaultSort);
+    setCoverMaxCloudCover(90);
+    setCoverItemSort(defaultSort);
+    // For imagery collections (those with cloud cover), enable custom cover by default
+    if (col.has_cloud_cover) {
+      setCoverMode('custom');
+      setCoverVisualizations([
+        { name: 'True Color', vizParams: { ...emptyVizParams(), compositing: 'first' } },
+      ]);
+      setActiveCoverVizIndex(0);
+    } else {
+      setCoverMode('nth');
+      setCoverVisualizations([]);
+    }
     // Use item_assets from collection metadata for viz config (no item search needed)
     setAvailableAssets(
       col.item_assets && Object.keys(col.item_assets).length > 0 ? col.item_assets : {}
@@ -291,7 +366,7 @@ export const CatalogBrowser = ({
     if (coverMode === 'custom') {
       setCoverVisualizations((prev) => [
         ...prev,
-        { ...newViz, vizParams: { ...newViz.vizParams, compositing: 'median' } },
+        { ...newViz, vizParams: { ...newViz.vizParams, compositing: 'first' } },
       ]);
     }
   };
@@ -310,6 +385,25 @@ export const CatalogBrowser = ({
     if (coverMode === 'custom') {
       setCoverVisualizations((prev) => prev.map((v, i) => (i === index ? { ...v, name } : v)));
     }
+  };
+
+  /** Sync cover visualizations structure with regular visualizations.
+   *  Keeps existing cover viz params for matching indices, initializes new ones
+   *  from the regular viz with compositing: 'first'. */
+  const syncCoverVisualizationsFromRegular = () => {
+    setCoverVisualizations((prev) => {
+      return visualizations.map((viz, i) => {
+        if (prev[i]) {
+          // Keep existing cover params, just sync the name
+          return { ...prev[i], name: viz.name };
+        }
+        // New viz: copy from regular with first-valid compositing
+        return {
+          name: viz.name,
+          vizParams: { ...viz.vizParams, compositing: 'first' },
+        };
+      });
+    });
   };
 
   const updateVizParams = (params: VizParams) => {
@@ -429,8 +523,11 @@ export const CatalogBrowser = ({
           isMpc: selectedCatalog.is_mpc,
           mode: 'mosaic',
           maxCloudCover,
+          itemSort,
           visualizations,
           coverVisualizations: coverMode === 'custom' ? coverVisualizations : undefined,
+          coverMaxCloudCover: coverMode === 'custom' ? coverMaxCloudCover : undefined,
+          coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
           searchQuery: effectiveQuery ?? undefined,
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
           vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
@@ -734,32 +831,53 @@ export const CatalogBrowser = ({
 
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {filteredCatalogs.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => selectCatalog(cat)}
-                      disabled={cat.auth_required}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                        cat.auth_required
-                          ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-                          : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
-                      }`}
-                    >
-                      <span className="text-sm font-medium flex items-center gap-1.5">
-                        {cat.title}
-                        {cat.is_mpc && (
-                          <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
-                            MPC
-                          </span>
-                        )}
-                        {cat.auth_required && (
-                          <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-                            Auth required
-                          </span>
-                        )}
-                      </span>
-                      <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
-                    </button>
+                    <div key={cat.id} className="flex items-start gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => selectCatalog(cat)}
+                        disabled={cat.auth_required}
+                        className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                          cat.auth_required
+                            ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+                            : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+                        }`}
+                      >
+                        <span className="text-sm font-medium flex items-center gap-1.5">
+                          {cat.title}
+                          {cat.is_mpc && (
+                            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                              MPC
+                            </span>
+                          )}
+                          {cat.auth_required && (
+                            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                              Auth required
+                            </span>
+                          )}
+                        </span>
+                        <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
+                          {cat.summary}
+                        </p>
+                      </button>
+                      <div className="mt-2.5">
+                        <InfoPopover>
+                          <div className="space-y-1.5">
+                            {cat.summary && <p>{cat.summary}</p>}
+                            {!cat.summary && (
+                              <p className="text-neutral-400 italic">No description available.</p>
+                            )}
+                            <a
+                              href={cat.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-600 hover:underline block truncate"
+                            >
+                              {cat.url}
+                            </a>
+                          </div>
+                        </InfoPopover>
+                      </div>
+                    </div>
                   ))}
                   {!filteredCatalogs.length && (
                     <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
@@ -772,24 +890,80 @@ export const CatalogBrowser = ({
             {step === 'collection' && !loading && (
               <div className="space-y-1 max-h-80 overflow-y-auto">
                 {filteredCollections.map((col) => (
-                  <button
-                    key={col.id}
-                    type="button"
-                    onClick={() => selectCollection(col)}
-                    className="w-full text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
-                  >
-                    <span className="text-sm font-medium">{col.title}</span>
-                    <p className="text-xs text-neutral-500 mt-0.5">
-                      {col.id}
-                      {col.temporal_extent?.start && (
-                        <>
-                          {' · '}
-                          {col.temporal_extent.start.slice(0, 10)} to{' '}
-                          {col.temporal_extent.end?.slice(0, 10) || 'present'}
-                        </>
-                      )}
-                    </p>
-                  </button>
+                  <div key={col.id} className="flex items-start gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => selectCollection(col)}
+                      className="flex-1 text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+                    >
+                      <span className="text-sm font-medium">{col.title}</span>
+                      <p className="text-xs text-neutral-500 mt-0.5">
+                        {col.id}
+                        {col.temporal_extent?.start && (
+                          <>
+                            {' · '}
+                            {col.temporal_extent.start.slice(0, 10)} to{' '}
+                            {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                          </>
+                        )}
+                      </p>
+                    </button>
+                    <div className="mt-2.5">
+                      <InfoPopover>
+                        <div className="space-y-2">
+                          <p className="font-medium text-xs text-neutral-800">{col.title}</p>
+                          {col.description ? (
+                            <p className="line-clamp-4">{col.description}</p>
+                          ) : (
+                            <p className="text-neutral-400 italic">No description available.</p>
+                          )}
+                          <table className="w-full text-[10px]">
+                            <tbody>
+                              <tr className="border-t border-neutral-100">
+                                <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap">
+                                  ID
+                                </td>
+                                <td className="py-1 font-mono">{col.id}</td>
+                              </tr>
+                              {col.temporal_extent?.start && (
+                                <tr className="border-t border-neutral-100">
+                                  <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap">
+                                    Temporal
+                                  </td>
+                                  <td className="py-1">
+                                    {col.temporal_extent.start.slice(0, 10)} to{' '}
+                                    {col.temporal_extent.end?.slice(0, 10) || 'present'}
+                                  </td>
+                                </tr>
+                              )}
+                              {col.keywords.length > 0 && (
+                                <tr className="border-t border-neutral-100">
+                                  <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap align-top">
+                                    Keywords
+                                  </td>
+                                  <td className="py-1">
+                                    {col.keywords.slice(0, 8).join(', ')}
+                                    {col.keywords.length > 8 ? '...' : ''}
+                                  </td>
+                                </tr>
+                              )}
+                              {col.item_assets && Object.keys(col.item_assets).length > 0 && (
+                                <tr className="border-t border-neutral-100">
+                                  <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap align-top">
+                                    Assets
+                                  </td>
+                                  <td className="py-1">
+                                    {Object.keys(col.item_assets).slice(0, 10).join(', ')}
+                                    {Object.keys(col.item_assets).length > 10 ? '...' : ''}
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </InfoPopover>
+                    </div>
+                  </div>
                 ))}
                 {!filteredCollections.length && (
                   <p className="text-xs text-neutral-400 text-center py-4">No collections found</p>
@@ -809,9 +983,10 @@ export const CatalogBrowser = ({
                 )}
                 {selectedCatalog?.is_mpc && (
                   <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
-                    <strong>Microsoft Planetary Computer</strong> - tiles are served directly from
-                    MPC for fast loading. Advanced features (masking, non-first-valid compositing)
-                    will route through our self-hosted tiler with higher latency.
+                    <strong>Microsoft Planetary Computer</strong> — tiles are served directly from
+                    MPC for fast loading when using first-valid compositing. Non-first-valid
+                    compositing or masking will route through our self-hosted tiler (~10x slower
+                    data loading).
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -876,6 +1051,27 @@ export const CatalogBrowser = ({
                         {maxCloudCover}%
                       </span>
                     </div>
+                  </div>
+                )}
+
+                {/* Item sort order */}
+                {mode === 'mosaic' && (
+                  <div className="space-y-1">
+                    <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                      Item Sort Order
+                      <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins — sorting by cloud cover puts the clearest images first." />
+                    </label>
+                    <select
+                      value={itemSort}
+                      onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
+                      className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                    >
+                      <option value="date_desc">Date (newest first)</option>
+                      <option value="date_asc">Date (oldest first)</option>
+                      {selectedCollection?.has_cloud_cover && (
+                        <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
+                      )}
+                    </select>
                   </div>
                 )}
 
@@ -979,7 +1175,7 @@ export const CatalogBrowser = ({
                       <div className="space-y-2">
                         <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
                           Cover Slice
-                          <Tooltip text="The cover slice is the default visible image. Use n-th to pick an existing slice, or custom to add a separate cover with its own date range and visualization params (e.g. a median composite spanning the full window)." />
+                          <Tooltip text="The cover slice is the default visible image when opening an annotation task. Use n-th to pick an existing slice, or custom to add a separate cover slice spanning the full collection window with its own search and visualization parameters." />
                         </label>
                         <div className="flex items-center gap-3">
                           <label className="flex items-center gap-1.5 text-xs cursor-pointer">
@@ -998,14 +1194,9 @@ export const CatalogBrowser = ({
                               checked={coverMode === 'custom'}
                               onChange={() => {
                                 setCoverMode('custom');
-                                // Initialize cover visualizations from regular ones with median compositing
+                                // Initialize cover visualizations from regular ones with first-valid compositing
                                 if (coverVisualizations.length === 0) {
-                                  setCoverVisualizations(
-                                    visualizations.map((v) => ({
-                                      ...v,
-                                      vizParams: { ...v.vizParams, compositing: 'median' },
-                                    }))
-                                  );
+                                  syncCoverVisualizationsFromRegular();
                                 }
                               }}
                             />
@@ -1024,43 +1215,119 @@ export const CatalogBrowser = ({
                         )}
 
                         {coverMode === 'custom' && (
-                          <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
+                          <div className="space-y-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200">
                             <p className="text-[11px] text-neutral-500">
-                              The cover slice spans the full collection window. Configure
-                              visualization params per visualization below (e.g. use median
-                              compositing for the cover).
+                              The cover slice spans the full temporal collection window. Configure
+                              search parameters and per-visualization rendering independently from
+                              regular slices.
                             </p>
-                            {coverVisualizations.map((cv, cvIdx) => (
-                              <div
-                                key={cvIdx}
-                                className="p-2 rounded border border-neutral-200 bg-white space-y-1.5"
-                              >
-                                <span className="text-xs font-medium text-neutral-700">
-                                  {cv.name}
-                                </span>
-                                <VizParamsInlineEditor
-                                  vizParams={cv.vizParams}
-                                  onChange={(key, value) => {
-                                    setCoverVisualizations((prev) =>
-                                      prev.map((v, i) =>
-                                        i === cvIdx
-                                          ? { ...v, vizParams: { ...v.vizParams, [key]: value } }
-                                          : v
-                                      )
-                                    );
-                                  }}
-                                  showCompositing
-                                />
-                              </div>
-                            ))}
 
-                            {selectedCollection && buildAutoQuery() && (
-                              <StacQueryEditor
-                                value={coverSearchQuery}
-                                onChange={setCoverSearchQuery}
-                                autoQuery={buildAutoQuery()!}
-                                label="Cover Slice Search Query"
-                              />
+                            {/* Cover search parameters */}
+                            <div className="space-y-2">
+                              <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+                                Search Parameters
+                              </h5>
+                              {selectedCollection && selectedCollection.has_cloud_cover && (
+                                <div className="space-y-1">
+                                  <label className="text-xs text-neutral-700 font-medium">
+                                    Max cloud cover (%)
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="range"
+                                      min={0}
+                                      max={100}
+                                      value={coverMaxCloudCover}
+                                      onChange={(e) =>
+                                        setCoverMaxCloudCover(Number(e.target.value))
+                                      }
+                                      className="flex-1"
+                                    />
+                                    <span className="text-xs text-neutral-600 w-8 text-right">
+                                      {coverMaxCloudCover}%
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="space-y-1">
+                                <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                                  Item Sort Order
+                                  <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
+                                </label>
+                                <select
+                                  value={coverItemSort}
+                                  onChange={(e) =>
+                                    setCoverItemSort(e.target.value as ItemSortOption)
+                                  }
+                                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                                >
+                                  <option value="date_desc">Date (newest first)</option>
+                                  <option value="date_asc">Date (oldest first)</option>
+                                  {selectedCollection?.has_cloud_cover && (
+                                    <option value="cloud_cover_asc">
+                                      Cloud cover (lowest first)
+                                    </option>
+                                  )}
+                                </select>
+                              </div>
+
+                              {selectedCollection && buildCoverAutoQuery() && (
+                                <StacQueryEditor
+                                  value={coverSearchQuery}
+                                  onChange={setCoverSearchQuery}
+                                  autoQuery={buildCoverAutoQuery()!}
+                                  label="Cover Slice Search Query"
+                                />
+                              )}
+                            </div>
+
+                            {/* Cover visualizations - tabbed, same as regular */}
+                            {Object.keys(availableAssets).length > 0 && selectedCollection && (
+                              <div className="space-y-2">
+                                <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+                                  Visualizations
+                                </h5>
+                                <div className="rounded-lg border border-neutral-200 overflow-hidden">
+                                  {/* Tab bar */}
+                                  <div className="flex items-center bg-white border-b border-neutral-200 px-2 pt-2 gap-1">
+                                    {coverVisualizations.map((cv, i) => (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => setActiveCoverVizIndex(i)}
+                                        className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer ${
+                                          i === activeCoverVizIndex
+                                            ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
+                                            : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
+                                        }`}
+                                      >
+                                        {cv.name || `Viz ${i + 1}`}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {/* Tab content */}
+                                  <div className="p-3 space-y-3 bg-white">
+                                    <VizConfigPanel
+                                      collectionId={selectedCollection.id}
+                                      availableAssets={availableAssets}
+                                      vizParams={
+                                        coverVisualizations[activeCoverVizIndex]?.vizParams ||
+                                        emptyVizParams()
+                                      }
+                                      onChange={(params) => {
+                                        setCoverVisualizations((prev) =>
+                                          prev.map((v, i) =>
+                                            i === activeCoverVizIndex
+                                              ? { ...v, vizParams: params }
+                                              : v
+                                          )
+                                        );
+                                      }}
+                                      showCompositing
+                                    />
+                                  </div>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}
@@ -1222,8 +1489,8 @@ export const CatalogBrowser = ({
                   return (
                     <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
                       <strong>Self-hosted tiler required:</strong> {features} will route tiles
-                      through our backend instead of MPC. Expect significantly higher latency per
-                      tile.
+                      through our backend instead of MPC. Expect ~10x slower data loading compared
+                      to first-valid compositing via MPC.
                     </div>
                   );
                 })()}

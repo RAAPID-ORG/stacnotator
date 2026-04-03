@@ -262,6 +262,11 @@ def register_mosaic_sync(
         if cloud_limit is not None:
             search_kwargs["query"] = {"eo:cloud_cover": {"lte": cloud_limit}}
 
+    # Pass sortby if provided (STAC API Sort Extension)
+    sortby = (search_query or {}).get("sortby")
+    if sortby:
+        search_kwargs["sortby"] = sortby
+
     search = client.search(**search_kwargs)
     items = list(search.items())
 
