@@ -718,6 +718,20 @@ export const CatalogBrowser = ({
                   )}
                 </div>
 
+                <div className="text-[11px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2.5 py-1.5 leading-snug">
+                  <strong>Microsoft Planetary Computer (MPC)</strong> is fully supported with fast
+                  tile loading. Other STAC catalogs are experimental and may require manual
+                  adjustments to work correctly.{' '}
+                  <a
+                    href="https://github.com/RAAPID-ORG/stacnotator/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand-600 hover:underline"
+                  >
+                    Report issues
+                  </a>
+                </div>
+
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {filteredCatalogs.map((cat) => (
                     <button
@@ -788,8 +802,16 @@ export const CatalogBrowser = ({
               <div className="space-y-4">
                 {selectedCatalog && !selectedCatalog.is_mpc && (
                   <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                    Non-MPC STAC catalogs are experimental. Tile serving goes through our backend
-                    which may be slower than Planetary Computer's Tiler.
+                    <strong>Non-MPC catalog.</strong> Tile serving goes through our self-hosted
+                    tiler which has noticeable latency compared to Planetary Computer. Only MPC is
+                    currently optimized for fast tile loading.
+                  </div>
+                )}
+                {selectedCatalog?.is_mpc && (
+                  <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
+                    <strong>Microsoft Planetary Computer</strong> — tiles are served directly from
+                    MPC for fast loading. Advanced features (masking, non-first-valid compositing)
+                    will route through our self-hosted tiler with higher latency.
                   </div>
                 )}
                 <div className="flex gap-2">
@@ -1185,14 +1207,26 @@ export const CatalogBrowser = ({
                 )}
 
                 {/* Compositing note */}
-                {visualizations.some(
-                  (v) => v.vizParams.compositing && v.vizParams.compositing !== 'first'
-                ) && (
-                  <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
-                    Non-first-valid compositing (e.g. median, mean) may be slow as tiles are
-                    composited on the fly.
-                  </div>
-                )}
+                {(() => {
+                  const hasAdvancedCompositing = visualizations.some(
+                    (v) => v.vizParams.compositing && v.vizParams.compositing !== 'first'
+                  );
+                  const hasMasking = visualizations.some((v) => v.vizParams.maskLayer);
+                  if (!hasAdvancedCompositing && !hasMasking) return null;
+                  const features = [
+                    hasAdvancedCompositing && 'non-first-valid compositing (median, mean, etc.)',
+                    hasMasking && 'pixel masking',
+                  ]
+                    .filter(Boolean)
+                    .join(' and ');
+                  return (
+                    <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                      <strong>Self-hosted tiler required:</strong> {features} will route tiles
+                      through our backend instead of MPC. Expect significantly higher latency per
+                      tile.
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </>

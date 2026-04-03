@@ -69,6 +69,7 @@ The app will be available at:
 |---|---|
 | Frontend | http://localhost:5173 (auto-reloads) |
 | Backend | http://localhost:8000 (auto-reloads) |
+| Tiler | http://localhost:8001 (auto-reloads) |
 | API Docs | http://localhost:8000/docs |
 
 #### Step 5 - Stop All Services
@@ -87,16 +88,20 @@ stacnotator/
 ├── .env.example                 # Configuration template
 ├── .env.dev                     # Development configuration template
 ├── Makefile                     # Common commands (dev-* for development)
-├── DEVELOPMENT.md               # Development workflow guide
-├── backend/         # FastAPI application
+├── azure_deploy/                # Azure deployment scripts
+├── backend/                     # FastAPI application
 │   ├── Dockerfile               # Production build
 │   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
-│   └── config/                  # Credentials (gitignored)
-└── frontend/        # React + Vite application
-    ├── Dockerfile               # Production build
+│   └── alembic/                 # Database migrations
+├── tiler/                       # TiTiler tile serving service
+│   ├── Dockerfile               # Production build (GDAL + COG)
+│   ├── Dockerfile.dev           # Development (with reload)
+│   └── src/                     # Tile server code
+└── frontend/                    # React + Vite application
+    ├── Dockerfile               # Production build (nginx)
     ├── Dockerfile.dev           # Development server (HMR)
-    └── app/                     # Application code
+    └── src/                     # Application code
 ```
 
 ## Prerequisites
@@ -109,9 +114,10 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app served via its own container. Backend client is generated with `openapi-ts`.
-- **Backend**: FastAPI application with Gunicorn workers
-- **Database**: PostgreSQL 16 with PostGIS and Vector extension
+- **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
+- **Backend**: FastAPI application with Gunicorn workers. Handles auth, campaigns, annotations, STAC catalog browsing, and mosaic registration.
+- **Tiler**: Self-hosted tile server (TiTiler + GDAL). Reads COGs from STAC catalogs, composites mosaics, serves PNG tiles. Uses PostGIS spatial index for fast per-tile item lookups.
+- **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
 
 ## Development
 
@@ -144,7 +150,7 @@ make pre-commit-install
 
 STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
-   - We also provide local staging environment that copies the DB state from the production deployment for local tests before deployment.  Run `make staging-up` to fetch the production DB from Azure, instantiate locally and run some tests and experiments, before new deployments. You can run this next to your dev DB and containers.
+- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
+   - Staging: `make staging-up` copies the production DB locally for safe migration testing before deployment.
 
-- **Docker Compose (Possible deprecated)** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.). This method might not fully be supported anymore, as we did not continue to maintain it after switching to Azure Container Apps for our deployments. You might want to test it out first and open up an issue if encountering any troubles.
+- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure.

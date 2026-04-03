@@ -6,6 +6,7 @@ interface MapStore {
   activeSliceIndex: number;
   collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
+  viewSnapshots: Record<number, ViewSnapshot>;
 
   // Layer selection
   selectedLayerIndex: number;
@@ -40,6 +41,8 @@ interface MapStore {
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
   markSliceEmpty: (sliceKey: string) => void;
   clearEmptySlices: () => void;
+  saveViewSnapshot: (viewId: number | null) => void;
+  restoreViewSnapshot: (viewId: number | null, fallbackCollectionId: number | null) => void;
 
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
@@ -65,11 +68,23 @@ interface MapStore {
   reset: () => void;
 }
 
+/** Per-view snapshot of navigation + empty state */
+interface ViewSnapshot {
+  activeCollectionId: number | null;
+  activeSliceIndex: number;
+  collectionSliceIndices: Record<number, number>;
+  emptySlices: Record<string, true>;
+  selectedLayerIndex: number;
+}
+
 const initialState = {
   activeCollectionId: null as number | null,
   activeSliceIndex: 0,
   collectionSliceIndices: {} as Record<number, number>,
   emptySlices: {} as Record<string, true>,
+
+  /** Saved per-view state so switching views preserves position + empty info */
+  viewSnapshots: {} as Record<number, ViewSnapshot>,
 
   selectedLayerIndex: 0,
   showBasemap: false,
@@ -121,6 +136,46 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),
 
   clearEmptySlices: () => set({ emptySlices: {} }),
+
+  /** Save current view state before switching away */
+  saveViewSnapshot: (viewId) => {
+    if (viewId === null) return;
+    set((s) => ({
+      viewSnapshots: {
+        ...s.viewSnapshots,
+        [viewId]: {
+          activeCollectionId: s.activeCollectionId,
+          activeSliceIndex: s.activeSliceIndex,
+          collectionSliceIndices: { ...s.collectionSliceIndices },
+          emptySlices: { ...s.emptySlices },
+          selectedLayerIndex: s.selectedLayerIndex,
+        },
+      },
+    }));
+  },
+
+  /** Restore saved view state when switching back */
+  restoreViewSnapshot: (viewId, fallbackCollectionId) => {
+    if (viewId === null) return;
+    set((s) => {
+      const snap = s.viewSnapshots[viewId];
+      if (snap) {
+        return {
+          activeCollectionId: snap.activeCollectionId,
+          activeSliceIndex: snap.activeSliceIndex,
+          collectionSliceIndices: snap.collectionSliceIndices,
+          emptySlices: snap.emptySlices,
+          selectedLayerIndex: snap.selectedLayerIndex,
+        };
+      }
+      return {
+        activeCollectionId: fallbackCollectionId,
+        activeSliceIndex: 0,
+        collectionSliceIndices: {},
+        emptySlices: {},
+      };
+    });
+  },
 
   setSelectedLayerIndex: (index) => set({ selectedLayerIndex: index, showBasemap: false }),
   setShowBasemap: (show) => set({ showBasemap: show }),

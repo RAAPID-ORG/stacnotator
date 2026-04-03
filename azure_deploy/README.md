@@ -1,33 +1,31 @@
 # Deployment Scripts
 
-Scripts for deploying STAC Notator applications to Azure Container Apps.
+Scripts for deploying STACNotator to Azure. The deploy script self-manages all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group.
+
+## Architecture
+
+| Component | Azure Service | Managed by |
+|-----------|--------------|------------|
+| Backend API | Container App (Consumption) | `deploy-app.sh` |
+| Tiler | Container App (D16 dedicated, 16 CPU) | `deploy-app.sh` |
+| Frontend | Azure Static Web App | `deploy-app.sh` |
+| Database | PostgreSQL Flexible Server | Terraform |
+| Container Apps Environment | Container Apps Environment | Terraform |
+| Networking, Key Vault, ACR | Various | Terraform |
 
 ## Prerequisites
 
-### Infrastructure (Platform Engineers)
+- **Infrastructure** deployed by Platform Engineers via Terraform (RG, ACR, KV, DB, CAE)
+- **Contributor** role on the project resource group
+- **Azure CLI** logged in (`az login`) and within VPN
+- **Docker** installed for building images
+- **Node.js** installed for building the frontend
 
-**Infrastructure must be deployed first** by Platform Engineers using Terraform.
-
-The infrastructure includes:
-- Azure Container Registry (ACR)
-- Azure Container Apps Environment
-- Container Apps (backend, frontend) with infrastructure secrets only
-- PostgreSQL Flexible Server with PostGIS
-- Azure Key Vault with database credentials
-- Managed identities and RBAC permissions
-
-### Logged into Azure CLI with sufficient RBAC permissions and within VPN.
-
-## Developer Workflow
-
-### First-Time Setup (ONE TIME)
-
-**IMPORTANT** Deployments can only happen from whitelisted IPs!
-
-After infrastructure is deployed by Platform Engineers:
+## First-Time Setup (ONE TIME)
 
 ```bash
 # 1. Upload application secrets to Key Vault
+export RESOURCE_GROUP="your-resource-group"
 export EE_CREDS="backend/config/ee-private-key.json"
 export FIREBASE_CREDS="backend/config/firebase-credentials.json"
 export FIREBASE_API_KEY="your-firebase-api-key"
@@ -35,93 +33,64 @@ export FIREBASE_AUTH_DOMAIN="your-app.firebaseapp.com"
 export FIREBASE_PROJECT_ID="your-firebase-project"
 ./azure_deploy/upload-secrets.sh
 
-# 2. Configure container apps to use the secrets
-./azure_deploy/configure-app-secrets.sh
-
-# 3. Deploy application for the first time
+# 2. Deploy (creates Container Apps, SWA, identities, RBAC, runs migrations)
 ./azure_deploy/deploy-app.sh
 
-# 4. Configure authorized domains in Firebase Console
-# Go to: https://console.firebase.google.com/
-# -> Authentication -> Settings -> Authorized domains
-# -> Add your Container App frontend domain
+# 3. Add your frontend domain to Firebase authorized domains
+# https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains
 ```
 
-### Regular Deployments
-
-For subsequent code changes (after first-time setup):
+## Regular Deployments
 
 ```bash
-# From the stacnotator directory
+# Commit changes first (deploy prevents uncommitted changes)
+git add -A && git commit -m "your changes"
+
+# Deploy
+export RESOURCE_GROUP="your-resource-group"
 ./azure_deploy/deploy-app.sh
 ```
 
-**Image Tagging:**
-- By default, uses git commit SHA (e.g., `a1b2c3d`)
-- **Prevents deployment if uncommitted changes detected** (ensures deployments are traceable)
-- Override with `IMAGE_TAG` env var if needed
-- CI mode (`CI=true`) allows uncommitted changes
+The script will:
+1. Discover infrastructure (ACR, KV, CAE) from the resource group
+2. Build and push Docker images (backend + tiler) to ACR
+3. Create or update Container Apps with KV secret refs (no plaintext credentials)
+4. Add D16 dedicated workload profile for tiler (16 CPU, 32Gi, 32 workers)
+5. Run database migrations (`alembic upgrade head`)
+6. Build and deploy frontend to Azure Static Web App
+7. Update CORS on backend + tiler
 
-**Deployment Confirmation:**
-- Shows what will be changed (resource group, images, container apps)
-- Prompts for confirmation before proceeding
-- Skipped in CI/CD (when `CI=true`)
+**Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
 
-This script will:
-1. Check for uncommitted changes (fails if found, unless `IMAGE_TAG` is set)
-2. Verify infrastructure exists
-3. Show deployment plan and prompt for confirmation
-3. Build Docker images (backend & frontend)
-4. Push images to ACR
-5. Update container apps with new images
-6. Configure CORS and environment variables
+## Scripts
 
-### Environment Variables
+| Script | When | Purpose |
+|--------|------|---------|
+| `deploy-app.sh` | Every deployment | Build, push, create/update apps, migrate, deploy SWA |
+| `upload-secrets.sh` | First time only | Upload Firebase + EE credentials to Key Vault |
+| `download-prod-db.sh` | As needed | Pull production DB to local development |
+| `make-staging-env.sh` | Before risky deploys | Test migrations against production DB copy |
+| `view-logs.sh` | Debugging | Stream real-time logs from Container Apps |
 
-All deploy scripts require `RESOURCE_GROUP` to be set (or will prompt for it).
-You can set these in a `.env.deploy` file and source it before running scripts:
+## Environment Variables
+
+Set `RESOURCE_GROUP` before running any script:
 
 ```bash
-# Copy the example and fill in your values
 cp azure_deploy/.env.deploy.example azure_deploy/.env.deploy
 source azure_deploy/.env.deploy
+```
 
+For CI/CD:
+```bash
+export RESOURCE_GROUP="your-rg" CI=true
 ./azure_deploy/deploy-app.sh
 ```
 
-To skip interactive prompts (useful for CI/CD):
+## Database Access
 
-```bash
-export RESOURCE_GROUP="your-resource-group-name"
-export IMAGE_TAG="v1.2.3"  # Optional - defaults to git commit SHA
-export CI=true             # Skip confirmation prompt
+The database is accessible via:
+- **Container Apps**: private endpoint (VNet-routed, no public exposure)
+- **Admin scripts**: public access restricted to VPN IP ranges only
 
-./azure_deploy/deploy-app.sh
-```
-
-## Additional Scripts
-
-### Viewing Logs
-
-```bash
-# View backend logs
-./azure_deploy/view-logs.sh
-
-# Then select: backend
-```
-
-This will stream real-time logs from the selected container app.
-
-## Default Values
-
-- **Resource Group**: Set via `RESOURCE_GROUP` env var (required)
-- **Image Tag**: `latest` (prompted during deployment)
-- **Backend App Name**: `backend`
-- **Frontend App Name**: `frontend`
-- **ACR Name**: Automatically discovered from resource group
-
-## Doing a local backup of the database
-
-1. Make sure you are connected to your organization's VPN. Otherwise this might lead to silent failures of KV access and overwriting images with empty keys.
-2. Copy the db password from Azure Portal secrets (Key Vault)
-3. Whitelist your IP-address for the DB (Azure Postgres Flexible Server -> Settings -> Networking)
+For local DB dumps, connect via VPN and use `download-prod-db.sh`.

@@ -116,6 +116,25 @@ async function putTileUrls(
   return resp.json();
 }
 
+async function refreshCollection(campaignId: number, collectionId: number) {
+  const token = await getToken();
+  const resp = await fetch(
+    `${API_BASE}/api/${campaignId}/imagery/collections/${collectionId}/refresh`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `Refresh failed (${resp.status})`);
+  }
+  return resp.json();
+}
+
 // ── Props ──
 
 interface Props {
@@ -640,6 +659,13 @@ function StacVizEditor({
             </button>
             {saved && <span className="text-[11px] text-green-600">Saved & tile URLs rebuilt</span>}
           </div>
+
+          {/* Re-register mosaics */}
+          <RefreshMosaicButton
+            collectionId={collection.id}
+            campaignId={campaignId}
+            onRefreshed={onUpdated}
+          />
         </>
       )}
     </div>
@@ -750,6 +776,71 @@ function parseTileUrlVizParams(tileUrl: string): VizParams | null {
   } catch {
     return null;
   }
+}
+
+// ── Refresh mosaic button ──
+
+function RefreshMosaicButton({
+  collectionId,
+  campaignId,
+  onRefreshed,
+}: {
+  collectionId: number;
+  campaignId: number;
+  onRefreshed?: () => void;
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleRefresh = async () => {
+    if (
+      !confirm(
+        'Re-register mosaics for this collection?\n\n' +
+          'This will re-search the STAC catalog with the current query and bbox, ' +
+          'updating mosaic items and tile URLs.\n\n' +
+          'Note: Existing mosaic search IDs will be replaced. ' +
+          'The STAC data is fetched at registration time and frozen - ' +
+          'if the catalog adds new items later, you need to refresh again.'
+      )
+    )
+      return;
+
+    setRefreshing(true);
+    setResult(null);
+    try {
+      await refreshCollection(campaignId, collectionId);
+      setResult({ ok: true, message: 'Mosaics re-registered' });
+      onRefreshed?.();
+    } catch (e) {
+      setResult({ ok: false, message: e instanceof Error ? e.message : 'Refresh failed' });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-neutral-100 pt-2 mt-1">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="px-2.5 py-1 text-[11px] font-medium border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {refreshing ? 'Re-registering...' : 'Re-register Mosaics'}
+        </button>
+        {result && (
+          <span className={`text-[11px] ${result.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {result.message}
+          </span>
+        )}
+      </div>
+      <p className="text-[10px] text-neutral-400 mt-1 leading-snug">
+        Re-searches the STAC catalog with current params and rebuilds tile URLs. STAC data is frozen
+        at registration time - refresh to pick up new catalog items.
+      </p>
+    </div>
+  );
 }
 
 export default ImageryTab;

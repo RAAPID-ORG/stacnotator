@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
 from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
 from src.imagery.models import (
     Basemap,
@@ -88,11 +89,6 @@ def create_imagery_from_editor_state(
         pending_registrations.extend(pending)
         created_sources.append(source)
 
-    # Register all stac_browser mosaics in parallel across all collections
-    stac_errors: list[dict] = []
-    if pending_registrations:
-        stac_errors = _register_all_stac_browser_collections(db, pending_registrations, bbox)
-
     created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
     db.flush()
 
@@ -110,7 +106,8 @@ def create_imagery_from_editor_state(
         "sources": created_sources,
         "views": created_views,
         "basemaps": created_basemaps,
-        "registration_errors": stac_errors,
+        "pending_registrations": pending_registrations,
+        "bbox": bbox,
     }
 
 
@@ -331,8 +328,8 @@ def _sanitize_stac_error(e: Exception) -> str:
     return msg[:200] if msg else f"Registration failed ({type(e).__name__})"
 
 
-PCS_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-PCS_TILES_BASE = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
+MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
+MPC_TILES_BASE = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
 
 
 def _register_all_stac_browser_collections(
@@ -359,8 +356,6 @@ def _register_all_stac_browser_collections(
         stac = col_create.stac_config
         viz_names = [v.name for v in src_create.visualizations]
         is_mpc = "planetarycomputer.microsoft.com" in (stac.catalog_url or "")
-        compositing = stac.viz_params.compositing if stac.viz_params else None
-        use_pcs = is_mpc and (not compositing or compositing == "first")
 
         # Get viz params dicts for URL baking
         viz_params_dict = stac.viz_params.model_dump(exclude_none=True) if stac.viz_params else None
@@ -380,17 +375,29 @@ def _register_all_stac_browser_collections(
 
         for sl_idx, db_slice in enumerate(db_slices):
             is_cover = sl_idx == col_create.cover_slice_index
+
+            # Determine tile provider per-slice: cover may use different compositing/masking
+            slice_viz = (
+                cover_viz_params_dict if (is_cover and cover_viz_params_dict) else viz_params_dict
+            )
+            slice_compositing = (slice_viz or {}).get("compositing")
+            slice_has_masking = bool((slice_viz or {}).get("mask_layer"))
+            # Use MPC directly only if: MPC catalog + first-valid compositing + no masking
+            slice_use_mpc = (
+                is_mpc
+                and (not slice_compositing or slice_compositing == "first")
+                and not slice_has_masking
+            )
+
             tasks.append(
                 {
                     "db_slice": db_slice,
                     "stac": stac,
                     "viz_names": viz_names,
-                    "use_pcs": use_pcs,
+                    "use_mpc": slice_use_mpc,
                     "collection_name": collection.name,
                     "is_cover": is_cover,
-                    "viz_params_dict": cover_viz_params_dict
-                    if (is_cover and cover_viz_params_dict)
-                    else viz_params_dict,
+                    "viz_params_dict": slice_viz,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
                     else search_query,
@@ -400,12 +407,12 @@ def _register_all_stac_browser_collections(
     if not tasks:
         return
 
-    total_pcs = sum(1 for t in tasks if t["use_pcs"])
-    total_local = len(tasks) - total_pcs
+    total_mpc = sum(1 for t in tasks if t["use_mpc"])
+    total_local = len(tasks) - total_mpc
     logger.info(
-        "Registering %d mosaic slices in parallel (%d PCS, %d local)",
+        "Registering %d mosaic slices in parallel (%d MPC, %d local)",
         len(tasks),
-        total_pcs,
+        total_mpc,
         total_local,
     )
 
@@ -413,18 +420,18 @@ def _register_all_stac_browser_collections(
     registration_errors: list[dict] = []
 
     def _register_one_with_retry(task: dict) -> tuple[int, dict | str | None, bool]:
-        """Returns (slice_id, result_or_search_id, is_pcs)."""
+        """Returns (slice_id, result_or_search_id, is_mpc_tile)."""
         db_slice = task["db_slice"]
         stac = task["stac"]
-        use_pcs = task["use_pcs"]
+        use_mpc = task["use_mpc"]
         dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
         custom_query = task.get("search_query")
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                if use_pcs:
-                    search_id = _register_pcs_slice(stac, db_slice, bbox, custom_query)
+                if use_mpc:
+                    search_id = _register_mpc_slice(stac, db_slice, bbox, custom_query)
                     return db_slice.id, search_id, True
                 else:
                     result = register_mosaic_sync(
@@ -456,15 +463,15 @@ def _register_all_stac_browser_collections(
                         "error": last_error,
                     }
                 )
-                return db_slice.id, None, use_pcs
+                return db_slice.id, None, use_mpc
 
     # Execute all in parallel
-    results: dict[int, tuple] = {}  # slice_id -> (result, is_pcs)
+    results: dict[int, tuple] = {}  # slice_id -> (result, is_mpc_tile)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futures = {pool.submit(_register_one_with_retry, t): t for t in tasks}
         for future in as_completed(futures):
-            slice_id, result, is_pcs = future.result()
-            results[slice_id] = (result, is_pcs)
+            slice_id, result, is_mpc_tile = future.result()
+            results[slice_id] = (result, is_mpc_tile)
 
     succeeded = sum(1 for _, (r, _) in results.items() if r is not None)
     logger.info(
@@ -477,7 +484,7 @@ def _register_all_stac_browser_collections(
     task_by_slice: dict[int, dict] = {t["db_slice"].id: t for t in tasks}
 
     # Persist tile URLs and mosaic registrations
-    for slice_id, (result, is_pcs) in results.items():
+    for slice_id, (result, is_mpc_tile) in results.items():
         task = task_by_slice[slice_id]
         viz_names = task["viz_names"]
         viz_params_dict = task["viz_params_dict"]
@@ -487,11 +494,11 @@ def _register_all_stac_browser_collections(
             # Registration failed - no tile URLs to persist
             continue
 
-        if is_pcs:
+        if is_mpc_tile:
             search_id = result
             # Build MPC tile URL with viz params baked in
             base_url = (
-                PCS_TILES_BASE.replace("{searchId}", search_id)
+                MPC_TILES_BASE.replace("{searchId}", search_id)
                 + f"?collection={stac.stac_collection_id}&pixel_selection=first"
             )
             viz_qs = build_viz_query_string(viz_params_dict)
@@ -578,8 +585,8 @@ def _register_all_stac_browser_collections(
     return registration_errors
 
 
-def _register_pcs_slice(stac, db_slice, bbox: list[float], search_query: dict | None = None) -> str:
-    """Register a single slice mosaic via PCS. Returns searchid.
+def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | None = None) -> str:
+    """Register a single slice mosaic via MPC. Returns searchid.
 
     The search_query is the CQL2-JSON body built by the frontend.
     Bbox and datetime ({sliceDatetime} placeholder) are injected.
@@ -590,7 +597,7 @@ def _register_pcs_slice(stac, db_slice, bbox: list[float], search_query: dict | 
 
     if not search_query:
         raise ValueError(
-            "search_query is required for PCS registration. "
+            "search_query is required for MPC registration. "
             "The frontend must provide the full CQL2-JSON query."
         )
 
@@ -604,7 +611,7 @@ def _register_pcs_slice(stac, db_slice, bbox: list[float], search_query: dict | 
     if "filterLang" not in search_body:
         search_body["filterLang"] = "cql2-json"
 
-    resp = httpx.post(PCS_REGISTER_URL, json=search_body, timeout=30)
+    resp = httpx.post(MPC_REGISTER_URL, json=search_body, timeout=30)
     resp.raise_for_status()
     return resp.json()["searchid"]
 
@@ -994,8 +1001,8 @@ def _create_views(
         window_refs = [r for r in mapped_refs if r.get("show_as_window")]
         COLS_PER_ROW = 6
         WINDOW_W = 10
-        WINDOW_H = 11
-        START_Y = 36  # directly below the main canvas
+        WINDOW_H = 8
+        START_Y = DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT[0]["h"]  # directly below the main canvas
         view_layout_data = []
         for w_idx, ref in enumerate(window_refs):
             row = w_idx // COLS_PER_ROW

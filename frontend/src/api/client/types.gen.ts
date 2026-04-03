@@ -478,6 +478,8 @@ export type CampaignListItemOut = {
      * Is Public
      */
     is_public?: boolean;
+    registration_status?: string;
+    embedding_status?: string;
 };
 
 /**
@@ -504,6 +506,9 @@ export type CampaignOut = {
      * Is Public
      */
     is_public?: boolean;
+    registration_status?: string;
+    embedding_status?: string;
+    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -549,6 +554,9 @@ export type CampaignOutFull = {
      * Is Public
      */
     is_public?: boolean;
+    registration_status?: string;
+    embedding_status?: string;
+    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1613,6 +1621,9 @@ export type CampaignOutWritable = {
      * Is Public
      */
     is_public?: boolean;
+    registration_status?: string;
+    embedding_status?: string;
+    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1658,6 +1669,9 @@ export type CampaignOutFullWritable = {
      * Is Public
      */
     is_public?: boolean;
+    registration_status?: string;
+    embedding_status?: string;
+    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources

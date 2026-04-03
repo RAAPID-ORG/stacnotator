@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
@@ -16,6 +16,7 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Store subscriptions
@@ -31,7 +32,9 @@ export const AnnotationPage = () => {
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
   const [hasBeenReady, setHasBeenReady] = useState(false);
-  const isReady = !isLoadingCampaign && !!campaign;
+  const isRegistering =
+    campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
+  const isReady = !isLoadingCampaign && !!campaign && !isRegistering;
   useEffect(() => {
     if (isReady && !hasBeenReady) setHasBeenReady(true);
   }, [isReady, hasBeenReady]);
@@ -99,6 +102,50 @@ export const AnnotationPage = () => {
   }, [campaign, setBreadcrumbs]);
 
   // Early returns
+
+  if (isRegistering && !hasBeenReady) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <svg
+            className="animate-spin h-8 w-8 text-blue-500 mx-auto"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          <p className="text-lg font-semibold text-neutral-800">Campaign setup in progress</p>
+          <p className="text-sm text-neutral-500 max-w-md">
+            {campaign?.registration_status === 'registering' &&
+              'Tile imagery is being registered from the STAC catalog. '}
+            {campaign?.embedding_status === 'registering' &&
+              'Satellite embeddings are being computed. '}
+            This may take a few minutes. You&apos;ll be able to start annotating once setup
+            completes.
+          </p>
+          <button
+            onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
+            className="mt-2 px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
+            type="button"
+          >
+            Go to Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!showContent) {
     return (

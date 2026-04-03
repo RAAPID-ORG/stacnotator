@@ -117,18 +117,29 @@ export const CampaignsPage = () => {
                 </div>
 
                 <div className="border-t border-neutral-100 flex text-xs">
-                  <button
-                    onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotate`)}
-                    className={`flex-1 px-3 py-2 font-medium transition-colors ${
-                      canAccess
-                        ? 'text-neutral-600 hover:bg-neutral-50 hover:text-brand-600 cursor-pointer'
-                        : 'text-neutral-300 cursor-not-allowed'
-                    }`}
-                    type="button"
-                    disabled={!canAccess}
-                  >
-                    Annotate
-                  </button>
+                  {(() => {
+                    const isInitializing =
+                      campaign.registration_status === 'registering' ||
+                      campaign.embedding_status === 'registering';
+                    const canAnnotate = canAccess && !isInitializing;
+                    return (
+                      <button
+                        onClick={() =>
+                          canAnnotate && navigate(`/campaigns/${campaign.id}/annotate`)
+                        }
+                        className={`flex-1 px-3 py-2 font-medium transition-colors ${
+                          canAnnotate
+                            ? 'text-neutral-600 hover:bg-neutral-50 hover:text-brand-600 cursor-pointer'
+                            : 'text-neutral-300 cursor-not-allowed'
+                        }`}
+                        type="button"
+                        disabled={!canAnnotate}
+                        title={isInitializing ? 'Campaign is initializing...' : undefined}
+                      >
+                        {isInitializing ? 'Initializing...' : 'Annotate'}
+                      </button>
+                    );
+                  })()}
                   <div className="w-px bg-neutral-100" />
                   <button
                     onClick={() => canAccess && navigate(`/campaigns/${campaign.id}/annotations`)}

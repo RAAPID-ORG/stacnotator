@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Auto-load config from .env.deploy if it exists
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/.env.deploy" ] && set -a && source "$SCRIPT_DIR/.env.deploy" && set +a
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,8 +31,8 @@ fi
 
 # Prompt for app name
 if [ -z "$1" ]; then
-    read -p "Enter app name (backend/frontend) [backend]: " APP_NAME
-    APP_NAME=${APP_NAME:-backend}
+    read -p "Enter app name (stacnotator-backend/stacnotator-tiler) [stacnotator-backend]: " APP_NAME
+    APP_NAME=${APP_NAME:-stacnotator-backend}
 else
     APP_NAME="$1"
 fi

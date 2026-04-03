@@ -151,11 +151,20 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
   const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
 
-  // Visualization name for header
-  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
-  );
-  const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+  // Visualization name for header (scoped to active source)
+  const activeSourceVizName = (() => {
+    if (!activeSource || !campaign) return null;
+    let offset = 0;
+    for (const s of campaign.imagery_sources) {
+      if (s.id === activeSource.id) break;
+      offset += s.visualizations.length;
+    }
+    const idx = Math.max(0, selectedLayerIndex - offset);
+    return (
+      activeSource.visualizations[Math.min(idx, activeSource.visualizations.length - 1)]?.name ??
+      null
+    );
+  })();
 
   // Measure container width
   useEffect(() => {
@@ -205,7 +214,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderMainHeader = () => {
     const currentLayerName = showBasemap
       ? (campaign.basemaps.find((b) => `basemap-${b.id}` === selectedBasemapId)?.name ?? 'Basemap')
-      : activeVizEntry?.vizName || 'Layer';
+      : activeSourceVizName || 'Layer';
 
     return (
       <div className="flex items-center justify-between">

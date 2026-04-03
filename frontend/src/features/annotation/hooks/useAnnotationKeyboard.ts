@@ -270,17 +270,29 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     setSelectedBasemapId,
   ]);
 
-  /** Shift+I: cycle visualizations within the current source */
+  /** Shift+I: cycle visualizations within the active source (the source owning activeCollectionId) */
   const cycleVisualization = useCallback(() => {
-    if (showBasemap || sourceGroups.length === 0) return;
-    const currentGroup = sourceGroups.find(
-      (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
+    if (showBasemap || sourceGroups.length === 0 || !campaign) return;
+    // Find the source group that owns the active collection
+    const activeSrc = campaign.imagery_sources.find((s) =>
+      s.collections.some((c) => c.id === activeCollectionId)
     );
-    if (!currentGroup || currentGroup.count <= 1) return;
-    const posInGroup = selectedLayerIndex - currentGroup.startIdx;
-    const nextPos = (posInGroup + 1) % currentGroup.count;
-    setSelectedLayerIndex(currentGroup.startIdx + nextPos);
-  }, [sourceGroups, selectedLayerIndex, showBasemap, setSelectedLayerIndex]);
+    if (!activeSrc) return;
+    const activeGroup = sourceGroups.find((g) => g.name === activeSrc.name);
+    if (!activeGroup || activeGroup.count <= 1) return;
+    // Compute current position within the active source
+    const posInGroup = Math.max(0, selectedLayerIndex - activeGroup.startIdx);
+    const clampedPos = Math.min(posInGroup, activeGroup.count - 1);
+    const nextPos = (clampedPos + 1) % activeGroup.count;
+    setSelectedLayerIndex(activeGroup.startIdx + nextPos);
+  }, [
+    sourceGroups,
+    selectedLayerIndex,
+    showBasemap,
+    setSelectedLayerIndex,
+    campaign,
+    activeCollectionId,
+  ]);
 
   // Cycle views
   const cycleView = useCallback(() => {

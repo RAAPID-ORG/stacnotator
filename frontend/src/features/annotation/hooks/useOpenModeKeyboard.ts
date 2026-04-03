@@ -102,15 +102,21 @@ export const useOpenModeKeyboard = () => {
           const isBasemap = mapState.showBasemap;
 
           if (e.shiftKey) {
-            // Shift+I: cycle visualizations within current source
-            if (isBasemap || sourceGroups.length === 0) break; // no viz cycling when on basemap
-            const currentGroup = sourceGroups.find(
-              (g) => currentIdx >= g.startIdx && currentIdx < g.startIdx + g.count
+            // Shift+I: cycle visualizations within the active source
+            if (isBasemap || sourceGroups.length === 0 || !campaign) break;
+            const activeColId = mapState.activeCollectionId;
+            const activeSrc = campaign.imagery_sources.find((s) =>
+              s.collections.some((c) => c.id === activeColId)
             );
-            if (!currentGroup || currentGroup.count <= 1) break;
-            const posInGroup = currentIdx - currentGroup.startIdx;
-            const nextPos = (posInGroup + 1) % currentGroup.count;
-            useMapStore.getState().setSelectedLayerIndex(currentGroup.startIdx + nextPos);
+            if (!activeSrc) break;
+            const activeGroup = sourceGroups.find((g) => g.name === activeSrc.name);
+            if (!activeGroup || activeGroup.count <= 1) break;
+            const posInGroup = Math.min(
+              Math.max(0, currentIdx - activeGroup.startIdx),
+              activeGroup.count - 1
+            );
+            const nextPos = (posInGroup + 1) % activeGroup.count;
+            useMapStore.getState().setSelectedLayerIndex(activeGroup.startIdx + nextPos);
           } else {
             // I: cycle through imagery sources + individual basemaps
             const mapState2 = useMapStore.getState();

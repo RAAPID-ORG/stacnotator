@@ -50,8 +50,32 @@ def list_collections(catalog_url: str) -> list[dict]:
                 "roles": asset_def.get("roles", []),
             }
 
+        # Detect eo:cloud_cover support:
+        # 1. Check summaries (some catalogs declare it explicitly)
+        # 2. Check stac_extensions for the EO extension
+        # 3. Known MPC collections that have eo:cloud_cover on their items
         summaries = (col.extra_fields or {}).get("summaries", {})
-        has_cloud_cover = "eo:cloud_cover" in summaries
+        extensions = (col.extra_fields or {}).get("stac_extensions", [])
+
+        _KNOWN_CLOUD_COVER_COLLECTIONS = {
+            "sentinel-2-l2a",
+            "sentinel-2-l1c",
+            "landsat-c2-l2",
+            "landsat-c2-l1",
+            "landsat-8-c2-l2",
+            "landsat-9-c2-l2",
+            "hls2-s30",
+            "hls2-l30",
+            "modis-09A1-061",
+            "modis-09Q1-061",
+            "modis-13Q1-061",
+        }
+
+        has_cloud_cover = (
+            "eo:cloud_cover" in summaries
+            or any("eo" in ext.split("/")[-1].lower() for ext in extensions)
+            or col.id in _KNOWN_CLOUD_COVER_COLLECTIONS
+        )
 
         results.append(
             {

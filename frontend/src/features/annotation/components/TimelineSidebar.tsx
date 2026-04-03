@@ -317,16 +317,11 @@ const TimelineSidebar = ({
                       </div>
                     ) : (
                       <div
-                        className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
+                        className="absolute inset-x-0 inset-y-0 flex items-center justify-center
                         group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10"
+                        title={collection.name}
                       >
-                        <div className="w-2.5 h-px bg-brand-400 group-hover:bg-brand-500 transition-colors" />
-                        <span
-                          className="text-[7.5px] text-neutral-400 group-hover:text-brand-600
-                          leading-tight text-center px-0.5 mt-0.5 break-words w-full transition-colors"
-                        >
-                          {collection.name}
-                        </span>
+                        <div className="w-3 h-px bg-neutral-300 group-hover:bg-brand-500 transition-colors" />
                       </div>
                     )}
                   </div>

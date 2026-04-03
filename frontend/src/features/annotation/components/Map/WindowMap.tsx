@@ -18,6 +18,7 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../ControlsOpenMode';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
+import { tileLoadWithHatch } from './hatchTileLoader';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -102,6 +103,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
+      tileLoadFunction: tileLoadWithHatch as unknown as (tile: unknown, src: string) => void,
     });
 
     // Track consecutive tile-load errors vs. successes for empty-tile detection
@@ -209,6 +211,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
+      tileLoadFunction: tileLoadWithHatch as unknown as (tile: unknown, src: string) => void,
     });
 
     // Reset counters for the new URL
@@ -345,7 +348,7 @@ const WindowMap = ({
     }
   }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return <div ref={containerRef} className="w-full h-full bg-neutral-200" />;
 };
 
 export default memo(WindowMap);

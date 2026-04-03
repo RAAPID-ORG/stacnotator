@@ -132,13 +132,6 @@ export function useTilePreloading({
   const currentZoomRef = useRef(currentZoom ?? defaultZoom);
   currentZoomRef.current = currentZoom ?? defaultZoom;
 
-  const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
-  const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
-  const setCollectionSliceIndexRef = useRef(setCollectionSliceIndex);
-  setCollectionSliceIndexRef.current = setCollectionSliceIndex;
-  const markSliceEmptyRef = useRef(markSliceEmpty);
-  markSliceEmptyRef.current = markSliceEmpty;
-
   /** Collection IDs belonging to the first (active) view - only these get prefetched */
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const viewCollectionIdsRef = useRef<Set<number> | null>(null);
@@ -156,35 +149,8 @@ export function useTilePreloading({
     const p = new TilePreloader();
     preloaderRef.current = p;
 
-    p.onGroupEmpty = (gid) => {
-      const parsed = parseGroupId(gid);
-      if (!parsed) return;
-
-      const sliceKey = `${parsed.collectionId}-${parsed.sliceIndex}`;
-      markSliceEmptyRef.current(sliceKey);
-
-      const camp = campaignRef.current;
-      if (!camp) return;
-
-      // Find the collection
-      let collection = null;
-      for (const src of camp.imagery_sources) {
-        collection = src.collections.find((c) => c.id === parsed.collectionId) ?? null;
-        if (collection) break;
-      }
-      if (!collection) return;
-
-      const { emptySlices } = useMapStore.getState();
-      const firstValid = collection.slices.findIndex(
-        (_, i) => !emptySlices[`${parsed.collectionId}-${i}`]
-      );
-
-      if (firstValid !== -1 && firstValid !== parsed.sliceIndex) {
-        if (parsed.collectionId !== activeCollectionIdRef.current) {
-          setCollectionSliceIndexRef.current(parsed.collectionId, firstValid);
-        }
-      }
-    };
+    // Empty detection is handled by ImageryContainer's crosshair-position check.
+    // The prefetcher just warms the cache.
 
     return () => {
       p.dispose();

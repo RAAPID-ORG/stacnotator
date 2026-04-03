@@ -111,6 +111,7 @@ const resetMapForTaskNav = () => {
     activeSliceIndex: 0,
     collectionSliceIndices: {},
     emptySlices: {},
+    viewSnapshots: {},
     currentMapZoom: null,
     probeTimeseriesPoint: null,
   });
@@ -281,7 +282,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         ...getFormStateForTask(nextTask),
       });
 
-      useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {} });
+      useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {}, viewSnapshots: {} });
       const successMessage =
         labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
       useLayoutStore.getState().showAlert(successMessage, 'success');

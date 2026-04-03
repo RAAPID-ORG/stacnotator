@@ -9,6 +9,34 @@ import {
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
 import { buildTileUrl } from './Map/tileUrlBuilder';
+import { subscribeToEmptyTiles } from './Map/hatchTileLoader';
+
+/** Hatched overlay indicating no imagery is available for this tile/area */
+function NoImageryOverlay() {
+  return (
+    <div className="w-full h-full relative bg-neutral-50 select-none overflow-hidden">
+      <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern
+            id="hatch"
+            patternUnits="userSpaceOnUse"
+            width="12"
+            height="12"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="12" stroke="#d4d4d4" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hatch)" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[10px] font-medium text-neutral-400 bg-neutral-50/80 px-2 py-0.5 rounded">
+          No imagery
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface ImageryContainerProps {
   collectionId: number;
@@ -61,12 +89,29 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     : (collectionSliceIndices[collectionId] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // Resolve tile URL from pre-resolved slice tile_urls
-  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => v.name)
-  );
-  const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+  // Resolve which viz to show in this window.
+  // selectedLayerIndex is global. We convert it to a position within the
+  // active source, then apply that same position to this window's source.
+  // If this window belongs to a different source, it stays on viz 0.
+  const sources = campaign?.imagery_sources ?? [];
+  const ownerSource = sources.find((s) => s.collections.some((c) => c.id === collectionId));
+  const mainSource = sources.find((s) => s.collections.some((c) => c.id === activeCollectionId));
 
+  let vizIndex = 0;
+  if (ownerSource && mainSource && ownerSource.id === mainSource.id) {
+    // Same source as the main map - compute position within this source
+    let offset = 0;
+    for (const s of sources) {
+      if (s.id === mainSource.id) break;
+      offset += s.visualizations.length;
+    }
+    vizIndex = Math.min(
+      Math.max(0, selectedLayerIndex - offset),
+      ownerSource.visualizations.length - 1
+    );
+  }
+
+  const activeVizName = ownerSource?.visualizations[vizIndex]?.name ?? null;
   const tileUrlEntry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
   const tileUrl = tileUrlEntry
     ? buildTileUrl({ tile_url: tileUrlEntry.tile_url, tile_provider: tileUrlEntry.tile_provider })
@@ -141,79 +186,56 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     latLon?.lon,
   ]);
 
-  // True once every slice for this collection has been confirmed empty
+  // True once every slice for this collection has been confirmed empty at the crosshair
   const allSlicesEmpty =
     !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
+
+  // Compute the tile URL at the crosshair position so we can match 204 reports
+  const crosshairTileUrl = useMemo(() => {
+    if (!tileUrl || !latLon) return null;
+    const z = zoom;
+    const n = Math.pow(2, z);
+    const x = Math.floor(((latLon.lon + 180) / 360) * n);
+    const yRad = (latLon.lat * Math.PI) / 180;
+    const y = Math.floor(((1 - Math.log(Math.tan(yRad) + 1 / Math.cos(yRad)) / Math.PI) / 2) * n);
+    return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+  }, [tileUrl, latLon, zoom]);
+
+  // Listen for 204 reports from the hatch tile loader — no extra requests needed
   useEffect(() => {
+    if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
-  }, [tileUrl]);
 
-  const emptyTilesStateRef = useRef({
-    collectionId,
-    activeSlice,
-    sliceKey: `${collectionId}-${currentSliceIndex}`,
-    isActiveCollection,
-    slices,
-    currentSliceIndex,
-    emptySlices,
-    markSliceEmpty,
-    setActiveSliceIndex,
-    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
-    setEmptyTileAlert,
-    collectionName: collection?.name ?? '',
-  });
-  emptyTilesStateRef.current = {
-    collectionId,
-    activeSlice,
-    sliceKey: `${collectionId}-${currentSliceIndex}`,
-    isActiveCollection,
-    slices,
-    currentSliceIndex,
-    emptySlices,
-    markSliceEmpty,
-    setActiveSliceIndex,
-    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
-    setEmptyTileAlert,
-    collectionName: collection?.name ?? '',
-  };
+    const sliceKey = `${collectionId}-${currentSliceIndex}`;
 
-  const handleEmptyTiles = useCallback(() => {
-    if (isOpenMode) return;
-    const {
-      collectionId: colId,
-      activeSlice: slice,
-      sliceKey: key,
-      isActiveCollection: isActive,
-      slices: allSlices,
-      currentSliceIndex: curIdx,
-      emptySlices: empty,
-      markSliceEmpty: mark,
-      setActiveSliceIndex: setActive,
-      setCollectionSliceIndex: setStored,
-      setEmptyTileAlert: setAlert,
-      collectionName,
-    } = emptyTilesStateRef.current;
+    const handler = (reportedUrl: string) => {
+      if (reportedUrl !== crosshairTileUrl) return;
 
-    const sliceLabel = slice?.name ?? '';
-    const alertLabel = sliceLabel ? `${collectionName} - ${sliceLabel}` : collectionName;
+      markSliceEmpty(sliceKey);
 
-    mark(key);
+      const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
+      const nextIndex = slices.findIndex(
+        (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
+      );
 
-    const nextIndex = allSlices.findIndex((_, i) => i !== curIdx && !empty[`${colId}-${i}`]);
-
-    if (nextIndex !== -1) {
-      if (isActive) {
-        setActive(nextIndex);
+      if (nextIndex !== -1) {
+        if (isActiveCollection) {
+          setActiveSliceIndex(nextIndex);
+        } else {
+          useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
+        }
       } else {
-        setStored(colId, nextIndex);
+        const sliceLabel = activeSlice?.name ?? '';
+        const colName = collection?.name ?? '';
+        setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
       }
-      return;
-    }
+    };
 
-    setAlert(alertLabel);
-  }, [isOpenMode]); // stable - all state read from ref
+    return subscribeToEmptyTiles(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId]);
 
   if (!collection || !campaignBbox) return null;
 
@@ -257,14 +279,9 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               const key = `${collectionId}-${idx}`;
               const isEmpty = !isOpenMode && emptySlices[key];
               return (
-                <option
-                  key={idx}
-                  value={idx}
-                  disabled={!!isEmpty}
-                  style={isEmpty ? { color: '#aaa' } : undefined}
-                >
+                <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
                   {slice.name}
-                  {isEmpty ? ' (empty)' : ''}
+                  {isEmpty ? ' (no data)' : ''}
                 </option>
               );
             })}
@@ -279,24 +296,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       )}
 
       {allSlicesEmpty ? (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
-          <svg
-            className="w-6 h-6 text-neutral-300"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5"
-            />
-          </svg>
-          <span className="text-[11px] font-medium text-neutral-400 text-center px-2 leading-snug">
-            No imagery available
-          </span>
-        </div>
+        <NoImageryOverlay />
       ) : (
         <>
           {emptyTileAlert && (
@@ -329,15 +329,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               showCrosshair={!isOpenMode && showCrosshair}
               refocusTrigger={refocusTrigger}
               detectionKey={currentTaskIndex}
-              onEmptyTiles={handleEmptyTiles}
               sampleExtent={showCrosshair ? sampleExtent : null}
             />
           ) : (
-            !loading && (
-              <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
-                No imagery available
-              </div>
-            )
+            !loading && <NoImageryOverlay />
           )}
         </>
       )}

@@ -1,5 +1,6 @@
 import logging
 import random
+import threading
 from collections import defaultdict
 from datetime import datetime
 from uuid import UUID
@@ -233,34 +234,109 @@ def create_campaign(
             db.flush()
             db.refresh(campaign)
 
-    # Create imagery if provided
-    registration_errors: list[dict] = []
+    # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
+    pending_registrations: list = []
+    registration_bbox: list[float] = []
     if imagery_editor_state:
         imagery_result = create_imagery_from_editor_state(
             db,
             campaign=campaign,
             editor_state=imagery_editor_state,
         )
-        registration_errors = imagery_result.get("registration_errors", [])
+        pending_registrations = imagery_result.get("pending_registrations", [])
+        registration_bbox = imagery_result.get("bbox", [])
 
-    # Fetch and add embeddings (only when the user specified an embedding year)
+    # Set initial statuses based on what background work is needed
     embedding_year = campaign.settings.embedding_year
-    if embedding_year is not None:
-        try:
-            logger.info("Creating embeddings for year %d", embedding_year)
-            start_date = datetime(embedding_year, 1, 1)
-            end_date = datetime(embedding_year, 12, 31)
-            embeddings_service.populate_campaign_embeddings(db, campaign.id, start_date, end_date)
-        except Exception as e:
-            logger.warning("Skipping embeddings for campaign %d: %s", campaign.id, e)
-    else:
-        logger.info("No embedding year set for campaign %d - skipping embeddings.", campaign.id)
+    campaign.registration_status = "registering" if pending_registrations else "ready"
+    campaign.embedding_status = "registering" if embedding_year is not None else "ready"
 
-    # Commit everything together
     db.commit()
     db.refresh(campaign)
-    # Attach registration errors as transient (not persisted) for the API response
-    campaign._registration_errors = registration_errors  # type: ignore[attr-defined]
+
+    campaign_id = campaign.id
+    from src.database import SessionLocal
+
+    # Background thread: mosaic registration
+    if pending_registrations:
+        from src.imagery.service import _register_all_stac_browser_collections
+
+        def _background_register_mosaics():
+            bg_db = SessionLocal()
+            try:
+                logger.info("Background mosaic registration started for campaign %d", campaign_id)
+                errors = _register_all_stac_browser_collections(
+                    bg_db, pending_registrations, registration_bbox
+                )
+                bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                if bg_campaign:
+                    bg_campaign.registration_status = "failed" if errors else "ready"
+                    if errors:
+                        # Merge with any existing errors (embeddings may have written some)
+                        existing = bg_campaign.registration_errors or []
+                        bg_campaign.registration_errors = existing + errors
+                    bg_db.commit()
+                if errors:
+                    logger.warning(
+                        "Mosaic registration for campaign %d: %d errors", campaign_id, len(errors)
+                    )
+                else:
+                    logger.info("Mosaic registration completed for campaign %d", campaign_id)
+            except Exception as exc:
+                logger.exception("Mosaic registration failed for campaign %d", campaign_id)
+                try:
+                    bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                    if bg_campaign:
+                        bg_campaign.registration_status = "failed"
+                        existing = bg_campaign.registration_errors or []
+                        bg_campaign.registration_errors = existing + [{"error": str(exc)}]
+                        bg_db.commit()
+                except Exception:
+                    pass
+            finally:
+                bg_db.close()
+
+        threading.Thread(target=_background_register_mosaics, daemon=True).start()
+
+    # Background thread: embeddings
+    if embedding_year is not None:
+
+        def _background_register_embeddings():
+            bg_db = SessionLocal()
+            try:
+                logger.info(
+                    "Background embeddings started for campaign %d (year %d)",
+                    campaign_id,
+                    embedding_year,
+                )
+                start_date = datetime(embedding_year, 1, 1)
+                end_date = datetime(embedding_year, 12, 31)
+                embeddings_service.populate_campaign_embeddings(
+                    bg_db, campaign_id, start_date, end_date
+                )
+                bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                if bg_campaign:
+                    bg_campaign.embedding_status = "ready"
+                    bg_db.commit()
+                logger.info("Embeddings completed for campaign %d", campaign_id)
+            except Exception as exc:
+                logger.exception("Embeddings failed for campaign %d", campaign_id)
+                try:
+                    bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                    if bg_campaign:
+                        bg_campaign.embedding_status = "failed"
+                        existing = bg_campaign.registration_errors or []
+                        bg_campaign.registration_errors = existing + [
+                            {"error": f"Embeddings: {exc}"}
+                        ]
+                        bg_db.commit()
+                except Exception:
+                    pass
+            finally:
+                bg_db.close()
+
+        threading.Thread(target=_background_register_embeddings, daemon=True).start()
+
     return campaign
 
 

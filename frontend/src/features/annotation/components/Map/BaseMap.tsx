@@ -56,7 +56,7 @@ const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10 }: MapProps) => {
 
   return (
     <div className="w-full h-full">
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} className="w-full h-full bg-neutral-200" />
     </div>
   );
 };

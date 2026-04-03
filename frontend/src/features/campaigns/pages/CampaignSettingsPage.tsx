@@ -111,6 +111,39 @@ export const CampaignSettingsPage = () => {
     loadCampaign();
   }, [campaignId, numericCampaignId, showAlert]);
 
+  // Poll while any background work is in progress
+  const isAnyRegistering =
+    campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
+
+  useEffect(() => {
+    if (!campaign || !isAnyRegistering) return;
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        if (data) {
+          setCampaign(data);
+          setImagery(data.imagery_sources);
+          const stillRegistering =
+            data.registration_status === 'registering' || data.embedding_status === 'registering';
+          if (!stillRegistering) {
+            clearInterval(interval);
+            const hasFailed =
+              data.registration_status === 'failed' || data.embedding_status === 'failed';
+            showAlert(
+              hasFailed
+                ? 'Background setup completed with some errors. Check settings.'
+                : 'Campaign setup completed successfully',
+              hasFailed ? 'warning' : 'success'
+            );
+          }
+        }
+      } catch {
+        /* silent poll */
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isAnyRegistering, numericCampaignId, showAlert]);
+
   // Lazy load annotation tasks when tasks tab is active
   useEffect(() => {
     if (activeTab !== 'tasks' || annotationTasks.length > 0) return;
@@ -544,13 +577,118 @@ export const CampaignSettingsPage = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
-                className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
+                disabled={isAnyRegistering}
+                className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 type="button"
+                title={isAnyRegistering ? 'Waiting for background setup to complete...' : undefined}
               >
                 Start Annotating
               </button>
             </div>
           </div>
+
+          {/* Background setup status banners */}
+          {campaign?.registration_status === 'registering' && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              <svg
+                className="animate-spin h-4 w-4 text-blue-600 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              <span>
+                <strong>Mosaic registration in progress...</strong> Tile imagery is being registered
+                from the STAC catalog. You can configure other settings while waiting.
+              </span>
+            </div>
+          )}
+          {campaign?.embedding_status === 'registering' && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              <svg
+                className="animate-spin h-4 w-4 text-blue-600 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              <span>
+                <strong>Embedding generation in progress...</strong> Satellite embeddings are being
+                computed for the campaign area. You can configure other settings while waiting.
+              </span>
+            </div>
+          )}
+          {campaign?.registration_status === 'failed' && (
+            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-2">
+              <p>
+                <strong>Some mosaic registrations failed.</strong> The campaign is usable but some
+                tiles may be missing. Check the Imagery tab to re-register individual collections.
+              </p>
+              {campaign.registration_errors && campaign.registration_errors.length > 0 && (
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer font-medium text-red-700 hover:text-red-900">
+                    Show {campaign.registration_errors.length} error
+                    {campaign.registration_errors.length !== 1 ? 's' : ''}
+                  </summary>
+                  <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
+                    {campaign.registration_errors.slice(0, 20).map((err, i) => (
+                      <li key={i}>
+                        {err.collection && <span className="font-medium">{err.collection}</span>}
+                        {err.slice && <span> / {err.slice}</span>}
+                        {(err.collection || err.slice) && ': '}
+                        {err.error}
+                      </li>
+                    ))}
+                    {campaign.registration_errors.length > 20 && (
+                      <li className="text-red-500">
+                        ...and {campaign.registration_errors.length - 20} more
+                      </li>
+                    )}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+          {campaign?.embedding_status === 'failed' && (
+            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              <p>
+                <strong>Embedding generation failed.</strong> The campaign is usable but
+                embedding-based features (similarity search) won&apos;t be available.
+              </p>
+              {campaign.registration_errors?.some((e) => e.error?.startsWith('Embeddings:')) && (
+                <p className="text-[11px] mt-1 text-red-700">
+                  {
+                    campaign.registration_errors.find((e) => e.error?.startsWith('Embeddings:'))
+                      ?.error
+                  }
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tab Navigation */}
           <TabNavigator

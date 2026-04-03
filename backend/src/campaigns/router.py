@@ -93,13 +93,7 @@ def create_campaign(
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
     )
-    # Surface any STAC registration errors so the frontend can display them
-    reg_errors = getattr(result, "_registration_errors", [])
-    response = CampaignOut.model_validate(result)
-    data = response.model_dump(mode="json")
-    if reg_errors:
-        data["registration_errors"] = reg_errors
-    return data
+    return result
 
 
 @router.post(

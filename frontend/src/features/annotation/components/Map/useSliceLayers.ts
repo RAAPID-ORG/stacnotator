@@ -78,11 +78,29 @@ export function useSliceLayers({
   const activeCollection =
     activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
 
-  // Build the flat list of viz names from all sources (for layer cycling)
-  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name, vizId: v.id }))
-  );
-  const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+  // Viz entries scoped to the active source only.
+  // selectedLayerIndex is global (flat across all sources). We convert it to
+  // a position within the active source so layer IDs match tile_url viz names.
+  const activeSourceVizEntries = activeSource
+    ? activeSource.visualizations.map((v) => ({
+        sourceName: activeSource.name,
+        vizName: v.name,
+        vizId: v.id,
+      }))
+    : [];
+
+  const vizIndexInSource = (() => {
+    if (!activeSource || !campaign) return 0;
+    let offset = 0;
+    for (const s of campaign.imagery_sources) {
+      if (s.id === activeSource.id) break;
+      offset += s.visualizations.length;
+    }
+    return Math.min(Math.max(0, selectedLayerIndex - offset), activeSourceVizEntries.length - 1);
+  })();
+
+  const activeSourceVizEntry =
+    activeSourceVizEntries[vizIndexInSource] ?? activeSourceVizEntries[0] ?? null;
 
   const activateCorrectLayer = useCallback(
     (lm: LayerManager) => {
@@ -93,8 +111,8 @@ export function useSliceLayers({
       if (showBasemap && selectedBasemapId) {
         targetId = selectedBasemapId;
       } else {
-        if (!activeVizEntry) return;
-        targetId = makeLayerId(activeCollection.id, activeSliceIndex, activeVizEntry.vizName);
+        if (!activeSourceVizEntry) return;
+        targetId = makeLayerId(activeCollection.id, activeSliceIndex, activeSourceVizEntry.vizName);
       }
 
       lm.setActiveLayer(targetId);
@@ -107,11 +125,12 @@ export function useSliceLayers({
         });
       }
 
-      // Build UI layer list: one entry per viz (at current collection+slice) + basemaps
+      // Build UI layer list: use active source's viz entries (not global list)
+      // so layer IDs match the active collection's tile_url visualization names
       const allLayers = lm.getLayers();
       const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
       const seen = new Set<string>();
-      const vizLayers = allVizEntries
+      const vizLayers = activeSourceVizEntries
         .map((v) => {
           const id = makeLayerId(activeCollection.id, activeSliceIndex, v.vizName);
           if (seen.has(id)) return null;
@@ -129,8 +148,8 @@ export function useSliceLayers({
       activeCollection,
       activeSource,
       activeSliceIndex,
-      activeVizEntry,
-      allVizEntries,
+      activeSourceVizEntry,
+      activeSourceVizEntries,
       showBasemap,
       selectedBasemapId,
       onLayersChange,
@@ -227,7 +246,7 @@ export function useSliceLayers({
   }, [
     activeCollectionId,
     activeSliceIndex,
-    activeVizEntry?.vizName,
+    activeSourceVizEntry?.vizName,
     showBasemap,
     selectedBasemapId,
   ]);

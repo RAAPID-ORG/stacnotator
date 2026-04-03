@@ -1,5 +1,6 @@
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
+import { tileLoadWithHatch } from './hatchTileLoader';
 
 export type LayerType = 'imagery' | 'basemap';
 
@@ -53,7 +54,15 @@ export class XYZLayer extends Layer {
         maxZoom: this.maxZoom,
         crossOrigin: 'anonymous',
         cacheSize: this.layerType === 'imagery' ? 128 : 512,
-        transition: 0, // disable fade-in so tiles snap in immediately
+        transition: 0,
+        ...(this.layerType === 'imagery'
+          ? {
+              tileLoadFunction: tileLoadWithHatch as unknown as (
+                tile: unknown,
+                src: string
+              ) => void,
+            }
+          : {}),
       }),
     });
   }

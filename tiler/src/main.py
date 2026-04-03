@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
         VSI_CACHE_SIZE=536870912,
         CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif,.tiff",
         GDAL_CACHEMAX=256,
+        AWS_NO_SIGN_REQUEST="YES",
     ):
         yield
 
