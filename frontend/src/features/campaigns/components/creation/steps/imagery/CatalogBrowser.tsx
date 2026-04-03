@@ -809,7 +809,7 @@ export const CatalogBrowser = ({
                 )}
                 {selectedCatalog?.is_mpc && (
                   <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
-                    <strong>Microsoft Planetary Computer</strong> — tiles are served directly from
+                    <strong>Microsoft Planetary Computer</strong> - tiles are served directly from
                     MPC for fast loading. Advanced features (masking, non-first-valid compositing)
                     will route through our self-hosted tiler with higher latency.
                   </div>

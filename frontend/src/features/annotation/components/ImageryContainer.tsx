@@ -203,7 +203,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
   }, [tileUrl, latLon, zoom]);
 
-  // Listen for 204 reports from the hatch tile loader — no extra requests needed
+  // Listen for 204 reports from the hatch tile loader - no extra requests needed
   useEffect(() => {
     if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
