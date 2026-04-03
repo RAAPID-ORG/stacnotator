@@ -15,6 +15,8 @@ import type {
 } from './types';
 import { createId, emptyVizParams } from './types';
 import { VizConfigPanel } from './VizConfigPanel';
+import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
+import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 
@@ -208,6 +210,10 @@ export const CatalogBrowser = ({
           if (col.item_assets && Object.keys(col.item_assets).length > 0) {
             setAvailableAssets(col.item_assets);
           }
+          // Pre-fill visualizations from known presets
+          const initialVizs = buildInitialVisualizations(col.id);
+          setVisualizations(initialVizs);
+          setActiveVizIndex(0);
           // Default to cloud cover sort when available
           if (col.has_cloud_cover) {
             setItemSort('cloud_cover_asc');
@@ -216,10 +222,8 @@ export const CatalogBrowser = ({
           // For imagery collections (those with cloud cover), enable custom cover by default
           if (col.has_cloud_cover) {
             setCoverMode('custom');
-            const defaultViz: NamedVizParams[] = [
-              { name: 'True Color', vizParams: { ...emptyVizParams(), compositing: 'first' } },
-            ];
-            setCoverVisualizations(defaultViz);
+            setCoverVisualizations(buildInitialVisualizations(col.id, 'first'));
+            setActiveCoverVizIndex(0);
           }
           setStep('configure');
         })
@@ -271,12 +275,66 @@ export const CatalogBrowser = ({
     selectCatalog(cat);
   };
 
+  /** Build pre-configured visualizations from known collection presets.
+   *  Returns True Color + False Color (if available), with bands/rescale/colorFormula pre-filled.
+   *  Falls back to a single empty "True Color" viz if no presets exist. */
+  const buildInitialVisualizations = (
+    collectionId: string,
+    compositingOverride?: string
+  ): NamedVizParams[] => {
+    const presets = COLLECTION_PRESETS[collectionId];
+    if (!presets || presets.length === 0) {
+      return [
+        {
+          name: 'True Color',
+          vizParams: {
+            ...emptyVizParams(),
+            ...(compositingOverride ? { compositing: compositingOverride } : {}),
+          },
+        },
+      ];
+    }
+
+    const knownRescale = KNOWN_RESCALE[collectionId] || guessRescale(collectionId);
+    const trueColor = presets.find((p) => p.label.toLowerCase().includes('true color'));
+    const falseColor = presets.find((p) => p.label.toLowerCase().includes('false color'));
+
+    const buildViz = (preset: BandPreset): NamedVizParams => {
+      const vp: VizParams = {
+        ...emptyVizParams(),
+        assets: preset.assets,
+        assetAsBand: preset.assets.length === 3,
+        ...(preset.colorFormula ? { colorFormula: preset.colorFormula } : {}),
+        ...(preset.colormap ? { colormapName: preset.colormap } : {}),
+        ...(preset.expression ? { expression: preset.expression } : {}),
+        ...(preset.extraParams ? { extraParams: { ...preset.extraParams } } : {}),
+        ...(compositingOverride ? { compositing: compositingOverride } : {}),
+      };
+      // Set rescale: use preset-specific, or skip if color formula handles it
+      if (preset.rescale) {
+        vp.rescale = preset.rescale;
+      } else if (!preset.colorFormula && knownRescale) {
+        vp.rescale = knownRescale;
+      }
+      return { name: preset.label, vizParams: vp };
+    };
+
+    const vizs: NamedVizParams[] = [];
+    if (trueColor) vizs.push(buildViz(trueColor));
+    if (falseColor) vizs.push(buildViz(falseColor));
+    // Fallback: if neither found, use first preset
+    if (vizs.length === 0) vizs.push(buildViz(presets[0]));
+    return vizs;
+  };
+
   const selectCollection = (col: StacCollection) => {
     setSelectedCollection(col);
     setStep('configure');
     setQuery('');
     setError('');
-    setVisualizations([{ name: 'True Color', vizParams: emptyVizParams() }]);
+    // Pre-fill visualizations from known presets (True Color + False Color if available)
+    const initialVizs = buildInitialVisualizations(col.id);
+    setVisualizations(initialVizs);
     setActiveVizIndex(0);
     // Default to cloud cover sort when available
     const defaultSort = col.has_cloud_cover ? 'cloud_cover_asc' : 'date_desc';
@@ -286,9 +344,7 @@ export const CatalogBrowser = ({
     // For imagery collections (those with cloud cover), enable custom cover by default
     if (col.has_cloud_cover) {
       setCoverMode('custom');
-      setCoverVisualizations([
-        { name: 'True Color', vizParams: { ...emptyVizParams(), compositing: 'first' } },
-      ]);
+      setCoverVisualizations(buildInitialVisualizations(col.id, 'first'));
       setActiveCoverVizIndex(0);
     } else {
       setCoverMode('nth');

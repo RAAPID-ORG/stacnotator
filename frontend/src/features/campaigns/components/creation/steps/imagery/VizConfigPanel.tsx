@@ -29,7 +29,11 @@ export const VizConfigPanel = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isRgbAsset, setIsRgbAsset] = useState(false);
   /** 'manual' = editable input (pre-filled from preset), 'auto' = tiler derives from data stats, 'none' = raw values */
-  const [rescaleMode, setRescaleMode] = useState<'manual' | 'auto' | 'none'>('manual');
+  const [rescaleMode, setRescaleMode] = useState<'manual' | 'auto' | 'none'>(() => {
+    // If viz already has a color formula but no rescale, default to 'none'
+    if (vizParams.colorFormula && !vizParams.rescale) return 'none';
+    return 'manual';
+  });
 
   const rasterAssets = getRasterAssets(availableAssets);
   const presets = COLLECTION_PRESETS[collectionId] || [];

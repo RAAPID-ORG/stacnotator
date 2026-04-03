@@ -45,19 +45,51 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'Visual (rendered)', assets: ['visual'] },
   ],
   'sentinel-2-l1c': [
-    { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
-    { label: 'False Color (Vegetation)', assets: ['B08', 'B04', 'B03'] },
+    {
+      label: 'True Color (RGB)',
+      assets: ['B04', 'B03', 'B02'],
+      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+    },
+    {
+      label: 'False Color (Vegetation)',
+      assets: ['B08', 'B04', 'B03'],
+      colorFormula: 'Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+    },
     { label: 'Visual (rendered)', assets: ['visual'] },
   ],
   'landsat-c2-l2': [
-    { label: 'True Color', assets: ['red', 'green', 'blue'] },
-    { label: 'False Color', assets: ['nir08', 'red', 'green'] },
-    { label: 'SWIR', assets: ['swir16', 'nir08', 'red'] },
-    { label: 'Agriculture', assets: ['swir16', 'nir08', 'blue'] },
+    {
+      label: 'True Color',
+      assets: ['red', 'green', 'blue'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+    },
+    {
+      label: 'False Color',
+      assets: ['nir08', 'red', 'green'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.3 Sigmoidal RGB 15 0.35',
+    },
+    {
+      label: 'SWIR',
+      assets: ['swir16', 'nir08', 'red'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+    },
+    {
+      label: 'Agriculture',
+      assets: ['swir16', 'nir08', 'blue'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+    },
   ],
   'landsat-c2-l1': [
-    { label: 'True Color', assets: ['red', 'green', 'blue'] },
-    { label: 'False Color', assets: ['nir08', 'red', 'green'] },
+    {
+      label: 'True Color',
+      assets: ['red', 'green', 'blue'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+    },
+    {
+      label: 'False Color',
+      assets: ['nir08', 'red', 'green'],
+      colorFormula: 'Gamma RGB 3.5 Saturation 1.3 Sigmoidal RGB 15 0.35',
+    },
   ],
   'cop-dem-glo-30': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
   'cop-dem-glo-90': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
@@ -100,8 +132,8 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
   ],
   'sentinel-1-grd': [
-    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys', rescale: '0,10000' },
-    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys', rescale: '0,5000' },
+    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys', rescale: '0,0.4' },
+    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys', rescale: '0,0.1' },
   ],
   'modis-13Q1-061': [
     { label: 'NDVI', assets: ['250m_16_days_NDVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
@@ -110,24 +142,16 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
 };
 
 export const KNOWN_RESCALE: Record<string, string> = {
-  'sentinel-2-l2a': '0,3000',
-  'sentinel-2-l1c': '0,3000',
-  'landsat-c2-l2': '7000,30000',
-  'landsat-c2-l1': '5000,40000',
   'cop-dem-glo-30': '0,4000',
   'cop-dem-glo-90': '0,4000',
-  'hls2-s30': '0,3000',
-  'hls2-l30': '0,3000',
-  'sentinel-1-grd': '0,10000',
+  'sentinel-1-grd': '0,0.4',
   naip: '0,255',
 };
 
 export function guessRescale(collectionId: string): string | undefined {
   const id = collectionId.toLowerCase();
-  if (id.includes('sentinel-2') || id.includes('hls')) return '0,3000';
-  if (id.includes('landsat')) return '7000,30000';
   if (id.includes('dem') || id.includes('elevation')) return '0,4000';
-  if (id.includes('sentinel-1') || id.includes('sar')) return '0,10000';
+  if (id.includes('sentinel-1') || id.includes('sar')) return '0,0.4';
   return undefined;
 }
 
