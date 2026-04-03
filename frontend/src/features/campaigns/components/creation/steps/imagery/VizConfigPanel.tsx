@@ -78,6 +78,7 @@ export const VizConfigPanel = ({
       updates.rescale = knownRescale;
     }
     if (preset.expression) updates.expression = preset.expression;
+    if (preset.extraParams) updates.extraParams = { ...preset.extraParams };
 
     if (
       preset.assets.length === 1 &&
@@ -337,6 +338,38 @@ export const VizConfigPanel = ({
               />
               <p className="text-[10px] text-neutral-400">
                 Pixel values in the mask layer to exclude (clouds, nodata, shadows, etc.)
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-neutral-700">Extra Tile Parameters</label>
+              <input
+                type="text"
+                value={
+                  vizParams.extraParams
+                    ? Object.entries(vizParams.extraParams)
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join('&')
+                    : ''
+                }
+                onChange={(e) => {
+                  const val = e.target.value.trim();
+                  if (!val) {
+                    update('extraParams', undefined);
+                    return;
+                  }
+                  const params: Record<string, string> = {};
+                  for (const pair of val.split('&')) {
+                    const [k, ...rest] = pair.split('=');
+                    if (k) params[k.trim()] = rest.join('=').trim();
+                  }
+                  update('extraParams', Object.keys(params).length > 0 ? params : undefined);
+                }}
+                placeholder="e.g. asset_bidx=image|1,2,3&post_process=..."
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              />
+              <p className="text-[10px] text-neutral-400">
+                Additional query parameters passed directly to the tiler. Format:
+                key=value&key2=value2
               </p>
             </div>
           </div>

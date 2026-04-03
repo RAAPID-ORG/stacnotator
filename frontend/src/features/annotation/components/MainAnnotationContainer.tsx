@@ -297,12 +297,7 @@ export const MainAnnotationsContainer = ({
                   {slices.map((slice, idx) => {
                     const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                     return (
-                      <option
-                        key={idx}
-                        value={idx}
-                        disabled={isEmpty}
-                        style={isEmpty ? { color: '#aaa' } : undefined}
-                      >
+                      <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
                         {slice.name}
                         {isEmpty ? ' (empty)' : ''}
                       </option>
@@ -450,12 +445,7 @@ export const MainAnnotationsContainer = ({
                   {slices.map((slice, idx) => {
                     const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
                     return (
-                      <option
-                        key={idx}
-                        value={idx}
-                        disabled={isEmpty}
-                        style={isEmpty ? { color: '#aaa' } : undefined}
-                      >
+                      <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
                         {slice.name}
                         {isEmpty ? ' (empty)' : ''}
                       </option>

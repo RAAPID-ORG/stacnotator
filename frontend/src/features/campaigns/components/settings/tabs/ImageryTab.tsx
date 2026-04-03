@@ -23,6 +23,7 @@ function toFrontend(d: Record<string, unknown> | null | undefined): VizParams {
     resampling: (p.resampling as string) ?? undefined,
     compositing: (p.compositing as string) ?? undefined,
     nodata: (p.nodata as number) ?? undefined,
+    extraParams: (p.extra_params as Record<string, string>) ?? undefined,
     maskLayer: (p.mask_layer as string) ?? undefined,
     maskValues: (p.mask_values as number[]) ?? undefined,
     nirBand: (p.nir_band as string) ?? undefined,
@@ -42,6 +43,7 @@ function toBackend(vp: VizParams): Record<string, unknown> {
   if (vp.resampling) d.resampling = vp.resampling;
   if (vp.compositing) d.compositing = vp.compositing;
   if (vp.nodata !== undefined) d.nodata = vp.nodata;
+  if (vp.extraParams && Object.keys(vp.extraParams).length > 0) d.extra_params = vp.extraParams;
   if (vp.maskLayer) d.mask_layer = vp.maskLayer;
   if (vp.maskValues?.length) d.mask_values = vp.maskValues;
   if (vp.nirBand) d.nir_band = vp.nirBand;

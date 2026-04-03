@@ -126,6 +126,11 @@ def build_viz_query_string(viz_params: dict | None) -> str:
     if viz_params.get("asset_as_band"):
         parts.append(("asset_as_band", "true"))
 
+    extra_params = viz_params.get("extra_params")
+    if extra_params:
+        for k, v in extra_params.items():
+            parts.append((k, str(v)))
+
     expression = viz_params.get("expression")
     if expression:
         parts.append(("expression", expression))

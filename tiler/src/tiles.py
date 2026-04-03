@@ -123,6 +123,7 @@ def mosaic_tile(
     y: int,
     assets: list[str] = Query(default=[]),
     asset_as_band: bool = Query(default=False),
+    asset_bidx: list[str] = Query(default=[]),
     expression: str | None = Query(default=None),
     rescale: list[str] = Query(default=[]),
     colormap_name: str | None = Query(default=None),
@@ -169,6 +170,13 @@ def mosaic_tile(
     else:
         scoring_assets = list(assets)
 
+    # Parse asset_bidx from "asset|1,2,3" format to dict
+    parsed_bidx: dict[str, tuple[int, ...]] = {}
+    for entry in asset_bidx:
+        parts = entry.split("|", 1)
+        if len(parts) == 2:
+            parsed_bidx[parts[0]] = tuple(int(b) for b in parts[1].split(","))
+
     reader_kwargs: dict = {}
     if expression:
         reader_kwargs["expression"] = expression
@@ -176,6 +184,8 @@ def mosaic_tile(
         reader_kwargs["assets"] = tuple(scoring_assets)
         if asset_as_band:
             reader_kwargs["asset_as_band"] = True
+    if parsed_bidx:
+        reader_kwargs["asset_bidx"] = parsed_bidx
     if nodata is not None:
         reader_kwargs["nodata"] = nodata
 

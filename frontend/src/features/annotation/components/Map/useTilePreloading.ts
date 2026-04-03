@@ -18,7 +18,6 @@ import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
-import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
@@ -144,19 +143,79 @@ export function useTilePreloading({
     viewCollectionIdsRef.current = null;
   }
 
+  /** When a prefetch group is detected as empty (cover slice has no data),
+   *  try the next slice in the same collection so the annotator doesn't
+   *  have to wait for it to load when they advance to the next task. */
+  const handleGroupEmpty = useCallback((gid: string) => {
+    const parsed = parseGroupId(gid);
+    if (!parsed) return;
+    const { prefix, collectionId, sliceIndex } = parsed;
+    const camp = campaignRef.current;
+    const p = preloaderRef.current;
+    if (!camp || !p) return;
+
+    // Find the collection and try the next slice
+    for (const source of camp.imagery_sources) {
+      const col = source.collections.find((c) => c.id === collectionId);
+      if (!col) continue;
+
+      for (let offset = 1; offset < col.slices.length; offset++) {
+        const nextSi = (sliceIndex + offset) % col.slices.length;
+        const nextSlice = col.slices[nextSi];
+        if (!nextSlice) continue;
+        const tileUrlEntry = nextSlice.tile_urls[0];
+        if (!tileUrlEntry) continue;
+
+        const resolvedUrl = buildTileUrl({
+          tile_url: tileUrlEntry.tile_url,
+          tile_provider: tileUrlEntry.tile_provider,
+        });
+
+        // Determine priority from prefix
+        const isDefault = collectionId === activeCollectionIdRef.current;
+        let priority: number;
+        if (prefix === PREFIX_CURRENT) priority = PRIORITY_OTHER_COLLECTIONS;
+        else if (prefix === PREFIX_NEXT1)
+          priority = isDefault ? PRIORITY_NEXT1_DEFAULT : PRIORITY_NEXT1_OTHER;
+        else priority = isDefault ? PRIORITY_NEXT2_DEFAULT : PRIORITY_NEXT2_OTHER;
+
+        // Extract extent from existing tasks
+        const tasks = visibleTasksRef.current;
+        const idx = currentTaskIndexRef.current;
+        const taskOffset = prefix === PREFIX_CURRENT ? 0 : prefix === PREFIX_NEXT1 ? 1 : 2;
+        const taskIdx = (idx + taskOffset) % tasks.length;
+        const task = tasks[taskIdx];
+        if (!task) break;
+        const latLon = extractCentroidFromWKT(task.geometry.geometry);
+        if (!latLon) break;
+
+        const zoom = prefix === PREFIX_CURRENT ? currentZoomRef.current : defaultZoomRef.current;
+        const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+
+        p.enqueue({
+          priority,
+          groupId: groupId(prefix, collectionId, nextSi),
+          urlTemplate: resolvedUrl,
+          extent,
+          zoom,
+        });
+        break; // Only try one fallback slice at a time
+      }
+      break;
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
     const p = new TilePreloader();
     preloaderRef.current = p;
-
-    // Empty detection is handled by ImageryContainer's crosshair-position check.
-    // The prefetcher just warms the cache.
+    p.onGroupEmpty = handleGroupEmpty;
 
     return () => {
       p.dispose();
       preloaderRef.current = null;
     };
-  }, [enabled]);
+  }, [enabled, handleGroupEmpty]);
 
   const enqueueCurrentOtherCollections = useCallback(() => {
     const p = preloaderRef.current;

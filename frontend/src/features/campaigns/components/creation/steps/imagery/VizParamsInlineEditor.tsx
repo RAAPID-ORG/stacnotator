@@ -170,6 +170,34 @@ export const VizParamsInlineEditor = ({
           className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
         />
       </div>
+      <div className="space-y-0.5">
+        <label className="text-[11px] text-neutral-500">Extra Tile Parameters</label>
+        <input
+          type="text"
+          value={
+            vizParams.extraParams
+              ? Object.entries(vizParams.extraParams)
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join('&')
+              : ''
+          }
+          onChange={(e) => {
+            const val = e.target.value.trim();
+            if (!val) {
+              onChange('extraParams', undefined);
+              return;
+            }
+            const params: Record<string, string> = {};
+            for (const pair of val.split('&')) {
+              const [k, ...rest] = pair.split('=');
+              if (k) params[k.trim()] = rest.join('=').trim();
+            }
+            onChange('extraParams', Object.keys(params).length > 0 ? params : undefined);
+          }}
+          placeholder="e.g. asset_bidx=image|1,2,3"
+          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+        />
+      </div>
     </div>
   );
 };

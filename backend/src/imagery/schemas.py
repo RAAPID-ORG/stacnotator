@@ -176,6 +176,7 @@ class VizParamsCreate(BaseModel):
     resampling: str | None = None
     compositing: str | None = None
     nodata: float | None = None
+    extra_params: dict[str, str] | None = None
     mask_layer: str | None = None
     mask_values: list[int] | None = None
     nir_band: str | None = None

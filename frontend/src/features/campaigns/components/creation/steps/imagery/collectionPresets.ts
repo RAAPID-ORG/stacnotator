@@ -9,6 +9,8 @@ export interface BandPreset {
   colormap?: string;
   rescale?: string;
   expression?: string;
+  /** Extra query parameters passed through to the tiler (e.g. asset_bidx=image|1,2,3) */
+  extraParams?: Record<string, string>;
 }
 
 export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
@@ -38,7 +40,13 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
   ],
   'cop-dem-glo-30': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
   'cop-dem-glo-90': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
-  naip: [{ label: 'True Color (RGB)', assets: ['image'] }],
+  naip: [
+    {
+      label: 'True Color (RGB)',
+      assets: ['image'],
+      extraParams: { asset_bidx: 'image|1,2,3' },
+    },
+  ],
   'hls2-s30': [
     { label: 'True Color (RGB)', assets: ['B04', 'B03', 'B02'] },
     { label: 'False Color (Vegetation)', assets: ['B8A', 'B04', 'B03'] },
@@ -70,6 +78,7 @@ export const KNOWN_RESCALE: Record<string, string> = {
   'hls2-s30': '0,3000',
   'hls2-l30': '0,3000',
   'sentinel-1-grd': '0,10000',
+  naip: '0,255',
 };
 
 export function guessRescale(collectionId: string): string | undefined {
@@ -95,7 +104,7 @@ export const COLORMAPS = [
   { value: 'coolwarm', label: 'Cool-Warm' },
 ];
 
-const RGB_ASSET_KEYS = new Set(['visual', 'rendered_preview', 'true_color']);
+const RGB_ASSET_KEYS = new Set(['visual', 'rendered_preview', 'true_color', 'image']);
 
 export function isPreRenderedRGB(assetKey: string, roles?: string[]): boolean {
   if (RGB_ASSET_KEYS.has(assetKey.toLowerCase())) return true;

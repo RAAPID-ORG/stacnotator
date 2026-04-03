@@ -996,12 +996,12 @@ def _create_views(
         db.flush()
 
         # Build default view layout data for window collections
-        # Windows are placed in rows below the main canvas (which ends at y=36).
+        # Windows are placed in rows below the main canvas (which ends at y=25).
         # With a 60-col grid and w=10, we fit 6 windows per row.
         window_refs = [r for r in mapped_refs if r.get("show_as_window")]
         COLS_PER_ROW = 6
         WINDOW_W = 10
-        WINDOW_H = 8
+        WINDOW_H = 7
         START_Y = DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT[0]["h"]  # directly below the main canvas
         view_layout_data = []
         for w_idx, ref in enumerate(window_refs):

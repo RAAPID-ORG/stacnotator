@@ -12,16 +12,8 @@ import { MPC_PRESETS } from './imagery/CatalogBrowser';
 import type { CatalogBrowserPreset } from './imagery/CatalogBrowser';
 import { ImagerySourceEditor } from './imagery/ImagerySourceEditor';
 import { CanvasPreview } from './imagery/CanvasPreview';
-import {
-  IconTrash,
-  IconPlus,
-  IconSettings,
-  IconChevronDown,
-  IconChevronUp,
-  IconStac,
-} from '~/shared/ui/Icons';
+import { IconTrash, IconPlus, IconSettings, IconStac } from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
-import { Tooltip } from './imagery/Tooltip';
 
 export const createInitialImageryState = (): ImageryStepState => {
   const initialView = emptyView();
@@ -51,8 +43,6 @@ export const StepImagery = ({
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
   /** Which view tab is active -starts on the initial view */
   const [activeViewId, setActiveViewId] = useState<string | null>(() => state.views[0]?.id ?? null);
-  /** Whether the intro guide is expanded */
-  const [showGuide, setShowGuide] = useState(true);
   /** Whether the + Source picker is open */
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   /** When a preset source is created, pass the preset ID so StacGenerator opens automatically */
@@ -107,6 +97,7 @@ export const StepImagery = ({
                         resampling: col.data.visualizations[0].vizParams.resampling,
                         compositing: col.data.visualizations[0].vizParams.compositing,
                         nodata: col.data.visualizations[0].vizParams.nodata,
+                        extra_params: col.data.visualizations[0].vizParams.extraParams,
                         mask_layer: col.data.visualizations[0].vizParams.maskLayer,
                         mask_values: col.data.visualizations[0].vizParams.maskValues,
                         nir_band: col.data.visualizations[0].vizParams.nirBand,
@@ -125,6 +116,7 @@ export const StepImagery = ({
                         resampling: col.data.coverVisualizations[0].vizParams.resampling,
                         compositing: col.data.coverVisualizations[0].vizParams.compositing,
                         nodata: col.data.coverVisualizations[0].vizParams.nodata,
+                        extra_params: col.data.coverVisualizations[0].vizParams.extraParams,
                         mask_layer: col.data.coverVisualizations[0].vizParams.maskLayer,
                         mask_values: col.data.coverVisualizations[0].vizParams.maskValues,
                         nir_band: col.data.coverVisualizations[0].vizParams.nirBand,
@@ -183,10 +175,47 @@ export const StepImagery = ({
   };
 
   const updateSource = (id: string, updates: Partial<ImagerySource>) => {
-    updateState({
-      ...state,
-      sources: state.sources.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-    });
+    const nextSources = state.sources.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    let nextViews = state.views;
+
+    // When collections change, keep view refs in sync
+    if (updates.collections) {
+      const oldSource = state.sources.find((s) => s.id === id);
+      const oldCollectionIds = new Set(oldSource?.collections.map((c) => c.id) ?? []);
+      const newCollectionIds = new Set(updates.collections.map((c) => c.id));
+
+      // Find truly new collections (IDs that didn't exist before)
+      const addedIds = updates.collections
+        .filter((c) => !oldCollectionIds.has(c.id))
+        .map((c) => c.id);
+      // Find removed collection IDs
+      const removedIds = [...oldCollectionIds].filter((cid) => !newCollectionIds.has(cid));
+
+      if (addedIds.length > 0 || removedIds.length > 0) {
+        nextViews = state.views.map((v) => {
+          let refs = v.collectionRefs;
+
+          // Remove orphaned refs
+          if (removedIds.length > 0) {
+            refs = refs.filter((r) => r.sourceId !== id || !removedIds.includes(r.collectionId));
+          }
+
+          // Auto-add new collections to views that already reference this source
+          if (addedIds.length > 0 && refs.some((r) => r.sourceId === id)) {
+            const newRefs = addedIds.map((cid) => ({
+              collectionId: cid,
+              sourceId: id,
+              showAsWindow: true,
+            }));
+            refs = [...refs, ...newRefs];
+          }
+
+          return refs !== v.collectionRefs ? { ...v, collectionRefs: refs } : v;
+        });
+      }
+    }
+
+    updateState({ ...state, sources: nextSources, views: nextViews });
   };
 
   const removeSource = (id: string) => {
@@ -303,73 +332,18 @@ export const StepImagery = ({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Guide section */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowGuide(!showGuide)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-neutral-100/50 transition-colors"
-        >
-          <span className="text-sm text-neutral-700">
-            <span className="font-medium">How imagery configuration works</span>
-          </span>
-          {showGuide ? (
-            <IconChevronUp className="w-4 h-4 text-neutral-400" />
-          ) : (
-            <IconChevronDown className="w-4 h-4 text-neutral-400" />
-          )}
-        </button>
-        {showGuide && (
-          <div className="px-4 pb-3 pt-0 border-t border-neutral-200 text-xs text-neutral-600 space-y-2">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 mt-2">
-              <span className="font-semibold text-brand-700 text-right">1. Source</span>
-              <span>
-                A data provider (e.g. <em>Sentinel-2</em> or <em>Landsat</em>). Each source has a
-                default zoom, crosshair color, and one or more visualizations that you would like to
-                show (like True Color, NDVI).
-              </span>
-              <span className="font-semibold text-brand-700 text-right">2. Collection</span>
-              <span>
-                A time window of imagery within a source (e.g. <em>January 2024</em>). STAC
-                collections search data from a catalog that is shown through TiTiler; Manual/XYZ
-                collections use a direct tile URL.
-              </span>
-              <span className="font-semibold text-brand-700 text-right">3. Slice</span>
-              <span>
-                A sub-period within a collection (e.g. <em>Week 1, Week 2</em>). Annotators can
-                switch between slices to find cloud-free imagery. One slice is marked as the{' '}
-                <strong>cover</strong> (default visible). Often you might want to use some form of
-                composite (i.e median) as the cover, and then have weekly slices to see all imagery
-                in detail.
-              </span>
-              <span className="font-semibold text-brand-700 text-right">4. View</span>
-              <span>
-                A layout tab in the canvas above. Each view can include different sources. Often you
-                might want to have one view per source to not overcrowd the screen. Sources can be
-                part of different views.
-              </span>
-              <span className="font-semibold text-brand-700 text-right">5. Window</span>
-              <span>
-                Each collection assigned to a view becomes a map window. You always have one main
-                map; The windows appear as small thumbnails. You can hide windows you don't need -
-                they can still be seen through navigation on the timeline (layer selector).
-              </span>
-            </div>
-            <div className="pt-1.5 border-t border-neutral-100 text-neutral-500 leading-relaxed">
-              <strong className="text-neutral-600">Workflow:</strong> Create sources below →
-              configure their collections &amp; slices → add sources to views using the canvas
-              preview above → select windows.
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-neutral-800 uppercase tracking-wide">
-            Imagery Sources
-          </h3>
+    <div className="space-y-6">
+      {/* ═══════════════════════════════════════════════════════════════
+          SECTION 1: IMAGERY SOURCES
+          ═══════════════════════════════════════════════════════════════ */}
+      <section>
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-neutral-900">Imagery Sources</h3>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Define where imagery comes from, the temporal intervals available, and how it should be
+            visualized. Each source represents a data provider (e.g. Sentinel-2, Landsat, NAIP) with
+            collections that cover specific time periods.
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2 relative">
@@ -522,10 +496,21 @@ export const StepImagery = ({
             </div>
           </div>
         )}
-      </div>
+      </section>
 
+      {/* ═══════════════════════════════════════════════════════════════
+          SECTION 2: VIEW LAYOUT
+          ═══════════════════════════════════════════════════════════════ */}
       {state.sources.length > 0 && (
-        <div>
+        <section>
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-neutral-900">View Layout</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Configure how imagery appears in the annotation tool. Arrange sources into views
+              (tabs), choose which collections are visible as map windows, and control the layout
+              annotators will work with.
+            </p>
+          </div>
           <CanvasPreview
             sources={state.sources}
             views={state.views}
@@ -539,7 +524,7 @@ export const StepImagery = ({
             onAddSource={() => setShowSourcePicker(true)}
             sourcesNotInAnyView={sourcesNotInAnyView}
           />
-        </div>
+        </section>
       )}
 
       {showSourcePicker && (
@@ -579,13 +564,17 @@ export const StepImagery = ({
         </Modal>
       )}
 
-      {/* Basemaps */}
-      <div className="border-t border-neutral-200 pt-3">
+      {/* ═══════════════════════════════════════════════════════════════
+          SECTION 3: BASEMAPS
+          ═══════════════════════════════════════════════════════════════ */}
+      <section>
         <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs font-semibold text-neutral-800 uppercase tracking-wide flex items-center gap-1">
-            Basemaps
-            <Tooltip text="Background reference layers shown in every view (e.g. OpenStreetMap, satellite)." />
-          </h4>
+          <div>
+            <h3 className="text-sm font-semibold text-neutral-900">Basemaps</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Background reference layers shown beneath imagery in every view.
+            </p>
+          </div>
           <button
             type="button"
             onClick={addBasemap}
@@ -629,7 +618,7 @@ export const StepImagery = ({
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };

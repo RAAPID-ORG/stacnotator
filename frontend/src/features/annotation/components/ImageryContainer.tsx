@@ -213,7 +213,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     const handler = (reportedUrl: string) => {
       if (reportedUrl !== crosshairTileUrl) return;
 
+      // Only auto-advance on first discovery. If the slice was already known
+      // empty before we switched to it, the user deliberately re-selected it
+      // (docs: "Empty slices remain manually selectable from dropdown").
+      const alreadyKnownEmpty = !!emptySlices[sliceKey];
       markSliceEmpty(sliceKey);
+      if (alreadyKnownEmpty) return;
 
       const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
       const nextIndex = slices.findIndex(

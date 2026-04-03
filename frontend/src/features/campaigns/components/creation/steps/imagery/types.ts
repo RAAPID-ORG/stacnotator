@@ -38,6 +38,8 @@ export interface VizParams {
   resampling?: string;
   compositing?: string;
   nodata?: number;
+  /** Extra query parameters passed through to the tiler (e.g. asset_bidx, post_process) */
+  extraParams?: Record<string, string>;
   /** Asset name to use as pixel mask (e.g. "SCL" for Sentinel-2 Scene Classification) */
   maskLayer?: string;
   /** Values in mask layer to exclude (e.g. [0, 1, 8, 9, 10] to mask clouds/nodata in SCL) */
