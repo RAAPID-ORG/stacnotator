@@ -2,14 +2,13 @@
 #
 # Stacnotator Deployment Script
 #
-# Self-manages all application resources within the project's resource group:
+# Deploys application resources within the project's resource group:
 #   - Backend Container App (FastAPI)
 #   - Tiler Container App (TiTiler + GDAL, dedicated D16 workload profile)
 #   - Frontend Static Web App (React/Vite)
-#   - Managed identities + RBAC for each app
 #
 # Prerequisites:
-#   - Infrastructure (RG, ACR, KV, DB, CAE) already deployed
+#   - Infrastructure (RG, ACR, KV, DB, CAE, managed identity) deployed via Terraform (raapid-infra)
 #   - User must have Contributor on the project resource group
 #   - Secrets uploaded via upload-secrets.sh (first time only)
 #
@@ -46,6 +45,13 @@ fi
 APP_BACKEND="stacnotator-${ENV}-backend"
 APP_TILER="stacnotator-${ENV}-tiler"
 APP_SWA="stacnotator-${ENV}-frontend"
+
+# Project name as used in Terraform (matches KV secret naming)
+if [ "$ENV" = "prod" ]; then
+    PROJECT_NAME="stacnotator"
+else
+    PROJECT_NAME="stacnotator-${ENV}"
+fi
 
 # Resource sizing per environment
 if [ "$ENV" = "dev" ]; then
@@ -108,30 +114,16 @@ if [ "$CI" != "true" ]; then
     [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 fi
 
-ensure_identity() {
-    local APP_NAME=$1
-    local IDENTITY_NAME="id-${APP_NAME}"
-
-    # Create identity if it doesn't exist
-    if ! az identity show --name "$IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/null; then
-        echo -e "${YELLOW}  Creating managed identity: $IDENTITY_NAME${NC}"
-        az identity create --name "$IDENTITY_NAME" -g "$RESOURCE_GROUP" --output none
-    fi
-
-    IDENTITY_ID=$(az identity show --name "$IDENTITY_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
-    IDENTITY_PRINCIPAL=$(az identity show --name "$IDENTITY_NAME" -g "$RESOURCE_GROUP" --query principalId -o tsv)
-    IDENTITY_CLIENT=$(az identity show --name "$IDENTITY_NAME" -g "$RESOURCE_GROUP" --query clientId -o tsv)
-
-    # Grant ACR pull (idempotent)
-    az role assignment create --role "AcrPull" --assignee-object-id "$IDENTITY_PRINCIPAL" \
-        --assignee-principal-type ServicePrincipal --scope "$ACR_ID" --output none 2>/dev/null || true
-
-    # Grant KV secrets read (idempotent)
-    az role assignment create --role "Key Vault Secrets User" --assignee-object-id "$IDENTITY_PRINCIPAL" \
-        --assignee-principal-type ServicePrincipal --scope "$KV_ID" --output none 2>/dev/null || true
-
-    echo -e "${GREEN}  ✓ Identity: $IDENTITY_NAME${NC}"
-}
+# Look up the shared Container Apps identity (created by Terraform in raapid-infra)
+APPS_IDENTITY_NAME="id-${PROJECT_NAME}-apps"
+echo -e "${YELLOW}Looking up managed identity: $APPS_IDENTITY_NAME${NC}"
+if ! az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/null; then
+    echo -e "${RED}Error: Managed identity '$APPS_IDENTITY_NAME' not found in $RESOURCE_GROUP.${NC}"
+    echo -e "${RED}Run Terraform in raapid-infra first to create it.${NC}"
+    exit 1
+fi
+IDENTITY_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 
 # Build + push images
 echo ""
@@ -151,10 +143,9 @@ echo -e "${GREEN}✓ Tiler pushed${NC}"
 # Deploy backend
 echo ""
 echo -e "${YELLOW}Deploying backend...${NC}"
-ensure_identity "$APP_BACKEND"
 
-DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/stacnotator-postgres-admin-password"
-DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/stacnotator-postgres-host"
+DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-admin-password"
+DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-host"
 FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credentials"
 EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
 
@@ -192,7 +183,6 @@ echo -e "${GREEN}✓ Backend deployed${NC}"
 # Deploy tiler
 echo ""
 echo -e "${YELLOW}Deploying tiler...${NC}"
-ensure_identity "$APP_TILER"
 
 # Workload profile: D16 for prod, consumption for dev
 TILER_PROFILE_ARGS=""
