@@ -130,10 +130,15 @@ def upgrade() -> None:
         "WITH (m = 16, ef_construction = 64)"
     )
 
-    # Backfill embeddings for existing campaigns (best-effort)
+    # Backfill embeddings for existing campaigns (best-effort).
+    # Run in a savepoint so a query failure doesn't abort the migration transaction.
+    conn = op.get_bind()
+    nested = conn.begin_nested()
     try:
         _backfill_embeddings()
+        nested.commit()
     except Exception as exc:
+        nested.rollback()
         logger.warning(
             "Embedding backfill skipped - can be run later via backfill_embeddings.py: %s",
             exc,
