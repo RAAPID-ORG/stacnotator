@@ -55,7 +55,7 @@ fi
 
 # Resource sizing per environment
 if [ "$ENV" = "dev" ]; then
-    BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=0  BACKEND_MAX=1  BACKEND_WORKERS=2
+    BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
     TILER_DEDICATED=false
 else
@@ -239,20 +239,34 @@ echo -e "${GREEN}✓ Tiler deployed${NC}"
 
 # Run migrations
 echo ""
-echo -e "${YELLOW}Waiting for backend to stabilize...${NC}"
-sleep 10
-
-REPLICA_NAME=$(az containerapp replica list --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-    --query "[0].name" -o tsv 2>/dev/null || echo "")
+echo -e "${YELLOW}Waiting for backend replica to be ready...${NC}"
+MIGRATION_RETRIES=12
+REPLICA_NAME=""
+for i in $(seq 1 $MIGRATION_RETRIES); do
+    REPLICA_NAME=$(az containerapp replica list --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --query "[?properties.runningState=='Running'] | [0].name" -o tsv 2>/dev/null || echo "")
+    if [ -n "$REPLICA_NAME" ]; then
+        echo -e "${GREEN}  ✓ Replica ready: $REPLICA_NAME${NC}"
+        break
+    fi
+    echo -e "  Attempt $i/$MIGRATION_RETRIES — waiting 10s..."
+    sleep 10
+done
 
 if [ -n "$REPLICA_NAME" ]; then
     echo -e "${YELLOW}Running database migrations...${NC}"
     az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-        --replica "$REPLICA_NAME" --command "alembic upgrade head" 2>&1 | tee /tmp/migration_output.log || true
-    echo -e "${GREEN}✓ Migrations done${NC}"
+        --replica "$REPLICA_NAME" --command "alembic upgrade head" 2>&1 | tee /tmp/migration_output.log
+    MIGRATION_EXIT=$?
+    if [ $MIGRATION_EXIT -ne 0 ]; then
+        echo -e "${YELLOW}Warning: Migration exec returned $MIGRATION_EXIT. Verify manually:${NC}"
+        echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+    else
+        echo -e "${GREEN}✓ Migrations done${NC}"
+    fi
 else
-    echo -e "${YELLOW}Warning: No replica found. Run manually:${NC}"
-    echo -e "  az containerapp exec -n backend -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+    echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
+    echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
 fi
 
 # Deploy frontend
