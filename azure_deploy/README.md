@@ -2,6 +2,8 @@
 
 Scripts for deploying STACNotator to Azure. The deploy script self-manages all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group.
 
+Using CLI instead of Terraform to avoid VNet restrictions from GH runners for now. Once we move to a production-ready version, we should migrate this to a runner in our Azure VNet.
+
 ## Architecture
 
 | Component | Azure Service | Managed by |
