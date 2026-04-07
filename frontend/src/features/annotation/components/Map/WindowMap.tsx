@@ -122,7 +122,7 @@ const WindowMap = ({
     });
 
     const tileLayer = new TileLayer({
-      preload: 4,
+      preload: 0,
       source,
     });
     tileLayerRef.current = tileLayer;

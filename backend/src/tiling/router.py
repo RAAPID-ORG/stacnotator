@@ -31,7 +31,8 @@ _catalogs_cache: dict = {"data": None, "expires": 0}
 
 @router.get("/catalogs")
 async def list_catalogs():
-    """Proxy StacIndex API with caching. Returns public STAC API catalogs."""
+    """Proxy StacIndex API with caching. Returns public STAC API catalogs.
+    Proxying as we might want to add our own catalogs in the future."""
     now = time.time()
     if _catalogs_cache["data"] and now < _catalogs_cache["expires"]:
         return _catalogs_cache["data"]
