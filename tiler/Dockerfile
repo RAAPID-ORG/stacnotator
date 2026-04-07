@@ -13,7 +13,7 @@ COPY pyproject.toml uv.lock* ./
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 
 # Production stage
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    libgdal34 \
+    libgdal32 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv /app/.venv

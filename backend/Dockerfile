@@ -7,7 +7,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -28,7 +27,6 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     postgresql-client \
-    libgdal34 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
