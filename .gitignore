@@ -4,8 +4,13 @@
 !.env.example
 !.env.dev
 !.env.deploy.example
-azure_deploy/.env.deploy
+azure_deploy/.env.deploy.*
+!azure_deploy/.env.deploy.example
 azure_deploy/.env
+azure_deploy/.env.deploy.dev
+azure_deploy/.env.deploy.prod
+
+
 
 # Docker
 docker-compose.override.yml

@@ -16,9 +16,15 @@
 
 set -e
 
-# Auto-load config from .env.deploy if it exists
+# Environment argument
+ENV="${1:?Usage: $0 <prod|dev>}"
+if [[ "$ENV" != "prod" && "$ENV" != "dev" ]]; then
+    echo "Error: argument must be 'prod' or 'dev'" >&2
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy" ] && set -a && source "$SCRIPT_DIR/.env.deploy" && set +a
+[ -f "$SCRIPT_DIR/.env.deploy.$ENV" ] && set -a && source "$SCRIPT_DIR/.env.deploy.$ENV" && set +a
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -26,26 +32,34 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# ── App names (consistent across all commands) ──
-ENV="${DEPLOY_ENV:-prod}"
-APP_BACKEND="stacnotator-${ENV}-backend"
-APP_TILER="stacnotator-${ENV}-tiler"
-APP_SWA="stacnotator-${ENV}-frontend"
-
-echo -e "${GREEN}━━━ Stacnotator Deployment ━━━${NC}"
-echo ""
-
-# ── Prerequisites ──
-
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
 fi
 
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
-    [ -z "$RESOURCE_GROUP" ] && echo -e "${RED}RESOURCE_GROUP required.${NC}" && exit 1
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.$ENV${NC}"
+    exit 1
 fi
+
+# App names
+APP_BACKEND="stacnotator-${ENV}-backend"
+APP_TILER="stacnotator-${ENV}-tiler"
+APP_SWA="stacnotator-${ENV}-frontend"
+
+# Resource sizing per environment
+if [ "$ENV" = "dev" ]; then
+    BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=0  BACKEND_MAX=1  BACKEND_WORKERS=2
+    TILER_CPU=1      TILER_MEM=2Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=4
+    TILER_DEDICATED=false
+else
+    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=3  BACKEND_WORKERS=4
+    TILER_CPU=16     TILER_MEM=32Gi   TILER_MIN=1    TILER_MAX=2    TILER_WORKERS=32
+    TILER_DEDICATED=true
+fi
+
+echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
+echo ""
 
 # Auto-generate image tag from git commit SHA
 if [ -z "$IMAGE_TAG" ]; then
@@ -57,8 +71,7 @@ if [ -z "$IMAGE_TAG" ]; then
     IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d-%H%M%S)
 fi
 
-# ── Discover infrastructure (created by Terraform) ──
-
+# Discover infrastructure
 echo -e "${YELLOW}Discovering infrastructure...${NC}"
 
 ACR_NAME=$(az acr list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
@@ -76,14 +89,17 @@ KV_ID=$(az keyvault show --name "$KV_NAME" -g "$RESOURCE_GROUP" --query id -o ts
 
 echo -e "${GREEN}✓ ACR: $ACR_NAME | CAE: $CAE_NAME | KV: $KV_NAME${NC}"
 
-# ── Deployment plan ──
-
 echo ""
 echo -e "${BLUE}Deployment Plan${NC}"
+echo -e "  Env:       $ENV"
 echo -e "  RG:        $RESOURCE_GROUP"
 echo -e "  Tag:       $IMAGE_TAG"
-echo -e "  Backend:   Container App (1 CPU, 2Gi)"
-echo -e "  Tiler:     Container App (16 CPU, 32Gi, D16 dedicated)"
+echo -e "  Backend:   Container App (${BACKEND_CPU} CPU, ${BACKEND_MEM}, ${BACKEND_MIN}-${BACKEND_MAX} replicas)"
+if [ "$TILER_DEDICATED" = "true" ]; then
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D16 dedicated)"
+else
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, consumption)"
+fi
 echo -e "  Frontend:  Static Web App"
 echo ""
 
@@ -91,8 +107,6 @@ if [ "$CI" != "true" ]; then
     read -p "Proceed? (y/N): " CONFIRM
     [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 fi
-
-# ── Helper: create-or-update managed identity + RBAC ──
 
 ensure_identity() {
     local APP_NAME=$1
@@ -119,8 +133,7 @@ ensure_identity() {
     echo -e "${GREEN}  ✓ Identity: $IDENTITY_NAME${NC}"
 }
 
-# ── Build + push images ──
-
+# Build + push images
 echo ""
 echo -e "${YELLOW}Logging in to ACR...${NC}"
 az acr login --name "$ACR_NAME" -g "$RESOURCE_GROUP"
@@ -135,14 +148,15 @@ docker build -t "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" -f tiler/Dockerfile tiler/
 docker push "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG"
 echo -e "${GREEN}✓ Tiler pushed${NC}"
 
-# ── Deploy backend Container App ──
-
+# Deploy backend
 echo ""
 echo -e "${YELLOW}Deploying backend...${NC}"
 ensure_identity "$APP_BACKEND"
 
 DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/stacnotator-postgres-admin-password"
 DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/stacnotator-postgres-host"
+FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credentials"
+EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
 
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -153,39 +167,48 @@ else
         --environment "$CAE_NAME" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
         --target-port 8000 --ingress external \
-        --cpu 1 --memory 2Gi \
-        --min-replicas 1 --max-replicas 3 \
+        --cpu "$BACKEND_CPU" --memory "$BACKEND_MEM" \
+        --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
         --scale-rule-name http-concurrency --scale-rule-type http --scale-rule-http-concurrency 50 \
         --user-assigned "$IDENTITY_ID" \
         --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
         --secrets "db-password=keyvaultref:$DB_PASS_URI,identityref:$IDENTITY_ID" \
                   "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
+                  "firebase-credentials=keyvaultref:$FIREBASE_CREDS_URI,identityref:$IDENTITY_ID" \
+                  "ee-private-key=keyvaultref:$EE_KEY_URI,identityref:$IDENTITY_ID" \
         --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
                    "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
                    "AUTH_PROVIDER=firebase" "CORS_ORIGINS=__PENDING__" \
                    "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
-                   "WORKERS=4" "TIMEOUT=60" \
+                   "FIREBASE_CREDENTIALS=secretref:firebase-credentials" \
+                   "EE_PRIVATE_KEY=secretref:ee-private-key" \
+                   "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
+                   "ENVIRONMENT=production" \
+                   "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
         --output none
 fi
 echo -e "${GREEN}✓ Backend deployed${NC}"
 
-# ── Deploy tiler Container App (dedicated D16 workload profile) ──
-
+# Deploy tiler
 echo ""
 echo -e "${YELLOW}Deploying tiler...${NC}"
 ensure_identity "$APP_TILER"
 
-# Add dedicated workload profile if it doesn't exist
-EXISTING_PROFILES=$(az containerapp env workload-profile list -g "$RESOURCE_GROUP" --name "$CAE_NAME" --query "[].name" -o tsv 2>/dev/null || echo "")
-if ! echo "$EXISTING_PROFILES" | grep -q "tiler-dedicated"; then
-    echo -e "${YELLOW}  Adding D16 workload profile...${NC}"
-    az containerapp env workload-profile add \
-        --name "$CAE_NAME" -g "$RESOURCE_GROUP" \
-        --workload-profile-name "tiler-dedicated" \
-        --workload-profile-type D16 \
-        --min-nodes 0 --max-nodes 1 \
-        --output none
-    echo -e "${GREEN}  ✓ Workload profile added${NC}"
+# Workload profile: D16 for prod, consumption for dev
+TILER_PROFILE_ARGS=""
+if [ "$TILER_DEDICATED" = "true" ]; then
+    EXISTING_PROFILES=$(az containerapp env workload-profile list -g "$RESOURCE_GROUP" --name "$CAE_NAME" --query "[].name" -o tsv 2>/dev/null || echo "")
+    if ! echo "$EXISTING_PROFILES" | grep -q "tiler-dedicated"; then
+        echo -e "${YELLOW}  Adding D16 workload profile...${NC}"
+        az containerapp env workload-profile add \
+            --name "$CAE_NAME" -g "$RESOURCE_GROUP" \
+            --workload-profile-name "tiler-dedicated" \
+            --workload-profile-type D16 \
+            --min-nodes 0 --max-nodes 1 \
+            --output none
+        echo -e "${GREEN}  ✓ Workload profile added${NC}"
+    fi
+    TILER_PROFILE_ARGS="--workload-profile-name tiler-dedicated"
 fi
 
 if az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" &>/dev/null; then
@@ -195,11 +218,11 @@ if az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" &>/dev/null; th
 else
     az containerapp create --name "$APP_TILER" -g "$RESOURCE_GROUP" \
         --environment "$CAE_NAME" \
-        --workload-profile-name "tiler-dedicated" \
+        $TILER_PROFILE_ARGS \
         --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
         --target-port 8001 --ingress external \
-        --cpu 16 --memory 32Gi \
-        --min-replicas 1 --max-replicas 2 \
+        --cpu "$TILER_CPU" --memory "$TILER_MEM" \
+        --min-replicas "$TILER_MIN" --max-replicas "$TILER_MAX" \
         --scale-rule-name http-concurrency --scale-rule-type http --scale-rule-http-concurrency 20 \
         --user-assigned "$IDENTITY_ID" \
         --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
@@ -208,7 +231,7 @@ else
         --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
                    "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
                    "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
-                   "WORKERS=32" "TIMEOUT=120" "MAX_REQUESTS=500" \
+                   "WORKERS=$TILER_WORKERS" "TIMEOUT=120" "MAX_REQUESTS=500" \
                    "GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR" \
                    "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=NO" \
                    "GDAL_HTTP_MULTIPLEX=YES" \
@@ -224,8 +247,7 @@ else
 fi
 echo -e "${GREEN}✓ Tiler deployed${NC}"
 
-# ── Wait for backend, run migrations ──
-
+# Run migrations
 echo ""
 echo -e "${YELLOW}Waiting for backend to stabilize...${NC}"
 sleep 10
@@ -243,10 +265,9 @@ else
     echo -e "  az containerapp exec -n backend -g $RESOURCE_GROUP --command 'alembic upgrade head'"
 fi
 
-# ── Deploy frontend as Static Web App ──
-
+# Deploy frontend
 echo ""
-echo -e "${YELLOW}Deploying frontend (Static Web App)...${NC}"
+echo -e "${YELLOW}Deploying frontend...${NC}"
 
 BACKEND_URL=$(az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
     --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "")
@@ -301,8 +322,7 @@ FRONTEND_URL=$(az staticwebapp show --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
     --query "defaultHostname" -o tsv 2>/dev/null || echo "")
 echo -e "${GREEN}✓ Frontend deployed${NC}"
 
-# ── Update CORS ──
-
+# Update CORS
 echo ""
 echo -e "${YELLOW}Updating CORS...${NC}"
 az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -311,10 +331,8 @@ az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
     --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none 2>/dev/null || true
 echo -e "${GREEN}✓ CORS updated${NC}"
 
-# ── Summary ──
-
 echo ""
-echo -e "${GREEN}━━━ Deployment Complete ━━━${NC}"
+echo -e "${GREEN}Deployment Complete${NC}"
 echo ""
 echo -e "${BLUE}Frontend:${NC} https://$FRONTEND_URL"
 echo -e "${BLUE}Backend:${NC}  https://$BACKEND_URL"

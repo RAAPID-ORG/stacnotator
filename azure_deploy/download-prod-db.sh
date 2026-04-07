@@ -19,9 +19,8 @@
 
 set -e
 
-# Auto-load config from .env.deploy if it exists
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy" ] && set -a && source "$SCRIPT_DIR/.env.deploy" && set +a
+[ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -29,23 +28,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}Download Production DB to Local Dev${NC}"
-echo ""
-
-# Azure login check
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
 fi
 
-# Resource group
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
-    if [ -z "$RESOURCE_GROUP" ]; then
-        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
-        exit 1
-    fi
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.prod${NC}"
+    exit 1
 fi
+
+echo -e "${GREEN}Download Production DB to Local Dev${NC}"
+echo ""
 
 # Discover Azure Postgres server
 echo -e "${YELLOW}Looking up Azure Postgres Flexible Server...${NC}"

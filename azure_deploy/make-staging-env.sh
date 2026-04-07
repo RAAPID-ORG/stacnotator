@@ -26,9 +26,9 @@
 
 set -e
 
-# Auto-load config from .env.deploy if it exists
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy" ] && set -a && source "$SCRIPT_DIR/.env.deploy" && set +a
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+COMPOSE="docker compose -p stacnotator-staging -f $PROJECT_ROOT/docker-compose.staging.yml"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -36,9 +36,27 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-COMPOSE="docker compose -p stacnotator-staging -f $PROJECT_ROOT/docker-compose.staging.yml"
+# Teardown mode (no Azure login needed)
+if [[ "${1:-}" == "--down" ]]; then
+    echo -e "${YELLOW}Tearing down staging stack...${NC}"
+    $COMPOSE down -v --remove-orphans 2>/dev/null || true
+    echo -e "${GREEN}✓ Staging stack removed${NC}"
+    exit 0
+fi
+
+# Load prod config (always pulls from prod)
+[ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
+
+if ! az account show &>/dev/null; then
+    echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
+    exit 1
+fi
+
+if [ -z "$RESOURCE_GROUP" ]; then
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.prod${NC}"
+    exit 1
+fi
+
 BACKUP_DIR="$PROJECT_ROOT/db/backups"
 
 # Staging DB credentials (must match docker-compose.staging.yml)
@@ -47,33 +65,10 @@ STG_PASS="${STAGING_DB_PASSWORD:-changeme}"
 STG_DB="stacnotator"
 STG_PORT=5433
 
-# Teardown mode
-if [[ "${1:-}" == "--down" ]]; then
-    echo -e "${YELLOW}Tearing down staging stack...${NC}"
-    $COMPOSE down -v --remove-orphans 2>/dev/null || true
-    echo -e "${GREEN}✓ Staging stack removed${NC}"
-    exit 0
-fi
-
 echo -e "${GREEN}Local Staging Environment${NC}"
 echo -e "${BLUE}This will download the prod DB, run migrations against it,${NC}"
 echo -e "${BLUE}and let you test the result at http://localhost:5174${NC}"
 echo ""
-
-# Azure login check
-if ! az account show &>/dev/null; then
-    echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
-    exit 1
-fi
-
-# Resource group
-if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
-    if [ -z "$RESOURCE_GROUP" ]; then
-        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
-        exit 1
-    fi
-fi
 
 # Discover Azure Postgres server
 echo -e "${YELLOW}Looking up Azure Postgres Flexible Server...${NC}"

@@ -1,41 +1,35 @@
 #!/bin/bash
 set -e
 
-# Auto-load config from .env.deploy if it exists
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-[ -f "$SCRIPT_DIR/.env.deploy" ] && set -a && source "$SCRIPT_DIR/.env.deploy" && set +a
+# Arguments: <prod|dev> [backend|tiler]
+ENV="${1:?Usage: $0 <prod|dev> [backend|tiler]}"
+if [[ "$ENV" != "prod" && "$ENV" != "dev" ]]; then
+    echo "Error: first argument must be 'prod' or 'dev'" >&2
+    exit 1
+fi
 
-# Colors
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/.env.deploy.$ENV" ] && set -a && source "$SCRIPT_DIR/.env.deploy.$ENV" && set +a
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}View Container App Logs${NC}"
-echo ""
-
-# Check Azure login
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
 fi
 
-# Prompt for resource group
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
-    if [ -z "$RESOURCE_GROUP" ]; then
-        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
-        exit 1
-    fi
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.$ENV${NC}"
+    exit 1
 fi
 
-# Prompt for app name
-if [ -z "$1" ]; then
-    read -p "Enter app name (stacnotator-backend/stacnotator-tiler) [stacnotator-backend]: " APP_NAME
-    APP_NAME=${APP_NAME:-stacnotator-backend}
-else
-    APP_NAME="$1"
-fi
+APP_NAME="stacnotator-${ENV}-${2:-backend}"
+
+echo -e "${GREEN}View Container App Logs (${ENV})${NC}"
+echo ""
 
 echo ""
 echo -e "${YELLOW}Resource Group: $RESOURCE_GROUP${NC}"

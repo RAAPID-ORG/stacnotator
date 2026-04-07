@@ -5,7 +5,9 @@
 	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
 	staging-up staging-down staging-logs dev-restore-backup \
-	dev-logs-tiler dev-restart-tiler dev-shell-tiler logs-tiler restart-tiler
+	dev-logs-tiler dev-restart-tiler dev-shell-tiler logs-tiler restart-tiler \
+	az-deploy-prod az-deploy-dev az-sync-prod-to-dev \
+	az-logs-prod az-logs-dev az-upload-secrets-prod az-upload-secrets-dev
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -312,5 +314,23 @@ staging-logs: ## Show logs from the staging stack
 # Azure Deployment
 ###################################################
 
-az-deploy: # Deploy to Azure. Requires VPN access and whitelisted IP.
-	./azure_deploy/deploy-app.sh
+az-deploy-prod: ## Deploy to Azure production
+	./azure_deploy/deploy-app.sh prod
+
+az-deploy-dev: ## Deploy to Azure dev (smaller resources, min 0 replicas)
+	./azure_deploy/deploy-app.sh dev
+
+az-sync-prod-to-dev: ## Sync production database into dev Azure Postgres + run migrations
+	./azure_deploy/sync-prod-data-to-dev.sh
+
+az-logs-prod: ## View prod container app logs (use APP=tiler for tiler)
+	./azure_deploy/view-logs.sh prod $(APP)
+
+az-logs-dev: ## View dev container app logs (use APP=tiler for tiler)
+	./azure_deploy/view-logs.sh dev $(APP)
+
+az-upload-secrets-prod: ## Upload secrets to prod Key Vault
+	./azure_deploy/upload-secrets.sh prod
+
+az-upload-secrets-dev: ## Upload secrets to dev Key Vault
+	./azure_deploy/upload-secrets.sh dev
