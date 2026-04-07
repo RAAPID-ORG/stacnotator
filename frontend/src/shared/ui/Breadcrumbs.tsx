@@ -16,7 +16,7 @@ export const Breadcrumbs = ({ items }: BreadcrumbsProps) => {
   const allItems: BreadcrumbItem[] = [{ label: 'Home', path: '/' }, ...items];
 
   return (
-    <header className="px-4 py-1 text-sm font-normal bg-white border-b border-neutral-100 flex-shrink-0">
+    <header className="px-4 py-1.5 text-sm font-normal bg-neutral-50 border-b border-neutral-200 flex-shrink-0">
       <nav className="flex items-center">
         {allItems.map((item, index) => {
           const isLast = index === allItems.length - 1;

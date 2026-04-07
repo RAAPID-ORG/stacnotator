@@ -49,12 +49,12 @@ export const CampaignsPage = () => {
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-lg font-bold text-neutral-900">Campaigns</h1>
+        <h1 className="text-xl font-bold text-neutral-900">Campaigns</h1>
         <button
           onClick={() => navigate('/campaigns/new')}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium bg-brand-500 text-white rounded-md hover:bg-brand-700 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium bg-brand-500 text-white rounded-md hover:bg-brand-700 transition-colors cursor-pointer"
         >
-          <IconPlus className="w-3 h-3" />
+          <IconPlus className="w-3.5 h-3.5" />
           New Campaign
         </button>
       </div>
@@ -64,8 +64,8 @@ export const CampaignsPage = () => {
           <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center mx-auto mb-3">
             <IconDocument className="w-5 h-5 text-brand-500" />
           </div>
-          <p className="text-sm text-neutral-600 mb-1 font-medium">No campaigns yet</p>
-          <p className="text-xs text-neutral-400 mb-4">
+          <p className="text-base text-neutral-600 mb-1 font-medium">No campaigns yet</p>
+          <p className="text-sm text-neutral-400 mb-4">
             Create your first campaign to get started.
           </p>
           <button
@@ -91,7 +91,7 @@ export const CampaignsPage = () => {
                 <div className="p-3.5">
                   <div className="flex items-start justify-between mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h3 className="text-sm font-semibold text-neutral-900 truncate">
+                      <h3 className="text-base font-semibold text-neutral-900 truncate">
                         {capitalizeFirst(campaign.name)}
                       </h3>
                       {isPublic && (

@@ -34,7 +34,7 @@ export const HomePage = () => {
           <h1 className="text-[28px] font-bold text-neutral-900 tracking-tight leading-tight">
             STACNotator
           </h1>
-          <p className="text-sm text-neutral-500 mt-1.5 leading-relaxed max-w-lg">
+          <p className="text-base text-neutral-500 mt-1.5 leading-relaxed max-w-lg">
             Geospatial imagery annotation platform. Create campaigns, configure STAC imagery
             sources, and annotate features collaboratively.
           </p>
@@ -94,8 +94,8 @@ export const HomePage = () => {
               <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center mx-auto mb-3">
                 <IconDocument className="w-6 h-6 text-brand-500" />
               </div>
-              <p className="text-sm text-neutral-600 mb-1 font-medium">No campaigns yet</p>
-              <p className="text-xs text-neutral-400 mb-4">
+              <p className="text-base text-neutral-600 mb-1 font-medium">No campaigns yet</p>
+              <p className="text-sm text-neutral-400 mb-4">
                 Create your first campaign to get started.
               </p>
               <button
@@ -129,7 +129,7 @@ export const HomePage = () => {
                         <IconDocument className="w-4 h-4 text-brand-500" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-neutral-800 truncate leading-tight">
+                        <h3 className="text-base font-semibold text-neutral-800 truncate leading-tight">
                           {capitalizeFirst(campaign.name)}
                         </h3>
                       </div>

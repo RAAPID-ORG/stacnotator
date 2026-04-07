@@ -50,7 +50,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
       className="flex flex-col h-full bg-neutral-50 border-r border-neutral-200 transition-all duration-200"
       style={{ width: collapsed ? '60px' : '180px' }}
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200">
         {!collapsed && (
           <button
             onClick={() => handleNavClick('/')}
