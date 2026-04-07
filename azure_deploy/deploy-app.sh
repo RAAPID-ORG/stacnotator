@@ -148,6 +148,7 @@ DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-a
 DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-host"
 FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credentials"
 EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
+TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
 
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -167,12 +168,14 @@ else
                   "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
                   "firebase-credentials=keyvaultref:$FIREBASE_CREDS_URI,identityref:$IDENTITY_ID" \
                   "ee-private-key=keyvaultref:$EE_KEY_URI,identityref:$IDENTITY_ID" \
+                  "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
         --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
                    "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
                    "AUTH_PROVIDER=firebase" "CORS_ORIGINS=__PENDING__" \
                    "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
                    "FIREBASE_CREDENTIALS=secretref:firebase-credentials" \
                    "EE_PRIVATE_KEY=secretref:ee-private-key" \
+                   "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
                    "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                    "ENVIRONMENT=production" \
                    "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
@@ -218,9 +221,11 @@ else
         --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
         --secrets "db-password=keyvaultref:$DB_PASS_URI,identityref:$IDENTITY_ID" \
                   "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
+                  "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
         --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
                    "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
                    "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
+                   "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
                    "WORKERS=$TILER_WORKERS" "TIMEOUT=120" "MAX_REQUESTS=500" \
                    "GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR" \
                    "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=NO" \
@@ -249,20 +254,24 @@ for i in $(seq 1 $MIGRATION_RETRIES); do
         echo -e "${GREEN}  ✓ Replica ready: $REPLICA_NAME${NC}"
         break
     fi
-    echo -e "  Attempt $i/$MIGRATION_RETRIES — waiting 10s..."
+    echo -e "  Attempt $i/$MIGRATION_RETRIES - waiting 10s..."
     sleep 10
 done
 
 if [ -n "$REPLICA_NAME" ]; then
     echo -e "${YELLOW}Running database migrations...${NC}"
+    # az containerapp exec doesn't reliably return the command's exit code,
+    # so we wrap alembic to echo a sentinel on success.
     az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-        --replica "$REPLICA_NAME" --command "alembic upgrade head" 2>&1 | tee /tmp/migration_output.log
-    MIGRATION_EXIT=$?
-    if [ $MIGRATION_EXIT -ne 0 ]; then
-        echo -e "${YELLOW}Warning: Migration exec returned $MIGRATION_EXIT. Verify manually:${NC}"
-        echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
-    else
+        --replica "$REPLICA_NAME" \
+        --command "sh -c 'alembic upgrade head && echo MIGRATION_SUCCESS'" \
+        2>&1 | tee /tmp/migration_output.log
+    if grep -q "MIGRATION_SUCCESS" /tmp/migration_output.log; then
         echo -e "${GREEN}✓ Migrations done${NC}"
+    else
+        echo -e "${RED}Warning: Migration may have failed - 'MIGRATION_SUCCESS' not found in output.${NC}"
+        echo -e "${YELLOW}Check /tmp/migration_output.log or run manually:${NC}"
+        echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
     fi
 else
     echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"

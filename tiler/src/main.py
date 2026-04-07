@@ -1,11 +1,15 @@
 """Tiler service - standalone tile server reading mosaic data from shared DB."""
 
+import hashlib
+import hmac
 import logging
+import time
 from contextlib import asynccontextmanager
 
 import rasterio
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from titiler.core.factory import MultiBaseTilerFactory, TilerFactory
 
@@ -55,6 +59,39 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def verify_tiler_token(request: Request, call_next):
+    """Verify HMAC-signed tiler token on all endpoints except /healthz."""
+    if request.url.path == "/healthz":
+        return await call_next(request)
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"detail": "Authentication required"})
+
+    token = auth_header[7:]
+    parts = token.split(":")
+    if len(parts) != 3:
+        return JSONResponse(status_code=401, content={"detail": "Invalid token format"})
+
+    uid, expiry_str, signature = parts
+    try:
+        expiry = int(expiry_str)
+    except ValueError:
+        return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+
+    if time.time() > expiry:
+        return JSONResponse(status_code=401, content={"detail": "Token expired"})
+
+    expected = hmac.new(
+        settings.TILER_TOKEN_SECRET.encode(), f"{uid}:{expiry_str}".encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(signature, expected):
+        return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+
+    return await call_next(request)
+
 
 app.include_router(tiles_router)
 app.include_router(stats_router)

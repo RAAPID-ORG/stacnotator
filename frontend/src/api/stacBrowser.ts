@@ -3,6 +3,8 @@
  * The backend proxies STAC Index and individual STAC APIs (CORS requirement).
  */
 
+import { getTilerToken } from './tilerToken';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || API_BASE;
 
@@ -101,9 +103,10 @@ export async function fetchStats(params: {
   datetime_range?: string;
   max_cloud_cover?: number;
 }): Promise<{ rescale: string; source: string }> {
+  const tilerToken = await getTilerToken();
   const resp = await fetch(`${TILER_BASE}/api/stac/stats`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tilerToken}` },
     body: JSON.stringify(params),
   });
   if (!resp.ok) throw new Error(`Stats request failed: ${resp.status}`);

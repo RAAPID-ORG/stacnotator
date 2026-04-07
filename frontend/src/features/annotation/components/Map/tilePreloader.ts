@@ -14,6 +14,7 @@
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
+import { getTilerToken } from '~/api/tilerToken';
 
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
@@ -73,8 +74,8 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  // In-flight Image elements - setting src='' aborts the request.
-  private inflightImages = new Set<HTMLImageElement>();
+  // In-flight abort controllers for cancelling fetch requests.
+  private inflightControllers = new Set<AbortController>();
 
   // Per-group error/success counters for empty-tile detection.
   private groupStats = new Map<
@@ -199,18 +200,14 @@ export class TilePreloader {
     const gen = this.generation;
     this.inflight++;
 
-    // Use Image instead of fetch() so the tile lands in the same browser
-    // cache partition that OpenLayers will read from (both use <img crossorigin="anonymous">).
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    this.inflightImages.add(img);
+    const controller = new AbortController();
+    this.inflightControllers.add(controller);
 
-    const done = (ok: boolean) => {
-      this.inflightImages.delete(img);
+    const done = (ok: boolean, aborted = false) => {
+      this.inflightControllers.delete(controller);
       this.inflight = Math.max(0, this.inflight - 1);
 
-      // If aborted (src cleared) or generation changed, skip stats.
-      if (!img.src || this.disposed || gen !== this.generation) {
+      if (aborted || this.disposed || gen !== this.generation) {
         this.drain();
         this.checkIdle();
         return;
@@ -235,19 +232,24 @@ export class TilePreloader {
       this.checkIdle();
     };
 
-    img.onload = () => done(true);
-    img.onerror = () => done(false);
-    img.src = tile.url;
+    getTilerToken()
+      .then((token) =>
+        fetch(tile.url, {
+          mode: 'cors',
+          signal: controller.signal,
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
+      .then((resp) => done(resp.ok))
+      .catch((err) => done(false, err?.name === 'AbortError'));
   }
 
-  // Cancel all in-flight image loads immediately.
+  // Cancel all in-flight fetch requests immediately.
   private _abortInflight() {
-    for (const img of this.inflightImages) {
-      img.onload = null;
-      img.onerror = null;
-      img.src = '';
+    for (const controller of this.inflightControllers) {
+      controller.abort();
     }
-    this.inflightImages.clear();
+    this.inflightControllers.clear();
     this.inflight = 0;
   }
 

@@ -48,6 +48,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       ENVIRONMENT: development
       LOG_LEVEL: debug
       TILER_BASE_URL: ${TILER_BASE_URL:-http://tiler:8001}
@@ -91,6 +92,7 @@ services:
       DBDRIVER: psycopg2
       DBSCHEME: postgresql
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
       GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "NO"
       GDAL_HTTP_MULTIPLEX: "YES"

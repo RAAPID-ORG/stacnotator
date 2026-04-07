@@ -498,7 +498,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing = _make_annotation(ann_id=5, user_id=owner_id)
         # First call returns annotation, subsequent calls return None (not campaign admin)
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
-        # is_platform_admin uses .first() — ensure it returns None (not platform admin)
+        # is_platform_admin uses .first() - ensure it returns None (not platform admin)
         db.execute.return_value.first.return_value = None
 
         payload = AnnotationUpdate(
@@ -541,7 +541,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         # First call returns annotation, subsequent calls return None (not campaign admin)
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
-        # is_platform_admin uses .first() — ensure it returns None (not platform admin)
+        # is_platform_admin uses .first() - ensure it returns None (not platform admin)
         db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:

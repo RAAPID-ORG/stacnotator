@@ -5,8 +5,10 @@ import time
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.security import HTTPBearer
 
+from src.auth.dependencies import require_approved_user
 from src.tiling.schemas import (
     MosaicRegisterRequest,
     MosaicRegisterResponse,
@@ -17,7 +19,12 @@ from src.tiling.stac_client import get_client, search_items
 from src.tiling.stac_client import list_collections as _list_collections
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/stac", tags=["STAC Browser"])
+bearer = HTTPBearer()
+router = APIRouter(
+    prefix="/stac",
+    tags=["STAC Browser"],
+    dependencies=[Depends(bearer), Depends(require_approved_user)],
+)
 
 STACINDEX_URL = "https://stacindex.org/api/catalogs"
 STACINDEX_CACHE_TTL = 3600  # 1 hour
@@ -46,7 +53,7 @@ async def list_catalogs():
         logger.error("Failed to fetch StacIndex catalogs: %s", e)
         if _catalogs_cache["data"]:
             return _catalogs_cache["data"]
-        raise HTTPException(status_code=502, detail=f"StacIndex unavailable: {e}") from e
+        raise HTTPException(status_code=502, detail="StacIndex unavailable") from e
 
     filtered = []
     filtered.append(
@@ -90,7 +97,7 @@ def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
         return _list_collections(catalog_url)
     except Exception as e:
         logger.error("Failed to list collections from %s: %s", catalog_url, e)
-        raise HTTPException(status_code=502, detail=f"Failed to connect to catalog: {e}") from e
+        raise HTTPException(status_code=502, detail="Failed to connect to catalog") from e
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -107,7 +114,7 @@ def search(request: SearchRequest):
         return {"items": items, "count": len(items)}
     except Exception as e:
         logger.error("STAC search failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Search failed: {e}") from e
+        raise HTTPException(status_code=502, detail="Search failed") from e
 
 
 def build_viz_query_string(viz_params: dict | None) -> str:

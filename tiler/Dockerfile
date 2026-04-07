@@ -46,3 +46,5 @@ CMD ["sh", "-c", "gunicorn src.main:app \
     --error-logfile - \
     --log-level info \
     --forwarded-allow-ips '*'"]
+# Note: --forwarded-allow-ips '*' is intentional - Azure Container Apps
+# manages its own trusted reverse proxy, so all forwarded headers are safe.

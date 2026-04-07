@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
+    # Shared secret for verifying tiler access tokens (HMAC)
+    TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
+
     @computed_field
     @property
     def DATABASE_URL(self) -> str:

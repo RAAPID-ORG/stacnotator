@@ -99,6 +99,22 @@ az keyvault secret set \
 echo -e "${GREEN}✓ Earth Engine credentials uploaded${NC}"
 echo ""
 
+# Tiler token secret (shared between backend and tiler for HMAC auth)
+echo -e "${YELLOW}Generating tiler token secret...${NC}"
+EXISTING_TILER_SECRET=$(az keyvault secret show --vault-name "$KV_NAME" --name "tiler-token-secret" --query "value" -o tsv 2>/dev/null || echo "")
+if [ -z "$EXISTING_TILER_SECRET" ]; then
+    TILER_SECRET=$(openssl rand -hex 32)
+    az keyvault secret set \
+        --vault-name "$KV_NAME" \
+        --name "tiler-token-secret" \
+        --value "$TILER_SECRET" \
+        --output none
+    echo -e "${GREEN}✓ Tiler token secret generated and uploaded${NC}"
+else
+    echo -e "${GREEN}✓ Tiler token secret already exists${NC}"
+fi
+echo ""
+
 # Firebase Client Configuration (for frontend) (not actual secrets just env vars)
 
 # Firebase Client Configuration (set in .env.deploy.<env>)
@@ -147,9 +163,3 @@ echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo -e "  Deploy your application: ./azure_deploy/deploy-app.sh $ENV"
 echo ""
-if [ -n "$FIREBASE_PROJECT_ID" ]; then
-    echo -e "${YELLOW}Important: Configure authorized domains in Firebase Console${NC}"
-    echo -e "  https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains"
-    echo -e "  Add your Container App domain after deployment"
-    echo ""
-fi

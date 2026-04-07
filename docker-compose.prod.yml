@@ -48,6 +48,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:?Tiler token secret required}
       TILER_BASE_URL: http://tiler:8001
       # Gunicorn settings
       WORKERS: ${WORKERS:-4}
@@ -84,6 +85,7 @@ services:
       DBDRIVER: psycopg2
       DBSCHEME: postgresql
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:?Tiler token secret required}
       WORKERS: ${TILER_WORKERS:-2}
       TIMEOUT: ${TILER_TIMEOUT:-120}
       MAX_REQUESTS: ${TILER_MAX_REQUESTS:-500}

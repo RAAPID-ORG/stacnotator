@@ -6,6 +6,7 @@
  * empty slices without extra network requests.
  */
 import type ImageTile from 'ol/ImageTile';
+import { getTilerToken } from '~/api/tilerToken';
 
 let _hatchDataUrl: string | null = null;
 
@@ -42,7 +43,8 @@ export function subscribeToEmptyTiles(cb: OnTileEmpty): () => void {
 
 export function tileLoadWithHatch(tile: ImageTile, src: string): void {
   const img = tile.getImage() as HTMLImageElement;
-  fetch(src, { mode: 'cors' })
+  getTilerToken()
+    .then((token) => fetch(src, { mode: 'cors', headers: { Authorization: `Bearer ${token}` } }))
     .then((resp) => {
       if (resp.status === 204) {
         img.src = getHatchDataUrl();
