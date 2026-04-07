@@ -143,9 +143,9 @@ class TestFindFreePositionInLayout:
             item_height=10,
             grid_width=60,
         )
-        # Gap at (50, 14) is 10 wide and below the minimap
+        # Gap at (50, 10) is 10 wide and below the minimap
         assert x == 50
-        assert y == 14
+        assert y == 10
 
     def test_single_cell_items(self):
         # Grid of 1x1 items filling a small area

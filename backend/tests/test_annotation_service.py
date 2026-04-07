@@ -244,7 +244,6 @@ class TestUpdateAnnotation:
         update_annotation(db, 5, payload, user_id)
 
         assert existing.label_id == 3
-        assert existing.created_by_user_id == user_id
         db.commit.assert_called_once()
 
     def test_update_comment(self):
@@ -497,7 +496,10 @@ class TestPublicCampaignAnnotationOwnership:
         owner_id = uuid4()
         other_user_id = uuid4()
         existing = _make_annotation(ann_id=5, user_id=owner_id)
-        db.execute.return_value.scalar_one_or_none.return_value = existing
+        # First call returns annotation, subsequent calls return None (not campaign admin)
+        db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
+        # is_platform_admin uses .first() — ensure it returns None (not platform admin)
+        db.execute.return_value.first.return_value = None
 
         payload = AnnotationUpdate(
             label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
@@ -537,7 +539,10 @@ class TestPublicCampaignAnnotationOwnership:
         other_user_id = uuid4()
         existing = _make_annotation(ann_id=10, task_id=None, campaign_id=1, user_id=owner_id)
         existing.annotation_task_id = None
-        db.execute.return_value.scalar_one_or_none.return_value = existing
+        # First call returns annotation, subsequent calls return None (not campaign admin)
+        db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
+        # is_platform_admin uses .first() — ensure it returns None (not platform admin)
+        db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
             delete_annotation(

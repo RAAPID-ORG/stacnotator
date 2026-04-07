@@ -562,9 +562,12 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    # Only the creator or a campaign admin can update annotations
-    if annotation.created_by_user_id != user_id and (
-        not campaign or not _is_campaign_admin(db, user_id, campaign.id)
+    # In public campaigns, only the creator or a campaign admin can update annotations
+    if (
+        campaign
+        and campaign.is_public
+        and annotation.created_by_user_id != user_id
+        and not _is_campaign_admin(db, user_id, campaign.id)
     ):
         raise HTTPException(
             status_code=403,
@@ -673,11 +676,13 @@ def delete_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
 
-    # Only the creator or a campaign admin can delete annotations
+    # In public campaigns, only the creator or a campaign admin can delete annotations
     if (
-        user_id
+        campaign
+        and campaign.is_public
+        and user_id
         and annotation.created_by_user_id != user_id
-        and (not campaign or not _is_campaign_admin(db, user_id, campaign.id))
+        and not _is_campaign_admin(db, user_id, campaign.id)
     ):
         raise HTTPException(
             status_code=403,
