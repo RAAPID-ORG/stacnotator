@@ -52,18 +52,18 @@ This is determined automatically during registration based on each slice's visua
 Setting up imagery from a STAC catalog involves two distinct concerns:
 
 **1. Search parameters** control *which items* are selected for the mosaic:
-- **Date range** — the temporal window per slice.
-- **Cloud cover filter** — maximum allowed `eo:cloud_cover` percentage.
-- **Item sort order** — how items are ordered before compositing. For first-valid compositing, the first matching item wins, so sorting by cloud cover (lowest first) puts the clearest imagery first.
-- **CQL2-JSON query** — the full search query, auto-generated from the above or manually customized.
+- **Date range** - the temporal window per slice.
+- **Cloud cover filter** - maximum allowed `eo:cloud_cover` percentage.
+- **Item sort order** - how items are ordered before compositing. For first-valid compositing, the first matching item wins, so sorting by cloud cover (lowest first) puts the clearest imagery first.
+- **CQL2-JSON query** - the full search query, auto-generated from the above or manually customized.
 
 **2. Visualization parameters** control *how selected items are rendered* into map tiles:
-- **Bands/assets** — which spectral bands to map to RGB (e.g. B04/B03/B02 for true color).
-- **Color formula** — perceptual tone mapping applied per-pixel (e.g. gamma, sigmoidal contrast, saturation). This is a deterministic transform: the same input value always produces the same output color, regardless of tile, region, or scene.
-- **Rescale** — linear min/max stretch (e.g. `0,3000`). An alternative to color formula for simpler datasets.
-- **Colormap** — for single-band data (e.g. NDVI with `rdylgn`).
-- **Compositing method** — how overlapping items are combined (first-valid, median, mean, etc.).
-- **Masking** — pixel exclusion based on a mask layer (e.g. Sentinel-2 SCL for clouds).
+- **Bands/assets** - which spectral bands to map to RGB (e.g. B04/B03/B02 for true color).
+- **Color formula** - perceptual tone mapping applied per-pixel (e.g. gamma, sigmoidal contrast, saturation). This is a deterministic transform: the same input value always produces the same output color, regardless of tile, region, or scene.
+- **Rescale** - linear min/max stretch (e.g. `0,3000`). An alternative to color formula for simpler datasets.
+- **Colormap** - for single-band data (e.g. NDVI with `rdylgn`).
+- **Compositing method** - how overlapping items are combined (first-valid, median, mean, etc.).
+- **Masking** - pixel exclusion based on a mask layer (e.g. Sentinel-2 SCL for clouds).
 
 These two concerns are configured independently, including for the cover slice which can have its own search and visualization settings.
 
@@ -73,9 +73,9 @@ For commonly used STAC collections, sensible defaults are pre-filled when select
 
 | Collection | Visualization | Notes |
 |---|---|---|
-| **Sentinel-2 L2A** | True Color + False Color with color formula (`Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35`) | Color formula approach is robust to the processing baseline offset change (Jan 2022) — no rescale needed. |
+| **Sentinel-2 L2A** | True Color + False Color with color formula (`Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35`) | Color formula approach is robust to the processing baseline offset change (Jan 2022) - no rescale needed. |
 | **Landsat C2 L2** | True Color + False Color with color formula (`Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35`) | Adapted gamma/sigmoidal for Landsat's value range. |
-| **HLS (S30 + L30)** | True Color + False Color with color formula (`Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35`) | HLS is pre-harmonized by NASA — no baseline offset issue. |
+| **HLS (S30 + L30)** | True Color + False Color with color formula (`Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35`) | HLS is pre-harmonized by NASA - no baseline offset issue. |
 | **Sentinel-1 GRD** | VV and VH backscatter with grayscale colormap, rescale `0,0.4` / `0,0.1` | SAR data in linear sigma0 power scale. No cloud cover filtering (radar penetrates clouds). |
 | **NAIP** | True color RGB from the `image` asset | Pre-rendered 4-band aerial imagery, rescale `0,255`. |
 
@@ -92,7 +92,7 @@ The mosaic registration process (for both MPC and self-hosted) works as follows:
 
 **Cloud cover filtering** uses `isNull OR <=` to handle collections without `eo:cloud_cover` (e.g. SAR data). Items without the property pass through instead of being excluded.
 
-**Item sort order** is passed via the STAC API Sort Extension (`sortby`). The default for collections with cloud cover is `eo:cloud_cover ASC, datetime DESC` — lowest cloud cover first, then newest. This is especially important for first-valid compositing where the first matching item wins.
+**Item sort order** is passed via the STAC API Sort Extension (`sortby`). The default for collections with cloud cover is `eo:cloud_cover ASC, datetime DESC` - lowest cloud cover first, then newest. This is especially important for first-valid compositing where the first matching item wins.
 
 **Nodata handling:** COG files typically declare their nodata value in the GeoTIFF metadata (e.g. `nodata=0` for Sentinel-2). Both MPC and rio-tiler read this automatically - nodata pixels are masked and skipped during compositing. The `nodata` visualization parameter can override this for datasets with missing metadata.
 

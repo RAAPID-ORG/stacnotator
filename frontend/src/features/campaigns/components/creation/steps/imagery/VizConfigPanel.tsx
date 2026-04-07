@@ -82,7 +82,7 @@ export const VizConfigPanel = ({
       updates.rescale = preset.rescale;
       setRescaleMode('manual');
     } else if (preset.colorFormula) {
-      // Color formula handles tone mapping — no rescale needed
+      // Color formula handles tone mapping - no rescale needed
       updates.rescale = '';
       setRescaleMode('none');
     } else if (knownRescale) {
@@ -274,7 +274,7 @@ export const VizConfigPanel = ({
         )}
         {rescaleMode === 'none' && (
           <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
-            No rescaling — raw pixel values are served as-is. Use a color formula or ensure your
+            No rescaling - raw pixel values are served as-is. Use a color formula or ensure your
             data range maps to 0-255 for display.
           </p>
         )}
@@ -300,7 +300,7 @@ export const VizConfigPanel = ({
           </select>
           {vizParams.compositing && vizParams.compositing !== 'first' && (
             <p className="text-[10px] text-amber-600 mt-1">
-              Non-first-valid compositing reads multiple scenes per tile — expect ~10x slower data
+              Non-first-valid compositing reads multiple scenes per tile - expect ~10x slower data
               loading. For MPC this also routes through our self-hosted tiler instead of MPC's fast
               tile endpoint.
             </p>

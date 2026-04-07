@@ -104,12 +104,12 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 
 ## User Management
 
-- Firebase authentication
+- Authentication: Firebase (multi-user) or local mode (single-user, no setup required)
 - Roles: system admin, campaign admin, authoritative reviewer, approved user
 - Campaign-specific membership and admin assignment
 - User approval workflow (approve/revoke/deny)
 - Bulk operations for user management
-- Signup with email+pw (requires email validation) or via GoogleAuth
+- Firebase mode: signup with email+pw (requires email validation) or via GoogleAuth
 
 ## Task Management
 

@@ -154,7 +154,7 @@ echo -e "${GREEN}✓ Dump complete (${DUMP_SIZE}): ${DUMP_FILE}${NC}"
 
 # Ask whether to restore into local dev DB
 echo ""
-echo -e "${YELLOW}Also restore into local dev database?${NC}"
+echo -e "${YELLOW}Also restore into local dev database? (This requires the DB to be running currently!)${NC}"
 echo -e "  Target:  ${YELLOW}${LOCAL_USER}@localhost:${LOCAL_PORT}/${LOCAL_DB}${NC}"
 echo -e "${RED}  ⚠  This will DESTROY all data in the local dev database!${NC}"
 read -p "Restore into local DB? (y/N) " RESTORE_CONFIRM

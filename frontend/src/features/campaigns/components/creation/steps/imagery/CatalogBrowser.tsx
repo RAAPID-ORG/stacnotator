@@ -1039,7 +1039,7 @@ export const CatalogBrowser = ({
                 )}
                 {selectedCatalog?.is_mpc && (
                   <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">
-                    <strong>Microsoft Planetary Computer</strong> — tiles are served directly from
+                    <strong>Microsoft Planetary Computer</strong> - tiles are served directly from
                     MPC for fast loading when using first-valid compositing. Non-first-valid
                     compositing or masking will route through our self-hosted tiler (~10x slower
                     data loading).
@@ -1115,7 +1115,7 @@ export const CatalogBrowser = ({
                   <div className="space-y-1">
                     <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
                       Item Sort Order
-                      <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins — sorting by cloud cover puts the clearest images first." />
+                      <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins - sorting by cloud cover puts the clearest images first." />
                     </label>
                     <select
                       value={itemSort}

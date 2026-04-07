@@ -8,7 +8,7 @@ STACNotator is a multi-service application for geospatial imagery annotation. It
 React + Vite + OpenLayers. Handles the annotation UI, campaign creation wizard, map rendering, and tile prefetching. Deployed as an Azure Static Web App in production, Vite dev server locally.
 
 ### Backend
-FastAPI + Gunicorn Server. Handles authentication (Firebase), campaign/task management, STAC catalog browsing through STACIndex, mosaic registration, and annotation storage. Connects to the Azure Key Vault for DB credentials.
+FastAPI + Gunicorn Server. Handles authentication (Firebase or local single-user mode), campaign/task management, STAC catalog browsing through STACIndex, mosaic registration, and annotation storage. Connects to the Azure Key Vault for DB credentials.
 
 ### Tiler
 Self-hosted TiTiler (FastAPI + GDAL/rasterio). Reads COGs from remote STAC catalogs, composites mosaics, and serves PNG tiles. Uses PostGIS spatial indexing for per-tile item lookups (cached from external STAC catalogs). Only used when MPC direct tiles are not available (non-MPC catalogs, advanced compositing, masking).

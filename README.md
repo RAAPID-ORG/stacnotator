@@ -10,14 +10,42 @@ NASA Harvest's geospatial imagery annotation platform.
 
 ### Development Setup (with Hot Reloading)
 
-#### Prequisites
+#### Prerequisites
 
 - Ensure you have `docker` and `docker-compose` installed. Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/#docker-desktop-recommended). The easiest way might be through `Docker Desktop`.
-- Have a Google Account that you can use for the `Firebase` setup.
 
-#### Step 0 - Firebase Setup
+#### Option A - Local Mode (No Firebase, Quickest Setup)
 
-STACNotator uses Firebase for authentication. Set up a project and download credentials:
+For single-user local usage, no external auth provider is needed. The app runs with a built-in local user that has full admin access.
+
+**Step 1 - Configure Environment**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+The defaults in `.env.example` already use `AUTH_PROVIDER=local`. You might want to add the earth-engine credentials for timeseries functionality.
+
+**Step 2 - Initialize & Start**
+
+```bash
+make dev-init
+make dev-up
+```
+
+Open http://localhost:5173 and you're in.
+
+> [!Warning]
+> Local auth mode is for local development only. It cannot be used with `ENVIRONMENT=production` and should never be exposed to a network.
+
+#### Option B - Firebase Auth (Multi-User Deployments)
+
+For multi-user setups or production deployments, STACNotator uses Firebase for authentication.
+
+You will need a Google Account for the Firebase setup.
+
+**Step 0 - Firebase Setup**
 
 1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
 2. Navigate to **Settings > General**:
@@ -26,38 +54,43 @@ STACNotator uses Firebase for authentication. Set up a project and download cred
 3. Navigate to **Settings > Service Accounts**:
    - Select *Firebase Admin SDK* and click **Generate new private key**. Save the file.
 
-#### Step 1 - Configure Environment
+**Step 1 - Configure Environment**
 
 ```bash
-cp .env.dev .env
+cp .env.example .env
 nano .env
 ```
 
-Update the following variables:
+Set `AUTH_PROVIDER=firebase` and update the following variables:
 
 | Variable | Description |
 |---|---|
-| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account (used for timeseries) |
-| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
 | `FIREBASE_CREDENTIALS_PATH_HOST` | Path to the Firebase service account credentials file (from Step 0) |
 | `VITE_FIREBASE_API_KEY` | Firebase API key (from Step 0) |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain (from Step 0) |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase project ID (from Step 0) |
 
-#### Step 2 - Create a Firebase User
+For timeseries features, also set these in your `.env`:
+
+| Variable | Description |
+|---|---|
+| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account |
+| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
+
+**Step 2 - Create a Firebase User**
 
 1. Go to [Firebase Console](https://console.firebase.google.com/) and select your project.
 2. Navigate to the **Authentication** tab.
 3. Under **Users**, click **Add user** and follow the prompts.
 4. Copy the **UID** of the newly created user.
 
-#### Step 3 - Initialize Services & Seed the Database
+**Step 3 - Initialize Services & Seed the Database**
 
 ```bash
 make dev-init FIREBASE_UID="<YOUR-UID>"
 ```
 
-#### Step 4 - Start All Services
+**Step 4 - Start All Services**
 
 ```bash
 make dev-up
@@ -109,7 +142,7 @@ stacnotator/
 - Docker Engine 20.10+
 - Docker Compose 2.0+
 - 4GB+ RAM (If using AI modules GPU required!)
-- Firebase credentials file
+- Firebase credentials file (only if using `AUTH_PROVIDER=firebase`)
 
 ## Architecture
 
@@ -153,4 +186,4 @@ STACNotator supports multiple deployment options (or maybe only one at the momen
 - **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
    - Staging: `make staging-up` copies the production DB locally for safe migration testing before deployment.
 
-- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure.
+- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
