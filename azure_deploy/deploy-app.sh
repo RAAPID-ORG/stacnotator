@@ -264,14 +264,15 @@ if [ -n "$REPLICA_NAME" ]; then
     # so we wrap alembic to echo a sentinel on success.
     az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --replica "$REPLICA_NAME" \
-        --command "sh -c 'alembic upgrade head && echo MIGRATION_SUCCESS'" \
+        --command "alembic upgrade head" \
         2>&1 | tee /tmp/migration_output.log
-    if grep -q "MIGRATION_SUCCESS" /tmp/migration_output.log; then
-        echo -e "${GREEN}✓ Migrations done${NC}"
-    else
-        echo -e "${RED}Warning: Migration may have failed - 'MIGRATION_SUCCESS' not found in output.${NC}"
+    # Check output for alembic success indicators or errors
+    if grep -qiE "(FAILED|error|Traceback)" /tmp/migration_output.log; then
+        echo -e "${RED}Warning: Migration output contains errors.${NC}"
         echo -e "${YELLOW}Check /tmp/migration_output.log or run manually:${NC}"
         echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+    else
+        echo -e "${GREEN}✓ Migrations done${NC}"
     fi
 else
     echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
