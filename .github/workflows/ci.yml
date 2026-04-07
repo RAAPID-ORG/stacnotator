@@ -170,19 +170,19 @@ jobs:
   #       run: docker compose -f docker-compose.dev.yml down -v
 
   # Docker build verification production images  (main only) - Will want to do staging tests here later
-  # docker-build:
-  #   name: "Docker: Production Build"
-  #   needs: [backend-lint, frontend-lint]
-  #   if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  docker-build:
+    name: "Docker: Production Build"
+    needs: [backend-lint, frontend-lint]
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build backend image
-  #       run: docker build -t stacnotator-backend:ci ./backend
+      - name: Build backend image
+        run: docker build -t stacnotator-backend:ci ./backend
 
-  #     - name: Build tiler image
-  #       run: docker build -t stacnotator-tiler:ci ./tiler
+      - name: Build tiler image
+        run: docker build -t stacnotator-tiler:ci ./tiler
 
-  #     - name: Build frontend image
-  #       run: docker build -t stacnotator-frontend:ci ./frontend
+      - name: Build frontend image
+        run: docker build -t stacnotator-frontend:ci ./frontend
