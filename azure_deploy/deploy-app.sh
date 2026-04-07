@@ -153,6 +153,8 @@ TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
+        --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
+                       "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
         --output none
 else
     az containerapp create --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
