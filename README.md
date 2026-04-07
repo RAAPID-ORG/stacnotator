@@ -185,5 +185,6 @@ STACNotator supports multiple deployment options (or maybe only one at the momen
 
 - **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
    - Staging: `make staging-up` copies the production DB locally for safe migration testing before deployment.
+   - Deployment: Currently only through a CLI script to be run locally from within VPN. Will migrate this to CI in the future, once the platform networking has been finalized.
 
 - **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
