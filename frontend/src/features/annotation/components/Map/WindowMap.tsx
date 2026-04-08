@@ -18,7 +18,7 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../ControlsOpenMode';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { tileLoadWithHatch } from './hatchTileLoader';
+import { tileLoadWithAuth } from './authTileLoader';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -103,7 +103,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      tileLoadFunction: tileLoadWithHatch as unknown as (tile: unknown, src: string) => void,
+      tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
     });
 
     // Track consecutive tile-load errors vs. successes for empty-tile detection
@@ -186,7 +186,12 @@ const WindowMap = ({
 
     mapRef.current = map;
 
+    // Keep OL in sync when the container resizes (layout shifts, sidebar toggle)
+    const ro = new ResizeObserver(() => map.updateSize());
+    ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       // Clear tile source to abort in-flight tile requests
       tileLayer.setSource(null as unknown as XYZ);
       map.setTarget(undefined);
@@ -211,7 +216,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      tileLoadFunction: tileLoadWithHatch as unknown as (tile: unknown, src: string) => void,
+      tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
     });
 
     // Reset counters for the new URL

@@ -42,10 +42,22 @@ function parseGroupId(
   return { prefix: m[1], collectionId: Number(m[2]), sliceIndex: Number(m[3]) };
 }
 
-function estimateExtent(center: [number, number], zoom: number): [number, number, number, number] {
+/**
+ * Compute the geographic extent for preloading, centered on the given point.
+ * When mapSize (pixels) is available we derive the real tile count from the
+ * canvas dimensions; otherwise fall back to a conservative 6×5 tile estimate.
+ */
+function computeExtent(
+  center: [number, number],
+  zoom: number,
+  mapSize: [number, number] | null
+): [number, number, number, number] {
   const degreesPerTile = 360 / Math.pow(2, zoom);
-  const halfW = (degreesPerTile * 4) / 2;
-  const halfH = (degreesPerTile * 3) / 2;
+  // +1 buffer tile on each side so edge tiles are covered
+  const tilesW = mapSize ? Math.ceil(mapSize[0] / 256) + 2 : 6;
+  const tilesH = mapSize ? Math.ceil(mapSize[1] / 256) + 2 : 5;
+  const halfW = (degreesPerTile * tilesW) / 2;
+  const halfH = (degreesPerTile * tilesH) / 2;
   const [lat, lon] = center;
   return [lon - halfW, lat - halfH, lon + halfW, lat + halfH];
 }
@@ -117,6 +129,8 @@ export function useTilePreloading({
   const preloaderRef = useRef<TilePreloader | null>(null);
   const hasEnqueuedCurrentRef = useRef(false);
   const hasEnqueuedNextRef = useRef(false);
+  // Capture the map canvas pixel size once so we preload the right number of tiles
+  const mapSizeRef = useRef<[number, number] | null>(null);
 
   const campaignRef = useRef(campaign);
   campaignRef.current = campaign;
@@ -190,7 +204,7 @@ export function useTilePreloading({
         if (!latLon) break;
 
         const zoom = prefix === PREFIX_CURRENT ? currentZoomRef.current : defaultZoomRef.current;
-        const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+        const extent = computeExtent([latLon.lat, latLon.lon], zoom, getMapSize());
 
         p.enqueue({
           priority,
@@ -233,7 +247,7 @@ export function useTilePreloading({
 
     // Use current viewport zoom for current task (user may have zoomed in/out)
     const zoom = currentZoomRef.current;
-    const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+    const extent = computeExtent([latLon.lat, latLon.lon], zoom, getMapSize());
 
     const jobs = buildCoverSliceJobs(
       camp,
@@ -293,7 +307,7 @@ export function useTilePreloading({
       const latLon = extractCentroidFromWKT(nextTask.geometry.geometry);
       if (!latLon) continue;
 
-      const extent = estimateExtent([latLon.lat, latLon.lon], zoom);
+      const extent = computeExtent([latLon.lat, latLon.lon], zoom, getMapSize());
       const jobs = buildCoverSliceJobs(
         camp,
         extent,
@@ -307,6 +321,17 @@ export function useTilePreloading({
       if (jobs.length > 0) p.enqueueMany(jobs);
     }
   }, []);
+
+  /** Read the map canvas pixel size once and cache it. */
+  const getMapSize = (): [number, number] | null => {
+    if (mapSizeRef.current) return mapSizeRef.current;
+    if (!layerManager) return null;
+    const size = layerManager.getMap().getSize();
+    if (size && size[0] > 0 && size[1] > 0) {
+      mapSizeRef.current = [size[0], size[1]];
+    }
+    return mapSizeRef.current;
+  };
 
   useEffect(() => {
     if (!enabled || !layerManager) return;

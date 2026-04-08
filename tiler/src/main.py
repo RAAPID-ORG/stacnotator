@@ -66,11 +66,13 @@ async def verify_tiler_token(request: Request, call_next):
     if request.url.path == "/healthz":
         return await call_next(request)
 
-    auth_header = request.headers.get("authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"detail": "Authentication required"})
-
-    token = auth_header[7:]
+    # Accept token from query param (?token=...) or Authorization header
+    token = request.query_params.get("token", "")
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(status_code=401, content={"detail": "Authentication required"})
+        token = auth_header[7:]
     parts = token.split(":")
     if len(parts) != 3:
         return JSONResponse(status_code=401, content={"detail": "Invalid token format"})

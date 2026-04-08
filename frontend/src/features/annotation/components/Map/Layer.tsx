@@ -1,6 +1,6 @@
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
-import { tileLoadWithHatch } from './hatchTileLoader';
+import { tileLoadWithAuth } from './authTileLoader';
 
 export type LayerType = 'imagery' | 'basemap';
 
@@ -57,10 +57,7 @@ export class XYZLayer extends Layer {
         transition: 0,
         ...(this.layerType === 'imagery'
           ? {
-              tileLoadFunction: tileLoadWithHatch as unknown as (
-                tile: unknown,
-                src: string
-              ) => void,
+              tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
             }
           : {}),
       }),

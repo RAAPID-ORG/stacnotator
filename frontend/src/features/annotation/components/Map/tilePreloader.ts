@@ -16,6 +16,8 @@ import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
 import { getTilerToken } from '~/api/tilerToken';
 
+const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
+
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
 
@@ -232,14 +234,7 @@ export class TilePreloader {
       this.checkIdle();
     };
 
-    getTilerToken()
-      .then((token) =>
-        fetch(tile.url, {
-          mode: 'cors',
-          signal: controller.signal,
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      )
+    this.fetchWithOptionalAuth(tile.url, controller.signal)
       .then((resp) => done(resp.ok))
       .catch((err) => done(false, err?.name === 'AbortError'));
   }
@@ -251,6 +246,22 @@ export class TilePreloader {
     }
     this.inflightControllers.clear();
     this.inflight = 0;
+  }
+
+  private fetchWithOptionalAuth(url: string, signal: AbortSignal): Promise<Response> {
+    // credentials: 'omit' matches <img crossOrigin="anonymous"> so preloaded
+    // responses share the same browser HTTP cache entry as OL tile loads.
+    if (!TILER_BASE || !url.startsWith(TILER_BASE)) {
+      return fetch(url, { mode: 'cors', credentials: 'omit', signal });
+    }
+    return getTilerToken().then((token) => {
+      const sep = url.includes('?') ? '&' : '?';
+      return fetch(`${url}${sep}token=${encodeURIComponent(token)}`, {
+        mode: 'cors',
+        credentials: 'omit',
+        signal,
+      });
+    });
   }
 
   private checkIdle() {

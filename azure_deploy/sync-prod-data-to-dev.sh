@@ -104,9 +104,9 @@ DEV_PG_HOST="${DEV_PG_SERVER}.postgres.database.azure.com"
 DEV_KV_NAME=$(az keyvault list -g "$DEV_RG" --query "[0].name" -o tsv 2>/dev/null || true)
 [ -z "$DEV_KV_NAME" ] && echo -e "${RED}Error: No Key Vault found in $DEV_RG${NC}" && exit 1
 
-DEV_PG_PASS=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
-DEV_PG_HOST_KV=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-postgres-host" --query "value" -o tsv 2>/dev/null || true)
-DEV_CONN_STR=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
+DEV_PG_PASS=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
+DEV_PG_HOST_KV=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-postgres-host" --query "value" -o tsv 2>/dev/null || true)
+DEV_CONN_STR=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
 
 if [ -n "$DEV_CONN_STR" ]; then
     DEV_PG_USER=$(echo "$DEV_CONN_STR" | sed -n 's|.*://\([^:]*\):.*|\1|p')

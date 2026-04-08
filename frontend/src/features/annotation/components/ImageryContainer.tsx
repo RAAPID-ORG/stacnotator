@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
@@ -9,7 +9,9 @@ import {
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
 import { buildTileUrl } from './Map/tileUrlBuilder';
-import { subscribeToEmptyTiles } from './Map/hatchTileLoader';
+import { getTilerToken } from '~/api/tilerToken';
+
+const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
 
 /** Hatched overlay indicating no imagery is available for this tile/area */
 function NoImageryOverlay() {
@@ -192,7 +194,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
 
-  // Compute the tile URL at the crosshair position so we can match 204 reports
+  // Compute the tile URL at the crosshair position for empty-slice probing
   const crosshairTileUrl = useMemo(() => {
     if (!tileUrl || !latLon) return null;
     const z = zoom;
@@ -203,42 +205,65 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
   }, [tileUrl, latLon, zoom]);
 
-  // Listen for 204 reports from the hatch tile loader - no extra requests needed
+  // Probe the crosshair tile to detect empty slices.
+  // One lightweight fetch per task/slice change — not per tile.
+  // Self-hosted tiles need an auth token; MPC tiles are fetched directly.
   useEffect(() => {
     if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
 
-    const sliceKey = `${collectionId}-${currentSliceIndex}`;
+    const controller = new AbortController();
+    const isSelfHosted = TILER_BASE && crosshairTileUrl.startsWith(TILER_BASE);
 
-    const handler = (reportedUrl: string) => {
-      if (reportedUrl !== crosshairTileUrl) return;
+    const doFetch = isSelfHosted
+      ? getTilerToken().then((token) => {
+          const sep = crosshairTileUrl.includes('?') ? '&' : '?';
+          return fetch(`${crosshairTileUrl}${sep}token=${encodeURIComponent(token)}`, {
+            mode: 'cors',
+            credentials: 'omit',
+            signal: controller.signal,
+          });
+        })
+      : fetch(crosshairTileUrl, { mode: 'cors', credentials: 'omit', signal: controller.signal });
 
-      // Only auto-advance on first discovery. If the slice was already known
-      // empty before we switched to it, the user deliberately re-selected it
-      // (docs: "Empty slices remain manually selectable from dropdown").
-      const alreadyKnownEmpty = !!emptySlices[sliceKey];
-      markSliceEmpty(sliceKey);
-      if (alreadyKnownEmpty) return;
-
-      const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
-      const nextIndex = slices.findIndex(
-        (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
-      );
-
-      if (nextIndex !== -1) {
-        if (isActiveCollection) {
-          setActiveSliceIndex(nextIndex);
+    doFetch
+      .then((resp) => {
+        // 204 = no content (MPC returns this for empty tiles).
+        // Non-ok (404/500) also means no data.
+        // Self-hosted tiler returns 200 + transparent PNG for empty — skip.
+        if (resp.status === 204 || (!isSelfHosted && !resp.ok)) {
+          // fall through to mark empty
         } else {
-          useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
+          return;
         }
-      } else {
-        const sliceLabel = activeSlice?.name ?? '';
-        const colName = collection?.name ?? '';
-        setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
-      }
-    };
 
-    return subscribeToEmptyTiles(handler);
+        const sliceKey = `${collectionId}-${currentSliceIndex}`;
+        const alreadyKnownEmpty = !!emptySlices[sliceKey];
+        markSliceEmpty(sliceKey);
+        if (alreadyKnownEmpty) return;
+
+        const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
+        const nextIndex = slices.findIndex(
+          (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
+        );
+
+        if (nextIndex !== -1) {
+          if (isActiveCollection) {
+            setActiveSliceIndex(nextIndex);
+          } else {
+            useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
+          }
+        } else {
+          const sliceLabel = activeSlice?.name ?? '';
+          const colName = collection?.name ?? '';
+          setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
+        }
+      })
+      .catch(() => {
+        // fetch aborted or network error — ignore
+      });
+
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId]);
 
