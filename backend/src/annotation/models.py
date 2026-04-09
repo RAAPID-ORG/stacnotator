@@ -155,6 +155,11 @@ class Annotation(Base):
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
         Index("idx_annotations_task_id", "annotation_task_id"),
+        UniqueConstraint(
+            "annotation_task_id",
+            "created_by_user_id",
+            name="uq_annotation_task_user",
+        ),
         {"schema": "data"},
     )
 

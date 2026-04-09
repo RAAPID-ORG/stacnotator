@@ -10,8 +10,11 @@ from src.database import get_db
 from src.imagery import service
 from src.imagery.schemas import (
     CanvasLayoutCreateRequest,
+    ImageryCollectionUpdate,
     ImageryEditorStateCreate,
     ImagerySourceUpdate,
+    ImageryViewAddRequest,
+    ImageryViewUpdate,
 )
 from src.utils import FunctionNameOperationIdRoute
 
@@ -93,6 +96,22 @@ def delete_source(
     return
 
 
+@router.patch("/{campaign_id}/imagery/collections/{collection_id}")
+def update_collection(
+    campaign_id: int,
+    collection_id: int,
+    body: ImageryCollectionUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    return service.update_collection(
+        db=db,
+        collection_id=collection_id,
+        campaign_id=campaign_id,
+        updates=body.model_dump(exclude_none=True),
+    )
+
+
 @router.post("/{campaign_id}/imagery/collections/{collection_id}/refresh")
 def refresh_collection_imagery(
     campaign_id: int,
@@ -160,3 +179,69 @@ def update_tile_urls(
     )
     db.commit()
     return {"status": "updated"}
+
+
+# ── View endpoints ──
+
+
+@router.post("/{campaign_id}/imagery/views")
+def add_view(
+    campaign_id: int,
+    body: ImageryViewAddRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Add a new imagery view to an existing campaign."""
+    return service.add_view(
+        db=db,
+        campaign_id=campaign_id,
+        name=body.name,
+        collection_refs=[r.model_dump() for r in body.collection_refs],
+    )
+
+
+@router.patch("/{campaign_id}/imagery/views/{view_id}")
+def update_view(
+    campaign_id: int,
+    view_id: int,
+    body: ImageryViewUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Update an imagery view (name, collection_refs)."""
+    updates = body.model_dump(exclude_none=True)
+    if "collection_refs" in updates:
+        updates["collection_refs"] = [
+            r.model_dump() if hasattr(r, "model_dump") else r for r in updates["collection_refs"]
+        ]
+    return service.update_view(
+        db=db,
+        view_id=view_id,
+        campaign_id=campaign_id,
+        updates=updates,
+    )
+
+
+@router.put("/{campaign_id}/imagery/views/reorder")
+def reorder_views(
+    campaign_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Reorder views. Body: { "view_ids": [3, 1, 2] } — new display order."""
+    view_ids = body.get("view_ids", [])
+    service.reorder_views(db=db, campaign_id=campaign_id, view_ids=view_ids)
+    return {"status": "updated"}
+
+
+@router.delete("/{campaign_id}/imagery/views/{view_id}", status_code=204)
+def delete_view(
+    campaign_id: int,
+    view_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Delete an imagery view."""
+    service.delete_view(db=db, view_id=view_id, campaign_id=campaign_id)
+    return

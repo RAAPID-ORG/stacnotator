@@ -28,6 +28,7 @@ import BaseMap from './BaseMap';
 import DrawingLayer from './DrawingLayer';
 import { LayerManager } from './layerManager';
 import type { Layer } from './Layer';
+import { PAN_DISTANCE_PIXELS, ZOOM_ANIMATION_MS, PAN_ANIMATION_MS } from './mapUtils';
 
 import type { CampaignOutFull } from '~/api/client';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
@@ -224,7 +225,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       const view = mapRef.current.getView();
       const currentZoom = view.getZoom();
       if (currentZoom !== undefined) {
-        view.animate({ zoom: currentZoom + 1, duration: 200 });
+        view.animate({ zoom: currentZoom + 1, duration: ZOOM_ANIMATION_MS });
       }
     }, [zoomInTrigger]);
 
@@ -235,7 +236,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       const view = mapRef.current.getView();
       const currentZoom = view.getZoom();
       if (currentZoom !== undefined) {
-        view.animate({ zoom: currentZoom - 1, duration: 200 });
+        view.animate({ zoom: currentZoom - 1, duration: ZOOM_ANIMATION_MS });
       }
     }, [zoomOutTrigger]);
 
@@ -248,7 +249,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       const currentCenter = view.getCenter();
       if (!resolution || !currentCenter) return;
 
-      const panDistance = resolution * 100;
+      const panDistance = resolution * PAN_DISTANCE_PIXELS;
       let [x, y] = currentCenter;
       switch (panTrigger.direction) {
         case 'up':
@@ -264,7 +265,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
           x += panDistance;
           break;
       }
-      view.animate({ center: [x, y], duration: 150 });
+      view.animate({ center: [x, y], duration: PAN_ANIMATION_MS });
     }, [panTrigger]);
 
     // External active layer control

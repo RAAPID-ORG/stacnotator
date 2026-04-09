@@ -143,8 +143,8 @@
 }
 
 html {
-  font-size: 1rem; /* 16px base - standard for Tailwind sizing */
-  line-height: 1.5;
+  font-size: 1.125rem; /* 18px base */
+  line-height: 1.6;
 }
 
 body {
@@ -185,12 +185,13 @@ input[type='range'] {
 }
 
 .card-header {
-  background: var(--color-neutral-100);
-  padding: 5px 10px;
+  background: var(--color-neutral-50);
+  padding: 6px 10px;
   font-size: 11px;
-  font-weight: 600;
-  color: var(--color-neutral-600);
-  letter-spacing: 0.01em;
+  font-weight: 700;
+  color: var(--color-neutral-700);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
   border-bottom: 1px solid var(--color-neutral-200);
   user-select: none;
 }

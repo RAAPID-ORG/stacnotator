@@ -70,7 +70,10 @@ class Campaign(Base):
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
     )
     imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
-        "ImageryView", back_populates="campaign", cascade="all, delete-orphan"
+        "ImageryView",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="ImageryView.display_order",
     )
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",

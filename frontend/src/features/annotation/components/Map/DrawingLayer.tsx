@@ -29,6 +29,7 @@ import { click as clickCondition, altKeyOnly } from 'ol/events/condition';
 import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
 import { toLonLat } from 'ol/proj';
+import { hexToRgba, ANNOTATION_LAYER_Z_INDEX } from './mapUtils';
 import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 import type { SelectEvent } from 'ol/interaction/Select';
@@ -78,14 +79,6 @@ function buildDrawStyle(color: string, geometryType: ExtendedLabel['geometry_typ
       }),
     }),
   ];
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const clean = hex.replace('#', '');
-  const r = parseInt(clean.substring(0, 2), 16);
-  const g = parseInt(clean.substring(2, 4), 16);
-  const b = parseInt(clean.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 const geoJsonFormat = new OLGeoJSON();
@@ -164,7 +157,7 @@ const DrawingLayer = ({
 
     const layer = new VectorLayer({
       source,
-      zIndex: 10, // always above tile layers
+      zIndex: ANNOTATION_LAYER_Z_INDEX,
     });
     vectorLayerRef.current = layer;
     map.addLayer(layer);

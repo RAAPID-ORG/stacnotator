@@ -1,4 +1,5 @@
 from fastapi import Depends, HTTPException, Path, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
@@ -31,7 +32,7 @@ def require_campaign_access(
     Raises:
         HTTPException: 404 if campaign not found, 403 if access denied
     """
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if campaign is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -43,12 +44,12 @@ def require_campaign_access(
         return campaign
 
     has_access = (
-        db.query(CampaignUser)
-        .filter(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user.id,
-        )
-        .first()
+        db.execute(
+            select(CampaignUser).where(
+                CampaignUser.campaign_id == campaign_id,
+                CampaignUser.user_id == user.id,
+            )
+        ).scalar_one_or_none()
     ) or is_admin(db, user.id)
 
     if not has_access:
@@ -79,7 +80,7 @@ def require_campaign_admin(
     Raises:
         HTTPException: 404 if campaign not found, 403 if not an admin
     """
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if campaign is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -87,13 +88,13 @@ def require_campaign_admin(
         )
 
     has_admin_access = (
-        db.query(CampaignUser)
-        .filter(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user.id,
-            CampaignUser.is_admin,
-        )
-        .first()
+        db.execute(
+            select(CampaignUser).where(
+                CampaignUser.campaign_id == campaign_id,
+                CampaignUser.user_id == user.id,
+                CampaignUser.is_admin,
+            )
+        ).scalar_one_or_none()
     ) or is_admin(db, user.id)
 
     if not has_admin_access:

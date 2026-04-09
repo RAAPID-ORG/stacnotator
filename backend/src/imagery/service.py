@@ -2,6 +2,7 @@ import logging
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -271,17 +272,19 @@ def _register_stac_collection(
 
         # Persist resolved URLs
         db_slices = (
-            db.query(ImagerySlice)
-            .filter(ImagerySlice.collection_id == collection.id)
-            .order_by(ImagerySlice.display_order)
+            db.execute(
+                select(ImagerySlice)
+                .where(ImagerySlice.collection_id == collection.id)
+                .order_by(ImagerySlice.display_order)
+            )
+            .scalars()
             .all()
         )
 
         for result in results:
             idx = result["slice_index"]
             if idx < len(db_slices):
-                # Clear any template URLs and replace with resolved ones
-                db.query(SliceTileUrl).filter(SliceTileUrl.slice_id == db_slices[idx].id).delete()
+                db.execute(delete(SliceTileUrl).where(SliceTileUrl.slice_id == db_slices[idx].id))
                 for tile in result["tile_urls"]:
                     db.add(
                         SliceTileUrl(
@@ -315,7 +318,7 @@ def _sanitize_stac_error(e: Exception) -> str:
             if detail:
                 return f"HTTP {status}: {detail}"
         except Exception:
-            pass
+            logger.debug("Could not parse tile server error response", exc_info=True)
         return f"HTTP {status} from tile server"
     if isinstance(e, ValueError):
         # Our own "No items found" errors are safe to surface
@@ -367,9 +370,12 @@ def _register_all_stac_browser_collections(
         cover_search_query = stac.cover_search_query
 
         db_slices = (
-            db.query(ImagerySlice)
-            .filter(ImagerySlice.collection_id == collection.id)
-            .order_by(ImagerySlice.display_order)
+            db.execute(
+                select(ImagerySlice)
+                .where(ImagerySlice.collection_id == collection.id)
+                .order_by(ImagerySlice.display_order)
+            )
+            .scalars()
             .all()
         )
 
@@ -520,7 +526,9 @@ def _register_all_stac_browser_collections(
             # Persist MosaicRegistration
             db_slice = task["db_slice"]
             datetime_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
-            existing_reg = db.query(MosaicRegistration).filter_by(mosaic_id=mosaic_id).first()
+            existing_reg = db.execute(
+                select(MosaicRegistration).where(MosaicRegistration.mosaic_id == mosaic_id)
+            ).scalar_one_or_none()
             if existing_reg:
                 # Update existing registration
                 existing_reg.item_count = len(item_refs)
@@ -529,7 +537,7 @@ def _register_all_stac_browser_collections(
                 existing_reg.registered_at = dt.utcnow()
                 existing_reg.error_message = None
                 # Replace items
-                db.query(MosaicItem).filter_by(mosaic_id=mosaic_id).delete()
+                db.execute(delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id))
             else:
                 db.add(
                     MosaicRegistration(
@@ -647,7 +655,11 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
     Requires that ``viz_url_templates`` was previously persisted on each
     ``CollectionStacConfig``.  Collections without stored templates are skipped.
     """
-    sources = db.query(ImagerySource).filter(ImagerySource.campaign_id == campaign_id).all()
+    sources = (
+        db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
+        .scalars()
+        .all()
+    )
 
     updated = 0
     for source in sources:
@@ -657,9 +669,12 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                 continue
 
             slices = (
-                db.query(ImagerySlice)
-                .filter(ImagerySlice.collection_id == collection.id)
-                .order_by(ImagerySlice.display_order)
+                db.execute(
+                    select(ImagerySlice)
+                    .where(ImagerySlice.collection_id == collection.id)
+                    .order_by(ImagerySlice.display_order)
+                )
+                .scalars()
                 .all()
             )
             if not slices:
@@ -682,9 +697,9 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                 for result in results:
                     idx = result["slice_index"]
                     if idx < len(slices):
-                        db.query(SliceTileUrl).filter(
-                            SliceTileUrl.slice_id == slices[idx].id
-                        ).delete()
+                        db.execute(
+                            delete(SliceTileUrl).where(SliceTileUrl.slice_id == slices[idx].id)
+                        )
                         for tile in result["tile_urls"]:
                             db.add(
                                 SliceTileUrl(
@@ -724,7 +739,9 @@ def update_collection_viz_params(
     if not viz_by_name:
         return
 
-    collection = db.query(ImageryCollection).filter_by(id=collection_id).first()
+    collection = db.execute(
+        select(ImageryCollection).where(ImageryCollection.id == collection_id)
+    ).scalar_one_or_none()
     if not collection or not collection.stac_config:
         return
 
@@ -738,9 +755,12 @@ def update_collection_viz_params(
     stac.cover_viz_params = first_cover
 
     slices = (
-        db.query(ImagerySlice)
-        .filter(ImagerySlice.collection_id == collection.id)
-        .order_by(ImagerySlice.display_order)
+        db.execute(
+            select(ImagerySlice)
+            .where(ImagerySlice.collection_id == collection.id)
+            .order_by(ImagerySlice.display_order)
+        )
+        .scalars()
         .all()
     )
 
@@ -785,11 +805,17 @@ def update_collection_tile_urls(
     tile_urls_by_viz: { "True Color": "https://...", "NDVI": "https://..." }
     Updates all slices to use the new URL for each visualization.
     """
-    collection = db.query(ImageryCollection).filter_by(id=collection_id).first()
+    collection = db.execute(
+        select(ImageryCollection).where(ImageryCollection.id == collection_id)
+    ).scalar_one_or_none()
     if not collection:
         return
 
-    slices = db.query(ImagerySlice).filter(ImagerySlice.collection_id == collection.id).all()
+    slices = (
+        db.execute(select(ImagerySlice).where(ImagerySlice.collection_id == collection.id))
+        .scalars()
+        .all()
+    )
 
     for sl in slices:
         for tu in sl.tile_urls:
@@ -810,7 +836,9 @@ def refresh_collection_imagery(
     """
     from datetime import datetime as dt
 
-    collection = db.query(ImageryCollection).filter_by(id=collection_id).first()
+    collection = db.execute(
+        select(ImageryCollection).where(ImageryCollection.id == collection_id)
+    ).scalar_one_or_none()
     if not collection or not collection.stac_config:
         raise HTTPException(status_code=404, detail="Collection not found or no STAC config")
 
@@ -819,9 +847,12 @@ def refresh_collection_imagery(
         raise HTTPException(status_code=400, detail="Collection is not a STAC browser collection")
 
     slices = (
-        db.query(ImagerySlice)
-        .filter(ImagerySlice.collection_id == collection.id)
-        .order_by(ImagerySlice.display_order)
+        db.execute(
+            select(ImagerySlice)
+            .where(ImagerySlice.collection_id == collection.id)
+            .order_by(ImagerySlice.display_order)
+        )
+        .scalars()
         .all()
     )
 
@@ -853,14 +884,16 @@ def refresh_collection_imagery(
                 item_refs = result["item_refs"]
 
                 # Update MosaicRegistration
-                reg = db.query(MosaicRegistration).filter_by(mosaic_id=mosaic_id).first()
+                reg = db.execute(
+                    select(MosaicRegistration).where(MosaicRegistration.mosaic_id == mosaic_id)
+                ).scalar_one_or_none()
                 if reg:
                     reg.item_count = len(item_refs)
                     reg.assets_info = result.get("assets")
                     reg.status = "ready" if item_refs else "empty"
                     reg.registered_at = dt.utcnow()
                     reg.error_message = None
-                    db.query(MosaicItem).filter_by(mosaic_id=mosaic_id).delete()
+                    db.execute(delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id))
                 else:
                     db.add(
                         MosaicRegistration(
@@ -1047,31 +1080,29 @@ def create_new_canvas_layout(
 ) -> dict:
     """Create or update canvas layouts for a view."""
 
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
 
     if view_id is not None:
-        view = (
-            db.query(ImageryView)
-            .filter(ImageryView.id == view_id, ImageryView.campaign_id == campaign_id)
-            .first()
-        )
+        view = db.execute(
+            select(ImageryView).where(
+                ImageryView.id == view_id, ImageryView.campaign_id == campaign_id
+            )
+        ).scalar_one_or_none()
         if not view:
             raise HTTPException(
                 status_code=404, detail=f"View {view_id} not found in campaign {campaign_id}"
             )
 
     if should_be_default:
-        has_admin_access = (
-            db.query(CampaignUser)
-            .filter(
+        has_admin_access = db.execute(
+            select(CampaignUser).where(
                 CampaignUser.campaign_id == campaign_id,
                 CampaignUser.user_id == user_id,
                 CampaignUser.is_admin,
             )
-            .first()
-        )
+        ).scalar_one_or_none()
         if not has_admin_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1081,16 +1112,14 @@ def create_new_canvas_layout(
     result = {}
 
     if should_be_default:
-        existing_main_layout = (
-            db.query(CanvasLayout)
-            .filter(
+        existing_main_layout = db.execute(
+            select(CanvasLayout).where(
                 CanvasLayout.campaign_id == campaign_id,
                 CanvasLayout.view_id.is_(None),
                 CanvasLayout.is_default,
                 CanvasLayout.user_id.is_(None),
             )
-            .first()
-        )
+        ).scalar_one_or_none()
         if not existing_main_layout:
             raise HTTPException(
                 status_code=404,
@@ -1108,16 +1137,14 @@ def create_new_canvas_layout(
                     detail="view_id is required when providing view_layout_data",
                 )
 
-            existing_view_layout = (
-                db.query(CanvasLayout)
-                .filter(
+            existing_view_layout = db.execute(
+                select(CanvasLayout).where(
                     CanvasLayout.campaign_id == campaign_id,
                     CanvasLayout.view_id == view_id,
                     CanvasLayout.is_default,
                     CanvasLayout.user_id.is_(None),
                 )
-                .first()
-            )
+            ).scalar_one_or_none()
             if not existing_view_layout:
                 raise HTTPException(
                     status_code=404,
@@ -1128,15 +1155,13 @@ def create_new_canvas_layout(
             flag_modified(existing_view_layout, "layout_data")
             result["view_layout"] = existing_view_layout
     else:
-        main_layout = (
-            db.query(CanvasLayout)
-            .filter(
+        main_layout = db.execute(
+            select(CanvasLayout).where(
                 CanvasLayout.user_id == user_id,
                 CanvasLayout.campaign_id == campaign_id,
                 CanvasLayout.view_id.is_(None),
             )
-            .first()
-        )
+        ).scalar_one_or_none()
 
         if main_layout:
             main_layout.layout_data = layout_data.main_layout_data
@@ -1160,15 +1185,13 @@ def create_new_canvas_layout(
                     detail="view_id is required when providing view_layout_data",
                 )
 
-            view_layout = (
-                db.query(CanvasLayout)
-                .filter(
+            view_layout = db.execute(
+                select(CanvasLayout).where(
                     CanvasLayout.user_id == user_id,
                     CanvasLayout.campaign_id == campaign_id,
                     CanvasLayout.view_id == view_id,
                 )
-                .first()
-            )
+            ).scalar_one_or_none()
 
             if view_layout:
                 view_layout.layout_data = layout_data.view_layout_data
@@ -1202,11 +1225,11 @@ def create_new_canvas_layout(
 
 def update_source(db: Session, source_id: int, campaign_id: int, updates: dict) -> ImagerySource:
     """Update display settings and visualizations for an imagery source."""
-    source = (
-        db.query(ImagerySource)
-        .filter(ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id)
-        .first()
-    )
+    source = db.execute(
+        select(ImagerySource).where(
+            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
+        )
+    ).scalar_one_or_none()
     if not source:
         raise HTTPException(
             status_code=404,
@@ -1220,10 +1243,9 @@ def update_source(db: Session, source_id: int, campaign_id: int, updates: dict) 
             setattr(source, key, value)
 
     if viz_updates is not None:
-        # Replace all visualizations with the new list
-        db.query(VisualizationTemplate).filter(
-            VisualizationTemplate.source_id == source_id
-        ).delete()
+        db.execute(
+            delete(VisualizationTemplate).where(VisualizationTemplate.source_id == source_id)
+        )
         db.flush()
         for i, viz in enumerate(viz_updates):
             db.add(
@@ -1240,15 +1262,113 @@ def update_source(db: Session, source_id: int, campaign_id: int, updates: dict) 
 
 
 def delete_source(db: Session, source_id: int, campaign_id: int) -> None:
-    source = (
-        db.query(ImagerySource)
-        .filter(ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id)
-        .first()
-    )
+    source = db.execute(
+        select(ImagerySource).where(
+            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
+        )
+    ).scalar_one_or_none()
     if not source:
         raise HTTPException(
             status_code=404,
             detail=f"Source {source_id} not found in campaign {campaign_id}",
         )
     db.delete(source)
+    db.commit()
+
+
+def update_collection(
+    db: Session, collection_id: int, campaign_id: int, updates: dict
+) -> ImageryCollection:
+    """Update name and cover_slice_index for an imagery collection."""
+    collection = db.execute(
+        select(ImageryCollection)
+        .join(ImagerySource, ImageryCollection.source_id == ImagerySource.id)
+        .where(
+            ImageryCollection.id == collection_id,
+            ImagerySource.campaign_id == campaign_id,
+        )
+    ).scalar_one_or_none()
+    if not collection:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Collection {collection_id} not found in campaign {campaign_id}",
+        )
+
+    for key, value in updates.items():
+        if value is not None and hasattr(collection, key):
+            setattr(collection, key, value)
+
+    db.commit()
+    db.refresh(collection)
+    return collection
+
+
+def add_view(db: Session, campaign_id: int, name: str, collection_refs: list[dict]) -> ImageryView:
+    """Add a new imagery view to an existing campaign."""
+    # Determine next display_order
+    max_order = db.execute(
+        select(ImageryView.display_order)
+        .where(ImageryView.campaign_id == campaign_id)
+        .order_by(ImageryView.display_order.desc())
+        .limit(1)
+    ).first()
+    next_order = (max_order[0] + 1) if max_order else 0
+
+    view = ImageryView(
+        campaign_id=campaign_id,
+        name=name,
+        display_order=next_order,
+        collection_refs=collection_refs,
+    )
+    db.add(view)
+    db.commit()
+    db.refresh(view)
+    return view
+
+
+def update_view(db: Session, view_id: int, campaign_id: int, updates: dict) -> ImageryView:
+    """Update an imagery view (name, collection_refs)."""
+    view = db.execute(
+        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign_id)
+    ).scalar_one_or_none()
+    if not view:
+        raise HTTPException(
+            status_code=404,
+            detail=f"View {view_id} not found in campaign {campaign_id}",
+        )
+
+    for key, value in updates.items():
+        if hasattr(view, key):
+            setattr(view, key, value)
+
+    db.commit()
+    db.refresh(view)
+    return view
+
+
+def reorder_views(db: Session, campaign_id: int, view_ids: list[int]) -> None:
+    """Update display_order for all views based on the given ID order."""
+    views = (
+        db.execute(select(ImageryView).where(ImageryView.campaign_id == campaign_id))
+        .scalars()
+        .all()
+    )
+    view_map = {v.id: v for v in views}
+    for order, vid in enumerate(view_ids):
+        if vid in view_map:
+            view_map[vid].display_order = order
+    db.commit()
+
+
+def delete_view(db: Session, view_id: int, campaign_id: int) -> None:
+    """Delete an imagery view and its canvas layouts."""
+    view = db.execute(
+        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign_id)
+    ).scalar_one_or_none()
+    if not view:
+        raise HTTPException(
+            status_code=404,
+            detail=f"View {view_id} not found in campaign {campaign_id}",
+        )
+    db.delete(view)
     db.commit()

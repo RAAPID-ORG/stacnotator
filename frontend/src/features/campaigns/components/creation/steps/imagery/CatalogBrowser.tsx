@@ -394,7 +394,7 @@ export const CatalogBrowser = ({
       setItems(result.items);
       // Fall back to item assets if collection metadata didn't have item_assets
       if (Object.keys(availableAssets).length === 0 && result.items.length > 0) {
-        setAvailableAssets(result.items[0].assets);
+        setAvailableAssets(result.items[0].assets ?? {});
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));

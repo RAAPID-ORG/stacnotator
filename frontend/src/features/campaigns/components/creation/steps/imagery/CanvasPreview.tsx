@@ -9,6 +9,8 @@ import {
   IconTrash,
   IconLayers,
   IconDragHandle,
+  IconChevronUp,
+  IconChevronDown,
 } from '~/shared/ui/Icons';
 
 interface CanvasPreviewProps {
@@ -20,6 +22,7 @@ interface CanvasPreviewProps {
   onAddView: () => void;
   onUpdateView: (id: string, updates: Partial<ImageryView>) => void;
   onRemoveView: (id: string) => void;
+  onMoveView?: (id: string, direction: -1 | 1) => void;
   onToggleSourceInView: (sourceId: string) => void;
   onAddSource?: () => void;
   /** Sources that are not assigned to ANY view (across all views) */
@@ -164,6 +167,7 @@ export const CanvasPreview = ({
   onAddView,
   onUpdateView,
   onRemoveView,
+  onMoveView,
   onToggleSourceInView,
   onAddSource,
   sourcesNotInAnyView,
@@ -293,7 +297,7 @@ export const CanvasPreview = ({
     >
       {/* View tabs header */}
       <div className="bg-neutral-700 px-3 py-1.5 flex items-center gap-1.5">
-        {views.map((v) => {
+        {views.map((v, viewIdx) => {
           const isActive = activeView?.id === v.id;
           const isEditingName = editingViewName === v.id;
           return (
@@ -312,6 +316,11 @@ export const CanvasPreview = ({
                 }
               }}
             >
+              <span
+                className={`text-[10px] font-bold ${isActive ? 'text-white/60' : 'text-neutral-500'}`}
+              >
+                {viewIdx + 1}
+              </span>
               {isEditingName ? (
                 <input
                   type="text"
@@ -342,18 +351,50 @@ export const CanvasPreview = ({
                   )}
                 </span>
               )}
-              {isActive && views.length > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveView(v.id);
-                  }}
-                  className="ml-1 text-white/50 hover:text-white transition-colors"
-                  title="Remove view"
-                >
-                  <IconTrash className="w-3 h-3" />
-                </button>
+              {isActive && (
+                <div className="flex items-center gap-0.5 ml-0.5">
+                  {onMoveView && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMoveView(v.id, -1);
+                        }}
+                        disabled={viewIdx === 0}
+                        className="text-white/40 hover:text-white disabled:opacity-20 transition-colors p-0.5"
+                        title="Move left"
+                      >
+                        <IconChevronUp className="w-3 h-3 -rotate-90" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMoveView(v.id, 1);
+                        }}
+                        disabled={viewIdx === views.length - 1}
+                        className="text-white/40 hover:text-white disabled:opacity-20 transition-colors p-0.5"
+                        title="Move right"
+                      >
+                        <IconChevronDown className="w-3 h-3 -rotate-90" />
+                      </button>
+                    </>
+                  )}
+                  {views.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveView(v.id);
+                      }}
+                      className="text-white/50 hover:text-white transition-colors p-0.5"
+                      title="Remove view"
+                    >
+                      <IconTrash className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           );

@@ -194,19 +194,21 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
 
-  // Compute the tile URL at the crosshair position for empty-slice probing
+  // Compute the tile URL at the crosshair position for empty-slice probing.
+  // Always uses default_zoom + task centroid so zooming doesn't re-trigger detection.
+  const defaultZoom = source?.default_zoom ?? 10;
   const crosshairTileUrl = useMemo(() => {
     if (!tileUrl || !latLon) return null;
-    const z = zoom;
+    const z = Math.round(defaultZoom);
     const n = Math.pow(2, z);
     const x = Math.floor(((latLon.lon + 180) / 360) * n);
     const yRad = (latLon.lat * Math.PI) / 180;
     const y = Math.floor(((1 - Math.log(Math.tan(yRad) + 1 / Math.cos(yRad)) / Math.PI) / 2) * n);
     return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
-  }, [tileUrl, latLon, zoom]);
+  }, [tileUrl, latLon, defaultZoom]);
 
   // Probe the crosshair tile to detect empty slices.
-  // One lightweight fetch per task/slice change — not per tile.
+  // One lightweight fetch per task/slice change - not per tile.
   // Self-hosted tiles need an auth token; MPC tiles are fetched directly.
   useEffect(() => {
     if (isOpenMode || !crosshairTileUrl) return;
@@ -230,7 +232,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       .then((resp) => {
         // 204 = no content (MPC returns this for empty tiles).
         // Non-ok (404/500) also means no data.
-        // Self-hosted tiler returns 200 + transparent PNG for empty — skip.
+        // Self-hosted tiler returns 200 + transparent PNG for empty - skip.
         if (resp.status === 204 || (!isSelfHosted && !resp.ok)) {
           // fall through to mark empty
         } else {
@@ -260,7 +262,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         }
       })
       .catch(() => {
-        // fetch aborted or network error — ignore
+        // fetch aborted or network error - ignore
       });
 
     return () => controller.abort();

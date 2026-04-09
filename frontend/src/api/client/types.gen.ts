@@ -262,6 +262,24 @@ export type AnnotatorInfo = {
 };
 
 /**
+ * AssetInfo
+ */
+export type AssetInfo = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Roles
+     */
+    roles: Array<string>;
+};
+
+/**
  * AssignReviewersRequest
  *
  * Request to assign reviewers to tasks based on different patterns.
@@ -371,7 +389,7 @@ export type BodyGenerateTasksFromSampling = {
      *
      * Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.
      */
-    region_file?: Blob | File | null;
+    region_file?: string | null;
 };
 
 /**
@@ -381,7 +399,7 @@ export type BodyIngestAnnotationTasksFromCsv = {
     /**
      * File
      */
-    file: Blob | File;
+    file: string;
 };
 
 /**
@@ -391,7 +409,7 @@ export type BodyIngestAnnotationTasksFromGeojson = {
     /**
      * File
      */
-    file: Blob | File;
+    file: string;
 };
 
 /**
@@ -478,7 +496,13 @@ export type CampaignListItemOut = {
      * Is Public
      */
     is_public?: boolean;
+    /**
+     * Registration Status
+     */
     registration_status?: string;
+    /**
+     * Embedding Status
+     */
     embedding_status?: string;
 };
 
@@ -506,9 +530,20 @@ export type CampaignOut = {
      * Is Public
      */
     is_public?: boolean;
+    /**
+     * Registration Status
+     */
     registration_status?: string;
+    /**
+     * Embedding Status
+     */
     embedding_status?: string;
-    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
+    /**
+     * Registration Errors
+     */
+    registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -554,9 +589,20 @@ export type CampaignOutFull = {
      * Is Public
      */
     is_public?: boolean;
+    /**
+     * Registration Status
+     */
     registration_status?: string;
+    /**
+     * Embedding Status
+     */
     embedding_status?: string;
-    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
+    /**
+     * Registration Errors
+     */
+    registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -789,11 +835,37 @@ export type CollectionStacConfigCreate = {
     /**
      * Registration Url
      */
-    registration_url: string;
+    registration_url?: string;
     /**
      * Search Body
      */
-    search_body: string;
+    search_body?: string;
+    /**
+     * Catalog Url
+     */
+    catalog_url?: string | null;
+    /**
+     * Stac Collection Id
+     */
+    stac_collection_id?: string | null;
+    viz_params?: VizParamsCreate | null;
+    cover_viz_params?: VizParamsCreate | null;
+    /**
+     * Max Cloud Cover
+     */
+    max_cloud_cover?: number | null;
+    /**
+     * Search Query
+     */
+    search_query?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cover Search Query
+     */
+    cover_search_query?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
@@ -817,17 +889,17 @@ export type CollectionStacConfigOut = {
      */
     stac_collection_id?: string | null;
     /**
-     * Tile Provider
-     */
-    tile_provider?: string | null;
-    /**
      * Viz Params
      */
-    viz_params?: Record<string, unknown> | null;
+    viz_params?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Cover Viz Params
      */
-    cover_viz_params?: Record<string, unknown> | null;
+    cover_viz_params?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Max Cloud Cover
      */
@@ -835,11 +907,15 @@ export type CollectionStacConfigOut = {
     /**
      * Search Query
      */
-    search_query?: Record<string, unknown> | null;
+    search_query?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Cover Search Query
      */
-    cover_search_query?: Record<string, unknown> | null;
+    cover_search_query?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
@@ -965,6 +1041,22 @@ export type ImageryCollectionOut = {
      */
     slices: Array<ImagerySliceOut>;
     stac_config?: CollectionStacConfigOut | null;
+};
+
+/**
+ * ImageryCollectionUpdate
+ *
+ * Partial update for an imagery collection.
+ */
+export type ImageryCollectionUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Cover Slice Index
+     */
+    cover_slice_index?: number | null;
 };
 
 /**
@@ -1100,6 +1192,46 @@ export type ImagerySourceOut = {
 };
 
 /**
+ * ImagerySourceUpdate
+ *
+ * Partial update for an imagery source's display settings.
+ */
+export type ImagerySourceUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Crosshair Hex6
+     */
+    crosshair_hex6?: string | null;
+    /**
+     * Default Zoom
+     */
+    default_zoom?: number | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<VisualizationUpdate> | null;
+};
+
+/**
+ * ImageryViewAddRequest
+ *
+ * Create a new view on an existing campaign.
+ */
+export type ImageryViewAddRequest = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Collection Refs
+     */
+    collection_refs?: Array<ViewCollectionRefItem>;
+};
+
+/**
  * ImageryViewCreate
  */
 export type ImageryViewCreate = {
@@ -1138,6 +1270,26 @@ export type ImageryViewOut = {
 };
 
 /**
+ * ImageryViewUpdate
+ *
+ * Partial update for an imagery view.
+ */
+export type ImageryViewUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Display Order
+     */
+    display_order?: number | null;
+    /**
+     * Collection Refs
+     */
+    collection_refs?: Array<ViewCollectionRefItem> | null;
+};
+
+/**
  * LabelBase
  *
  * A label that can be assigned to an annotation within a campaign.
@@ -1155,6 +1307,52 @@ export type LabelBase = {
      * Geometry Type
      */
     geometry_type?: 'point' | 'polygon' | 'line' | null;
+};
+
+/**
+ * MosaicRegisterRequest
+ */
+export type MosaicRegisterRequest = {
+    /**
+     * Catalog Url
+     */
+    catalog_url: string;
+    /**
+     * Collection Id
+     */
+    collection_id: string;
+    /**
+     * Bbox
+     */
+    bbox: Array<number>;
+    /**
+     * Datetime Range
+     */
+    datetime_range: string;
+    /**
+     * Max Items
+     */
+    max_items?: number | null;
+};
+
+/**
+ * MosaicRegisterResponse
+ */
+export type MosaicRegisterResponse = {
+    /**
+     * Mosaic Id
+     */
+    mosaic_id: string;
+    /**
+     * Item Count
+     */
+    item_count: number;
+    /**
+     * Assets
+     */
+    assets: {
+        [key: string]: AssetInfo;
+    };
 };
 
 /**
@@ -1179,6 +1377,46 @@ export type PairwiseAgreement = {
      * Shared Tasks
      */
     shared_tasks: number;
+};
+
+/**
+ * SearchRequest
+ */
+export type SearchRequest = {
+    /**
+     * Catalog Url
+     */
+    catalog_url: string;
+    /**
+     * Collection Id
+     */
+    collection_id: string;
+    /**
+     * Bbox
+     */
+    bbox?: Array<number> | null;
+    /**
+     * Datetime Range
+     */
+    datetime_range?: string | null;
+    /**
+     * Limit
+     */
+    limit?: number;
+};
+
+/**
+ * SearchResponse
+ */
+export type SearchResponse = {
+    /**
+     * Items
+     */
+    items: Array<StacItemOut>;
+    /**
+     * Count
+     */
+    count: number;
 };
 
 /**
@@ -1227,6 +1465,50 @@ export type SliceTileUrlOut = {
      * Registered At
      */
     registered_at?: string | null;
+};
+
+/**
+ * StacItemOut
+ */
+export type StacItemOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Datetime
+     */
+    datetime?: string | null;
+    /**
+     * Bbox
+     */
+    bbox?: Array<number> | null;
+    /**
+     * Geometry
+     */
+    geometry?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Properties
+     */
+    properties?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Assets
+     */
+    assets?: {
+        [key: string]: AssetInfo;
+    };
+    /**
+     * Thumbnail
+     */
+    thumbnail?: string | null;
+    /**
+     * Self Href
+     */
+    self_href?: string | null;
 };
 
 /**
@@ -1531,6 +1813,16 @@ export type ValidationError = {
      * Error Type
      */
     type: string;
+    /**
+     * Input
+     */
+    input?: unknown;
+    /**
+     * Context
+     */
+    ctx?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -1598,6 +1890,86 @@ export type VisualizationTemplateOut = {
 };
 
 /**
+ * VisualizationUpdate
+ */
+export type VisualizationUpdate = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * VizParamsCreate
+ *
+ * Structured visualization parameters for TiTiler tile rendering.
+ */
+export type VizParamsCreate = {
+    /**
+     * Assets
+     */
+    assets?: Array<string>;
+    /**
+     * Asset As Band
+     */
+    asset_as_band?: boolean;
+    /**
+     * Rescale
+     */
+    rescale?: string | null;
+    /**
+     * Colormap Name
+     */
+    colormap_name?: string | null;
+    /**
+     * Color Formula
+     */
+    color_formula?: string | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Resampling
+     */
+    resampling?: string | null;
+    /**
+     * Compositing
+     */
+    compositing?: string | null;
+    /**
+     * Nodata
+     */
+    nodata?: number | null;
+    /**
+     * Extra Params
+     */
+    extra_params?: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Mask Layer
+     */
+    mask_layer?: string | null;
+    /**
+     * Mask Values
+     */
+    mask_values?: Array<number> | null;
+    /**
+     * Nir Band
+     */
+    nir_band?: string | null;
+    /**
+     * Red Band
+     */
+    red_band?: string | null;
+    /**
+     * Max Items
+     */
+    max_items?: number | null;
+};
+
+/**
  * CampaignOut
  */
 export type CampaignOutWritable = {
@@ -1621,9 +1993,20 @@ export type CampaignOutWritable = {
      * Is Public
      */
     is_public?: boolean;
+    /**
+     * Registration Status
+     */
     registration_status?: string;
+    /**
+     * Embedding Status
+     */
     embedding_status?: string;
-    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
+    /**
+     * Registration Errors
+     */
+    registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1669,9 +2052,20 @@ export type CampaignOutFullWritable = {
      * Is Public
      */
     is_public?: boolean;
+    /**
+     * Registration Status
+     */
     registration_status?: string;
+    /**
+     * Embedding Status
+     */
     embedding_status?: string;
-    registration_errors?: { collection?: string; slice?: string; error: string }[] | null;
+    /**
+     * Registration Errors
+     */
+    registration_errors?: Array<{
+        [key: string]: unknown;
+    }> | null;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1728,6 +2122,20 @@ export type MeResponses = {
 };
 
 export type MeResponse = MeResponses[keyof MeResponses];
+
+export type GetTilerTokenData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/tiler-token';
+};
+
+export type GetTilerTokenResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type ListUsersData = {
     body?: never;
@@ -3392,3 +3800,394 @@ export type DeleteSourceResponses = {
 };
 
 export type DeleteSourceResponse = DeleteSourceResponses[keyof DeleteSourceResponses];
+
+export type UpdateSourceData = {
+    body: ImagerySourceUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Source Id
+         */
+        source_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/sources/{source_id}';
+};
+
+export type UpdateSourceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateSourceError = UpdateSourceErrors[keyof UpdateSourceErrors];
+
+export type UpdateSourceResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UpdateCollectionData = {
+    body: ImageryCollectionUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/collections/{collection_id}';
+};
+
+export type UpdateCollectionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCollectionError = UpdateCollectionErrors[keyof UpdateCollectionErrors];
+
+export type UpdateCollectionResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type RefreshCollectionImageryData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/collections/{collection_id}/refresh';
+};
+
+export type RefreshCollectionImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshCollectionImageryError = RefreshCollectionImageryErrors[keyof RefreshCollectionImageryErrors];
+
+export type RefreshCollectionImageryResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UpdateVizParamsData = {
+    /**
+     * Body
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/collections/{collection_id}/viz-params';
+};
+
+export type UpdateVizParamsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVizParamsError = UpdateVizParamsErrors[keyof UpdateVizParamsErrors];
+
+export type UpdateVizParamsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type UpdateTileUrlsData = {
+    /**
+     * Body
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Collection Id
+         */
+        collection_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/collections/{collection_id}/tile-urls';
+};
+
+export type UpdateTileUrlsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTileUrlsError = UpdateTileUrlsErrors[keyof UpdateTileUrlsErrors];
+
+export type UpdateTileUrlsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type AddViewData = {
+    body: ImageryViewAddRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views';
+};
+
+export type AddViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddViewError = AddViewErrors[keyof AddViewErrors];
+
+export type AddViewResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type DeleteViewData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type DeleteViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteViewError = DeleteViewErrors[keyof DeleteViewErrors];
+
+export type DeleteViewResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteViewResponse = DeleteViewResponses[keyof DeleteViewResponses];
+
+export type UpdateViewData = {
+    body: ImageryViewUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type UpdateViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateViewError = UpdateViewErrors[keyof UpdateViewErrors];
+
+export type UpdateViewResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ReorderViewsData = {
+    /**
+     * Body
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/reorder';
+};
+
+export type ReorderViewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReorderViewsError = ReorderViewsErrors[keyof ReorderViewsErrors];
+
+export type ReorderViewsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ListCatalogsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/stac/catalogs';
+};
+
+export type ListCatalogsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetCollectionsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Catalog Url
+         *
+         * STAC API URL
+         */
+        catalog_url: string;
+    };
+    url: '/api/stac/collections';
+};
+
+export type GetCollectionsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCollectionsError = GetCollectionsErrors[keyof GetCollectionsErrors];
+
+export type GetCollectionsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type SearchData = {
+    body: SearchRequest;
+    path?: never;
+    query?: never;
+    url: '/api/stac/search';
+};
+
+export type SearchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchError = SearchErrors[keyof SearchErrors];
+
+export type SearchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SearchResponse;
+};
+
+export type SearchResponse2 = SearchResponses[keyof SearchResponses];
+
+export type RegisterMosaicData = {
+    body: MosaicRegisterRequest;
+    path?: never;
+    query?: never;
+    url: '/api/stac/mosaic/register';
+};
+
+export type RegisterMosaicErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegisterMosaicError = RegisterMosaicErrors[keyof RegisterMosaicErrors];
+
+export type RegisterMosaicResponses = {
+    /**
+     * Successful Response
+     */
+    200: MosaicRegisterResponse;
+};
+
+export type RegisterMosaicResponse = RegisterMosaicResponses[keyof RegisterMosaicResponses];

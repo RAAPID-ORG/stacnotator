@@ -3,6 +3,7 @@ from typing import Literal
 import ee
 import pandas as pd
 from fastapi import HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -16,11 +17,8 @@ settings = get_settings()
 
 
 # ============================================================================
-# Timeseries data fetching and processing functions for Earth Engine
-# ============================================================================
-
-# TODO in the future, would like to support timesteries from STAC catalog, but currently too slow
-# Also want to allow users to define their timeseries band combinations and use these
+# Currently only Earth Engine is supported as a timeseries data source.
+# STAC catalog support is not yet implemented due to performance constraints.
 
 
 def add_ndvi_band_to_ee_image(image: ee.Image, nir: str, red: str, name: str = "NDVI") -> ee.Image:
@@ -248,11 +246,13 @@ def _add_timeseries_entry_to_layout(
 
 def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeriesOut]:
     # Check campaign exists
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
 
-    ts_items = db.query(TimeSeries).filter(TimeSeries.campaign_id == campaign_id).all()
+    ts_items = (
+        db.execute(select(TimeSeries).where(TimeSeries.campaign_id == campaign_id)).scalars().all()
+    )
     return ts_items
 
 
@@ -275,12 +275,14 @@ def create_timeseries_bulk(
         List of created timeseries objects
     """
     # Verify campaign exists
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
 
     # Check if campaign already has timeseries
-    existing_count = db.query(TimeSeries).filter(TimeSeries.campaign_id == campaign_id).count()
+    existing_count = db.execute(
+        select(func.count()).select_from(TimeSeries).where(TimeSeries.campaign_id == campaign_id)
+    ).scalar_one()
 
     # Create timeseries entries
     new_items = []
@@ -304,11 +306,13 @@ def create_timeseries_bulk(
         # Get all main canvas layouts for this campaign (default and personal)
         # Main layouts have view_id = None
         main_layouts = (
-            db.query(CanvasLayout)
-            .filter(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
+            db.execute(
+                select(CanvasLayout).where(
+                    CanvasLayout.campaign_id == campaign_id,
+                    CanvasLayout.view_id.is_(None),
+                )
             )
+            .scalars()
             .all()
         )
 
@@ -328,7 +332,9 @@ def create_timeseries_bulk(
 
 
 def get_timeseries_by_id(timeseries_id: int, db: Session) -> TimeSeries:
-    ts_item = db.query(TimeSeries).filter(TimeSeries.id == timeseries_id).first()
+    ts_item = db.execute(
+        select(TimeSeries).where(TimeSeries.id == timeseries_id)
+    ).scalar_one_or_none()
     if not ts_item:
         raise HTTPException(status_code=404, detail=f"TimeSeries with id {timeseries_id} not found")
     return ts_item
@@ -347,14 +353,12 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
         db: Database session
     """
     # Verify timeseries exists and belongs to campaign
-    ts_item = (
-        db.query(TimeSeries)
-        .filter(
+    ts_item = db.execute(
+        select(TimeSeries).where(
             TimeSeries.id == timeseries_id,
             TimeSeries.campaign_id == campaign_id,
         )
-        .first()
-    )
+    ).scalar_one_or_none()
 
     if not ts_item:
         raise HTTPException(
@@ -363,14 +367,14 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
         )
 
     # Check if this is the last timeseries in the campaign
-    remaining_count = (
-        db.query(TimeSeries)
-        .filter(
+    remaining_count = db.execute(
+        select(func.count())
+        .select_from(TimeSeries)
+        .where(
             TimeSeries.campaign_id == campaign_id,
             TimeSeries.id != timeseries_id,
         )
-        .count()
-    )
+    ).scalar_one()
 
     # Delete the timeseries
     db.delete(ts_item)
@@ -382,11 +386,13 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
 
         # Get all main canvas layouts for this campaign
         main_layouts = (
-            db.query(CanvasLayout)
-            .filter(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
+            db.execute(
+                select(CanvasLayout).where(
+                    CanvasLayout.campaign_id == campaign_id,
+                    CanvasLayout.view_id.is_(None),
+                )
             )
+            .scalars()
             .all()
         )
 

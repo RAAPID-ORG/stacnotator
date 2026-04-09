@@ -131,13 +131,16 @@ def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
     """
 
     campaign = (
-        db.query(Campaign)
-        .options(
-            joinedload(Campaign.canvas_layouts),
-            joinedload(Campaign.imagery_views).joinedload(ImageryView.canvas_layouts),
+        db.execute(
+            select(Campaign)
+            .options(
+                joinedload(Campaign.canvas_layouts),
+                joinedload(Campaign.imagery_views).joinedload(ImageryView.canvas_layouts),
+            )
+            .where(Campaign.id == campaign_id)
         )
-        .filter(Campaign.id == campaign_id)
-        .first()
+        .unique()
+        .scalar_one_or_none()
     )
 
     if not campaign:
@@ -268,7 +271,9 @@ def create_campaign(
                 errors = _register_all_stac_browser_collections(
                     bg_db, pending_registrations, registration_bbox
                 )
-                bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                bg_campaign = bg_db.execute(
+                    select(Campaign).where(Campaign.id == campaign_id)
+                ).scalar_one_or_none()
                 if bg_campaign:
                     bg_campaign.registration_status = "failed" if errors else "ready"
                     if errors:
@@ -285,14 +290,16 @@ def create_campaign(
             except Exception as exc:
                 logger.exception("Mosaic registration failed for campaign %d", campaign_id)
                 try:
-                    bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                    bg_campaign = bg_db.execute(
+                        select(Campaign).where(Campaign.id == campaign_id)
+                    ).scalar_one_or_none()
                     if bg_campaign:
                         bg_campaign.registration_status = "failed"
                         existing = bg_campaign.registration_errors or []
                         bg_campaign.registration_errors = existing + [{"error": str(exc)}]
                         bg_db.commit()
                 except Exception:
-                    pass
+                    logger.warning("Failed to persist registration error status", exc_info=True)
             finally:
                 bg_db.close()
 
@@ -314,7 +321,9 @@ def create_campaign(
                 embeddings_service.populate_campaign_embeddings(
                     bg_db, campaign_id, start_date, end_date
                 )
-                bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                bg_campaign = bg_db.execute(
+                    select(Campaign).where(Campaign.id == campaign_id)
+                ).scalar_one_or_none()
                 if bg_campaign:
                     bg_campaign.embedding_status = "ready"
                     bg_db.commit()
@@ -322,7 +331,9 @@ def create_campaign(
             except Exception as exc:
                 logger.exception("Embeddings failed for campaign %d", campaign_id)
                 try:
-                    bg_campaign = bg_db.query(Campaign).filter_by(id=campaign_id).first()
+                    bg_campaign = bg_db.execute(
+                        select(Campaign).where(Campaign.id == campaign_id)
+                    ).scalar_one_or_none()
                     if bg_campaign:
                         bg_campaign.embedding_status = "failed"
                         existing = bg_campaign.registration_errors or []
@@ -331,7 +342,7 @@ def create_campaign(
                         ]
                         bg_db.commit()
                 except Exception:
-                    pass
+                    logger.warning("Failed to persist embedding error status", exc_info=True)
             finally:
                 bg_db.close()
 

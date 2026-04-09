@@ -251,9 +251,32 @@ class VisualizationUpdate(BaseModel):
 class ImagerySourceUpdate(BaseModel):
     """Partial update for an imagery source's display settings."""
 
+    name: str | None = None
     crosshair_hex6: str | None = None
     default_zoom: int | None = None
     visualizations: list[VisualizationUpdate] | None = None
+
+
+class ImageryCollectionUpdate(BaseModel):
+    """Partial update for an imagery collection."""
+
+    name: str | None = None
+    cover_slice_index: int | None = None
+
+
+class ImageryViewUpdate(BaseModel):
+    """Partial update for an imagery view."""
+
+    name: str | None = None
+    display_order: int | None = None
+    collection_refs: list[ViewCollectionRefItem] | None = None
+
+
+class ImageryViewAddRequest(BaseModel):
+    """Create a new view on an existing campaign."""
+
+    name: str = ""
+    collection_refs: list[ViewCollectionRefItem] = []
 
 
 class CanvasLayoutCreate(BaseModel):

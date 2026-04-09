@@ -34,10 +34,7 @@ export const HomePage = () => {
           <h1 className="text-[28px] font-bold text-neutral-900 tracking-tight leading-tight">
             STACNotator
           </h1>
-          <p className="text-base text-neutral-500 mt-1.5 leading-relaxed max-w-lg">
-            Geospatial imagery annotation platform. Create campaigns, configure STAC imagery
-            sources, and annotate features collaboratively.
-          </p>
+          <p className="text-base text-neutral-500 mt-1.5 leading-relaxed max-w-lg"></p>
         </div>
 
         {/* Early access + Video */}
@@ -46,7 +43,7 @@ export const HomePage = () => {
             {/* Early access banner */}
             <div className="px-4 py-2.5 bg-amber-50/60 border-b border-amber-200/60 flex gap-2.5 items-center">
               <IconWarning className="shrink-0 w-3.5 h-3.5 text-amber-500" />
-              <p className="text-[11px] text-amber-700/80 leading-relaxed">
+              <p className="text-[12px] text-amber-700/80 leading-relaxed">
                 <strong className="font-semibold text-amber-800">Early Access</strong> - Under
                 active development. Features may change and results should be independently
                 verified. No warranty or liability is provided regarding the correctness or

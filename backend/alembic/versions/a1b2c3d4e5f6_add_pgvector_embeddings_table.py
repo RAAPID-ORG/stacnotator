@@ -57,7 +57,7 @@ def _backfill_embeddings() -> None:
     bind = op.get_bind()
     session = Session(bind=bind)
 
-    # Use raw SQL — ORM Campaign model may have columns not yet in the DB
+    # Use raw SQL - ORM Campaign model may have columns not yet in the DB
     rows = bind.execute(
         sa.text("""
             SELECT c.id, c.name, s.embedding_year

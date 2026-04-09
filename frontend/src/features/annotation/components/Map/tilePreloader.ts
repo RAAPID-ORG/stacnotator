@@ -1,11 +1,15 @@
 /**
- * TilePreloader - fetches XYZ tiles into the browser cache so that when
- * OpenLayers later requests them they are instant cache-hits.
+ * TilePreloader - loads XYZ tiles via <img> elements into the browser cache
+ * so that when OpenLayers later requests them they are instant cache-hits.
+ *
+ * Uses <img> (not fetch()) because OL loads tiles via <img crossOrigin="anonymous">.
+ * Both must use the same request mechanism to share the browser's HTTP cache
+ * partition — mixing fetch() and <img> causes intermittent gray tiles.
  *
  * Design:
  *   - Priority queue - lower number = higher priority.
  *   - Pause / resume - pauses while the active OL layer is loading.
- *   - Flat per-tile concurrency via fetch() + HTTP/2 multiplexing.
+ *   - Flat per-tile concurrency via <img> elements.
  *   - abort(groupId) / clear() for cancellation.
  *   - Per-group empty-tile detection: if EMPTY_TILE_THRESHOLD errors
  *     occur with zero successes for a group, onGroupEmpty fires and
@@ -76,8 +80,8 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  // In-flight abort controllers for cancelling fetch requests.
-  private inflightControllers = new Set<AbortController>();
+  // Cancel functions for in-flight <img> loads.
+  private inflightCancels = new Set<() => void>();
 
   // Per-group error/success counters for empty-tile detection.
   private groupStats = new Map<
@@ -193,23 +197,19 @@ export class TilePreloader {
 
     while (this.inflight < this.maxConcurrent && this.tileQueue.length > 0) {
       const tile = this.tileQueue.shift()!;
-      this.fetchOne(tile);
+      this.loadOne(tile);
     }
     this.checkIdle();
   }
 
-  private fetchOne(tile: QueuedTile) {
+  private loadOne(tile: QueuedTile) {
     const gen = this.generation;
     this.inflight++;
 
-    const controller = new AbortController();
-    this.inflightControllers.add(controller);
-
-    const done = (ok: boolean, aborted = false) => {
-      this.inflightControllers.delete(controller);
+    const done = (ok: boolean, cancelled = false) => {
       this.inflight = Math.max(0, this.inflight - 1);
 
-      if (aborted || this.disposed || gen !== this.generation) {
+      if (cancelled || this.disposed || gen !== this.generation) {
         this.drain();
         this.checkIdle();
         return;
@@ -234,34 +234,61 @@ export class TilePreloader {
       this.checkIdle();
     };
 
-    this.fetchWithOptionalAuth(tile.url, controller.signal)
-      .then((resp) => done(resp.ok))
-      .catch((err) => done(false, err?.name === 'AbortError'));
+    const startImg = (url: string) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      let settled = false;
+
+      const cancel = () => {
+        if (!settled) {
+          settled = true;
+          img.onload = img.onerror = null;
+          img.src = '';
+          this.inflightCancels.delete(cancel);
+          done(false, true);
+        }
+      };
+      this.inflightCancels.add(cancel);
+
+      img.onload = () => {
+        if (settled) return;
+        settled = true;
+        this.inflightCancels.delete(cancel);
+        done(true);
+      };
+      img.onerror = () => {
+        if (settled) return;
+        settled = true;
+        this.inflightCancels.delete(cancel);
+        done(false);
+      };
+      img.src = url;
+    };
+
+    // Self-hosted tiles need an auth token appended to the URL
+    if (TILER_BASE && tile.url.startsWith(TILER_BASE)) {
+      getTilerToken()
+        .then((token) => {
+          if (this.disposed || gen !== this.generation) {
+            done(false, true);
+            return;
+          }
+          const sep = tile.url.includes('?') ? '&' : '?';
+          startImg(`${tile.url}${sep}token=${encodeURIComponent(token)}`);
+        })
+        .catch(() => done(false));
+    } else {
+      startImg(tile.url);
+    }
   }
 
-  // Cancel all in-flight fetch requests immediately.
+  // Cancel all in-flight <img> loads.
   private _abortInflight() {
-    for (const controller of this.inflightControllers) {
-      controller.abort();
+    for (const cancel of this.inflightCancels) {
+      cancel();
     }
-    this.inflightControllers.clear();
+    this.inflightCancels.clear();
     this.inflight = 0;
-  }
-
-  private fetchWithOptionalAuth(url: string, signal: AbortSignal): Promise<Response> {
-    // credentials: 'omit' matches <img crossOrigin="anonymous"> so preloaded
-    // responses share the same browser HTTP cache entry as OL tile loads.
-    if (!TILER_BASE || !url.startsWith(TILER_BASE)) {
-      return fetch(url, { mode: 'cors', credentials: 'omit', signal });
-    }
-    return getTilerToken().then((token) => {
-      const sep = url.includes('?') ? '&' : '?';
-      return fetch(`${url}${sep}token=${encodeURIComponent(token)}`, {
-        mode: 'cors',
-        credentials: 'omit',
-        signal,
-      });
-    });
   }
 
   private checkIdle() {

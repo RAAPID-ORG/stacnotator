@@ -59,8 +59,6 @@ async def require_approved_user(
     Ensures the user has been granted the 'approved' role,
     which is required for most application features.
 
-    # TODO might want to add this directly in most routers
-
     Args:
         user: Authenticated user
         db: Database session

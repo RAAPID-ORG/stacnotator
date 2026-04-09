@@ -326,12 +326,12 @@ export const CampaignSettingsPage = () => {
       if (name.endsWith('.geojson') || name.endsWith('.json')) {
         await ingestAnnotationTasksFromGeojson({
           path: { campaign_id: numericCampaignId },
-          body: { file: taskFile },
+          body: { file: taskFile } as never,
         });
       } else {
         await ingestAnnotationTasksFromCsv({
           path: { campaign_id: numericCampaignId },
-          body: { file: taskFile },
+          body: { file: taskFile } as never,
         });
       }
 
@@ -655,14 +655,17 @@ export const CampaignSettingsPage = () => {
                     {campaign.registration_errors.length !== 1 ? 's' : ''}
                   </summary>
                   <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
-                    {campaign.registration_errors.slice(0, 20).map((err, i) => (
-                      <li key={i}>
-                        {err.collection && <span className="font-medium">{err.collection}</span>}
-                        {err.slice && <span> / {err.slice}</span>}
-                        {(err.collection || err.slice) && ': '}
-                        {err.error}
-                      </li>
-                    ))}
+                    {campaign.registration_errors.slice(0, 20).map((rawErr, i) => {
+                      const err = rawErr as { collection?: string; slice?: string; error?: string };
+                      return (
+                        <li key={i}>
+                          {err.collection && <span className="font-medium">{err.collection}</span>}
+                          {err.slice && <span> / {err.slice}</span>}
+                          {(err.collection || err.slice) && ': '}
+                          {err.error}
+                        </li>
+                      );
+                    })}
                     {campaign.registration_errors.length > 20 && (
                       <li className="text-red-500">
                         ...and {campaign.registration_errors.length - 20} more
@@ -679,11 +682,16 @@ export const CampaignSettingsPage = () => {
                 <strong>Embedding generation failed.</strong> The campaign is usable but
                 embedding-based features (similarity search) won&apos;t be available.
               </p>
-              {campaign.registration_errors?.some((e) => e.error?.startsWith('Embeddings:')) && (
+              {campaign.registration_errors?.some((e) =>
+                (e as { error?: string }).error?.startsWith('Embeddings:')
+              ) && (
                 <p className="text-[11px] mt-1 text-red-700">
                   {
-                    campaign.registration_errors.find((e) => e.error?.startsWith('Embeddings:'))
-                      ?.error
+                    (
+                      campaign.registration_errors.find((e) =>
+                        (e as { error?: string }).error?.startsWith('Embeddings:')
+                      ) as { error?: string }
+                    )?.error
                   }
                 </p>
               )}
@@ -723,6 +731,7 @@ export const CampaignSettingsPage = () => {
           {activeTab === 'imagery' && (
             <ImageryTab
               imagery={imagery}
+              views={campaign?.imagery_views ?? []}
               campaignId={numericCampaignId}
               setDeleteConfirm={setDeleteConfirm}
               onSourceUpdated={(sourceId, updates) => {
@@ -733,7 +742,10 @@ export const CampaignSettingsPage = () => {
               onCollectionVizUpdated={async () => {
                 try {
                   const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
-                  if (data) setImagery(data.imagery_sources);
+                  if (data) {
+                    setCampaign(data);
+                    setImagery(data.imagery_sources);
+                  }
                 } catch {
                   /* silent refresh */
                 }

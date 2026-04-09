@@ -13,12 +13,18 @@ import { GeoJSON as OLGeoJSON } from 'ol/format';
 import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 import 'ol/ol.css';
+import {
+  createCrosshairElement,
+  updateCrosshairColor,
+  hexToRgba,
+  EXTENT_LAYER_Z_INDEX,
+} from './mapUtils';
 
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../ControlsOpenMode';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { tileLoadWithAuth } from './authTileLoader';
+import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -54,14 +60,6 @@ interface WindowMapProps {
 const geoJsonFormat = new OLGeoJSON();
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
-
-function hexToRgba(hex: string, alpha: number): string {
-  const clean = hex.replace('#', '');
-  const r = parseInt(clean.substring(0, 2), 16);
-  const g = parseInt(clean.substring(2, 4), 16);
-  const b = parseInt(clean.substring(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
 
 const WindowMap = ({
   initialCenter,
@@ -103,7 +101,9 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
+      ...(isSelfHostedUrl(tileUrl)
+        ? { tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void }
+        : {}),
     });
 
     // Track consecutive tile-load errors vs. successes for empty-tile detection
@@ -140,7 +140,7 @@ const WindowMap = ({
     extentSourceRef.current = extentSource;
     const extentLayer = new VectorLayer({
       source: extentSource,
-      zIndex: 5,
+      zIndex: EXTENT_LAYER_Z_INDEX,
       style: new Style({
         fill: new Fill({ color: 'rgba(255,255,255,0.08)' }),
         stroke: new Stroke({ color: '#ef4444', width: 1.5, lineDash: [6, 4] }),
@@ -159,17 +159,8 @@ const WindowMap = ({
       interactions: defaultInteractions(),
     });
 
-    // Crosshair overlay - created imperatively, not in React tree
-    const color = crosshair?.color ?? 'ff0000';
-    const el = document.createElement('div');
-    el.style.pointerEvents = 'none';
-    el.style.width = '20px';
-    el.style.height = '20px';
-    el.innerHTML =
-      `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">` +
-      `<line x1="0" y1="10" x2="20" y2="10" stroke="#${color}" stroke-width="1.5"/>` +
-      `<line x1="10" y1="0" x2="10" y2="20" stroke="#${color}" stroke-width="1.5"/>` +
-      `</svg>`;
+    // Crosshair overlay
+    const el = createCrosshairElement(crosshair?.color);
     overlayElRef.current = el;
 
     const overlay = new Overlay({
@@ -186,8 +177,13 @@ const WindowMap = ({
 
     mapRef.current = map;
 
-    // Keep OL in sync when the container resizes (layout shifts, sidebar toggle)
-    const ro = new ResizeObserver(() => map.updateSize());
+    // Keep OL in sync when the container resizes (layout shifts, sidebar toggle).
+    // After updating the size, poke the tile source so OL requests tiles for
+    // any newly-visible area — updateSize() alone doesn't re-evaluate tile coverage.
+    const ro = new ResizeObserver(() => {
+      map.updateSize();
+      tileLayerRef.current?.getSource()?.changed();
+    });
     ro.observe(containerRef.current);
 
     return () => {
@@ -216,7 +212,9 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
+      ...(isSelfHostedUrl(tileUrl)
+        ? { tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void }
+        : {}),
     });
 
     // Reset counters for the new URL
@@ -235,6 +233,15 @@ const WindowMap = ({
     });
 
     tileLayerRef.current.setSource(source);
+
+    // The view-position effect runs after this one in the same commit.
+    // OL may start loading tiles for the old view before the new center/zoom
+    // is applied, leaving edge tiles un-requested. After OL finishes its
+    // first render pass with the new source, poke it to re-evaluate.
+    const map = mapRef.current;
+    if (map) {
+      map.once('postrender', () => source.changed());
+    }
   }, [tileUrl, detectionKey]);
 
   // Sync center+zoom from main map (store-driven).
@@ -341,11 +348,8 @@ const WindowMap = ({
     const el = overlayElRef.current;
     if (!overlay) return;
     if (crosshair && showCrosshair) {
-      // Update SVG stroke color in case it changed
       if (el) {
-        const color = `#${crosshair.color ?? 'ff0000'}`;
-        const lines = el.querySelectorAll('line');
-        lines.forEach((line) => line.setAttribute('stroke', color));
+        updateCrosshairColor(el, crosshair.color ?? 'ff0000');
       }
       overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
     } else {

@@ -1,13 +1,21 @@
 /**
- * API hooks for the STAC browser endpoints.
- * The backend proxies STAC Index and individual STAC APIs (CORS requirement).
+ * Thin wrappers around generated SDK calls for the STAC browser endpoints.
+ * Keeps local type definitions for responses the backend returns untyped.
  */
 
-import { getTilerToken } from './tilerToken';
+import {
+  listCatalogs as _listCatalogs,
+  getCollections as _getCollections,
+  search as _search,
+} from './client';
+import type { StacItemOut, AssetInfo } from './client';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || API_BASE;
+// Re-export generated types under the names consumers already use
+export type StacItem = StacItemOut;
+export type StacAssetInfo = AssetInfo;
 
+// These response shapes aren't typed in the OpenAPI spec (backend returns raw dicts),
+// so we keep local definitions.
 export interface StacCatalog {
   id: string;
   title: string;
@@ -28,35 +36,18 @@ export interface StacCollection {
   has_cloud_cover?: boolean;
 }
 
-export interface StacAssetInfo {
-  title: string;
-  type: string;
-  roles: string[];
-}
-
-export interface StacItem {
-  id: string;
-  datetime: string | null;
-  bbox: number[] | null;
-  geometry: unknown;
-  properties: Record<string, unknown>;
-  assets: Record<string, StacAssetInfo>;
-  thumbnail: string | null;
-  self_href: string | null;
-}
-
 export async function fetchCatalogs(): Promise<StacCatalog[]> {
-  const resp = await fetch(`${API_BASE}/api/stac/catalogs`);
-  if (!resp.ok) throw new Error(`Failed to fetch catalogs: ${resp.status}`);
-  return resp.json();
+  const { data, error } = await _listCatalogs();
+  if (error) throw new Error('Failed to fetch catalogs');
+  return data as StacCatalog[];
 }
 
 export async function fetchCollections(catalogUrl: string): Promise<StacCollection[]> {
-  const resp = await fetch(
-    `${API_BASE}/api/stac/collections?catalog_url=${encodeURIComponent(catalogUrl)}`
-  );
-  if (!resp.ok) throw new Error(`Failed to fetch collections: ${resp.status}`);
-  return resp.json();
+  const { data, error } = await _getCollections({
+    query: { catalog_url: catalogUrl },
+  });
+  if (error) throw new Error('Failed to fetch collections');
+  return data as StacCollection[];
 }
 
 export async function searchItems(params: {
@@ -66,49 +57,15 @@ export async function searchItems(params: {
   datetime_range?: string;
   limit?: number;
 }): Promise<{ items: StacItem[]; count: number }> {
-  const resp = await fetch(`${API_BASE}/api/stac/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+  const { data, error } = await _search({
+    body: {
+      catalog_url: params.catalog_url,
+      collection_id: params.collection_id,
+      bbox: params.bbox ?? null,
+      datetime_range: params.datetime_range ?? null,
+      limit: params.limit,
+    },
   });
-  if (!resp.ok) throw new Error(`Search failed: ${resp.status}`);
-  return resp.json();
-}
-
-export async function createMosaic(params: {
-  catalog_url: string;
-  collection_id: string;
-  bbox: number[];
-  datetime_range: string;
-  pixel_selection?: string;
-}): Promise<{
-  mosaic_id: string;
-  item_count: number;
-  assets: Record<string, StacAssetInfo>;
-}> {
-  const resp = await fetch(`${API_BASE}/api/stac/mosaic/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  if (!resp.ok) throw new Error(`Mosaic creation failed: ${resp.status}`);
-  return resp.json();
-}
-
-export async function fetchStats(params: {
-  catalog_url: string;
-  collection_id: string;
-  assets: string[];
-  bbox?: number[];
-  datetime_range?: string;
-  max_cloud_cover?: number;
-}): Promise<{ rescale: string; source: string }> {
-  const tilerToken = await getTilerToken();
-  const resp = await fetch(`${TILER_BASE}/api/stac/stats`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tilerToken}` },
-    body: JSON.stringify(params),
-  });
-  if (!resp.ok) throw new Error(`Stats request failed: ${resp.status}`);
-  return resp.json();
+  if (error) throw new Error('Search failed');
+  return data!;
 }

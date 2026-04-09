@@ -73,7 +73,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       };
 
       // Build the request body
-      const requestBody: { strategy: string; region_file?: File } = {
+      const requestBody: Record<string, unknown> = {
         strategy: JSON.stringify(strategy),
       };
 
@@ -84,7 +84,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
       const { data, error } = await generateTasksFromSampling({
         path: { campaign_id: campaignId },
-        body: requestBody,
+        body: requestBody as never,
       });
 
       if (error) {

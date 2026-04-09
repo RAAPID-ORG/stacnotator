@@ -251,8 +251,12 @@ export const StepImagery = ({
     if (activeViewId === id) setActiveViewId(next[0]?.id ?? null);
   };
 
-  const _moveView = (index: number, direction: -1 | 1) => {
-    updateState({ ...state, views: swap(state.views, index, index + direction) });
+  const moveView = (id: string, direction: -1 | 1) => {
+    const index = state.views.findIndex((v) => v.id === id);
+    if (index < 0) return;
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= state.views.length) return;
+    updateState({ ...state, views: swap(state.views, index, newIndex) });
   };
 
   /** Toggle a source's assignment to the active view.
@@ -520,6 +524,7 @@ export const StepImagery = ({
             onAddView={addView}
             onUpdateView={updateView}
             onRemoveView={removeView}
+            onMoveView={moveView}
             onToggleSourceInView={toggleSourceInView}
             onAddSource={() => setShowSourcePicker(true)}
             sourcesNotInAnyView={sourcesNotInAnyView}

@@ -1,6 +1,6 @@
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
-import { tileLoadWithAuth } from './authTileLoader';
+import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
 
 export type LayerType = 'imagery' | 'basemap';
 
@@ -55,7 +55,7 @@ export class XYZLayer extends Layer {
         crossOrigin: 'anonymous',
         cacheSize: this.layerType === 'imagery' ? 128 : 512,
         transition: 0,
-        ...(this.layerType === 'imagery'
+        ...(this.layerType === 'imagery' && isSelfHostedUrl(this.urlTemplate)
           ? {
               tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
             }

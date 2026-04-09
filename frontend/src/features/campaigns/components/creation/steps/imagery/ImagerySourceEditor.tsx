@@ -142,6 +142,11 @@ export const ImagerySourceEditor = ({
               onChange={(e) => onChange({ defaultZoom: Number(e.target.value) })}
               className="w-14 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
             />
+            {source.defaultZoom < 10 && (
+              <span className="text-[10px] text-amber-600">
+                Low zoom may be slow. Recommended: 10+
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-neutral-700 shrink-0">Crosshair</label>

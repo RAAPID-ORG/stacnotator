@@ -53,6 +53,8 @@ export const MainAnnotationsContainer = ({
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
+  const preloadingEnabled = useMapStore((s) => s.preloadingEnabled);
+  const togglePreloading = useMapStore((s) => s.togglePreloading);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [_timelineDragging, setTimelineDragging] = useState(false);
@@ -339,7 +341,7 @@ export const MainAnnotationsContainer = ({
                   className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     viewSyncEnabled
-                      ? 'Unlink (sync) small windows from main map pan/zoom (L)'
+                      ? 'Unlink (sync) small windows from main map pan/zoom. Use this if you internet connection is slow. (L)'
                       : 'Link (sync) small windows to main map pan/zoom (L)'
                   }
                 >
@@ -373,6 +375,34 @@ export const MainAnnotationsContainer = ({
                 </button>
               )}
 
+              {isTaskMode && (
+                <button
+                  onClick={togglePreloading}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    preloadingEnabled
+                      ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading)'
+                      : 'Enable tile preloading (prefetches tiles for faster navigation)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 2v4M10 14v4" />
+                    <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
+                    <path d="M2 10h4M14 10h4" />
+                    {!preloadingEnabled && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
+                  </svg>
+                </button>
+              )}
+
               {campaign.time_series.length > 0 && (
                 <button
                   onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
@@ -380,7 +410,7 @@ export const MainAnnotationsContainer = ({
                   title={
                     activeTool === 'timeseries'
                       ? 'Deactivate timeseries probe'
-                      : 'Activate timeseries probe'
+                      : 'Activate timeseries probe: Pick a point on the map to load the timeseries for that location (T)'
                   }
                 >
                   <svg
@@ -528,6 +558,34 @@ export const MainAnnotationsContainer = ({
                         <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
                       </>
                     )}
+                  </svg>
+                </button>
+              )}
+
+              {isTaskMode && (
+                <button
+                  onClick={togglePreloading}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    preloadingEnabled
+                      ? 'Disable tile preloading (prefetches tiles for faster navigation)'
+                      : 'Enable tile preloading (prefetches tiles for faster navigation)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 2v4M10 14v4" />
+                    <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
+                    <path d="M2 10h4M14 10h4" />
+                    {!preloadingEnabled && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
                   </svg>
                 </button>
               )}

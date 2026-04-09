@@ -267,9 +267,11 @@ export const AnnotationControls = ({
                   />
                 </svg>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Experimental feature - use with care! Checks your label against nearby annotations
-                  using embedding similarity (year {campaign?.settings?.embedding_year}). You'll be
-                  asked to confirm if your label disagrees with the majority.
+                  Experimental feature - use with care! Checks your label against prior annotations
+                  using embedding similarity from AlphaEarth in {campaign?.settings?.embedding_year}{' '}
+                  (kNN, with k = 5). You'll be asked to confirm if your label disagrees with the
+                  majority. You need to have placed at least 5 annotations per label for the
+                  validation to work.
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>

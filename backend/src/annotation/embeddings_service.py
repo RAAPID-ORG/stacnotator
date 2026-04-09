@@ -15,7 +15,7 @@ from src.annotation.models import (
 from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
-from src.annotation.schema import ValidateLabelSubmissionsResponse
+from src.annotation.schemas import ValidateLabelSubmissionsResponse
 
 logger = logging.getLogger(__name__)
 

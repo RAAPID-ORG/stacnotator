@@ -29,6 +29,8 @@ interface MapStore {
 
   // View sync: link small windows' pan/zoom to the main map
   viewSyncEnabled: boolean;
+  // Tile preloading: prefetch tiles for other collections and next tasks
+  preloadingEnabled: boolean;
 
   // Active tool
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -64,6 +66,7 @@ interface MapStore {
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleViewSync: () => void;
+  togglePreloading: () => void;
 
   reset: () => void;
 }
@@ -106,6 +109,7 @@ const initialState = {
   timeseriesPoint: null as { lat: number; lon: number } | null,
   probeTimeseriesPoint: null as { lat: number; lon: number } | null,
   viewSyncEnabled: true,
+  preloadingEnabled: true,
 };
 
 export const useMapStore = create<MapStore>((set) => ({
@@ -195,13 +199,13 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
 
-  setActiveTool: (tool) =>
-    set({ activeTool: tool, ...(tool !== 'timeseries' ? { probeTimeseriesPoint: null } : {}) }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
   setProbeTimeseriesPoint: (point) => set({ probeTimeseriesPoint: point }),
 
   toggleViewSync: () => set((s) => ({ viewSyncEnabled: !s.viewSyncEnabled })),
+  togglePreloading: () => set((s) => ({ preloadingEnabled: !s.preloadingEnabled })),
 
   reset: () => set(initialState),
 }));
