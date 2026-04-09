@@ -262,6 +262,21 @@ for i in $(seq 1 $MIGRATION_RETRIES); do
 done
 
 if [ -n "$REPLICA_NAME" ]; then
+    # Resolve the target DB host so the operator knows which server will be migrated
+    MIGRATION_DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" \
+        --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || echo "unknown")
+    echo -e "${YELLOW}Migrations will run against:${NC}"
+    echo -e "  Host:     ${MIGRATION_DB_HOST}"
+    echo -e "  Database: stacnotator"
+    echo -e "  User:     psqladmin"
+    if [ "$CI" != "true" ]; then
+        read -p "Run migrations? (y/N): " CONFIRM_MIGRATE
+        if [[ ! "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Skipping migrations. Run manually:${NC}"
+            echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+        fi
+    fi
+    if [ "$CI" = "true" ] || [[ "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Running database migrations...${NC}"
     # az containerapp exec doesn't reliably return the command's exit code,
     # so we wrap alembic to echo a sentinel on success.
@@ -276,6 +291,7 @@ if [ -n "$REPLICA_NAME" ]; then
         echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
     else
         echo -e "${GREEN}✓ Migrations done${NC}"
+    fi
     fi
 else
     echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
