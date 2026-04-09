@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
@@ -14,6 +14,11 @@ import {
   type UserOutDetailed,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
+import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
+import {
+  PasswordRequirementsList,
+  passwordMeetsAllRequirements,
+} from 'src/features/auth/ui/PasswordRequirements';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
@@ -24,6 +29,14 @@ export const SettingsPage = () => {
   // Display name editing state
   const [isEditingDisplayName, setIsEditingDisplayName] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState('');
+
+  // Change password state
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [_passwordSuccess, setPasswordSuccess] = useState(false);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -212,6 +225,55 @@ export const SettingsPage = () => {
     }
   };
 
+  const emailProvider = authManager.getProvider(AUTH_PROVIDERS.EMAIL);
+  const supportsChangePassword = !!emailProvider?.changePassword;
+
+  const newPasswordMeetsRequirements = useMemo(() => {
+    return passwordMeetsAllRequirements(newPassword);
+  }, [newPassword]);
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in all fields.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+    if (!newPasswordMeetsRequirements) {
+      setPasswordError(
+        'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await emailProvider!.changePassword!(currentPassword, newPassword);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setIsChangingPassword(false);
+      showAlert('Password changed successfully', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('auth/wrong-password') || msg.includes('auth/invalid-credential')) {
+        setPasswordError('Current password is incorrect.');
+      } else if (msg.includes('auth/weak-password')) {
+        setPasswordError('New password is too weak.');
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStartEditDisplayName = () => {
     setDisplayNameInput(account?.display_name || '');
     setIsEditingDisplayName(true);
@@ -237,17 +299,17 @@ export const SettingsPage = () => {
         <div className="max-w-6xl mx-auto p-8">
           <div className="mb-3">
             <h1 className="text-3xl font-bold text-brand-800 mb-2">Settings</h1>
-            <p className="text-sm text-gray-600">Manage your profile and platform settings</p>
+            <p className="text-sm text-neutral-600">Manage your profile and platform settings</p>
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-4 mb-3 border-b border-gray-200">
+          <div className="flex gap-4 mb-3 border-b border-neutral-200">
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-4 py-3 border-b-2 transition-colors ${
                 activeTab === 'profile'
                   ? 'border-brand-600 text-brand-800 font-medium'
-                  : 'border-transparent text-gray-600 hover:text-brand-800'
+                  : 'border-transparent text-neutral-600 hover:text-brand-800'
               }`}
               type="button"
             >
@@ -259,7 +321,7 @@ export const SettingsPage = () => {
                 className={`px-4 py-3 border-b-2 transition-colors ${
                   activeTab === 'users'
                     ? 'border-brand-600 text-brand-800 font-medium'
-                    : 'border-transparent text-gray-600 hover:text-brand-800'
+                    : 'border-transparent text-neutral-600 hover:text-brand-800'
                 }`}
                 type="button"
               >
@@ -271,20 +333,20 @@ export const SettingsPage = () => {
           {/* Tab Content */}
           {activeTab === 'profile' && (
             <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="bg-white rounded-lg border border-neutral-200 p-6">
                 <h2 className="text-lg font-semibold text-brand-800 mb-4">Profile Information</h2>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Email</label>
                     <input
                       type="text"
                       value={account.email}
                       disabled
-                      className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 cursor-not-allowed"
+                      className="w-full border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
                       Display Name
                     </label>
                     {isEditingDisplayName ? (
@@ -294,14 +356,14 @@ export const SettingsPage = () => {
                           value={displayNameInput}
                           onChange={(e) => setDisplayNameInput(e.target.value)}
                           disabled={saving}
-                          className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          className="flex-1 border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                           placeholder="Enter display name"
                           autoFocus
                         />
                         <button
                           onClick={handleSaveDisplayName}
                           disabled={saving || !displayNameInput.trim()}
-                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                         >
                           {saving && (
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -325,7 +387,7 @@ export const SettingsPage = () => {
                         <button
                           onClick={handleCancelEditDisplayName}
                           disabled={saving}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 disabled:cursor-not-allowed transition-colors"
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Cancel
                         </button>
@@ -336,12 +398,12 @@ export const SettingsPage = () => {
                           type="text"
                           value={account.display_name || ''}
                           disabled
-                          className="flex-1 border border-gray-300 rounded px-3 py-2 bg-gray-50 cursor-not-allowed"
+                          className="flex-1 border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
                           placeholder="No display name set"
                         />
                         <button
                           onClick={handleStartEditDisplayName}
-                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors"
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
                         >
                           Edit
                         </button>
@@ -349,7 +411,7 @@ export const SettingsPage = () => {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
                       Account Status
                     </label>
                     <div className="flex gap-2">
@@ -371,12 +433,103 @@ export const SettingsPage = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Change Password - only for email/password-authenticated users */}
+              {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
+                <div className="bg-white rounded-lg border border-neutral-200 p-6">
+                  <h2 className="text-lg font-semibold text-brand-800 mb-4">Change Password</h2>
+
+                  {!isChangingPassword ? (
+                    <button
+                      onClick={() => {
+                        setIsChangingPassword(true);
+                        setPasswordError(null);
+                        setPasswordSuccess(false);
+                      }}
+                      className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
+                    >
+                      Change password
+                    </button>
+                  ) : (
+                    <div className="space-y-4 max-w-md">
+                      {passwordError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                          {passwordError}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          Current password
+                        </label>
+                        <input
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                          autoComplete="current-password"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          New password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                          autoComplete="new-password"
+                        />
+                        <PasswordRequirementsList password={newPassword} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          Confirm new password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          disabled={saving}
+                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+                          autoComplete="new-password"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleChangePassword}
+                          disabled={saving || !newPasswordMeetsRequirements}
+                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {saving ? 'Saving…' : 'Update password'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsChangingPassword(false);
+                            setCurrentPassword('');
+                            setNewPassword('');
+                            setConfirmNewPassword('');
+                            setPasswordError(null);
+                          }}
+                          disabled={saving}
+                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'users' && account.is_admin && (
             <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="bg-white rounded-lg border border-neutral-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-brand-800">
                     Platform Users ({users.length})
@@ -384,7 +537,7 @@ export const SettingsPage = () => {
                   <button
                     onClick={loadUsers}
                     disabled={isPageLoading}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors text-gray-700 flex items-center gap-2"
+                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-50 disabled:bg-neutral-50 disabled:cursor-not-allowed transition-colors text-neutral-700 flex items-center gap-2"
                   >
                     {isPageLoading && (
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

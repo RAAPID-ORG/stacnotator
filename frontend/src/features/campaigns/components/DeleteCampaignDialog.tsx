@@ -79,11 +79,11 @@ export const DeleteCampaignDialog = ({
             </div>
           </div>
         </div>
-        <div className="border-t border-gray-200 flex gap-3 p-4 justify-end">
+        <div className="border-t border-neutral-200 flex gap-3 p-4 justify-end">
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

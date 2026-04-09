@@ -38,20 +38,20 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps)
         {/* Error Message */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-brand-800">Something went wrong</h1>
-          <p className="text-gray-600">
+          <p className="text-neutral-600">
             We encountered an unexpected error. Don't worry, your data is safe.
           </p>
         </div>
 
         {/* Error Details (collapsible) */}
-        <details className="bg-gray-50 rounded-lg p-4">
-          <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-brand-600">
+        <details className="bg-neutral-50 rounded-lg p-4">
+          <summary className="cursor-pointer text-sm font-medium text-neutral-700 hover:text-brand-600">
             Technical details
           </summary>
           <div className="mt-3 space-y-2">
-            <p className="text-xs font-mono text-gray-600 break-all">{error.message}</p>
+            <p className="text-xs font-mono text-neutral-600 break-all">{error.message}</p>
             {error.stack && (
-              <pre className="text-xs text-gray-500 overflow-auto max-h-40 mt-2 p-2 bg-white rounded border border-gray-200">
+              <pre className="text-xs text-neutral-500 overflow-auto max-h-40 mt-2 p-2 bg-white rounded border border-neutral-200">
                 {error.stack}
               </pre>
             )}
@@ -68,14 +68,14 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps)
           </button>
           <button
             onClick={handleGoHome}
-            className="flex-1 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            className="flex-1 px-4 py-2.5 bg-white border border-neutral-300 text-neutral-700 rounded-lg hover:bg-neutral-50 transition-colors font-medium"
           >
             Go to home
           </button>
         </div>
 
         {/* Help Text */}
-        <p className="text-center text-xs text-gray-500">
+        <p className="text-center text-xs text-neutral-500">
           If this problem persists, please contact support or try refreshing the page.
         </p>
       </div>

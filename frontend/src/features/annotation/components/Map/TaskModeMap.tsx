@@ -13,6 +13,14 @@ import { useEffect, useRef, memo, useState } from 'react';
 import BaseMap from './BaseMap';
 import type OLMap from 'ol/Map';
 import Overlay from 'ol/Overlay';
+import {
+  createCrosshairElement,
+  updateCrosshairColor,
+  EXTENT_LAYER_Z_INDEX,
+  PAN_DISTANCE_PIXELS,
+  ZOOM_ANIMATION_MS,
+  PAN_ANIMATION_MS,
+} from './mapUtils';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat, toLonLat } from 'ol/proj';
@@ -88,12 +96,19 @@ const TaskModeMap = ({
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const currentMapZoom = useMapStore((s) => s.currentMapZoom);
+  const preloadingEnabled = useMapStore((s) => s.preloadingEnabled);
   const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
   const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
   const panTrigger = useMapStore((s) => s.panTrigger);
 
   // Shared layer management
-  const { layers, activeLayerId, setActiveLayerId, initLayers } = useSliceLayers({
+  const {
+    layers: _layers,
+    activeLayerId: _activeLayerId,
+    setActiveLayerId,
+    initLayers,
+  } = useSliceLayers({
     campaign,
     layerManager: layerManagerRef.current,
     mapReady: mapReadyRef.current,
@@ -101,7 +116,7 @@ const TaskModeMap = ({
     onLayersChange,
   });
 
-  // Tile preloading (task mode only)
+  // Tile preloading (task mode only) — temporarily disabled for debugging
   useTilePreloading({
     layerManager,
     campaign,
@@ -109,7 +124,8 @@ const TaskModeMap = ({
     visibleTasks,
     currentTaskIndex,
     defaultZoom: initialZoom ?? 10,
-    enabled: !!campaign,
+    currentZoom: currentMapZoom ?? undefined,
+    enabled: !!campaign && preloadingEnabled,
   });
 
   // Pan to center + reset zoom on task navigation
@@ -139,7 +155,7 @@ const TaskModeMap = ({
     const view = mapRef.current.getView();
     const currentZoom = view.getZoom();
     if (currentZoom !== undefined) {
-      view.animate({ zoom: currentZoom + 1, duration: 200 });
+      view.animate({ zoom: currentZoom + 1, duration: ZOOM_ANIMATION_MS });
     }
   }, [zoomInTrigger]);
 
@@ -149,7 +165,7 @@ const TaskModeMap = ({
     const view = mapRef.current.getView();
     const currentZoom = view.getZoom();
     if (currentZoom !== undefined) {
-      view.animate({ zoom: currentZoom - 1, duration: 200 });
+      view.animate({ zoom: currentZoom - 1, duration: ZOOM_ANIMATION_MS });
     }
   }, [zoomOutTrigger]);
 
@@ -161,7 +177,7 @@ const TaskModeMap = ({
     const currentCenter = view.getCenter();
     if (!resolution || !currentCenter) return;
 
-    const panDistance = resolution * 100; // pan ~100 pixels
+    const panDistance = resolution * PAN_DISTANCE_PIXELS;
     let [x, y] = currentCenter;
     switch (panTrigger.direction) {
       case 'up':
@@ -177,7 +193,7 @@ const TaskModeMap = ({
         x += panDistance;
         break;
     }
-    view.animate({ center: [x, y], duration: 150 });
+    view.animate({ center: [x, y], duration: PAN_ANIMATION_MS });
   }, [panTrigger]);
 
   // Crosshair overlay
@@ -186,17 +202,14 @@ const TaskModeMap = ({
     const el = crosshairElRef.current;
     if (!overlay) return;
     if (crosshair && showCrosshair) {
-      // Update SVG stroke color in case the active source changed
       if (el) {
-        const color = `#${crosshair.color ?? 'ff0000'}`;
-        const lines = el.querySelectorAll('line');
-        lines.forEach((line) => line.setAttribute('stroke', color));
+        updateCrosshairColor(el, crosshair.color ?? 'ff0000');
       }
       overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
     } else {
       overlay.setPosition(undefined);
     }
-  }, [crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
+  }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
 
   // Sample extent polygon overlay
   useEffect(() => {
@@ -231,11 +244,11 @@ const TaskModeMap = ({
       const [lon, lat] = toLonLat(e.coordinate);
       onTimeseriesClickRef.current?.(lat, lon);
     };
-    map.on('singleclick', handler as any);
+    map.on('singleclick', handler as () => void);
     map.getTargetElement().style.cursor = 'crosshair';
 
     return () => {
-      map.un('singleclick', handler as any);
+      map.un('singleclick', handler as () => void);
       map.getTargetElement().style.cursor = '';
     };
   }, [activeTool]);
@@ -260,7 +273,7 @@ const TaskModeMap = ({
 
           // Expose map instance for E2E testing (dev/test only)
           if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-            (window as any).__OL_MAP__ = map;
+            (window as unknown as Record<string, unknown>).__OL_MAP__ = map;
           }
 
           // Expose to state so hooks (e.g. useTilePreloading) can subscribe
@@ -288,17 +301,8 @@ const TaskModeMap = ({
           // Wait for the first full render so map.getSize() returns real dimensions
           map.once('rendercomplete', syncView);
 
-          // Create crosshair overlay imperatively
-          const color = crosshair?.color ?? 'ff0000';
-          const el = document.createElement('div');
-          el.style.pointerEvents = 'none';
-          el.style.width = '20px';
-          el.style.height = '20px';
-          el.innerHTML =
-            `<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">` +
-            `<line x1="0" y1="10" x2="20" y2="10" stroke="#${color}" stroke-width="1.5"/>` +
-            `<line x1="10" y1="0" x2="10" y2="20" stroke="#${color}" stroke-width="1.5"/>` +
-            `</svg>`;
+          // Create crosshair overlay
+          const el = createCrosshairElement(crosshair?.color);
           crosshairElRef.current = el;
 
           const overlay = new Overlay({
@@ -311,7 +315,7 @@ const TaskModeMap = ({
 
           // Expose crosshair overlay for E2E testing
           if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
-            (window as any).__OL_CROSSHAIR__ = overlay;
+            (window as unknown as Record<string, unknown>).__OL_CROSSHAIR__ = overlay;
           }
 
           if (crosshair && showCrosshair) {
@@ -336,7 +340,7 @@ const TaskModeMap = ({
           extentSourceRef.current = extentSource;
           const extentLayer = new VectorLayer({
             source: extentSource,
-            zIndex: 5,
+            zIndex: EXTENT_LAYER_Z_INDEX,
             style: new Style({
               fill: new Fill({ color: 'rgba(255,255,255,0.08)' }),
               stroke: new Stroke({ color: '#ef4444', width: 1.5, lineDash: [6, 4] }),

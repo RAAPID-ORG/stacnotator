@@ -15,7 +15,7 @@ services:
     environment:
       POSTGRES_DB: stacnotator
       POSTGRES_USER: stacnotator
-      POSTGRES_PASSWORD: staging-password
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:-changeme}
     volumes:
       - postgres_data_staging:/var/lib/postgresql/data
     ports:
@@ -41,30 +41,72 @@ services:
     environment:
       DBNAME: stacnotator
       DBUSER: stacnotator
-      DBPASS: staging-password
+      DBPASS: ${STAGING_DB_PASSWORD:-changeme}
       DBHOST: db
       DBPORT: 5432
       DBDRIVER: psycopg2
       DBSCHEME: postgresql
       AUTH_PROVIDER: ${AUTH_PROVIDER:-firebase}
       FIREBASE_CREDENTIALS_PATH: /app/config/firebase-credentials.json
-      CORS_ORIGINS: http://localhost:3000,http://localhost:5174,http://localhost:8001
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5174,http://localhost:8002
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       ENVIRONMENT: staging
       LOG_LEVEL: info
+      TILER_BASE_URL: http://tiler:8001
     volumes:
       - ./backend/src:/app/src:ro
       - ./backend/alembic:/app/alembic:ro
       - ./backend/alembic.ini:/app/alembic.ini:ro
       - ./backend/logging.ini:/app/logging.ini:ro
-      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/firebase-credentials.json}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
     ports:
-      - "8001:8000"
+      - "8002:8000"
     networks:
       - stacnotator-staging-network
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+
+  # Tiler Service (tile serving)
+  tiler:
+    build:
+      context: ./tiler
+      dockerfile: Dockerfile.dev
+    container_name: tiler-staging
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: stacnotator
+      DBUSER: stacnotator
+      DBPASS: ${STAGING_DB_PASSWORD:-changeme}
+      DBHOST: db
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5174,http://localhost:8002
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "NO"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      GDAL_HTTP_TIMEOUT: "60"
+      GDAL_HTTP_MAX_RETRY: "3"
+      GDAL_HTTP_RETRY_DELAY: "1"
+      GDAL_CACHEMAX: "256"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff"
+      CPL_VSIL_CURL_CACHE_SIZE: "128000000"
+    volumes:
+      - ./tiler/src:/app/src:ro
+      - ./tiler/pyproject.toml:/app/pyproject.toml:ro
+    ports:
+      - "8003:8001"
+    networks:
+      - stacnotator-staging-network
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload --log-level info
 
   # Frontend (Vite dev server on alternate port)
   frontend:
@@ -72,7 +114,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
       args:
-        VITE_API_BASE_URL: http://localhost:8001
+        VITE_API_BASE_URL: http://localhost:8002
+        VITE_TILER_BASE_URL: http://localhost:8003
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
@@ -80,8 +123,10 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - tiler
     environment:
-      VITE_API_BASE_URL: http://localhost:8001
+      VITE_API_BASE_URL: http://localhost:8002
+      VITE_TILER_BASE_URL: http://localhost:8003
     volumes:
       - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro

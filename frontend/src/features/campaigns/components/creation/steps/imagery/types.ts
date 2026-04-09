@@ -12,6 +12,8 @@ export interface ImagerySlice {
   name: string;
   startDate: string;
   endDate: string;
+  /** Per-slice visualization URLs (used by manual XYZ collections) */
+  vizUrls?: VisualizationUrl[];
 }
 
 export interface StacCollectionData {
@@ -26,13 +28,69 @@ export interface ManualCollectionData {
   vizUrls: VisualizationUrl[];
 }
 
+export interface VizParams {
+  assets: string[];
+  assetAsBand: boolean;
+  rescale: string;
+  colormapName?: string;
+  colorFormula?: string;
+  expression?: string;
+  resampling?: string;
+  compositing?: string;
+  nodata?: number;
+  /** Extra query parameters passed through to the tiler (e.g. asset_bidx, post_process) */
+  extraParams?: Record<string, string>;
+  /** Asset name to use as pixel mask (e.g. "SCL" for Sentinel-2 Scene Classification) */
+  maskLayer?: string;
+  /** Values in mask layer to exclude (e.g. [0, 1, 8, 9, 10] to mask clouds/nodata in SCL) */
+  maskValues?: number[];
+  nirBand?: string;
+  redBand?: string;
+  /** Max items per tile for compositing (1-10, default 5) */
+  maxItems?: number;
+}
+
+export interface NamedVizParams {
+  name: string;
+  vizParams: VizParams;
+}
+
+export type ItemSortOption = 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+
+export interface StacBrowserCollectionData {
+  type: 'stac_browser';
+  catalogUrl: string;
+  stacCollectionId: string;
+  isMpc: boolean;
+  mode: 'single-item' | 'mosaic';
+  itemHref?: string;
+  mosaicId?: string;
+  /** Max cloud cover percentage (0-100) for STAC search filtering */
+  maxCloudCover?: number;
+  /** How to sort items in the mosaic (affects which pixel wins in first-valid compositing) */
+  itemSort?: ItemSortOption;
+  /** Named visualizations - each defines a rendering config (bands, colormap, etc.) */
+  visualizations: NamedVizParams[];
+  /** When set, the cover slice uses these visualization params instead of the regular ones (e.g. different compositing) */
+  coverVisualizations?: NamedVizParams[];
+  /** Max cloud cover for cover slice (null/undefined = same as regular) */
+  coverMaxCloudCover?: number;
+  /** Item sort for cover slice (null/undefined = same as regular) */
+  coverItemSort?: ItemSortOption;
+  /** Custom CQL2-JSON search query (null/undefined = auto-generated from UI fields) */
+  searchQuery?: Record<string, unknown>;
+  /** Custom search query for cover slice (null/undefined = same as regular) */
+  coverSearchQuery?: Record<string, unknown>;
+  vizUrls: VisualizationUrl[];
+}
+
 export interface CollectionItem {
   id: string;
   name: string;
   slices: ImagerySlice[];
   /** Index into slices[] that serves as the "cover" / representative image (e.g. a median mosaic). Defaults to 0. */
   coverSliceIndex: number;
-  data: StacCollectionData | ManualCollectionData;
+  data: StacCollectionData | ManualCollectionData | StacBrowserCollectionData;
   /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
   windowInterval?: number | null;
   /** Temporal window grouping unit (maps to ImageryCreate.window_unit) */
@@ -105,6 +163,12 @@ export interface StacConfig {
 }
 
 export const createId = (): string => crypto.randomUUID().slice(0, 8);
+
+export const emptyVizParams = (): VizParams => ({
+  assets: [],
+  assetAsBand: false,
+  rescale: '',
+});
 
 export const emptySlice = (): ImagerySlice => ({
   id: createId(),

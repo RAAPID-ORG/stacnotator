@@ -364,7 +364,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                       {ann.id}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                      <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-neutral-100 text-neutral-700">
                         {getLabelName(ann.label_id)}
                       </span>
                     </td>
@@ -403,9 +403,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                             />
                           </svg>
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
-                            <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+                            <div className="bg-neutral-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
                               <div className="whitespace-pre-wrap">{ann.comment}</div>
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
                             </div>
                           </div>
                         </span>

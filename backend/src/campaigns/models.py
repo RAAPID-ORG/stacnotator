@@ -27,6 +27,16 @@ class Campaign(Base):
     )
     mode: Mapped[str | None] = mapped_column(String(20), nullable=False)  # tasks or open-world
     is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    # Mosaic registration status: pending, registering, ready, failed
+    registration_status: Mapped[str] = mapped_column(
+        String(20), server_default="ready", nullable=False
+    )
+    # Embedding registration status: pending, registering, ready, failed
+    embedding_status: Mapped[str] = mapped_column(
+        String(20), server_default="ready", nullable=False
+    )
+    # Errors from background registration (JSON array, null when no errors)
+    registration_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     settings: Mapped["CampaignSettings"] = relationship(
@@ -60,7 +70,10 @@ class Campaign(Base):
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
     )
     imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
-        "ImageryView", back_populates="campaign", cascade="all, delete-orphan"
+        "ImageryView",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="ImageryView.display_order",
     )
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     DBSCHEME: str = "postgresql"
     DBDRIVER: str = "psycopg2"
 
+    ENVIRONMENT: str = "development"  # "development" | "production"
+
     AUTH_PROVIDER: str = "firebase"
 
     # Firebase credentials: can be either a file path or direct JSON content
@@ -27,6 +29,9 @@ class Settings(BaseSettings):
     cors_origins_raw: str | list[str] = Field(
         default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
+
+    # Shared secret for signing tiler access tokens (HMAC)
+    TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None

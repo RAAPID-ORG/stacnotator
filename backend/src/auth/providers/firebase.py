@@ -5,6 +5,7 @@ import firebase_admin
 from fastapi import Request
 from firebase_admin import auth, credentials
 
+from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.providers.base import AuthenticatedUser, AuthProvider
 from src.config import get_settings
 
@@ -66,17 +67,18 @@ class FirebaseAuthProvider(AuthProvider):
         try:
             decoded = auth.verify_id_token(token)
 
-            # TODO: Re-enable for production
             # Verify email is present and verified
-            # email = decoded.get("email")
-            # email_verified = decoded.get("email_verified", False)
-            # if not email or not email_verified:
-            #     raise ExternalAuthEmailNotVerified()
+            email = decoded.get("email")
+            email_verified = decoded.get("email_verified", False)
+            if not email or not email_verified:
+                raise ExternalAuthEmailNotVerified()
 
             return {
                 "uid": decoded["uid"],
-                "email": decoded["email"],
+                "email": email,
             }
+        except ExternalAuthEmailNotVerified:
+            raise  # Re-raise so the dependency layer can return a specific 403
         except Exception as e:
-            logger.warning(f"Firebase authentication failed: {e}")
+            logger.warning("Firebase authentication failed: %s", e)
             return None

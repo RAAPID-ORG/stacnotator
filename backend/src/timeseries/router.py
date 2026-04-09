@@ -1,10 +1,12 @@
+import re
 from calendar import monthrange
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
+from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
@@ -63,15 +65,33 @@ def get_timeseries_creation_options():
     )
 
 
-# TODO might need to think again if this route requires campaign member access
 @router.get(
     "/timeseries/{timeseries_id}/{latitude}/{longitude}/data", response_model=TimeseriesDataResponse
 )
 def get_timeseries_data(
-    timeseries_id: int, latitude: float, longitude: float, db: Session = Depends(get_db)
+    timeseries_id: int,
+    latitude: float,
+    longitude: float,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_approved_user),
 ):
     """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
+
+    # Verify the user has access to the campaign this timeseries belongs to
+    require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
+
+    ym_pattern = re.compile(r"^\d{4}(0[1-9]|1[0-2])$")
+    if (
+        not timeseries.start_ym
+        or not timeseries.end_ym
+        or not ym_pattern.match(timeseries.start_ym)
+        or not ym_pattern.match(timeseries.end_ym)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Timeseries has no valid date range configured (start_ym / end_ym must be YYYYMM format with valid month 01-12)",
+        )
 
     start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])
     end_year, end_month = int(timeseries.end_ym[:4]), int(timeseries.end_ym[4:6])

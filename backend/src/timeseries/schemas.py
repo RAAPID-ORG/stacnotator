@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 # ============================================================================
 # TimeSeries Related Schemas
@@ -12,6 +12,16 @@ class TimeSeriesCreate(BaseModel):
     data_source: str
     provider: str
     ts_type: str
+
+    @field_validator("start_ym", "end_ym")
+    @classmethod
+    def validate_ym(cls, v: str) -> str:
+        if not v or len(v) != 6 or not v.isdigit():
+            raise ValueError("Must be a 6-digit YYYYMM string (e.g. '202401')")
+        month = int(v[4:6])
+        if month < 1 or month > 12:
+            raise ValueError("Month must be between 01 and 12")
+        return v
 
 
 class TimeSeriesOut(TimeSeriesCreate):

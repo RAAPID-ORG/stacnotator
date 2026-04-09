@@ -40,14 +40,15 @@ def _backfill_embeddings() -> None:
     Requires GEE credentials to be available.  If anything fails the
     schema migration still succeeds - embeddings can be populated later
     via the backfill_embeddings.py script or on next campaign edit.
+
+    Uses raw SQL instead of ORM models to avoid referencing columns
+    that may not exist yet (added by later migrations).
     """
     from datetime import datetime
 
     from sqlalchemy.orm import Session
 
     from src.annotation import embeddings_service
-    from src.campaigns.models import Campaign
-    from src.database import Base  # noqa - ensures models are registered
     from src.utils import initialize_earth_engine
 
     _ensure_stdout_logging()
@@ -56,31 +57,37 @@ def _backfill_embeddings() -> None:
     bind = op.get_bind()
     session = Session(bind=bind)
 
-    campaigns = session.execute(sa.select(Campaign)).scalars().all()
-    logger.info("Backfilling embeddings for %d campaign(s)…", len(campaigns))
+    # Use raw SQL - ORM Campaign model may have columns not yet in the DB
+    rows = bind.execute(
+        sa.text("""
+            SELECT c.id, c.name, s.embedding_year
+            FROM data.campaigns c
+            LEFT JOIN data.settings s ON s.campaign_id = c.id
+        """)
+    ).fetchall()
+    logger.info("Backfilling embeddings for %d campaign(s)…", len(rows))
 
-    for campaign in campaigns:
+    for campaign_id, campaign_name, embedding_year in rows:
         try:
-            year = campaign.settings.embedding_year if campaign.settings else None
-            if year is None:
+            if embedding_year is None:
                 logger.info(
                     "  Campaign %d (%s): no embedding year set - skipping.",
-                    campaign.id,
-                    campaign.name,
+                    campaign_id,
+                    campaign_name,
                 )
                 continue
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31)
+            start_date = datetime(embedding_year, 1, 1)
+            end_date = datetime(embedding_year, 12, 31)
             summary = embeddings_service.populate_campaign_embeddings(
                 session,
-                campaign.id,
+                campaign_id,
                 start_date,
                 end_date,
             )
             logger.info(
                 "  Campaign %d (%s): created=%d skipped=%d failed=%d",
-                campaign.id,
-                campaign.name,
+                campaign_id,
+                campaign_name,
                 summary["created"],
                 summary["skipped"],
                 summary["failed"],
@@ -88,8 +95,8 @@ def _backfill_embeddings() -> None:
         except Exception as exc:
             logger.warning(
                 "  Campaign %d (%s): skipped - %s",
-                campaign.id,
-                campaign.name,
+                campaign_id,
+                campaign_name,
                 exc,
             )
 
@@ -123,10 +130,15 @@ def upgrade() -> None:
         "WITH (m = 16, ef_construction = 64)"
     )
 
-    # Backfill embeddings for existing campaigns (best-effort)
+    # Backfill embeddings for existing campaigns (best-effort).
+    # Run in a savepoint so a query failure doesn't abort the migration transaction.
+    conn = op.get_bind()
+    nested = conn.begin_nested()
     try:
         _backfill_embeddings()
+        nested.commit()
     except Exception as exc:
+        nested.rollback()
         logger.warning(
             "Embedding backfill skipped - can be run later via backfill_embeddings.py: %s",
             exc,

@@ -73,6 +73,22 @@ export const setupClientInterceptors = (client: ClientWithInterceptors): void =>
   // Response interceptor to handle 401 and retry with refreshed token
   client.interceptors.response.use(
     async (response: Response, request: Request, options: RequestOptions) => {
+      // Handle 403 email_not_verified - set store flag directly and return
+      // response as-is (don't retry, don't logout)
+      if (response.status === 403) {
+        const cloned = response.clone();
+        try {
+          const body = await cloned.json();
+          if (body?.detail === 'email_not_verified') {
+            useAccountStore.getState().clear();
+            useAccountStore.setState({ emailNotVerified: true });
+          }
+        } catch {
+          /* not JSON, ignore */
+        }
+        return response;
+      }
+
       if (response.ok || response.status !== 401) {
         return response;
       }

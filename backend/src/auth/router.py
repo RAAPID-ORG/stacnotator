@@ -1,17 +1,21 @@
+import hashlib
+import hmac
+import time
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth import service
-from src.auth.dependencies import require_admin, require_authenticated_user
+from src.auth.dependencies import require_admin, require_approved_user, require_authenticated_user
 from src.auth.models import User
 from src.auth.schemas import (
     BulkUserActionRequest,
     BulkUserActionResponse,
     UserOutDetailed,
 )
+from src.config import get_settings
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute
 
@@ -38,6 +42,23 @@ def me(
     return user
 
 
+TILER_TOKEN_TTL = 3600  # 1 hour
+
+
+@router.get("/tiler-token")
+def get_tiler_token(
+    user: User = Depends(require_approved_user),
+):
+    """Issue a short-lived HMAC token for tiler access (approved users only)."""
+    settings = get_settings()
+    expiry = int(time.time()) + TILER_TOKEN_TTL
+    payload = f"{user.id}:{expiry}"
+    sig = hmac.new(
+        settings.TILER_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
+    return {"token": f"{payload}:{sig}", "expires_in": TILER_TOKEN_TTL}
+
+
 @router.get("/users", response_model=list[UserOutDetailed])
 def list_users(
     _: dict = Depends(require_admin),
@@ -50,7 +71,7 @@ def list_users(
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)
 def edit_user_info(
     user_id: UUID,
-    new_display_name: str,
+    new_display_name: str = Query(..., min_length=1, max_length=100),
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):

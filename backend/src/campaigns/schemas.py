@@ -100,6 +100,9 @@ class CampaignOut(BaseModel):
     created_at: datetime
     mode: str
     is_public: bool = False
+    registration_status: str = "ready"
+    embedding_status: str = "ready"
+    registration_errors: list[dict] | None = None
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
@@ -126,6 +129,8 @@ class CampaignListItemOut(BaseModel):
     is_admin: bool = False
     is_member: bool = False
     is_public: bool = False
+    registration_status: str = "ready"
+    embedding_status: str = "ready"
 
     model_config = ConfigDict(from_attributes=True)
 

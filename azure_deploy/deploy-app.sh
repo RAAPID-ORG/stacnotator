@@ -1,312 +1,360 @@
 #!/bin/bash
 #
-# Stacnotator Deployment Script (Terraform-based Infrastructure)
+# Stacnotator Deployment Script
 #
-# This script is for APPLICATION DEVELOPERS to deploy container images
-# after the infrastructure has been created by Platform Engineers via Terraform.
+# Deploys application resources within the project's resource group:
+#   - Backend Container App (FastAPI)
+#   - Tiler Container App (TiTiler + GDAL, dedicated D16 workload profile)
+#   - Frontend Static Web App (React/Vite)
 #
 # Prerequisites:
-# - Infrastructure must be deployed via raapid-infra/main/deploy.sh
-# - User must have Contributor access to container apps
-# - User must have AcrPush access to the project ACR
+#   - Infrastructure (RG, ACR, KV, DB, CAE, managed identity) deployed via Terraform (raapid-infra)
+#   - User must have Contributor on the project resource group
+#   - Secrets uploaded via upload-secrets.sh (first time only)
 #
 
 set -e
 
-# Colors
+# Environment argument
+ENV="${1:?Usage: $0 <prod|dev>}"
+if [[ "$ENV" != "prod" && "$ENV" != "dev" ]]; then
+    echo "Error: argument must be 'prod' or 'dev'" >&2
+    exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/.env.deploy.$ENV" ] && set -a && source "$SCRIPT_DIR/.env.deploy.$ENV" && set +a
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}Stacnotator Application Deployment${NC}"
-echo -e "${BLUE}Infrastructure: Managed by Terraform${NC}"
-echo -e "${BLUE}Application: Managed by this script${NC}"
-echo ""
-
-# Check Azure login
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
 fi
 
-# Prompt for resource group (should already exist from Terraform)
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name [rg-stacnotator-prod-westeurope]: " RESOURCE_GROUP
-    RESOURCE_GROUP=${RESOURCE_GROUP:-rg-stacnotator-prod-westeurope}
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.$ENV${NC}"
+    exit 1
 fi
 
-# Auto-generate image tag from git commit SHA if not provided
+# App names
+APP_BACKEND="stacnotator-${ENV}-backend"
+APP_TILER="stacnotator-${ENV}-tiler"
+APP_SWA="stacnotator-${ENV}-frontend"
+
+# Project name as used in Terraform (matches KV secret naming)
+if [ "$ENV" = "prod" ]; then
+    PROJECT_NAME="stacnotator"
+else
+    PROJECT_NAME="stacnotator-${ENV}"
+fi
+
+# Resource sizing per environment
+if [ "$ENV" = "dev" ]; then
+    BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
+    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
+    TILER_DEDICATED=false
+else
+    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=3  BACKEND_WORKERS=4
+    TILER_CPU=16     TILER_MEM=32Gi   TILER_MIN=1    TILER_MAX=2    TILER_WORKERS=32
+    TILER_DEDICATED=true
+fi
+
+echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
+echo ""
+
+# Auto-generate image tag from git commit SHA
 if [ -z "$IMAGE_TAG" ]; then
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        # Check for uncommitted changes (only if not in CI)
-        if [ "$CI" != "true" ]; then
-            if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-                echo -e "${RED}Error: You have uncommitted changes${NC}"
-                echo -e "${YELLOW}Please commit your changes before deploying:${NC}"
-                echo ""
-                git status --short
-                echo ""
-                echo -e "${YELLOW}To deploy anyway, set IMAGE_TAG manually:${NC}"
-                echo -e "  export IMAGE_TAG=\"experimental-$(date +%Y%m%d-%H%M%S)\""
-                echo -e "  ./azure_deploy/deploy-app.sh"
-                exit 1
-            fi
-        fi
-
-        # Get short commit SHA
-        GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-        if [ -n "$GIT_SHA" ]; then
-            IMAGE_TAG="$GIT_SHA"
-        else
-            # Use timestamp if not in a git repo to ensure unique tags
-            IMAGE_TAG="v$(date +%Y%m%d-%H%M%S)"
-        fi
-    else
-        # Use timestamp if not in a git repo to ensure unique tags
-        IMAGE_TAG="v$(date +%Y%m%d-%H%M%S)"
+    if [ "$CI" != "true" ] && ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        echo -e "${RED}Error: Uncommitted changes. Commit first or set IMAGE_TAG manually.${NC}"
+        git status --short
+        exit 1
     fi
-
-    echo -e "${BLUE}Auto-generated image tag:${NC} $IMAGE_TAG"
-    echo -e "${YELLOW}Tip: Set IMAGE_TAG environment variable to override${NC}"
+    IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d-%H%M%S)
 fi
 
-# Verify infrastructure exists
-echo -e "${YELLOW}Verifying infrastructure...${NC}"
+# Discover infrastructure
+echo -e "${YELLOW}Discovering infrastructure...${NC}"
 
-# Check for ACR
 ACR_NAME=$(az acr list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
-if [ -z "$ACR_NAME" ]; then
-    echo -e "${RED}Error: No ACR found in resource group $RESOURCE_GROUP${NC}"
-    echo -e "${YELLOW}Infrastructure must be deployed first by Platform Engineers:${NC}"
-    echo -e "${YELLOW}  cd raapid-infra/main && ./deploy.sh${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ ACR found: $ACR_NAME${NC}"
+[ -z "$ACR_NAME" ] && echo -e "${RED}No ACR found. Run Terraform first.${NC}" && exit 1
 
-# Check for Container Apps Environment
 CAE_NAME=$(az containerapp env list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
-if [ -z "$CAE_NAME" ]; then
-    echo -e "${RED}Error: No Container Apps Environment found${NC}"
-    echo -e "${YELLOW}Infrastructure must be deployed first by Platform Engineers${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Container Apps Environment found: $CAE_NAME${NC}"
-
-# Check for backend container app
-if ! az containerapp show --name backend -g "$RESOURCE_GROUP" &>/dev/null; then
-    echo -e "${RED}Error: Backend container app not found${NC}"
-    echo -e "${YELLOW}Infrastructure must be deployed first by Platform Engineers${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Backend container app found${NC}"
-
-# Check for frontend container app
-if ! az containerapp show --name frontend -g "$RESOURCE_GROUP" &>/dev/null; then
-    echo -e "${RED}Error: Frontend container app not found${NC}"
-    echo -e "${YELLOW}Infrastructure must be deployed first by Platform Engineers${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Frontend container app found${NC}"
-
-echo ""
-echo -e "${BLUE}Deployment Configuration${NC}"
-echo -e "${YELLOW}Resource Group:${NC} $RESOURCE_GROUP"
-echo -e "${YELLOW}Image Tag:     ${NC} $IMAGE_TAG"
-echo -e "${YELLOW}ACR:           ${NC} $ACR_NAME"
-echo -e "${YELLOW}Environment:   ${NC} $CAE_NAME"
-echo ""
-echo -e "${BLUE}Images to be built and pushed:${NC}"
-echo -e "  • ${ACR_NAME}.azurecr.io/backend:${IMAGE_TAG}"
-echo -e "  • ${ACR_NAME}.azurecr.io/frontend:${IMAGE_TAG}"
-echo ""
-echo -e "${BLUE}Container apps to be updated:${NC}"
-echo -e "  • backend  (in $RESOURCE_GROUP)"
-echo -e "  • frontend (in $RESOURCE_GROUP)"
-echo ""
-
-# Confirmation prompt (skip if CI environment variable is set)
-if [ "$CI" != "true" ]; then
-    read -p "Proceed with deployment? (y/N): " CONFIRM
-    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-        echo -e "${YELLOW}Deployment cancelled.${NC}"
-        exit 0
-    fi
-    echo ""
-fi
-
-echo ""
+[ -z "$CAE_NAME" ] && echo -e "${RED}No Container Apps Environment found. Run Terraform first.${NC}" && exit 1
 
 KV_NAME=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
+[ -z "$KV_NAME" ] && echo -e "${RED}No Key Vault found. Run Terraform first.${NC}" && exit 1
 
-# Build and push backend
-echo -e "${YELLOW}Logging in to ACR...${NC}"
-az acr login --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP"
 ACR_LOGIN_SERVER="$ACR_NAME.azurecr.io"
-echo -e "${GREEN}✓ Logged in to ACR${NC}"
+ACR_ID=$(az acr show --name "$ACR_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+KV_ID=$(az keyvault show --name "$KV_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+
+echo -e "${GREEN}✓ ACR: $ACR_NAME | CAE: $CAE_NAME | KV: $KV_NAME${NC}"
+
+echo ""
+echo -e "${BLUE}Deployment Plan${NC}"
+echo -e "  Env:       $ENV"
+echo -e "  RG:        $RESOURCE_GROUP"
+echo -e "  Tag:       $IMAGE_TAG"
+echo -e "  Backend:   Container App (${BACKEND_CPU} CPU, ${BACKEND_MEM}, ${BACKEND_MIN}-${BACKEND_MAX} replicas)"
+if [ "$TILER_DEDICATED" = "true" ]; then
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D16 dedicated)"
+else
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, consumption)"
+fi
+echo -e "  Frontend:  Static Web App"
 echo ""
 
-# Build and push backend
-echo -e "${YELLOW}Building backend image...${NC}"
-cd backend
-docker build -t "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" -f Dockerfile .
-
-echo -e "${YELLOW}Pushing backend image...${NC}"
-docker push "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG"
-echo -e "${GREEN}✓ Backend image pushed${NC}"
-cd ..
-echo ""
-
-# Build and push frontend
-echo -e "${YELLOW}Building frontend image...${NC}"
-cd frontend
-
-# Get backend URL for build args
-BACKEND_URL=$(az containerapp show \
-    --name backend \
-    --resource-group "$RESOURCE_GROUP" \
-    --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "")
-
-if [ -z "$BACKEND_URL" ]; then
-    BACKEND_URL="backend.placeholder.azurecontainerapps.io"
-    echo -e "${YELLOW}Warning: Could not get backend URL, using placeholder${NC}"
+if [ "$CI" != "true" ]; then
+    read -p "Proceed? (y/N): " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 fi
 
-# Get Firebase configuration from Key Vault
-echo -e "${YELLOW}Fetching Firebase configuration from Key Vault...${NC}"
+# Look up the shared Container Apps identity (created by Terraform in raapid-infra)
+APPS_IDENTITY_NAME="id-${PROJECT_NAME}-apps"
+echo -e "${YELLOW}Looking up managed identity: $APPS_IDENTITY_NAME${NC}"
+if ! az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/null; then
+    echo -e "${RED}Error: Managed identity '$APPS_IDENTITY_NAME' not found in $RESOURCE_GROUP.${NC}"
+    echo -e "${RED}Run Terraform in raapid-infra first to create it.${NC}"
+    exit 1
+fi
+IDENTITY_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 
-# Try to get Firebase config from Key Vault secrets
-VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>&1)
-VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>&1)
-VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>&1)
+# Build + push images
+echo ""
+echo -e "${YELLOW}Logging in to ACR...${NC}"
+az acr login --name "$ACR_NAME" -g "$RESOURCE_GROUP"
 
-# Check if any command failed (output contains "ERROR" or is empty)
-if [[ "$VITE_FIREBASE_API_KEY" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_AUTH_DOMAIN" == *"ERROR"* ]] || [[ "$VITE_FIREBASE_PROJECT_ID" == *"ERROR"* ]] || \
-   [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
-    echo -e "${RED}Error: Could not retrieve Firebase configuration from Key Vault${NC}"
-    echo -e "${YELLOW}This is likely due to:${NC}"
-    echo -e "${YELLOW}  1. Key Vault firewall blocking your IP${NC}"
-    echo -e "${YELLOW}  2. Missing Firebase secrets in Key Vault${NC}"
-    echo -e "${YELLOW}  3. Insufficient permissions${NC}"
-    echo ""
-    echo -e "${YELLOW}To fix Key Vault firewall:${NC}"
-    echo -e "  az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32"
-    echo ""
-    echo -e "${YELLOW}To upload Firebase secrets:${NC}"
-    echo -e "  ./azure_deploy/upload-secrets.sh"
-    echo ""
+echo -e "${YELLOW}Building backend...${NC}"
+docker build -t "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" -f backend/Dockerfile backend/
+docker push "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG"
+echo -e "${GREEN}✓ Backend pushed${NC}"
+
+echo -e "${YELLOW}Building tiler...${NC}"
+docker build -t "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" -f tiler/Dockerfile tiler/
+docker push "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG"
+echo -e "${GREEN}✓ Tiler pushed${NC}"
+
+# Deploy backend
+echo ""
+echo -e "${YELLOW}Deploying backend...${NC}"
+
+DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-admin-password"
+DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-host"
+FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credentials"
+EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
+TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
+
+if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
+    az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
+        --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
+        --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
+                       "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+        --output none
+else
+    az containerapp create --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --environment "$CAE_NAME" \
+        --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
+        --target-port 8000 --ingress external \
+        --cpu "$BACKEND_CPU" --memory "$BACKEND_MEM" \
+        --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
+        --scale-rule-name http-concurrency --scale-rule-type http --scale-rule-http-concurrency 50 \
+        --user-assigned "$IDENTITY_ID" \
+        --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
+        --secrets "db-password=keyvaultref:$DB_PASS_URI,identityref:$IDENTITY_ID" \
+                  "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
+                  "firebase-credentials=keyvaultref:$FIREBASE_CREDS_URI,identityref:$IDENTITY_ID" \
+                  "ee-private-key=keyvaultref:$EE_KEY_URI,identityref:$IDENTITY_ID" \
+                  "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
+        --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
+                   "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
+                   "AUTH_PROVIDER=firebase" "CORS_ORIGINS=__PENDING__" \
+                   "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
+                   "FIREBASE_CREDENTIALS=secretref:firebase-credentials" \
+                   "EE_PRIVATE_KEY=secretref:ee-private-key" \
+                   "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
+                   "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
+                   "ENVIRONMENT=production" \
+                   "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+        --output none
+fi
+echo -e "${GREEN}✓ Backend deployed${NC}"
+
+# Deploy tiler
+echo ""
+echo -e "${YELLOW}Deploying tiler...${NC}"
+
+# Workload profile: D16 for prod, consumption for dev
+TILER_PROFILE_ARGS=""
+if [ "$TILER_DEDICATED" = "true" ]; then
+    EXISTING_PROFILES=$(az containerapp env workload-profile list -g "$RESOURCE_GROUP" --name "$CAE_NAME" --query "[].name" -o tsv 2>/dev/null || echo "")
+    if ! echo "$EXISTING_PROFILES" | grep -q "tiler-dedicated"; then
+        echo -e "${YELLOW}  Adding D16 workload profile...${NC}"
+        az containerapp env workload-profile add \
+            --name "$CAE_NAME" -g "$RESOURCE_GROUP" \
+            --workload-profile-name "tiler-dedicated" \
+            --workload-profile-type D16 \
+            --min-nodes 0 --max-nodes 1 \
+            --output none
+        echo -e "${GREEN}  ✓ Workload profile added${NC}"
+    fi
+    TILER_PROFILE_ARGS="--workload-profile-name tiler-dedicated"
+fi
+
+if az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" &>/dev/null; then
+    az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
+        --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
+        --output none
+else
+    az containerapp create --name "$APP_TILER" -g "$RESOURCE_GROUP" \
+        --environment "$CAE_NAME" \
+        $TILER_PROFILE_ARGS \
+        --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
+        --target-port 8001 --ingress external \
+        --cpu "$TILER_CPU" --memory "$TILER_MEM" \
+        --min-replicas "$TILER_MIN" --max-replicas "$TILER_MAX" \
+        --scale-rule-name http-concurrency --scale-rule-type http --scale-rule-http-concurrency 20 \
+        --user-assigned "$IDENTITY_ID" \
+        --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
+        --secrets "db-password=keyvaultref:$DB_PASS_URI,identityref:$IDENTITY_ID" \
+                  "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
+                  "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
+        --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
+                   "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
+                   "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
+                   "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
+                   "WORKERS=$TILER_WORKERS" "TIMEOUT=120" "MAX_REQUESTS=500" \
+                   "GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR" \
+                   "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=NO" \
+                   "GDAL_HTTP_MULTIPLEX=YES" \
+                   "GDAL_HTTP_TIMEOUT=60" \
+                   "GDAL_HTTP_MAX_RETRY=3" \
+                   "GDAL_HTTP_RETRY_DELAY=1" \
+                   "VSI_CACHE=TRUE" \
+                   "VSI_CACHE_SIZE=536870912" \
+                   "GDAL_CACHEMAX=256" \
+                   "CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff" \
+                   "CORS_ORIGINS=__PENDING__" \
+        --output none
+fi
+echo -e "${GREEN}✓ Tiler deployed${NC}"
+
+# Run migrations
+echo ""
+echo -e "${YELLOW}Waiting for backend replica to be ready...${NC}"
+MIGRATION_RETRIES=12
+REPLICA_NAME=""
+for i in $(seq 1 $MIGRATION_RETRIES); do
+    REPLICA_NAME=$(az containerapp replica list --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --query "[?properties.runningState=='Running'] | [0].name" -o tsv 2>/dev/null || echo "")
+    if [ -n "$REPLICA_NAME" ]; then
+        echo -e "${GREEN}  ✓ Replica ready: $REPLICA_NAME${NC}"
+        break
+    fi
+    echo -e "  Attempt $i/$MIGRATION_RETRIES - waiting 10s..."
+    sleep 10
+done
+
+if [ -n "$REPLICA_NAME" ]; then
+    echo -e "${YELLOW}Running database migrations...${NC}"
+    # az containerapp exec doesn't reliably return the command's exit code,
+    # so we wrap alembic to echo a sentinel on success.
+    az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --replica "$REPLICA_NAME" \
+        --command "alembic upgrade head" \
+        2>&1 | tee /tmp/migration_output.log
+    # Check output for alembic success indicators or errors
+    if grep -qiE "(FAILED|error|Traceback)" /tmp/migration_output.log; then
+        echo -e "${RED}Warning: Migration output contains errors.${NC}"
+        echo -e "${YELLOW}Check /tmp/migration_output.log or run manually:${NC}"
+        echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+    else
+        echo -e "${GREEN}✓ Migrations done${NC}"
+    fi
+else
+    echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
+    echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+fi
+
+# Deploy frontend
+echo ""
+echo -e "${YELLOW}Deploying frontend...${NC}"
+
+BACKEND_URL=$(az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+    --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "")
+TILER_URL=$(az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" \
+    --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "$BACKEND_URL")
+
+# Get Firebase config from Key Vault
+echo -e "${YELLOW}  Fetching Firebase config from Key Vault...${NC}"
+VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>/dev/null)
+VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>/dev/null)
+VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>/dev/null)
+
+if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
+    echo -e "${RED}Error: Could not fetch Firebase config from Key Vault.${NC}"
+    echo -e "${YELLOW}Fix: az keyvault network-rule add --name $KV_NAME --ip-address \$(curl -s ifconfig.me)/32${NC}"
+    echo -e "${YELLOW}Or:  ./azure_deploy/upload-secrets.sh${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Firebase configuration loaded${NC}"
-echo -e "${YELLOW}  Project: ${VITE_FIREBASE_PROJECT_ID}${NC}"
-echo ""
+# Create SWA if it doesn't exist
+SWA_NAME="$APP_SWA"
+if ! az staticwebapp show --name "$SWA_NAME" -g "$RESOURCE_GROUP" &>/dev/null; then
+    echo -e "${YELLOW}  Creating Static Web App...${NC}"
+    az staticwebapp create --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
+        --location "westeurope" --sku Free --output none
+fi
 
-# Build frontend with backend URL and Firebase config
-docker build \
-    --build-arg VITE_API_BASE_URL="https://$BACKEND_URL" \
-    --build-arg VITE_FIREBASE_API_KEY="$VITE_FIREBASE_API_KEY" \
-    --build-arg VITE_FIREBASE_AUTH_DOMAIN="$VITE_FIREBASE_AUTH_DOMAIN" \
-    --build-arg VITE_FIREBASE_PROJECT_ID="$VITE_FIREBASE_PROJECT_ID" \
-    -t "$ACR_LOGIN_SERVER/frontend:$IMAGE_TAG" \
-    -f Dockerfile .
+# Build frontend
+echo -e "${YELLOW}  Building frontend...${NC}"
+cd frontend
+VITE_API_BASE_URL="https://$BACKEND_URL" \
+VITE_TILER_BASE_URL="https://$TILER_URL" \
+VITE_FIREBASE_API_KEY="$VITE_FIREBASE_API_KEY" \
+VITE_FIREBASE_AUTH_DOMAIN="$VITE_FIREBASE_AUTH_DOMAIN" \
+VITE_FIREBASE_PROJECT_ID="$VITE_FIREBASE_PROJECT_ID" \
+npm run build
 
-echo -e "${YELLOW}Pushing frontend image...${NC}"
-docker push "$ACR_LOGIN_SERVER/frontend:$IMAGE_TAG"
-echo -e "${GREEN}✓ Frontend image pushed${NC}"
+# Deploy to SWA
+SWA_TOKEN=$(az staticwebapp secrets list --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
+    --query "properties.apiKey" -o tsv)
+
+npx @azure/static-web-apps-cli deploy ./dist \
+    --deployment-token "$SWA_TOKEN" \
+    --env production 2>/dev/null || \
+az staticwebapp deploy --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
+    --app-location "./dist" --skip-app-build --output none 2>/dev/null || \
+echo -e "${YELLOW}  SWA deploy via CLI failed. Try: swa deploy ./dist --deployment-token $SWA_TOKEN${NC}"
+
 cd ..
+
+FRONTEND_URL=$(az staticwebapp show --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
+    --query "defaultHostname" -o tsv 2>/dev/null || echo "")
+echo -e "${GREEN}✓ Frontend deployed${NC}"
+
+# Update CORS
 echo ""
-
-# Update backend container app
-echo -e "${YELLOW}Updating backend container app...${NC}"
-az containerapp update \
-    --name backend \
-    --resource-group "$RESOURCE_GROUP" \
-    --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
-    --output none
-echo -e "${GREEN}✓ Backend updated${NC}"
-
-# Wait for backend to stabilize
-echo -e "${YELLOW}Waiting for backend to stabilize...${NC}"
-sleep 10
-
-# Initialize database (PostGIS extensions, etc.)
-echo -e "${YELLOW}Initializing database (PostGIS extensions)...${NC}"
-REPLICA_NAME=$(az containerapp replica list \
-    --name backend \
-    --resource-group "$RESOURCE_GROUP" \
-    --query "[0].name" -o tsv 2>/dev/null || echo "")
-
-if [ -n "$REPLICA_NAME" ]; then
-    echo -e "${BLUE}  Running database migrations in replica: $REPLICA_NAME${NC}"
-else
-    echo -e "${YELLOW}Warning: Could not find active backend replica${NC}"
-fi
-echo ""
-
-# Run database migrations using container app exec
-echo -e "${YELLOW}Running database migrations...${NC}"
-if [ -n "$REPLICA_NAME" ]; then
-    echo -e "${BLUE}  Executing migrations in replica: $REPLICA_NAME${NC}"
-    if az containerapp exec \
-        --name backend \
-        --resource-group "$RESOURCE_GROUP" \
-        --replica "$REPLICA_NAME" \
-        --command "alembic upgrade head" 2>&1 | tee /tmp/migration_output.log; then
-        echo -e "${GREEN}✓ Migrations completed successfully${NC}"
-    else
-        echo -e "${YELLOW}Warning: Migration command returned non-zero exit code${NC}"
-        echo -e "${YELLOW}This may be normal if migrations are already up to date${NC}"
-        echo -e "${YELLOW}Check the output above for details${NC}"
-    fi
-else
-    echo -e "${YELLOW}Warning: Could not find active backend replica${NC}"
-    echo -e "${YELLOW}Migrations may need to be run manually:${NC}"
-    echo -e "${YELLOW}  az containerapp exec -n backend -g $RESOURCE_GROUP --command 'alembic upgrade head'${NC}"
-fi
-
-# Get backend URL
-BACKEND_URL=$(az containerapp show \
-    --name backend \
-    --resource-group "$RESOURCE_GROUP" \
-    --query properties.configuration.ingress.fqdn -o tsv)
-echo ""
-
-# Update frontend container app
-echo -e "${YELLOW}Updating frontend container app...${NC}"
-az containerapp update \
-    --name frontend \
-    --resource-group "$RESOURCE_GROUP" \
-    --image "$ACR_LOGIN_SERVER/frontend:$IMAGE_TAG" \
-    --set-env-vars "VITE_API_BASE_URL=https://$BACKEND_URL" \
-    --output none
-echo -e "${GREEN}✓ Frontend updated${NC}"
-
-# Get frontend URL
-FRONTEND_URL=$(az containerapp show \
-    --name frontend \
-    --resource-group "$RESOURCE_GROUP" \
-    --query properties.configuration.ingress.fqdn -o tsv)
-echo ""
-
-# Update backend CORS
-echo -e "${YELLOW}Updating backend CORS...${NC}"
-az containerapp update \
-    --name backend \
-    --resource-group "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" \
-    --output none
+echo -e "${YELLOW}Updating CORS...${NC}"
+az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none
+az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
+    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none 2>/dev/null || true
 echo -e "${GREEN}✓ CORS updated${NC}"
-echo ""
 
-# Summary
-echo -e "${GREEN}Deployment Complete!${NC}"
+echo ""
+echo -e "${GREEN}Deployment Complete${NC}"
 echo ""
 echo -e "${BLUE}Frontend:${NC} https://$FRONTEND_URL"
 echo -e "${BLUE}Backend:${NC}  https://$BACKEND_URL"
+[ -n "$TILER_URL" ] && echo -e "${BLUE}Tiler:${NC}    https://$TILER_URL"
 echo -e "${BLUE}API Docs:${NC} https://$BACKEND_URL/api/docs"
 echo ""
-echo -e "${YELLOW}Note: Infrastructure changes (new apps, secrets, etc.) must be${NC}"
-echo -e "${YELLOW}done by Platform Engineers via Terraform in raapid-infra/main${NC}"
+echo -e "${YELLOW}Remember: Add https://$FRONTEND_URL to Firebase authorized domains${NC}"
 echo ""

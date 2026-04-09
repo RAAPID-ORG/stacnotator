@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
@@ -8,6 +8,37 @@ import {
   convertWKTToGeoJSON,
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
+import { buildTileUrl } from './Map/tileUrlBuilder';
+import { getTilerToken } from '~/api/tilerToken';
+
+const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
+
+/** Hatched overlay indicating no imagery is available for this tile/area */
+function NoImageryOverlay() {
+  return (
+    <div className="w-full h-full relative bg-neutral-50 select-none overflow-hidden">
+      <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern
+            id="hatch"
+            patternUnits="userSpaceOnUse"
+            width="12"
+            height="12"
+            patternTransform="rotate(45)"
+          >
+            <line x1="0" y1="0" x2="0" y2="12" stroke="#d4d4d4" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hatch)" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[10px] font-medium text-neutral-400 bg-neutral-50/80 px-2 py-0.5 rounded">
+          No imagery
+        </span>
+      </div>
+    </div>
+  );
+}
 
 interface ImageryContainerProps {
   collectionId: number;
@@ -60,14 +91,33 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     : (collectionSliceIndices[collectionId] ?? 0);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
-  // Resolve tile URL from pre-resolved slice tile_urls
-  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => v.name)
-  );
-  const activeVizName = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+  // Resolve which viz to show in this window.
+  // selectedLayerIndex is global. We convert it to a position within the
+  // active source, then apply that same position to this window's source.
+  // If this window belongs to a different source, it stays on viz 0.
+  const sources = campaign?.imagery_sources ?? [];
+  const ownerSource = sources.find((s) => s.collections.some((c) => c.id === collectionId));
+  const mainSource = sources.find((s) => s.collections.some((c) => c.id === activeCollectionId));
 
-  const tileUrl =
-    activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName)?.tile_url ?? '';
+  let vizIndex = 0;
+  if (ownerSource && mainSource && ownerSource.id === mainSource.id) {
+    // Same source as the main map - compute position within this source
+    let offset = 0;
+    for (const s of sources) {
+      if (s.id === mainSource.id) break;
+      offset += s.visualizations.length;
+    }
+    vizIndex = Math.min(
+      Math.max(0, selectedLayerIndex - offset),
+      ownerSource.visualizations.length - 1
+    );
+  }
+
+  const activeVizName = ownerSource?.visualizations[vizIndex]?.name ?? null;
+  const tileUrlEntry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
+  const tileUrl = tileUrlEntry
+    ? buildTileUrl({ tile_url: tileUrlEntry.tile_url, tile_provider: tileUrlEntry.tile_provider })
+    : '';
   const loading = !activeSlice || !tileUrl;
 
   // Memoize latLon extraction (supports all geometry types via centroid)
@@ -138,79 +188,86 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     latLon?.lon,
   ]);
 
-  // True once every slice for this collection has been confirmed empty
+  // True once every slice for this collection has been confirmed empty at the crosshair
   const allSlicesEmpty =
     !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
+
+  // Compute the tile URL at the crosshair position for empty-slice probing.
+  // Always uses default_zoom + task centroid so zooming doesn't re-trigger detection.
+  const defaultZoom = source?.default_zoom ?? 10;
+  const crosshairTileUrl = useMemo(() => {
+    if (!tileUrl || !latLon) return null;
+    const z = Math.round(defaultZoom);
+    const n = Math.pow(2, z);
+    const x = Math.floor(((latLon.lon + 180) / 360) * n);
+    const yRad = (latLon.lat * Math.PI) / 180;
+    const y = Math.floor(((1 - Math.log(Math.tan(yRad) + 1 / Math.cos(yRad)) / Math.PI) / 2) * n);
+    return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+  }, [tileUrl, latLon, defaultZoom]);
+
+  // Probe the crosshair tile to detect empty slices.
+  // One lightweight fetch per task/slice change - not per tile.
+  // Self-hosted tiles need an auth token; MPC tiles are fetched directly.
   useEffect(() => {
+    if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
-  }, [tileUrl]);
 
-  const emptyTilesStateRef = useRef({
-    collectionId,
-    activeSlice,
-    sliceKey: `${collectionId}-${currentSliceIndex}`,
-    isActiveCollection,
-    slices,
-    currentSliceIndex,
-    emptySlices,
-    markSliceEmpty,
-    setActiveSliceIndex,
-    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
-    setEmptyTileAlert,
-    collectionName: collection?.name ?? '',
-  });
-  emptyTilesStateRef.current = {
-    collectionId,
-    activeSlice,
-    sliceKey: `${collectionId}-${currentSliceIndex}`,
-    isActiveCollection,
-    slices,
-    currentSliceIndex,
-    emptySlices,
-    markSliceEmpty,
-    setActiveSliceIndex,
-    setCollectionSliceIndex: useMapStore.getState().setCollectionSliceIndex,
-    setEmptyTileAlert,
-    collectionName: collection?.name ?? '',
-  };
+    const controller = new AbortController();
+    const isSelfHosted = TILER_BASE && crosshairTileUrl.startsWith(TILER_BASE);
 
-  const handleEmptyTiles = useCallback(() => {
-    if (isOpenMode) return;
-    const {
-      collectionId: colId,
-      activeSlice: slice,
-      sliceKey: key,
-      isActiveCollection: isActive,
-      slices: allSlices,
-      currentSliceIndex: curIdx,
-      emptySlices: empty,
-      markSliceEmpty: mark,
-      setActiveSliceIndex: setActive,
-      setCollectionSliceIndex: setStored,
-      setEmptyTileAlert: setAlert,
-      collectionName,
-    } = emptyTilesStateRef.current;
+    const doFetch = isSelfHosted
+      ? getTilerToken().then((token) => {
+          const sep = crosshairTileUrl.includes('?') ? '&' : '?';
+          return fetch(`${crosshairTileUrl}${sep}token=${encodeURIComponent(token)}`, {
+            mode: 'cors',
+            credentials: 'omit',
+            signal: controller.signal,
+          });
+        })
+      : fetch(crosshairTileUrl, { mode: 'cors', credentials: 'omit', signal: controller.signal });
 
-    const sliceLabel = slice?.name ?? '';
-    const alertLabel = sliceLabel ? `${collectionName} - ${sliceLabel}` : collectionName;
+    doFetch
+      .then((resp) => {
+        // 204 = no content (MPC returns this for empty tiles).
+        // Non-ok (404/500) also means no data.
+        // Self-hosted tiler returns 200 + transparent PNG for empty - skip.
+        if (resp.status === 204 || (!isSelfHosted && !resp.ok)) {
+          // fall through to mark empty
+        } else {
+          return;
+        }
 
-    mark(key);
+        const sliceKey = `${collectionId}-${currentSliceIndex}`;
+        const alreadyKnownEmpty = !!emptySlices[sliceKey];
+        markSliceEmpty(sliceKey);
+        if (alreadyKnownEmpty) return;
 
-    const nextIndex = allSlices.findIndex((_, i) => i !== curIdx && !empty[`${colId}-${i}`]);
+        const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
+        const nextIndex = slices.findIndex(
+          (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
+        );
 
-    if (nextIndex !== -1) {
-      if (isActive) {
-        setActive(nextIndex);
-      } else {
-        setStored(colId, nextIndex);
-      }
-      return;
-    }
+        if (nextIndex !== -1) {
+          if (isActiveCollection) {
+            setActiveSliceIndex(nextIndex);
+          } else {
+            useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
+          }
+        } else {
+          const sliceLabel = activeSlice?.name ?? '';
+          const colName = collection?.name ?? '';
+          setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
+        }
+      })
+      .catch(() => {
+        // fetch aborted or network error - ignore
+      });
 
-    setAlert(alertLabel);
-  }, []); // stable - all state read from ref
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId]);
 
   if (!collection || !campaignBbox) return null;
 
@@ -247,21 +304,16 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
             onChange={(e) => handleSliceChange(Number(e.target.value))}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            className="text-[9px] px-1 py-0.5 bg-white/90 border border-neutral-300 rounded text-neutral-900 cursor-pointer hover:bg-white"
+            className="text-[10px] px-1.5 py-0.5 bg-white/95 border border-neutral-200 rounded text-neutral-800 cursor-pointer hover:bg-white backdrop-blur-sm"
             title="Select time slice"
           >
             {slices.map((slice, idx) => {
               const key = `${collectionId}-${idx}`;
               const isEmpty = !isOpenMode && emptySlices[key];
               return (
-                <option
-                  key={idx}
-                  value={idx}
-                  disabled={!!isEmpty}
-                  style={isEmpty ? { color: '#aaa' } : undefined}
-                >
+                <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
                   {slice.name}
-                  {isEmpty ? ' (empty)' : ''}
+                  {isEmpty ? ' (no data)' : ''}
                 </option>
               );
             })}
@@ -276,28 +328,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       )}
 
       {allSlicesEmpty ? (
-        <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-neutral-100 text-neutral-500 select-none">
-          <svg
-            className="w-6 h-6 text-neutral-300"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 15.75 7.5 10.5l4.5 4.5 3-3 4.5 4.5M3.75 19.5h16.5M3.75 4.5h16.5"
-            />
-          </svg>
-          <span className="text-[10px] font-medium text-neutral-400 text-center px-2 leading-snug">
-            No imagery available
-          </span>
-        </div>
+        <NoImageryOverlay />
       ) : (
         <>
           {emptyTileAlert && (
-            <div className="absolute top-1 left-1 right-1 z-[1001] flex items-start gap-1 bg-amber-50 border border-amber-400 rounded px-2 py-1 text-[10px] text-amber-800 shadow-sm">
+            <div className="absolute top-1.5 left-1.5 right-1.5 z-[1001] flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 text-[11px] text-amber-800 shadow-sm">
               <span className="flex-1">
                 No imagery data for <strong>{emptyTileAlert}</strong>
               </span>
@@ -326,15 +361,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               showCrosshair={!isOpenMode && showCrosshair}
               refocusTrigger={refocusTrigger}
               detectionKey={currentTaskIndex}
-              onEmptyTiles={handleEmptyTiles}
               sampleExtent={showCrosshair ? sampleExtent : null}
             />
           ) : (
-            !loading && (
-              <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px]">
-                No imagery available
-              </div>
-            )
+            !loading && <NoImageryOverlay />
           )}
         </>
       )}

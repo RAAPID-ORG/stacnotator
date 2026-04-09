@@ -48,8 +48,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
       EE_SERVICE_ACCOUNT: ${EE_SERVICE_ACCOUNT:-}
       EE_PRIVATE_KEY_PATH: /app/config/ee-private-key.json
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       ENVIRONMENT: development
       LOG_LEVEL: debug
+      TILER_BASE_URL: ${TILER_BASE_URL:-http://tiler:8001}
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
@@ -62,7 +64,7 @@ services:
       - ./backend/tests:/app/tests:ro
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
       # Mount credential files
-      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/stac-notator-firebase-adminsdk-fbsvc-41dd1538f6.json}:/app/config/firebase-credentials.json:ro
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/firebase-credentials.json}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -71,6 +73,46 @@ services:
     # Override command for development with hot reload
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
+  # Tiler Service (tile serving, separated from backend for independent scaling)
+  tiler:
+    build:
+      context: ./tiler
+      dockerfile: Dockerfile.dev
+    container_name: tiler-dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: ${POSTGRES_DB:-stacnotator}
+      DBUSER: ${POSTGRES_USER:-stacnotator}
+      DBPASS: ${POSTGRES_PASSWORD:-devpassword}
+      DBHOST: db
+      DBPORT: 5432
+      DBDRIVER: psycopg2
+      DBSCHEME: postgresql
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
+      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
+      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "NO"
+      GDAL_HTTP_MULTIPLEX: "YES"
+      GDAL_HTTP_TIMEOUT: "60"
+      GDAL_HTTP_MAX_RETRY: "3"
+      GDAL_HTTP_RETRY_DELAY: "1"
+      GDAL_CACHEMAX: "256"
+      VSI_CACHE: "TRUE"
+      VSI_CACHE_SIZE: "536870912"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff"
+      CPL_VSIL_CURL_CACHE_SIZE: "128000000"
+    volumes:
+      - ./tiler/src:/app/src:ro
+      - ./tiler/pyproject.toml:/app/pyproject.toml:ro
+    ports:
+      - "${TILER_PORT:-8001}:8001"
+    networks:
+      - stacnotator-dev-network
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload --log-level debug
+
   # Frontend (Development with Vite HMR)
   frontend:
     build:
@@ -78,6 +120,7 @@ services:
       dockerfile: Dockerfile.dev
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_TILER_BASE_URL: ${VITE_TILER_BASE_URL:-http://localhost:8001}
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
@@ -85,14 +128,19 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+      - tiler
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_TILER_BASE_URL: ${VITE_TILER_BASE_URL:-http://localhost:8001}
+      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
     volumes:
-      # Mount source code for hot reloading
       - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro
       - ./frontend/index.html:/app/index.html:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
       - ./frontend/tsconfig.json:/app/tsconfig.json:ro
-      # Package files - mounted so `exec npm install` updates both container and host
       - ./frontend/package.json:/app/package.json
       - ./frontend/package-lock.json:/app/package-lock.json
       # E2E test files - mounted so tests run without rebuilding the image

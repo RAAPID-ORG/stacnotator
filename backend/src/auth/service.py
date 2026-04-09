@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
 from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
 from src.config import get_settings
@@ -83,6 +83,12 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
     )
 
     db.add(user)
+    db.flush()
+
+    if issuer == "local":
+        for role in (ROLE_USER, ROLE_APPROVED, ROLE_ADMIN):
+            db.add(UserRole(user_id=user.id, role=role))
+
     db.commit()
     db.refresh(user)
 

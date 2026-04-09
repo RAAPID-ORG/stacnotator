@@ -67,15 +67,30 @@ export const StepAddTimeseries = ({
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-neutral-600 mb-1">
-          Time series show how a location changes over time using spectral indices (e.g. NDVI,
-          NDWI). They are displayed as interactive charts alongside the imagery during annotation.
-        </p>
+      <div className="space-y-2">
         <p className="text-xs text-neutral-500">
           This is optional. Add one or more time series if temporal context helps annotators make
           decisions.
         </p>
+        <div className="flex items-start gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
+          <svg
+            className="w-4 h-4 shrink-0 mt-0.5 text-blue-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
+            />
+          </svg>
+          <span>
+            Currently only NDVI is supported. Custom band combinations will be available in a future
+            update. If you need a different index now, please reach out to the maintainers.
+          </span>
+        </div>
       </div>
 
       {items.map((i, index) => (

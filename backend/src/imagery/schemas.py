@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -11,6 +12,20 @@ class SliceTileUrlOut(BaseModel):
     id: int
     visualization_name: str
     tile_url: str
+    tile_provider: str | None = None
+    mosaic_id: str | None = None
+    mosaic_status: str | None = None
+    registered_at: datetime | None = None
+
+    @classmethod
+    def from_orm_with_mosaic(cls, obj: object) -> "SliceTileUrlOut":
+        """Create from ORM object, pulling status/timestamp from the mosaic relationship."""
+        instance = cls.model_validate(obj)
+        mosaic = getattr(obj, "mosaic", None)
+        if mosaic:
+            instance.mosaic_status = mosaic.status
+            instance.registered_at = mosaic.registered_at
+        return instance
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,6 +44,13 @@ class ImagerySliceOut(BaseModel):
 class CollectionStacConfigOut(BaseModel):
     registration_url: str
     search_body: str
+    catalog_url: str | None = None
+    stac_collection_id: str | None = None
+    viz_params: dict | None = None
+    cover_viz_params: dict | None = None
+    max_cloud_cover: float | None = None
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,9 +164,36 @@ class ImagerySliceCreate(BaseModel):
     tile_urls: list[SliceTileUrlCreate] = []
 
 
+class VizParamsCreate(BaseModel):
+    """Structured visualization parameters for TiTiler tile rendering."""
+
+    assets: list[str] = []
+    asset_as_band: bool = False
+    rescale: str | None = None
+    colormap_name: str | None = None
+    color_formula: str | None = None
+    expression: str | None = None
+    resampling: str | None = None
+    compositing: str | None = None
+    nodata: float | None = None
+    extra_params: dict[str, str] | None = None
+    mask_layer: str | None = None
+    mask_values: list[int] | None = None
+    nir_band: str | None = None
+    red_band: str | None = None
+    max_items: int | None = None
+
+
 class CollectionStacConfigCreate(BaseModel):
-    registration_url: str
-    search_body: str
+    registration_url: str = ""
+    search_body: str = ""
+    catalog_url: str | None = None
+    stac_collection_id: str | None = None
+    viz_params: VizParamsCreate | None = None
+    cover_viz_params: VizParamsCreate | None = None
+    max_cloud_cover: float | None = None
+    search_query: dict | None = None
+    cover_search_query: dict | None = None
 
 
 class ImageryCollectionCreate(BaseModel):
@@ -193,6 +242,41 @@ class ImageryEditorStateCreate(BaseModel):
 # ============================================================================
 # Update / Layout Request Schemas
 # ============================================================================
+
+
+class VisualizationUpdate(BaseModel):
+    name: str
+
+
+class ImagerySourceUpdate(BaseModel):
+    """Partial update for an imagery source's display settings."""
+
+    name: str | None = None
+    crosshair_hex6: str | None = None
+    default_zoom: int | None = None
+    visualizations: list[VisualizationUpdate] | None = None
+
+
+class ImageryCollectionUpdate(BaseModel):
+    """Partial update for an imagery collection."""
+
+    name: str | None = None
+    cover_slice_index: int | None = None
+
+
+class ImageryViewUpdate(BaseModel):
+    """Partial update for an imagery view."""
+
+    name: str | None = None
+    display_order: int | None = None
+    collection_refs: list[ViewCollectionRefItem] | None = None
+
+
+class ImageryViewAddRequest(BaseModel):
+    """Create a new view on an existing campaign."""
+
+    name: str = ""
+    collection_refs: list[ViewCollectionRefItem] = []
 
 
 class CanvasLayoutCreate(BaseModel):

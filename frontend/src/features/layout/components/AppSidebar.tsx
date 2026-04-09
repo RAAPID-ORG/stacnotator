@@ -47,10 +47,10 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
 
   return (
     <aside
-      className="flex flex-col h-full bg-neutral-100 border-r border-neutral-300 transition-all duration-200"
+      className="flex flex-col h-full bg-neutral-50 border-r border-neutral-200 transition-all duration-200"
       style={{ width: collapsed ? '60px' : '180px' }}
     >
-      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200">
         {!collapsed && (
           <button
             onClick={() => handleNavClick('/')}
@@ -127,7 +127,7 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
         </button>
       </nav>
 
-      <div className="p-3 border-t border-neutral-300 mt-auto">
+      <div className="p-3 border-t border-neutral-200 mt-auto">
         <div
           className={`flex items-center gap-3 transition-colors rounded p-2 -m-2 ${
             collapsed ? 'justify-center' : ''

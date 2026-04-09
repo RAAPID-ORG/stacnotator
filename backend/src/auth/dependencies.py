@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from src.auth import service
+from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.models import User
 from src.auth.providers import get_auth_provider
 from src.database import get_db
@@ -26,9 +27,16 @@ async def require_authenticated_user(
 
     Raises:
         HTTPException: 401 if authentication fails
+        HTTPException: 403 if email is not verified
     """
     auth_provider = get_auth_provider()
-    auth_user = await auth_provider.authenticate(request)
+    try:
+        auth_user = await auth_provider.authenticate(request)
+    except ExternalAuthEmailNotVerified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="email_not_verified",
+        ) from None
 
     if not auth_user:
         raise HTTPException(
@@ -50,8 +58,6 @@ async def require_approved_user(
 
     Ensures the user has been granted the 'approved' role,
     which is required for most application features.
-
-    # TODO might want to add this directly in most routers
 
     Args:
         user: Authenticated user

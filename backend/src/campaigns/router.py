@@ -83,7 +83,7 @@ def create_campaign(
     db: Session = Depends(get_db),
     user: User = Depends(require_approved_user),
 ):
-    return service.create_campaign(
+    result = service.create_campaign(
         db,
         name=campaign.name,
         mode=campaign.mode,
@@ -93,6 +93,7 @@ def create_campaign(
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
     )
+    return result
 
 
 @router.post(
@@ -426,11 +427,3 @@ def get_campaign_statistics_endpoint(
         - Agreement with majority vote
     """
     return service.get_campaign_statistics(campaign_id, db)
-
-
-# TODO add user-personal imagery overwrites (layout+settings (e.g date/zoomlevel/crosshair/windowing))
-# On imagery change -> if results in different windows, need to delete user layouts and provide defaults or have a way to merge
-
-# TODO currently only supporting STAC search, but in future also support collections / items
-# TODO update campaign settings and imagery (admin only)
-# TODO delete campaign, imagery, timeseries (admin only)

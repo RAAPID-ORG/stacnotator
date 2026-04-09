@@ -359,9 +359,9 @@ export const TimeSeriesChart = ({
       )}
 
       {/* Header with Legend and Controls */}
-      <div className="flex justify-between items-center mb-1 flex-shrink-0 gap-2">
+      <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap overflow-hidden">
         {/* Legend (click to toggle traces) */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           {timeseries.map((ts, index) => {
             const color = COLORS[index % COLORS.length];
             const isHidden = hiddenDatasets.has(index);
@@ -419,87 +419,89 @@ export const TimeSeriesChart = ({
           )}
         </div>
 
-        {/* Remove cloudy toggle */}
-        <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-          <span
-            className="text-[10px] text-neutral-600"
-            title="Removes days with clouds on the point (red dots)"
-          >
-            Remove cloudy
-          </span>
-          <div
-            className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
-            onClick={() => setRemoveCloudy(!removeCloudy)}
-            title="Removes days with clouds on the point (red dots)"
-          >
-            <div
-              className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
-            />
-          </div>
-        </label>
-
-        {/* Smoothing toggle + parameters */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <label className="flex items-center gap-1 cursor-pointer">
-            <span className="text-[10px] text-neutral-600" title="Savitzky-Golay Smoothing.">
-              Smooth
+        {/* Controls */}
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+          <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
+            <span
+              className="text-[10px] text-neutral-600"
+              title="Removes days with clouds on the point (red dots)"
+            >
+              Remove cloudy
             </span>
             <div
-              className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-500' : 'bg-neutral-300'}`}
-              onClick={() => setSmoothEnabled(!smoothEnabled)}
-              title="Savitzky-Golay Smoothing."
+              className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
+              onClick={() => setRemoveCloudy(!removeCloudy)}
+              title="Removes days with clouds on the point (red dots)"
             >
               <div
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${smoothEnabled ? 'translate-x-3' : 'translate-x-0.5'}`}
+                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
               />
             </div>
           </label>
-          {smoothEnabled && (
-            <div className="flex items-center gap-1 ml-1">
-              <label
-                className="flex items-center gap-0.5"
-                title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+
+          {/* Smoothing toggle + parameters */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <label className="flex items-center gap-1 cursor-pointer">
+              <span className="text-[10px] text-neutral-600" title="Savitzky-Golay Smoothing.">
+                Smooth
+              </span>
+              <div
+                className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-500' : 'bg-neutral-300'}`}
+                onClick={() => setSmoothEnabled(!smoothEnabled)}
+                title="Savitzky-Golay Smoothing."
               >
-                <span className="text-[9px] text-neutral-500">W</span>
-                <input
-                  type="number"
-                  min={5}
-                  max={31}
-                  step={2}
-                  value={smoothWindow}
-                  onChange={(e) => {
-                    let v = parseInt(e.target.value, 10);
-                    if (isNaN(v)) return;
-                    v = Math.max(5, Math.min(31, v));
-                    if (v % 2 === 0) v += 1;
-                    setSmoothWindow(v);
-                    // Ensure poly order stays valid
-                    if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
-                  }}
-                  className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                <div
+                  className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${smoothEnabled ? 'translate-x-3' : 'translate-x-0.5'}`}
                 />
-              </label>
-              <label
-                className="flex items-center gap-0.5"
-                title="Polynomial order (≥ 1, must be less than window size)"
-              >
-                <span className="text-[9px] text-neutral-500">P</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.min(5, smoothWindow - 1)}
-                  value={smoothOrder}
-                  onChange={(e) => {
-                    let v = parseInt(e.target.value, 10);
-                    if (isNaN(v)) return;
-                    v = Math.max(1, Math.min(smoothWindow - 1, v));
-                    setSmoothOrder(v);
-                  }}
-                  className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                />
-              </label>
-            </div>
-          )}
+              </div>
+            </label>
+            {smoothEnabled && (
+              <div className="flex items-center gap-1 ml-1">
+                <label
+                  className="flex items-center gap-0.5"
+                  title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+                >
+                  <span className="text-[9px] text-neutral-500">W</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={31}
+                    step={2}
+                    value={smoothWindow}
+                    onChange={(e) => {
+                      let v = parseInt(e.target.value, 10);
+                      if (isNaN(v)) return;
+                      v = Math.max(5, Math.min(31, v));
+                      if (v % 2 === 0) v += 1;
+                      setSmoothWindow(v);
+                      // Ensure poly order stays valid
+                      if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
+                    }}
+                    className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                  />
+                </label>
+                <label
+                  className="flex items-center gap-0.5"
+                  title="Polynomial order (≥ 1, must be less than window size)"
+                >
+                  <span className="text-[9px] text-neutral-500">P</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.min(5, smoothWindow - 1)}
+                    value={smoothOrder}
+                    onChange={(e) => {
+                      let v = parseInt(e.target.value, 10);
+                      if (isNaN(v)) return;
+                      v = Math.max(1, Math.min(smoothWindow - 1, v));
+                      setSmoothOrder(v);
+                    }}
+                    className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                  />
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
