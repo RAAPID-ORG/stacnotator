@@ -47,11 +47,7 @@ APP_TILER="stacnotator-${ENV}-tiler"
 APP_SWA="stacnotator-${ENV}-frontend"
 
 # Project name as used in Terraform (matches KV secret naming)
-if [ "$ENV" = "prod" ]; then
-    PROJECT_NAME="stacnotator"
-else
-    PROJECT_NAME="stacnotator-${ENV}"
-fi
+PROJECT_NAME="stacnotator-${ENV}"
 
 # Resource sizing per environment
 if [ "$ENV" = "dev" ]; then
