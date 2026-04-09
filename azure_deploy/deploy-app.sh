@@ -60,8 +60,8 @@ if [ "$ENV" = "dev" ]; then
     TILER_DEDICATED=false
 else
     BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=2  BACKEND_WORKERS=4
-    TILER_CPU=8      TILER_MEM=16Gi   TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
-    TILER_DEDICATED=true
+    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
+    TILER_DEDICATED=false
 fi
 
 echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
