@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { EmailVerificationScreen } from './EmailVerificationScreen';
 import { LoginScreen } from './LoginScreen';
 import { ApprovalPendingScreen } from './ApprovalPendingScreen';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
@@ -14,6 +15,8 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   const [initializing, setInitializing] = useState(true);
 
   const account = useAccountStore((s) => s.account);
+  const accountError = useAccountStore((s) => s.error);
+  const emailNotVerified = useAccountStore((s) => s.emailNotVerified);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
   const clear = useAccountStore((s) => s.clear);
 
@@ -46,7 +49,37 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
 
   if (!loggedIn) return <LoginScreen />;
 
-  if (account && !account.is_approved) return <ApprovalPendingScreen />;
+  if (emailNotVerified) return <EmailVerificationScreen />;
+
+  if (!account && accountError) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-neutral-50">
+        <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md text-center">
+          <p className="text-sm text-red-600 mb-4">Failed to load account: {accountError}</p>
+          <button
+            onClick={() => {
+              fetchAccount();
+            }}
+            className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 cursor-pointer transition-colors"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => {
+              auth.logout();
+            }}
+            className="ml-3 px-4 py-2 text-neutral-600 hover:text-neutral-800 text-sm cursor-pointer"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!account) return <LoadingSpinner fullScreen text="Loading account…" />;
+
+  if (!account.is_approved) return <ApprovalPendingScreen />;
 
   return <>{children}</>;
 };

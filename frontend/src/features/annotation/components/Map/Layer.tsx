@@ -1,5 +1,6 @@
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
+import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
 
 export type LayerType = 'imagery' | 'basemap';
 
@@ -52,8 +53,13 @@ export class XYZLayer extends Layer {
         minZoom: this.minZoom,
         maxZoom: this.maxZoom,
         crossOrigin: 'anonymous',
-        cacheSize: 512,
-        transition: 0, // disable fade-in so tiles snap in immediately
+        cacheSize: this.layerType === 'imagery' ? 128 : 512,
+        transition: 0,
+        ...(this.layerType === 'imagery' && isSelfHostedUrl(this.urlTemplate)
+          ? {
+              tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
+            }
+          : {}),
       }),
     });
   }

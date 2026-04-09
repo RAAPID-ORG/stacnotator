@@ -111,10 +111,13 @@ const resetMapForTaskNav = () => {
     activeSliceIndex: 0,
     collectionSliceIndices: {},
     emptySlices: {},
+    viewSnapshots: {},
     currentMapZoom: null,
     probeTimeseriesPoint: null,
   });
 };
+
+const NAVIGATION_DEBOUNCE_MS = 500;
 
 const initialState = {
   allTasks: [] as AnnotationTaskOut[],
@@ -131,268 +134,268 @@ const initialState = {
   skipConfirmDisabled: false,
 };
 
-export const useTaskStore = create<TaskStore>((set, get) => ({
-  ...initialState,
+export const useTaskStore = create<TaskStore>((set, get) => {
+  const startNavigation = (stateUpdate: Partial<typeof initialState>) => {
+    set({ isNavigating: true, ...stateUpdate });
+    resetMapForTaskNav();
+    setTimeout(() => set({ isNavigating: false }), NAVIGATION_DEBOUNCE_MS);
+  };
 
-  loadTasks: async (campaignId, initialTaskId) => {
-    const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
-    const allTasks = tasksRes.data!.tasks;
-    const currentUserId = useAccountStore.getState().account?.id;
+  return {
+    ...initialState,
 
-    let taskFilter: TaskFilter;
-    let visibleTasks: AnnotationTaskOut[];
-    let currentTaskIndex = 0;
+    loadTasks: async (campaignId, initialTaskId) => {
+      const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
+      const allTasks = tasksRes.data!.tasks;
+      const currentUserId = useAccountStore.getState().account?.id;
 
-    if (initialTaskId !== undefined) {
-      taskFilter = {
-        assignedTo: [],
-        statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
-      };
-      visibleTasks = applyTaskFilter(allTasks, taskFilter);
-      const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
-      currentTaskIndex = idx !== -1 ? idx : 0;
-    } else {
-      taskFilter = {
-        assignedTo: currentUserId ? [currentUserId] : [],
-        statuses: ['pending'],
-      };
-      visibleTasks = applyTaskFilter(allTasks, taskFilter);
-    }
+      let taskFilter: TaskFilter;
+      let visibleTasks: AnnotationTaskOut[];
+      let currentTaskIndex = 0;
 
-    const targetTask = visibleTasks[currentTaskIndex] || null;
-
-    set({
-      allTasks,
-      visibleTasks,
-      taskFilter,
-      currentTaskIndex,
-      ...getFormStateForTask(targetTask),
-    });
-  },
-
-  submitAnnotation: async (labelId, comment, confidence, isAuthoritative) => {
-    const { visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
-    const task = visibleTasks[currentTaskIndex];
-    const campaign = useCampaignStore.getState().campaign;
-    const currentUserId = useAccountStore.getState().account?.id;
-
-    if (!task || !campaign || !currentUserId) return;
-    set({ isSubmitting: true });
-
-    try {
-      const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
-      const hasExistingLabel = userAnnotation?.label_id != null;
-
-      // Remove label flow
-      if (labelId === null && hasExistingLabel && !comment) {
-        const deleteRes = await deleteAnnotation({
-          path: { campaign_id: campaign.id, annotation_id: userAnnotation!.id },
-        });
-        const result = deleteRes.data;
-        const updatedTasks = allTasks.map((t) =>
-          t.id === task.id
-            ? {
-                ...t,
-                annotations: t.annotations.filter((a) => a.id !== userAnnotation!.id),
-                assignments: (t.assignments || []).map((a) =>
-                  a.user_id === currentUserId
-                    ? { ...a, status: result?.assignment_status ?? 'pending' }
-                    : a
-                ),
-                task_status: result?.task_status ?? 'pending',
-              }
-            : t
-        );
-        set({
-          allTasks: updatedTasks,
-          visibleTasks: applyTaskFilter(updatedTasks, taskFilter),
-          isSubmitting: false,
-        });
-        useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
-        return;
-      }
-
-      // KNN validation
-      if (get().knnValidationEnabled && labelId !== null) {
-        try {
-          const validationRes = await validateAnnotationSubmission({
-            path: { campaign_id: campaign.id, annotation_task_id: task.id },
-            query: { label_id: labelId },
-          });
-          if (validationRes.data?.status === 'mismatch') {
-            const proceed = await useLayoutStore.getState().showConfirmDialog({
-              title: 'Label Mismatch Detected',
-              description:
-                'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
-              confirmText: 'Submit Anyway',
-              cancelText: 'Go Back',
-              isDangerous: true,
-            });
-            if (!proceed) {
-              set({ isSubmitting: false });
-              return;
-            }
-          }
-        } catch {
-          // Validation unavailable -don't block
-        }
-      }
-
-      // Submit
-      const response = await completeAnnotationTask({
-        path: { campaign_id: campaign.id, annotation_task_id: task.id },
-        body: {
-          label_id: labelId,
-          comment: comment || null,
-          confidence,
-          is_authoritative: isAuthoritative ?? null,
-        },
-      });
-
-      const submitResult = response.data;
-      const newAnnotation = submitResult?.annotation ?? null;
-
-      const updatedTasks = allTasks.map((t) => {
-        if (t.id !== task.id) return t;
-        const updatedAnnotations = newAnnotation
-          ? [...t.annotations.filter((a) => a.created_by_user_id !== currentUserId), newAnnotation]
-          : t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
-        return {
-          ...t,
-          annotations: updatedAnnotations,
-          assignments: (t.assignments || []).map((a) =>
-            a.user_id === currentUserId
-              ? { ...a, status: submitResult?.assignment_status ?? 'pending' }
-              : a
-          ),
-          task_status: submitResult?.task_status ?? t.task_status,
+      if (initialTaskId !== undefined) {
+        taskFilter = {
+          assignedTo: [],
+          statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
         };
-      });
+        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+        const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
+        currentTaskIndex = idx !== -1 ? idx : 0;
+      } else {
+        taskFilter = {
+          assignedTo: currentUserId ? [currentUserId] : [],
+          statuses: ['pending'],
+        };
+        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+      }
 
-      const updatedVisible = applyTaskFilter(updatedTasks, taskFilter);
-      const nextIndex = currentTaskIndex < updatedVisible.length - 1 ? currentTaskIndex + 1 : 0;
-      const nextTask = updatedVisible[nextIndex] || null;
+      const targetTask = visibleTasks[currentTaskIndex] || null;
 
       set({
-        allTasks: updatedTasks,
-        visibleTasks: updatedVisible,
-        isSubmitting: false,
-        currentTaskIndex: nextIndex,
-        ...getFormStateForTask(nextTask),
+        allTasks,
+        visibleTasks,
+        taskFilter,
+        currentTaskIndex,
+        ...getFormStateForTask(targetTask),
       });
+    },
 
-      useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {} });
-      const successMessage =
-        labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
-      useLayoutStore.getState().showAlert(successMessage, 'success');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to submit annotation';
-      useLayoutStore.getState().showAlert(message, 'error');
-      set({ isSubmitting: false });
-      console.error('Submit error:', error);
-    }
-  },
+    submitAnnotation: async (labelId, comment, confidence, isAuthoritative) => {
+      const { visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
+      const task = visibleTasks[currentTaskIndex];
+      const campaign = useCampaignStore.getState().campaign;
+      const currentUserId = useAccountStore.getState().account?.id;
 
-  nextTask: () => {
-    const { visibleTasks, currentTaskIndex } = get();
-    if (visibleTasks.length === 0) return;
-    const nextIndex = currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1;
-    const nextTask = visibleTasks[nextIndex] || null;
+      if (!task || !campaign || !currentUserId) return;
+      set({ isSubmitting: true });
 
-    set({ isNavigating: true, currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
-    resetMapForTaskNav();
-    setTimeout(() => set({ isNavigating: false }), 500);
-  },
+      try {
+        const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
+        const hasExistingLabel = userAnnotation?.label_id != null;
 
-  previousTask: () => {
-    const { visibleTasks, currentTaskIndex } = get();
-    if (visibleTasks.length === 0) return;
-    const prevIndex = currentTaskIndex === 0 ? visibleTasks.length - 1 : currentTaskIndex - 1;
-    const prevTask = visibleTasks[prevIndex] || null;
+        // Remove label flow
+        if (labelId === null && hasExistingLabel && !comment) {
+          const deleteRes = await deleteAnnotation({
+            path: { campaign_id: campaign.id, annotation_id: userAnnotation!.id },
+          });
+          const result = deleteRes.data;
+          const updatedTasks = allTasks.map((t) =>
+            t.id === task.id
+              ? {
+                  ...t,
+                  annotations: t.annotations.filter((a) => a.id !== userAnnotation!.id),
+                  assignments: (t.assignments || []).map((a) =>
+                    a.user_id === currentUserId
+                      ? { ...a, status: result?.assignment_status ?? 'pending' }
+                      : a
+                  ),
+                  task_status: result?.task_status ?? 'pending',
+                }
+              : t
+          );
+          set({
+            allTasks: updatedTasks,
+            visibleTasks: applyTaskFilter(updatedTasks, taskFilter),
+            isSubmitting: false,
+          });
+          useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
+          return;
+        }
 
-    set({ isNavigating: true, currentTaskIndex: prevIndex, ...getFormStateForTask(prevTask) });
-    resetMapForTaskNav();
-    setTimeout(() => set({ isNavigating: false }), 500);
-  },
+        // KNN validation
+        if (get().knnValidationEnabled && labelId !== null) {
+          try {
+            const validationRes = await validateAnnotationSubmission({
+              path: { campaign_id: campaign.id, annotation_task_id: task.id },
+              query: { label_id: labelId },
+            });
+            if (validationRes.data?.status === 'mismatch') {
+              const proceed = await useLayoutStore.getState().showConfirmDialog({
+                title: 'Label Mismatch Detected',
+                description:
+                  'This label does not match what the nearest-neighbour embedding model would predict. Are you sure you want to submit this label?',
+                confirmText: 'Submit Anyway',
+                cancelText: 'Go Back',
+                isDangerous: true,
+              });
+              if (!proceed) {
+                set({ isSubmitting: false });
+                return;
+              }
+            }
+          } catch {
+            // Validation unavailable -don't block
+          }
+        }
 
-  goToTask: (annotationNumber) => {
-    const { visibleTasks } = get();
-    const taskIndex = visibleTasks.findIndex((t) => t.annotation_number === annotationNumber);
-    if (taskIndex === -1) return;
+        // Submit
+        const response = await completeAnnotationTask({
+          path: { campaign_id: campaign.id, annotation_task_id: task.id },
+          body: {
+            label_id: labelId,
+            comment: comment || null,
+            confidence,
+            is_authoritative: isAuthoritative ?? null,
+          },
+        });
 
-    const targetTask = visibleTasks[taskIndex] || null;
-    set({ isNavigating: true, currentTaskIndex: taskIndex, ...getFormStateForTask(targetTask) });
-    resetMapForTaskNav();
-    setTimeout(() => set({ isNavigating: false }), 500);
-  },
+        const submitResult = response.data;
+        const newAnnotation = submitResult?.annotation ?? null;
 
-  goToTaskById: (taskId, options) => {
-    const { allTasks, visibleTasks: currentVisible, taskFilter: currentFilter } = get();
+        const updatedTasks = allTasks.map((t) => {
+          if (t.id !== task.id) return t;
+          const updatedAnnotations = newAnnotation
+            ? [
+                ...t.annotations.filter((a) => a.created_by_user_id !== currentUserId),
+                newAnnotation,
+              ]
+            : t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
+          return {
+            ...t,
+            annotations: updatedAnnotations,
+            assignments: (t.assignments || []).map((a) =>
+              a.user_id === currentUserId
+                ? { ...a, status: submitResult?.assignment_status ?? 'pending' }
+                : a
+            ),
+            task_status: submitResult?.task_status ?? t.task_status,
+          };
+        });
 
-    let taskFilter: TaskFilter;
-    let visibleTasks: AnnotationTaskOut[];
+        const updatedVisible = applyTaskFilter(updatedTasks, taskFilter);
+        const nextIndex = currentTaskIndex < updatedVisible.length - 1 ? currentTaskIndex + 1 : 0;
+        const nextTask = updatedVisible[nextIndex] || null;
 
-    if (options?.resetFilters) {
-      taskFilter = {
-        assignedTo: [],
-        statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
-      };
-      visibleTasks = applyTaskFilter(allTasks, taskFilter);
-    } else {
-      taskFilter = currentFilter;
-      visibleTasks = currentVisible;
-    }
+        set({
+          allTasks: updatedTasks,
+          visibleTasks: updatedVisible,
+          isSubmitting: false,
+          currentTaskIndex: nextIndex,
+          ...getFormStateForTask(nextTask),
+        });
 
-    const targetIndex = visibleTasks.findIndex((t) => t.id === taskId);
-    if (targetIndex === -1) return;
+        useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {}, viewSnapshots: {} });
+        const successMessage =
+          labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
+        useLayoutStore.getState().showAlert(successMessage, 'success');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to submit annotation';
+        useLayoutStore.getState().showAlert(message, 'error');
+        set({ isSubmitting: false });
+        console.error('Submit error:', error);
+      }
+    },
 
-    const targetTask = visibleTasks[targetIndex] || null;
-    set({
-      isNavigating: true,
-      taskFilter,
-      visibleTasks,
-      currentTaskIndex: targetIndex,
-      ...getFormStateForTask(targetTask),
-    });
-    resetMapForTaskNav();
-    setTimeout(() => set({ isNavigating: false }), 500);
-  },
+    nextTask: () => {
+      const { visibleTasks, currentTaskIndex } = get();
+      if (visibleTasks.length === 0) return;
+      const nextIndex = currentTaskIndex >= visibleTasks.length - 1 ? 0 : currentTaskIndex + 1;
+      const nextTask = visibleTasks[nextIndex] || null;
 
-  // Form actions
-  setSelectedLabelId: (id) => set({ selectedLabelId: id }),
-  setComment: (comment) => set({ comment }),
-  setConfidence: (confidence) => set({ confidence }),
-  toggleMagicWand: (labelId) =>
-    set((s) => ({
-      magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
-    })),
-  setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
-  setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
-  resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
+      startNavigation({ currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
+    },
 
-  // Filter actions
-  setTaskFilter: (filterUpdate) => {
-    const { allTasks, taskFilter } = get();
-    const newFilter: TaskFilter = { ...taskFilter, ...filterUpdate };
-    const visibleTasks = applyTaskFilter(allTasks, newFilter);
-    const firstTask = visibleTasks[0] || null;
+    previousTask: () => {
+      const { visibleTasks, currentTaskIndex } = get();
+      if (visibleTasks.length === 0) return;
+      const prevIndex = currentTaskIndex === 0 ? visibleTasks.length - 1 : currentTaskIndex - 1;
+      const prevTask = visibleTasks[prevIndex] || null;
 
-    set({
-      isNavigating: true,
-      taskFilter: newFilter,
-      visibleTasks,
-      currentTaskIndex: 0,
-      ...getFormStateForTask(firstTask),
-    });
-    useMapStore.setState({ probeTimeseriesPoint: null });
-    setTimeout(() => set({ isNavigating: false }), 500);
-  },
+      startNavigation({ currentTaskIndex: prevIndex, ...getFormStateForTask(prevTask) });
+    },
 
-  resetTaskFilter: () => {
-    const currentUserId = useAccountStore.getState().account?.id;
-    if (!currentUserId) return;
-    get().setTaskFilter({ assignedTo: [currentUserId], statuses: ['pending'] });
-  },
+    goToTask: (annotationNumber) => {
+      const { visibleTasks } = get();
+      const taskIndex = visibleTasks.findIndex((t) => t.annotation_number === annotationNumber);
+      if (taskIndex === -1) return;
 
-  reset: () => set(initialState),
-}));
+      const targetTask = visibleTasks[taskIndex] || null;
+      startNavigation({ currentTaskIndex: taskIndex, ...getFormStateForTask(targetTask) });
+    },
+
+    goToTaskById: (taskId, options) => {
+      const { allTasks, visibleTasks: currentVisible, taskFilter: currentFilter } = get();
+
+      let taskFilter: TaskFilter;
+      let visibleTasks: AnnotationTaskOut[];
+
+      if (options?.resetFilters) {
+        taskFilter = {
+          assignedTo: [],
+          statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+        };
+        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+      } else {
+        taskFilter = currentFilter;
+        visibleTasks = currentVisible;
+      }
+
+      const targetIndex = visibleTasks.findIndex((t) => t.id === taskId);
+      if (targetIndex === -1) return;
+
+      const targetTask = visibleTasks[targetIndex] || null;
+      startNavigation({
+        taskFilter,
+        visibleTasks,
+        currentTaskIndex: targetIndex,
+        ...getFormStateForTask(targetTask),
+      });
+    },
+
+    // Form actions
+    setSelectedLabelId: (id) => set({ selectedLabelId: id }),
+    setComment: (comment) => set({ comment }),
+    setConfidence: (confidence) => set({ confidence }),
+    toggleMagicWand: (labelId) =>
+      set((s) => ({
+        magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
+      })),
+    setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
+    setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
+    resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
+
+    // Filter actions
+    setTaskFilter: (filterUpdate) => {
+      const { allTasks, taskFilter } = get();
+      const newFilter: TaskFilter = { ...taskFilter, ...filterUpdate };
+      const visibleTasks = applyTaskFilter(allTasks, newFilter);
+      const firstTask = visibleTasks[0] || null;
+
+      useMapStore.setState({ probeTimeseriesPoint: null });
+      startNavigation({
+        taskFilter: newFilter,
+        visibleTasks,
+        currentTaskIndex: 0,
+        ...getFormStateForTask(firstTask),
+      });
+    },
+
+    resetTaskFilter: () => {
+      const currentUserId = useAccountStore.getState().account?.id;
+      if (!currentUserId) return;
+      get().setTaskFilter({ assignedTo: [currentUserId], statuses: ['pending'] });
+    },
+
+    reset: () => set(initialState),
+  };
+});

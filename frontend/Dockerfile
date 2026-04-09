@@ -15,13 +15,14 @@ COPY . .
 # Build the application
 # Accept build arguments for Vite environment variables
 ARG VITE_API_BASE_URL
+ARG VITE_TILER_BASE_URL
 ARG VITE_FIREBASE_API_KEY
 ARG VITE_FIREBASE_AUTH_DOMAIN
 ARG VITE_FIREBASE_PROJECT_ID
 
 # Set environment variables for the build process
-# Default empty baseUrl for prod (SDK paths already include /api prefix, served via nginx)
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_TILER_BASE_URL=${VITE_TILER_BASE_URL}
 ENV VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY}
 ENV VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN}
 ENV VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}

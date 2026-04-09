@@ -1,11 +1,15 @@
 /**
- * TilePreloader - fetches XYZ tiles into the browser cache so that when
- * OpenLayers later requests them they are instant cache-hits.
+ * TilePreloader - loads XYZ tiles via <img> elements into the browser cache
+ * so that when OpenLayers later requests them they are instant cache-hits.
+ *
+ * Uses <img> (not fetch()) because OL loads tiles via <img crossOrigin="anonymous">.
+ * Both must use the same request mechanism to share the browser's HTTP cache
+ * partition — mixing fetch() and <img> causes intermittent gray tiles.
  *
  * Design:
  *   - Priority queue - lower number = higher priority.
  *   - Pause / resume - pauses while the active OL layer is loading.
- *   - Flat per-tile concurrency via fetch() + HTTP/2 multiplexing.
+ *   - Flat per-tile concurrency via <img> elements.
  *   - abort(groupId) / clear() for cancellation.
  *   - Per-group empty-tile detection: if EMPTY_TILE_THRESHOLD errors
  *     occur with zero successes for a group, onGroupEmpty fires and
@@ -14,6 +18,9 @@
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
+import { getTilerToken } from '~/api/tilerToken';
+
+const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
 
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
@@ -55,6 +62,7 @@ export function tileUrlsForExtent(
 
 const MAX_CONCURRENT = 50;
 const DRAIN_INTERVAL_MS = 50;
+const MAX_PRELOADED_CACHE = 5000;
 
 interface QueuedTile {
   url: string;
@@ -72,8 +80,8 @@ export class TilePreloader {
   private readonly maxConcurrent: number;
   private preloaded = new Set<string>();
 
-  // AbortControllers for in-flight fetches, keyed by generation.
-  private inflightControllers = new Set<AbortController>();
+  // Cancel functions for in-flight <img> loads.
+  private inflightCancels = new Set<() => void>();
 
   // Per-group error/success counters for empty-tile detection.
   private groupStats = new Map<
@@ -169,6 +177,10 @@ export class TilePreloader {
       const urls = tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom);
       for (const url of urls) {
         if (this.preloaded.has(url)) continue;
+        // Evict cache when it gets too large (browser HTTP cache still has the tiles)
+        if (this.preloaded.size >= MAX_PRELOADED_CACHE) {
+          this.preloaded.clear();
+        }
         this.preloaded.add(url);
         this.tileQueue.push({ url, priority: job.priority, groupId: job.groupId });
       }
@@ -185,58 +197,97 @@ export class TilePreloader {
 
     while (this.inflight < this.maxConcurrent && this.tileQueue.length > 0) {
       const tile = this.tileQueue.shift()!;
-      this.fetchOne(tile);
+      this.loadOne(tile);
     }
     this.checkIdle();
   }
 
-  private fetchOne(tile: QueuedTile) {
+  private loadOne(tile: QueuedTile) {
     const gen = this.generation;
     this.inflight++;
 
-    const controller = new AbortController();
-    this.inflightControllers.add(controller);
+    const done = (ok: boolean, cancelled = false) => {
+      this.inflight = Math.max(0, this.inflight - 1);
 
-    fetch(tile.url, { mode: 'cors', credentials: 'omit', signal: controller.signal })
-      .then((res) => res.arrayBuffer().then(() => ({ ok: res.ok, aborted: false })))
-      .catch((err) => ({ ok: false, aborted: err?.name === 'AbortError' }))
-      .then(({ ok, aborted }) => {
-        this.inflightControllers.delete(controller);
-        this.inflight = Math.max(0, this.inflight - 1);
+      if (cancelled || this.disposed || gen !== this.generation) {
+        this.drain();
+        this.checkIdle();
+        return;
+      }
 
-        // Aborted fetches are not real failures - skip group stats entirely.
-        if (aborted) {
-          if (!this.disposed && gen === this.generation) this.drain();
-          this.checkIdle();
-          return;
-        }
-
-        // Per-group empty-tile detection (mirrors WindowMap's heuristic)
-        const stats = this.groupStats.get(tile.groupId);
-        if (stats && !stats.emptyFired) {
-          if (ok) {
-            stats.successes++;
-          } else {
-            stats.errors++;
-            if (stats.successes === 0 && stats.errors >= EMPTY_TILE_THRESHOLD) {
-              stats.emptyFired = true;
-              this.abort(tile.groupId);
-              this.onGroupEmpty?.(tile.groupId);
-            }
+      // Per-group empty-tile detection (mirrors WindowMap's heuristic)
+      const stats = this.groupStats.get(tile.groupId);
+      if (stats && !stats.emptyFired) {
+        if (ok) {
+          stats.successes++;
+        } else {
+          stats.errors++;
+          if (stats.successes === 0 && stats.errors >= EMPTY_TILE_THRESHOLD) {
+            stats.emptyFired = true;
+            this.abort(tile.groupId);
+            this.onGroupEmpty?.(tile.groupId);
           }
         }
+      }
 
-        if (!this.disposed && gen === this.generation) this.drain();
-        this.checkIdle();
-      });
+      if (!this.disposed && gen === this.generation) this.drain();
+      this.checkIdle();
+    };
+
+    const startImg = (url: string) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      let settled = false;
+
+      const cancel = () => {
+        if (!settled) {
+          settled = true;
+          img.onload = img.onerror = null;
+          img.src = '';
+          this.inflightCancels.delete(cancel);
+          done(false, true);
+        }
+      };
+      this.inflightCancels.add(cancel);
+
+      img.onload = () => {
+        if (settled) return;
+        settled = true;
+        this.inflightCancels.delete(cancel);
+        done(true);
+      };
+      img.onerror = () => {
+        if (settled) return;
+        settled = true;
+        this.inflightCancels.delete(cancel);
+        done(false);
+      };
+      img.src = url;
+    };
+
+    // Self-hosted tiles need an auth token appended to the URL
+    if (TILER_BASE && tile.url.startsWith(TILER_BASE)) {
+      getTilerToken()
+        .then((token) => {
+          if (this.disposed || gen !== this.generation) {
+            done(false, true);
+            return;
+          }
+          const sep = tile.url.includes('?') ? '&' : '?';
+          startImg(`${tile.url}${sep}token=${encodeURIComponent(token)}`);
+        })
+        .catch(() => done(false));
+    } else {
+      startImg(tile.url);
+    }
   }
 
-  // Cancel all in-flight fetch requests immediately.
+  // Cancel all in-flight <img> loads.
   private _abortInflight() {
-    for (const controller of this.inflightControllers) {
-      controller.abort();
+    for (const cancel of this.inflightCancels) {
+      cancel();
     }
-    this.inflightControllers.clear();
+    this.inflightCancels.clear();
     this.inflight = 0;
   }
 

@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from geoalchemy2.elements import WKTElement
 
-from src.annotation.schema import AnnotationTaskOut
+from src.annotation.schemas import AnnotationTaskOut
 
 
 def _make_assignment(user_id, status="pending"):

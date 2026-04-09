@@ -145,7 +145,7 @@ export const AnnotationControls = ({
   const userAnnotation = currentTask?.annotations.find(
     (a) => a.created_by_user_id === currentUserId
   );
-  const hasExistingAnnotation = userAnnotation !== undefined;
+  const _hasExistingAnnotation = userAnnotation !== undefined;
   const hasExistingLabel = userAnnotation !== undefined && userAnnotation.label_id != null;
 
   // Check if current user is assigned to this task (only assigned users can skip)
@@ -170,24 +170,24 @@ export const AnnotationControls = ({
       <div className="flex flex-wrap">
         {/* Block 1: Label Selection */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-[2] min-w-[10rem]">
-          <span className="font-bold text-neutral-900 text-xs">Annotation</span>
+          <span className="font-semibold text-neutral-700 text-xs tracking-wide">Label</span>
           <div className="flex flex-wrap gap-1.5">
             {labels.map((label, index) => (
               <button
                 key={label.id}
                 disabled={isDisabled}
-                className={`w-40 text-left px-2 py-1.5 text-[10px] font-bold rounded transition-colors flex justify-between items-center ${
+                className={`w-40 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex justify-between items-center ${
                   selectedLabelId === label.id
-                    ? 'bg-neutral-100 text-brand-700 border-brand-500 border-2 font-semibold'
-                    : 'bg-neutral-100 hover:border-brand-500 text-neutral-800 border-neutral-200 border-2'
+                    ? 'bg-brand-50 text-brand-700 border-brand-500 border font-semibold'
+                    : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
                 } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 onClick={() => setSelectedLabelId(selectedLabelId === label.id ? null : label.id)}
               >
                 <span className="truncate">
-                  {selectedLabelId === label.id ? '✓ ' : '+ '}
+                  {selectedLabelId === label.id ? '✓ ' : ''}
                   {capitalizeFirst(label.name)}
                 </span>
-                <span className="text-neutral-400 text-[9px] ml-1">[{index + 1}]</span>
+                <span className="text-neutral-400 text-[10px] ml-1 tabular-nums">{index + 1}</span>
               </button>
             ))}
           </div>
@@ -195,9 +195,7 @@ export const AnnotationControls = ({
 
         {/* Block 2: Comment Field */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
-          <label className="text-[10px] font-bold text-neutral-900 uppercase tracking-wide">
-            Comment
-          </label>
+          <label className="text-xs font-semibold text-neutral-700 tracking-wide">Comment</label>
           <textarea
             ref={commentInputRef}
             value={comment}
@@ -205,7 +203,7 @@ export const AnnotationControls = ({
             disabled={isDisabled}
             placeholder="Add a comment..."
             rows={3}
-            className="w-full resize-none p-1.5 text-[10px] text-neutral-900 bg-neutral-50 border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50"
+            className="w-full resize-none p-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-400 disabled:opacity-50 placeholder:text-neutral-400"
           />
         </div>
 
@@ -213,9 +211,11 @@ export const AnnotationControls = ({
         <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
           {/* Confidence Slider */}
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-neutral-900 uppercase tracking-wide flex justify-between items-center">
+            <label className="text-xs font-semibold text-neutral-700 tracking-wide flex justify-between items-center">
               <span>Confidence</span>
-              <span className="text-brand-600 font-bold text-xs">{confidence}</span>
+              <span className="text-brand-600 font-semibold text-xs tabular-nums">
+                {confidence}/5
+              </span>
             </label>
             <input
               type="range"
@@ -225,9 +225,9 @@ export const AnnotationControls = ({
               value={confidence}
               onChange={(e) => setConfidence(Number(e.target.value))}
               disabled={isDisabled}
-              className="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-2 bg-neutral-200 rounded-full appearance-none cursor-pointer accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            <div className="flex justify-between text-[8px] text-neutral-400 px-0.5">
+            <div className="flex justify-between text-[10px] text-neutral-400 px-0.5 tabular-nums">
               <span>1</span>
               <span>2</span>
               <span>3</span>
@@ -252,7 +252,7 @@ export const AnnotationControls = ({
                 <div className="w-7 h-4 bg-neutral-300 rounded-full peer-checked:bg-brand-500 transition-colors"></div>
                 <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform"></div>
               </div>
-              <span className="text-[10px] text-neutral-600">Validate</span>
+              <span className="text-[11px] text-neutral-600">Validate</span>
               <div className="relative group">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -267,9 +267,11 @@ export const AnnotationControls = ({
                   />
                 </svg>
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Experimental feature - use with care! Checks your label against nearby annotations
-                  using embedding similarity (year {campaign?.settings?.embedding_year}). You'll be
-                  asked to confirm if your label disagrees with the majority.
+                  Experimental feature - use with care! Checks your label against prior annotations
+                  using embedding similarity from AlphaEarth in {campaign?.settings?.embedding_year}{' '}
+                  (kNN, with k = 5). You'll be asked to confirm if your label disagrees with the
+                  majority. You need to have placed at least 5 annotations per label for the
+                  validation to work.
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>
@@ -280,7 +282,7 @@ export const AnnotationControls = ({
                 <div className="w-7 h-4 bg-neutral-200 rounded-full cursor-not-allowed"></div>
                 <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm"></div>
               </div>
-              <span className="text-[10px] text-neutral-400">Validate</span>
+              <span className="text-[11px] text-neutral-400">Validate</span>
               <div className="relative group">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -304,11 +306,11 @@ export const AnnotationControls = ({
           )}
 
           {/* Submit/Skip Buttons */}
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmit}
-              className="flex-1 px-2 py-1.5 text-xs font-bold border border-brand-500 text-brand-700 hover:bg-brand-500 hover:text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-3 py-2 text-xs font-semibold bg-brand-500 text-white hover:bg-brand-600 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isNavigating ? 'Loading...' : isSubmitting ? 'Submitting...' : submitButtonText}
             </button>
@@ -316,7 +318,7 @@ export const AnnotationControls = ({
               disabled={isDisabled || !isAssignedToTask}
               onClick={handleSkip}
               title={!isAssignedToTask ? 'You are not assigned to this task' : undefined}
-              className="px-2 py-1.5 text-xs font-normal border border-neutral-300 text-neutral-900 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-neutral-200"
             >
               Skip
             </button>
@@ -327,7 +329,7 @@ export const AnnotationControls = ({
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmitAuthoritative}
-              className="w-full px-2 py-1.5 text-xs font-bold border-2 border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-3 py-2 text-xs font-semibold border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Submitting...' : 'Submit Authoritative'}
             </button>
@@ -336,12 +338,12 @@ export const AnnotationControls = ({
 
         {/* Block 4: Navigation Controls */}
         {currentTask && totalTasksCount && (
-          <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 flex-1 min-w-[10rem]">
-            <span className="font-bold text-neutral-900 text-xs">Navigation</span>
+          <div className="flex flex-col gap-2 p-3 border-b border-neutral-200 flex-1 min-w-[10rem]">
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
 
             {/* Go to point row */}
-            <div className="flex items-center gap-1">
-              <label className="text-[10px] font-medium text-neutral-600">Point:</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-[11px] font-medium text-neutral-500">Point</label>
               <input
                 type="number"
                 value={gotoValue}
@@ -350,14 +352,14 @@ export const AnnotationControls = ({
                 disabled={isDisabled}
                 min="1"
                 max={totalTasksCount}
-                className="w-14 p-1 text-center text-[10px] text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50"
+                className="w-14 px-2 py-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-400 disabled:opacity-50 tabular-nums"
                 title="Press Enter to go"
               />
               {showGoButton && (
                 <button
                   disabled={isDisabled}
                   onClick={handleGotoClick}
-                  className="px-1.5 py-1 text-[10px] font-bold border border-neutral-300 text-neutral-700 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-neutral-200"
                   title="Go to annotation"
                 >
                   Go
@@ -365,25 +367,42 @@ export const AnnotationControls = ({
               )}
             </div>
 
-            {/* Separator */}
-            <div className="border-t border-neutral-300"></div>
-
             {/* Previous/Next buttons row */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 disabled={isDisabled}
                 onClick={onPrevious}
-                className="flex-1 px-2 py-1.5 text-[10px] font-bold border border-neutral-300 text-neutral-900 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer border border-neutral-200"
               >
-                &lt; Prev
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Prev
               </button>
 
               <button
                 disabled={isDisabled}
                 onClick={onNext}
-                className="flex-1 px-2 py-1.5 text-[10px] font-bold border border-neutral-300 text-neutral-900 hover:bg-neutral-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap cursor-pointer border border-neutral-200"
               >
-                Next &gt;
+                Next
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </button>
             </div>
           </div>
@@ -392,7 +411,9 @@ export const AnnotationControls = ({
         {/* Block 5: All Annotations (review mode only) */}
         {isReviewMode && currentTask && currentTask.annotations.length > 0 && (
           <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 w-full">
-            <span className="font-bold text-neutral-900 text-xs">All Annotations</span>
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+              All Annotations
+            </span>
             <div className="flex flex-col gap-1.5">
               {/* Sort: own annotation first, then others */}
               {[...currentTask.annotations]
@@ -424,9 +445,9 @@ export const AnnotationControls = ({
                   return (
                     <div
                       key={ann.id}
-                      className={`text-[10px] rounded px-2 py-1.5 border ${
+                      className={`text-[11px] rounded px-2.5 py-2 border ${
                         ann.is_authoritative
-                          ? 'bg-amber-50 border-amber-300'
+                          ? 'bg-amber-50 border-amber-200'
                           : isOwn
                             ? 'bg-brand-50 border-brand-200'
                             : 'bg-neutral-50 border-neutral-200'

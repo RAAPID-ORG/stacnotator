@@ -16,7 +16,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Production stage
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
@@ -64,3 +64,5 @@ CMD ["sh", "-c", "gunicorn src.main:app \
     --error-logfile - \
     --log-level info \
     --forwarded-allow-ips '*'"]
+# Note: --forwarded-allow-ips '*' is intentional - Azure Container Apps
+# manages its own trusted reverse proxy, so all forwarded headers are safe.

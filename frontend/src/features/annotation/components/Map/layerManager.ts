@@ -2,6 +2,8 @@ import OLMap from 'ol/Map';
 import type { Layer } from './Layer';
 import BaseTileLayer from 'ol/layer/BaseTile';
 import type TileSource from 'ol/source/Tile';
+import type LayerRenderer from 'ol/renderer/Layer';
+import type OLLayer from 'ol/layer/Layer';
 import { listen, unlistenByKey } from 'ol/events';
 import type { EventsKey } from 'ol/events';
 
@@ -254,10 +256,14 @@ export class LayerManager {
     );
   }
 
-  private _findOLLayer(layerId: string): BaseTileLayer<TileSource, any> | undefined {
+  private _findOLLayer(
+    layerId: string
+  ): BaseTileLayer<TileSource, LayerRenderer<OLLayer>> | undefined {
     return this.map
       .getLayers()
       .getArray()
-      .find((l) => l.get('layerId') === layerId) as BaseTileLayer<TileSource, any> | undefined;
+      .find((l) => l.get('layerId') === layerId) as
+      | BaseTileLayer<TileSource, LayerRenderer<OLLayer>>
+      | undefined;
   }
 }

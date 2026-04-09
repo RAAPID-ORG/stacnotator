@@ -6,6 +6,7 @@ interface MapStore {
   activeSliceIndex: number;
   collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
+  viewSnapshots: Record<number, ViewSnapshot>;
 
   // Layer selection
   selectedLayerIndex: number;
@@ -28,6 +29,8 @@ interface MapStore {
 
   // View sync: link small windows' pan/zoom to the main map
   viewSyncEnabled: boolean;
+  // Tile preloading: prefetch tiles for other collections and next tasks
+  preloadingEnabled: boolean;
 
   // Active tool
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -40,6 +43,8 @@ interface MapStore {
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
   markSliceEmpty: (sliceKey: string) => void;
   clearEmptySlices: () => void;
+  saveViewSnapshot: (viewId: number | null) => void;
+  restoreViewSnapshot: (viewId: number | null, fallbackCollectionId: number | null) => void;
 
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
@@ -61,8 +66,18 @@ interface MapStore {
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   toggleViewSync: () => void;
+  togglePreloading: () => void;
 
   reset: () => void;
+}
+
+/** Per-view snapshot of navigation + empty state */
+interface ViewSnapshot {
+  activeCollectionId: number | null;
+  activeSliceIndex: number;
+  collectionSliceIndices: Record<number, number>;
+  emptySlices: Record<string, true>;
+  selectedLayerIndex: number;
 }
 
 const initialState = {
@@ -70,6 +85,9 @@ const initialState = {
   activeSliceIndex: 0,
   collectionSliceIndices: {} as Record<number, number>,
   emptySlices: {} as Record<string, true>,
+
+  /** Saved per-view state so switching views preserves position + empty info */
+  viewSnapshots: {} as Record<number, ViewSnapshot>,
 
   selectedLayerIndex: 0,
   showBasemap: false,
@@ -91,6 +109,7 @@ const initialState = {
   timeseriesPoint: null as { lat: number; lon: number } | null,
   probeTimeseriesPoint: null as { lat: number; lon: number } | null,
   viewSyncEnabled: true,
+  preloadingEnabled: true,
 };
 
 export const useMapStore = create<MapStore>((set) => ({
@@ -122,6 +141,46 @@ export const useMapStore = create<MapStore>((set) => ({
 
   clearEmptySlices: () => set({ emptySlices: {} }),
 
+  /** Save current view state before switching away */
+  saveViewSnapshot: (viewId) => {
+    if (viewId === null) return;
+    set((s) => ({
+      viewSnapshots: {
+        ...s.viewSnapshots,
+        [viewId]: {
+          activeCollectionId: s.activeCollectionId,
+          activeSliceIndex: s.activeSliceIndex,
+          collectionSliceIndices: { ...s.collectionSliceIndices },
+          emptySlices: { ...s.emptySlices },
+          selectedLayerIndex: s.selectedLayerIndex,
+        },
+      },
+    }));
+  },
+
+  /** Restore saved view state when switching back */
+  restoreViewSnapshot: (viewId, fallbackCollectionId) => {
+    if (viewId === null) return;
+    set((s) => {
+      const snap = s.viewSnapshots[viewId];
+      if (snap) {
+        return {
+          activeCollectionId: snap.activeCollectionId,
+          activeSliceIndex: snap.activeSliceIndex,
+          collectionSliceIndices: snap.collectionSliceIndices,
+          emptySlices: snap.emptySlices,
+          selectedLayerIndex: snap.selectedLayerIndex,
+        };
+      }
+      return {
+        activeCollectionId: fallbackCollectionId,
+        activeSliceIndex: 0,
+        collectionSliceIndices: {},
+        emptySlices: {},
+      };
+    });
+  },
+
   setSelectedLayerIndex: (index) => set({ selectedLayerIndex: index, showBasemap: false }),
   setShowBasemap: (show) => set({ showBasemap: show }),
   setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
@@ -140,13 +199,13 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
 
-  setActiveTool: (tool) =>
-    set({ activeTool: tool, ...(tool !== 'timeseries' ? { probeTimeseriesPoint: null } : {}) }),
+  setActiveTool: (tool) => set({ activeTool: tool }),
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
   setProbeTimeseriesPoint: (point) => set({ probeTimeseriesPoint: point }),
 
   toggleViewSync: () => set((s) => ({ viewSyncEnabled: !s.viewSyncEnabled })),
+  togglePreloading: () => set((s) => ({ preloadingEnabled: !s.preloadingEnabled })),
 
   reset: () => set(initialState),
 }));

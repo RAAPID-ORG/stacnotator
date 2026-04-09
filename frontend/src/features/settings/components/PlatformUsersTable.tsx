@@ -123,35 +123,35 @@ export const PlatformUsersTable = ({
               <button
                 onClick={() => handleBulkAction('approve')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Approve
               </button>
               <button
                 onClick={() => handleBulkAction('revoke')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-red-400 text-white rounded hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-red-400 text-white rounded hover:bg-red-600 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Revoke Approval
               </button>
               <button
                 onClick={() => handleBulkAction('deny')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Deny
               </button>
               <button
                 onClick={() => handleBulkAction('grant-admin')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-brand-400 text-white rounded hover:bg-brand-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-brand-400 text-white rounded hover:bg-brand-500 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Make Admin
               </button>
               <button
                 onClick={() => handleBulkAction('revoke-admin')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-orange-300 text-white rounded hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-amber-400 text-white rounded hover:bg-amber-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Revoke Admin
               </button>
@@ -161,9 +161,9 @@ export const PlatformUsersTable = ({
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <div className="overflow-x-auto border border-neutral-200 rounded-lg">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-neutral-50 border-b border-neutral-200">
             <tr>
               <th className="w-12 px-4 py-3 text-left">
                 <input
@@ -176,19 +176,21 @@ export const PlatformUsersTable = ({
                   }}
                   onChange={toggleAll}
                   disabled={loading || processingAction}
-                  className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
+                  className="w-4 h-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Email</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
+              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Email</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">
                 Display Name
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Status</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Role</th>
+              <th className="px-4 py-3 text-right text-sm font-semibold text-neutral-700">
+                Actions
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-neutral-200">
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8">
@@ -200,24 +202,24 @@ export const PlatformUsersTable = ({
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
                   No users found
                 </td>
               </tr>
             ) : (
               users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={user.id} className="hover:bg-neutral-50 transition-colors">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
                       checked={selectedUsers.has(user.id)}
                       onChange={() => toggleUser(user.id)}
                       disabled={processingAction}
-                      className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
+                      className="w-4 h-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
                     />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{user.email}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{user.display_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-900">{user.email}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
@@ -232,7 +234,9 @@ export const PlatformUsersTable = ({
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        user.is_admin ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        user.is_admin
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-neutral-100 text-neutral-800'
                       }`}
                     >
                       {user.is_admin ? 'Admin' : 'User'}
@@ -245,14 +249,14 @@ export const PlatformUsersTable = ({
                           <button
                             onClick={() => handleSingleAction(user.id, 'approve')}
                             disabled={processingAction}
-                            className="px-2 py-1 text-xs bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            className="px-2 py-1 text-xs bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleSingleAction(user.id, 'deny')}
                             disabled={processingAction}
-                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                           >
                             Deny
                           </button>
@@ -261,7 +265,7 @@ export const PlatformUsersTable = ({
                         <button
                           onClick={() => handleSingleAction(user.id, 'revoke')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-red-200 text-white rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                          className="px-2 py-1 text-xs bg-red-200 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                         >
                           Revoke Approval
                         </button>
@@ -270,7 +274,7 @@ export const PlatformUsersTable = ({
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-brand-500 text-white rounded hover:bg-brand-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                          className="px-2 py-1 text-xs bg-brand-500 text-white rounded hover:bg-brand-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                         >
                           Make Admin
                         </button>
@@ -278,7 +282,7 @@ export const PlatformUsersTable = ({
                         <button
                           onClick={() => handleSingleAction(user.id, 'revoke-admin')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                          className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                         >
                           Revoke Admin
                         </button>

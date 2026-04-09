@@ -1,6 +1,7 @@
+import re
 from calendar import monthrange
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -79,6 +80,18 @@ def get_timeseries_data(
 
     # Verify the user has access to the campaign this timeseries belongs to
     require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
+
+    ym_pattern = re.compile(r"^\d{4}(0[1-9]|1[0-2])$")
+    if (
+        not timeseries.start_ym
+        or not timeseries.end_ym
+        or not ym_pattern.match(timeseries.start_ym)
+        or not ym_pattern.match(timeseries.end_ym)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Timeseries has no valid date range configured (start_ym / end_ym must be YYYYMM format with valid month 01-12)",
+        )
 
     start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])
     end_year, end_month = int(timeseries.end_ym[:4]), int(timeseries.end_ym[4:6])

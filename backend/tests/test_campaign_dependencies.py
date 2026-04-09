@@ -8,24 +8,20 @@ from fastapi import HTTPException
 
 
 def _build_db(campaign_result, membership_result):
-    """Build a mock db where the first db.query().filter().first() returns
-    campaign_result and the second returns membership_result."""
-    call_results = [campaign_result, membership_result]
+    """Build a mock db where successive db.execute().scalar_one_or_none()
+    calls return campaign_result, then membership_result."""
+    results = [campaign_result, membership_result]
     call_index = {"i": 0}
 
-    def _query_side_effect(*_args):
+    def _execute_side_effect(*_args, **_kwargs):
         chain = MagicMock()
-
-        def _first():
-            i = call_index["i"]
-            call_index["i"] += 1
-            return call_results[i] if i < len(call_results) else None
-
-        chain.filter.return_value.first = _first
+        i = call_index["i"]
+        call_index["i"] += 1
+        chain.scalar_one_or_none.return_value = results[i] if i < len(results) else None
         return chain
 
     db = MagicMock()
-    db.query.side_effect = _query_side_effect
+    db.execute.side_effect = _execute_side_effect
     return db
 
 

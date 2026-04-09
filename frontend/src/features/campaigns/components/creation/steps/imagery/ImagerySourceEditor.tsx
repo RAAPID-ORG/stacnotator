@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { ImagerySource, CollectionItem } from './types';
-import { emptyManualCollection, emptyStacCollection, swap } from './types';
+import { emptyManualCollection, swap } from './types';
+import { CatalogBrowser } from './CatalogBrowser';
+import type { CatalogBrowserPreset } from './CatalogBrowser';
 import { CollectionEditor } from './CollectionEditor';
-import { StacGenerator } from './StacGenerator';
 import {
   IconTrash,
   IconChevronDown,
@@ -11,7 +12,6 @@ import {
   IconSettings,
   IconClock,
   IconPlus,
-  IconClose,
 } from '~/shared/ui/Icons';
 import { Modal } from '~/shared/ui/Modal';
 import { Tooltip } from './Tooltip';
@@ -20,8 +20,8 @@ interface ImagerySourceEditorProps {
   source: ImagerySource;
   onChange: (updates: Partial<ImagerySource>) => void;
   onRemove: () => void;
-  /** When set, auto-opens the StacGenerator with this preset pre-applied */
-  initialPresetId?: string | null;
+  /** When set, auto-opens the CatalogBrowser with this MPC preset pre-selected */
+  initialPreset?: CatalogBrowserPreset | null;
   /** Called when the initial preset has been consumed (so parent can clear it) */
   onPresetConsumed?: () => void;
 }
@@ -29,20 +29,22 @@ interface ImagerySourceEditorProps {
 export const ImagerySourceEditor = ({
   source,
   onChange,
-  onRemove,
-  initialPresetId,
+  onRemove: _onRemove,
+  initialPreset,
   onPresetConsumed,
 }: ImagerySourceEditorProps) => {
-  const [showStacGenerator, setShowStacGenerator] = useState(false);
+  const [showCatalogBrowser, setShowCatalogBrowser] = useState(false);
+  const [catalogBrowserMode, setCatalogBrowserMode] = useState<'single' | 'temporal'>('temporal');
   const [showNewCollectionPicker, setShowNewCollectionPicker] = useState(false);
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
 
-  // Auto-open StacGenerator when a preset source is created
+  // Auto-open CatalogBrowser when a preset source is created
   useEffect(() => {
-    if (initialPresetId) {
-      setShowStacGenerator(true);
+    if (initialPreset) {
+      setCatalogBrowserMode('temporal');
+      setShowCatalogBrowser(true);
     }
-  }, [initialPresetId]);
+  }, [initialPreset]);
 
   const vizNames = source.visualizations.map((v) => v.name);
 
@@ -63,16 +65,23 @@ export const ImagerySourceEditor = ({
     setEditingCollectionId(col.id);
   };
 
-  const addSingleStacCollection = () => {
-    const col = emptyStacCollection(vizNames);
-    onChange({ collections: [...source.collections, col] });
-    setShowNewCollectionPicker(false);
-    setEditingCollectionId(col.id);
-  };
+  const handleCatalogBrowserAdd = (collections: CollectionItem[]) => {
+    // Derive source-level visualizations from the stac_browser collection data
+    const firstCol = collections[0];
+    const newVizNames =
+      firstCol?.data.type === 'stac_browser' && firstCol.data.visualizations
+        ? firstCol.data.visualizations.map((v) => ({ name: v.name }))
+        : undefined;
 
-  const handleStacGenerate = (collections: CollectionItem[]) => {
-    onChange({ collections: [...source.collections, ...collections] });
-    setShowStacGenerator(false);
+    const updates: Partial<ImagerySource> = {
+      collections: [...source.collections, ...collections],
+    };
+    if (newVizNames && newVizNames.length > 0) {
+      updates.visualizations = newVizNames;
+    }
+    onChange(updates);
+    setShowCatalogBrowser(false);
+    onPresetConsumed?.();
   };
 
   const addVisualization = () => {
@@ -133,6 +142,11 @@ export const ImagerySourceEditor = ({
               onChange={(e) => onChange({ defaultZoom: Number(e.target.value) })}
               className="w-14 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
             />
+            {source.defaultZoom < 10 && (
+              <span className="text-[10px] text-amber-600">
+                Low zoom may be slow. Recommended: 10+
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-neutral-700 shrink-0">Crosshair</label>
@@ -210,7 +224,10 @@ export const ImagerySourceEditor = ({
 
         {/* Collections */}
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-neutral-700">Collections</h4>
+          <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
+            Collections
+            <Tooltip text="A collection is a time window of imagery (e.g. January 2024). Each collection contains slices (sub-periods like weeks) that annotators can switch between. Use 'Temporal Series' to auto-generate multiple collections from a date range, or 'Single Collection' to add one at a time." />
+          </h4>
 
           {/* Collection tiles: dashed "add" tile first, then existing collections */}
           <div className="flex flex-wrap gap-2">
@@ -229,12 +246,24 @@ export const ImagerySourceEditor = ({
                 (collection.slices.length > 0
                   ? `${collection.slices[0]?.startDate?.slice(0, 7) ?? ''} - ${collection.slices[collection.slices.length - 1]?.endDate?.slice(0, 7) ?? ''}`
                   : 'Untitled');
-              const typeLabel = collection.data.type === 'stac' ? 'STAC' : 'XYZ';
+              const typeLabel =
+                collection.data.type === 'stac'
+                  ? 'STAC'
+                  : collection.data.type === 'stac_browser'
+                    ? 'Catalog'
+                    : 'XYZ';
               return (
-                <button
+                <div
                   key={collection.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditingCollectionId(collection.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingCollectionId(collection.id);
+                    }
+                  }}
                   title="Click to configure"
                   className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
                     px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/5"
@@ -264,7 +293,7 @@ export const ImagerySourceEditor = ({
                   >
                     <IconTrash className="w-3 h-3" />
                   </button>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -274,47 +303,63 @@ export const ImagerySourceEditor = ({
       {/* New collection picker modal */}
       {showNewCollectionPicker && (
         <Modal title="Add Collection" onClose={() => setShowNewCollectionPicker(false)}>
-          <div className="p-3 space-y-1">
+          <div className="p-3 space-y-1.5">
+            <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
+              From STAC Catalog
+            </p>
             <button
               type="button"
               onClick={() => {
-                setShowStacGenerator(true);
+                setCatalogBrowserMode('temporal');
+                setShowCatalogBrowser(true);
                 setShowNewCollectionPicker(false);
               }}
               className="w-full text-left px-4 py-3.5 rounded-lg bg-brand-50 border border-brand-200 hover:bg-brand-100 cursor-pointer transition-colors"
             >
               <span className="text-sm font-semibold text-brand-700 flex items-center gap-1.5">
                 <IconStac className="w-3.5 h-3.5 text-brand-500" />
-                STAC Temporal Series
+                Temporal Series
                 <span className="ml-auto text-[10px] font-medium bg-brand-500 text-white px-1.5 py-0.5 rounded-full">
                   Recommended
                 </span>
               </span>
-              <p className="text-xs text-brand-600/70 mt-0.5">
-                Auto-generate multiple collections from a time range and period interval.
+              <p className="text-xs text-brand-600/70 mt-1">
+                Auto-generate multiple collections from a date range. Each collection covers a time
+                window (e.g. one month) and is split into slices (e.g. weeks) for annotators to
+                browse.
               </p>
             </button>
             <button
               type="button"
-              onClick={addSingleStacCollection}
-              className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
+              onClick={() => {
+                setCatalogBrowserMode('single');
+                setShowCatalogBrowser(true);
+                setShowNewCollectionPicker(false);
+              }}
+              className="w-full text-left px-4 py-3 rounded-lg border border-neutral-200 hover:border-brand-300 hover:bg-brand-50/30 cursor-pointer transition-colors"
             >
               <span className="text-sm font-medium text-neutral-800 flex items-center gap-1.5">
                 <IconStac className="w-3.5 h-3.5 text-neutral-500" />
-                Single STAC Collection
+                Single Collection
               </span>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Add one STAC collection with its own registration and search config.
+                Add a single collection with its own slices from a STAC catalog. Use this when you
+                need just one time window instead of a full temporal series.
               </p>
             </button>
+
+            <div className="border-t border-neutral-100 my-1.5" />
+            <p className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold px-1 pt-0.5 pb-1">
+              Manual
+            </p>
             <button
               type="button"
               onClick={addManualCollection}
               className="w-full text-left px-4 py-3 rounded-lg hover:bg-neutral-50 cursor-pointer transition-colors"
             >
-              <span className="text-sm font-medium text-neutral-800">Manual XYZ</span>
+              <span className="text-sm font-medium text-neutral-800">XYZ Tile URL</span>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Add a collection with direct XYZ tile URLs.
+                Provide a direct XYZ tile URL (e.g. from a custom tile server).
               </p>
             </button>
           </div>
@@ -342,15 +387,16 @@ export const ImagerySourceEditor = ({
         </Modal>
       )}
 
-      {showStacGenerator && (
-        <StacGenerator
-          vizNames={vizNames}
-          onGenerate={handleStacGenerate}
+      {showCatalogBrowser && (
+        <CatalogBrowser
+          initialMode="mosaic"
+          singleCollection={catalogBrowserMode === 'single'}
+          preset={initialPreset}
+          onAdd={handleCatalogBrowserAdd}
           onClose={() => {
-            setShowStacGenerator(false);
+            setShowCatalogBrowser(false);
             onPresetConsumed?.();
           }}
-          initialPresetId={initialPresetId}
         />
       )}
     </>

@@ -6,7 +6,8 @@ and S2 NDVI timeseries:
   2. Open-mode campaign (same region and imagery, no tasks)
 
 Usage:
-    python seed_dev_data.py              # Seed the database
+    python seed_dev_data.py              # Seed (local auth: auto-creates local user,
+                                         #        firebase auth: uses test UID)
     python seed_dev_data.py clear        # Clear seed data
     python seed_dev_data.py FIREBASE_UID # Seed with specific Firebase UID for initial user
 """
@@ -19,11 +20,12 @@ from shapely.geometry import box as shapely_box
 from sqlalchemy import insert, select
 
 from src.annotation.models import AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
 from src.auth.models import User, UserRole
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
 from src.campaigns.service import create_campaign
+from src.config import get_settings
 from src.database import SessionLocal
 from src.imagery.schemas import (
     CollectionStacConfigCreate,
@@ -78,22 +80,41 @@ CAMPAIGN_NAME = "Ukraine Dev Campaign"
 OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
 
 
-def _ensure_user(db, firebase_uid: str) -> User:
-    """Return existing user or create a new one with admin + approved roles."""
+def _ensure_user(db, firebase_uid: str | None = None) -> User:
+    """Return existing user or create a new one with admin + approved roles.
+
+    In local auth mode, creates the fixed local user (issuer="local",
+    external_uid="local-user") so that it matches the LocalAuthProvider.
+    """
+    settings = get_settings()
+    is_local = settings.AUTH_PROVIDER == "local"
+
+    if is_local:
+        issuer = "local"
+        external_uid = "local-user"
+        email = "local@localhost"
+        display_name = "Local Admin"
+    else:
+        issuer = "firebase"
+        external_uid = firebase_uid or "dev-test-uid"
+        email = f"dev-{external_uid}@test.com"
+        display_name = "Dev Test User"
+
     user = db.execute(
-        select(User).where(User.issuer == "firebase").where(User.external_uid == firebase_uid)
+        select(User).where(User.issuer == issuer).where(User.external_uid == external_uid)
     ).scalar_one_or_none()
 
     if not user:
-        logger.info("Creating user with Firebase UID: %s", firebase_uid)
+        logger.info("Creating user (%s/%s)", issuer, external_uid)
         user = User(
-            issuer="firebase",
-            external_uid=firebase_uid,
-            email=f"dev-{firebase_uid}@test.com",
-            display_name="Dev Test User",
+            issuer=issuer,
+            external_uid=external_uid,
+            email=email,
+            display_name=display_name,
         )
         db.add(user)
         db.flush()
+        db.add(UserRole(user_id=user.id, role=ROLE_USER))
         db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
         db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
         db.flush()
@@ -108,11 +129,12 @@ def _ensure_user(db, firebase_uid: str) -> User:
     return user
 
 
-def seed_dev_data(firebase_uid: str = None):
+def seed_dev_data(firebase_uid: str | None = None):
     """Seed development data into the database.
 
     Args:
-        firebase_uid: Optional Firebase UID. If not provided, uses a test UID.
+        firebase_uid: Optional Firebase UID. Ignored in local auth mode.
+                      If not provided in firebase mode, uses a test UID.
     """
     db = SessionLocal()
     try:
@@ -127,10 +149,6 @@ def seed_dev_data(firebase_uid: str = None):
                 logger.info("Campaign '%s' already exists - deleting and recreating...", name)
                 db.delete(existing)
         db.commit()
-
-        if firebase_uid is None:
-            firebase_uid = "dev-test-uid"
-            logger.info("No Firebase UID provided, using test UID: %s", firebase_uid)
 
         user = _ensure_user(db, firebase_uid)
 

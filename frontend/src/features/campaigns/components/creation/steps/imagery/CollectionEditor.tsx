@@ -1,9 +1,17 @@
 import { useState } from 'react';
-import type { CollectionItem, ImagerySlice, VisualizationUrl, StacCollectionData } from './types';
-import { emptySlice, sliceDateRange, createId } from './types';
+import type {
+  CollectionItem,
+  ImagerySlice,
+  VisualizationUrl,
+  StacCollectionData,
+  StacBrowserCollectionData,
+} from './types';
+import { emptySlice, sliceDateRange } from './types';
 import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
 import { AutoSizeTextarea } from '~/shared/ui/AutoSizeTextarea';
 import { Tooltip } from './Tooltip';
+import { VizParamsInlineEditor } from './VizParamsInlineEditor';
+import { StacQueryEditor } from './StacQueryEditor';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -38,7 +46,12 @@ export const CollectionEditor = ({
 }: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
 
-  const typeLabel = collection.data.type === 'stac' ? 'STAC' : 'XYZ';
+  const typeLabel =
+    collection.data.type === 'stac'
+      ? 'STAC'
+      : collection.data.type === 'stac_browser'
+        ? 'Catalog'
+        : 'XYZ';
 
   const updateSlice = (sliceId: string, updates: Partial<ImagerySlice>) => {
     onChange({
@@ -62,8 +75,27 @@ export const CollectionEditor = ({
   };
 
   const addSlice = () => {
+    const newSlice = emptySlice();
+    if (collection.data.type === 'manual') {
+      newSlice.vizUrls = vizNames.map((name) => ({ vizName: name, url: '' }));
+    }
     onChange({
-      slices: [...collection.slices, emptySlice()],
+      slices: [...collection.slices, newSlice],
+    });
+  };
+
+  const updateSliceVizUrl = (sliceId: string, vizName: string, url: string) => {
+    onChange({
+      slices: collection.slices.map((s) => {
+        if (s.id !== sliceId) return s;
+        const existing = s.vizUrls ?? [];
+        const idx = existing.findIndex((v) => v.vizName === vizName);
+        const updated: VisualizationUrl[] =
+          idx >= 0
+            ? existing.map((v, i) => (i === idx ? { ...v, url } : v))
+            : [...existing, { vizName, url }];
+        return { ...s, vizUrls: updated };
+      }),
     });
   };
 
@@ -243,6 +275,80 @@ export const CollectionEditor = ({
                       />
                     </div>
                   </div>
+                  {/* Cover slice visualization overrides */}
+                  {isCover &&
+                    collection.data.type === 'stac_browser' &&
+                    (collection.data as StacBrowserCollectionData).coverVisualizations &&
+                    (collection.data as StacBrowserCollectionData).coverVisualizations!.length >
+                      0 && (
+                      <div className="mt-2 space-y-1.5 border-t border-brand-100 pt-1.5">
+                        <label className="text-[11px] text-brand-700 font-medium">
+                          Cover Visualization Overrides
+                        </label>
+                        {(collection.data as StacBrowserCollectionData).coverVisualizations!.map(
+                          (cv, cvIdx) => (
+                            <div
+                              key={cvIdx}
+                              className="p-1.5 rounded border border-brand-100 bg-white space-y-1"
+                            >
+                              <span className="text-xs font-medium text-brand-700">{cv.name}</span>
+                              <VizParamsInlineEditor
+                                vizParams={cv.vizParams}
+                                onChange={(key, value) => {
+                                  const sb = collection.data as StacBrowserCollectionData;
+                                  const newCoverVizs = sb.coverVisualizations!.map((v, i) =>
+                                    i === cvIdx
+                                      ? { ...v, vizParams: { ...v.vizParams, [key]: value } }
+                                      : v
+                                  );
+                                  onChange({
+                                    data: { ...sb, coverVisualizations: newCoverVizs },
+                                  });
+                                }}
+                                showCompositing={
+                                  (collection.data as StacBrowserCollectionData).mode === 'mosaic'
+                                }
+                              />
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  {/* Per-slice visualization URLs for manual XYZ collections */}
+                  {collection.data.type === 'manual' && vizNames.length > 0 && (
+                    <div className="mt-2 space-y-1 border-t border-neutral-100 pt-1.5">
+                      {vizNames.map((vizName) => {
+                        const url = slice.vizUrls?.find((v) => v.vizName === vizName)?.url ?? '';
+                        const missingParams = ['{z}', '{x}', '{y}'].filter((p) => !url.includes(p));
+                        return (
+                          <div key={vizName} className="space-y-0.5">
+                            <label className="text-[11px] text-neutral-500">
+                              {vizName || '(unnamed)'} URL
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="https://.../tiles/{z}/{x}/{y}"
+                              value={url}
+                              onChange={(e) => updateSliceVizUrl(slice.id, vizName, e.target.value)}
+                              className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                            />
+                            {url && missingParams.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {missingParams.map((p) => (
+                                  <span
+                                    key={p}
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
+                                  >
+                                    {p}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -270,7 +376,8 @@ export const CollectionEditor = ({
                   const args = body?.filter?.args;
                   if (Array.isArray(args)) {
                     const ccIdx = args.findIndex(
-                      (a: any) => a?.args?.[0]?.property === 'eo:cloud_cover'
+                      (a: { args?: { property?: string }[] }) =>
+                        a?.args?.[0]?.property === 'eo:cloud_cover'
                     );
                     if (ccIdx >= 0 && val !== '') {
                       args[ccIdx].args[1] = num;
@@ -349,54 +456,190 @@ export const CollectionEditor = ({
               );
             })()}
 
-          {/* Visualization URLs */}
-          <div className="space-y-2">
-            <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-              Visualization URLs
-              <Tooltip
-                text={
-                  collection.data.type === 'stac'
-                    ? 'Tile URL templates. Must include {searchId}, {z}, {x}, {y} placeholders.'
-                    : 'XYZ tile URLs. Use {z}, {x}, {y} placeholders.'
-                }
-              />
-            </label>
-            {vizNames.map((vizName) => {
-              const url = getVizUrl(vizName);
-              const isStac = collection.data.type === 'stac';
-              const missingParams = isStac
-                ? ['{searchId}', '{z}', '{x}', '{y}'].filter((p) => !url.includes(p))
-                : ['{z}', '{x}', '{y}'].filter((p) => !url.includes(p));
+          {/* STAC Browser parameters */}
+          {collection.data.type === 'stac_browser' &&
+            (() => {
+              const sb = collection.data as StacBrowserCollectionData;
+              const updateSb = (updates: Partial<StacBrowserCollectionData>) =>
+                onChange({ data: { ...sb, ...updates } });
+              const updateVizParam = (vizIdx: number, key: string, value: unknown) => {
+                const newVizs = sb.visualizations.map((v, i) =>
+                  i === vizIdx ? { ...v, vizParams: { ...v.vizParams, [key]: value } } : v
+                );
+                updateSb({ visualizations: newVizs });
+              };
+
               return (
-                <div key={vizName} className="space-y-0.5">
-                  <label className="text-[11px] text-neutral-500">{vizName || '(unnamed)'}</label>
-                  <input
-                    type="text"
-                    placeholder={
-                      isStac
-                        ? 'https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?...'
-                        : 'https://.../tiles/{z}/{x}/{y}'
-                    }
-                    value={url}
-                    onChange={(e) => updateVizUrl(vizName, e.target.value)}
-                    className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
-                  />
-                  {url && missingParams.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      {missingParams.map((p) => (
-                        <span
-                          key={p}
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
-                        >
-                          ✗ {p}
+                <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">
+                      STAC Configuration
+                    </span>
+                    {sb.isMpc && (
+                      <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+                        MPC
+                      </span>
+                    )}
+                    <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1.5 py-0.5 rounded-full font-medium">
+                      {sb.mode === 'single-item' ? 'Single Item' : 'Mosaic'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-700">Catalog URL</label>
+                      <input
+                        type="url"
+                        value={sb.catalogUrl}
+                        onChange={(e) => updateSb({ catalogUrl: e.target.value })}
+                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-700">STAC Collection ID</label>
+                      <input
+                        type="text"
+                        value={sb.stacCollectionId}
+                        onChange={(e) => updateSb({ stacCollectionId: e.target.value })}
+                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cloud Cover */}
+                  {sb.maxCloudCover !== undefined && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-neutral-700 flex items-center gap-1">
+                        Max Cloud Cover (%)
+                        <Tooltip text="Maximum cloud cover percentage for filtering scenes." />
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={sb.maxCloudCover}
+                          onChange={(e) => updateSb({ maxCloudCover: Number(e.target.value) })}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-neutral-600 w-8 text-right">
+                          {sb.maxCloudCover}%
                         </span>
-                      ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Custom Search Query */}
+                  {sb.mode === 'mosaic' && (
+                    <div className="mt-2">
+                      <StacQueryEditor
+                        value={sb.searchQuery ?? null}
+                        onChange={(query) => updateSb({ searchQuery: query ?? undefined })}
+                        autoQuery={{
+                          collections: [sb.stacCollectionId],
+                          filter: {
+                            op: 'and',
+                            args: [
+                              {
+                                op: 'anyinteracts',
+                                args: [
+                                  { property: 'datetime' },
+                                  { interval: ['{sliceStart}', '{sliceEnd}'] },
+                                ],
+                              },
+                              ...((sb.maxCloudCover ?? 100) < 100
+                                ? [
+                                    {
+                                      op: '<=',
+                                      args: [{ property: 'eo:cloud_cover' }, sb.maxCloudCover],
+                                    },
+                                  ]
+                                : []),
+                            ],
+                          },
+                          filterLang: 'cql2-json',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Visualization parameters - tabs synced with source vizNames */}
+                  {vizNames.length > 0 && (
+                    <div className="space-y-2 mt-2">
+                      <label className="text-xs text-neutral-700 font-medium">
+                        Visualization Parameters
+                      </label>
+                      {vizNames.map((name) => {
+                        const vizIdx = sb.visualizations.findIndex((v) => v.name === name);
+                        const viz = vizIdx !== -1 ? sb.visualizations[vizIdx] : null;
+                        return (
+                          <div
+                            key={name}
+                            className="p-2 rounded border border-neutral-200 bg-white space-y-1.5"
+                          >
+                            <span className="text-xs font-medium text-neutral-800">
+                              {name || '(unnamed)'}
+                            </span>
+                            {viz ? (
+                              <VizParamsInlineEditor
+                                vizParams={viz.vizParams}
+                                onChange={(key, value) => updateVizParam(vizIdx, key, value)}
+                                showCompositing={sb.mode === 'mosaic'}
+                              />
+                            ) : (
+                              <p className="text-[10px] text-neutral-400 italic">
+                                No parameters configured. Re-add this collection from the catalog to
+                                set up viz params.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
               );
-            })}
-          </div>
+            })()}
+
+          {/* Visualization URLs - only for old STAC flow */}
+          {collection.data.type === 'stac' && (
+            <div className="space-y-2">
+              <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                Visualization URLs
+                <Tooltip text="Tile URL templates. Must include {searchId}, {z}, {x}, {y} placeholders." />
+              </label>
+              {vizNames.map((vizName) => {
+                const url = getVizUrl(vizName);
+                const missingParams = ['{searchId}', '{z}', '{x}', '{y}'].filter(
+                  (p) => !url.includes(p)
+                );
+                return (
+                  <div key={vizName} className="space-y-0.5">
+                    <label className="text-[11px] text-neutral-500">{vizName || '(unnamed)'}</label>
+                    <input
+                      type="text"
+                      placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
+                      value={url}
+                      onChange={(e) => updateVizUrl(vizName, e.target.value)}
+                      className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                    />
+                    {url && missingParams.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {missingParams.map((p) => (
+                          <span
+                            key={p}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
+                          >
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

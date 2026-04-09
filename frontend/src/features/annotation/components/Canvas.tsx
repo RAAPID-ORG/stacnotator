@@ -151,11 +151,20 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
   const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
 
-  // Visualization name for header
-  const allVizEntries = (campaign?.imagery_sources ?? []).flatMap((src) =>
-    src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
-  );
-  const activeVizEntry = allVizEntries[selectedLayerIndex] ?? allVizEntries[0] ?? null;
+  // Visualization name for header (scoped to active source)
+  const activeSourceVizName = (() => {
+    if (!activeSource || !campaign) return null;
+    let offset = 0;
+    for (const s of campaign.imagery_sources) {
+      if (s.id === activeSource.id) break;
+      offset += s.visualizations.length;
+    }
+    const idx = Math.max(0, selectedLayerIndex - offset);
+    return (
+      activeSource.visualizations[Math.min(idx, activeSource.visualizations.length - 1)]?.name ??
+      null
+    );
+  })();
 
   // Measure container width
   useEffect(() => {
@@ -186,7 +195,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
 
   // In open mode, only pass timeseries point to the chart when the user explicitly
-  // clicked with the timeseries tool — never auto-fetch for the viewport center.
+  // clicked with the timeseries tool - never auto-fetch for the viewport center.
   // In task mode, latLon (task centroid) is always the chart target.
   const timeseriesLatLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) return timeseriesPoint;
@@ -205,7 +214,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderMainHeader = () => {
     const currentLayerName = showBasemap
       ? (campaign.basemaps.find((b) => `basemap-${b.id}` === selectedBasemapId)?.name ?? 'Basemap')
-      : activeVizEntry?.vizName || 'Layer';
+      : activeSourceVizName || 'Layer';
 
     return (
       <div className="flex items-center justify-between">
@@ -243,9 +252,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     <div className="flex flex-col gap-0">
       <span>Minimap</span>
       {latLon && (
-        <div className="flex items-center gap-1.5 font-normal text-neutral-900 text-[10px] -mt-1">
-          <span>
-            lat: {latLon.lat.toFixed(5)} | lon: {latLon.lon.toFixed(5)}
+        <div className="flex items-center gap-1.5 font-normal text-neutral-500 text-[11px]">
+          <span className="tabular-nums">
+            {latLon.lat.toFixed(5)}, {latLon.lon.toFixed(5)}
           </span>
           <button
             onClick={() => copyToClipboard(`${latLon.lat},${latLon.lon}`)}
@@ -288,7 +297,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           gridConfig={{
             cols: 60,
             rowHeight: 15,
-            margin: [4, 4],
+            margin: [6, 6],
           }}
           dragConfig={{
             enabled: isEditingLayout,
@@ -378,7 +387,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
-                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50`}
+                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50 ${isActiveCol ? '!bg-brand-500 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
                 >
                   {collection.name}

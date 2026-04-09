@@ -28,7 +28,7 @@ export const TimeseriesTab: React.FC<Props> = ({
   setDeleteConfirm,
   saving,
   campaignName,
-  imagery,
+  imagery: _imagery,
   campaignMode,
   campaignSettings,
 }) => {
@@ -36,11 +36,30 @@ export const TimeseriesTab: React.FC<Props> = ({
     <div id="tab-timeseries" role="tabpanel" className="space-y-3">
       <div className="bg-white rounded-lg border border-neutral-300 p-6">
         <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Timeseries</h2>
-        <p className="text-sm text-neutral-500 mb-4">
+        <p className="text-sm text-neutral-500 mb-3">
           Time series show how a location changes over time using spectral indices (e.g. NDVI,
           NDWI). They are displayed as interactive charts alongside imagery during annotation to
           provide temporal context.
         </p>
+        <div className="flex items-start gap-2.5 px-4 py-3 mb-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+          <svg
+            className="w-5 h-5 shrink-0 mt-0.5 text-blue-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
+            />
+          </svg>
+          <span>
+            Currently only NDVI is supported. Custom band combinations will be available in a future
+            update. If you need a different index now, please reach out to the maintainers.
+          </span>
+        </div>
         <StepAddTimeseries
           form={
             {

@@ -53,6 +53,8 @@ export const MainAnnotationsContainer = ({
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
+  const preloadingEnabled = useMapStore((s) => s.preloadingEnabled);
+  const togglePreloading = useMapStore((s) => s.togglePreloading);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [_timelineDragging, setTimelineDragging] = useState(false);
@@ -178,7 +180,6 @@ export const MainAnnotationsContainer = ({
   // Open mode labels
   const extendedLabels = useMemo(
     () => extendLabelsWithMetadata(campaign?.settings.labels ?? []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [campaign?.settings.labels]
   );
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
@@ -260,255 +261,240 @@ export const MainAnnotationsContainer = ({
         {/* Top-right controls for task mode */}
         {isTaskMode && (
           <div
-            className="absolute top-2 right-2 z-[1000] flex gap-2 items-center"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
             data-tour="map-controls"
           >
-            {mapLayers.length > 0 && (
-              <LayerSelector
-                layers={mapLayers}
-                selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                onLayerSelect={handleLayerSelect}
-              />
-            )}
+            {/* Selectors row */}
+            <div className="flex gap-1.5 items-center">
+              {mapLayers.length > 0 && (
+                <LayerSelector
+                  layers={mapLayers}
+                  selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
+                  onLayerSelect={handleLayerSelect}
+                />
+              )}
 
-            {/* Collection selector */}
-            {viewCollections.length > 1 && (
-              <select
-                value={activeCollectionId ?? ''}
-                onChange={(e) => setActiveCollectionId(Number(e.target.value))}
-                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select collection (shift + a/d)"
-              >
-                {viewCollections.map((r) => (
-                  <option key={r.collection_id} value={r.collection_id}>
-                    {r.collection!.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Slice selector */}
-            {slices.length > 1 && (
-              <select
-                value={activeSliceIndex}
-                onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
-                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select time slice (a/d)"
-              >
-                {slices.map((slice, idx) => {
-                  const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
-                  return (
-                    <option
-                      key={idx}
-                      value={idx}
-                      disabled={isEmpty}
-                      style={isEmpty ? { color: '#aaa' } : undefined}
-                    >
-                      {slice.name}
-                      {isEmpty ? ' (empty)' : ''}
+              {viewCollections.length > 1 && (
+                <select
+                  value={activeCollectionId ?? ''}
+                  onChange={(e) => setActiveCollectionId(Number(e.target.value))}
+                  className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
+                  title="Select collection (shift + a/d)"
+                >
+                  {viewCollections.map((r) => (
+                    <option key={r.collection_id} value={r.collection_id}>
+                      {r.collection!.name}
                     </option>
-                  );
-                })}
-              </select>
-            )}
+                  ))}
+                </select>
+              )}
 
-            <button
-              onClick={triggerRefocus}
-              className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
-              title="Recenter map (Space)"
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
-              </svg>
-            </button>
-
-            <button
-              onClick={toggleCrosshair}
-              className={`px-2 py-1.5 bg-white rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer ${showCrosshair ? 'text-neutral-900' : 'text-neutral-400'}`}
-              title={showCrosshair ? 'Hide crosshair (O)' : 'Show crosshair (O)'}
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <circle cx="10" cy="10" r="1.5" />
-                <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            </button>
-
-            {windowCollections.length > 1 && (
-              <button
-                onClick={toggleViewSync}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={
-                  viewSyncEnabled
-                    ? 'Unlink (sync) small windows from main map pan/zoom (L)'
-                    : 'Link (sync) small windows to main map pan/zoom (L)'
-                }
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {slices.length > 1 && (
+                <select
+                  value={activeSliceIndex}
+                  onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+                  className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
+                  title="Select time slice (a/d)"
                 >
-                  {viewSyncEnabled ? (
-                    <>
-                      <rect x="1" y="3" width="7" height="6" rx="1" />
-                      <rect x="12" y="11" width="7" height="6" rx="1" />
-                      <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
-                      <path d="M9 11l2-2" />
-                    </>
-                  ) : (
-                    <>
-                      <rect x="1" y="3" width="7" height="6" rx="1" />
-                      <rect x="12" y="11" width="7" height="6" rx="1" />
-                      <path d="M8 8l0.5 0.5" />
-                      <path d="M11.5 11.5l0.5 0.5" />
-                      <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
-                    </>
-                  )}
+                  {slices.map((slice, idx) => {
+                    const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
+                    return (
+                      <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
+                        {slice.name}
+                        {isEmpty ? ' (empty)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            </div>
+
+            {/* Vertical icon buttons */}
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={triggerRefocus}
+                className="p-1.5 bg-white/95 backdrop-blur-sm text-neutral-600 rounded-md border border-white/60 shadow-sm hover:bg-white hover:text-neutral-800 transition-colors flex items-center justify-center cursor-pointer"
+                title="Recenter map (Space)"
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 3C10.5523 3 11 3.44772 11 4V5.07089C13.8377 5.50523 16 7.94291 16 10.9V11H17C17.5523 11 18 11.4477 18 12C18 12.5523 17.5523 13 17 13H16V13.1C16 16.0571 13.8377 18.4948 11 18.9291V20C11 20.5523 10.5523 21 10 21C9.44772 21 9 20.5523 9 20V18.9291C6.16229 18.4948 4 16.0571 4 13.1V13H3C2.44772 13 2 12.5523 2 12C2 11.4477 2.44772 11 3 11H4V10.9C4 7.94291 6.16229 5.50523 9 5.07089V4C9 3.44772 9.44772 3 10 3ZM10 7C7.79086 7 6 8.79086 6 11V13C6 15.2091 7.79086 17 10 17C12.2091 17 14 15.2091 14 13V11C14 8.79086 12.2091 7 10 7Z" />
                 </svg>
               </button>
-            )}
 
-            {campaign.time_series.length > 0 && (
               <button
-                onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center cursor-pointer ${activeTool === 'timeseries' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}
-                title={
-                  activeTool === 'timeseries'
-                    ? 'Deactivate timeseries probe'
-                    : 'Activate timeseries probe'
-                }
+                onClick={toggleCrosshair}
+                className={`p-1.5 bg-white/95 backdrop-blur-sm rounded-md border border-white/60 shadow-sm hover:bg-white transition-colors flex items-center justify-center cursor-pointer ${showCrosshair ? 'text-neutral-700 hover:text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                title={showCrosshair ? 'Hide crosshair (O)' : 'Show crosshair (O)'}
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <circle cx="10" cy="10" r="1.5" />
+                  <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+              </button>
+
+              {windowCollections.length > 1 && (
+                <button
+                  onClick={toggleViewSync}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    viewSyncEnabled
+                      ? 'Unlink (sync) small windows from main map pan/zoom. Use this if you internet connection is slow. (L)'
+                      : 'Link (sync) small windows to main map pan/zoom (L)'
+                  }
                 >
-                  <polyline
-                    points="2,16 5,10 8,12 11,6 14,9 17,3"
-                    strokeLinejoin="round"
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
-                  />
-                  <circle cx="14" cy="14" r="4" fill="none" />
-                  <line x1="17" y1="17" x2="19" y2="19" />
-                </svg>
-              </button>
-            )}
+                    strokeLinejoin="round"
+                  >
+                    {viewSyncEnabled ? (
+                      <>
+                        <rect x="1" y="3" width="7" height="6" rx="1" />
+                        <rect x="12" y="11" width="7" height="6" rx="1" />
+                        <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
+                        <path d="M9 11l2-2" />
+                      </>
+                    ) : (
+                      <>
+                        <rect x="1" y="3" width="7" height="6" rx="1" />
+                        <rect x="12" y="11" width="7" height="6" rx="1" />
+                        <path d="M8 8l0.5 0.5" />
+                        <path d="M11.5 11.5l0.5 0.5" />
+                        <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+              )}
+
+              {isTaskMode && (
+                <button
+                  onClick={togglePreloading}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    preloadingEnabled
+                      ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading)'
+                      : 'Enable tile preloading (prefetches tiles for faster navigation)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 2v4M10 14v4" />
+                    <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
+                    <path d="M2 10h4M14 10h4" />
+                    {!preloadingEnabled && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
+                  </svg>
+                </button>
+              )}
+
+              {campaign.time_series.length > 0 && (
+                <button
+                  onClick={() => setActiveTool(activeTool === 'timeseries' ? 'pan' : 'timeseries')}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${activeTool === 'timeseries' ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600' : 'bg-white/95 text-neutral-600 border-white/60 hover:bg-white hover:text-neutral-800'}`}
+                  title={
+                    activeTool === 'timeseries'
+                      ? 'Deactivate timeseries probe'
+                      : 'Activate timeseries probe: Pick a point on the map to load the timeseries for that location (T)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <polyline
+                      points="2,16 5,10 8,12 11,6 14,9 17,3"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="14" cy="14" r="4" fill="none" />
+                    <line x1="17" y1="17" x2="19" y2="19" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
         {isOpenMode && (
           <div
-            className="absolute top-2 right-2 z-[1000] flex gap-2 items-center"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
             data-tour="map-controls"
           >
-            {mapLayers.length > 0 && (
-              <LayerSelector
-                layers={mapLayers}
-                selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                onLayerSelect={handleLayerSelect}
-              />
-            )}
+            {/* Selectors row */}
+            <div className="flex gap-1.5 items-center">
+              {mapLayers.length > 0 && (
+                <LayerSelector
+                  layers={mapLayers}
+                  selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
+                  onLayerSelect={handleLayerSelect}
+                />
+              )}
 
-            {/* Collection selector */}
-            {viewCollections.length > 1 && (
-              <select
-                value={activeCollectionId ?? ''}
-                onChange={(e) => setActiveCollectionId(Number(e.target.value))}
-                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select collection"
-              >
-                {viewCollections.map((r) => (
-                  <option key={r.collection_id} value={r.collection_id}>
-                    {r.collection!.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* Slice selector */}
-            {slices.length > 1 && (
-              <select
-                value={activeSliceIndex}
-                onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
-                className="px-2 py-1.5 bg-white text-neutral-900 text-xs font-medium rounded shadow border border-neutral-300 focus:outline-none cursor-pointer appearance-none pr-6 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23374151%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center]"
-                title="Select time slice"
-              >
-                {slices.map((slice, idx) => {
-                  const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
-                  return (
-                    <option
-                      key={idx}
-                      value={idx}
-                      disabled={isEmpty}
-                      style={isEmpty ? { color: '#aaa' } : undefined}
-                    >
-                      {slice.name}
-                      {isEmpty ? ' (empty)' : ''}
+              {viewCollections.length > 1 && (
+                <select
+                  value={activeCollectionId ?? ''}
+                  onChange={(e) => setActiveCollectionId(Number(e.target.value))}
+                  className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
+                  title="Select collection"
+                >
+                  {viewCollections.map((r) => (
+                    <option key={r.collection_id} value={r.collection_id}>
+                      {r.collection!.name}
                     </option>
-                  );
-                })}
-              </select>
-            )}
+                  ))}
+                </select>
+              )}
 
-            <button
-              onClick={() => openModeMapRef.current?.fitAnnotations()}
-              className="px-2 py-1.5 bg-white text-neutral-900 rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer"
-              title="Fit view to all annotations (Space)"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="3" width="14" height="14" rx="1" />
-                <path d="M3 7h14M3 13h14M7 3v14M13 3v14" strokeWidth="1" opacity="0.4" />
-                <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
+              {slices.length > 1 && (
+                <select
+                  value={activeSliceIndex}
+                  onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+                  className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
+                  title="Select time slice"
+                >
+                  {slices.map((slice, idx) => {
+                    const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
+                    return (
+                      <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
+                        {slice.name}
+                        {isEmpty ? ' (empty)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            </div>
 
-            <button
-              onClick={toggleCrosshair}
-              className={`px-2 py-1.5 bg-white rounded shadow hover:bg-neutral-50 transition-colors flex items-center cursor-pointer ${showCrosshair ? 'text-neutral-900' : 'text-neutral-400'}`}
-              title={showCrosshair ? 'Hide crosshair' : 'Show crosshair'}
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <circle cx="10" cy="10" r="1.5" />
-                <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            </button>
-
-            {windowCollections.length > 1 && (
+            {/* Vertical icon buttons */}
+            <div className="flex flex-col gap-1.5">
               <button
-                onClick={toggleViewSync}
-                className={`px-2 py-1.5 rounded shadow transition-colors flex items-center gap-1 cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-white text-neutral-400 hover:bg-neutral-50'}`}
-                title={
-                  viewSyncEnabled
-                    ? 'Unlink (sync) small windows from main map pan/zoom (L)'
-                    : 'Link (sync) small windows to main map pan/zoom (L)'
-                }
+                onClick={() => openModeMapRef.current?.fitAnnotations()}
+                className="p-1.5 bg-white/95 backdrop-blur-sm text-neutral-600 rounded-md border border-white/60 shadow-sm hover:bg-white hover:text-neutral-800 transition-colors flex items-center justify-center cursor-pointer"
+                title="Fit view to all annotations (Space)"
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="16"
+                  height="16"
                   viewBox="0 0 20 20"
                   fill="none"
                   stroke="currentColor"
@@ -516,25 +502,94 @@ export const MainAnnotationsContainer = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  {viewSyncEnabled ? (
-                    <>
-                      <rect x="1" y="3" width="7" height="6" rx="1" />
-                      <rect x="12" y="11" width="7" height="6" rx="1" />
-                      <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
-                      <path d="M9 11l2-2" />
-                    </>
-                  ) : (
-                    <>
-                      <rect x="1" y="3" width="7" height="6" rx="1" />
-                      <rect x="12" y="11" width="7" height="6" rx="1" />
-                      <path d="M8 8l0.5 0.5" />
-                      <path d="M11.5 11.5l0.5 0.5" />
-                      <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
-                    </>
-                  )}
+                  <rect x="3" y="3" width="14" height="14" rx="1" />
+                  <path d="M3 7h14M3 13h14M7 3v14M13 3v14" strokeWidth="1" opacity="0.4" />
+                  <circle cx="10" cy="10" r="2.5" fill="currentColor" stroke="none" />
                 </svg>
               </button>
-            )}
+
+              <button
+                onClick={toggleCrosshair}
+                className={`p-1.5 bg-white/95 backdrop-blur-sm rounded-md border border-white/60 shadow-sm hover:bg-white transition-colors flex items-center justify-center cursor-pointer ${showCrosshair ? 'text-neutral-700 hover:text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                title={showCrosshair ? 'Hide crosshair' : 'Show crosshair'}
+              >
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <circle cx="10" cy="10" r="1.5" />
+                  <path d="M10 2V6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M10 14V18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M2 10H6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                  <path d="M14 10H18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+              </button>
+
+              {windowCollections.length > 1 && (
+                <button
+                  onClick={toggleViewSync}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    viewSyncEnabled
+                      ? 'Unlink (sync) small windows from main map pan/zoom (L)'
+                      : 'Link (sync) small windows to main map pan/zoom (L)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {viewSyncEnabled ? (
+                      <>
+                        <rect x="1" y="3" width="7" height="6" rx="1" />
+                        <rect x="12" y="11" width="7" height="6" rx="1" />
+                        <path d="M8 8l1.5 1.5M10.5 10.5L12 12" />
+                        <path d="M9 11l2-2" />
+                      </>
+                    ) : (
+                      <>
+                        <rect x="1" y="3" width="7" height="6" rx="1" />
+                        <rect x="12" y="11" width="7" height="6" rx="1" />
+                        <path d="M8 8l0.5 0.5" />
+                        <path d="M11.5 11.5l0.5 0.5" />
+                        <line x1="9" y1="12" x2="11" y2="9" strokeDasharray="1.5 1.5" />
+                      </>
+                    )}
+                  </svg>
+                </button>
+              )}
+
+              {isTaskMode && (
+                <button
+                  onClick={togglePreloading}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  title={
+                    preloadingEnabled
+                      ? 'Disable tile preloading (prefetches tiles for faster navigation)'
+                      : 'Enable tile preloading (prefetches tiles for faster navigation)'
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M10 2v4M10 14v4" />
+                    <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
+                    <path d="M2 10h4M14 10h4" />
+                    {!preloadingEnabled && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         )}
 

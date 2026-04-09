@@ -33,7 +33,7 @@ const KEYBOARD_SHORTCUTS = [
 /**
  * Task filter panel component
  */
-const TaskFilterPanel = ({ onClose }: { onClose: () => void }) => {
+const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const allTasks = useTaskStore((s) => s.allTasks);
@@ -383,7 +383,7 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-4 py-0 bg-white border-b border-gray-200 flex-shrink-0"
+      className="flex items-center justify-between px-4 py-0.5 bg-white border-b border-neutral-200 flex-shrink-0"
     >
       <div className="flex items-center gap-2">
         {/* Views Dropdown */}
@@ -403,9 +403,9 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
           {showImageryDropdown && (
-            <div className="absolute top-full left-0 bg-white border border-neutral-300 rounded-b shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
+            <div className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
               {views.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-gray-500">No views available</div>
+                <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>
               ) : (
                 views.map((view) => (
                   <button
@@ -550,7 +550,7 @@ export const AnnotationToolbar = () => {
                 type="button"
               >
                 <div className="font-medium">GeoJSON</div>
-                <div className="text-[10px] text-gray-500">FeatureCollection (.geojson)</div>
+                <div className="text-[10px] text-neutral-500">FeatureCollection (.geojson)</div>
               </button>
               <button
                 onClick={() => handleExport('csv')}
@@ -558,7 +558,7 @@ export const AnnotationToolbar = () => {
                 type="button"
               >
                 <div className="font-medium">CSV</div>
-                <div className="text-[10px] text-gray-500">Tabular export (.csv)</div>
+                <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
               </button>
             </div>
           )}
@@ -571,9 +571,24 @@ export const AnnotationToolbar = () => {
           <button
             onClick={() => setIsEditingLayout(true)}
             title="Edit canvas layout and windows"
-            className="flex items-center px-3 py-1.5 text-sm text-brand-800 hover:bg-neutral-100 rounded transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
           >
-            ✎ Edit Layout
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            Edit Layout
           </button>
         ) : (
           <div className="flex items-center gap-1 bg-neutral-50 rounded px-1">
@@ -597,7 +612,7 @@ export const AnnotationToolbar = () => {
                     type="button"
                   >
                     <div className="font-medium">Save as Personal</div>
-                    <div className="text-[10px] text-gray-500">Only for you</div>
+                    <div className="text-[10px] text-neutral-500">Only for you</div>
                   </button>
                   {isCampaignAdmin && (
                     <button
@@ -606,7 +621,7 @@ export const AnnotationToolbar = () => {
                       type="button"
                     >
                       <div className="font-medium">Save as Default</div>
-                      <div className="text-[10px] text-gray-500">For all users</div>
+                      <div className="text-[10px] text-neutral-500">For all users</div>
                     </button>
                   )}
                 </div>

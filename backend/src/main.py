@@ -11,6 +11,7 @@ from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
+from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
 from src.utils import generate_unique_id, initialize_earth_engine
 
@@ -62,3 +63,5 @@ app.include_router(annotations_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
+app.include_router(tiling_router, prefix="/api")
+# Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

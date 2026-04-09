@@ -19,4 +19,10 @@ export interface AuthAdapter {
 
   /** Optional: register a new user (email/password). */
   register?(email: string, password: string): Promise<string>;
+
+  /** Optional: send a password-reset email. */
+  sendPasswordResetEmail?(email: string): Promise<void>;
+
+  /** Optional: change the current user's password (requires recent auth). */
+  changePassword?(currentPassword: string, newPassword: string): Promise<void>;
 }

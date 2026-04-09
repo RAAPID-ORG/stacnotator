@@ -174,7 +174,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   },
 
   setSelectedViewId: (id) => {
-    const { campaign } = get();
+    const { campaign, selectedViewId: previousViewId } = get();
     if (!campaign) return;
 
     const view = campaign.imagery_views.find((v) => v.id === id);
@@ -186,9 +186,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       view?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
     const mergedLayout = buildMergedLayout(mainLayout, viewLayout, view);
 
-    // Find the first show_as_window collection in the new view
-    const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
-    const newActiveCollectionId = firstWindowRef?.collection_id ?? null;
+    // Save current view's map state before switching
+    if (previousViewId !== null) {
+      useMapStore.getState().saveViewSnapshot(previousViewId);
+    }
 
     set({
       selectedViewId: id,
@@ -196,12 +197,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       savedLayout: mergedLayout,
     });
 
-    useMapStore.setState({
-      activeCollectionId: newActiveCollectionId,
-      activeSliceIndex: 0,
-      collectionSliceIndices: {},
-      emptySlices: {},
-    });
+    // Restore saved state for the new view, or initialize fresh
+    const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
+    const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
+    useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
   },
 
   setCurrentLayout: (layout) => set({ currentLayout: layout }),

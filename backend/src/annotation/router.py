@@ -8,7 +8,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.annotation import embeddings_service, service
-from src.annotation.schema import (
+from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
     AnnotationOut,
@@ -90,20 +90,12 @@ def complete_annotation_task(
         campaign_id=campaign_id,
     )
 
-    # Get user's assignment status
-    assignment_status = "pending"
-    if refreshed_task and refreshed_task.assignments:
-        for a in refreshed_task.assignments:
-            if a.user_id == user.id:
-                assignment_status = a.status
-                break
-
     task_out = AnnotationTaskOut.model_validate(refreshed_task)
 
     return AnnotationTaskSubmitResponse(
         annotation=result_annotation,
         task_status=task_out.task_status,
-        assignment_status=assignment_status,
+        assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
     )
 
 
@@ -263,17 +255,10 @@ def delete_annotation(
         if refreshed_task:
             task_out = AnnotationTaskOut.model_validate(refreshed_task)
 
-            assignment_status = "pending"
-            if refreshed_task.assignments:
-                for a in refreshed_task.assignments:
-                    if a.user_id == user.id:
-                        assignment_status = a.status
-                        break
-
             return AnnotationTaskSubmitResponse(
                 annotation=None,
                 task_status=task_out.task_status,
-                assignment_status=assignment_status,
+                assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
             )
 
     return None

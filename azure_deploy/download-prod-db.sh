@@ -19,29 +19,27 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}Download Production DB to Local Dev${NC}"
-echo ""
-
-# Azure login check
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
 fi
 
-# Resource group
 if [ -z "$RESOURCE_GROUP" ]; then
-    read -p "Enter Azure Resource Group name: " RESOURCE_GROUP
-    if [ -z "$RESOURCE_GROUP" ]; then
-        echo -e "${RED}Error: RESOURCE_GROUP is required. Set it via env var or enter it when prompted.${NC}"
-        exit 1
-    fi
+    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.prod${NC}"
+    exit 1
 fi
+
+echo -e "${GREEN}Download Production DB to Local Dev${NC}"
+echo ""
 
 # Discover Azure Postgres server
 echo -e "${YELLOW}Looking up Azure Postgres Flexible Server...${NC}"
@@ -122,14 +120,43 @@ BACKUP_FILE="$BACKUP_DIR/dev_backup_$(date +%Y%m%d_%H%M%S).sql"
 echo ""
 echo -e "${BLUE}Download Plan${NC}"
 echo -e "  Source:  ${YELLOW}${PG_USER}@${PG_HOST}/${PG_DBNAME}${NC}"
-echo -e "  Target:  ${YELLOW}${LOCAL_USER}@localhost:${LOCAL_PORT}/${LOCAL_DB}${NC}"
-echo -e "  Backup:  ${YELLOW}${BACKUP_FILE}${NC}"
 echo -e "  Dump:    ${YELLOW}${DUMP_FILE}${NC}"
 echo ""
-echo -e "${RED}⚠  This will DESTROY all data in the local dev database!${NC}"
-read -p "Continue? (y/N) " CONFIRM
+read -p "Download production database? (y/N) " CONFIRM
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo "Aborted."
+    exit 0
+fi
+
+# Dump production DB (full database: all schemas, extensions, data)
+echo ""
+echo -e "${YELLOW}Dumping full production database (all schemas, extensions, and data)...${NC}"
+echo -e "${BLUE}  This may take a moment depending on DB size and network speed.${NC}"
+
+PGPASSWORD="$PG_PASS" pg_dump \
+    --host="$PG_HOST" \
+    --port=5432 \
+    --username="$PG_USER" \
+    --dbname="$PG_DBNAME" \
+    --no-owner \
+    --no-privileges \
+    --format=plain \
+    > "$DUMP_FILE"
+
+DUMP_SIZE=$(du -h "$DUMP_FILE" | cut -f1)
+echo -e "${GREEN}✓ Dump complete (${DUMP_SIZE}): ${DUMP_FILE}${NC}"
+
+# Ask whether to restore into local dev DB
+echo ""
+echo -e "${YELLOW}Also restore into local dev database? (This requires the DB to be running currently!)${NC}"
+echo -e "  Target:  ${YELLOW}${LOCAL_USER}@localhost:${LOCAL_PORT}/${LOCAL_DB}${NC}"
+echo -e "${RED}  ⚠  This will DESTROY all data in the local dev database!${NC}"
+read -p "Restore into local DB? (y/N) " RESTORE_CONFIRM
+if [[ ! "$RESTORE_CONFIRM" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo -e "${GREEN}Done. Dump saved to: ${DUMP_FILE}${NC}"
+    echo -e "${BLUE}To restore manually later:${NC}"
+    echo -e "  make dev-restore-backup FILE=${DUMP_FILE}"
     exit 0
 fi
 
@@ -156,30 +183,10 @@ PGPASSWORD="$LOCAL_PASS" pg_dump \
 if [ -s "$BACKUP_FILE" ]; then
     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
     echo -e "${GREEN}✓ Local backup saved (${BACKUP_SIZE}): ${BACKUP_FILE}${NC}"
-    echo -e "${BLUE}  To restore this backup later:${NC}"
-    echo -e "${BLUE}  PGPASSWORD=\"\$LOCAL_PASS\" psql -h localhost -p $LOCAL_PORT -U $LOCAL_USER -d $LOCAL_DB -f $BACKUP_FILE${NC}"
 else
     echo -e "${YELLOW}⚠ Local DB appears empty, skipping backup${NC}"
     rm -f "$BACKUP_FILE"
 fi
-
-# Dump production DB (full database: all schemas, extensions, data)
-echo ""
-echo -e "${YELLOW}Dumping full production database (all schemas, extensions, and data)...${NC}"
-echo -e "${BLUE}  This may take a moment depending on DB size and network speed.${NC}"
-
-PGPASSWORD="$PG_PASS" pg_dump \
-    --host="$PG_HOST" \
-    --port=5432 \
-    --username="$PG_USER" \
-    --dbname="$PG_DBNAME" \
-    --no-owner \
-    --no-privileges \
-    --format=plain \
-    > "$DUMP_FILE"
-
-DUMP_SIZE=$(du -h "$DUMP_FILE" | cut -f1)
-echo -e "${GREEN}✓ Dump complete (${DUMP_SIZE})${NC}"
 
 # Restore into local dev DB
 echo ""

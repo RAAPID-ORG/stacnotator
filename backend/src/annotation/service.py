@@ -22,7 +22,7 @@ from src.annotation.models import (
     AnnotationTask,
     AnnotationTaskAssignment,
 )
-from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
@@ -32,6 +32,15 @@ logger = logging.getLogger(__name__)
 # CSV import configuration
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
+
+
+def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
+    """Get a user's assignment status for a task."""
+    if task and task.assignments:
+        for a in task.assignments:
+            if a.user_id == user_id:
+                return a.status
+    return "pending"
 
 
 def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
@@ -409,8 +418,6 @@ def add_annotation_for_task(
         user_id: ID of user creating the annotation
     """
 
-    # TODO refactor split into a add and edit function and call externally
-
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
@@ -562,9 +569,12 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    # Only the creator or a campaign admin can update annotations
-    if annotation.created_by_user_id != user_id and (
-        not campaign or not _is_campaign_admin(db, user_id, campaign.id)
+    # In public campaigns, only the creator or a campaign admin can update annotations
+    if (
+        campaign
+        and campaign.is_public
+        and annotation.created_by_user_id != user_id
+        and not _is_campaign_admin(db, user_id, campaign.id)
     ):
         raise HTTPException(
             status_code=403,
@@ -673,11 +683,13 @@ def delete_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
 
-    # Only the creator or a campaign admin can delete annotations
+    # In public campaigns, only the creator or a campaign admin can delete annotations
     if (
-        user_id
+        campaign
+        and campaign.is_public
+        and user_id
         and annotation.created_by_user_id != user_id
-        and (not campaign or not _is_campaign_admin(db, user_id, campaign.id))
+        and not _is_campaign_admin(db, user_id, campaign.id)
     ):
         raise HTTPException(
             status_code=403,
@@ -713,32 +725,22 @@ def delete_annotation(
 # ============================================================================
 
 
-def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
-    """
-    Build comprehensive export of all annotations and tasks for a campaign.
-    """
-
-    def convert_geometry_to_wkt(geom):
-        """Convert GeoAlchemy2 geometry to WKT string."""
-        if geom is None:
-            return None
-        try:
-            return to_shape(geom).wkt
-        except Exception:
-            return str(geom)
-
-    def get_label_name(label_id):
-        """Resolve label ID to label name from campaign settings."""
-        if label_id is None:
-            return None
-        labels = campaign.settings.labels if campaign.settings else {}
-        label_id_str = str(label_id)
-        if label_id_str in labels:
-            label_data = labels[label_id_str]
-            return label_data.get("name") if isinstance(label_data, dict) else label_data
+def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
+    """Resolve a label ID to its name from campaign settings."""
+    if label_id is None:
         return None
+    labels = campaign.settings.labels if campaign.settings else {}
+    label_id_str = str(label_id)
+    if label_id_str in labels:
+        label_data = labels[label_id_str]
+        return label_data.get("name") if isinstance(label_data, dict) else label_data
+    return None
 
-    # Query all annotations with eagerly loaded relationships
+
+def _fetch_annotations_with_context(
+    db: Session, campaign: Campaign
+) -> tuple[list[Annotation], dict[UUID, str]]:
+    """Fetch all annotations for a campaign with user emails resolved."""
     annotations = (
         db.execute(
             select(Annotation)
@@ -749,51 +751,61 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
         .scalars()
         .all()
     )
-
-    # Batch fetch all unique user emails
     user_ids = {ann.created_by_user_id for ann in annotations if ann.created_by_user_id}
-    user_email_map = {}
+    user_email_map: dict[UUID, str] = {}
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
         user_email_map = {user.id: user.email for user in users}
+    return annotations, user_email_map
+
+
+def _geometry_to_wkt(geom) -> str | None:
+    if geom is None:
+        return None
+    try:
+        return to_shape(geom).wkt
+    except Exception:
+        return str(geom)
+
+
+def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
+    """Build CSV export of all annotations and tasks for a campaign."""
+    annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
 
     export_records = []
-    all_columns = set()
+    all_columns: set[str] = set()
 
     for annotation in annotations:
-        record = {
-            # Annotation fields
-            "stacnotator_internal_identifier": annotation.id,
-            "annotation_label_id": annotation.label_id,
-            "annotation_label_name": get_label_name(annotation.label_id),
-            "annotation_comment": annotation.comment,
-            "annotation_confidence": annotation.confidence,
-            "annotation_is_authoritative": annotation.is_authoritative,
-            "annotation_created_by_user_email": user_email_map.get(annotation.created_by_user_id),
-            "annotation_created_at": annotation.created_at,
-            "geometry_wkt": (
-                convert_geometry_to_wkt(annotation.geometry.geometry)
-                if annotation.geometry
-                else None
-            ),
-        }
+        record: dict = {}
 
         if annotation.annotation_task_id:
             task = annotation.annotation_task
-            raw_source = task.raw_source_data if task.raw_source_data else {}
-
-            # Merge raw source data into record
-            record.update(raw_source)
-
-            # Task fields
+            if task.raw_source_data:
+                record.update(task.raw_source_data)
             record["stacnotator_internal_task_identifier"] = task.id
             record["annotation_number"] = task.annotation_number
 
-        # Track all columns as we build records
+        record.update(
+            {
+                "stacnotator_internal_identifier": annotation.id,
+                "annotation_label_id": annotation.label_id,
+                "annotation_label_name": _resolve_label_name(campaign, annotation.label_id),
+                "annotation_comment": annotation.comment,
+                "annotation_confidence": annotation.confidence,
+                "annotation_is_authoritative": annotation.is_authoritative,
+                "annotation_created_by_user_email": user_email_map.get(
+                    annotation.created_by_user_id
+                ),
+                "annotation_created_at": annotation.created_at,
+                "geometry_wkt": (
+                    _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
+                ),
+            }
+        )
+
         all_columns.update(record.keys())
         export_records.append(record)
 
-    # Fill missing columns with NaN in a single pass
     for record in export_records:
         for col in all_columns:
             record.setdefault(col, np.nan)
@@ -802,78 +814,39 @@ def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
 
 
 def build_annotations_geojson_export(db: Session, campaign: Campaign) -> dict:
-    """
-    Build a GeoJSON FeatureCollection of all annotations for a campaign.
-
-    Each annotation becomes a GeoJSON Feature with its geometry and properties
-    containing label info, user, confidence, etc.
-    """
-
-    def get_label_name(label_id):
-        """Resolve label ID to label name from campaign settings."""
-        if label_id is None:
-            return None
-        labels = campaign.settings.labels if campaign.settings else {}
-        label_id_str = str(label_id)
-        if label_id_str in labels:
-            label_data = labels[label_id_str]
-            return label_data.get("name") if isinstance(label_data, dict) else label_data
-        return None
-
-    # Query all annotations with eagerly loaded relationships
-    annotations = (
-        db.execute(
-            select(Annotation)
-            .where(Annotation.campaign_id == campaign.id)
-            .options(
-                joinedload(Annotation.geometry),
-                joinedload(Annotation.annotation_task),
-            )
-        )
-        .unique()
-        .scalars()
-        .all()
-    )
-
-    # Batch fetch all unique user emails
-    user_ids = {ann.created_by_user_id for ann in annotations if ann.created_by_user_id}
-    user_email_map: dict = {}
-    if user_ids:
-        users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
-        user_email_map = {user.id: user.email for user in users}
+    """Build a GeoJSON FeatureCollection of all annotations for a campaign."""
+    annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
 
     features = []
     for annotation in annotations:
-        # Convert PostGIS geometry -> Shapely shape -> GeoJSON geometry dict
         geojson_geometry = None
         if annotation.geometry:
             try:
-                shape = to_shape(annotation.geometry.geometry)
-                geojson_geometry = mapping(shape)
+                geojson_geometry = mapping(to_shape(annotation.geometry.geometry))
             except Exception:
                 geojson_geometry = None
 
-        properties = {
-            "id": annotation.id,
-            "label_id": annotation.label_id,
-            "label_name": get_label_name(annotation.label_id),
-            "comment": annotation.comment,
-            "confidence": annotation.confidence,
-            "is_authoritative": annotation.is_authoritative,
-            "created_by_user_email": user_email_map.get(annotation.created_by_user_id),
-            "created_at": annotation.created_at.isoformat() if annotation.created_at else None,
-        }
+        properties: dict = {}
 
         if annotation.annotation_task_id:
             task = annotation.annotation_task
+            if task.raw_source_data:
+                properties.update(task.raw_source_data)
             properties["task_id"] = task.id
             properties["annotation_number"] = task.annotation_number
 
-            # Include original source data from CSV upload (if any)
-            if task.raw_source_data:
-                for key, value in task.raw_source_data.items():
-                    # Prefix to avoid collisions with annotation properties
-                    properties[key] = value
+        properties.update(
+            {
+                "id": annotation.id,
+                "label_id": annotation.label_id,
+                "label_name": _resolve_label_name(campaign, annotation.label_id),
+                "comment": annotation.comment,
+                "confidence": annotation.confidence,
+                "is_authoritative": annotation.is_authoritative,
+                "created_by_user_email": user_email_map.get(annotation.created_by_user_id),
+                "created_at": annotation.created_at.isoformat() if annotation.created_at else None,
+            }
+        )
 
         features.append(
             {

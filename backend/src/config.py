@@ -30,6 +30,9 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
 
+    # Shared secret for signing tiler access tokens (HMAC)
+    TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
+
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
     EE_PRIVATE_KEY: str | None = None  # Direct key content (alternative to path)

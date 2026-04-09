@@ -37,8 +37,8 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
 
         {/* Error Content */}
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-gray-900">Application Error</h1>
-          <p className="text-gray-600">Something went wrong while loading the application.</p>
+          <h1 className="text-2xl font-bold text-neutral-900">Application Error</h1>
+          <p className="text-neutral-600">Something went wrong while loading the application.</p>
         </div>
 
         {/* Error Details */}
@@ -57,15 +57,15 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
           </button>
           <button
             onClick={resetErrorBoundary}
-            className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+            className="flex-1 bg-neutral-100 text-neutral-700 px-6 py-3 rounded-lg font-medium hover:bg-neutral-200 transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2"
           >
             Try Again
           </button>
         </div>
 
         {/* Additional Help */}
-        <div className="text-center pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-500">
+        <div className="text-center pt-4 border-t border-neutral-200">
+          <p className="text-sm text-neutral-500">
             If the problem persists, please contact support or check the browser console for more
             details.
           </p>

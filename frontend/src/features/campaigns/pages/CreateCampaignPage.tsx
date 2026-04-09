@@ -118,9 +118,14 @@ export const CreateCampaignPage = () => {
         },
       });
       const { data: campaign } = await createCampaign({ body: form });
-      showAlert('Campaign created successfully', 'success');
+      const status = (campaign as Record<string, unknown>)?.registration_status;
+      if (status === 'registering') {
+        showAlert('Campaign created. Mosaic registration is running in the background...', 'info');
+      } else {
+        showAlert('Campaign created successfully', 'success');
+      }
       if (campaign) {
-        navigate(`/campaigns/${campaign.id}/settings`);
+        navigate(`/campaigns/${(campaign as Record<string, unknown>).id}/settings`);
       } else {
         navigate('/campaigns');
       }

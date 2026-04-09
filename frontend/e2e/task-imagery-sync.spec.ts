@@ -24,7 +24,7 @@ import {
 
 type Page = import('@playwright/test').Page;
 
-// -- Helpers ---------------------------------------------------------------
+// Helpers
 
 function lastAnnotate(requests: CapturedRequest[]): CapturedRequest | undefined {
   return [...requests].reverse().find(

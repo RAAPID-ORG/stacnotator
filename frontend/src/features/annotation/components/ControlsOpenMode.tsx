@@ -28,7 +28,7 @@ const LABEL_COLORS = [
   '#ef4444', // red - barren/soil
   '#ec4899', // pink - special features
   '#06b6d4', // cyan - ice/snow
-  '#f97316', // orange - mixed use
+  '#a3883a', // ochre - mixed use
   '#6366f1', // indigo - infrastructure
   '#14b8a6', // teal - wetlands
 ];
@@ -195,18 +195,18 @@ const OpenModeControls = () => {
     <div className="w-full h-full p-2 bg-white overflow-y-auto">
       <div className="flex flex-col gap-3">
         {/* Drawing Tools */}
-        <div className="flex flex-col gap-1">
-          <span className="font-bold text-neutral-900 text-xs">Tools</span>
-          <div className="flex flex-row flex-wrap gap-1">
+        <div className="flex flex-col gap-1.5">
+          <span className="font-semibold text-neutral-700 text-xs tracking-wide">Tools</span>
+          <div className="flex flex-row flex-wrap gap-1.5">
             {availableTools.map((tool) => (
               <button
                 key={tool.id}
                 onClick={() => handleToolSelect(tool.id)}
                 title={`${tool.label} (${tool.shortcut})`}
-                className={`flex items-center justify-center gap-1 p-1.5 rounded text-[10px] transition-colors cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                   activeTool === tool.id
-                    ? 'bg-brand-100 text-brand-700 border-2 border-brand-500 font-semibold'
-                    : 'bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300'
+                    ? 'bg-brand-50 text-brand-700 border border-brand-500'
+                    : 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
                 }`}
               >
                 {tool.icon}
@@ -219,31 +219,31 @@ const OpenModeControls = () => {
         {/* Label Selection - show for annotate tool */}
         {activeTool === 'annotate' && (
           <>
-            <div className="flex flex-col gap-1 w-full">
-              <span className="font-bold text-neutral-900 text-xs">Labels</span>
+            <div className="flex flex-col gap-1.5 w-full">
+              <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
               <div className="flex flex-col gap-1">
                 {extendedLabels.map((label, index) => (
                   <div key={label.id} className="relative">
                     <button
-                      className={`w-full text-left px-2 py-1.5 text-[10px] font-bold rounded transition-colors flex items-center gap-1.5 ${
+                      className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
                         selectedLabelId === label.id
-                          ? 'bg-neutral-100 text-brand-700 border-brand-500 border-2 font-semibold'
-                          : 'bg-neutral-100 hover:border-brand-500 text-neutral-800 border-neutral-100 border-2'
+                          ? 'bg-brand-50 text-brand-700 border border-brand-500 font-semibold'
+                          : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
                       } cursor-pointer`}
                       onClick={() => handleLabelSelect(label)}
                     >
                       {/* Color indicator */}
                       <span
-                        className="w-3 h-3 rounded-sm border border-neutral-300 flex-shrink-0"
+                        className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
                         style={{ backgroundColor: label.color }}
                       />
                       <span className="flex-1 min-w-0 truncate">
                         {selectedLabelId === label.id ? '✓ ' : ''}
                         {capitalizeFirst(label.name)}
                       </span>
-                      <span className="text-neutral-400 text-[9px] flex items-center gap-0.5 flex-shrink-0">
+                      <span className="text-neutral-400 text-[10px] flex items-center gap-0.5 flex-shrink-0 tabular-nums">
                         <span>{getGeometryIcon(label.geometry_type)}</span>
-                        <span>[{index + 1}]</span>
+                        <span>{index + 1}</span>
                       </span>
                     </button>
                     {/* Magic Wand Icon - only for polygon labels */}
@@ -292,7 +292,7 @@ const OpenModeControls = () => {
               )}
 
               {!selectedLabel && (
-                <p className="text-[9px] text-amber-600 mt-1 p-2 bg-amber-50 rounded max-w-md">
+                <p className="text-[11px] text-amber-700 mt-1 p-2 bg-amber-50 rounded border border-amber-200">
                   Select a label to start annotating
                 </p>
               )}
@@ -300,19 +300,19 @@ const OpenModeControls = () => {
 
             {/* Current selection info */}
             {selectedLabel && (
-              <div className="p-2 bg-blue-50 rounded border border-blue-200 w-full">
-                <p className="text-[10px] text-blue-700 font-medium mb-1">
+              <div className="p-2.5 bg-blue-50 rounded border border-blue-200 w-full">
+                <p className="text-[11px] text-blue-700 font-medium mb-1">
                   Selected: {capitalizeFirst(selectedLabel.name)}
                 </p>
-                <p className="text-[9px] text-blue-600">
+                <p className="text-[11px] text-blue-600">
                   Type: {capitalizeFirst(selectedLabel.geometry_type)}
                 </p>
                 {selectedLabel.geometry_type === 'polygon' && magicWandEnabled[selectedLabel.id] ? (
-                  <p className="text-[9px] text-purple-600 mt-1 font-medium">
-                    Magic wand active! Click once to auto-generate polygon.
+                  <p className="text-[11px] text-purple-600 mt-1 font-medium">
+                    Magic wand active - click once to auto-generate polygon.
                   </p>
                 ) : (
-                  <p className="text-[9px] text-neutral-500 mt-1">
+                  <p className="text-[11px] text-neutral-500 mt-1">
                     Click on the map to draw a {selectedLabel.geometry_type}.
                     {selectedLabel.geometry_type === 'polygon' && ' Double-click to finish.'}
                   </p>
@@ -324,9 +324,9 @@ const OpenModeControls = () => {
 
         {/* Edit Tool Info */}
         {activeTool === 'edit' && (
-          <div className="flex flex-col gap-1 w-full">
-            <span className="font-bold text-neutral-900 text-xs">Edit Tool</span>
-            <div className="text-[10px] text-neutral-600 flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5 w-full">
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit Tool</span>
+            <div className="text-[11px] text-neutral-600 flex flex-col gap-1 leading-relaxed">
               <p>Click a geometry to select it and show its vertices.</p>
               <p>
                 Drag a <strong>vertex</strong> to move it.
@@ -335,13 +335,18 @@ const OpenModeControls = () => {
                 Click an <strong>edge midpoint</strong> to insert a new vertex.
               </p>
               <p>
-                Hold <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Alt</kbd> + drag to
-                move the whole feature.
+                Hold{' '}
+                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
+                  Alt
+                </kbd>{' '}
+                + drag to move the whole feature.
               </p>
               <p className="text-neutral-500">
-                Use <kbd className="px-1 bg-neutral-100 rounded text-[9px]">✓</kbd> to save,{' '}
-                <kbd className="px-1 bg-neutral-100 rounded text-[9px]">🗑</kbd> to delete, or{' '}
-                <kbd className="px-1 bg-neutral-100 rounded text-[9px]">Esc</kbd> to cancel.
+                Save, delete, or press{' '}
+                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
+                  Esc
+                </kbd>{' '}
+                to cancel.
               </p>
             </div>
           </div>
@@ -349,9 +354,9 @@ const OpenModeControls = () => {
 
         {/* Timeseries Tool Info */}
         {activeTool === 'timeseries' && (
-          <div className="flex flex-col gap-1 w-full">
-            <span className="font-bold text-neutral-900 text-xs">Timeseries Tool</span>
-            <p className="text-[10px] text-neutral-600">
+          <div className="flex flex-col gap-1.5 w-full">
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Timeseries</span>
+            <p className="text-[11px] text-neutral-600 leading-relaxed">
               Click anywhere on the map to load timeseries data for that location.
             </p>
           </div>
@@ -359,12 +364,12 @@ const OpenModeControls = () => {
 
         {/* Pan Tool Info */}
         {activeTool === 'pan' && (
-          <div className="flex flex-col gap-1 w-full">
-            <span className="font-bold text-neutral-900 text-xs">Navigation</span>
-            <p className="text-[10px] text-neutral-600">
+          <div className="flex flex-col gap-1.5 w-full">
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigation</span>
+            <p className="text-[11px] text-neutral-600 leading-relaxed">
               Drag to pan the map. Use scroll wheel to zoom.
             </p>
-            <p className="text-[10px] text-neutral-500 mt-1">
+            <p className="text-[11px] text-neutral-500 mt-0.5">
               Tip: Select a label to quickly start annotating.
             </p>
           </div>
@@ -372,15 +377,15 @@ const OpenModeControls = () => {
 
         {/* Annotation Navigation */}
         {annotations.length > 0 && (
-          <div className="flex flex-col gap-1 w-full">
-            <span className="font-bold text-neutral-900 text-xs">Navigate</span>
-            <div className="flex gap-1">
+          <div className="flex flex-col gap-1.5 w-full">
+            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
+            <div className="flex gap-1.5">
               <button
                 onClick={() => {
                   const ann = goToPreviousAnnotation();
                   if (ann) triggerFitAnnotations();
                 }}
-                className="flex-1 flex items-center justify-center gap-1 p-1.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300 transition-colors cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
                 title="Previous annotation (older)"
               >
                 <svg
@@ -400,7 +405,7 @@ const OpenModeControls = () => {
                   const ann = goToNextAnnotation();
                   if (ann) triggerFitAnnotations();
                 }}
-                className="flex-1 flex items-center justify-center gap-1 p-1.5 rounded text-[10px] bg-neutral-100 text-neutral-700 border-2 border-transparent hover:border-brand-300 transition-colors cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
                 title="Next annotation (newer)"
               >
                 <span>Next</span>
@@ -416,7 +421,7 @@ const OpenModeControls = () => {
                 </svg>
               </button>
             </div>
-            <p className="text-[9px] text-neutral-400 text-center">
+            <p className="text-[10px] text-neutral-400 text-center tabular-nums">
               {currentAnnotationIndex >= 0
                 ? `${currentAnnotationIndex + 1} / ${annotations.length}`
                 : `${annotations.length} annotation${annotations.length !== 1 ? 's' : ''}`}
@@ -426,37 +431,51 @@ const OpenModeControls = () => {
 
         {/* Keyboard Shortcuts Help */}
         <div className="pt-2 border-t border-neutral-200 w-full">
-          <span className="font-bold text-neutral-900 text-[10px]">Shortcuts</span>
-          <div className="mt-1 space-y-0.5 max-w-xs">
+          <span className="font-semibold text-neutral-700 text-[11px]">Shortcuts</span>
+          <div className="mt-1.5 space-y-1 max-w-xs">
             {availableTools.map((tool) => (
-              <div key={tool.id} className="flex justify-between text-[9px] text-neutral-500">
+              <div key={tool.id} className="flex justify-between text-[11px] text-neutral-500">
                 <span>{tool.label}</span>
-                <kbd className="px-1 bg-neutral-100 rounded">{tool.shortcut}</kbd>
+                <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                  {tool.shortcut}
+                </kbd>
               </div>
             ))}
-            <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Select label 1-9</span>
-              <kbd className="px-1 bg-neutral-100 rounded">1-9</kbd>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Select label</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                1-9
+              </kbd>
             </div>
-            <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Move feature (edit)</span>
-              <kbd className="px-1 bg-neutral-100 rounded">Alt+drag</kbd>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Move feature</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Alt+drag
+              </kbd>
             </div>
-            <div className="flex justify-between text-[9px] text-neutral-500">
+            <div className="flex justify-between text-[11px] text-neutral-500">
               <span>Cancel edit</span>
-              <kbd className="px-1 bg-neutral-100 rounded">Esc</kbd>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Esc
+              </kbd>
             </div>
-            <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Link (sync) windows</span>
-              <kbd className="px-1 bg-neutral-100 rounded">L</kbd>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Sync windows</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                L
+              </kbd>
             </div>
-            <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Cycle imagery source</span>
-              <kbd className="px-1 bg-neutral-100 rounded">I</kbd>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Cycle source</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                I
+              </kbd>
             </div>
-            <div className="flex justify-between text-[9px] text-neutral-500">
-              <span>Cycle visualization</span>
-              <kbd className="px-1 bg-neutral-100 rounded">Shift+I</kbd>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Cycle viz</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Shift+I
+              </kbd>
             </div>
           </div>
         </div>

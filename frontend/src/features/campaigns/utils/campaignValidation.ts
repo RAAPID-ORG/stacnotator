@@ -104,11 +104,25 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
           }
         }
 
-        const emptyVizUrls = col.data.vizUrls.filter((v) => !v.url.trim());
-        if (emptyVizUrls.length > 0) {
-          errors[`${cp}_vizurls`] =
-            `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
+        if (col.data.type === 'stac') {
+          const emptyVizUrls = col.data.vizUrls.filter((v) => !v.url.trim());
+          if (emptyVizUrls.length > 0) {
+            errors[`${cp}_vizurls`] =
+              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
+          }
+        } else if (col.data.type === 'manual') {
+          const slicesWithMissing = col.slices.filter((sl) => {
+            const urls = sl.vizUrls ?? [];
+            return source.visualizations.some(
+              (v) => !urls.find((u) => u.vizName === v.name)?.url?.trim()
+            );
+          });
+          if (slicesWithMissing.length > 0) {
+            errors[`${cp}_vizurls`] =
+              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${slicesWithMissing.length} slice(s) have missing visualization URLs.`;
+          }
         }
+        // stac_browser: no viz URL validation needed (URLs generated from params)
       });
     }
   });

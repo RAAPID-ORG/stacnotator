@@ -4,20 +4,48 @@
 NASA Harvest's geospatial imagery annotation platform.
 
 > [!Important]
-> This software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing.
+> This software is still under development and not yet at a mature stage. It should be considered as a pre-release for alpha testing. The documentation will be released soon.
 
 ## Quick Start
 
 ### Development Setup (with Hot Reloading)
 
-#### Prequisites
+#### Prerequisites
 
 - Ensure you have `docker` and `docker-compose` installed. Follow the setup instructions for your system [here](https://docs.docker.com/compose/install/#docker-desktop-recommended). The easiest way might be through `Docker Desktop`.
-- Have a Google Account that you can use for the `Firebase` setup.
 
-#### Step 0 - Firebase Setup
+#### Option A - Local Mode (No Firebase, Quickest Setup)
 
-STACNotator uses Firebase for authentication. Set up a project and download credentials:
+For single-user local usage, no external auth provider is needed. The app runs with a built-in local user that has full admin access.
+
+**Step 1 - Configure Environment**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+The defaults in `.env.example` already use `AUTH_PROVIDER=local`. You might want to add the earth-engine credentials for timeseries functionality.
+
+**Step 2 - Initialize & Start**
+
+```bash
+make dev-init
+make dev-up
+```
+
+Open http://localhost:5173 and you're in.
+
+> [!Warning]
+> Local auth mode is for local development only. It cannot be used with `ENVIRONMENT=production` and should never be exposed to a network.
+
+#### Option B - Firebase Auth (Multi-User Deployments)
+
+For multi-user setups or production deployments, STACNotator uses Firebase for authentication.
+
+You will need a Google Account for the Firebase setup.
+
+**Step 0 - Firebase Setup**
 
 1. Go to [Firebase Console](https://console.firebase.google.com/) and create a new project.
 2. Navigate to **Settings > General**:
@@ -26,38 +54,43 @@ STACNotator uses Firebase for authentication. Set up a project and download cred
 3. Navigate to **Settings > Service Accounts**:
    - Select *Firebase Admin SDK* and click **Generate new private key**. Save the file.
 
-#### Step 1 - Configure Environment
+**Step 1 - Configure Environment**
 
 ```bash
-cp .env.dev .env
+cp .env.example .env
 nano .env
 ```
 
-Update the following variables:
+Set `AUTH_PROVIDER=firebase` and update the following variables:
 
 | Variable | Description |
 |---|---|
-| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account (used for timeseries) |
-| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
 | `FIREBASE_CREDENTIALS_PATH_HOST` | Path to the Firebase service account credentials file (from Step 0) |
 | `VITE_FIREBASE_API_KEY` | Firebase API key (from Step 0) |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Firebase auth domain (from Step 0) |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase project ID (from Step 0) |
 
-#### Step 2 - Create a Firebase User
+For timeseries features, also set these in your `.env`:
+
+| Variable | Description |
+|---|---|
+| `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account |
+| `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
+
+**Step 2 - Create a Firebase User**
 
 1. Go to [Firebase Console](https://console.firebase.google.com/) and select your project.
 2. Navigate to the **Authentication** tab.
 3. Under **Users**, click **Add user** and follow the prompts.
 4. Copy the **UID** of the newly created user.
 
-#### Step 3 - Initialize Services & Seed the Database
+**Step 3 - Initialize Services & Seed the Database**
 
 ```bash
 make dev-init FIREBASE_UID="<YOUR-UID>"
 ```
 
-#### Step 4 - Start All Services
+**Step 4 - Start All Services**
 
 ```bash
 make dev-up
@@ -69,6 +102,7 @@ The app will be available at:
 |---|---|
 | Frontend | http://localhost:5173 (auto-reloads) |
 | Backend | http://localhost:8000 (auto-reloads) |
+| Tiler | http://localhost:8001 (auto-reloads) |
 | API Docs | http://localhost:8000/docs |
 
 #### Step 5 - Stop All Services
@@ -87,16 +121,20 @@ stacnotator/
 ├── .env.example                 # Configuration template
 ├── .env.dev                     # Development configuration template
 ├── Makefile                     # Common commands (dev-* for development)
-├── DEVELOPMENT.md               # Development workflow guide
-├── backend/         # FastAPI application
+├── azure_deploy/                # Azure deployment scripts
+├── backend/                     # FastAPI application
 │   ├── Dockerfile               # Production build
 │   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
-│   └── config/                  # Credentials (gitignored)
-└── frontend/        # React + Vite application
-    ├── Dockerfile               # Production build
+│   └── alembic/                 # Database migrations
+├── tiler/                       # TiTiler tile serving service
+│   ├── Dockerfile               # Production build (GDAL + COG)
+│   ├── Dockerfile.dev           # Development (with reload)
+│   └── src/                     # Tile server code
+└── frontend/                    # React + Vite application
+    ├── Dockerfile               # Production build (nginx)
     ├── Dockerfile.dev           # Development server (HMR)
-    └── app/                     # Application code
+    └── src/                     # Application code
 ```
 
 ## Prerequisites
@@ -104,14 +142,15 @@ stacnotator/
 - Docker Engine 20.10+
 - Docker Compose 2.0+
 - 4GB+ RAM (If using AI modules GPU required!)
-- Firebase credentials file
+- Firebase credentials file (only if using `AUTH_PROVIDER=firebase`)
 
 ## Architecture
 
 **Services:**
-- **Frontend**: React app served via its own container. Backend client is generated with `openapi-ts`.
-- **Backend**: FastAPI application with Gunicorn workers
-- **Database**: PostgreSQL 16 with PostGIS and Vector extension
+- **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
+- **Backend**: FastAPI application with Gunicorn workers. Handles auth, campaigns, annotations, STAC catalog browsing, and mosaic registration.
+- **Tiler**: Self-hosted tile server (TiTiler + GDAL). Reads COGs from STAC catalogs, composites mosaics, serves PNG tiles. Uses PostGIS spatial index for fast per-tile item lookups.
+- **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
 
 ## Development
 
@@ -144,7 +183,8 @@ make pre-commit-install
 
 STACNotator supports multiple deployment options (or maybe only one at the moment):
 
-- **Deploy on Azure** - Cloud hosted version to be deployed in Azure via App Service. Check out `azure_deploy/README.md`.
-   - We also provide local staging environment that copies the DB state from the production deployment for local tests before deployment.  Run `make staging-up` to fetch the production DB from Azure, instantiate locally and run some tests and experiments, before new deployments. You can run this next to your dev DB and containers.
+- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
+   - Staging: `make staging-up` copies the production DB locally for safe migration testing before deployment.
+   - Deployment: Currently only through a CLI script to be run locally from within VPN. Will migrate this to CI in the future, once the platform networking has been finalized. Reccommended command for deploying the in the dev-environment: `az-deploy-dev`, followed by `az-sync-prod-to-dev` to fill the dev db with the current data from prod.
 
-- **Docker Compose (Possible deprecated)** - For local VPS or bare metal deployment (See `Makefile` for the "non-dev" commands.). This method might not fully be supported anymore, as we did not continue to maintain it after switching to Azure Container Apps for our deployments. You might want to test it out first and open up an issue if encountering any troubles.
+- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
