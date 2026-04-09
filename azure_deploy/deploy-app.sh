@@ -61,7 +61,7 @@ if [ "$ENV" = "dev" ]; then
 else
     BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=2  BACKEND_WORKERS=4
     TILER_CPU=8      TILER_MEM=16Gi   TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
-    TILER_DEDICATED=false
+    TILER_DEDICATED=true
 fi
 
 echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
@@ -102,7 +102,7 @@ echo -e "  RG:        $RESOURCE_GROUP"
 echo -e "  Tag:       $IMAGE_TAG"
 echo -e "  Backend:   Container App (${BACKEND_CPU} CPU, ${BACKEND_MEM}, ${BACKEND_MIN}-${BACKEND_MAX} replicas)"
 if [ "$TILER_DEDICATED" = "true" ]; then
-    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D16 dedicated)"
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D8 dedicated)"
 else
     echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, consumption)"
 fi
@@ -199,7 +199,7 @@ if [ "$TILER_DEDICATED" = "true" ]; then
         az containerapp env workload-profile add \
             --name "$CAE_NAME" -g "$RESOURCE_GROUP" \
             --workload-profile-name "tiler-dedicated" \
-            --workload-profile-type D16 \
+            --workload-profile-type D8 \
             --min-nodes 0 --max-nodes 1 \
             --output none
         echo -e "${GREEN}  ✓ Workload profile added${NC}"
