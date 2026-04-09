@@ -12,7 +12,7 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
 )
 from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
-from src.annotation.schema import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
     add_annotation_for_task,
     create_annotation,
