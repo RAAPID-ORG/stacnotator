@@ -226,13 +226,15 @@ def mosaic_tile(
     # For first-valid: process one item at a time so is_done short-circuits
     # after the first fully-valid image. For statistical methods: read all in parallel.
     is_first = compositing == "first"
-    img, _ = mosaic_reader(
-        item_hrefs,
-        read_tile,
-        pixel_selection=pixel_method,
-        chunk_size=1 if is_first else None,
-        threads=1 if is_first else None,
-    )
+    # For first-valid: process one at a time so is_done short-circuits after
+    # the first fully-valid image. For statistical methods: let rio_tiler use
+    # its own thread/chunk defaults (passing None here is not supported —
+    # rio_tiler does `threads > 1` internally and blows up on None).
+    mosaic_kwargs = {"pixel_selection": pixel_method}
+    if is_first:
+        mosaic_kwargs["chunk_size"] = 1
+        mosaic_kwargs["threads"] = 1
+    img, _ = mosaic_reader(item_hrefs, read_tile, **mosaic_kwargs)
     t_cog_done = time.perf_counter()
 
     if img is None or not img.mask.any():

@@ -96,7 +96,10 @@ export const TasksTab: React.FC<Props> = ({
             <p className="text-sm text-neutral-500 mb-4">
               Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
               <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
-              preserved and shown as sample extents during annotation.
+              preserved and shown as sample extents during annotation. For Points you may want to
+              specify the sample extent (bbox size around the point) - You can do this under the
+              General Settings tab. The id{' '}
+              <strong> must be unique within your whole campaing and must be numeric!</strong>.
             </p>
             <div className="flex gap-4 items-center">
               <input

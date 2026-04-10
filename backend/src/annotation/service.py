@@ -183,11 +183,14 @@ def create_annotation_tasks_from_csv(
             dtype={"id": str, "lon": float, "lat": float},
         )
     except UnicodeDecodeError:
+        logger.warning("CSV import failed for campaign %s: not UTF-8", campaign_id)
         raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded") from None
     except pd.errors.EmptyDataError:
+        logger.warning("CSV import failed for campaign %s: empty file", campaign_id)
         raise HTTPException(status_code=400, detail="CSV file is empty") from None
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid CSV format") from None
+    except Exception as e:
+        logger.exception("CSV import failed for campaign %s: parse error", campaign_id)
+        raise HTTPException(status_code=400, detail=f"Invalid CSV format: {e}") from None
 
     # Validate required columns
     missing = REQUIRED_COLUMNS - set(df.columns)
@@ -199,12 +202,17 @@ def create_annotation_tasks_from_csv(
 
     # Preserve all data in raw_source_data for export back to csv later
     df["raw_source_data"] = df.apply(lambda r: r.to_dict(), axis=1)
-    df = df[list(REQUIRED_COLUMNS) + ["raw_source_data"]].dropna()
+    df = df[list(REQUIRED_COLUMNS) + ["raw_source_data"]]
 
     if df.empty:
+        raise HTTPException(status_code=400, detail="CSV contains no rows")
+
+    missing_mask = df[["id", "lat", "lon"]].isna().any(axis=1)
+    if missing_mask.any():
+        bad_rows = (df.index[missing_mask][:5] + 2).tolist()  # +2: header + 1-indexed
         raise HTTPException(
             status_code=400,
-            detail="No valid rows after removing empty values",
+            detail=f"Missing id/lat/lon in rows: {bad_rows}",
         )
 
     # Validate IDs
@@ -220,7 +228,20 @@ def create_annotation_tasks_from_csv(
             detail=f"Duplicate IDs found in CSV: {duplicates}",
         )
 
+    non_numeric = df.loc[~df["id"].str.fullmatch(r"-?\d+"), "id"].head(5).tolist()
+    if non_numeric:
+        raise HTTPException(
+            status_code=400,
+            detail=f"IDs must be integers. Invalid values: {non_numeric}",
+        )
+
     # Validate coordinates
+    if not np.isfinite(df["lat"]).all() or not np.isfinite(df["lon"]).all():
+        raise HTTPException(
+            status_code=400,
+            detail="lat/lon must be finite numbers",
+        )
+
     if ((df["lon"] < -180) | (df["lon"] > 180)).any():
         raise HTTPException(
             status_code=400,
@@ -262,11 +283,17 @@ def create_annotation_tasks_from_csv(
         db.execute(insert(AnnotationTask), task_records)
         db.commit()
 
-    except Exception:
+    except Exception as e:
         db.rollback()
+        logger.exception(
+            "CSV import failed for campaign %s during insert (%d rows): %s",
+            campaign_id,
+            len(df),
+            e,
+        )
         raise HTTPException(
             status_code=500,
-            detail="Import failed. No geometries or task items were created.",
+            detail=f"Import failed. No geometries or task items were created. ({type(e).__name__}: {e})",
         ) from None
 
 

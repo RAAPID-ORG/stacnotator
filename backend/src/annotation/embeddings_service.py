@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -34,6 +35,8 @@ class FetchedEmbedding:
 _ALPHAEARTH_BANDS = [f"A{i:02d}" for i in range(64)]
 _ALPHAEARTH_COLLECTION = "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL"
 _GEE_BATCH_SIZE = 500  # GEE sampleRegions has a limit on features per call
+_GEE_MAX_ATTEMPTS = 5
+_GEE_RETRY_BASE_DELAY = 2.0  # seconds; doubled each attempt (2, 4, 8, 16)
 
 
 def _fetch_alphaearth_gee_batch(
@@ -70,18 +73,36 @@ def _fetch_alphaearth_gee_batch(
 
     results: dict[str, FetchedEmbedding] = {}
 
-    # Single getInfo() call - all points come back at once
-    try:
-        sampled_info = sampled.getInfo()
-    except Exception as exc:
-        point_ids = [str(p.get("id")) for p in points]
-        logger.exception(
-            "GEE embedding fetch failed for %d point(s) (ids=%s): %s",
-            len(points),
-            ",".join(point_ids),
-            exc,
-        )
-        return results
+    # Single getInfo() call - all points come back at once.
+    # Retried with exponential backoff: GEE is occasionally flaky with 429/500s
+    # on large sampleRegions calls, and one transient failure shouldn't drop
+    # an entire 500-point batch.
+    sampled_info = None
+    for attempt in range(1, _GEE_MAX_ATTEMPTS + 1):
+        try:
+            sampled_info = sampled.getInfo()
+            break
+        except Exception as exc:
+            if attempt == _GEE_MAX_ATTEMPTS:
+                point_ids = [str(p.get("id")) for p in points]
+                logger.exception(
+                    "GEE embedding fetch failed after %d attempts for %d point(s) (ids=%s): %s",
+                    _GEE_MAX_ATTEMPTS,
+                    len(points),
+                    ",".join(point_ids),
+                    exc,
+                )
+                return results
+            delay = _GEE_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            logger.warning(
+                "GEE embedding fetch attempt %d/%d failed for %d point(s), retrying in %.1fs: %s",
+                attempt,
+                _GEE_MAX_ATTEMPTS,
+                len(points),
+                delay,
+                exc,
+            )
+            time.sleep(delay)
 
     if sampled_info is None:
         logger.warning(
@@ -90,15 +111,20 @@ def _fetch_alphaearth_gee_batch(
         )
         return results
 
+    returned_pids: set[str] = set()
+    zero_vector_points: list[dict] = []
+
     for feature in sampled_info["features"]:
         props = feature["properties"]
         pid = props["pid"]
         coords = feature["geometry"]["coordinates"]
+        returned_pids.add(pid)
 
         vector = [props.get(band, 0.0) for band in _ALPHAEARTH_BANDS]
 
-        # Skip if all zeros (no data at this location)
+        # All-zero vector means the underlying AlphaEarth pixel was masked / no data.
         if all(v == 0.0 for v in vector):
+            zero_vector_points.append({"id": pid, "lat": coords[1], "lon": coords[0]})
             continue
 
         results[pid] = FetchedEmbedding(
@@ -107,6 +133,34 @@ def _fetch_alphaearth_gee_batch(
             period_end=end_date,
             lat=coords[1],
             lon=coords[0],
+        )
+
+    # Diagnostic: distinguish "dropped by sampleRegions" from "all-zero vector".
+    # Both are deterministic "no data" — retrying won't help; these are real
+    # coverage gaps in GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL for the given year.
+    missing_pids = [p["id"] for p in points if p["id"] not in returned_pids]
+    if missing_pids:
+        missing_coords = [
+            {"id": p["id"], "lat": p["lat"], "lon": p["lon"]}
+            for p in points
+            if p["id"] in set(missing_pids)
+        ]
+        logger.warning(
+            "AlphaEarth %s-%s: %d point(s) missing from sampleRegions output "
+            "(not retryable — point outside mosaic extent). Sample: %s",
+            start_date.date(),
+            end_date.date(),
+            len(missing_pids),
+            missing_coords[:5],
+        )
+    if zero_vector_points:
+        logger.warning(
+            "AlphaEarth %s-%s: %d point(s) returned all-zero vector "
+            "(not retryable — pixel masked / no data). Sample: %s",
+            start_date.date(),
+            end_date.date(),
+            len(zero_vector_points),
+            zero_vector_points[:5],
         )
 
     return results
