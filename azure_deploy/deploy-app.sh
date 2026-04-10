@@ -354,10 +354,17 @@ echo -e "${GREEN}✓ Frontend deployed${NC}"
 # Update CORS
 echo ""
 echo -e "${YELLOW}Updating CORS...${NC}"
+CORS_ORIGINS_VALUE="https://$FRONTEND_URL"
+if [ -n "$CUSTOM_DOMAINS" ]; then
+    # CUSTOM_DOMAINS is a comma-separated list of full origins,
+    # e.g. "https://www.stacnotator.io,https://stacnotator.io"
+    CORS_ORIGINS_VALUE="${CORS_ORIGINS_VALUE},${CUSTOM_DOMAINS}"
+fi
+echo -e "${BLUE}  CORS_ORIGINS=${CORS_ORIGINS_VALUE}${NC}"
 az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none
+    --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none
 az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none 2>/dev/null || true
+    --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none 2>/dev/null || true
 echo -e "${GREEN}✓ CORS updated${NC}"
 
 echo ""
