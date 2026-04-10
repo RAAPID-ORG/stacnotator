@@ -284,7 +284,7 @@ def mosaic_tile(
     return Response(
         content=content,
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 

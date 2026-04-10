@@ -31,7 +31,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     with rasterio.Env(
         GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
-        GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="NO",
+        GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES",
         GDAL_HTTP_MULTIPLEX="YES",
         GDAL_HTTP_TIMEOUT=60,
         GDAL_HTTP_MAX_RETRY=3,
