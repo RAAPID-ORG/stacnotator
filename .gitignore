@@ -30,6 +30,8 @@ docker-compose.override.yml
 serviceAccount*.json
 *-credentials*.json
 *.credentials
+*.sql
+
 
 # Private keys
 *.pem

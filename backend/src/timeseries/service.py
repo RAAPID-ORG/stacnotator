@@ -42,26 +42,47 @@ def add_modis_cloud_mask(image):
 
 def add_s2_cloud_mask(image):
     """
-    Add a cloud mask for Sentinel-2 using Google CloudScore+ (cs_cdf band).
+    Add a cloud mask for Sentinel-2 combining Google CloudScore+ with an SCL
+    backup for cloud shadows (which CloudScore+ does not flag reliably).
 
-    The cs_cdf band ranges from 0 (cloudy) to 1 (clear). We threshold at 0.6
-    as recommended by Google for general applications.
+    CloudScore+ cs_cdf ranges from 0 (cloudy) to 1 (clear); we threshold at 0.65
+    (Google's recommended default for NDVI time series).
 
-    Assumes the CloudScore+ cs_cdf band has been linked to the image via a join
-    (see _build_s2_collection_with_cloudscore).
+    SCL backup flags these Scene Classification codes as cloudy:
+        3  = cloud shadow
+        8  = cloud medium probability
+        9  = cloud high probability
+        10 = thin cirrus
 
-    Fallback: if no cs_cdf band is available, uses QA60 bitmask.
+    Final mask = CloudScore+ cloud OR SCL cloud.
 
-    Reference: https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_CLOUD_SCORE_PLUS_V1_S2_HARMONIZED
+    Fallback: if no cs_cdf band is linked (e.g. no CloudScore+ match), falls
+    back to SCL-only (and then QA60 if SCL is missing too).
+
+    Refs:
+      https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_CLOUD_SCORE_PLUS_V1_S2_HARMONIZED
+      https://sentinels.copernicus.eu/web/sentinel/technical-guides/sentinel-2-msi/level-2a/algorithm-overview
     """
-    CS_THRESHOLD = 0.6
+    CS_THRESHOLD = 0.65
+    SCL_CLOUD_CLASSES = [3, 8, 9, 10]  # shadow, cloud med, cloud high, cirrus
 
     has_cs = image.bandNames().contains("cs_cdf")
+    has_scl = image.bandNames().contains("SCL")
 
     # CloudScore+ path: cs_cdf < threshold -> cloudy
     cs_cloud = image.select(["cs_cdf"]).lt(CS_THRESHOLD).rename("cloud")
 
-    # QA60 fallback path
+    # SCL path: pixel classified as shadow/cloud/cirrus
+    scl = image.select(["SCL"])
+    scl_cloud = (
+        scl.eq(SCL_CLOUD_CLASSES[0])
+        .Or(scl.eq(SCL_CLOUD_CLASSES[1]))
+        .Or(scl.eq(SCL_CLOUD_CLASSES[2]))
+        .Or(scl.eq(SCL_CLOUD_CLASSES[3]))
+        .rename("cloud")
+    )
+
+    # QA60 fallback path (only used if neither cs_cdf nor SCL are present)
     qa_cloud = (
         image.select(["QA60"])
         .bitwiseAnd(1 << 10)
@@ -70,7 +91,16 @@ def add_s2_cloud_mask(image):
         .rename("cloud")
     )
 
-    cloud_mask = ee.Image(ee.Algorithms.If(has_cs, cs_cloud, qa_cloud))
+    # Preferred: CloudScore+ OR SCL. Degrade gracefully if bands are missing.
+    cs_plus_scl = cs_cloud.Or(scl_cloud).rename("cloud")
+    # Nested If: (has_cs ? (has_scl ? cs_plus_scl : cs_cloud) : (has_scl ? scl_cloud : qa_cloud))
+    cloud_mask = ee.Image(
+        ee.Algorithms.If(
+            has_cs,
+            ee.Algorithms.If(has_scl, cs_plus_scl, cs_cloud),
+            ee.Algorithms.If(has_scl, scl_cloud, qa_cloud),
+        )
+    )
     return image.addBands(cloud_mask)
 
 
