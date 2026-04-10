@@ -229,7 +229,7 @@ def reorder_views(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Reorder views. Body: { "view_ids": [3, 1, 2] } — new display order."""
+    """Reorder views. Body: { "view_ids": [3, 1, 2] } - new display order."""
     view_ids = body.get("view_ids", [])
     service.reorder_views(db=db, campaign_id=campaign_id, view_ids=view_ids)
     return {"status": "updated"}

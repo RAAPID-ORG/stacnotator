@@ -228,7 +228,7 @@ def mosaic_tile(
     is_first = compositing == "first"
     # For first-valid: process one at a time so is_done short-circuits after
     # the first fully-valid image. For statistical methods: let rio_tiler use
-    # its own thread/chunk defaults (passing None here is not supported —
+    # its own thread/chunk defaults (passing None here is not supported -
     # rio_tiler does `threads > 1` internally and blows up on None).
     mosaic_kwargs = {"pixel_selection": pixel_method}
     if is_first:

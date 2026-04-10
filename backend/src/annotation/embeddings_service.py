@@ -136,7 +136,7 @@ def _fetch_alphaearth_gee_batch(
         )
 
     # Diagnostic: distinguish "dropped by sampleRegions" from "all-zero vector".
-    # Both are deterministic "no data" — retrying won't help; these are real
+    # Both are deterministic "no data" - retrying won't help; these are real
     # coverage gaps in GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL for the given year.
     missing_pids = [p["id"] for p in points if p["id"] not in returned_pids]
     if missing_pids:
@@ -147,7 +147,7 @@ def _fetch_alphaearth_gee_batch(
         ]
         logger.warning(
             "AlphaEarth %s-%s: %d point(s) missing from sampleRegions output "
-            "(not retryable — point outside mosaic extent). Sample: %s",
+            "(not retryable - point outside mosaic extent). Sample: %s",
             start_date.date(),
             end_date.date(),
             len(missing_pids),
@@ -156,7 +156,7 @@ def _fetch_alphaearth_gee_batch(
     if zero_vector_points:
         logger.warning(
             "AlphaEarth %s-%s: %d point(s) returned all-zero vector "
-            "(not retryable — pixel masked / no data). Sample: %s",
+            "(not retryable - pixel masked / no data). Sample: %s",
             start_date.date(),
             end_date.date(),
             len(zero_vector_points),

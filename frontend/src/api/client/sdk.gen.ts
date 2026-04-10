@@ -925,7 +925,7 @@ export const updateView = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Reorder Views
  *
- * Reorder views. Body: { "view_ids": [3, 1, 2] } — new display order.
+ * Reorder views. Body: { "view_ids": [3, 1, 2] } - new display order.
  */
 export const reorderViews = <ThrowOnError extends boolean = false>(options: Options<ReorderViewsData, ThrowOnError>) => (options.client ?? client).put<ReorderViewsResponses, ReorderViewsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

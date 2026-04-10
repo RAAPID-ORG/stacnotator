@@ -179,7 +179,7 @@ const WindowMap = ({
 
     // Keep OL in sync when the container resizes (layout shifts, sidebar toggle).
     // After updating the size, poke the tile source so OL requests tiles for
-    // any newly-visible area — updateSize() alone doesn't re-evaluate tile coverage.
+    // any newly-visible area - updateSize() alone doesn't re-evaluate tile coverage.
     const ro = new ResizeObserver(() => {
       map.updateSize();
       tileLayerRef.current?.getSource()?.changed();

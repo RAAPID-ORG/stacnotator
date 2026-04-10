@@ -4,7 +4,7 @@
  *
  * Uses <img> (not fetch()) because OL loads tiles via <img crossOrigin="anonymous">.
  * Both must use the same request mechanism to share the browser's HTTP cache
- * partition — mixing fetch() and <img> causes intermittent gray tiles.
+ * partition - mixing fetch() and <img> causes intermittent gray tiles.
  *
  * Design:
  *   - Priority queue - lower number = higher priority.
