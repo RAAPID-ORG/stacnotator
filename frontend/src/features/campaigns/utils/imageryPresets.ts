@@ -228,7 +228,7 @@ export const emptyImagery = (): ImageryCreate => ({
   start_ym: '',
   end_ym: '',
   crosshair_hex6: 'ff0000',
-  default_zoom: 14,
+  default_zoom: 15,
   window_interval: undefined,
   window_unit: undefined,
   registration_url: '',

@@ -1,6 +1,7 @@
 """pystac_client wrapper with MPC signing support."""
 
 import logging
+import time
 
 import planetary_computer as pc
 import pystac_client
@@ -12,23 +13,38 @@ def _is_mpc(url: str) -> bool:
     return "planetarycomputer.microsoft.com" in url
 
 
-def get_client(catalog_url: str) -> pystac_client.Client:
+def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     """Get a pystac Client for the given catalog URL.
 
     For MPC, applies the planetary_computer modifier so that
-    returned items have signed asset URLs.
+    returned items have signed asset URLs. Pass ``sign=False`` when you
+    only need catalog metadata (e.g. listing collections) - the signer
+    eagerly hits MPC's SAS token endpoint per collection and a single
+    broken collection (e.g. nex-gddp-cmip6) 404s the whole listing.
     """
     kwargs = {}
-    if _is_mpc(catalog_url):
+    if sign and _is_mpc(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
     return pystac_client.Client.open(catalog_url, **kwargs)
 
 
 def list_collections(catalog_url: str) -> list[dict]:
     """List collections from a STAC API catalog."""
-    client = get_client(catalog_url)
+    t_open = time.time()
+    client = get_client(catalog_url, sign=False)
+    logger.info("list_collections: Client.open took %.2fs", time.time() - t_open)
+
+    t_fetch = time.time()
+    cols = list(client.get_collections())
+    logger.info(
+        "list_collections: get_collections() fetched %d cols in %.2fs",
+        len(cols),
+        time.time() - t_fetch,
+    )
+
+    t_parse = time.time()
     results = []
-    for col in client.get_collections():
+    for col in cols:
         extent = col.extent
         temporal = None
         if extent and extent.temporal and extent.temporal.intervals:
@@ -89,6 +105,7 @@ def list_collections(catalog_url: str) -> list[dict]:
                 "has_cloud_cover": has_cloud_cover,
             }
         )
+    logger.info("list_collections: parsed %d cols in %.2fs", len(results), time.time() - t_parse)
     return results
 
 

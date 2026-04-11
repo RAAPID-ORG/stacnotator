@@ -148,7 +148,8 @@ export const AnnotationControls = ({
   const _hasExistingAnnotation = userAnnotation !== undefined;
   const hasExistingLabel = userAnnotation !== undefined && userAnnotation.label_id != null;
 
-  // Check if current user is assigned to this task (only assigned users can skip)
+  // Only users assigned to this task can skip it (skipping submits a
+  // null-label annotation).
   const isAssignedToTask =
     currentTask?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
 

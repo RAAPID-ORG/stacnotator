@@ -292,7 +292,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   return (
     <div
-      className="flex-1 relative overflow-hidden"
+      className="flex-1 relative overflow-hidden select-none"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

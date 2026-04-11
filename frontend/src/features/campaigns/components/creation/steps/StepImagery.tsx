@@ -6,9 +6,11 @@ import type {
   ImageryView,
   Basemap,
   ViewCollectionRef,
+  CollectionItem,
+  VizParams,
 } from './imagery/types';
 import { emptySource, emptyView, emptyBasemap, swap, DEFAULT_BASEMAPS } from './imagery/types';
-import { MPC_PRESETS } from './imagery/CatalogBrowser';
+import { CatalogBrowser, MPC_PRESETS } from './imagery/CatalogBrowser';
 import type { CatalogBrowserPreset } from './imagery/CatalogBrowser';
 import { ImagerySourceEditor } from './imagery/ImagerySourceEditor';
 import { CanvasPreview } from './imagery/CanvasPreview';
@@ -45,13 +47,31 @@ export const StepImagery = ({
   const [activeViewId, setActiveViewId] = useState<string | null>(() => state.views[0]?.id ?? null);
   /** Whether the + Source picker is open */
   const [showSourcePicker, setShowSourcePicker] = useState(false);
-  /** When a preset source is created, pass the preset ID so StacGenerator opens automatically */
-  const [pendingPreset, setPendingPreset] = useState<CatalogBrowserPreset | null>(null);
+  /** Preset currently driving the top-level CatalogBrowser modal, or null. */
+  const [presetBrowser, setPresetBrowser] = useState<CatalogBrowserPreset | null>(null);
 
   const updateState = (next: ImageryStepState) => {
     setState(next);
     syncToForm(next);
   };
+
+  const toVizParamsPayload = (v: VizParams) => ({
+    assets: v.assets,
+    asset_as_band: v.assetAsBand,
+    rescale: v.rescale || undefined,
+    colormap_name: v.colormapName,
+    color_formula: v.colorFormula,
+    expression: v.expression,
+    resampling: v.resampling,
+    compositing: v.compositing,
+    nodata: v.nodata,
+    extra_params: v.extraParams,
+    mask_layer: v.maskLayer,
+    mask_values: v.maskValues,
+    nir_band: v.nirBand,
+    red_band: v.redBand,
+    max_items: v.maxItems,
+  });
 
   const syncToForm = (s: ImageryStepState) => {
     const sources = s.sources.map((src) => ({
@@ -81,53 +101,30 @@ export const StepImagery = ({
           col.data.type === 'stac' && col.data.registrationUrl
             ? { registration_url: col.data.registrationUrl, search_body: col.data.searchBody }
             : col.data.type === 'stac_browser'
-              ? {
-                  registration_url: '',
-                  search_body: '',
-                  catalog_url: col.data.catalogUrl,
-                  stac_collection_id: col.data.stacCollectionId,
-                  viz_params: col.data.visualizations?.[0]?.vizParams
-                    ? {
-                        assets: col.data.visualizations[0].vizParams.assets,
-                        asset_as_band: col.data.visualizations[0].vizParams.assetAsBand,
-                        rescale: col.data.visualizations[0].vizParams.rescale || undefined,
-                        colormap_name: col.data.visualizations[0].vizParams.colormapName,
-                        color_formula: col.data.visualizations[0].vizParams.colorFormula,
-                        expression: col.data.visualizations[0].vizParams.expression,
-                        resampling: col.data.visualizations[0].vizParams.resampling,
-                        compositing: col.data.visualizations[0].vizParams.compositing,
-                        nodata: col.data.visualizations[0].vizParams.nodata,
-                        extra_params: col.data.visualizations[0].vizParams.extraParams,
-                        mask_layer: col.data.visualizations[0].vizParams.maskLayer,
-                        mask_values: col.data.visualizations[0].vizParams.maskValues,
-                        nir_band: col.data.visualizations[0].vizParams.nirBand,
-                        red_band: col.data.visualizations[0].vizParams.redBand,
-                        max_items: col.data.visualizations[0].vizParams.maxItems,
-                      }
-                    : undefined,
-                  cover_viz_params: col.data.coverVisualizations?.[0]?.vizParams
-                    ? {
-                        assets: col.data.coverVisualizations[0].vizParams.assets,
-                        asset_as_band: col.data.coverVisualizations[0].vizParams.assetAsBand,
-                        rescale: col.data.coverVisualizations[0].vizParams.rescale || undefined,
-                        colormap_name: col.data.coverVisualizations[0].vizParams.colormapName,
-                        color_formula: col.data.coverVisualizations[0].vizParams.colorFormula,
-                        expression: col.data.coverVisualizations[0].vizParams.expression,
-                        resampling: col.data.coverVisualizations[0].vizParams.resampling,
-                        compositing: col.data.coverVisualizations[0].vizParams.compositing,
-                        nodata: col.data.coverVisualizations[0].vizParams.nodata,
-                        extra_params: col.data.coverVisualizations[0].vizParams.extraParams,
-                        mask_layer: col.data.coverVisualizations[0].vizParams.maskLayer,
-                        mask_values: col.data.coverVisualizations[0].vizParams.maskValues,
-                        nir_band: col.data.coverVisualizations[0].vizParams.nirBand,
-                        red_band: col.data.coverVisualizations[0].vizParams.redBand,
-                        max_items: col.data.coverVisualizations[0].vizParams.maxItems,
-                      }
-                    : undefined,
-                  max_cloud_cover: col.data.maxCloudCover,
-                  search_query: col.data.searchQuery ?? null,
-                  cover_search_query: col.data.coverSearchQuery ?? null,
-                }
+              ? (() => {
+                  const data = col.data;
+                  return {
+                    registration_url: '',
+                    search_body: '',
+                    catalog_url: data.catalogUrl,
+                    stac_collection_id: data.stacCollectionId,
+                    visualizations: (data.visualizations ?? [])
+                      .filter((v) => v.vizParams)
+                      .map((v) => {
+                        const cover = data.coverVisualizations?.find((c) => c.name === v.name);
+                        return {
+                          name: v.name,
+                          viz_params: toVizParamsPayload(v.vizParams),
+                          cover_viz_params: cover?.vizParams
+                            ? toVizParamsPayload(cover.vizParams)
+                            : undefined,
+                        };
+                      }),
+                    max_cloud_cover: data.maxCloudCover,
+                    search_query: data.searchQuery ?? null,
+                    cover_search_query: data.coverSearchQuery ?? null,
+                  };
+                })()
               : null,
       })),
     }));
@@ -162,16 +159,34 @@ export const StepImagery = ({
     updateState({ ...state, sources: [...state.sources, src] });
     setEditingSourceId(src.id);
     setShowSourcePicker(false);
-    setPendingPreset(null);
   };
 
+  // Preset flow: open the CatalogBrowser standalone. The source is only created
+  // once generation succeeds, so cancelling leaves no empty source behind.
   const addSourceFromPreset = (preset: CatalogBrowserPreset) => {
+    setPresetBrowser(preset);
+    setShowSourcePicker(false);
+  };
+
+  const handlePresetAdd = (collections: CollectionItem[]) => {
+    if (!presetBrowser || collections.length === 0) {
+      setPresetBrowser(null);
+      return;
+    }
+    const firstCol = collections[0];
+    const vizNames =
+      firstCol.data.type === 'stac_browser' && firstCol.data.visualizations
+        ? firstCol.data.visualizations.map((v) => ({ name: v.name }))
+        : [{ name: 'True Color' }];
+
     const src = emptySource();
-    src.name = preset.label;
+    src.name = presetBrowser.label;
+    src.visualizations = vizNames;
+    src.collections = collections;
+
     updateState({ ...state, sources: [...state.sources, src] });
     setEditingSourceId(src.id);
-    setShowSourcePicker(false);
-    setPendingPreset(preset);
+    setPresetBrowser(null);
   };
 
   const updateSource = (id: string, updates: Partial<ImagerySource>) => {
@@ -337,9 +352,7 @@ export const StepImagery = ({
 
   return (
     <div className="space-y-6">
-      {/* ═══════════════════════════════════════════════════════════════
-          SECTION 1: IMAGERY SOURCES
-          ═══════════════════════════════════════════════════════════════ */}
+      {/* Section 1: Imagery Sources */}
       <section>
         <div className="mb-3">
           <h3 className="text-sm font-semibold text-neutral-900">Imagery Sources</h3>
@@ -362,10 +375,7 @@ export const StepImagery = ({
                     tileRefs.current[source.id] = el;
                   }}
                   type="button"
-                  onClick={() => {
-                    setEditingSourceId(isEditing ? null : source.id);
-                    setPendingPreset(null);
-                  }}
+                  onClick={() => setEditingSourceId(isEditing ? null : source.id)}
                   title="Click to configure"
                   className={`group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
                     px-4 py-3 shrink-0
@@ -493,8 +503,6 @@ export const StepImagery = ({
                   source={renderedSource}
                   onChange={(updates) => updateSource(renderedSource.id, updates)}
                   onRemove={() => removeSource(renderedSource.id)}
-                  initialPreset={editingSourceId === renderedSource.id ? pendingPreset : null}
-                  onPresetConsumed={() => setPendingPreset(null)}
                 />
               </div>
             </div>
@@ -502,9 +510,7 @@ export const StepImagery = ({
         )}
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SECTION 2: VIEW LAYOUT
-          ═══════════════════════════════════════════════════════════════ */}
+      {/* Section 2: View Layout */}
       {state.sources.length > 0 && (
         <section>
           <div className="mb-3">
@@ -569,9 +575,7 @@ export const StepImagery = ({
         </Modal>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════
-          SECTION 3: BASEMAPS
-          ═══════════════════════════════════════════════════════════════ */}
+      {/* Section 3: Basemaps */}
       <section>
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -624,6 +628,15 @@ export const StepImagery = ({
           </div>
         )}
       </section>
+
+      {presetBrowser && (
+        <CatalogBrowser
+          initialMode="mosaic"
+          preset={presetBrowser}
+          onAdd={handlePresetAdd}
+          onClose={() => setPresetBrowser(null)}
+        />
+      )}
     </div>
   );
 };

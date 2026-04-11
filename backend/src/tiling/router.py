@@ -35,6 +35,12 @@ _AUTH_REQUIRED_CATALOGS = {"usgs-m2m", "maxar"}
 
 _catalogs_cache: dict = {"data": None, "expires": 0}
 
+# Per-catalog_url collections cache. MPC's /collections can time out for
+# 20+ seconds - cache aggressively and serve stale on upstream failure so
+# one bad upstream response doesn't block the user.
+_collections_cache: dict[str, dict] = {}
+COLLECTIONS_CACHE_TTL = 86400  # 1 day
+
 
 @router.get("/catalogs")
 async def list_catalogs():
@@ -92,12 +98,49 @@ async def list_catalogs():
 
 @router.get("/collections")
 def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
-    """List collections from a STAC API catalog."""
+    """List collections from a STAC API catalog, with a 1h cache.
+
+    Serves stale data on upstream failure so a transient MPC timeout
+    doesn't block the user.
+    """
+    now = time.time()
+    entry = _collections_cache.get(catalog_url)
+    if entry and now < entry["expires"]:
+        age = now - (entry["expires"] - COLLECTIONS_CACHE_TTL)
+        logger.info(
+            "collections cache HIT catalog=%s count=%d age=%.1fs",
+            catalog_url,
+            len(entry["data"]),
+            age,
+        )
+        return entry["data"]
+
+    logger.info("collections cache MISS catalog=%s - fetching upstream", catalog_url)
+    t0 = time.time()
     try:
-        return _list_collections(catalog_url)
+        data = _list_collections(catalog_url)
     except Exception as e:
-        logger.error("Failed to list collections from %s: %s", catalog_url, e)
+        elapsed = time.time() - t0
+        logger.error(
+            "collections fetch FAILED catalog=%s elapsed=%.2fs err=%s",
+            catalog_url,
+            elapsed,
+            e,
+        )
+        if entry and entry.get("data"):
+            logger.warning("Serving stale collections cache for %s", catalog_url)
+            return entry["data"]
         raise HTTPException(status_code=502, detail="Failed to connect to catalog") from e
+
+    elapsed = time.time() - t0
+    logger.info(
+        "collections fetch OK catalog=%s count=%d elapsed=%.2fs",
+        catalog_url,
+        len(data),
+        elapsed,
+    )
+    _collections_cache[catalog_url] = {"data": data, "expires": now + COLLECTIONS_CACHE_TTL}
+    return data
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -117,10 +160,13 @@ def search(request: SearchRequest):
         raise HTTPException(status_code=502, detail="Search failed") from e
 
 
-def build_viz_query_string(viz_params: dict | None) -> str:
+def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> str:
     """Build URL query string from viz params dict (snake_case keys).
 
-    Returns empty string if no params.
+    Returns empty string if no params. When ``for_mpc`` is True, local-only
+    params (compositing, mask_layer/values, nir_band, red_band, max_items)
+    are skipped because MPC's tile endpoint doesn't understand them - those
+    only apply to our self-hosted rasterio mosaic path.
     """
     if not viz_params:
         return ""
@@ -164,6 +210,11 @@ def build_viz_query_string(viz_params: dict | None) -> str:
     nodata = viz_params.get("nodata")
     if nodata is not None:
         parts.append(("nodata", str(nodata)))
+
+    # Local-only params below. MPC doesn't understand these - the tile
+    # endpoint would reject them or silently ignore, so skip entirely.
+    if for_mpc:
+        return urlencode(parts)
 
     compositing = viz_params.get("compositing")
     if compositing:

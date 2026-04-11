@@ -181,13 +181,22 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     },
 
     submitAnnotation: async (labelId, comment, confidence, isAuthoritative) => {
-      const { visibleTasks, allTasks, currentTaskIndex, taskFilter } = get();
+      const { visibleTasks, allTasks, currentTaskIndex } = get();
       const task = visibleTasks[currentTaskIndex];
       const campaign = useCampaignStore.getState().campaign;
       const currentUserId = useAccountStore.getState().account?.id;
 
       if (!task || !campaign || !currentUserId) return;
       set({ isSubmitting: true });
+
+      // visibleTasks is treated as a stable working set between explicit re-filters
+      // (setTaskFilter, resetTaskFilter, loadTasks, goToTaskById({resetFilters})).
+      // Submissions update the task object in place - they never add or remove
+      // list entries - so currentTaskIndex stays well-defined across the session.
+      const replaceTaskInList = (
+        list: AnnotationTaskOut[],
+        updated: AnnotationTaskOut
+      ): AnnotationTaskOut[] => list.map((t) => (t.id === task.id ? updated : t));
 
       try {
         const userAnnotation = task.annotations.find((a) => a.created_by_user_id === currentUserId);
@@ -199,24 +208,21 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             path: { campaign_id: campaign.id, annotation_id: userAnnotation!.id },
           });
           const result = deleteRes.data;
-          const updatedTasks = allTasks.map((t) =>
-            t.id === task.id
-              ? {
-                  ...t,
-                  annotations: t.annotations.filter((a) => a.id !== userAnnotation!.id),
-                  assignments: (t.assignments || []).map((a) =>
-                    a.user_id === currentUserId
-                      ? { ...a, status: result?.assignment_status ?? 'pending' }
-                      : a
-                  ),
-                  task_status: result?.task_status ?? 'pending',
-                }
-              : t
-          );
+          const updatedTask: AnnotationTaskOut = {
+            ...task,
+            annotations: task.annotations.filter((a) => a.id !== userAnnotation!.id),
+            assignments: (task.assignments || []).map((a) =>
+              a.user_id === currentUserId
+                ? { ...a, status: result?.assignment_status ?? 'pending' }
+                : a
+            ),
+            task_status: result?.task_status ?? 'pending',
+          };
           set({
-            allTasks: updatedTasks,
-            visibleTasks: applyTaskFilter(updatedTasks, taskFilter),
+            allTasks: replaceTaskInList(allTasks, updatedTask),
+            visibleTasks: replaceTaskInList(visibleTasks, updatedTask),
             isSubmitting: false,
+            ...getFormStateForTask(updatedTask),
           });
           useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
           return;
@@ -262,32 +268,30 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         const submitResult = response.data;
         const newAnnotation = submitResult?.annotation ?? null;
 
-        const updatedTasks = allTasks.map((t) => {
-          if (t.id !== task.id) return t;
-          const updatedAnnotations = newAnnotation
-            ? [
-                ...t.annotations.filter((a) => a.created_by_user_id !== currentUserId),
-                newAnnotation,
-              ]
-            : t.annotations.filter((a) => a.created_by_user_id !== currentUserId);
-          return {
-            ...t,
-            annotations: updatedAnnotations,
-            assignments: (t.assignments || []).map((a) =>
-              a.user_id === currentUserId
-                ? { ...a, status: submitResult?.assignment_status ?? 'pending' }
-                : a
-            ),
-            task_status: submitResult?.task_status ?? t.task_status,
-          };
-        });
+        const updatedAnnotations = newAnnotation
+          ? [
+              ...task.annotations.filter((a) => a.created_by_user_id !== currentUserId),
+              newAnnotation,
+            ]
+          : task.annotations.filter((a) => a.created_by_user_id !== currentUserId);
+        const updatedTask: AnnotationTaskOut = {
+          ...task,
+          annotations: updatedAnnotations,
+          assignments: (task.assignments || []).map((a) =>
+            a.user_id === currentUserId
+              ? { ...a, status: submitResult?.assignment_status ?? 'pending' }
+              : a
+          ),
+          task_status: submitResult?.task_status ?? task.task_status,
+        };
 
-        const updatedVisible = applyTaskFilter(updatedTasks, taskFilter);
-        const nextIndex = currentTaskIndex < updatedVisible.length - 1 ? currentTaskIndex + 1 : 0;
+        const updatedVisible = replaceTaskInList(visibleTasks, updatedTask);
+        const nextIndex =
+          updatedVisible.length === 0 ? 0 : (currentTaskIndex + 1) % updatedVisible.length;
         const nextTask = updatedVisible[nextIndex] || null;
 
         set({
-          allTasks: updatedTasks,
+          allTasks: replaceTaskInList(allTasks, updatedTask),
           visibleTasks: updatedVisible,
           isSubmitting: false,
           currentTaskIndex: nextIndex,

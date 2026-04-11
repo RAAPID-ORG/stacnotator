@@ -196,9 +196,16 @@ export const CatalogBrowser = ({
       };
       setSelectedCatalog(mpcCatalog);
       setLoading(true);
+      const t0 = performance.now();
+      // eslint-disable-next-line no-console
+      console.log(`[preset:${preset.stacCollectionId}] fetchCollections start`);
       // Fetch full collection list to get item_assets metadata
       fetchCollections(MPC_API_URL)
         .then((cols) => {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[preset:${preset.stacCollectionId}] fetchCollections done in ${(performance.now() - t0).toFixed(0)}ms (${cols.length} cols)`
+          );
           const match = cols.find((c) => c.id === preset.stacCollectionId);
           const col = match || {
             id: preset.stacCollectionId,
@@ -227,8 +234,11 @@ export const CatalogBrowser = ({
           }
           setStep('configure');
         })
-        .catch(() => {
-          // Fallback: use minimal collection info, assets will be discovered via item search
+        .catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          // eslint-disable-next-line no-console
+          console.error(`[preset:${preset.stacCollectionId}] fetchCollections failed`, e);
+          setError(`Could not load ${preset.label}: ${msg}`);
           setSelectedCollection({
             id: preset.stacCollectionId,
             title: preset.label,
@@ -392,10 +402,6 @@ export const CatalogBrowser = ({
         limit: 200,
       });
       setItems(result.items);
-      // Fall back to item assets if collection metadata didn't have item_assets
-      if (Object.keys(availableAssets).length === 0 && result.items.length > 0) {
-        setAvailableAssets(result.items[0].assets ?? {});
-      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -403,14 +409,14 @@ export const CatalogBrowser = ({
     }
   };
 
-  // Auto-search in single-item mode (to list items), or when no item_assets metadata available (fallback)
+  // Auto-search in single-item mode only (to list items for the user to pick).
+  // Mosaic mode relies on collection metadata (item_assets) and must never hit
+  // the STAC search endpoint - if metadata is missing, we surface an error.
   useEffect(() => {
-    if (step !== 'configure' || !selectedCatalog || !selectedCollection || !startDate || !endDate)
-      return;
-    const needsItemSearch = mode === 'single-item' || Object.keys(availableAssets).length === 0;
-    if (needsItemSearch) {
-      doSearch();
-    }
+    if (step !== 'configure' || !selectedCatalog || !selectedCollection) return;
+    if (mode !== 'single-item') return;
+    if (!startDate || !endDate) return;
+    doSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, mode, startDate, endDate, selectedCatalog?.url, selectedCollection?.id]);
 
@@ -831,7 +837,7 @@ export const CatalogBrowser = ({
 
             {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
 
-            {/* ─── CATALOG LIST ─── */}
+            {/* Catalog list */}
             {step === 'catalog' && !loading && (
               <div className="space-y-2">
                 {/* Custom URL input */}
@@ -942,7 +948,7 @@ export const CatalogBrowser = ({
               </div>
             )}
 
-            {/* ─── COLLECTION LIST ─── */}
+            {/* Collection list */}
             {step === 'collection' && !loading && (
               <div className="space-y-1 max-h-80 overflow-y-auto">
                 {filteredCollections.map((col) => (
@@ -1027,7 +1033,7 @@ export const CatalogBrowser = ({
               </div>
             )}
 
-            {/* ─── CONFIGURE STEP ─── */}
+            {/* Configure step */}
             {step === 'configure' && !loading && (
               <div className="space-y-4">
                 {selectedCatalog && !selectedCatalog.is_mpc && (
@@ -1045,103 +1051,115 @@ export const CatalogBrowser = ({
                     data loading).
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode('mosaic')}
-                    className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                      mode === 'mosaic'
-                        ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                    }`}
-                  >
-                    Collection Mosaic
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('single-item')}
-                    className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                      mode === 'single-item'
-                        ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
-                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                    }`}
-                  >
-                    Single Item
-                  </button>
-                </div>
-
-                {/* Date range */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Start Month
-                      <Tooltip text="First month of the temporal range." />
-                    </label>
-                    <MonthPicker value={startDate} onChange={setStartDate} />
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                  <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                    <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                      Search Parameters
+                      <Tooltip text="Controls which STAC items are considered. Choose whether you want a single scene or a date-windowed mosaic, then narrow the match by date range, cloud cover, sort order, or a custom CQL query." />
+                    </h4>
+                    <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                      Filter the STAC catalog by date, cloud cover, and an optional CQL query. Each
+                      slice in the Temporal Structure below searches within these filters.
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      End Month (inclusive)
-                      <Tooltip text="Last month of the temporal range (inclusive)." />
-                    </label>
-                    <MonthPicker value={endDate} onChange={setEndDate} />
-                  </div>
-                </div>
-
-                {/* Cloud cover */}
-                {selectedCollection && selectedCollection.has_cloud_cover && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 font-medium">
-                      Max cloud cover (%)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={maxCloudCover}
-                        onChange={(e) => setMaxCloudCover(Number(e.target.value))}
-                        className="flex-1"
-                      />
-                      <span className="text-xs text-neutral-600 w-8 text-right">
-                        {maxCloudCover}%
-                      </span>
+                  <div className="p-3 space-y-3">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMode('mosaic')}
+                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                          mode === 'mosaic'
+                            ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        }`}
+                      >
+                        Collection Mosaic
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('single-item')}
+                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                          mode === 'single-item'
+                            ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        }`}
+                      >
+                        Single Item
+                      </button>
                     </div>
+
+                    {/* Date range */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 flex items-center gap-1">
+                          Start Month
+                          <Tooltip text="First month of the temporal range." />
+                        </label>
+                        <MonthPicker value={startDate} onChange={setStartDate} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 flex items-center gap-1">
+                          End Month (inclusive)
+                          <Tooltip text="Last month of the temporal range (inclusive)." />
+                        </label>
+                        <MonthPicker value={endDate} onChange={setEndDate} />
+                      </div>
+                    </div>
+
+                    {/* Cloud cover */}
+                    {selectedCollection && selectedCollection.has_cloud_cover && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 font-medium">
+                          Max cloud cover (%)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={maxCloudCover}
+                            onChange={(e) => setMaxCloudCover(Number(e.target.value))}
+                            className="flex-1"
+                          />
+                          <span className="text-xs text-neutral-600 w-8 text-right">
+                            {maxCloudCover}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Item sort order */}
+                    {mode === 'mosaic' && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                          Item Sort Order
+                          <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins - sorting by cloud cover puts the clearest images first." />
+                        </label>
+                        <select
+                          value={itemSort}
+                          onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
+                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                        >
+                          <option value="date_desc">Date (newest first)</option>
+                          <option value="date_asc">Date (oldest first)</option>
+                          {selectedCollection?.has_cloud_cover && (
+                            <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
+                          )}
+                        </select>
+                      </div>
+                    )}
+
+                    {mode === 'mosaic' && selectedCollection && buildAutoQuery() && (
+                      <StacQueryEditor
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        autoQuery={buildAutoQuery()!}
+                      />
+                    )}
                   </div>
-                )}
+                </div>
 
-                {/* Item sort order */}
-                {mode === 'mosaic' && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                      Item Sort Order
-                      <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins - sorting by cloud cover puts the clearest images first." />
-                    </label>
-                    <select
-                      value={itemSort}
-                      onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
-                      className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
-                    >
-                      <option value="date_desc">Date (newest first)</option>
-                      <option value="date_asc">Date (oldest first)</option>
-                      {selectedCollection?.has_cloud_cover && (
-                        <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
-                      )}
-                    </select>
-                  </div>
-                )}
-
-                {/* ─── CUSTOM SEARCH QUERY ─── */}
-                {mode === 'mosaic' && selectedCollection && buildAutoQuery() && (
-                  <StacQueryEditor
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    autoQuery={buildAutoQuery()!}
-                  />
-                )}
-
-                {/* ─── TEMPORAL STRUCTURE ─── */}
-                {mode === 'mosaic' && (
+                {mode === 'mosaic' && Object.keys(availableAssets).length > 0 && (
                   <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
                     <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
                       <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
@@ -1226,41 +1244,57 @@ export const CatalogBrowser = ({
                           </select>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
 
-                      {/* Cover Slice */}
-                      <div className="space-y-2">
-                        <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                          Cover Slice
-                          <Tooltip text="The cover slice is the default visible image when opening an annotation task. Use n-th to pick an existing slice, or custom to add a separate cover slice spanning the full collection window with its own search and visualization parameters." />
+                {mode === 'mosaic' && Object.keys(availableAssets).length > 0 && (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                    <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                      <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                        Cover Slice
+                        <Tooltip text="The cover slice is the default image shown first when an annotator opens a task. You can either reuse one of the regular slices, or generate a separate cover slice that spans the full collection window (e.g. a first-valid mosaic for the whole month) with its own search and rendering parameters." />
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                        The cover slice is always shown first for a collection window. Reuse one of
+                        the regular slices of the collection, or generate a separate one spanning
+                        the full collection timerange window.
+                      </p>
+                    </div>
+                    <div className="p-3 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <input
+                            type="radio"
+                            name="coverMode"
+                            checked={coverMode === 'nth'}
+                            onChange={() => setCoverMode('nth')}
+                          />
+                          Use an existing slice
                         </label>
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input
-                              type="radio"
-                              name="coverMode"
-                              checked={coverMode === 'nth'}
-                              onChange={() => setCoverMode('nth')}
-                            />
-                            Use n-th slice
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input
-                              type="radio"
-                              name="coverMode"
-                              checked={coverMode === 'custom'}
-                              onChange={() => {
-                                setCoverMode('custom');
-                                // Initialize cover visualizations from regular ones with first-valid compositing
-                                if (coverVisualizations.length === 0) {
-                                  syncCoverVisualizationsFromRegular();
-                                }
-                              }}
-                            />
-                            Custom cover
-                          </label>
-                        </div>
+                        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                          <input
+                            type="radio"
+                            name="coverMode"
+                            checked={coverMode === 'custom'}
+                            onChange={() => {
+                              setCoverMode('custom');
+                              // Initialize cover visualizations from regular ones with first-valid compositing
+                              if (coverVisualizations.length === 0) {
+                                syncCoverVisualizationsFromRegular();
+                              }
+                            }}
+                          />
+                          Generate a separate cover slice
+                        </label>
+                      </div>
 
-                        {coverMode === 'nth' && (
+                      {coverMode === 'nth' && (
+                        <div className="space-y-1">
+                          <label className="text-xs text-neutral-700 flex items-center gap-1">
+                            Slice index (1-based)
+                            <Tooltip text="Which slice in each collection becomes the cover - e.g. 1 = first slice." />
+                          </label>
                           <input
                             type="number"
                             min="1"
@@ -1268,126 +1302,122 @@ export const CatalogBrowser = ({
                             onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
                             className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
                           />
-                        )}
+                        </div>
+                      )}
 
-                        {coverMode === 'custom' && (
-                          <div className="space-y-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200">
-                            <p className="text-[11px] text-neutral-500">
-                              The cover slice spans the full temporal collection window. Configure
-                              search parameters and per-visualization rendering independently from
-                              regular slices.
-                            </p>
+                      {coverMode === 'custom' && (
+                        <div className="space-y-3 p-3 rounded-lg bg-white border border-neutral-200">
+                          <p className="text-[11px] text-neutral-500">
+                            The cover slice spans the full collection window (e.g. the whole month).
+                            It can use a different search query and rendering - for example, a
+                            first-valid mosaic over the full period.
+                          </p>
 
-                            {/* Cover search parameters */}
-                            <div className="space-y-2">
-                              <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
-                                Search Parameters
-                              </h5>
-                              {selectedCollection && selectedCollection.has_cloud_cover && (
-                                <div className="space-y-1">
-                                  <label className="text-xs text-neutral-700 font-medium">
-                                    Max cloud cover (%)
-                                  </label>
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={100}
-                                      value={coverMaxCloudCover}
-                                      onChange={(e) =>
-                                        setCoverMaxCloudCover(Number(e.target.value))
-                                      }
-                                      className="flex-1"
-                                    />
-                                    <span className="text-xs text-neutral-600 w-8 text-right">
-                                      {coverMaxCloudCover}%
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
+                          {/* Cover search parameters */}
+                          <div className="space-y-2">
+                            <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+                              Search Parameters
+                            </h5>
+                            {selectedCollection && selectedCollection.has_cloud_cover && (
                               <div className="space-y-1">
-                                <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                                  Item Sort Order
-                                  <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
+                                <label className="text-xs text-neutral-700 font-medium">
+                                  Max cloud cover (%)
                                 </label>
-                                <select
-                                  value={coverItemSort}
-                                  onChange={(e) =>
-                                    setCoverItemSort(e.target.value as ItemSortOption)
-                                  }
-                                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
-                                >
-                                  <option value="date_desc">Date (newest first)</option>
-                                  <option value="date_asc">Date (oldest first)</option>
-                                  {selectedCollection?.has_cloud_cover && (
-                                    <option value="cloud_cover_asc">
-                                      Cloud cover (lowest first)
-                                    </option>
-                                  )}
-                                </select>
-                              </div>
-
-                              {selectedCollection && buildCoverAutoQuery() && (
-                                <StacQueryEditor
-                                  value={coverSearchQuery}
-                                  onChange={setCoverSearchQuery}
-                                  autoQuery={buildCoverAutoQuery()!}
-                                  label="Cover Slice Search Query"
-                                />
-                              )}
-                            </div>
-
-                            {/* Cover visualizations - tabbed, same as regular */}
-                            {Object.keys(availableAssets).length > 0 && selectedCollection && (
-                              <div className="space-y-2">
-                                <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
-                                  Visualizations
-                                </h5>
-                                <div className="rounded-lg border border-neutral-200 overflow-hidden">
-                                  {/* Tab bar */}
-                                  <div className="flex items-center bg-white border-b border-neutral-200 px-2 pt-2 gap-1">
-                                    {coverVisualizations.map((cv, i) => (
-                                      <button
-                                        key={i}
-                                        type="button"
-                                        onClick={() => setActiveCoverVizIndex(i)}
-                                        className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer ${
-                                          i === activeCoverVizIndex
-                                            ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
-                                            : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
-                                        }`}
-                                      >
-                                        {cv.name || `Viz ${i + 1}`}
-                                      </button>
-                                    ))}
-                                  </div>
-                                  {/* Tab content */}
-                                  <div className="p-3 space-y-3 bg-white">
-                                    <VizConfigPanel
-                                      collectionId={selectedCollection.id}
-                                      availableAssets={availableAssets}
-                                      vizParams={
-                                        coverVisualizations[activeCoverVizIndex]?.vizParams ||
-                                        emptyVizParams()
-                                      }
-                                      onChange={(params) => {
-                                        setCoverVisualizations((prev) =>
-                                          prev.map((v, i) =>
-                                            i === activeCoverVizIndex
-                                              ? { ...v, vizParams: params }
-                                              : v
-                                          )
-                                        );
-                                      }}
-                                      showCompositing
-                                    />
-                                  </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={coverMaxCloudCover}
+                                    onChange={(e) => setCoverMaxCloudCover(Number(e.target.value))}
+                                    className="flex-1"
+                                  />
+                                  <span className="text-xs text-neutral-600 w-8 text-right">
+                                    {coverMaxCloudCover}%
+                                  </span>
                                 </div>
                               </div>
                             )}
+                            <div className="space-y-1">
+                              <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+                                Item Sort Order
+                                <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
+                              </label>
+                              <select
+                                value={coverItemSort}
+                                onChange={(e) => setCoverItemSort(e.target.value as ItemSortOption)}
+                                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                              >
+                                <option value="date_desc">Date (newest first)</option>
+                                <option value="date_asc">Date (oldest first)</option>
+                                {selectedCollection?.has_cloud_cover && (
+                                  <option value="cloud_cover_asc">
+                                    Cloud cover (lowest first)
+                                  </option>
+                                )}
+                              </select>
+                            </div>
+
+                            {selectedCollection && buildCoverAutoQuery() && (
+                              <StacQueryEditor
+                                value={coverSearchQuery}
+                                onChange={setCoverSearchQuery}
+                                autoQuery={buildCoverAutoQuery()!}
+                                label="Cover Slice Search Query"
+                              />
+                            )}
                           </div>
-                        )}
-                      </div>
+
+                          {/* Cover visualizations - tabbed, same as regular */}
+                          {Object.keys(availableAssets).length > 0 && selectedCollection && (
+                            <div className="space-y-2">
+                              <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+                                Cover Visualizations
+                              </h5>
+                              <div className="rounded-lg border border-neutral-200 overflow-hidden">
+                                {/* Tab bar */}
+                                <div className="flex items-center bg-white border-b border-neutral-200 px-2 pt-2 gap-1">
+                                  {coverVisualizations.map((cv, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => setActiveCoverVizIndex(i)}
+                                      className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer ${
+                                        i === activeCoverVizIndex
+                                          ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
+                                          : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
+                                      }`}
+                                    >
+                                      {cv.name || `Viz ${i + 1}`}
+                                    </button>
+                                  ))}
+                                </div>
+                                {/* Tab content */}
+                                <div className="p-3 space-y-3 bg-white">
+                                  <VizConfigPanel
+                                    collectionId={selectedCollection.id}
+                                    availableAssets={availableAssets}
+                                    vizParams={
+                                      coverVisualizations[activeCoverVizIndex]?.vizParams ||
+                                      emptyVizParams()
+                                    }
+                                    onChange={(params) => {
+                                      setCoverVisualizations((prev) =>
+                                        prev.map((v, i) =>
+                                          i === activeCoverVizIndex
+                                            ? { ...v, vizParams: params }
+                                            : v
+                                        )
+                                      );
+                                    }}
+                                    showCompositing
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1445,15 +1475,43 @@ export const CatalogBrowser = ({
                     Searching for items...
                   </div>
                 )}
-                {Object.keys(availableAssets).length === 0 && !loading && (
-                  <div className="text-xs text-neutral-400 text-center py-2">
-                    No asset metadata found for this collection. Try selecting a different one.
-                  </div>
-                )}
+                {mode === 'mosaic' &&
+                  selectedCollection &&
+                  Object.keys(availableAssets).length === 0 &&
+                  !loading && (
+                    <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2.5 text-xs text-red-800">
+                      <p className="font-semibold">Asset metadata unavailable.</p>
+                      <p className="mt-1 leading-relaxed">
+                        This collection&apos;s STAC metadata didn&apos;t include per-band{' '}
+                        <code className="font-mono text-[11px]">item_assets</code>, so
+                        visualizations can&apos;t be configured from it. Pick a different
+                        collection, or use the custom STAC registration URL path instead.
+                      </p>
+                    </div>
+                  )}
+                {mode === 'single-item' &&
+                  Object.keys(availableAssets).length === 0 &&
+                  !loading && (
+                    <div className="text-xs text-neutral-400 text-center py-2">
+                      No asset metadata found for this collection. Try selecting a different one.
+                    </div>
+                  )}
 
-                {/* ─── VISUALIZATIONS ─── */}
                 {Object.keys(availableAssets).length > 0 && selectedCollection && (
-                  <div className="rounded-lg border border-neutral-200 overflow-hidden">
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 overflow-hidden">
+                    <div className="px-3 py-2.5 border-b border-neutral-200 bg-white">
+                      <h4 className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                        Slice Visualizations
+                        <Tooltip text="Named rendering configurations for the imagery. Each defines which assets/bands to use and how to display them (colormap, color formula, compositing). Annotators can switch between them in the viewer." />
+                      </h4>
+                      <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                        Define one or more named rendering configurations for the generated slices
+                        of the collections. Each visualization specifies which assets/bands to use,
+                        how to display them (colormap, color formula, compositing method), and other
+                        rendering parameters. All visualizations are applied to each generated
+                        slice.
+                      </p>
+                    </div>
                     {/* Tab bar */}
                     <div className="flex items-center bg-neutral-50 border-b border-neutral-200 px-2 pt-2 gap-1">
                       {visualizations.map((viz, i) => (

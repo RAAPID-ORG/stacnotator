@@ -184,13 +184,18 @@ class VizParamsCreate(BaseModel):
     max_items: int | None = None
 
 
+class NamedVizParamsCreate(BaseModel):
+    name: str
+    viz_params: VizParamsCreate
+    cover_viz_params: VizParamsCreate | None = None
+
+
 class CollectionStacConfigCreate(BaseModel):
     registration_url: str = ""
     search_body: str = ""
     catalog_url: str | None = None
     stac_collection_id: str | None = None
-    viz_params: VizParamsCreate | None = None
-    cover_viz_params: VizParamsCreate | None = None
+    visualizations: list[NamedVizParamsCreate] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None

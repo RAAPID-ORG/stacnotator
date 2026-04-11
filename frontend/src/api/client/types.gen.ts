@@ -848,8 +848,10 @@ export type CollectionStacConfigCreate = {
      * Stac Collection Id
      */
     stac_collection_id?: string | null;
-    viz_params?: VizParamsCreate | null;
-    cover_viz_params?: VizParamsCreate | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<NamedVizParamsCreate>;
     /**
      * Max Cloud Cover
      */
@@ -1353,6 +1355,18 @@ export type MosaicRegisterResponse = {
     assets: {
         [key: string]: AssetInfo;
     };
+};
+
+/**
+ * NamedVizParamsCreate
+ */
+export type NamedVizParamsCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    viz_params: VizParamsCreate;
+    cover_viz_params?: VizParamsCreate | null;
 };
 
 /**

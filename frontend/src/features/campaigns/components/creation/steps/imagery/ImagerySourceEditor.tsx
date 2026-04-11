@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ImagerySource, CollectionItem } from './types';
 import { emptyManualCollection, swap } from './types';
 import { CatalogBrowser } from './CatalogBrowser';
-import type { CatalogBrowserPreset } from './CatalogBrowser';
 import { CollectionEditor } from './CollectionEditor';
 import {
   IconTrash,
@@ -20,31 +19,17 @@ interface ImagerySourceEditorProps {
   source: ImagerySource;
   onChange: (updates: Partial<ImagerySource>) => void;
   onRemove: () => void;
-  /** When set, auto-opens the CatalogBrowser with this MPC preset pre-selected */
-  initialPreset?: CatalogBrowserPreset | null;
-  /** Called when the initial preset has been consumed (so parent can clear it) */
-  onPresetConsumed?: () => void;
 }
 
 export const ImagerySourceEditor = ({
   source,
   onChange,
   onRemove: _onRemove,
-  initialPreset,
-  onPresetConsumed,
 }: ImagerySourceEditorProps) => {
   const [showCatalogBrowser, setShowCatalogBrowser] = useState(false);
   const [catalogBrowserMode, setCatalogBrowserMode] = useState<'single' | 'temporal'>('temporal');
   const [showNewCollectionPicker, setShowNewCollectionPicker] = useState(false);
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
-
-  // Auto-open CatalogBrowser when a preset source is created
-  useEffect(() => {
-    if (initialPreset) {
-      setCatalogBrowserMode('temporal');
-      setShowCatalogBrowser(true);
-    }
-  }, [initialPreset]);
 
   const vizNames = source.visualizations.map((v) => v.name);
 
@@ -81,7 +66,6 @@ export const ImagerySourceEditor = ({
     }
     onChange(updates);
     setShowCatalogBrowser(false);
-    onPresetConsumed?.();
   };
 
   const addVisualization = () => {
@@ -359,7 +343,8 @@ export const ImagerySourceEditor = ({
             >
               <span className="text-sm font-medium text-neutral-800">XYZ Tile URL</span>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Provide a direct XYZ tile URL (e.g. from a custom tile server).
+                Create a Collection from XYZ urls. Each slice is a direct XYZ tile URL (e.g. from a
+                custom tile server) without search semantics.
               </p>
             </button>
           </div>
@@ -391,12 +376,8 @@ export const ImagerySourceEditor = ({
         <CatalogBrowser
           initialMode="mosaic"
           singleCollection={catalogBrowserMode === 'single'}
-          preset={initialPreset}
           onAdd={handleCatalogBrowserAdd}
-          onClose={() => {
-            setShowCatalogBrowser(false);
-            onPresetConsumed?.();
-          }}
+          onClose={() => setShowCatalogBrowser(false)}
         />
       )}
     </>

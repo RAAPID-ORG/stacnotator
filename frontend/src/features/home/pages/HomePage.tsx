@@ -20,14 +20,14 @@ export const HomePage = () => {
 
   return (
     <div className="flex-1 overflow-auto bg-neutral-50/40">
-      {/* Early access banner — persistent, full-width, visible above the fold */}
+      {/* Early access banner - persistent, full-width, visible above the fold */}
       <div className="border-b border-amber-300 bg-amber-100">
         <div className="px-10 py-3 flex gap-3 items-start">
           <div className="shrink-0 w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center mt-0.5">
             <IconWarning className="w-3.5 h-3.5 text-white" />
           </div>
           <p className="text-[13px] text-amber-900 leading-relaxed">
-            <strong className="font-semibold">Early Access</strong> — STACNotator is under active
+            <strong className="font-semibold">Early Access</strong> - STACNotator is under active
             development. Features may change and results should be independently verified. No
             warranty or liability is provided regarding the correctness or completeness of any
             outputs. Please report bugs on our{' '}

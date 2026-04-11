@@ -181,7 +181,7 @@ export const emptySource = (): ImagerySource => ({
   id: createId(),
   name: '',
   crosshairHex6: 'ff0000',
-  defaultZoom: 14,
+  defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
   collections: [],
 });
