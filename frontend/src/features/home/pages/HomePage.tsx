@@ -103,7 +103,7 @@ export const HomePage = () => {
             <FeatureCard
               icon={<IconStac className="w-5 h-5 text-brand-600" />}
               title="Any STAC catalog"
-              description="Connect to Microsoft Planetary Computer or any STAC endpoint and annotate imagery directly - no downloads, no pre-processing."
+              description="Connect to Microsoft Planetary Computer or any public STAC endpoint and annotate imagery directly - no downloads, no pre-processing. Currently MPC is best supported and other STAC catalogs will experience slower performance and might or might not work. Support for authenticated custom STAC catalogs is planned."
             />
             <FeatureCard
               icon={<IconDocument className="w-5 h-5 text-brand-600" />}
@@ -113,7 +113,7 @@ export const HomePage = () => {
             <FeatureCard
               icon={<IconClock className="w-5 h-5 text-brand-600" />}
               title="Time-series context"
-              description="Inspect NDVI history at any pixel with Sentinel-2 and MODIS, cloud-masked by Google Cloud Score+ and SCL."
+              description="Inspect NDVI history at any pixel with Sentinel-2 and MODIS, cloud-masked by Google Cloud Score+ and SCL. Will be customizable to any band combination in the future."
             />
           </div>
         </section>

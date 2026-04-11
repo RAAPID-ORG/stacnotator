@@ -3534,7 +3534,12 @@ export type ExportAnnotationsData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Merge On Agreement
+         */
+        merge_on_agreement?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/export-annotations';
 };
 
@@ -3562,7 +3567,12 @@ export type ExportAnnotationsGeojsonData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Merge On Agreement
+         */
+        merge_on_agreement?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/export-annotations-geojson';
 };
 

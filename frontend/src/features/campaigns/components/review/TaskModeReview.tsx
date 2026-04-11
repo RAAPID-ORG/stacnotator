@@ -147,6 +147,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             campaignId={campaignId}
             campaign={campaign}
             disabled={tasks.length === 0}
+            hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
           />
           <button
             onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}

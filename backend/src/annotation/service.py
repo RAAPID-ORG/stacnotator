@@ -23,7 +23,12 @@ from src.annotation.models import (
     AnnotationTaskAssignment,
     Embedding,
 )
-from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
+from src.annotation.schemas import (
+    AnnotationCreate,
+    AnnotationFromTaskCreate,
+    AnnotationTaskOut,
+    AnnotationUpdate,
+)
 from src.auth.models import User
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
@@ -819,85 +824,359 @@ def _geometry_to_wkt(geom) -> str | None:
         return str(geom)
 
 
-def build_annotations_export(db: Session, campaign: Campaign) -> pd.DataFrame:
-    """Build CSV export of all annotations and tasks for a campaign."""
-    annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
+# Canonical column order for stacnotator-generated columns. Used by both
+# the CSV and GeoJSON exports so the most-relevant identifying columns sit
+# at the front of the file. Any column not present in a given record is
+# silently skipped.
+_STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
+    "stacnotator_annotation_number",
+    "stacnotator_task_id",
+    "stacnotator_task_status",
+    "stacnotator_label_id",
+    "stacnotator_label_name",
+    "stacnotator_annotator_count",
+    "stacnotator_annotation_id",
+    "stacnotator_comment",
+    "stacnotator_confidence",
+    "stacnotator_is_authoritative",
+    "stacnotator_created_by_user_email",
+    "stacnotator_created_at",
+    "stacnotator_geometry_wkt",
+)
 
-    export_records = []
-    all_columns: set[str] = set()
 
-    for annotation in annotations:
-        record: dict = {}
+def _ordered_columns(records: list[dict]) -> list[str]:
+    """Compute the final column order for an export.
 
-        if annotation.annotation_task_id:
-            task = annotation.annotation_task
-            if task.raw_source_data:
-                record.update(task.raw_source_data)
-            record["stacnotator_internal_task_identifier"] = task.id
-            record["annotation_number"] = task.annotation_number
+    Stacnotator-generated columns first (in ``_STACNOTATOR_COLUMN_ORDER``),
+    then any raw_source_data / user-provided columns in first-seen order.
+    Only columns that actually appear in at least one record are included.
+    """
+    seen: set[str] = set()
+    for record in records:
+        seen.update(record.keys())
 
-        record.update(
-            {
-                "stacnotator_internal_identifier": annotation.id,
-                "annotation_label_id": annotation.label_id,
-                "annotation_label_name": _resolve_label_name(campaign, annotation.label_id),
-                "annotation_comment": annotation.comment,
-                "annotation_confidence": annotation.confidence,
-                "annotation_is_authoritative": annotation.is_authoritative,
-                "annotation_created_by_user_email": user_email_map.get(
-                    annotation.created_by_user_id
-                ),
-                "annotation_created_at": annotation.created_at,
-                "geometry_wkt": (
-                    _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
-                ),
-            }
+    ordered: list[str] = []
+    for col in _STACNOTATOR_COLUMN_ORDER:
+        if col in seen:
+            ordered.append(col)
+            seen.discard(col)
+    # Remaining keys are user-provided (raw_source_data). Preserve first-seen
+    # order across the records so the layout is deterministic.
+    for record in records:
+        for key in record:
+            if key in seen:
+                ordered.append(key)
+                seen.discard(key)
+    return ordered
+
+
+def _group_annotations_by_task(
+    annotations: list[Annotation],
+) -> tuple[dict[int, list[Annotation]], list[Annotation]]:
+    """Split annotations into (task-grouped, standalone).
+
+    Standalone = open-mode annotations with no task assignment.
+    """
+    grouped: dict[int, list[Annotation]] = {}
+    standalone: list[Annotation] = []
+    for ann in annotations:
+        if ann.annotation_task_id:
+            grouped.setdefault(ann.annotation_task_id, []).append(ann)
+        else:
+            standalone.append(ann)
+    return grouped, standalone
+
+
+def _conflicting_task_numbers(
+    grouped: dict[int, list[Annotation]],
+) -> list[int]:
+    """Return human-readable annotation_numbers of any task whose labeled
+    annotators disagree (>= 2 distinct label_ids among labeled annotations).
+    """
+    conflicts: list[int] = []
+    for task_id, task_anns in grouped.items():
+        labeled = [a for a in task_anns if a.label_id is not None]
+        if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
+            task = task_anns[0].annotation_task
+            conflicts.append(task.annotation_number if task else task_id)
+    return sorted(conflicts)
+
+
+def _compute_task_status_for_export(task: AnnotationTask | None) -> str | None:
+    """Use the same status rules as the API by going through the schema.
+
+    Avoids duplicating the logic in schemas.py:88 (compute_task_status).
+    """
+    if task is None:
+        return None
+    return AnnotationTaskOut.model_validate(task).task_status
+
+
+def _build_export_record_for_annotation(
+    annotation: Annotation,
+    campaign: Campaign,
+    user_email_map: dict[UUID, str],
+    task_status: str | None,
+    include_geometry_wkt: bool,
+) -> dict:
+    """Build one flat record for a single annotation (non-merged output).
+
+    All stacnotator-generated keys are prefixed ``stacnotator_``. Keys from
+    the task's ``raw_source_data`` (user-provided ingest columns) are kept
+    un-prefixed so the downstream consumer can tell our IDs apart from theirs.
+    """
+    record: dict = {}
+
+    task = annotation.annotation_task
+    if task is not None:
+        if task.raw_source_data:
+            record.update(task.raw_source_data)
+        record["stacnotator_task_id"] = task.id
+        record["stacnotator_annotation_number"] = task.annotation_number
+        record["stacnotator_task_status"] = task_status
+
+    record["stacnotator_annotation_id"] = annotation.id
+    record["stacnotator_label_id"] = annotation.label_id
+    record["stacnotator_label_name"] = _resolve_label_name(campaign, annotation.label_id)
+    record["stacnotator_comment"] = annotation.comment
+    record["stacnotator_confidence"] = annotation.confidence
+    record["stacnotator_is_authoritative"] = annotation.is_authoritative
+    record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
+    record["stacnotator_created_at"] = annotation.created_at
+    record["stacnotator_annotator_count"] = 1
+    if include_geometry_wkt:
+        record["stacnotator_geometry_wkt"] = (
+            _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
+        )
+    return record
+
+
+def _build_export_record_merged(
+    anns: list[Annotation],
+    campaign: Campaign,
+    user_email_map: dict[UUID, str],
+    task_status: str | None,
+    include_geometry_wkt: bool,
+) -> dict:
+    """Collapse multiple annotations of the same task into one record.
+
+    Caller must have already ensured the labeled annotations agree (any
+    conflict is rejected up-front by ``_guard_merge_on_agreement``). The row
+    represents the task with the agreed label and aggregates per-annotator
+    detail (emails, comments, confidences). The DB ``stacnotator_annotation_id``
+    field is intentionally **omitted** here - the row no longer corresponds
+    to a single annotation row, and ``stacnotator_task_id`` is the stable
+    join key in merged mode.
+    """
+    labeled = [a for a in anns if a.label_id is not None]
+    canonical = next((a for a in labeled if a.is_authoritative), labeled[0])
+    agreed_label_id = canonical.label_id
+
+    emails = sorted(
+        {user_email_map.get(a.created_by_user_id, "") for a in labeled if a.created_by_user_id}
+        - {""}
+    )
+    comments = [
+        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {a.comment}"
+        for a in labeled
+        if a.comment and a.comment.strip()
+    ]
+    confidences = [a.confidence for a in labeled if a.confidence is not None]
+    mean_confidence = round(sum(confidences) / len(confidences), 2) if confidences else None
+    latest_created_at = max((a.created_at for a in labeled if a.created_at), default=None)
+
+    record: dict = {}
+    task = canonical.annotation_task
+    if task is not None:
+        if task.raw_source_data:
+            record.update(task.raw_source_data)
+        record["stacnotator_task_id"] = task.id
+        record["stacnotator_annotation_number"] = task.annotation_number
+        record["stacnotator_task_status"] = task_status
+
+    # NOTE: stacnotator_annotation_id intentionally omitted in merged rows.
+    # Use stacnotator_task_id as the join key when exporting with merge on.
+    record["stacnotator_label_id"] = agreed_label_id
+    record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
+    record["stacnotator_comment"] = " | ".join(comments) if comments else None
+    record["stacnotator_confidence"] = mean_confidence
+    record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
+    record["stacnotator_created_by_user_email"] = ", ".join(emails) if emails else None
+    record["stacnotator_created_at"] = latest_created_at
+    record["stacnotator_annotator_count"] = len(labeled)
+    if include_geometry_wkt:
+        geom = canonical.geometry.geometry if canonical.geometry else None
+        record["stacnotator_geometry_wkt"] = _geometry_to_wkt(geom) if geom is not None else None
+    return record
+
+
+def _build_annotation_records(
+    annotations: list[Annotation],
+    campaign: Campaign,
+    user_email_map: dict[UUID, str],
+    merge_on_agreement: bool,
+    include_geometry_wkt: bool,
+) -> tuple[list[dict], list[Annotation]]:
+    """Core export loop. Returns (records, canonical_annotations).
+
+    The canonical_annotations list is parallel to records and is used by the
+    GeoJSON wrapper to pick the geometry per emitted row (merged rows use the
+    canonical annotation's geometry).
+
+    Assumes the caller has already validated that no task conflicts when
+    ``merge_on_agreement`` is True (see ``_guard_merge_on_agreement``).
+    """
+    grouped, standalone = _group_annotations_by_task(annotations)
+
+    records: list[dict] = []
+    canonical_annotations: list[Annotation] = []
+
+    for task_id in sorted(grouped.keys()):
+        task_anns = grouped[task_id]
+        task = task_anns[0].annotation_task
+        task_status = _compute_task_status_for_export(task)
+        labeled = [a for a in task_anns if a.label_id is not None]
+
+        if merge_on_agreement and len(labeled) >= 2:
+            records.append(
+                _build_export_record_merged(
+                    task_anns, campaign, user_email_map, task_status, include_geometry_wkt
+                )
+            )
+            canonical_annotations.append(
+                next((a for a in labeled if a.is_authoritative), labeled[0])
+            )
+        else:
+            # Nothing to merge (zero or one labeled annotation) or merging is
+            # off - emit one row per annotation exactly as in non-merged mode.
+            for ann in task_anns:
+                records.append(
+                    _build_export_record_for_annotation(
+                        ann, campaign, user_email_map, task_status, include_geometry_wkt
+                    )
+                )
+                canonical_annotations.append(ann)
+
+    # Standalone (open-mode) annotations: never grouped, one row each.
+    for ann in standalone:
+        records.append(
+            _build_export_record_for_annotation(
+                ann, campaign, user_email_map, None, include_geometry_wkt
+            )
+        )
+        canonical_annotations.append(ann)
+
+    return records, canonical_annotations
+
+
+def _guard_merge_on_agreement(annotations: list[Annotation], merge_on_agreement: bool) -> None:
+    """Reject a merge-on-agreement export if any task has conflicting labels.
+
+    Raises HTTPException(400) listing up to 10 conflicting annotation_numbers
+    in the detail. The frontend already disables the merge toggle when any
+    task is in 'conflicting' status, so reaching this guard is the signal
+    that something bypassed the UI - return a clear error.
+    """
+    if not merge_on_agreement:
+        return
+    grouped, _ = _group_annotations_by_task(annotations)
+    conflicts = _conflicting_task_numbers(grouped)
+    if conflicts:
+        preview = ", ".join(f"#{n}" for n in conflicts[:10])
+        more = f" and {len(conflicts) - 10} more" if len(conflicts) > 10 else ""
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Cannot merge annotations on agreement: "
+                f"{len(conflicts)} task(s) have conflicting labels ({preview}{more}). "
+                "Resolve the conflicts first, or export without merging."
+            ),
         )
 
-        all_columns.update(record.keys())
-        export_records.append(record)
 
-    for record in export_records:
-        for col in all_columns:
+def build_annotations_export(
+    db: Session,
+    campaign: Campaign,
+    merge_on_agreement: bool = False,
+) -> pd.DataFrame:
+    """Build CSV export of all annotations and tasks for a campaign.
+
+    When ``merge_on_agreement`` is True, tasks labeled by multiple annotators
+    whose labels unanimously agree are collapsed into a single row. If any
+    task has disagreeing labels, the export is rejected with HTTP 400 - the
+    frontend disables this option in that case, so reaching it here means
+    something bypassed the UI. All stacnotator-generated columns carry the
+    ``stacnotator_`` prefix; ``raw_source_data`` keys (user-provided ingest
+    columns) stay un-prefixed so the consumer can tell their IDs apart from
+    ours.
+    """
+    annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
+    _guard_merge_on_agreement(annotations, merge_on_agreement)
+
+    records, _canonical = _build_annotation_records(
+        annotations=annotations,
+        campaign=campaign,
+        user_email_map=user_email_map,
+        merge_on_agreement=merge_on_agreement,
+        include_geometry_wkt=True,
+    )
+
+    # Build a deterministic column order with stacnotator IDs at the front
+    # so the human-readable annotation_number sits in column A. Then fill
+    # NaN for any record that's missing one of the columns - merged rows
+    # omit stacnotator_annotation_id and per-task raw_source_data keys may
+    # differ across rows, so the underlying record dicts are ragged.
+    columns = _ordered_columns(records)
+    for record in records:
+        for col in columns:
             record.setdefault(col, np.nan)
 
-    return pd.DataFrame(export_records)
+    return pd.DataFrame(records, columns=list(columns))
 
 
-def build_annotations_geojson_export(db: Session, campaign: Campaign) -> dict:
-    """Build a GeoJSON FeatureCollection of all annotations for a campaign."""
+def build_annotations_geojson_export(
+    db: Session,
+    campaign: Campaign,
+    merge_on_agreement: bool = False,
+) -> dict:
+    """Build a GeoJSON FeatureCollection of all annotations for a campaign.
+
+    See ``build_annotations_export`` for merge semantics (and the HTTP 400
+    raised when a merge is requested but conflicts exist). GeoJSON features
+    use the canonical annotation's geometry for merged rows.
+    """
     annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
+    _guard_merge_on_agreement(annotations, merge_on_agreement)
+
+    records, canonical_annotations = _build_annotation_records(
+        annotations=annotations,
+        campaign=campaign,
+        user_email_map=user_email_map,
+        merge_on_agreement=merge_on_agreement,
+        include_geometry_wkt=False,
+    )
+
+    # Same canonical order as the CSV: annotation_number front-and-centre.
+    columns = _ordered_columns(records)
 
     features = []
-    for annotation in annotations:
+    for record, canonical in zip(records, canonical_annotations, strict=True):
         geojson_geometry = None
-        if annotation.geometry:
+        if canonical.geometry:
             try:
-                geojson_geometry = mapping(to_shape(annotation.geometry.geometry))
+                geojson_geometry = mapping(to_shape(canonical.geometry.geometry))
             except Exception:
                 geojson_geometry = None
 
+        # GeoJSON properties must be JSON-serialisable: coerce datetimes.
+        # Build the dict in canonical order so consumers see the same layout
+        # as the CSV (Python preserves dict insertion order).
         properties: dict = {}
-
-        if annotation.annotation_task_id:
-            task = annotation.annotation_task
-            if task.raw_source_data:
-                properties.update(task.raw_source_data)
-            properties["task_id"] = task.id
-            properties["annotation_number"] = task.annotation_number
-
-        properties.update(
-            {
-                "id": annotation.id,
-                "label_id": annotation.label_id,
-                "label_name": _resolve_label_name(campaign, annotation.label_id),
-                "comment": annotation.comment,
-                "confidence": annotation.confidence,
-                "is_authoritative": annotation.is_authoritative,
-                "created_by_user_email": user_email_map.get(annotation.created_by_user_id),
-                "created_at": annotation.created_at.isoformat() if annotation.created_at else None,
-            }
-        )
+        for col in columns:
+            if col in record:
+                value = record[col]
+                properties[col] = value.isoformat() if hasattr(value, "isoformat") else value
 
         features.append(
             {

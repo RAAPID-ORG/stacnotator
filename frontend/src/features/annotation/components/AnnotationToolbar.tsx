@@ -212,6 +212,18 @@ export const AnnotationToolbar = () => {
   const [showSaveDropdown, setShowSaveDropdown] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [exporting, setExporting] = useState<'csv' | 'geojson' | null>(null);
+  const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
+
+  // Conflict-aware merge toggle: any task in 'conflicting' status disables it.
+  // Task mode only - open mode never has tasks. Pulled directly from the store.
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const hasConflicts = allTasks.some((t) => t.task_status === 'conflicting');
+
+  // If conflicts appear while merge is checked, force it back off so we
+  // never POST a request the backend will 400 on.
+  useEffect(() => {
+    if (hasConflicts && mergeOnAgreement) setMergeOnAgreement(false);
+  }, [hasConflicts, mergeOnAgreement]);
   const imageryDropdownRef = useRef<HTMLDivElement>(null);
   const taskFilterDropdownRef = useRef<HTMLDivElement>(null);
   const saveDropdownRef = useRef<HTMLDivElement>(null);
@@ -346,11 +358,25 @@ export const AnnotationToolbar = () => {
       const fetcher = format === 'geojson' ? exportAnnotationsGeojson : exportAnnotations;
       const response = await fetcher({
         path: { campaign_id: campaign.id },
+        query: mergeOnAgreement ? { merge_on_agreement: true } : undefined,
         parseAs: 'blob',
       });
 
       if (!response.response.ok || !response.data) {
-        throw new Error(`Failed to export annotations as ${format.toUpperCase()}`);
+        // Surface the backend's specific error (e.g. conflicting task numbers
+        // when merge_on_agreement is rejected).
+        let detail = `Failed to export annotations as ${format.toUpperCase()}`;
+        try {
+          const errBlob = response.data as Blob | undefined;
+          if (errBlob) {
+            const text = await errBlob.text();
+            const parsed = JSON.parse(text) as { detail?: string };
+            if (parsed.detail) detail = parsed.detail;
+          }
+        } catch {
+          // body wasn't JSON - fall through with the generic message
+        }
+        throw new Error(detail);
       }
 
       const blob = response.data as Blob;
@@ -374,7 +400,8 @@ export const AnnotationToolbar = () => {
       showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
     } catch (err) {
       console.error('Export failed:', err);
-      showAlert('Failed to export annotations', 'error');
+      const message = err instanceof Error ? err.message : 'Failed to export annotations';
+      showAlert(message, 'error');
     } finally {
       setExporting(null);
     }
@@ -557,7 +584,37 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
           {showExportDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[160px]">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[240px]">
+              {campaign?.mode === 'tasks' && (
+                <label
+                  className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${
+                    hasConflicts
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'cursor-pointer hover:bg-neutral-50'
+                  }`}
+                  title={
+                    hasConflicts
+                      ? 'Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.'
+                      : undefined
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={mergeOnAgreement}
+                    disabled={hasConflicts}
+                    onChange={(e) => setMergeOnAgreement(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-[11px] leading-snug text-neutral-700">
+                    <span className="font-medium block">Merge on agreement</span>
+                    <span className="text-neutral-500">
+                      {hasConflicts
+                        ? 'Disabled - resolve conflicting tasks first.'
+                        : 'Collapse multi-annotator tasks into one row when all agree.'}
+                    </span>
+                  </span>
+                </label>
+              )}
               <button
                 onClick={() => handleExport('geojson')}
                 className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"

@@ -308,6 +308,12 @@ export const makeUserAuthorativeReviewer = <ThrowOnError extends boolean = false
 
 /**
  * Get Campaign Users
+ *
+ * List users on a campaign with their roles.
+ *
+ * Any campaign member can call this: the annotation page needs it to look
+ * up the current user's admin / reviewer flags on load, and review mode
+ * already surfaces other annotators anyway, so the list isn't sensitive.
  */
 export const getCampaignUsers = <ThrowOnError extends boolean = false>(options: Options<GetCampaignUsersData, ThrowOnError>) => (options.client ?? client).get<GetCampaignUsersResponses, GetCampaignUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -660,6 +666,13 @@ export const deleteAnnotation = <ThrowOnError extends boolean = false>(options: 
 
 /**
  * Export Annotations
+ *
+ * Export campaign annotations as CSV.
+ *
+ * When ``merge_on_agreement`` is true, multi-annotator tasks whose
+ * annotators all agreed on the same label are collapsed into a single
+ * row. Tasks with disagreement (conflict) cause the request to fail
+ * with HTTP 400 - resolve the conflicts first.
  */
 export const exportAnnotations = <ThrowOnError extends boolean = false>(options: Options<ExportAnnotationsData, ThrowOnError>) => (options.client ?? client).get<ExportAnnotationsResponses, ExportAnnotationsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -671,6 +684,8 @@ export const exportAnnotations = <ThrowOnError extends boolean = false>(options:
  * Export Annotations Geojson
  *
  * Export all annotations for a campaign as a GeoJSON FeatureCollection file.
+ *
+ * See ``export_annotations`` for the meaning of ``merge_on_agreement``.
  */
 export const exportAnnotationsGeojson = <ThrowOnError extends boolean = false>(options: Options<ExportAnnotationsGeojsonData, ThrowOnError>) => (options.client ?? client).get<ExportAnnotationsGeojsonResponses, ExportAnnotationsGeojsonErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

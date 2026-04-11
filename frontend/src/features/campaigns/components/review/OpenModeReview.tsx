@@ -176,6 +176,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             campaignId={campaignId}
             campaign={campaign}
             disabled={annotations.length === 0}
+            showMergeToggle={false}
           />
           <button
             onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
