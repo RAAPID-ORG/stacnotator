@@ -457,7 +457,21 @@ export const AnnotationToolbar = () => {
           <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
             {/* Toggle review mode on/off */}
             <button
-              onClick={() => useCampaignStore.setState({ isReviewMode: !isReviewMode })}
+              onClick={() => {
+                const turningOn = !isReviewMode;
+                useCampaignStore.setState({ isReviewMode: turningOn });
+                // When entering review mode, widen the task filter to show
+                // everything except pending. Pending tasks haven't been
+                // labeled by anyone yet so there's nothing to review there,
+                // and the default filter is pending-only which would hide
+                // everything a reviewer actually wants to see.
+                if (turningOn) {
+                  useTaskStore.getState().setTaskFilter({
+                    assignedTo: [],
+                    statuses: ['partial', 'done', 'skipped', 'conflicting'],
+                  });
+                }
+              }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
                 isReviewMode
                   ? 'bg-amber-50 text-amber-700 font-medium'

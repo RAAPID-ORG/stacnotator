@@ -208,6 +208,190 @@ export const AnnotationControls = ({
   return (
     <div className="w-full h-full bg-white overflow-y-auto">
       <div className="flex flex-wrap">
+        {/* Block 0: All Annotations (review mode only) - shown first so the
+            reviewer sees the existing annotations before picking their own
+            label. Assignees who haven't labeled yet get a placeholder card so
+            the reviewer knows the full picture. Others' cards come before the
+            reviewer's own. */}
+        {isReviewMode &&
+          currentTask &&
+          ((currentTask.annotations?.length ?? 0) > 0 ||
+            (currentTask.assignments?.length ?? 0) > 0) && (
+            <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 w-full">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+                  All Annotations
+                </span>
+                {currentTask.task_status === 'conflicting' && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-semibold uppercase tracking-wide border border-orange-300">
+                    <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 2 1 18h18L10 2Zm0 5.5 5.5 9.5h-11L10 7.5Zm-.75 3v3.5h1.5V10.5h-1.5Zm0 4.5V16h1.5v-1.5h-1.5Z" />
+                    </svg>
+                    Conflict
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {(() => {
+                  // Build the card list: one entry per assignee. If the
+                  // assignee has an annotation (labeled or skipped), show it;
+                  // otherwise show a "pending" placeholder. Any orphan
+                  // annotations (annotator with no matching assignment row)
+                  // are appended so we never silently drop data.
+                  type Entry =
+                    | { kind: 'annotation'; annotation: (typeof currentTask.annotations)[number] }
+                    | {
+                        kind: 'pending';
+                        assignment: NonNullable<typeof currentTask.assignments>[number];
+                      };
+
+                  const annByUser = new Map(
+                    currentTask.annotations.map((a) => [a.created_by_user_id, a])
+                  );
+                  const entries: Entry[] = [];
+                  const seenUserIds = new Set<string>();
+
+                  for (const assn of currentTask.assignments ?? []) {
+                    seenUserIds.add(assn.user_id);
+                    const ann = annByUser.get(assn.user_id);
+                    if (ann) {
+                      entries.push({ kind: 'annotation', annotation: ann });
+                    } else {
+                      entries.push({ kind: 'pending', assignment: assn });
+                    }
+                  }
+                  for (const ann of currentTask.annotations) {
+                    if (!seenUserIds.has(ann.created_by_user_id)) {
+                      entries.push({ kind: 'annotation', annotation: ann });
+                    }
+                  }
+
+                  // Sort: own entry last, everyone else in assignment order.
+                  entries.sort((a, b) => {
+                    const aOwn =
+                      a.kind === 'annotation'
+                        ? a.annotation.created_by_user_id === currentUserId
+                        : a.assignment.user_id === currentUserId;
+                    const bOwn =
+                      b.kind === 'annotation'
+                        ? b.annotation.created_by_user_id === currentUserId
+                        : b.assignment.user_id === currentUserId;
+                    if (aOwn && !bOwn) return 1;
+                    if (!aOwn && bOwn) return -1;
+                    return 0;
+                  });
+
+                  return entries.map((entry) => {
+                    if (entry.kind === 'pending') {
+                      const assn = entry.assignment;
+                      const isOwn = assn.user_id === currentUserId;
+                      const displayName = isOwn
+                        ? 'You'
+                        : assn.user_display_name || assn.user_email || assn.user_id.substring(0, 8);
+                      return (
+                        <div
+                          key={`pending-${assn.user_id}`}
+                          className="text-[11px] rounded px-2.5 py-2 border border-dashed border-neutral-300 bg-neutral-50"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-neutral-500">{displayName}</span>
+                            <span className="text-neutral-400 italic">Not labeled yet</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const ann = entry.annotation;
+                    const isOwn = ann.created_by_user_id === currentUserId;
+                    const assignment = currentTask.assignments?.find(
+                      (a) => a.user_id === ann.created_by_user_id
+                    );
+                    const isSkipped = assignment?.status === 'skipped';
+                    const displayName = isOwn
+                      ? 'You'
+                      : assignment?.user_display_name ||
+                        assignment?.user_email ||
+                        ann.created_by_user_id.substring(0, 8);
+                    const label = labels.find((l) => l.id === ann.label_id);
+                    const labelName = label
+                      ? capitalizeFirst(label.name)
+                      : ann.label_id
+                        ? `#${ann.label_id}`
+                        : isSkipped
+                          ? 'Skipped'
+                          : '-';
+
+                    // Conflict styling: when the task is in "conflicting"
+                    // status, every card gets an orange border + background
+                    // so the reviewer can immediately see at a glance that
+                    // the annotators disagree. Authoritative label keeps
+                    // amber precedence because it's still more important
+                    // than the conflict warning.
+                    const isConflict =
+                      currentTask.task_status === 'conflicting' && !ann.is_authoritative;
+                    const cardClass = ann.is_authoritative
+                      ? 'bg-amber-50 border-amber-200'
+                      : isConflict
+                        ? 'bg-orange-50 border-orange-300'
+                        : isOwn
+                          ? 'bg-brand-50 border-brand-200'
+                          : 'bg-neutral-50 border-neutral-200';
+
+                    return (
+                      <div
+                        key={ann.id}
+                        className={`text-[11px] rounded px-2.5 py-2 border ${cardClass}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`font-bold ${
+                              isConflict
+                                ? 'text-orange-700'
+                                : isOwn
+                                  ? 'text-brand-700'
+                                  : 'text-neutral-700'
+                            }`}
+                          >
+                            {displayName}
+                            {ann.is_authoritative && (
+                              <span className="ml-1 text-amber-600" title="Authoritative">
+                                🗲
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-neutral-500">
+                            <span
+                              className={`font-medium ${
+                                isSkipped
+                                  ? 'text-neutral-500 italic'
+                                  : isConflict
+                                    ? 'text-orange-800'
+                                    : 'text-neutral-800'
+                              }`}
+                            >
+                              {labelName}
+                            </span>
+                            {ann.confidence !== null && ann.confidence !== undefined && (
+                              <>
+                                <span className="text-neutral-300">|</span>
+                                <span title="Confidence">{ann.confidence}/5</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {ann.comment && ann.comment.trim() !== '' && (
+                          <div className="mt-1 text-neutral-600 italic whitespace-pre-wrap">
+                            &ldquo;{ann.comment}&rdquo;
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
         {/* Block 1: Label Selection */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-[2] min-w-[10rem]">
           <span className="font-semibold text-neutral-700 text-xs tracking-wide">Label</span>
@@ -442,88 +626,6 @@ export const AnnotationControls = ({
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Block 5: All Annotations (review mode only) */}
-        {isReviewMode && currentTask && currentTask.annotations.length > 0 && (
-          <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">
-              All Annotations
-            </span>
-            <div className="flex flex-col gap-1.5">
-              {/* Sort: own annotation first, then others */}
-              {[...currentTask.annotations]
-                .sort((a, b) => {
-                  if (a.created_by_user_id === currentUserId) return -1;
-                  if (b.created_by_user_id === currentUserId) return 1;
-                  return 0;
-                })
-                .map((ann) => {
-                  const isOwn = ann.created_by_user_id === currentUserId;
-                  const assignment = currentTask.assignments?.find(
-                    (a) => a.user_id === ann.created_by_user_id
-                  );
-                  const isSkipped = assignment?.status === 'skipped';
-                  const displayName = isOwn
-                    ? 'You'
-                    : assignment?.user_display_name ||
-                      assignment?.user_email ||
-                      ann.created_by_user_id.substring(0, 8);
-                  const label = labels.find((l) => l.id === ann.label_id);
-                  const labelName = label
-                    ? capitalizeFirst(label.name)
-                    : ann.label_id
-                      ? `#${ann.label_id}`
-                      : isSkipped
-                        ? 'Skipped'
-                        : '-';
-
-                  return (
-                    <div
-                      key={ann.id}
-                      className={`text-[11px] rounded px-2.5 py-2 border ${
-                        ann.is_authoritative
-                          ? 'bg-amber-50 border-amber-200'
-                          : isOwn
-                            ? 'bg-brand-50 border-brand-200'
-                            : 'bg-neutral-50 border-neutral-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`font-bold ${isOwn ? 'text-brand-700' : 'text-neutral-700'}`}
-                        >
-                          {displayName}
-                          {ann.is_authoritative && (
-                            <span className="ml-1 text-amber-600" title="Authoritative">
-                              🗲
-                            </span>
-                          )}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-neutral-500">
-                          <span
-                            className={`font-medium ${isSkipped ? 'text-neutral-500 italic' : 'text-neutral-800'}`}
-                          >
-                            {labelName}
-                          </span>
-                          {ann.confidence !== null && ann.confidence !== undefined && (
-                            <>
-                              <span className="text-neutral-300">|</span>
-                              <span title="Confidence">{ann.confidence}/5</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      {ann.comment && ann.comment.trim() !== '' && (
-                        <div className="mt-1 text-neutral-600 italic whitespace-pre-wrap">
-                          &ldquo;{ann.comment}&rdquo;
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
             </div>
           </div>
         )}

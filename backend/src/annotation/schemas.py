@@ -91,11 +91,16 @@ class AnnotationTaskOut(BaseModel):
         """
         Compute task_status on the fly from assignments and annotations.
 
-        - pending:     No non-skipped user has a labeled annotation
+        A skipped assignee is treated as "did not contribute a label", so a
+        task is only done/conflicting when *every* assignee actually provided
+        a label. One skip next to one label is partial, not done.
+
+        - pending:     No assignee has labeled yet (and not all skipped)
         - skipped:     ALL assigned users skipped
-        - partial:     Some (not all) non-skipped users have labeled annotations
-        - done:        All non-skipped users labeled with the SAME label
-        - conflicting: All non-skipped users labeled with DIFFERENT labels
+        - partial:     At least one label, but some assignees still haven't
+                       labeled (they either skipped or haven't acted yet)
+        - done:        Every assignee labeled and all labels match
+        - conflicting: Every assignee labeled and labels disagree
         """
         # Handle both ORM objects and dicts
         if hasattr(data, "assignments"):
@@ -129,34 +134,31 @@ class AnnotationTaskOut(BaseModel):
         labeled = [a for a in annotation_list if a.get("label_id") is not None]
 
         if not assignment_list:
+            # No assignment table entries - treat any label as done.
             status = TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
         else:
+            all_assigned_ids = {a["user_id"] for a in assignment_list}
             all_skipped = all(
                 a.get("status") == ANNOTATION_TASK_STATUS_SKIPPED for a in assignment_list
             )
+            labeled_ids = {
+                a["created_by_user_id"]
+                for a in labeled
+                if a["created_by_user_id"] in all_assigned_ids
+            }
+
             if all_skipped:
                 status = TASK_STATUS_SKIPPED
+            elif not labeled_ids:
+                # Nobody labeled yet; some may have skipped or still be pending.
+                status = TASK_STATUS_PENDING
+            elif labeled_ids != all_assigned_ids:
+                # Some assignees labeled, others didn't (skip or not-yet-acted).
+                # Not enough information to call this done or conflicting.
+                status = TASK_STATUS_PARTIAL
             else:
-                non_skipped_ids = {
-                    a["user_id"]
-                    for a in assignment_list
-                    if a.get("status") != ANNOTATION_TASK_STATUS_SKIPPED
-                }
-                completed_ids = {
-                    a["created_by_user_id"]
-                    for a in labeled
-                    if a["created_by_user_id"] in non_skipped_ids
-                }
-
-                if not completed_ids:
-                    status = TASK_STATUS_PENDING
-                elif len(completed_ids) < len(non_skipped_ids):
-                    status = TASK_STATUS_PARTIAL
-                else:
-                    labels = {
-                        a["label_id"] for a in labeled if a["created_by_user_id"] in non_skipped_ids
-                    }
-                    status = TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+                labels = {a["label_id"] for a in labeled if a["created_by_user_id"] in labeled_ids}
+                status = TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
 
         # Set the computed status on the data
         if hasattr(data, "__dict__"):

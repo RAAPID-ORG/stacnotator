@@ -152,8 +152,14 @@ def make_user_authorative_reviewer(
 def get_campaign_users(
     campaign_id: int,
     db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
+    """List users on a campaign with their roles.
+
+    Any campaign member can call this: the annotation page needs it to look
+    up the current user's admin / reviewer flags on load, and review mode
+    already surfaces other annotators anyway, so the list isn't sensitive.
+    """
     users = service.get_campaign_users_with_roles(db, campaign_id)
     return CampaignUsersResponse(campaign_id=campaign.id, users=users)
 

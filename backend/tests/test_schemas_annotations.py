@@ -108,7 +108,9 @@ class TestTaskStatusComputation:
         )
         assert task.task_status == "conflicting"
 
-    def test_skipped_users_ignored_for_completion(self):
+    def test_one_label_plus_one_skip_is_partial(self):
+        """A skip is not a tie-breaker - the task is not fully resolved
+        until every assignee has actually labeled it."""
         u1, u2 = uuid4(), uuid4()
         task = _make_task(
             assignments=[
@@ -117,4 +119,21 @@ class TestTaskStatusComputation:
             ],
             annotations=[_make_annotation(u1, label_id=1)],
         )
-        assert task.task_status == "done"
+        assert task.task_status == "partial"
+
+    def test_two_labels_one_skip_is_partial(self):
+        """Two annotators labeled, one skipped: partial (the skipper could
+        have tie-broken a would-be conflict)."""
+        u1, u2, u3 = uuid4(), uuid4(), uuid4()
+        task = _make_task(
+            assignments=[
+                _make_assignment(u1, "done"),
+                _make_assignment(u2, "done"),
+                _make_assignment(u3, "skipped"),
+            ],
+            annotations=[
+                _make_annotation(u1, label_id=1),
+                _make_annotation(u2, label_id=1),
+            ],
+        )
+        assert task.task_status == "partial"
