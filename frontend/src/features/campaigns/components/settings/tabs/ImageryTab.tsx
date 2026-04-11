@@ -269,7 +269,7 @@ function SourceCard({
               max="22"
               value={zoom}
               onChange={(e) => setZoom(Math.max(1, Math.min(22, Number(e.target.value))))}
-              className="w-14 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
+              className="w-14 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs text-center"
             />
             {zoom < 10 && (
               <span className="text-[10px] text-amber-600">
@@ -333,7 +333,7 @@ function SourceCard({
                   next[i] = e.target.value;
                   setVizNames(next);
                 }}
-                className="flex-1 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                className="flex-1 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
               />
               <button
                 type="button"

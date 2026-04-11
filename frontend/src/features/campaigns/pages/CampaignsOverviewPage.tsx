@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { IconPlus, IconDocument, IconGear, IconGlobe } from '~/shared/ui/Icons';
 import { Button, Input } from '~/shared/ui/forms';
+import { FadeIn, motion, listContainerVariants, listItemVariants } from '~/shared/ui/motion';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -69,7 +70,7 @@ export const CampaignsPage = () => {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="page">
+      <FadeIn className="page">
         <header className="page-header">
           <div>
             <h1 className="page-title">Campaigns</h1>
@@ -142,22 +143,28 @@ export const CampaignsPage = () => {
                   No campaigns match your filter.
                 </div>
               ) : (
-                <ul className="divide-y divide-neutral-100">
+                <motion.ul
+                  className="divide-y divide-neutral-100"
+                  variants={listContainerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
                   {filtered.map((campaign) => (
-                    <CampaignRow
-                      key={campaign.id}
-                      campaign={campaign}
-                      onAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
-                      onReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
-                      onSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
-                    />
+                    <motion.div key={campaign.id} variants={listItemVariants} layout>
+                      <CampaignRow
+                        campaign={campaign}
+                        onAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
+                        onReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+                        onSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
+                      />
+                    </motion.div>
                   ))}
-                </ul>
+                </motion.ul>
               )}
             </div>
           </>
         )}
-      </div>
+      </FadeIn>
     </div>
   );
 };

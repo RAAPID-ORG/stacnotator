@@ -311,17 +311,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     isDraggingRef.current = false;
   };
 
-  const handleSliceChange = (index: number) => {
-    // Deliberate user pick from the small-window dropdown: mark intent so the
-    // empty-probe effect does not auto-skip away from it.
-    useMapStore.getState().setSliceNavIntent('pick');
-    if (isActiveCollection) {
-      setActiveSliceIndex(index);
-    } else {
-      useMapStore.getState().setCollectionSliceIndex(collectionId, index);
-    }
-  };
-
   return (
     <div
       className="flex-1 relative overflow-hidden select-none"
@@ -329,29 +318,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {slices.length > 1 && (
-        <div className="absolute bottom-1 right-1 z-[1000]">
-          <select
-            value={currentSliceIndex}
-            onChange={(e) => handleSliceChange(Number(e.target.value))}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="text-[10px] px-1.5 py-0.5 bg-white/95 border border-neutral-200 rounded text-neutral-800 cursor-pointer hover:bg-white backdrop-blur-sm"
-            title="Select time slice"
-          >
-            {slices.map((slice, idx) => {
-              const key = `${collectionId}-${idx}`;
-              const isEmpty = !isOpenMode && emptySlices[key];
-              return (
-                <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
-                  {slice.name}
-                  {isEmpty ? ' (no data)' : ''}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
+      {/* Slice dropdown lives in the card header (see Canvas.tsx), not in
+          the imagery body, so it doesn't steal space from the tile view. */}
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">

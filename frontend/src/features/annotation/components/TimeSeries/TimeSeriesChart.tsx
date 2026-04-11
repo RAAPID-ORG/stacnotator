@@ -360,8 +360,30 @@ export const TimeSeriesChart = ({
 
       {/* Header with Legend and Controls */}
       <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap overflow-hidden">
-        {/* Legend (click to toggle traces) */}
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
+        {/* Legend (click to toggle traces, hover for the cloud-dot +
+            savgol explanation). Tooltip is attached to the whole legend
+            block so every legend item triggers it. */}
+        <div className="relative group flex items-center gap-2 flex-wrap min-w-0">
+          {/* Explanatory tooltip - shown whenever the user lingers on the
+              legend, which is where they're already looking to read dataset
+              names. Explains the red dots + how the two filters interact. */}
+          <div className="absolute top-full left-0 mt-1 w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 text-left space-y-1.5">
+            <p>
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 align-middle" />
+              <strong>Red dots</strong> are days flagged as cloudy on this point by Cloud Score+
+              (S2) or SCL (others).
+            </p>
+            <p>
+              <strong>Remove cloudy</strong> drops those observations from both the raw series and
+              the smoothed line.
+            </p>
+            <p>
+              <strong>Smooth</strong> fits a Savitzky-Golay filter over whatever remains. If you
+              leave cloudy points in, the filter will pull the smoothed line toward them — usually
+              you want both toggles on together.
+            </p>
+            <div className="absolute bottom-full left-3 border-4 border-transparent border-b-neutral-800" />
+          </div>
           {timeseries.map((ts, index) => {
             const color = COLORS[index % COLORS.length];
             const isHidden = hiddenDatasets.has(index);

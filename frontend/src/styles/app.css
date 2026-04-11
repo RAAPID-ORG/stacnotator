@@ -3,10 +3,10 @@
 @import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
 @theme {
-  /* Canvas - the warm cream page background that everything else sits on.
-     Surfaces (.surface) sit on this in pure white so the elevation reads as
-     warmth-to-paper, not gray-to-gray. */
-  --color-canvas: rgb(245 242 234);
+  /* Canvas - the neutral page background that everything else sits on.
+     Same value as --color-neutral-50 so plain `bg-neutral-50` code still
+     matches the page. Surfaces (.surface) sit on this in pure white. */
+  --color-canvas: rgb(247 246 245);
 
   /* Brand  Colors */
   --color-brand-50: rgb(236 247 242);
@@ -271,8 +271,25 @@ input[type='range'] {
   accent-color: var(--color-brand-500);
 }
 
-/* Canvas Grid Layout Styles */
+/* Canvas Grid Layout Styles.
+   ReactGridLayout positions cards with `transform: translate(x, y)` plus
+   inline width/height. When the Canvas flushes a new containerWidth after
+   a sidebar collapse, every card's x/y shifts - without a transition the
+   shift snaps, which feels abrupt. We only transition `transform` so the
+   x/y slide animates on the compositor without re-triggering layout inside
+   the cards. Width/height still snap instantly, which means OL reflows
+   once per collapse instead of once per frame.
+   During layout edit the user is dragging cards with the pointer and any
+   interpolation would lag behind the cursor - transitions disabled there. */
 .react-grid-layout > div {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.is-editing .react-grid-layout > div {
+  transition: none !important;
+}
+.react-grid-layout > div.react-draggable-dragging,
+.react-grid-layout > div.resizing {
   transition: none !important;
 }
 
@@ -298,16 +315,21 @@ input[type='range'] {
 }
 
 .card-header {
-  /* Quiet header strip - just a thin lighter band with a hairline below.
-     No background color (the card's white shows through), so it never
-     reads as "the same as the page background". */
-  padding: 6px 12px;
+  /* Quiet header strip. Compact but still comfortably legible:
+     11px font with 1.4 line-height = ~15px text, plus 4px top/bottom =
+     23px total. No background fill - the card's white shows through so
+     this never reads as "the same as the page background". */
+  padding: 4px 10px;
   font-size: 11px;
+  line-height: 1.4;
   font-weight: 600;
   color: var(--color-neutral-700);
   letter-spacing: 0.01em;
   border-bottom: 1px solid var(--color-neutral-100);
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .active-window {

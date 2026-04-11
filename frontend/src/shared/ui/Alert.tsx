@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { ALERT_AUTO_CLOSE_DURATION } from '~/shared/utils/constants';
+import { AnimatePresence, motion } from './motion';
 
 export type AlertType = 'success' | 'error' | 'info' | 'warning';
 
@@ -101,40 +102,55 @@ export const Alert = ({
     }
   }, [message, autoClose, duration, onDismiss]);
 
-  if (!message) return null;
-
-  const config = ALERT_CONFIGS[type];
+  const config = message ? ALERT_CONFIGS[type] : null;
 
   return (
-    <div className="fixed top-4 right-4 max-w-sm animate-slide-in-right z-50">
-      <div className={`${config.bgColor} border ${config.borderColor} rounded-lg p-4 shadow-lg`}>
-        <div className="flex items-start gap-3">
-          <svg
-            className={`w-5 h-5 ${config.textColor} flex-shrink-0 mt-0.5`}
-            fill="currentColor"
-            viewBox="0 0 20 20"
+    <AnimatePresence>
+      {message && config && (
+        <motion.div
+          className="fixed top-4 right-4 max-w-sm z-50"
+          // Slide down from above + fade in, reverse on dismiss.
+          initial={{ opacity: 0, y: -12 }}
+          animate={{
+            opacity: 1,
+            y: 0,
+            transition: { type: 'spring', stiffness: 420, damping: 34, mass: 0.6 },
+          }}
+          exit={{ opacity: 0, y: -8, transition: { duration: 0.14 } }}
+        >
+          <div
+            className={`${config.bgColor} border ${config.borderColor} rounded-lg p-4 shadow-lg`}
           >
-            {config.icon}
-          </svg>
-          <div className="flex-1">
-            <h3 className={`font-medium ${config.titleColor} capitalize`}>{type}</h3>
-            <p className={`text-sm ${config.textColor} mt-1`}>{message}</p>
+            <div className="flex items-start gap-3">
+              <svg
+                className={`w-5 h-5 ${config.textColor} flex-shrink-0 mt-0.5`}
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                {config.icon}
+              </svg>
+              <div className="flex-1">
+                <h3 className={`font-medium ${config.titleColor} capitalize`}>{type}</h3>
+                <p className={`text-sm ${config.textColor} mt-1`}>{message}</p>
+              </div>
+              <button
+                onClick={onDismiss}
+                className={`${config.buttonColor} transition-colors flex-shrink-0`}
+                aria-label={`Dismiss ${type}`}
+                type="button"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onDismiss}
-            className={`${config.buttonColor} transition-colors flex-shrink-0`}
-            aria-label={`Dismiss ${type}`}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

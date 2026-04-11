@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from 'src/features/auth/hooks/useAuth';
+import { useAccountStore } from 'src/features/account/account.store';
 
 export const LogoutButton = () => {
   const navigate = useNavigate();
@@ -29,9 +30,18 @@ export type AppSidebarProps = {
   setCollapsed: (collapsed: boolean) => void;
 };
 
+/** Derive the single-character avatar initial. Prefer the display name,
+ *  fall back to the email local-part, then to a neutral "?" so we always
+ *  render something. */
+const deriveInitial = (displayName: string | null | undefined, email: string | undefined) => {
+  const source = (displayName && displayName.trim()) || (email ?? '').split('@')[0] || '?';
+  return source.trim().charAt(0).toUpperCase() || '?';
+};
+
 export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const account = useAccountStore((s) => s.account);
 
   const currentPath = location.pathname;
   const isAnnotationPage = /^\/campaigns\/\d+\/annotate/.test(currentPath);
@@ -55,8 +65,11 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
 
   return (
     <aside
-      className="flex flex-col h-full bg-white border-r border-neutral-200 transition-all duration-200"
-      style={{ width: collapsed ? '60px' : '180px' }}
+      className="flex flex-col h-full bg-white border-r border-neutral-200"
+      style={{
+        width: collapsed ? '60px' : '180px',
+        transition: 'width 180ms cubic-bezier(0.22, 1, 0.36, 1)',
+      }}
     >
       <div className="flex items-center justify-between px-4 h-12 border-b border-neutral-200">
         {!collapsed && (
@@ -114,19 +127,25 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
       </nav>
 
       <div className="p-3 border-t border-neutral-200 mt-auto">
-        <div
-          className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}
-          onClick={() => setCollapsed(false)}
-        >
-          <div className="w-7 h-7 bg-neutral-200 rounded-full border border-brand-300 shrink-0" />
+        <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+          <button
+            onClick={() => handleNavClick('/settings')}
+            type="button"
+            title={account?.display_name || account?.email || 'Open settings'}
+            aria-label="Open settings"
+            className="w-7 h-7 rounded-full bg-brand-50 border border-brand-200 text-brand-800 flex items-center justify-center text-[11px] font-semibold shrink-0 hover:bg-brand-100 hover:border-brand-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+          >
+            {deriveInitial(account?.display_name, account?.email)}
+          </button>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <div
-                className="text-[13px] text-neutral-700 hover:text-brand-700 cursor-pointer transition-colors"
+              <button
                 onClick={() => handleNavClick('/settings')}
+                type="button"
+                className="block text-[13px] text-neutral-700 hover:text-brand-700 cursor-pointer transition-colors truncate text-left w-full"
               >
-                Settings
-              </div>
+                {account?.display_name || account?.email || 'Settings'}
+              </button>
               <LogoutButton />
             </div>
           )}

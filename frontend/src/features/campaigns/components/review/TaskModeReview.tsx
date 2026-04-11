@@ -13,6 +13,7 @@ import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import type { SortOption, StatusFilter, UserInfo } from './types';
+import { FadeIn } from '~/shared/ui/motion';
 
 interface TaskModeReviewProps {
   campaign: CampaignOut;
@@ -133,10 +134,10 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="page">
+      <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)} — Annotations</h1>
+            <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
             <p className="page-subtitle">View and filter all annotation tasks for this campaign.</p>
           </div>
           <div className="flex items-center gap-3">
@@ -518,7 +519,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             </div>
           )}
         </div>
-      </div>
+      </FadeIn>
     </div>
   );
 };

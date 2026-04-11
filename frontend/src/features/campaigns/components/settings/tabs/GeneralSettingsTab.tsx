@@ -287,7 +287,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             Changing this will recompute all embeddings for the campaign.
             {!campaign.settings.embedding_year && (
               <span className="block mt-1 text-amber-700 font-medium">
-                No embedding year set — KNN-embeddings (AEF) based validation is currently
+                No embedding year set - KNN-embeddings (AEF) based validation is currently
                 unavailable for annotators.
               </span>
             )}

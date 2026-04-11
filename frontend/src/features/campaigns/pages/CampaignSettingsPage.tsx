@@ -18,6 +18,7 @@ import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { FadeIn } from '~/shared/ui/motion';
 
 import {
   deleteSource,
@@ -574,7 +575,7 @@ export const CampaignSettingsPage = () => {
   return (
     <>
       <div className="flex-1 overflow-auto">
-        <div className="page">
+        <FadeIn className="page">
           <header className="page-header">
             <div>
               <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
@@ -827,7 +828,7 @@ export const CampaignSettingsPage = () => {
               )}
             </div>
           </div>
-        </div>
+        </FadeIn>
       </div>
 
       {/* Global Modals */}

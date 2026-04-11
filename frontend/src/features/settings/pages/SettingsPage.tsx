@@ -20,6 +20,7 @@ import {
   PasswordRequirementsList,
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
+import { FadeIn } from '~/shared/ui/motion';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
@@ -300,7 +301,7 @@ export const SettingsPage = () => {
   return (
     <>
       <div className="flex-1 overflow-auto">
-        <div className="page">
+        <FadeIn className="page">
           <header className="page-header">
             <div>
               <h1 className="page-title">Settings</h1>
@@ -558,7 +559,7 @@ export const SettingsPage = () => {
               )}
             </div>
           </div>
-        </div>
+        </FadeIn>
       </div>
 
       {/* Loading Overlay */}

@@ -124,7 +124,7 @@ export const ImagerySourceEditor = ({
               max="22"
               value={source.defaultZoom}
               onChange={(e) => onChange({ defaultZoom: Number(e.target.value) })}
-              className="w-14 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
+              className="w-14 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs text-center"
             />
             {source.defaultZoom < 10 && (
               <span className="text-[10px] text-amber-600">
@@ -173,7 +173,7 @@ export const ImagerySourceEditor = ({
                 placeholder="e.g. True Color"
                 value={viz.name}
                 onChange={(e) => renameVisualization(i, e.target.value)}
-                className="flex-1 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                className="flex-1 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
               />
               <button
                 type="button"

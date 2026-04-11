@@ -15,6 +15,7 @@ import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/creation/steps/imagery/types';
 import { Button } from '~/shared/ui/forms';
+import { FadeIn } from '~/shared/ui/motion';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
@@ -141,12 +142,12 @@ export const CreateCampaignPage = () => {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="page">
+      <FadeIn className="page">
         <header className="page-header">
           <div>
             <h1 className="page-title">New campaign</h1>
             <p className="page-subtitle">
-              Set up your campaign step by step — details, settings, imagery, and more.
+              Set up your campaign step by step - details, settings, imagery, and more.
             </p>
           </div>
         </header>
@@ -182,7 +183,7 @@ export const CreateCampaignPage = () => {
             </div>
           )}
         </div>
-      </div>
+      </FadeIn>
     </div>
   );
 };

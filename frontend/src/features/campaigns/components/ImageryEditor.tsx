@@ -147,7 +147,7 @@ export const ImageryEditor = ({
           placeholder="Imagery name"
           value={localValue.name}
           onChange={(e) => update('name', e.target.value)}
-          className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
         />
       </div>
 
@@ -204,7 +204,7 @@ export const ImageryEditor = ({
             }}
             disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -223,7 +223,7 @@ export const ImageryEditor = ({
               }
             }}
             disabled={isExisting}
-            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -252,7 +252,7 @@ export const ImageryEditor = ({
             }}
             disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -271,7 +271,7 @@ export const ImageryEditor = ({
               }
             }}
             disabled={isExisting}
-            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -292,7 +292,7 @@ export const ImageryEditor = ({
           placeholder="https://example.com/register"
           value={localValue.registration_url}
           onChange={(e) => update('registration_url', e.target.value)}
-          className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
         />
       </div>
 
@@ -349,7 +349,7 @@ export const ImageryEditor = ({
             type="number"
             value={localValue.default_zoom ?? 10}
             onChange={(e) => update('default_zoom', Number(e.target.value))}
-            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
           />
         </div>
       </div>

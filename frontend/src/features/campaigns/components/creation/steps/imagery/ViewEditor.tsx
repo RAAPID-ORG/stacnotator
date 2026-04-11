@@ -127,7 +127,7 @@ export const ViewEditor = ({ view, sources, onChange, onRemove, isFirst }: ViewE
               placeholder="e.g. Sentinel-2, Overview, Comparison"
               value={view.name}
               onChange={(e) => onChange({ name: e.target.value })}
-              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
             />
           </div>
 

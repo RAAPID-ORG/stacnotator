@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { exportAnnotations, exportAnnotationsGeojson, type CampaignOut } from '~/api/client';
+import { Dropdown } from '~/shared/ui/motion';
 
 interface ExportDropdownProps {
   campaignId: number;
@@ -143,8 +144,11 @@ export const ExportDropdown = ({
           </>
         )}
       </button>
-      {showDropdown && (
-        <div className="absolute right-0 top-full mt-1 bg-white border border-neutral-300 rounded-lg shadow-lg z-20 min-w-[260px]">
+      <Dropdown
+        open={showDropdown}
+        className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[260px] origin-top-right"
+      >
+        <div>
           {showMergeToggle && (
             <label
               className={`flex items-start gap-2 px-4 py-2.5 border-b border-neutral-200 ${
@@ -192,7 +196,7 @@ export const ExportDropdown = ({
             <div className="text-xs text-neutral-500">Tabular export (.csv)</div>
           </button>
         </div>
-      )}
+      </Dropdown>
     </div>
   );
 };

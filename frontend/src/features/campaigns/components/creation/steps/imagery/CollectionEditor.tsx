@@ -185,7 +185,7 @@ export const CollectionEditor = ({
                     ? `${sliceDateRange(collection.slices)} (auto-generated from dates)`
                     : 'Auto-generated from dates'
                 }
-                className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
               />
             </div>
           )}
@@ -229,7 +229,7 @@ export const CollectionEditor = ({
                         placeholder={`Slice ${i + 1}`}
                         value={slice.name}
                         onChange={(e) => updateSlice(slice.id, { name: e.target.value })}
-                        className="border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs w-28"
+                        className="border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs w-28"
                       />
                       {isCover ? (
                         <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-700 rounded shrink-0">
@@ -262,7 +262,7 @@ export const CollectionEditor = ({
                         type="date"
                         value={slice.startDate}
                         onChange={(e) => updateSlice(slice.id, { startDate: e.target.value })}
-                        className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                     <div className="space-y-0.5">
@@ -271,7 +271,7 @@ export const CollectionEditor = ({
                         type="date"
                         value={slice.endDate}
                         onChange={(e) => updateSlice(slice.id, { endDate: e.target.value })}
-                        className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                   </div>
@@ -330,7 +330,7 @@ export const CollectionEditor = ({
                               placeholder="https://.../tiles/{z}/{x}/{y}"
                               value={url}
                               onChange={(e) => updateSliceVizUrl(slice.id, vizName, e.target.value)}
-                              className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
                             />
                             {url && missingParams.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-0.5">
@@ -409,7 +409,7 @@ export const CollectionEditor = ({
                         })
                       }
                       placeholder="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-                      className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                      className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                     />
                   </div>
 
@@ -426,7 +426,7 @@ export const CollectionEditor = ({
                       value={cloudCoverValue}
                       onChange={(e) => updateCloudCover(e.target.value)}
                       placeholder="e.g. 90"
-                      className="w-24 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                      className="w-24 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                     />
                   </div>
 
@@ -492,7 +492,7 @@ export const CollectionEditor = ({
                         type="url"
                         value={sb.catalogUrl}
                         onChange={(e) => updateSb({ catalogUrl: e.target.value })}
-                        className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                     <div className="space-y-1">
@@ -501,7 +501,7 @@ export const CollectionEditor = ({
                         type="text"
                         value={sb.stacCollectionId}
                         onChange={(e) => updateSb({ stacCollectionId: e.target.value })}
-                        className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                   </div>
@@ -621,7 +621,7 @@ export const CollectionEditor = ({
                       placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
                       value={url}
                       onChange={(e) => updateVizUrl(vizName, e.target.value)}
-                      className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                      className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
                     />
                     {url && missingParams.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-0.5">

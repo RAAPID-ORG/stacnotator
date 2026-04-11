@@ -392,11 +392,43 @@ export const AnnotationControls = ({
             </div>
           )}
 
-        {/* Block 1: Label Selection */}
+        {/* Block 1: Label Selection - KNN "Validate" toggle is inlined on
+            the right of the header so it doesn't consume a separate row. */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
-          <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-            Label
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+              Label
+            </span>
+            {knnAvailable ? (
+              <label
+                className="flex items-center gap-1.5 cursor-pointer select-none"
+                title={`Validate against prior labels using embedding similarity (kNN, k=${knnStatus?.required_per_label ?? 5})`}
+              >
+                <span className="relative">
+                  <input
+                    type="checkbox"
+                    checked={knnValidationEnabled}
+                    onChange={(e) => setKnnValidationEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <span className="block w-6 h-3 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors" />
+                  <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform" />
+                </span>
+                <span className="text-[10px] text-neutral-600">Validate</span>
+              </label>
+            ) : (
+              <span
+                className="flex items-center gap-1.5 select-none opacity-60"
+                title={`Validation unavailable: ${knnDisabledReason}`}
+              >
+                <span className="relative">
+                  <span className="block w-6 h-3 bg-neutral-200 rounded-full" />
+                  <span className="absolute top-0.5 left-0.5 w-2 h-2 bg-white rounded-full shadow-sm" />
+                </span>
+                <span className="text-[10px] text-neutral-400">Validate</span>
+              </span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {labels.map((label, index) => (
               <button
@@ -419,11 +451,9 @@ export const AnnotationControls = ({
           </div>
         </div>
 
-        {/* Block 2: Comment Field */}
+        {/* Block 2: Comment Field - no label header, placeholder carries
+            the label. Saves a row of vertical space in the dense panel. */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
-          <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-            Comment
-          </label>
           <textarea
             ref={commentInputRef}
             value={comment}
@@ -466,73 +496,6 @@ export const AnnotationControls = ({
             </div>
           </div>
 
-          {/* Separator */}
-          <div className="border-t border-neutral-300"></div>
-
-          {/* KNN Validation Toggle */}
-          {knnAvailable ? (
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={knnValidationEnabled}
-                  onChange={(e) => setKnnValidationEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-7 h-4 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors"></div>
-                <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform"></div>
-              </div>
-              <span className="text-[11px] text-neutral-600">Validate</span>
-              <div className="relative group">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-3 h-3 text-neutral-400 group-hover:text-neutral-600 transition-colors cursor-help shrink-0"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  Experimental feature - use with care! Checks your label against prior annotations
-                  using embedding similarity from AlphaEarth in {campaign?.settings?.embedding_year}{' '}
-                  (kNN, with k = {knnStatus?.required_per_label ?? 5}). You&apos;ll be asked to
-                  confirm if your label disagrees with the majority.
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
-                </div>
-              </div>
-            </label>
-          ) : (
-            <div className="flex items-center gap-1.5 select-none">
-              <div className="relative">
-                <div className="w-7 h-4 bg-neutral-200 rounded-full cursor-not-allowed"></div>
-                <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm"></div>
-              </div>
-              <span className="text-[11px] text-neutral-400">Validate</span>
-              <div className="relative group">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-3 h-3 text-neutral-300 group-hover:text-neutral-400 transition-colors cursor-help shrink-0"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  KNN label validation is unavailable: {knnDisabledReason}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Submit / Skip */}
           <div className="flex gap-1.5">
             <button
@@ -567,13 +530,10 @@ export const AnnotationControls = ({
           )}
         </div>
 
-        {/* Block 4: Navigation Controls */}
+        {/* Block 4: Navigation Controls - no section header, the Point
+            input and Prev/Next buttons carry enough affordance on their own. */}
         {currentTask && totalTasksCount && (
           <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
-            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-              Navigate
-            </span>
-
             {/* Go to point row */}
             <div className="flex items-center gap-1.5">
               <label className="text-[11px] font-medium text-neutral-500">Point</label>

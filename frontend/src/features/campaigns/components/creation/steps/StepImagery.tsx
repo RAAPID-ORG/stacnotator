@@ -575,9 +575,11 @@ export const StepImagery = ({
         </Modal>
       )}
 
-      {/* Section 3: Basemaps */}
+      {/* Section 3: Basemaps - simple list, one row per entry. Name + URL
+          sit side by side as standard inputs; delete is a quiet X at the end.
+          No nested cards, no pills. */}
       <section>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-semibold text-neutral-900">Basemaps</h3>
             <p className="text-xs text-neutral-500 mt-0.5">
@@ -587,45 +589,44 @@ export const StepImagery = ({
           <button
             type="button"
             onClick={addBasemap}
-            className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add
+            + Add basemap
           </button>
         </div>
 
         {state.basemaps.length === 0 ? (
           <p className="text-xs text-neutral-400 italic">No basemaps configured.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
             {state.basemaps.map((bm) => (
-              <div
-                key={bm.id}
-                className="group flex items-center gap-2 rounded border border-neutral-200 bg-white pl-2.5 pr-1 py-1 text-xs"
-              >
+              <li key={bm.id} className="flex items-center gap-3 py-2">
                 <input
                   type="text"
                   value={bm.name}
                   onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
                   placeholder="Name"
-                  className="w-24 border-0 border-b border-transparent focus:border-brand-600 outline-none text-xs py-0 px-0"
+                  className="w-40 h-8 px-2.5 text-xs border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
                 />
                 <input
                   type="text"
                   value={bm.url}
                   onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                   placeholder="https://.../{z}/{x}/{y}.png"
-                  className="w-56 border-0 border-b border-transparent focus:border-brand-600 outline-none text-[11px] font-mono py-0 px-0 text-neutral-500"
+                  className="flex-1 h-8 px-2.5 text-[11px] font-mono text-neutral-700 border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => removeBasemap(bm.id)}
-                  className="text-neutral-300 hover:text-red-500 transition-colors cursor-pointer p-0.5 opacity-0 group-hover:opacity-100"
+                  className="text-neutral-400 hover:text-red-600 transition-colors cursor-pointer p-1 shrink-0"
+                  aria-label="Remove basemap"
+                  title="Remove basemap"
                 >
-                  <IconTrash className="w-3 h-3" />
+                  <IconTrash className="w-3.5 h-3.5" />
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 

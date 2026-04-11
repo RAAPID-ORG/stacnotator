@@ -1138,7 +1138,7 @@ export const CatalogBrowser = ({
                         <select
                           value={itemSort}
                           onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
-                          className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                         >
                           <option value="date_desc">Date (newest first)</option>
                           <option value="date_asc">Date (oldest first)</option>
@@ -1188,7 +1188,7 @@ export const CatalogBrowser = ({
                               onChange={(e) =>
                                 setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
                               }
-                              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             />
                           </div>
                           <div className="space-y-1">
@@ -1200,7 +1200,7 @@ export const CatalogBrowser = ({
                                   e.target.value as 'weeks' | 'months' | 'years'
                                 )
                               }
-                              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             >
                               <option value="weeks">Weeks</option>
                               <option value="months">Months</option>
@@ -1223,7 +1223,7 @@ export const CatalogBrowser = ({
                             onChange={(e) =>
                               setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
                             }
-                            className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                           />
                         </div>
                         <div className="space-y-1">
@@ -1235,7 +1235,7 @@ export const CatalogBrowser = ({
                                 e.target.value as 'days' | 'weeks' | 'months' | 'years'
                               )
                             }
-                            className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                           >
                             <option value="days">Days</option>
                             <option value="weeks">Weeks</option>
@@ -1300,7 +1300,7 @@ export const CatalogBrowser = ({
                             min="1"
                             value={coverSliceNth}
                             onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
-                            className="w-20 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+                            className="w-20 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs bg-transparent"
                           />
                         </div>
                       )}
@@ -1346,7 +1346,7 @@ export const CatalogBrowser = ({
                               <select
                                 value={coverItemSort}
                                 onChange={(e) => setCoverItemSort(e.target.value as ItemSortOption)}
-                                className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                               >
                                 <option value="date_desc">Date (newest first)</option>
                                 <option value="date_asc">Date (oldest first)</option>

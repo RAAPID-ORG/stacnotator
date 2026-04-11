@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLayoutStore } from 'src/features/layout/layout.store';
 import { IconPlay } from '~/shared/ui/Icons';
+import { FadeIn } from '~/shared/ui/motion';
 
 /**
  * HomePage is a quiet landing for a tool, not a marketing site. Single column,
@@ -18,7 +19,7 @@ export const HomePage = () => {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="mx-auto max-w-4xl px-8 py-16">
+      <FadeIn className="mx-auto max-w-4xl px-8 py-16">
         {/* Identity */}
         <div className="mb-10">
           <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">STACNotator</h1>
@@ -113,7 +114,7 @@ export const HomePage = () => {
           </a>
           .
         </div>
-      </div>
+      </FadeIn>
     </div>
   );
 };

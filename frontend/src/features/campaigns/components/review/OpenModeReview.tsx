@@ -16,6 +16,7 @@ import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import type { SortOption, UserInfo } from './types';
+import { FadeIn } from '~/shared/ui/motion';
 
 interface OpenModeReviewProps {
   campaign: CampaignOut;
@@ -161,10 +162,10 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="page">
+      <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)} — Annotations</h1>
+            <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
             <p className="page-subtitle">
               {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode
               campaign.
@@ -466,7 +467,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             )}
           </div>
         )}
-      </div>
+      </FadeIn>
     </div>
   );
 };

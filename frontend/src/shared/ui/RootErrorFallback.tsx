@@ -19,7 +19,7 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
   return (
     <div
       className="min-h-screen w-full flex items-center justify-center p-4"
-      style={{ background: 'rgb(245, 242, 234)' }}
+      style={{ background: 'rgb(247, 246, 245)' }}
     >
       <div className="max-w-lg w-full bg-white border border-neutral-200 rounded-xl shadow-sm p-8 space-y-6">
         {/* Error icon */}
