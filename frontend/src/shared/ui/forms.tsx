@@ -7,29 +7,9 @@ import {
   type ReactNode,
 } from 'react';
 
-/**
- * Form primitives. One source of truth for buttons, inputs, selects,
- * textareas, fields, and labels so the same field type always looks and
- * feels identical across the app.
- *
- * Visual language: warm cream canvas, brand-600 sage green for primary,
- * neutral-300 borders, brand focus ring, consistent h-9 height, rounded-md
- * corners, subtle shadow on primary CTAs. Quiet by default, deliberate when
- * interactive.
- *
- * Keep this file the only place that defines these classes. Anywhere in the
- * app that needs an input/button should import from here. If you find
- * yourself writing `border border-neutral-300 rounded-md px-3 py-2` inline,
- * stop and use <Input /> instead.
- */
+// Single source of truth for form primitives. Import from here instead of
+// writing `border border-neutral-300 rounded-md px-3 py-2` inline.
 
-// ─── Class strings ────────────────────────────────────────────────────────
-//
-// Exported so non-component contexts (e.g. integrating with a third-party
-// widget) can apply the same look. Prefer the components below in JSX.
-
-/** Shared base for inputs / selects / textareas - handles border, padding,
- *  focus ring, disabled state. */
 const fieldBase =
   'w-full text-sm text-neutral-900 bg-white border border-neutral-300 rounded-md ' +
   'placeholder:text-neutral-400 ' +
@@ -37,30 +17,22 @@ const fieldBase =
   'disabled:bg-neutral-50 disabled:text-neutral-500 disabled:cursor-not-allowed ' +
   'transition-colors';
 
-/** Single-line input height. Matches button height (h-9) so they line up. */
 const fieldSingle = 'h-9 px-3';
 
-/** Tailwind class for the standard input look (single-line). */
 export const inputClass = `${fieldBase} ${fieldSingle}`;
 
-/** Multiline (textarea) - vertical resize, generous min-height. */
 export const textareaClass = `${fieldBase} px-3 py-2 resize-y min-h-[5rem]`;
 
-/** Select - same as input but with a custom chevron via padding-right. */
 export const selectClass =
   `${fieldBase} ${fieldSingle} pr-8 appearance-none cursor-pointer ` +
   "bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23737373%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] " +
   'bg-no-repeat bg-[right_0.625rem_center]';
 
-// ─── Buttons ──────────────────────────────────────────────────────────────
-
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  /** Optional leading icon - rendered to the left of children with a small gap. */
   leading?: ReactNode;
-  /** Optional trailing icon - rendered to the right of children. */
   trailing?: ReactNode;
 }
 
@@ -99,15 +71,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
-/** Returns the canonical class string for a button variant. Useful when you
- *  need a button-styled <a> or <Link> rather than a real <button>. */
 export const buttonClass = (variant: ButtonVariant = 'primary', extra?: string) =>
   `${buttonBase} ${buttonVariants[variant]}${extra ? ' ' + extra : ''}`;
 
-// ─── Inputs ───────────────────────────────────────────────────────────────
-
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  /** Mark the field visually as invalid (red border + ring). */
   invalid?: boolean;
 }
 
@@ -160,29 +127,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 Select.displayName = 'Select';
 
-// ─── Field wrapper (label + help + error) ────────────────────────────────
-
 interface FieldProps {
   label?: ReactNode;
-  /** Optional help text shown under the field in muted style. */
   hint?: ReactNode;
-  /** Error message - takes precedence over hint when present. */
   error?: ReactNode;
-  /** Marks the field as required (adds * to the label). */
   required?: boolean;
-  /** Pin a label width so multiple horizontal fields align. */
   className?: string;
   children: ReactNode;
 }
 
-/**
- * Wraps a form control with a label, optional hint, and optional error.
- * Use this around any input/select/textarea so labels are consistent.
- *
- * <Field label="Display name" hint="Shown to other annotators">
- *   <Input value={name} onChange={...} />
- * </Field>
- */
 export const Field = ({ label, hint, error, required, className, children }: FieldProps) => (
   <div className={`space-y-1.5 ${className ?? ''}`}>
     {label && (
@@ -200,15 +153,11 @@ export const Field = ({ label, hint, error, required, className, children }: Fie
   </div>
 );
 
-// ─── Toggle switch (peer-checkbox style) ─────────────────────────────────
-
 interface SwitchProps {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
-  /** Inline label rendered to the right of the switch. */
   label?: ReactNode;
-  /** ARIA label when no visible label is provided. */
   'aria-label'?: string;
 }
 

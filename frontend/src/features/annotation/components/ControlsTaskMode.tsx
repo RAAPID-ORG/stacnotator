@@ -23,9 +23,6 @@ interface AnnotationControlsProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/**
- * Annotation controls panel for labeling and navigating annotation tasks
- */
 export const AnnotationControls = ({
   labels,
   onSubmit,
@@ -37,9 +34,8 @@ export const AnnotationControls = ({
   totalTasksCount,
   commentInputRef,
 }: AnnotationControlsProps) => {
-  // Use store state for label and comment
-  // Form state (selectedLabelId, comment, confidence) is populated by the store's
-  // navigation actions (nextTask, previousTask, goToTask, etc.) via getFormStateForTask()
+  // Form state is populated by the store's navigation actions (nextTask,
+  // previousTask, goToTask) via getFormStateForTask - not by local useState.
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
   const confidence = useTaskStore((s) => s.confidence);
@@ -58,11 +54,6 @@ export const AnnotationControls = ({
   const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
   const knnStatus = useCampaignStore((s) => s.knnValidationStatus);
 
-  /**
-   * Compute whether KNN validation can actually run for the current task +
-   * selected label, and return a human-readable reason if not. Null reason
-   * means the toggle is usable.
-   */
   const knnDisabledReason: string | null = (() => {
     if (!hasEmbeddingYear) {
       return 'No embedding year has been configured for this campaign. Set it in Campaign Settings to enable this feature.';
@@ -96,10 +87,8 @@ export const AnnotationControls = ({
   })();
   const knnAvailable = knnDisabledReason === null;
 
-  // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
 
-  // Update goto input when task changes
   useEffect(() => {
     if (currentTask) {
       setGotoValue(currentTask.annotation_number.toString());
@@ -109,7 +98,6 @@ export const AnnotationControls = ({
 
   const handleSubmit = async () => {
     await onSubmit(selectedLabelId, comment, confidence);
-    // Don't reset form here - let the effect handle it when task changes
   };
 
   const handleSkip = async () => {
@@ -127,7 +115,6 @@ export const AnnotationControls = ({
     }
 
     await onSubmit(null, comment, confidence);
-    // Don't reset form here - let the effect handle it when task changes
   };
 
   const handleSubmitAuthoritative = async () => {
@@ -159,12 +146,11 @@ export const AnnotationControls = ({
   const handleGotoKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      e.stopPropagation(); // Prevent triggering global keyboard shortcuts
+      e.stopPropagation();
       const num = parseInt(gotoValue, 10);
       if (!isNaN(num) && num > 0 && num <= (totalTasksCount || 0)) {
         handleGoToTask(num);
       }
-      // Blur the input after navigating
       e.currentTarget.blur();
     }
   };
@@ -176,10 +162,8 @@ export const AnnotationControls = ({
     }
   };
 
-  // Disable controls during submission or navigation
   const isDisabled = isSubmitting || isNavigating;
 
-  // Check if current user has already annotated this task
   const currentUserId = useAccountStore((state) => state.account?.id);
   const userAnnotation = currentTask?.annotations.find(
     (a) => a.created_by_user_id === currentUserId
@@ -187,32 +171,23 @@ export const AnnotationControls = ({
   const _hasExistingAnnotation = userAnnotation !== undefined;
   const hasExistingLabel = userAnnotation !== undefined && userAnnotation.label_id != null;
 
-  // Only users assigned to this task can skip it (skipping submits a
-  // null-label annotation).
+  // Skipping submits a null-label annotation, so only assignees may skip.
   const isAssignedToTask =
     currentTask?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
 
-  // Determine submit button text and state
   const isRemovingLabel = hasExistingLabel && selectedLabelId === null;
   const submitButtonText = isRemovingLabel
     ? 'Remove Label'
     : hasExistingLabel
       ? 'Update'
       : 'Submit';
-  // Submit is disabled when: loading OR (no label selected AND not removing an existing label)
   const isSubmitDisabled = isDisabled || (selectedLabelId === null && !isRemovingLabel);
 
-  // Show Go button only when user has typed a different value
   const showGoButton = currentTask && gotoValue !== currentTask.annotation_number.toString();
 
   return (
     <div className="w-full h-full bg-white overflow-y-auto">
       <div className="flex flex-wrap">
-        {/* Block 0: All Annotations (review mode only) - shown first so the
-            reviewer sees the existing annotations before picking their own
-            label. Assignees who haven't labeled yet get a placeholder card so
-            the reviewer knows the full picture. Others' cards come before the
-            reviewer's own. */}
         {isReviewMode &&
           currentTask &&
           ((currentTask.annotations?.length ?? 0) > 0 ||
@@ -233,11 +208,10 @@ export const AnnotationControls = ({
               </div>
               <div className="flex flex-col gap-1.5">
                 {(() => {
-                  // Build the card list: one entry per assignee. If the
-                  // assignee has an annotation (labeled or skipped), show it;
-                  // otherwise show a "pending" placeholder. Any orphan
-                  // annotations (annotator with no matching assignment row)
-                  // are appended so we never silently drop data.
+                  // One entry per assignee: their annotation if present,
+                  // otherwise a "pending" placeholder. Orphan annotations
+                  // (annotator with no matching assignment) are appended so
+                  // we never silently drop data.
                   type Entry =
                     | { kind: 'annotation'; annotation: (typeof currentTask.annotations)[number] }
                     | {
@@ -266,7 +240,7 @@ export const AnnotationControls = ({
                     }
                   }
 
-                  // Sort: own entry last, everyone else in assignment order.
+                  // Own entry last, everyone else in assignment order.
                   entries.sort((a, b) => {
                     const aOwn =
                       a.kind === 'annotation'
@@ -321,12 +295,7 @@ export const AnnotationControls = ({
                           ? 'Skipped'
                           : '-';
 
-                    // Conflict styling: when the task is in "conflicting"
-                    // status, every card gets an orange border + background
-                    // so the reviewer can immediately see at a glance that
-                    // the annotators disagree. Authoritative label keeps
-                    // amber precedence because it's still more important
-                    // than the conflict warning.
+                    // Authoritative amber beats conflict orange.
                     const isConflict =
                       currentTask.task_status === 'conflicting' && !ann.is_authoritative;
                     const cardClass = ann.is_authoritative
@@ -392,8 +361,6 @@ export const AnnotationControls = ({
             </div>
           )}
 
-        {/* Block 1: Label Selection - KNN "Validate" toggle is inlined on
-            the right of the header so it doesn't consume a separate row. */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
@@ -451,8 +418,6 @@ export const AnnotationControls = ({
           </div>
         </div>
 
-        {/* Block 2: Comment Field - no label header, placeholder carries
-            the label. Saves a row of vertical space in the dense panel. */}
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
           <textarea
             ref={commentInputRef}
@@ -465,9 +430,7 @@ export const AnnotationControls = ({
           />
         </div>
 
-        {/* Block 3: Confidence + Submit/Skip */}
         <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
-          {/* Confidence Slider */}
           <div className="flex flex-col gap-1">
             <label className="flex justify-between items-center">
               <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
@@ -496,7 +459,6 @@ export const AnnotationControls = ({
             </div>
           </div>
 
-          {/* Submit / Skip */}
           <div className="flex gap-1.5">
             <button
               disabled={isSubmitDisabled}
@@ -517,7 +479,6 @@ export const AnnotationControls = ({
             </button>
           </div>
 
-          {/* Submit as authoritative (review mode + authoritative reviewer only) */}
           {isReviewMode && isAuthoritativeReviewer && (
             <button
               disabled={isSubmitDisabled}
@@ -530,11 +491,8 @@ export const AnnotationControls = ({
           )}
         </div>
 
-        {/* Block 4: Navigation Controls - no section header, the Point
-            input and Prev/Next buttons carry enough affordance on their own. */}
         {currentTask && totalTasksCount && (
           <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
-            {/* Go to point row */}
             <div className="flex items-center gap-1.5">
               <label className="text-[11px] font-medium text-neutral-500">Point</label>
               <input
@@ -560,7 +518,6 @@ export const AnnotationControls = ({
               )}
             </div>
 
-            {/* Previous/Next buttons row */}
             <div className="flex items-center gap-1.5">
               <button
                 disabled={isDisabled}

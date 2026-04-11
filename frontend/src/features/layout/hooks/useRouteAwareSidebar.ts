@@ -4,15 +4,8 @@ import { useLayoutStore } from 'src/features/layout/layout.store';
 
 const ANNOTATION_ROUTE = /^\/campaigns\/\d+\/annotate/;
 
-/**
- * Auto-collapses the sidebar on annotation pages and expands it elsewhere.
- *
- * Uses useLayoutEffect (not useEffect) so the collapse happens synchronously
- * before the browser paints. Otherwise the annotation canvas mounts at the
- * old (expanded) width, its ResizeObserver fires, and ReactGridLayout re-
- * lays out the whole grid mid-transition - which reads as a visible jerk
- * as the user navigates into the annotator.
- */
+// useLayoutEffect (not useEffect): collapse must happen pre-paint, otherwise
+// the annotator grid mounts at the old width and re-lays out mid-transition.
 export const useRouteAwareSidebar = () => {
   const { pathname } = useLocation();
   const setSidebarCollapsed = useLayoutStore((state) => state.setSidebarCollapsed);

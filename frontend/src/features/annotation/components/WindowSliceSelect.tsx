@@ -3,23 +3,11 @@ import type { ImageryCollectionOut } from '~/api/client';
 
 interface WindowSliceSelectProps {
   collection: ImageryCollectionOut;
-  /** Dark-mode variant: white-on-transparent for use inside an
-   *  active-collection header that has a brand-600 background. */
   darkBg?: boolean;
 }
 
-/**
- * Slice picker for a collection window. Lives in the card header so it
- * doesn't steal space from the imagery canvas below. State comes from
- * useMapStore - active collections use the global slice index, inactive
- * windows use per-collection indices, same rules as ImageryContainer.
- *
- * Visual: quiet dotted underline + chevron-close-to-text so it reads as
- * a dropdown without looking like a button. Hover adds a soft background
- * tint for extra affordance. Options are forced to a dark readable colour
- * because the browser's native popup is always white-on-white regardless
- * of the trigger background.
- */
+// Options are forced to dark-on-white because the native popup ignores the
+// trigger's background colour, which would otherwise render white-on-white.
 export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSelectProps) => {
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -38,7 +26,6 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
   if (slices.length <= 1) return null;
 
   const handleChange = (idx: number) => {
-    // Deliberate user pick - same intent path as the full-size dropdown.
     setSliceNavIntent('pick');
     if (isActive) setActiveSliceIndex(idx);
     else setCollectionSliceIndex(collection.id, idx);

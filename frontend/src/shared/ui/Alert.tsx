@@ -80,10 +80,6 @@ const ALERT_CONFIGS: Record<AlertType, AlertConfig> = {
   },
 };
 
-/**
- * Alert notification component
- * Displays dismissible notifications with auto-close functionality
- */
 export const Alert = ({
   message,
   type = 'info',
@@ -109,7 +105,6 @@ export const Alert = ({
       {message && config && (
         <motion.div
           className="fixed top-4 right-4 max-w-sm z-50"
-          // Slide down from above + fade in, reverse on dismiss.
           initial={{ opacity: 0, y: -12 }}
           animate={{
             opacity: 1,

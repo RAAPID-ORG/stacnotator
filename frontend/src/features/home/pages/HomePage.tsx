@@ -4,11 +4,6 @@ import { useLayoutStore } from 'src/features/layout/layout.store';
 import { IconPlay } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 
-/**
- * HomePage is a quiet landing for a tool, not a marketing site. Single column,
- * generous whitespace, body-text led. The goal is "open the tool, get oriented,
- * jump in" - not "convert a visitor".
- */
 export const HomePage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -20,7 +15,6 @@ export const HomePage = () => {
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="mx-auto max-w-4xl px-8 py-16">
-        {/* Identity */}
         <div className="mb-10">
           <h1 className="text-2xl font-semibold text-neutral-900 tracking-tight">STACNotator</h1>
           <p className="mt-3 text-[15px] text-neutral-600 leading-relaxed max-w-2xl">
@@ -29,7 +23,6 @@ export const HomePage = () => {
           </p>
         </div>
 
-        {/* Primary actions - quiet text-led links matching the page voice */}
         <div className="mb-12 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <button
             onClick={() => navigate('/campaigns')}
@@ -55,8 +48,6 @@ export const HomePage = () => {
           </a>
         </div>
 
-        {/* Tutorial placeholder - real content area, not just a link.
-            Anchors the page visually without going full marketing-hero. */}
         <section className="mb-12">
           <h2 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-3">
             Tutorial
@@ -75,7 +66,6 @@ export const HomePage = () => {
           </div>
         </section>
 
-        {/* What you can do - quiet text list, not feature cards */}
         <section className="mb-12">
           <h2 className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-4">
             What you can do
@@ -100,7 +90,6 @@ export const HomePage = () => {
           </dl>
         </section>
 
-        {/* Early access notice - small, neutral, at the bottom. */}
         <div className="mt-16 pt-6 border-t border-neutral-200 text-[12px] text-neutral-500 leading-relaxed max-w-2xl">
           STACNotator is in early access and under active development. Features may change and
           results should be independently verified. Please report issues on{' '}
@@ -119,7 +108,6 @@ export const HomePage = () => {
   );
 };
 
-/** Single quiet feature row. Title in neutral-900, body in neutral-600. */
 const Feature = ({ title, body }: { title: string; body: string }) => (
   <div>
     <dt className="text-sm font-medium text-neutral-900 mb-0.5">{title}</dt>

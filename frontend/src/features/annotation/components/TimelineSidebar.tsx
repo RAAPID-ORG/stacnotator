@@ -62,7 +62,6 @@ const TimelineSidebar = ({
   const allStepsRef = useRef<TimelineStep[]>([]);
   const yToStepRef = useRef<(clientY: number) => TimelineStep | null>(() => null);
 
-  // Resolve the current view's collections
   const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
 
   const viewCollections = useMemo(() => {
@@ -76,7 +75,6 @@ const TimelineSidebar = ({
       .filter((r) => r.collection);
   }, [selectedView, campaign.imagery_sources]);
 
-  // Compute overall date range from all collections' slices
   const dateRange = useMemo(() => {
     let earliest: string | null = null;
     let latest: string | null = null;
@@ -252,8 +250,6 @@ const TimelineSidebar = ({
 
   return (
     <div className="relative h-full" data-tour="timeline-sidebar">
-      {/* Collapse/expand chevron - quiet, tucked against the right edge so
-          it lives at the exact seam between the timeline and the canvas. */}
       <button
         onClick={onToggleCollapse}
         className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-4 h-12 bg-white hover:bg-neutral-50 text-neutral-400 hover:text-neutral-700 rounded-r-md border border-l-0 border-neutral-200 shadow-sm transition-colors cursor-pointer flex items-center justify-center"
@@ -286,7 +282,6 @@ const TimelineSidebar = ({
       >
         {!collapsed && (
           <div className="h-full flex flex-col px-1.5 py-2 select-none">
-            {/* Date range label at the top */}
             <div className="text-[9px] font-medium text-neutral-500 uppercase tracking-wider mb-2 text-center leading-tight">
               {formatDateLabel(dateRange.start)}
             </div>
@@ -296,9 +291,6 @@ const TimelineSidebar = ({
               className="flex-1 flex flex-col relative cursor-ns-resize group/track"
               onPointerDown={startDrag}
             >
-              {/* Central spine - single hairline the whole height, so every
-                  collection segment is visibly "on the track". Softer than
-                  brand-300 so the active-collection block pops against it. */}
               <div className="absolute left-1/2 -translate-x-px top-0 bottom-0 w-px bg-neutral-200 pointer-events-none" />
 
               {viewCollections.map(({ collection }, _index) => {
@@ -323,9 +315,6 @@ const TimelineSidebar = ({
                         className="absolute inset-x-0 inset-y-0 flex items-center justify-center z-10"
                         title={collection.name}
                       >
-                        {/* Tick marker - visible by default, extends on row
-                            hover to hint the target zone. No layout shift
-                            on hover (width change is transform, not border). */}
                         <div className="relative flex items-center justify-center w-full h-full">
                           <div className="h-px w-3 bg-neutral-300 group-hover/track:bg-neutral-400 transition-colors" />
                           <div className="absolute inset-x-1 inset-y-0 rounded hover:bg-neutral-100/70 transition-colors" />

@@ -150,16 +150,12 @@
 html {
   font-size: 1.125rem; /* 18px base */
   line-height: 1.6;
-  /* Set the canvas color on html so the very first paint (before React
-     mounts) matches every other page. Otherwise the user sees a brief flash
-     of white before our body styles kick in. */
   background: var(--color-canvas);
 }
 
 body {
   font-family: var(--font-sans);
   background: var(--color-canvas);
-  /* Subtle word-spacing tightening to make body text feel more deliberate. */
   word-spacing: -0.01ch;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -171,34 +167,9 @@ h3,
 h4,
 h5,
 h6 {
-  /* Reset the body trick on headings - we want them to read normally. */
   word-spacing: normal;
   letter-spacing: -0.01em;
 }
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Page layout primitives.
-
-   Standard pattern for "page" surfaces (everything outside the annotator
-   canvas grid):
-
-     <div class="page">
-       <header class="page-header">…title + actions…</header>
-       <div class="surface">
-         <section class="surface-section">…</section>
-         <section class="surface-section">…</section>
-       </div>
-     </div>
-
-   - .page          : neutral-50 page background, max width, padding.
-   - .page-header   : title row with consistent spacing below.
-   - .surface       : single elevated white card, holds all sections.
-   - .surface-section: padded block, divided from siblings with a top hairline.
-
-   These are intentionally thin wrappers - everything else stays Tailwind in
-   the JSX so layout tweaks remain inline. Don't nest .surface inside another
-   .surface; that's the card-in-card pattern we're killing.
-   ───────────────────────────────────────────────────────────────────────── */
 
 .page {
   width: 100%;
@@ -259,28 +230,19 @@ h6 {
   margin-bottom: 1rem;
 }
 
-/* Global button cursor */
 button {
   cursor: pointer;
 }
 
-/* Brand-colored radio buttons and checkboxes */
 input[type='radio'],
 input[type='checkbox'],
 input[type='range'] {
   accent-color: var(--color-brand-500);
 }
 
-/* Canvas Grid Layout Styles.
-   ReactGridLayout positions cards with `transform: translate(x, y)` plus
-   inline width/height. When the Canvas flushes a new containerWidth after
-   a sidebar collapse, every card's x/y shifts - without a transition the
-   shift snaps, which feels abrupt. We only transition `transform` so the
-   x/y slide animates on the compositor without re-triggering layout inside
-   the cards. Width/height still snap instantly, which means OL reflows
-   once per collapse instead of once per frame.
-   During layout edit the user is dragging cards with the pointer and any
-   interpolation would lag behind the cursor - transitions disabled there. */
+/* Only transition transform (not width/height) so cards slide on the
+   compositor after a sidebar flush without re-triggering layout inside the
+   cards. Disabled during layout edit so drag doesn't lag the pointer. */
 .react-grid-layout > div {
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -295,9 +257,6 @@ input[type='range'] {
 
 .grid-card {
   background: white;
-  /* Softer border + slightly larger radius matches the rest of the app's
-     surfaces. Shadow is barely-there so the canvas reads as "paper on
-     warm cream" instead of "boxes on a board". */
   border: 1px solid var(--color-neutral-200);
   border-radius: var(--radius-lg);
   display: flex;
@@ -315,10 +274,6 @@ input[type='range'] {
 }
 
 .card-header {
-  /* Quiet header strip. Compact but still comfortably legible:
-     11px font with 1.4 line-height = ~15px text, plus 4px top/bottom =
-     23px total. No background fill - the card's white shows through so
-     this never reads as "the same as the page background". */
   padding: 4px 10px;
   font-size: 11px;
   line-height: 1.4;
@@ -333,7 +288,6 @@ input[type='range'] {
 }
 
 .active-window {
-  /* Active window: soft sage glow rather than a hard border switch. */
   border-color: var(--color-brand-500) !important;
   box-shadow:
     0 0 0 1px var(--color-brand-500 / 0.3),

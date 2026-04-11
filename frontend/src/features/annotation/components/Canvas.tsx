@@ -16,9 +16,6 @@ import { useAnnotationStore } from '../stores/annotation.store';
 import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 
-/**
- * Copy text to clipboard
- */
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
@@ -31,15 +28,11 @@ interface CanvasProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
-/**
- * Canvas component managing the grid layout of annotation panels
- */
 export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Read state directly from stores
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
@@ -68,15 +61,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
 
-  // Get fullscreen state from UI store
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
 
-  // Compute derived values
   const currentTask = visibleTasks[currentTaskIndex] || null;
 
-  // For counter: show tasks matching current assignedTo filter (regardless of status filter)
+  // Counter scope: assignedTo filter only, ignoring the status filter so the
+  // progress number reflects the user's full workload, not the filtered view.
   const tasksInAssignmentScope = allTasks.filter((task) => {
-    if (taskFilter.assignedTo.length === 0) return true; // All users
+    if (taskFilter.assignedTo.length === 0) return true;
     const assignments = task.assignments || [];
     return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
   });
@@ -100,7 +92,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       ] as [number, number, number, number])
     : null;
 
-  // Annotation dots for the minimap (open mode only)
+  // Annotation dots for the minimap (open mode only).
   const annotations = useAnnotationStore((s) => s.annotations);
   const annotationDots = useMemo(() => {
     if (!isOpenMode) return undefined;
@@ -108,7 +100,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       .map((ann) => {
         const geojson = convertWKTToGeoJSON(ann.geometry.geometry);
         if (!geojson) return null;
-        // Compute centroid from geometry coordinates
         const coords =
           geojson.type === 'Point'
             ? [geojson.coordinates as [number, number]]
@@ -125,7 +116,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       .filter((d): d is { lat: number; lon: number } => d !== null);
   }, [isOpenMode, annotations]);
 
-  // Collections shown as windows in the current view
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
     return selectedView.collection_refs
@@ -138,7 +128,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       .filter((r) => r.collection && r.source);
   }, [campaign, selectedView]);
 
-  // Resolve active collection and source for header display
   const activeSource = useMemo(() => {
     if (!campaign || !activeCollectionId) return null;
     return (
@@ -152,7 +141,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
   const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
 
-  // Visualization name for header (scoped to active source)
   const activeSourceVizName = (() => {
     if (!activeSource || !campaign) return null;
     let offset = 0;
@@ -167,21 +155,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     );
   })();
 
-  // Measure container width.
-  //
-  // The sidebar animates its width over ~180ms. During that window, the
-  // Canvas's container width is changing every frame, which triggers
-  // ReactGridLayout to re-lay out every card (main map, imagery windows,
-  // minimap, timeseries...). Each re-layout also ripples into OpenLayers
-  // which resyncs its internal canvas and re-requests tiles. That stacked
-  // work is what reads as "jerky" when entering the annotator.
-  //
-  // Solution: suspend width updates while the sidebar is mid-transition.
-  // We latch on the store's sidebarCollapsed flag changing - for ~220ms
-  // after the flip we ignore ResizeObserver deltas, then on settle we
-  // apply the final width in one shot. Inside that window nothing re-
-  // layouts; the cards visually clip as the sidebar slides over them,
-  // which is what a smooth transition should look like anyway.
+  // Suspend ResizeObserver flushes while the sidebar transitions: otherwise
+  // every frame triggers a full grid re-layout + OpenLayers tile refetch,
+  // which stacks into a visible jerk. After the transition we apply the
+  // final width in one shot.
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -206,7 +183,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       if (now >= suspendedUntil) {
         scheduleFlush();
       } else {
-        // Defer until the suspend window ends, then flush the final width.
         if (pendingSettle) clearTimeout(pendingSettle);
         pendingSettle = setTimeout(
           () => {
@@ -221,9 +197,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     resizeObserver.observe(containerRef.current);
     setIsMounted(true);
 
-    // Subscribe directly to the store so we know when the sidebar flip
-    // starts. We don't need the value in render state - this is a raw
-    // side-effect hook that just sets a suspend deadline.
     const unsubscribe = useLayoutStore.subscribe((state, prev) => {
       if (state.sidebarCollapsed !== prev.sidebarCollapsed) {
         // 180ms transition + small settle buffer.
@@ -239,9 +212,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     };
   }, []);
 
-  // Memoize latLon extraction to prevent recalculations
-  // In open mode: always use viewport center (for minimap header / coordinates / Google Earth link)
-  // In task mode: use task geometry centroid
+  // Open mode: viewport center. Task mode: task geometry centroid.
   const latLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) {
       if (currentMapCenter) return { lat: currentMapCenter[0], lon: currentMapCenter[1] };
@@ -251,15 +222,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
 
-  // In open mode, only pass timeseries point to the chart when the user explicitly
-  // clicked with the timeseries tool - never auto-fetch for the viewport center.
-  // In task mode, latLon (task centroid) is always the chart target.
+  // Open mode only sends a timeseries point when explicitly clicked with the
+  // timeseries tool; task mode always uses the task centroid.
   const timeseriesLatLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) return timeseriesPoint;
     return latLon;
   }, [isOpenMode, timeseriesPoint, latLon]);
 
-  // Memoize center to prevent array recreation on every render
   const center = useMemo<[number, number]>(
     () => (latLon ? [latLon.lat, latLon.lon] : [0, 0]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,10 +238,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   if (!campaign) return null;
 
   const renderMainHeader = () => {
-    // Left side: what task is active. Keep it tight - just the point
-    // number and (in task mode) a small status dot. Layer / source / slice
-    // detail is already surfaced in the dropdowns over the map itself, so
-    // the header doesn't repeat it.
     const taskStatus = currentTask?.task_status as
       | 'pending'
       | 'partial'
@@ -288,8 +253,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       skipped: 'bg-violet-500',
     };
 
-    // Right side: progress for task mode, current layer name for open mode.
-    // Progress uses a real "N of M" string so it doesn't look like a fraction.
     const progressPct =
       totalTasksForCounter > 0
         ? Math.round((completedTasksForCounter / totalTasksForCounter) * 100)
@@ -297,7 +260,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
     return (
       <div className="flex items-center justify-between gap-3 w-full">
-        {/* Left: task identity + status */}
         <div className="flex items-center gap-2 min-w-0">
           {!isOpenMode && currentTask ? (
             <>
@@ -325,7 +287,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           )}
         </div>
 
-        {/* Right: progress (task mode) or layer name (open mode) */}
         {!isOpenMode ? (
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-[11px] text-neutral-500">
@@ -417,7 +378,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           compactor={getCompactor(null, false, true)}
           onLayoutChange={setCurrentLayout}
         >
-          {/* Main Annotation Container */}
           <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMainHeader()}
@@ -425,9 +385,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <MainAnnotationsContainer commentInputRef={commentInputRef} />
           </div>
 
-          {/* Timeseries - no header strip. Editing mode gets a thin drag
-              handle so the card is still repositionable; otherwise the card
-              is pure chart content, which is exactly what this surface wants. */}
           {campaign.time_series.length > 0 && (
             <div key="timeseries" className="grid-card" data-tour="timeseries">
               {isEditingLayout && (
@@ -449,7 +406,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </div>
           )}
 
-          {/* Minimap */}
           <div key="minimap" className="grid-card" data-tour="minimap">
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
@@ -466,7 +422,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             />
           </div>
 
-          {/* Annotation Controls Panel */}
           <div key="controls" className="grid-card" data-tour="controls">
             <div className="h-full overflow-y-auto overflow-x-hidden">
               {campaign.mode === 'tasks' ? (
@@ -487,7 +442,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </div>
           </div>
 
-          {/* Collection Windows */}
           {windowCollections.map(({ collection, source }, idx) => {
             if (!collection || !source) return null;
             const isActiveCol = collection.id === activeCollectionId;

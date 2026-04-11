@@ -30,9 +30,6 @@ export type AppSidebarProps = {
   setCollapsed: (collapsed: boolean) => void;
 };
 
-/** Derive the single-character avatar initial. Prefer the display name,
- *  fall back to the email local-part, then to a neutral "?" so we always
- *  render something. */
 const deriveInitial = (displayName: string | null | undefined, email: string | undefined) => {
   const source = (displayName && displayName.trim()) || (email ?? '').split('@')[0] || '?';
   return source.trim().charAt(0).toUpperCase() || '?';
@@ -46,7 +43,6 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
   const currentPath = location.pathname;
   const isAnnotationPage = /^\/campaigns\/\d+\/annotate/.test(currentPath);
 
-  // Active states
   const isHomeActive = currentPath === '/';
   const isCampaignsActive = currentPath.startsWith('/campaigns');
   const showToggle = isAnnotationPage;
@@ -55,9 +51,6 @@ export const AppSidebar = ({ collapsed, setCollapsed }: AppSidebarProps) => {
     navigate(path);
   };
 
-  // Shared item style. Inactive: neutral-600 quiet. Hover: brand-50 wash.
-  // Active: brand-50 background + brand-800 text (matches selection style
-  // used elsewhere in the app, e.g. settings tabs and review filters).
   const itemBase =
     'flex items-center gap-3 py-1.5 text-left text-[13px] transition-colors w-full rounded-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30';
   const itemInactive = 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100';
