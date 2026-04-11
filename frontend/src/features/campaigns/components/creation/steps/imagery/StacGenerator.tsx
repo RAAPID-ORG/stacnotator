@@ -291,7 +291,7 @@ export const StacGenerator = ({
         type="button"
         onClick={handleGenerate}
         disabled={!isValid}
-        className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+        className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
       >
         Generate {preview.collections > 0 ? `${preview.collections} Collections` : 'Collections'}
       </button>
@@ -312,7 +312,7 @@ export const StacGenerator = ({
           <select
             value={selectedPreset}
             onChange={(e) => applyPreset(e.target.value)}
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           >
             <option value="">Select a preset...</option>
             {STAC_PRESETS.map((p) => (
@@ -353,7 +353,7 @@ export const StacGenerator = ({
             onChange={(e) =>
               update('cloudCover', Math.max(0, Math.min(100, Number(e.target.value))))
             }
-            className="w-32 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+            className="w-32 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
           />
         </div>
 
@@ -370,7 +370,7 @@ export const StacGenerator = ({
               onChange={(e) =>
                 update('collectionPeriodInterval', Math.max(1, Number(e.target.value)))
               }
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -380,7 +380,7 @@ export const StacGenerator = ({
               onChange={(e) =>
                 update('collectionPeriodUnit', e.target.value as 'weeks' | 'months' | 'years')
               }
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
             >
               <option value="weeks">Weeks</option>
               <option value="months">Months</option>
@@ -400,7 +400,7 @@ export const StacGenerator = ({
               min="1"
               value={config.slicePeriodInterval}
               onChange={(e) => update('slicePeriodInterval', Math.max(1, Number(e.target.value)))}
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
             />
           </div>
           <div className="space-y-1">
@@ -410,7 +410,7 @@ export const StacGenerator = ({
               onChange={(e) =>
                 update('slicePeriodUnit', e.target.value as 'days' | 'weeks' | 'months' | 'years')
               }
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
             >
               <option value="days">Days</option>
               <option value="weeks">Weeks</option>
@@ -439,7 +439,7 @@ export const StacGenerator = ({
               }}
               className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
                 config.coverSliceMode === 'nth'
-                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                   : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
               }`}
             >
@@ -453,7 +453,7 @@ export const StacGenerator = ({
               }}
               className={`flex-1 text-xs px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
                 config.coverSliceMode === 'custom'
-                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                   : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
               }`}
             >
@@ -472,7 +472,7 @@ export const StacGenerator = ({
                 min="1"
                 value={config.coverSliceNth}
                 onChange={(e) => update('coverSliceNth', Math.max(1, Number(e.target.value)))}
-                className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                className="w-20 border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
               />
             </div>
           ) : (
@@ -484,7 +484,7 @@ export const StacGenerator = ({
                   value={config.coverSliceName}
                   onChange={(e) => update('coverSliceName', e.target.value)}
                   placeholder="e.g. Median Mosaic"
-                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                  className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
                 />
               </div>
 
@@ -516,7 +516,7 @@ export const StacGenerator = ({
                         placeholder={config.registrationUrl || 'Same as main registration URL'}
                         value={config.coverRegistrationUrl}
                         onChange={(e) => update('coverRegistrationUrl', e.target.value)}
-                        className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                        className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
                       />
                     </div>
                     <div className="space-y-1">
@@ -533,7 +533,7 @@ export const StacGenerator = ({
                         value={config.coverSearchBody}
                         onChange={(val) => update('coverSearchBody', val)}
                         minRows={2}
-                        className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                        className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                       />
                     </div>
                   </div>
@@ -570,7 +570,7 @@ export const StacGenerator = ({
                   placeholder="https://example.com/mosaic/register"
                   value={config.registrationUrl}
                   onChange={(e) => update('registrationUrl', e.target.value)}
-                  className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+                  className="w-full border-brand-600 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
                 />
               </div>
 
@@ -607,7 +607,7 @@ export const StacGenerator = ({
                   value={config.searchBody}
                   onChange={(val) => update('searchBody', val)}
                   minRows={3}
-                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                  className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                 />
               </div>
 
@@ -630,7 +630,7 @@ export const StacGenerator = ({
                       placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
                       value={viz.url}
                       onChange={(e) => updateVizUrl(i, 'url', e.target.value)}
-                      className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                      className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                     />
                   </div>
                 ))}

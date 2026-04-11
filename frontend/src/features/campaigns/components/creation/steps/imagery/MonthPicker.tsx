@@ -37,7 +37,7 @@ export const MonthPicker = ({ value, onChange, disabled, className }: MonthPicke
     onChange(`${y}-${m}`);
   };
 
-  const selectClass = `border-0 border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent py-0.5 cursor-pointer ${
+  const selectClass = `border-0 border-b border-brand-600 focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent py-0.5 cursor-pointer ${
     disabled ? 'bg-neutral-100 text-neutral-500 cursor-not-allowed' : ''
   } ${className ?? ''}`;
 

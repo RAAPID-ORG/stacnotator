@@ -13,14 +13,20 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
     resetErrorBoundary();
   };
 
+  // RootErrorFallback runs OUTSIDE the Router context, so it can't import
+  // anything that uses router hooks. The Button primitive is router-agnostic
+  // but to keep this file standalone we render a plain styled <button>.
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-brand-50 to-neutral-50 p-4">
-      <div className="max-w-lg w-full bg-white rounded-xl shadow-lg p-8 space-y-6">
-        {/* Error Icon */}
+    <div
+      className="min-h-screen w-full flex items-center justify-center p-4"
+      style={{ background: 'rgb(245, 242, 234)' }}
+    >
+      <div className="max-w-lg w-full bg-white border border-neutral-200 rounded-xl shadow-sm p-8 space-y-6">
+        {/* Error icon */}
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-red-50 border border-red-100 rounded-full flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-red-600"
+              className="w-6 h-6 text-red-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -35,41 +41,38 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
           </div>
         </div>
 
-        {/* Error Content */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-neutral-900">Application Error</h1>
-          <p className="text-neutral-600">Something went wrong while loading the application.</p>
+        <div className="text-center space-y-1.5">
+          <h1 className="text-lg font-semibold text-neutral-900">Application error</h1>
+          <p className="text-sm text-neutral-600">
+            Something went wrong while loading the application.
+          </p>
         </div>
 
-        {/* Error Details */}
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h2 className="text-sm font-semibold text-red-800 mb-2">Error Details:</h2>
-          <p className="text-sm text-red-700 font-mono break-words">{error.message}</p>
+        <div className="bg-red-50 border border-red-200 rounded-md p-3">
+          <h2 className="text-xs font-semibold text-red-800 mb-1">Error details</h2>
+          <p className="text-xs text-red-700 font-mono break-words">{error.message}</p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             onClick={handleReload}
-            className="flex-1 bg-brand-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-600 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+            type="button"
+            className="flex-1 inline-flex items-center justify-center h-9 px-4 text-sm font-medium bg-brand-600 text-white rounded-md shadow-sm hover:bg-brand-700 transition-colors"
           >
-            Go to Home
+            Go to home
           </button>
           <button
             onClick={resetErrorBoundary}
-            className="flex-1 bg-neutral-100 text-neutral-700 px-6 py-3 rounded-lg font-medium hover:bg-neutral-200 transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2"
+            type="button"
+            className="flex-1 inline-flex items-center justify-center h-9 px-4 text-sm font-medium bg-white text-neutral-700 border border-neutral-300 rounded-md shadow-sm hover:bg-neutral-50 transition-colors"
           >
-            Try Again
+            Try again
           </button>
         </div>
 
-        {/* Additional Help */}
-        <div className="text-center pt-4 border-t border-neutral-200">
-          <p className="text-sm text-neutral-500">
-            If the problem persists, please contact support or check the browser console for more
-            details.
-          </p>
-        </div>
+        <p className="text-center text-xs text-neutral-500 pt-2 border-t border-neutral-100">
+          If the problem persists, contact support or check the browser console for more details.
+        </p>
       </div>
     </div>
   );

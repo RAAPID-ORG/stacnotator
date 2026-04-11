@@ -144,7 +144,7 @@ export const PlatformUsersTable = ({
               <button
                 onClick={() => handleBulkAction('grant-admin')}
                 disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-brand-400 text-white rounded hover:bg-brand-500 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-sm bg-brand-400 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
               >
                 Make Admin
               </button>
@@ -274,7 +274,7 @@ export const PlatformUsersTable = ({
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-brand-500 text-white rounded hover:bg-brand-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                          className="px-2 py-1 text-xs bg-brand-600 text-white rounded hover:bg-brand-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
                         >
                           Make Admin
                         </button>

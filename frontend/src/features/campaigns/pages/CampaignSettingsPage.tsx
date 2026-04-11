@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TaskAssignmentModal } from '~/features/campaigns/components/settings/TaskAssignmentModal';
+import { Button } from '~/shared/ui/forms';
 import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
@@ -573,247 +574,259 @@ export const CampaignSettingsPage = () => {
   return (
     <>
       <div className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto p-8">
-          <div className="mb-3 flex items-start justify-between">
+        <div className="page">
+          <header className="page-header">
             <div>
-              <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-                {capitalizeFirst(campaign.name)}
-              </h1>
-              <p className="text-sm text-neutral-500">
-                Manage your campaign settings, imagery, and users
-              </p>
+              <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
+              <p className="page-subtitle">Manage your campaign settings, imagery, and users.</p>
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
                 disabled={isAnyRegistering}
-                className="px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                type="button"
                 title={isAnyRegistering ? 'Waiting for background setup to complete...' : undefined}
               >
-                Start Annotating
-              </button>
+                Start annotating
+              </Button>
             </div>
+          </header>
+
+          {/* Background setup status banners - sit above the surface so they
+              read as "page-level alerts", not as part of the form content. */}
+          <div className="space-y-3 mb-4 empty:hidden">
+            {campaign?.registration_status === 'registering' && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <svg
+                  className="animate-spin h-4 w-4 text-blue-600 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                <span>
+                  <strong>Mosaic registration in progress...</strong> Tile imagery is being
+                  registered from the STAC catalog. You can configure other settings while waiting.
+                </span>
+              </div>
+            )}
+            {campaign?.embedding_status === 'registering' && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <svg
+                  className="animate-spin h-4 w-4 text-blue-600 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                <span>
+                  <strong>Embedding generation in progress...</strong> Satellite embeddings are
+                  being computed for the campaign area. You can configure other settings while
+                  waiting.
+                </span>
+              </div>
+            )}
+            {campaign?.registration_status === 'failed' && (
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-2">
+                <p>
+                  <strong>Some mosaic registrations failed.</strong> The campaign is usable but some
+                  tiles may be missing. Check the Imagery tab to re-register individual collections.
+                </p>
+                {campaign.registration_errors && campaign.registration_errors.length > 0 && (
+                  <details className="text-[11px]">
+                    <summary className="cursor-pointer font-medium text-red-700 hover:text-red-900">
+                      Show {campaign.registration_errors.length} error
+                      {campaign.registration_errors.length !== 1 ? 's' : ''}
+                    </summary>
+                    <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
+                      {campaign.registration_errors.slice(0, 20).map((rawErr, i) => {
+                        const err = rawErr as {
+                          collection?: string;
+                          slice?: string;
+                          error?: string;
+                        };
+                        return (
+                          <li key={i}>
+                            {err.collection && (
+                              <span className="font-medium">{err.collection}</span>
+                            )}
+                            {err.slice && <span> / {err.slice}</span>}
+                            {(err.collection || err.slice) && ': '}
+                            {err.error}
+                          </li>
+                        );
+                      })}
+                      {campaign.registration_errors.length > 20 && (
+                        <li className="text-red-500">
+                          ...and {campaign.registration_errors.length - 20} more
+                        </li>
+                      )}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+            {campaign?.embedding_status === 'failed' && (
+              <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                <p>
+                  <strong>Embedding generation failed.</strong> The campaign is usable but
+                  embedding-based features (similarity search) won&apos;t be available.
+                </p>
+                {campaign.registration_errors?.some((e) =>
+                  (e as { error?: string }).error?.startsWith('Embeddings:')
+                ) && (
+                  <p className="text-[11px] mt-1 text-red-700">
+                    {
+                      (
+                        campaign.registration_errors.find((e) =>
+                          (e as { error?: string }).error?.startsWith('Embeddings:')
+                        ) as { error?: string }
+                      )?.error
+                    }
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Background setup status banners */}
-          {campaign?.registration_status === 'registering' && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              <svg
-                className="animate-spin h-4 w-4 text-blue-600 shrink-0"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              <span>
-                <strong>Mosaic registration in progress...</strong> Tile imagery is being registered
-                from the STAC catalog. You can configure other settings while waiting.
-              </span>
-            </div>
-          )}
-          {campaign?.embedding_status === 'registering' && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-              <svg
-                className="animate-spin h-4 w-4 text-blue-600 shrink-0"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              <span>
-                <strong>Embedding generation in progress...</strong> Satellite embeddings are being
-                computed for the campaign area. You can configure other settings while waiting.
-              </span>
-            </div>
-          )}
-          {campaign?.registration_status === 'failed' && (
-            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-2">
-              <p>
-                <strong>Some mosaic registrations failed.</strong> The campaign is usable but some
-                tiles may be missing. Check the Imagery tab to re-register individual collections.
-              </p>
-              {campaign.registration_errors && campaign.registration_errors.length > 0 && (
-                <details className="text-[11px]">
-                  <summary className="cursor-pointer font-medium text-red-700 hover:text-red-900">
-                    Show {campaign.registration_errors.length} error
-                    {campaign.registration_errors.length !== 1 ? 's' : ''}
-                  </summary>
-                  <ul className="mt-1 space-y-0.5 pl-3 list-disc text-red-700">
-                    {campaign.registration_errors.slice(0, 20).map((rawErr, i) => {
-                      const err = rawErr as { collection?: string; slice?: string; error?: string };
-                      return (
-                        <li key={i}>
-                          {err.collection && <span className="font-medium">{err.collection}</span>}
-                          {err.slice && <span> / {err.slice}</span>}
-                          {(err.collection || err.slice) && ': '}
-                          {err.error}
-                        </li>
-                      );
-                    })}
-                    {campaign.registration_errors.length > 20 && (
-                      <li className="text-red-500">
-                        ...and {campaign.registration_errors.length - 20} more
-                      </li>
-                    )}
-                  </ul>
-                </details>
-              )}
-            </div>
-          )}
-          {campaign?.embedding_status === 'failed' && (
-            <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-              <p>
-                <strong>Embedding generation failed.</strong> The campaign is usable but
-                embedding-based features (similarity search) won&apos;t be available.
-              </p>
-              {campaign.registration_errors?.some((e) =>
-                (e as { error?: string }).error?.startsWith('Embeddings:')
-              ) && (
-                <p className="text-[11px] mt-1 text-red-700">
-                  {
-                    (
-                      campaign.registration_errors.find((e) =>
-                        (e as { error?: string }).error?.startsWith('Embeddings:')
-                      ) as { error?: string }
-                    )?.error
+          <div className="surface">
+            {/* Tab Navigation - inset into the top of the surface so the
+                tabs read as the surface's header, not a separate strip. */}
+            <TabNavigator
+              items={[
+                { id: 'general', label: 'General Settings' },
+                { id: 'imagery', label: 'Imagery' },
+                { id: 'timeseries', label: 'Timeseries' },
+                ...(campaign?.mode !== 'open' ? [{ id: 'tasks', label: 'Annotation Tasks' }] : []),
+                { id: 'users', label: 'Users' },
+              ]}
+              activeId={activeTab}
+              onChange={(id) => setActiveTab(id as typeof activeTab)}
+              className="!mb-0 !border-neutral-200 px-6"
+            />
+
+            <div className="p-6">
+              {/* Tab Content */}
+              {activeTab === 'general' && (
+                <GeneralSettingsTab
+                  campaign={campaign!}
+                  campaignName={campaignName}
+                  setCampaignName={setCampaignName}
+                  saving={saving}
+                  onSaveName={handleSaveName}
+                  onSaveSettings={handleSaveSettings}
+                  onUpdateSettings={(updates) =>
+                    setCampaign({ ...campaign!, settings: { ...campaign!.settings, ...updates } })
                   }
-                </p>
+                  onOpenDelete={() => setShowDeleteCampaignDialog(true)}
+                  onCampaignUpdated={(updated) => setCampaign(updated)}
+                />
               )}
-            </div>
-          )}
 
-          {/* Tab Navigation */}
-          <TabNavigator
-            items={[
-              { id: 'general', label: 'General Settings' },
-              { id: 'imagery', label: 'Imagery' },
-              { id: 'timeseries', label: 'Timeseries' },
-              ...(campaign?.mode !== 'open' ? [{ id: 'tasks', label: 'Annotation Tasks' }] : []),
-              { id: 'users', label: 'Users' },
-            ]}
-            activeId={activeTab}
-            onChange={(id) => setActiveTab(id as typeof activeTab)}
-          />
-
-          {/* Tab Content */}
-          {activeTab === 'general' && (
-            <GeneralSettingsTab
-              campaign={campaign!}
-              campaignName={campaignName}
-              setCampaignName={setCampaignName}
-              saving={saving}
-              onSaveName={handleSaveName}
-              onSaveSettings={handleSaveSettings}
-              onUpdateSettings={(updates) =>
-                setCampaign({ ...campaign!, settings: { ...campaign!.settings, ...updates } })
-              }
-              onOpenDelete={() => setShowDeleteCampaignDialog(true)}
-              onCampaignUpdated={(updated) => setCampaign(updated)}
-            />
-          )}
-
-          {activeTab === 'imagery' && (
-            <ImageryTab
-              imagery={imagery}
-              views={campaign?.imagery_views ?? []}
-              campaignId={numericCampaignId}
-              setDeleteConfirm={setDeleteConfirm}
-              onSourceUpdated={(sourceId, updates) => {
-                setImagery((prev) =>
-                  prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
-                );
-              }}
-              onCollectionVizUpdated={async () => {
-                try {
-                  const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
-                  if (data) {
-                    setCampaign(data);
-                    setImagery(data.imagery_sources);
-                  }
-                } catch {
-                  /* silent refresh */
-                }
-              }}
-            />
-          )}
-
-          {activeTab === 'timeseries' && (
-            <TimeseriesTab
-              newTimeseries={newTimeseries}
-              setNewTimeseries={setNewTimeseries}
-              timeseries={timeseries}
-              handleAddTimeseries={handleAddTimeseries}
-              setDeleteConfirm={setDeleteConfirm}
-              saving={saving}
-              campaignName={campaignName}
-              imagery={imagery}
-              campaignMode={campaign?.mode || 'tasks'}
-              campaignSettings={campaign?.settings || {}}
-            />
-          )}
-
-          {activeTab === 'tasks' && (
-            <TasksTab
-              annotationTasks={annotationTasks}
-              campaignUsers={campaignUsers}
-              taskFile={taskFile}
-              setTaskFile={setTaskFile}
-              uploadingTasks={uploadingTasks}
-              handleUploadAnnotationTasks={handleUploadAnnotationTasks}
-              handleTasksGenerated={handleTasksGenerated}
-              onTaskGenerationError={(msg) => showAlert(msg, 'error')}
-              onOpenBulkAssign={() => setShowAssignmentModal(true)}
-              onOpenReviewerAssign={() => setShowReviewerModal(true)}
-              handleAssignSingleTask={handleAssignSingleTask}
-              handleUnassignTask={handleUnassignTask}
-              handleDeleteTasks={handleDeleteTasks}
-              campaignId={numericCampaignId}
-              bbox={
-                campaign
-                  ? {
-                      west: campaign.settings.bbox_west,
-                      south: campaign.settings.bbox_south,
-                      east: campaign.settings.bbox_east,
-                      north: campaign.settings.bbox_north,
+              {activeTab === 'imagery' && (
+                <ImageryTab
+                  imagery={imagery}
+                  views={campaign?.imagery_views ?? []}
+                  campaignId={numericCampaignId}
+                  setDeleteConfirm={setDeleteConfirm}
+                  onSourceUpdated={(sourceId, updates) => {
+                    setImagery((prev) =>
+                      prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
+                    );
+                  }}
+                  onCollectionVizUpdated={async () => {
+                    try {
+                      const { data } = await getCampaign({
+                        path: { campaign_id: numericCampaignId },
+                      });
+                      if (data) {
+                        setCampaign(data);
+                        setImagery(data.imagery_sources);
+                      }
+                    } catch {
+                      /* silent refresh */
                     }
-                  : undefined
-              }
-            />
-          )}
+                  }}
+                />
+              )}
 
-          {activeTab === 'users' && (
-            <UsersTab
-              campaignId={numericCampaignId}
-              onError={(msg) => showAlert(msg, 'error')}
-              onSuccess={(msg) => showAlert(msg, 'success')}
-              campaignUsers={campaignUsers}
-            />
-          )}
+              {activeTab === 'timeseries' && (
+                <TimeseriesTab
+                  newTimeseries={newTimeseries}
+                  setNewTimeseries={setNewTimeseries}
+                  timeseries={timeseries}
+                  handleAddTimeseries={handleAddTimeseries}
+                  setDeleteConfirm={setDeleteConfirm}
+                  saving={saving}
+                  campaignName={campaignName}
+                  imagery={imagery}
+                  campaignMode={campaign?.mode || 'tasks'}
+                  campaignSettings={campaign?.settings || {}}
+                />
+              )}
+
+              {activeTab === 'tasks' && (
+                <TasksTab
+                  annotationTasks={annotationTasks}
+                  campaignUsers={campaignUsers}
+                  taskFile={taskFile}
+                  setTaskFile={setTaskFile}
+                  uploadingTasks={uploadingTasks}
+                  handleUploadAnnotationTasks={handleUploadAnnotationTasks}
+                  handleTasksGenerated={handleTasksGenerated}
+                  onTaskGenerationError={(msg) => showAlert(msg, 'error')}
+                  onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                  onOpenReviewerAssign={() => setShowReviewerModal(true)}
+                  handleAssignSingleTask={handleAssignSingleTask}
+                  handleUnassignTask={handleUnassignTask}
+                  handleDeleteTasks={handleDeleteTasks}
+                  campaignId={numericCampaignId}
+                  bbox={
+                    campaign
+                      ? {
+                          west: campaign.settings.bbox_west,
+                          south: campaign.settings.bbox_south,
+                          east: campaign.settings.bbox_east,
+                          north: campaign.settings.bbox_north,
+                        }
+                      : undefined
+                  }
+                />
+              )}
+
+              {activeTab === 'users' && (
+                <UsersTab
+                  campaignId={numericCampaignId}
+                  onError={(msg) => showAlert(msg, 'error')}
+                  onSuccess={(msg) => showAlert(msg, 'success')}
+                  campaignUsers={campaignUsers}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

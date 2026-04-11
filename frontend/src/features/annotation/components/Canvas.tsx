@@ -387,7 +387,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
-                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50 ${isActiveCol ? '!bg-brand-500 !text-white !border-b-brand-600' : ''}`}
+                  className={`drag-handle card-header !py-0.5 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
                 >
                   {collection.name}

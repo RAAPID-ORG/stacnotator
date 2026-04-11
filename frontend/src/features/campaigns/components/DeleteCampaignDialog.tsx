@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Button, Input } from '~/shared/ui/forms';
 
 interface DeleteCampaignDialogProps {
   isOpen: boolean;
@@ -67,36 +68,35 @@ export const DeleteCampaignDialog = ({
                   to confirm:
                 </p>
               </div>
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                disabled={isLoading}
-                placeholder="Type campaign name here"
-                className="mt-3 w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 disabled:bg-neutral-100 disabled:cursor-not-allowed"
-                autoFocus
-              />
+              <div className="mt-3">
+                <Input
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  disabled={isLoading}
+                  placeholder="Type campaign name here"
+                  autoFocus
+                />
+              </div>
             </div>
           </div>
         </div>
-        <div className="border-t border-neutral-200 flex gap-3 p-4 justify-end">
-          <button
-            onClick={onCancel}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+        <div className="border-t border-neutral-100 flex gap-2 p-4 justify-end bg-neutral-50/50">
+          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={onConfirm}
             disabled={!isValid || isLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            leading={
+              isLoading ? (
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : undefined
+            }
           >
-            {isLoading && (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-            )}
-            Delete Campaign
-          </button>
+            Delete campaign
+          </Button>
         </div>
       </div>
     </div>

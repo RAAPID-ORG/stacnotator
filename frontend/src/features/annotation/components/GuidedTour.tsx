@@ -1334,7 +1334,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
           {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 rounded-t-xl overflow-hidden">
             <div
-              className="h-full bg-brand-500 transition-all duration-300"
+              className="h-full bg-brand-600 transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -1394,7 +1394,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
                       <div
                         key={i}
                         className={`w-2 h-2 rounded-full transition-colors ${
-                          i < pressCount ? 'bg-brand-500' : 'bg-neutral-300'
+                          i < pressCount ? 'bg-brand-600' : 'bg-neutral-300'
                         }`}
                       />
                     ))}
@@ -1425,7 +1425,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
               <button
                 onClick={handleNext}
                 disabled={needsKeyPress}
-                className="px-4 py-1.5 text-xs font-bold bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-1.5 text-xs font-bold bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {isLastStep ? 'Finish' : 'Next →'}
               </button>

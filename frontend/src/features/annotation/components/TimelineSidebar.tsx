@@ -309,7 +309,7 @@ const TimelineSidebar = ({
                     {isActive ? (
                       <div
                         className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
-                        border-2 border-brand-500 rounded bg-brand-50 z-10 py-1 gap-0.5"
+                        border-2 border-brand-600 rounded bg-brand-50 z-10 py-1 gap-0.5"
                       >
                         <span className="text-[8px] font-bold text-brand-700 leading-tight text-center px-0.5 break-words w-full">
                           {collection.name}
@@ -321,7 +321,7 @@ const TimelineSidebar = ({
                         group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10"
                         title={collection.name}
                       >
-                        <div className="w-3 h-px bg-neutral-300 group-hover:bg-brand-500 transition-colors" />
+                        <div className="w-3 h-px bg-neutral-300 group-hover:bg-brand-700 transition-colors" />
                       </div>
                     )}
                   </div>

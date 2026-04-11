@@ -83,7 +83,7 @@ export const LabelsEditor = ({
                 updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')
               }
               disabled={readOnly}
-              className={`text-xs border border-neutral-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-brand-500 ${
+              className={`text-xs border border-neutral-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-brand-600 ${
                 readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''
               }`}
             >

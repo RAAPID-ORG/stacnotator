@@ -110,7 +110,7 @@ export const StepAddTimeseries = ({
             placeholder="Timeseries name"
             value={i.name}
             onChange={(e) => updateItem(index, { name: e.target.value })}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -136,7 +136,7 @@ export const StepAddTimeseries = ({
               <select
                 value={i.data_source}
                 onChange={(e) => updateItem(index, { data_source: e.target.value })}
-                className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+                className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
               >
                 <option value="">Select Data Source</option>
                 {tsOptions?.data_sources.map((source) => (
@@ -152,7 +152,7 @@ export const StepAddTimeseries = ({
               <select
                 value={i.provider}
                 onChange={(e) => updateItem(index, { provider: e.target.value })}
-                className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+                className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
               >
                 <option value="">Select Provider</option>
                 {tsOptions?.providers.map((provider) => (
@@ -168,7 +168,7 @@ export const StepAddTimeseries = ({
               <select
                 value={i.ts_type}
                 onChange={(e) => updateItem(index, { ts_type: e.target.value })}
-                className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+                className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
               >
                 <option value="">Select Type</option>
                 {tsOptions?.ts_types.map((type) => (

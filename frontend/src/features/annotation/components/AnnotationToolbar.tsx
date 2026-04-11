@@ -106,7 +106,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
     taskFilter.assignedTo[0] === currentUser.id;
 
   return (
-    <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[280px] p-3">
+    <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[280px] p-3">
       <div className="space-y-3">
         {/* Assigned To Section */}
         <div>
@@ -118,7 +118,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
               onClick={handleShowAll}
               className={`px-2 py-1 text-xs rounded ${
                 isShowingAll
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-600 text-white'
                   : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
             >
@@ -129,7 +129,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
                 onClick={handleShowMine}
                 className={`px-2 py-1 text-xs rounded ${
                   isShowingMineOnly
-                    ? 'bg-brand-500 text-white'
+                    ? 'bg-brand-600 text-white'
                     : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
@@ -410,7 +410,7 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-4 py-0.5 bg-white border-b border-neutral-200 flex-shrink-0"
+      className="flex items-center justify-between px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0"
     >
       <div className="flex items-center gap-2">
         {/* Views Dropdown */}
@@ -430,7 +430,7 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
           {showImageryDropdown && (
-            <div className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
+            <div className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
               {views.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>
               ) : (
@@ -584,7 +584,7 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
           {showExportDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[240px]">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[240px]">
               {campaign?.mode === 'tasks' && (
                 <label
                   className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${
@@ -676,7 +676,7 @@ export const AnnotationToolbar = () => {
                 </svg>
               </button>
               {showSaveDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[160px]">
+                <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[160px]">
                   <button
                     onClick={() => handleSaveLayout(false)}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"

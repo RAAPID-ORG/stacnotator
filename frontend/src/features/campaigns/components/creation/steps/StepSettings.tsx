@@ -1,6 +1,7 @@
 import type { CampaignCreate, CampaignSettingsCreate } from '~/api/client';
 import { BoundingBoxEditor } from '../../BoundingBoxEditor';
 import { LabelsEditor } from '../../LabelsEditor';
+import { Select } from '~/shared/ui/forms';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 2016 }, (_, i) => CURRENT_YEAR - i);
@@ -75,20 +76,21 @@ export const StepSettings = ({
           If set, satellite embeddings will be fetched for the chosen year to enable KNN-based label
           validation during annotation. If not set, the validation feature will be unavailable.
         </p>
-        <select
-          value={s.embedding_year ?? ''}
-          onChange={(e) =>
-            updateSettings('embedding_year', e.target.value ? Number(e.target.value) : null)
-          }
-          className="w-48 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-700 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="">None (validation disabled)</option>
-          {YEAR_OPTIONS.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+        <div className="w-48">
+          <Select
+            value={s.embedding_year ?? ''}
+            onChange={(e) =>
+              updateSettings('embedding_year', e.target.value ? Number(e.target.value) : null)
+            }
+          >
+            <option value="">None (validation disabled)</option>
+            {YEAR_OPTIONS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
     </div>
   );

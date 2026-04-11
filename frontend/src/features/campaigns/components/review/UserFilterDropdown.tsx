@@ -22,7 +22,7 @@ export const UserFilterDropdown = ({
       <div className="relative">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white min-w-[200px] text-left flex items-center justify-between hover:bg-neutral-50"
+          className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white min-w-[200px] text-left flex items-center justify-between hover:bg-neutral-50"
         >
           <span className="text-neutral-700">
             {selectedUserIds.length > 0
@@ -72,7 +72,7 @@ export const UserFilterDropdown = ({
                             setSelectedUserIds(selectedUserIds.filter((id) => id !== user.id));
                           }
                         }}
-                        className="w-4 h-4 text-brand-600 border-neutral-300 rounded focus:ring-brand-500"
+                        className="w-4 h-4 text-brand-600 border-neutral-300 rounded focus:ring-brand-600"
                       />
                       <span className="ml-2 text-sm text-neutral-700">
                         {isCurrentUser && (

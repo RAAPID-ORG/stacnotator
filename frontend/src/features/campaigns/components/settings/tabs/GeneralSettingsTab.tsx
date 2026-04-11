@@ -9,6 +9,7 @@ import {
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 
 interface Props {
   campaign: CampaignOut;
@@ -154,59 +155,61 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       setSavingEmbeddingYear(false);
     }
   };
+  // Each section is just spacing + a top hairline. The parent
+  // CampaignSettingsPage already provides the white surface; nothing here
+  // adds another card.
+  const sectionCls =
+    'space-y-3 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
+
   return (
-    <div id="tab-general" role="tabpanel" className="space-y-3">
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-">Campaign Name</h2>
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-neutral-700 mb-2">Name</label>
-            <input
-              type="text"
+    <div id="tab-general" role="tabpanel">
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Campaign name</h2>
+          <p className="section-description">The display name shown across the app.</p>
+        </div>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1 max-w-md">
+            <Input
               value={campaignName}
               onChange={(e) => setCampaignName(e.target.value)}
               disabled={saving}
-              className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed"
             />
           </div>
-          <button
-            onClick={onSaveName}
-            disabled={saving || campaignName === campaign.name}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
+          <Button onClick={onSaveName} disabled={saving || campaignName === campaign.name}>
             Save
-          </button>
+          </Button>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Campaign Guide</h2>
-        <p className="text-sm text-neutral-500 mb-4">
-          Markdown document shown to annotators via the book icon in the annotation toolbar.
-        </p>
-        <textarea
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Campaign guide</h2>
+          <p className="section-description">
+            Markdown document shown to annotators via the book icon in the annotation toolbar.
+          </p>
+        </div>
+        <Textarea
           value={guideMarkdown}
           onChange={(e) => setGuideMarkdown(e.target.value)}
           disabled={savingGuide}
           rows={10}
-          className="w-full border border-neutral-300 rounded px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed resize-y"
+          className="font-mono"
           placeholder="# Campaign Guide&#10;&#10;Write instructions for annotators here using Markdown..."
         />
-        <button
-          onClick={handleSaveGuide}
-          disabled={savingGuide || !guideChanged}
-          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-        >
-          {savingGuide ? 'Saving…' : 'Save Guide'}
-        </button>
-      </div>
+        <Button onClick={handleSaveGuide} disabled={savingGuide || !guideChanged}>
+          {savingGuide ? 'Saving…' : 'Save guide'}
+        </Button>
+      </section>
 
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Bounding Box</h2>
-        <p className="text-sm text-neutral-500 mb-4">
-          The geographic area where imagery can be loaded. All annotation tasks must fall within
-          this region.
-        </p>
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Bounding box</h2>
+          <p className="section-description">
+            The geographic area where imagery can be loaded. All annotation tasks must fall within
+            this region.
+          </p>
+        </div>
         <BoundingBoxEditor
           value={{
             bbox_west: campaign.settings.bbox_west,
@@ -216,30 +219,29 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           }}
           onChange={(updates) => onUpdateSettings(updates)}
         />
-        <button
-          onClick={onSaveSettings}
-          disabled={saving}
-          className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-200 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-        >
-          Save Settings
-        </button>
-      </div>
+        <Button onClick={onSaveSettings} disabled={saving}>
+          Save settings
+        </Button>
+      </section>
 
       {/* Sample Extent - task mode only */}
       {campaign.mode === 'tasks' && (
-        <div className="bg-white rounded-lg border border-neutral-300 p-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-1">Sample Extent</h2>
-          <p className="text-sm text-neutral-500 mb-4">
-            Size of the area around each task centroid that should be annotated. This is shown as a
-            rectangle on the map during annotation. Leave empty if tasks were uploaded as polygons
-            or if no extent overlay is needed.
-          </p>
-          <div className="flex gap-4 items-end">
-            <div className="w-56">
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Extent (meters)
-              </label>
-              <input
+        <section className={sectionCls}>
+          <div>
+            <h2 className="section-heading">Sample extent</h2>
+            <p className="section-description">
+              Size of the area around each task centroid that should be annotated. This is shown as
+              a rectangle on the map during annotation. Leave empty if tasks were uploaded as
+              polygons or if no extent overlay is needed.
+            </p>
+          </div>
+          <div className="flex gap-3 items-end">
+            <Field
+              label="Extent (meters)"
+              error={!extentValid ? 'Must be a positive number' : undefined}
+              className="w-56"
+            >
+              <Input
                 type="number"
                 min="1"
                 step="1"
@@ -247,63 +249,59 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                 onChange={(e) => setSampleExtent(e.target.value)}
                 disabled={savingExtent}
                 placeholder="e.g. 100"
-                className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed ${
-                  !extentValid ? 'border-red-400' : 'border-neutral-300'
-                }`}
+                invalid={!extentValid}
               />
-              {!extentValid && (
-                <p className="mt-1 text-xs text-red-500">Must be a positive number</p>
-              )}
-            </div>
-            <button
+            </Field>
+            <Button
               onClick={handleSaveExtent}
               disabled={savingExtent || !extentChanged || !extentValid}
-              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
             >
               {savingExtent ? 'Saving…' : 'Save'}
-            </button>
+            </Button>
           </div>
-        </div>
+        </section>
       )}
 
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Annotation Labels</h2>
-        <p className="text-sm text-neutral-500 mb-4">
-          The class names annotators choose from when labeling. Labels cannot be changed after
-          creation to preserve data consistency.
-        </p>
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Annotation labels</h2>
+          <p className="section-description">
+            The class names annotators choose from when labeling. Labels cannot be changed after
+            creation to preserve data consistency.
+          </p>
+        </div>
         <LabelsEditor
           value={campaign.settings.labels}
           onChange={() => {}}
           readOnly={true}
           showGeometryType={campaign.mode === 'open'}
         />
-      </div>
+      </section>
 
       {/* Embedding Year */}
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Satellite Embedding Year</h2>
-        <p className="text-sm text-neutral-500 mb-4">
-          The year from which satellite embeddings are sourced for KNN-based label validation.
-          Changing this will recompute all embeddings for the campaign.
-          {!campaign.settings.embedding_year && (
-            <span className="block mt-1 text-amber-600 font-medium">
-              No embedding year set - KNN-embeddings (AEF) based validation is currently unavailable
-              for annotators.
-            </span>
-          )}
-        </p>
-        <div className="flex gap-4 items-end">
-          <div className="w-48">
-            <label className="block text-sm font-medium text-neutral-700 mb-2">Year</label>
-            <select
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Satellite embedding year</h2>
+          <p className="section-description">
+            The year from which satellite embeddings are sourced for KNN-based label validation.
+            Changing this will recompute all embeddings for the campaign.
+            {!campaign.settings.embedding_year && (
+              <span className="block mt-1 text-amber-700 font-medium">
+                No embedding year set — KNN-embeddings (AEF) based validation is currently
+                unavailable for annotators.
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex gap-3 items-end">
+          <Field label="Year" className="w-48">
+            <Select
               value={embeddingYear ?? ''}
               onChange={(e) => {
                 const val = e.target.value;
                 setEmbeddingYear(val === '' ? null : parseInt(val, 10));
               }}
               disabled={savingEmbeddingYear}
-              className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-100 disabled:cursor-not-allowed"
             >
               <option value="">None (validation disabled)</option>
               {Array.from({ length: currentYear - 2016 }, (_, i) => currentYear - i).map((year) => (
@@ -311,15 +309,13 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                   {year}
                 </option>
               ))}
-            </select>
-          </div>
-          <button
+            </Select>
+          </Field>
+          <Button
             onClick={handleSaveEmbeddingYear}
             disabled={savingEmbeddingYear || !embeddingYearChanged}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {savingEmbeddingYear ? (
-              <>
+            leading={
+              savingEmbeddingYear ? (
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
@@ -335,82 +331,72 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                Recomputing…
-              </>
-            ) : (
-              'Save'
-            )}
-          </button>
+              ) : undefined
+            }
+          >
+            {savingEmbeddingYear ? 'Recomputing…' : 'Save'}
+          </Button>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white rounded-lg border border-red-300 p-6">
-        <h2 className="text-lg font-semibold text-red-700 mb-2">Danger Zone</h2>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-red-200">
-            <div>
-              <h3 className="text-sm font-medium text-neutral-900">Campaign Visibility</h3>
-              <p className="text-sm text-neutral-500">
-                {campaign.is_public
-                  ? 'This campaign is public. Anyone can view and annotate it.'
-                  : 'This campaign is private. Only members can access it.'}
-              </p>
-            </div>
-            <button
-              onClick={async () => {
-                const newValue = !campaign.is_public;
-                const confirmed = await showConfirmDialog({
-                  title: newValue ? 'Make Campaign Public?' : 'Make Campaign Private?',
-                  description: newValue
-                    ? 'This will allow any user to view and add annotations to this campaign. They can only edit or delete their own annotations.'
-                    : 'This will restrict access to campaign members only. Non-members will lose access immediately.',
-                  confirmText: newValue ? 'Make Public' : 'Make Private',
-                  cancelText: 'Cancel',
-                  isDangerous: true,
+      {/* Danger zone keeps a visual marker (red top hairline + red heading)
+          but no nested card - it sits as the last section of the surface. */}
+      <section className="pt-6 mt-6 border-t border-red-200">
+        <h2 className="text-sm font-semibold text-red-700 mb-4">Danger zone</h2>
+        <div className="flex items-start justify-between gap-4 py-3 border-b border-red-100">
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium text-neutral-900">Campaign visibility</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              {campaign.is_public
+                ? 'This campaign is public. Anyone can view and annotate it.'
+                : 'This campaign is private. Only members can access it.'}
+            </p>
+          </div>
+          <Button
+            variant={campaign.is_public ? 'danger' : 'secondary'}
+            onClick={async () => {
+              const newValue = !campaign.is_public;
+              const confirmed = await showConfirmDialog({
+                title: newValue ? 'Make Campaign Public?' : 'Make Campaign Private?',
+                description: newValue
+                  ? 'This will allow any user to view and add annotations to this campaign. They can only edit or delete their own annotations.'
+                  : 'This will restrict access to campaign members only. Non-members will lose access immediately.',
+                confirmText: newValue ? 'Make Public' : 'Make Private',
+                cancelText: 'Cancel',
+                isDangerous: true,
+              });
+              if (!confirmed) return;
+              try {
+                const { data } = await updateCampaignVisibility({
+                  path: { campaign_id: campaign.id },
+                  body: { is_public: newValue },
                 });
-                if (!confirmed) return;
-                try {
-                  const { data } = await updateCampaignVisibility({
-                    path: { campaign_id: campaign.id },
-                    body: { is_public: newValue },
-                  });
-                  if (onCampaignUpdated && data) onCampaignUpdated(data);
-                  showAlert(
-                    newValue ? 'Campaign is now public' : 'Campaign is now private',
-                    'success'
-                  );
-                } catch (err) {
-                  const msg = err instanceof Error ? err.message : 'Failed to update visibility';
-                  showAlert(msg, 'error');
-                }
-              }}
-              className={`px-4 py-2 text-sm rounded-lg transition-colors ${
-                campaign.is_public
-                  ? 'bg-red-600 text-white hover:bg-red-700'
-                  : 'border border-red-600 text-red-600 hover:bg-red-50'
-              }`}
-            >
-              {campaign.is_public ? 'Make Private' : 'Make Public'}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <h3 className="text-sm font-medium text-neutral-900">Delete Campaign</h3>
-              <p className="text-sm text-neutral-500">
-                Once you delete a campaign, there is no going back.
-              </p>
-            </div>
-            <button
-              onClick={onOpenDelete}
-              className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Delete Campaign
-            </button>
-          </div>
+                if (onCampaignUpdated && data) onCampaignUpdated(data);
+                showAlert(
+                  newValue ? 'Campaign is now public' : 'Campaign is now private',
+                  'success'
+                );
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'Failed to update visibility';
+                showAlert(msg, 'error');
+              }
+            }}
+          >
+            {campaign.is_public ? 'Make private' : 'Make public'}
+          </Button>
         </div>
-      </div>
+        <div className="flex items-start justify-between gap-4 py-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-medium text-neutral-900">Delete campaign</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Once you delete a campaign, there is no going back.
+            </p>
+          </div>
+          <Button variant="danger" onClick={onOpenDelete}>
+            Delete campaign
+          </Button>
+        </div>
+      </section>
     </div>
   );
 };

@@ -13,6 +13,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
 import { OpenModeDistributionMap } from '~/features/annotation/components/OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
+import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import type { SortOption, UserInfo } from './types';
 
@@ -159,293 +160,313 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   }
 
   return (
-    <div className="flex-1 p-8 overflow-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">
-            {capitalizeFirst(campaign.name)} - Annotations
-          </h1>
-          <p className="text-sm text-neutral-600 mt-1">
-            {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode
-            campaign
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <ExportDropdown
-            campaignId={campaignId}
-            campaign={campaign}
-            disabled={annotations.length === 0}
-            showMergeToggle={false}
-          />
-          <button
-            onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
-          >
-            Start Annotating
-          </button>
-        </div>
-      </div>
+    <div className="flex-1 overflow-auto">
+      <div className="page">
+        <header className="page-header">
+          <div>
+            <h1 className="page-title">{capitalizeFirst(campaign.name)} — Annotations</h1>
+            <p className="page-subtitle">
+              {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode
+              campaign.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <ExportDropdown
+              campaignId={campaignId}
+              campaign={campaign}
+              disabled={annotations.length === 0}
+              showMergeToggle={false}
+            />
+            <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
+              Start annotating
+            </Button>
+          </div>
+        </header>
 
-      {/* Map */}
-      {annotations.length > 0 && (
-        <div className="bg-white rounded-lg border border-neutral-300 p-4 mb-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-3">
-            Annotation Locations ({filteredAnnotations.length})
-          </h2>
-          <OpenModeDistributionMap
-            annotations={filteredAnnotations}
-            labels={labels}
-            bbox={{
-              west: campaign.settings.bbox_west,
-              south: campaign.settings.bbox_south,
-              east: campaign.settings.bbox_east,
-              north: campaign.settings.bbox_north,
-            }}
-            highlightedAnnotationId={highlightedAnnotationId}
-            onAnnotationClick={handleNavigateToAnnotation}
-          />
-        </div>
-      )}
+        {/* Map */}
+        {annotations.length > 0 && (
+          <div className="surface mb-6">
+            <div className="px-5 py-4 border-b border-neutral-100">
+              <h2 className="section-heading">
+                Annotation locations{' '}
+                <span className="text-neutral-400 font-normal">({filteredAnnotations.length})</span>
+              </h2>
+            </div>
+            <div className="p-4">
+              <OpenModeDistributionMap
+                annotations={filteredAnnotations}
+                labels={labels}
+                bbox={{
+                  west: campaign.settings.bbox_west,
+                  south: campaign.settings.bbox_south,
+                  east: campaign.settings.bbox_east,
+                  north: campaign.settings.bbox_north,
+                }}
+                highlightedAnnotationId={highlightedAnnotationId}
+                onAnnotationClick={handleNavigateToAnnotation}
+              />
+            </div>
+          </div>
+        )}
 
-      {/* Filters */}
-      <div className="bg-white border border-neutral-300 rounded-lg p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-semibold text-neutral-900">Filters & Search</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Label Filter */}
-          {labels.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-neutral-700">Label:</label>
-              <div className="flex gap-1 flex-wrap">
-                <button
-                  onClick={() => setSelectedLabelIds([])}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    selectedLabelIds.length === 0
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                  }`}
+        {/* Filters */}
+        <div className="surface mb-6">
+          <div className="px-5 py-4 space-y-3">
+            <h3 className="section-heading">Filters & search</h3>
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Label Filter */}
+              {labels.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-neutral-700">Label:</label>
+                  <div className="flex gap-1 flex-wrap">
+                    <button
+                      onClick={() => setSelectedLabelIds([])}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedLabelIds.length === 0
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {labels.map((label) => (
+                      <button
+                        key={label.id}
+                        onClick={() =>
+                          setSelectedLabelIds(
+                            selectedLabelIds.includes(label.id)
+                              ? selectedLabelIds.filter((id) => id !== label.id)
+                              : [...selectedLabelIds, label.id]
+                          )
+                        }
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          selectedLabelIds.includes(label.id)
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {label.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* User Filter */}
+              <UserFilterDropdown
+                users={uniqueUsers}
+                selectedUserIds={selectedUserIds}
+                setSelectedUserIds={setSelectedUserIds}
+                currentUserId={currentUser?.id}
+              />
+
+              {/* Sort By */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-neutral-700">Sort by:</label>
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
                 >
-                  All
-                </button>
-                {labels.map((label) => (
+                  <option value="default">Default</option>
+                  <option value="confidence-asc">Confidence (Low to High)</option>
+                  <option value="confidence-desc">Confidence (High to Low)</option>
+                  <option value="id-asc">ID (Ascending)</option>
+                  <option value="id-desc">ID (Descending)</option>
+                </select>
+              </div>
+
+              {/* Search */}
+              <div className="flex items-center gap-2 ml-auto">
+                <input
+                  type="text"
+                  placeholder="Search by annotation ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
+                />
+                {searchQuery && (
                   <button
-                    key={label.id}
-                    onClick={() =>
-                      setSelectedLabelIds(
-                        selectedLabelIds.includes(label.id)
-                          ? selectedLabelIds.filter((id) => id !== label.id)
-                          : [...selectedLabelIds, label.id]
-                      )
-                    }
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                      selectedLabelIds.includes(label.id)
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                    }`}
+                    onClick={() => setSearchQuery('')}
+                    className="text-neutral-500 hover:text-neutral-700"
                   >
-                    {label.name}
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
                   </button>
-                ))}
+                )}
               </div>
             </div>
-          )}
 
-          {/* User Filter */}
-          <UserFilterDropdown
-            users={uniqueUsers}
-            selectedUserIds={selectedUserIds}
-            setSelectedUserIds={setSelectedUserIds}
-            currentUserId={currentUser?.id}
-          />
-
-          {/* Sort By */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-neutral-700">Sort by:</label>
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
-            >
-              <option value="default">Default</option>
-              <option value="confidence-asc">Confidence (Low to High)</option>
-              <option value="confidence-desc">Confidence (High to Low)</option>
-              <option value="id-asc">ID (Ascending)</option>
-              <option value="id-desc">ID (Descending)</option>
-            </select>
+            <div className="pt-3 border-t border-neutral-100 text-xs text-neutral-500">
+              Showing {filteredAnnotations.length} of {annotations.length} annotations
+            </div>
           </div>
+        </div>
 
-          {/* Search */}
-          <div className="flex items-center gap-2 ml-auto">
-            <input
-              type="text"
-              placeholder="Search by annotation ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-500 w-64"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="text-neutral-500 hover:text-neutral-700"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+        {/* Annotations Table */}
+        {filteredAnnotations.length === 0 ? (
+          <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <svg
+              className="w-12 h-12 text-neutral-400 mx-auto mb-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            <p className="text-neutral-700 mb-2">
+              {annotations.length === 0
+                ? 'No annotations yet'
+                : 'No annotations match your filters'}
+            </p>
+            <p className="text-neutral-500 text-sm">
+              {annotations.length === 0
+                ? 'Start annotating to see entries here'
+                : 'Try adjusting your filter criteria'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Label
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Annotator
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Confidence
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Coordinates
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Comment
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAnnotations.map((ann) => {
+                  const centroid = extractCentroidFromWKT(ann.geometry.geometry);
+                  const isMine = ann.created_by_user_id === currentUser?.id;
+                  const createdAt = new Date(ann.created_at);
+
+                  return (
+                    <tr
+                      key={ann.id}
+                      className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isMine ? 'bg-brand-50/30' : 'bg-white'} ${highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''}`}
+                      onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
+                      onMouseLeave={() => setHighlightedAnnotationId(null)}
+                    >
+                      <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
+                        {ann.id}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-neutral-100 text-neutral-700">
+                          {getLabelName(ann.label_id)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-700 text-sm">
+                        {isMine && <span className="text-brand-600 font-medium">(You) </span>}
+                        {getUserDisplayName(ann.created_by_user_id)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {ann.confidence != null ? (
+                          <span className="font-bold text-neutral-900">{ann.confidence}/5</span>
+                        ) : (
+                          <span className="text-neutral-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                        {centroid ? `${centroid.lat.toFixed(5)}, ${centroid.lon.toFixed(5)}` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-600 text-xs">
+                        {createdAt.toLocaleDateString()}{' '}
+                        {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="px-4 py-3">
+                        {ann.comment?.trim() ? (
+                          <span className="relative group cursor-help">
+                            <svg
+                              className="w-4 h-4 text-neutral-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                              />
+                            </svg>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                              <div className="bg-neutral-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+                                <div className="whitespace-pre-wrap">{ann.comment}</div>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
+                              </div>
+                            </div>
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleNavigateToAnnotation(ann)}
+                          className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Footer */}
+        {filteredAnnotations.length > 0 && (
+          <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
+            <span>
+              Showing: <strong className="text-neutral-900">{filteredAnnotations.length}</strong>
+            </span>
+            <span>
+              Total: <strong className="text-neutral-900">{annotations.length}</strong>
+            </span>
+            {stats.withConfidence > 0 && (
+              <span>
+                With Confidence:{' '}
+                <strong className="text-neutral-900">{stats.withConfidence}</strong>
+              </span>
             )}
           </div>
-        </div>
-
-        <div className="mt-3 pt-3 border-t border-neutral-200 text-sm text-neutral-600">
-          Showing {filteredAnnotations.length} of {annotations.length} annotations
-        </div>
+        )}
       </div>
-
-      {/* Annotations Table */}
-      {filteredAnnotations.length === 0 ? (
-        <div className="text-center py-12 bg-white border border-neutral-300 rounded-lg">
-          <svg
-            className="w-12 h-12 text-neutral-400 mx-auto mb-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            />
-          </svg>
-          <p className="text-neutral-700 mb-2">
-            {annotations.length === 0 ? 'No annotations yet' : 'No annotations match your filters'}
-          </p>
-          <p className="text-neutral-500 text-sm">
-            {annotations.length === 0
-              ? 'Start annotating to see entries here'
-              : 'Try adjusting your filter criteria'}
-          </p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto border border-neutral-300 rounded-lg bg-white">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-neutral-50 border-b border-neutral-300">
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">ID</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Label</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Annotator</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Confidence</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Coordinates</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Created</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Comment</th>
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAnnotations.map((ann) => {
-                const centroid = extractCentroidFromWKT(ann.geometry.geometry);
-                const isMine = ann.created_by_user_id === currentUser?.id;
-                const createdAt = new Date(ann.created_at);
-
-                return (
-                  <tr
-                    key={ann.id}
-                    className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isMine ? 'bg-brand-50/30' : 'bg-white'} ${highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''}`}
-                    onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
-                    onMouseLeave={() => setHighlightedAnnotationId(null)}
-                  >
-                    <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
-                      {ann.id}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-neutral-100 text-neutral-700">
-                        {getLabelName(ann.label_id)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-neutral-700 text-sm">
-                      {isMine && <span className="text-brand-600 font-medium">(You) </span>}
-                      {getUserDisplayName(ann.created_by_user_id)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {ann.confidence != null ? (
-                        <span className="font-bold text-neutral-900">{ann.confidence}/5</span>
-                      ) : (
-                        <span className="text-neutral-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                      {centroid ? `${centroid.lat.toFixed(5)}, ${centroid.lon.toFixed(5)}` : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-neutral-600 text-xs">
-                      {createdAt.toLocaleDateString()}{' '}
-                      {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="px-4 py-3">
-                      {ann.comment?.trim() ? (
-                        <span className="relative group cursor-help">
-                          <svg
-                            className="w-4 h-4 text-neutral-500"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                            />
-                          </svg>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
-                            <div className="bg-neutral-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
-                              <div className="whitespace-pre-wrap">{ann.comment}</div>
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
-                            </div>
-                          </div>
-                        </span>
-                      ) : (
-                        <span className="text-neutral-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleNavigateToAnnotation(ann)}
-                        className="text-brand-500 hover:text-brand-700 text-sm font-medium transition-colors"
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Footer */}
-      {filteredAnnotations.length > 0 && (
-        <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-          <span>
-            Showing: <strong className="text-neutral-900">{filteredAnnotations.length}</strong>
-          </span>
-          <span>
-            Total: <strong className="text-neutral-900">{annotations.length}</strong>
-          </span>
-          {stats.withConfidence > 0 && (
-            <span>
-              With Confidence: <strong className="text-neutral-900">{stats.withConfidence}</strong>
-            </span>
-          )}
-        </div>
-      )}
     </div>
   );
 };

@@ -295,7 +295,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                       </div>
                       <div className="flex-1 bg-neutral-200 rounded-full h-3 relative">
                         <div
-                          className="bg-brand-500 h-3 rounded-full flex items-center justify-end pr-2"
+                          className="bg-brand-600 h-3 rounded-full flex items-center justify-end pr-2"
                           style={{
                             width: `${Math.max((count / statistics.total_annotations) * 100, 2)}%`,
                           }}
@@ -383,7 +383,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                                           {/* Mini bar */}
                                           <div className="mt-1 bg-neutral-200 rounded-full h-1.5 w-full">
                                             <div
-                                              className="bg-brand-500 h-1.5 rounded-full"
+                                              className="bg-brand-600 h-1.5 rounded-full"
                                               style={{ width: `${percentage}%` }}
                                             />
                                           </div>

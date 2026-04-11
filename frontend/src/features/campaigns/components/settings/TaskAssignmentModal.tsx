@@ -139,7 +139,7 @@ export const TaskAssignmentModal = ({
                 onClick={() => setMode('random-all')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
                   mode === 'random-all'
-                    ? 'bg-brand-500 text-white border-brand-500'
+                    ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
@@ -149,7 +149,7 @@ export const TaskAssignmentModal = ({
                 onClick={() => setMode('random-count')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
                   mode === 'random-count'
-                    ? 'bg-brand-500 text-white border-brand-500'
+                    ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
@@ -166,7 +166,7 @@ export const TaskAssignmentModal = ({
               </label>
               <button
                 onClick={handleSelectAllUsers}
-                className="text-sm text-brand-500 hover:text-brand-600 mb-3"
+                className="text-sm text-brand-700 hover:text-brand-600 mb-3"
               >
                 {selectedUsers.length === campaignUsers.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -188,7 +188,7 @@ export const TaskAssignmentModal = ({
                         <div className="font-medium text-neutral-900">{user.user.display_name}</div>
                         <div className="text-sm text-neutral-500">{user.user.email}</div>
                         {user.is_admin && (
-                          <span className="text-xs text-brand-500 font-semibold">Admin</span>
+                          <span className="text-xs text-brand-700 font-semibold">Admin</span>
                         )}
                         {user.is_authorative_reviewer && (
                           <span className="text-xs text-purple-500 font-semibold ml-2">
@@ -241,7 +241,7 @@ export const TaskAssignmentModal = ({
           <button
             onClick={handleAssign}
             disabled={assigning || previewAssignmentCount === 0}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50"
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
           >
             {assigning ? 'Assigning...' : `Assign ${previewAssignmentCount} Tasks`}
           </button>

@@ -122,7 +122,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
                 key={strategy.value}
                 className={`flex items-start p-3 border rounded-lg cursor-pointer transition-colors ${
                   strategyType === strategy.value
-                    ? 'border-brand-500 bg-brand-50'
+                    ? 'border-brand-600 bg-brand-50'
                     : 'border-neutral-300 hover:border-neutral-400'
                 }`}
               >
@@ -152,7 +152,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           {/* Option 1: Upload File */}
           <div
             className={`border rounded-lg p-3 mb-2 transition-colors ${
-              !useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
+              !useCampaignBbox ? 'border-brand-600 bg-brand-50' : 'border-neutral-300'
             }`}
           >
             <label className="flex items-start cursor-pointer mb-2">
@@ -191,7 +191,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
           {/* Option 2: Use Campaign Bbox */}
           <div
             className={`border rounded-lg p-3 transition-colors ${
-              useCampaignBbox ? 'border-brand-500 bg-brand-50' : 'border-neutral-300'
+              useCampaignBbox ? 'border-brand-600 bg-brand-50' : 'border-neutral-300'
             }`}
           >
             <label className="flex items-start cursor-pointer">
@@ -228,7 +228,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
             value={numSamples}
             onChange={(e) => setNumSamples(parseInt(e.target.value) || 1)}
             disabled={generating}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -243,7 +243,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
             value={seed ?? ''}
             onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
             disabled={generating}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-neutral-50 disabled:cursor-not-allowed"
           />
           <p className="text-xs text-neutral-400 mt-1">
             Set a seed for reproducible sampling results
@@ -254,7 +254,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
         <button
           onClick={handleGenerate}
           disabled={(!useCampaignBbox && !regionFile) || generating}
-          className="w-full px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          className="w-full px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           {generating && (
             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

@@ -205,7 +205,7 @@ const OpenModeControls = () => {
                 title={`${tool.label} (${tool.shortcut})`}
                 className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                   activeTool === tool.id
-                    ? 'bg-brand-50 text-brand-700 border border-brand-500'
+                    ? 'bg-brand-50 text-brand-700 border border-brand-600'
                     : 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
                 }`}
               >
@@ -227,7 +227,7 @@ const OpenModeControls = () => {
                     <button
                       className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
                         selectedLabelId === label.id
-                          ? 'bg-brand-50 text-brand-700 border border-brand-500 font-semibold'
+                          ? 'bg-brand-50 text-brand-700 border border-brand-600 font-semibold'
                           : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
                       } cursor-pointer`}
                       onClick={() => handleLabelSelect(label)}

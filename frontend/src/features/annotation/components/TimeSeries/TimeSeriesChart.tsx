@@ -429,7 +429,7 @@ export const TimeSeriesChart = ({
               Remove cloudy
             </span>
             <div
-              className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-500' : 'bg-neutral-300'}`}
+              className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-600' : 'bg-neutral-300'}`}
               onClick={() => setRemoveCloudy(!removeCloudy)}
               title="Removes days with clouds on the point (red dots)"
             >
@@ -446,7 +446,7 @@ export const TimeSeriesChart = ({
                 Smooth
               </span>
               <div
-                className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-500' : 'bg-neutral-300'}`}
+                className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-600' : 'bg-neutral-300'}`}
                 onClick={() => setSmoothEnabled(!smoothEnabled)}
                 title="Savitzky-Golay Smoothing."
               >

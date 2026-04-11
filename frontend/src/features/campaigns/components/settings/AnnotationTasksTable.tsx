@@ -130,7 +130,7 @@ export const AnnotationTasksTable = ({
             <button
               onClick={onOpenBulkAssign}
               disabled={isDeleting}
-              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
+              className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium disabled:opacity-50"
             >
               Bulk Assign Tasks
             </button>
@@ -138,7 +138,7 @@ export const AnnotationTasksTable = ({
               <button
                 onClick={onOpenReviewerAssign}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium disabled:opacity-50"
               >
                 Assign Reviewers
               </button>
@@ -157,7 +157,7 @@ export const AnnotationTasksTable = ({
                     type="checkbox"
                     checked={selectedTasks.size === tasks.length && tasks.length > 0}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                   />
                 </th>
               )}
@@ -186,7 +186,7 @@ export const AnnotationTasksTable = ({
                         type="checkbox"
                         checked={selectedTasks.has(task.id)}
                         onChange={() => handleToggleTask(task.id)}
-                        className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                        className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                       />
                     </td>
                   )}

@@ -381,10 +381,10 @@ export const StepImagery = ({
                     px-4 py-3 shrink-0
                     ${
                       isEditing
-                        ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-md'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 shadow-md'
                         : notInAnyView
                           ? 'border-red-300 bg-red-50/40 text-neutral-800 hover:border-red-400 hover:bg-red-50'
-                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
+                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10'
                     }`}
                 >
                   {notInAnyView && !isEditing && (
@@ -468,8 +468,8 @@ export const StepImagery = ({
               })()}
             </div>
 
-            <div className="rounded-lg border-2 border-brand-500 bg-white shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-brand-500 text-white">
+            <div className="rounded-lg border-2 border-brand-600 bg-white shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-brand-600 text-white">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <IconSettings className="w-4 h-4 text-white/80 shrink-0" />
                   <input
@@ -552,7 +552,7 @@ export const StepImagery = ({
                 className="w-full text-left px-4 py-2.5 rounded-lg bg-brand-50/50 border border-brand-100 hover:bg-brand-100 cursor-pointer transition-colors"
               >
                 <span className="text-sm font-medium text-brand-700 flex items-center gap-1.5">
-                  <IconStac className="w-3.5 h-3.5 text-brand-500" />
+                  <IconStac className="w-3.5 h-3.5 text-brand-700" />
                   {preset.label}
                   <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold ml-auto">
                     MPC
@@ -607,14 +607,14 @@ export const StepImagery = ({
                   value={bm.name}
                   onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
                   placeholder="Name"
-                  className="w-24 border-0 border-b border-transparent focus:border-brand-500 outline-none text-xs py-0 px-0"
+                  className="w-24 border-0 border-b border-transparent focus:border-brand-600 outline-none text-xs py-0 px-0"
                 />
                 <input
                   type="text"
                   value={bm.url}
                   onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                   placeholder="https://.../{z}/{x}/{y}.png"
-                  className="w-56 border-0 border-b border-transparent focus:border-brand-500 outline-none text-[11px] font-mono py-0 px-0 text-neutral-500"
+                  className="w-56 border-0 border-b border-transparent focus:border-brand-600 outline-none text-[11px] font-mono py-0 px-0 text-neutral-500"
                 />
                 <button
                   type="button"

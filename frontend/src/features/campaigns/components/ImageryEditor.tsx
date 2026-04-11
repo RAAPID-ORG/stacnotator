@@ -147,7 +147,7 @@ export const ImageryEditor = ({
           placeholder="Imagery name"
           value={localValue.name}
           onChange={(e) => update('name', e.target.value)}
-          className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+          className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
         />
       </div>
 
@@ -204,7 +204,7 @@ export const ImageryEditor = ({
             }}
             disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -223,7 +223,7 @@ export const ImageryEditor = ({
               }
             }}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -252,7 +252,7 @@ export const ImageryEditor = ({
             }}
             disabled={isExisting}
             placeholder="Not set"
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1">
@@ -271,7 +271,7 @@ export const ImageryEditor = ({
               }
             }}
             disabled={isExisting}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0 disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="weeks">Weeks</option>
@@ -292,7 +292,7 @@ export const ImageryEditor = ({
           placeholder="https://example.com/register"
           value={localValue.registration_url}
           onChange={(e) => update('registration_url', e.target.value)}
-          className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+          className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
         />
       </div>
 
@@ -314,7 +314,7 @@ export const ImageryEditor = ({
           value={localValue.search_body}
           onChange={(e) => update('search_body', e.target.value)}
           rows={6}
-          className="w-full border border-brand-500 rounded p-2 focus:border-brand-600 focus:ring-1 focus:ring-brand-500 outline-none font-mono text-xs"
+          className="w-full border border-brand-600 rounded p-2 focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none font-mono text-xs"
         />
       </div>
 
@@ -349,7 +349,7 @@ export const ImageryEditor = ({
             type="number"
             value={localValue.default_zoom ?? 10}
             onChange={(e) => update('default_zoom', Number(e.target.value))}
-            className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
+            className="w-full border-brand-600 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
           />
         </div>
       </div>
@@ -383,7 +383,7 @@ export const ImageryEditor = ({
                   placeholder="e.g., NDVI Composite"
                   value={template.name}
                   onChange={(e) => updateTileTemplate(index, { name: e.target.value })}
-                  className="w-full border border-brand-500 rounded p-2 text-xs focus:border-brand-600 focus:ring-1 focus:ring-brand-500 outline-none"
+                  className="w-full border border-brand-600 rounded p-2 text-xs focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                 />
                 <label className="text-[11px] text-neutral-600 flex items-center gap-1">
                   Visualization URL
@@ -394,7 +394,7 @@ export const ImageryEditor = ({
                   placeholder="https://tiles.example.com/{search_id}/{z}/{x}/{y}.png?param=value"
                   value={template.visualization_url}
                   onChange={(e) => updateTileTemplate(index, { visualization_url: e.target.value })}
-                  className="w-full border border-brand-500 rounded p-2 focus:border-brand-600 focus:ring-1 focus:ring-brand-500 outline-none font-mono text-xs"
+                  className="w-full border border-brand-600 rounded p-2 focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none font-mono text-xs"
                 />
               </div>
               <button

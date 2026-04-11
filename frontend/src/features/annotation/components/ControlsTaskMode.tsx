@@ -217,9 +217,9 @@ export const AnnotationControls = ({
           currentTask &&
           ((currentTask.annotations?.length ?? 0) > 0 ||
             (currentTask.assignments?.length ?? 0) > 0) && (
-            <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-200 w-full">
+            <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-100 w-full">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-neutral-700 text-xs tracking-wide">
+                <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                   All Annotations
                 </span>
                 {currentTask.task_status === 'conflicting' && (
@@ -393,8 +393,10 @@ export const AnnotationControls = ({
           )}
 
         {/* Block 1: Label Selection */}
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-[2] min-w-[10rem]">
-          <span className="font-semibold text-neutral-700 text-xs tracking-wide">Label</span>
+        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
+          <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            Label
+          </span>
           <div className="flex flex-wrap gap-1.5">
             {labels.map((label, index) => (
               <button
@@ -402,7 +404,7 @@ export const AnnotationControls = ({
                 disabled={isDisabled}
                 className={`w-40 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex justify-between items-center ${
                   selectedLabelId === label.id
-                    ? 'bg-brand-50 text-brand-700 border-brand-500 border font-semibold'
+                    ? 'bg-brand-50 text-brand-700 border-brand-600 border font-semibold'
                     : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border-neutral-200 border'
                 } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 onClick={() => setSelectedLabelId(selectedLabelId === label.id ? null : label.id)}
@@ -418,26 +420,30 @@ export const AnnotationControls = ({
         </div>
 
         {/* Block 2: Comment Field */}
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
-          <label className="text-xs font-semibold text-neutral-700 tracking-wide">Comment</label>
+        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
+          <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+            Comment
+          </label>
           <textarea
             ref={commentInputRef}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             disabled={isDisabled}
-            placeholder="Add a comment..."
+            placeholder="Add a comment…"
             rows={3}
-            className="w-full resize-none p-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-400 disabled:opacity-50 placeholder:text-neutral-400"
+            className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors"
           />
         </div>
 
         {/* Block 3: Confidence + Submit/Skip */}
-        <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-200 flex-1 min-w-[10rem]">
+        <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
           {/* Confidence Slider */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-neutral-700 tracking-wide flex justify-between items-center">
-              <span>Confidence</span>
-              <span className="text-brand-600 font-semibold text-xs tabular-nums">
+            <label className="flex justify-between items-center">
+              <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Confidence
+              </span>
+              <span className="text-xs text-brand-700 font-semibold tabular-nums">
                 {confidence}/5
               </span>
             </label>
@@ -473,7 +479,7 @@ export const AnnotationControls = ({
                   onChange={(e) => setKnnValidationEnabled(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-7 h-4 bg-neutral-300 rounded-full peer-checked:bg-brand-500 transition-colors"></div>
+                <div className="w-7 h-4 bg-neutral-300 rounded-full peer-checked:bg-brand-600 transition-colors"></div>
                 <div className="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm peer-checked:translate-x-3 transition-transform"></div>
               </div>
               <span className="text-[11px] text-neutral-600">Validate</span>
@@ -527,41 +533,46 @@ export const AnnotationControls = ({
             </div>
           )}
 
-          {/* Submit/Skip Buttons */}
+          {/* Submit / Skip */}
           <div className="flex gap-1.5">
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmit}
-              className="flex-1 px-3 py-2 text-xs font-semibold bg-brand-500 text-white hover:bg-brand-600 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
+              type="button"
             >
-              {isNavigating ? 'Loading...' : isSubmitting ? 'Submitting...' : submitButtonText}
+              {isNavigating ? 'Loading…' : isSubmitting ? 'Submitting…' : submitButtonText}
             </button>
             <button
               disabled={isDisabled || !isAssignedToTask}
               onClick={handleSkip}
               title={!isAssignedToTask ? 'You are not assigned to this task' : undefined}
-              className="px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-100 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed border border-neutral-200"
+              className="inline-flex items-center justify-center h-8 px-3 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 shadow-sm hover:bg-neutral-50 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              type="button"
             >
               Skip
             </button>
           </div>
 
-          {/* Submit as Authoritative (review mode + authoritative reviewer only) */}
+          {/* Submit as authoritative (review mode + authoritative reviewer only) */}
           {isReviewMode && isAuthoritativeReviewer && (
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmitAuthoritative}
-              className="w-full px-3 py-2 text-xs font-semibold border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              type="button"
             >
-              {isSubmitting ? 'Submitting...' : 'Submit Authoritative'}
+              {isSubmitting ? 'Submitting…' : 'Submit authoritative'}
             </button>
           )}
         </div>
 
         {/* Block 4: Navigation Controls */}
         {currentTask && totalTasksCount && (
-          <div className="flex flex-col gap-2 p-3 border-b border-neutral-200 flex-1 min-w-[10rem]">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
+          <div className="flex flex-col gap-2 p-3 border-b border-neutral-100 flex-1 min-w-[10rem]">
+            <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+              Navigate
+            </span>
 
             {/* Go to point row */}
             <div className="flex items-center gap-1.5">
@@ -574,7 +585,7 @@ export const AnnotationControls = ({
                 disabled={isDisabled}
                 min="1"
                 max={totalTasksCount}
-                className="w-14 px-2 py-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-400 disabled:opacity-50 tabular-nums"
+                className="w-14 px-2 py-1 text-center text-xs text-neutral-900 bg-white border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-600 focus:border-brand-400 disabled:opacity-50 tabular-nums"
                 title="Press Enter to go"
               />
               {showGoButton && (
