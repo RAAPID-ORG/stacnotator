@@ -267,11 +267,13 @@ export const MainAnnotationsContainer = ({
             {/* Selectors row */}
             <div className="flex gap-1.5 items-center">
               {mapLayers.length > 0 && (
-                <LayerSelector
-                  layers={mapLayers}
-                  selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                  onLayerSelect={handleLayerSelect}
-                />
+                <div data-tour="layer-selector">
+                  <LayerSelector
+                    layers={mapLayers}
+                    selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
+                    onLayerSelect={handleLayerSelect}
+                  />
+                </div>
               )}
 
               {viewCollections.length > 1 && (
@@ -443,11 +445,13 @@ export const MainAnnotationsContainer = ({
             {/* Selectors row */}
             <div className="flex gap-1.5 items-center">
               {mapLayers.length > 0 && (
-                <LayerSelector
-                  layers={mapLayers}
-                  selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
-                  onLayerSelect={handleLayerSelect}
-                />
+                <div data-tour="layer-selector">
+                  <LayerSelector
+                    layers={mapLayers}
+                    selectedLayer={mapLayers.find((l) => l.id === activeLayerId)}
+                    onLayerSelect={handleLayerSelect}
+                  />
+                </div>
               )}
 
               {viewCollections.length > 1 && (

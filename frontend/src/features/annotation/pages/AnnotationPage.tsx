@@ -4,6 +4,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
+import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
@@ -13,6 +14,32 @@ import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
+/**
+ * Key used to mark that a given (user, campaign) pair has already seen the
+ * guided tour. localStorage-scoped: resets on new devices/browsers, which is
+ * acceptable for an onboarding nudge.
+ */
+const tourSeenKey = (userId: string, campaignId: number) =>
+  `stacnotator:tour-seen:${userId}:${campaignId}`;
+
+const hasSeenTour = (userId: string | undefined, campaignId: number): boolean => {
+  if (!userId) return true; // fail-safe: don't auto-open if we can't identify user
+  try {
+    return localStorage.getItem(tourSeenKey(userId, campaignId)) === '1';
+  } catch {
+    return true;
+  }
+};
+
+const markTourSeen = (userId: string | undefined, campaignId: number) => {
+  if (!userId) return;
+  try {
+    localStorage.setItem(tourSeenKey(userId, campaignId), '1');
+  } catch {
+    // localStorage unavailable (private browsing etc.) - ignore
+  }
+};
+
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,9 +48,12 @@ export const AnnotationPage = () => {
 
   // Store subscriptions
   const campaign = useCampaignStore((s) => s.campaign);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
   const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const accountId = useAccountStore((s) => s.account?.id);
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -100,6 +130,26 @@ export const AnnotationPage = () => {
       ]);
     }
   }, [campaign, setBreadcrumbs]);
+
+  // Auto-show the guided tour the first time this user opens this campaign.
+  // For task-mode we wait until visibleTasks > 0 so the tour can actually
+  // walk through the task UI. Fires at most once per (user, campaign) pair,
+  // tracked in localStorage.
+  const [autoTourChecked, setAutoTourChecked] = useState(false);
+  useEffect(() => {
+    if (!showContent || !campaign || autoTourChecked || !accountId) return;
+    const canTour = campaign.mode === 'open' || visibleTasks.length > 0;
+    if (!canTour) return; // wait for tasks (task mode with empty visibleTasks)
+    setAutoTourChecked(true);
+    if (!hasSeenTour(accountId, campaign.id)) {
+      setShowGuidedTour(true);
+    }
+  }, [showContent, campaign, visibleTasks.length, accountId, autoTourChecked, setShowGuidedTour]);
+
+  const handleTourClose = () => {
+    setShowGuidedTour(false);
+    if (campaign && accountId) markTourSeen(accountId, campaign.id);
+  };
 
   // Early returns
 
@@ -192,15 +242,44 @@ export const AnnotationPage = () => {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Tasks Available</h3>
-            <p className="text-neutral-600 mb-1">
-              You've completed all assigned annotation tasks for this campaign! <br />
-              Change your filter settings to see more tasks that were not assigned to you.
-            </p>
+            {/* Distinguish "no tasks set up on the campaign at all" (admin action
+                needed) from "user filtered them all out / completed them" */}
+            {campaign.mode === 'tasks' && allTasks.length === 0 ? (
+              <>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">
+                  No annotation tasks yet
+                </h3>
+                <p className="text-neutral-600 mb-4">
+                  This campaign has no tasks set up. Tasks define the points or polygons that
+                  annotators will label.
+                </p>
+                {isCampaignAdmin ? (
+                  <button
+                    onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition-colors"
+                    type="button"
+                  >
+                    Set up tasks in settings
+                  </button>
+                ) : (
+                  <p className="text-sm text-neutral-500 italic">
+                    Ask a campaign admin to create tasks before you can start annotating.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Tasks Available</h3>
+                <p className="text-neutral-600 mb-1">
+                  You&apos;ve completed all assigned annotation tasks for this campaign! <br />
+                  Change your filter settings to see more tasks that were not assigned to you.
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
-      <GuidedTour isOpen={showGuidedTour} onClose={() => setShowGuidedTour(false)} />
+      <GuidedTour isOpen={showGuidedTour} onClose={handleTourClose} />
     </div>
   );
 };

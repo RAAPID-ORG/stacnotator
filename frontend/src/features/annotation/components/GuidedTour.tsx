@@ -158,7 +158,9 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
           and <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
           Often times you will want to through imagery in these bigger steps rather then
           individually by slice as the first slice (cover slice) is often supposed to be
-          representative of the whole window. These are also preloaded to make you workflow faster.
+          representative of the whole window. These are also preloaded at your default zoom-level to
+          make your workflow faster. Ensure to set the default zoom-level to the one you usually
+          annotate at in the campaign settings for the best experience.
         </p>
         <p className="text-sm text-neutral-500 italic">
           Try pressing Shift+D and then Shift+A to navigate both directions.
@@ -411,41 +413,40 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     requiredPressCount: 1,
   },
 
-  // Imagery source switching
+  // Imagery source switching (top level of the layer dropdown)
   {
-    target: '[data-tour="imagery-selector"]',
+    target: '[data-tour="layer-selector"]',
     title: 'Switching Imagery Sources',
     content: (
       <div className="space-y-2">
         <p>
-          Open the <strong>imagery source</strong> dropdown to switch between the different sources
-          configured for this view (e.g. Sentinel-2, basemaps, etc.).
+          Open this dropdown to switch between <strong>imagery sources</strong> - the top-level
+          groups here (e.g. Sentinel-2, Landsat, basemaps).
         </p>
         <p>
-          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources
-          without opening the dropdown.
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through sources without
+          opening the dropdown.
         </p>
       </div>
     ),
-    placement: 'bottom',
+    placement: 'left',
   },
 
-  // Visualization switching
+  // Visualization switching (second level of the same layer dropdown)
   {
-    target: '[data-tour="map-controls"]',
+    target: '[data-tour="layer-selector"]',
     title: 'Switching Visualization Layers',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within
-          the current source (e.g. True Color → False Color → NDVI). You can also use the
-          visualization dropdown in the map controls.
+          Inside the same dropdown, each source expands to its <strong>visualization layers</strong>{' '}
+          (e.g. True Color → False Color → NDVI). Pick one to change how the current source is
+          rendered. <kbd className="tour-kbd">Shift+I</kbd> cycles through them.
         </p>
         <p>
-          <strong>Note:</strong> Visualization options are only available for imagery sources that
-          have them configured. For example, basemaps typically do not have multiple visualization
-          layers - only sources like Sentinel-2 with pre-configured band combinations will show
-          visualization options.
+          <strong>Note:</strong> Visualization options are only available for sources that have them
+          configured. Basemaps typically do not have multiple visualizations - only sources like
+          Sentinel-2 with pre-configured band combinations will show visualization options.
         </p>
       </div>
     ),
@@ -497,6 +498,25 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         a personal or default layout for the campaign. Use the fullscreen button to maximize the
         annotation workspace.
       </p>
+    ),
+    placement: 'bottom',
+  },
+
+  // Campaign guide
+  {
+    target: '[data-tour="campaign-guide"]',
+    title: 'Campaign Guide',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Each campaign can include a <strong>guide</strong> written by its owner with instructions,
+          label definitions, and examples. Open it from the toolbar or press{' '}
+          <kbd className="tour-kbd">G</kbd> to toggle it.
+        </p>
+        <p className="text-sm text-neutral-500">
+          If the guide is empty, ask your campaign admin to fill it in from Campaign Settings.
+        </p>
+      </div>
     ),
     placement: 'bottom',
   },
@@ -679,21 +699,35 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     requiredPressCount: 1,
   },
 
-  // 7. Imagery Sources & Visualizations
+  // 7a. Imagery source switching (top level of the layer dropdown)
   {
-    target: '[data-tour="map-controls"]',
-    title: 'Imagery Sources & Visualizations',
+    target: '[data-tour="layer-selector"]',
+    title: 'Switching Imagery Sources',
     content: (
       <div className="space-y-2">
         <p>
-          The <strong>imagery source</strong> and <strong>visualization</strong> dropdowns in the
-          top-right of the map let you switch which satellite imagery or basemap is displayed and
-          which band combination (e.g. True Color, NDVI) is applied.
+          Open this dropdown to switch between <strong>imagery sources</strong> - the top-level
+          groups here (e.g. Sentinel-2, Landsat, basemaps).
         </p>
         <p>
-          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources and{' '}
-          <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within the
-          current source.
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through sources without
+          opening the dropdown.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 7b. Visualization switching (second level of the same layer dropdown)
+  {
+    target: '[data-tour="layer-selector"]',
+    title: 'Switching Visualization Layers',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Inside the same dropdown, each source expands to its <strong>visualization layers</strong>{' '}
+          (e.g. True Color → False Color → NDVI). Pick one to change how the current source is
+          rendered. <kbd className="tour-kbd">Shift+I</kbd> cycles through them.
         </p>
         <p className="text-sm text-neutral-500">
           Note: The <em>canvas view</em> dropdown in the toolbar selects which view is active, while
@@ -902,7 +936,26 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
   },
 
-  // 16. Keyboard help
+  // 16a. Campaign guide
+  {
+    target: '[data-tour="campaign-guide"]',
+    title: 'Campaign Guide',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Each campaign can include a <strong>guide</strong> written by its owner with instructions,
+          label definitions, and examples. Open it from the toolbar or press{' '}
+          <kbd className="tour-kbd">G</kbd> to toggle it.
+        </p>
+        <p className="text-sm text-neutral-500">
+          If the guide is empty, ask your campaign admin to fill it in from Campaign Settings.
+        </p>
+      </div>
+    ),
+    placement: 'bottom',
+  },
+
+  // 16b. Keyboard help
   {
     target: '[data-tour="keyboard-help"]',
     title: 'Keyboard Help',

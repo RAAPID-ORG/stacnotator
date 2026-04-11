@@ -684,7 +684,7 @@ export const AnnotationToolbar = () => {
         </button>
 
         {/* Campaign Guide */}
-        <div className="relative">
+        <div className="relative" data-tour="campaign-guide">
           <button
             onClick={toggleGuide}
             className={`flex items-center justify-center w-8 h-8 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showGuide ? 'bg-neutral-100' : ''}`}

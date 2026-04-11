@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TaskAssignmentModal } from '~/features/campaigns/components/settings/TaskAssignmentModal';
 import {
   ReviewerAssignmentModal,
@@ -51,9 +51,18 @@ export const CampaignSettingsPage = () => {
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Allow deep-linking into a specific tab via ?tab=tasks (used by the
+  // "set up tasks" CTA on the annotator empty state).
+  const [searchParams] = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams.get('tab');
+    if (t === 'general' || t === 'imagery' || t === 'tasks' || t === 'users' || t === 'timeseries')
+      return t;
+    return 'general';
+  })();
   const [activeTab, setActiveTab] = useState<
     'general' | 'imagery' | 'tasks' | 'users' | 'timeseries'
-  >('general');
+  >(initialTab);
 
   // Form states
   const [campaignName, setCampaignName] = useState('');
