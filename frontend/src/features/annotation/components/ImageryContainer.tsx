@@ -244,10 +244,39 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         markSliceEmpty(sliceKey);
         if (alreadyKnownEmpty) return;
 
+        // Decide whether (and in which direction) to auto-skip based on the
+        // most recent navigation intent. Read it fresh here rather than as a
+        // dep so we see the latest value even if the producer set it on the
+        // same tick as the slice change.
+        const intent = useMapStore.getState().sliceNavIntent;
+        if (intent === 'pick') {
+          // User explicitly picked this slice. Respect it - they get to see
+          // the empty tile. No auto-skip, no alert.
+          return;
+        }
+
         const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
-        const nextIndex = slices.findIndex(
-          (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
-        );
+        let nextIndex = -1;
+        if (intent === 'next') {
+          for (let i = currentSliceIndex + 1; i < slices.length; i++) {
+            if (!currentEmpty[`${collectionId}-${i}`]) {
+              nextIndex = i;
+              break;
+            }
+          }
+        } else if (intent === 'prev') {
+          for (let i = currentSliceIndex - 1; i >= 0; i--) {
+            if (!currentEmpty[`${collectionId}-${i}`]) {
+              nextIndex = i;
+              break;
+            }
+          }
+        } else {
+          // 'initial' - fresh load, land on first non-empty anywhere.
+          nextIndex = slices.findIndex(
+            (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
+          );
+        }
 
         if (nextIndex !== -1) {
           if (isActiveCollection) {
@@ -283,6 +312,9 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   };
 
   const handleSliceChange = (index: number) => {
+    // Deliberate user pick from the small-window dropdown: mark intent so the
+    // empty-probe effect does not auto-skip away from it.
+    useMapStore.getState().setSliceNavIntent('pick');
     if (isActiveCollection) {
       setActiveSliceIndex(index);
     } else {

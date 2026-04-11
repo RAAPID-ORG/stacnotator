@@ -167,6 +167,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
+        // Campaign boot: any empty-probe should land on the cover slice.
+        sliceNavIntent: 'initial',
       });
 
       // Load tasks
@@ -212,6 +214,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
     const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
+    // Switching view is effectively a fresh start for the slice probe.
+    useMapStore.getState().setSliceNavIntent('initial');
   },
 
   refreshKnnValidationStatus: async () => {

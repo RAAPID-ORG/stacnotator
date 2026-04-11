@@ -37,6 +37,17 @@ export const MainAnnotationsContainer = ({
   const refocusTrigger = useMapStore((s) => s.refocusTrigger);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const setSliceNavIntent = useMapStore((s) => s.setSliceNavIntent);
+
+  /**
+   * Slice change triggered by a deliberate user pick (dropdown / timeline).
+   * Marks the intent as 'pick' so ImageryContainer's empty-probe does not
+   * auto-skip away from an explicitly-selected empty slice.
+   */
+  const pickSlice = (index: number) => {
+    setSliceNavIntent('pick');
+    setActiveSliceIndex(index);
+  };
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
@@ -253,7 +264,7 @@ export const MainAnnotationsContainer = ({
         collapsed={timelineCollapsed}
         onToggleCollapse={() => setTimelineCollapsed((c) => !c)}
         onCollectionChange={setActiveCollectionId}
-        onSliceChange={setActiveSliceIndex}
+        onSliceChange={pickSlice}
         onDraggingChange={setTimelineDragging}
         emptySlices={emptySlices}
       />
@@ -294,7 +305,7 @@ export const MainAnnotationsContainer = ({
               {slices.length > 1 && (
                 <select
                   value={activeSliceIndex}
-                  onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+                  onChange={(e) => pickSlice(Number(e.target.value))}
                   className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
                   title="Select time slice (a/d)"
                 >
@@ -472,7 +483,7 @@ export const MainAnnotationsContainer = ({
               {slices.length > 1 && (
                 <select
                   value={activeSliceIndex}
-                  onChange={(e) => setActiveSliceIndex(Number(e.target.value))}
+                  onChange={(e) => pickSlice(Number(e.target.value))}
                   className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm focus:outline-none cursor-pointer appearance-none pr-7 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.5rem_center] hover:bg-white transition-colors"
                   title="Select time slice"
                 >

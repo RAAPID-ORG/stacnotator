@@ -114,6 +114,9 @@ const resetMapForTaskNav = () => {
     viewSnapshots: {},
     currentMapZoom: null,
     probeTimeseriesPoint: null,
+    // Fresh task: any empty-probe should land on the cover slice, not
+    // carry over a leftover hotkey-direction intent from the previous task.
+    sliceNavIntent: 'initial',
   });
 };
 

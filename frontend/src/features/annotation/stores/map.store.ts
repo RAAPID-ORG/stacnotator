@@ -1,11 +1,25 @@
 import { create } from 'zustand';
 
+/**
+ * Why the active slice last moved. Consumed by ImageryContainer's empty-slice
+ * probe to decide whether (and in which direction) to auto-skip away from a
+ * slice that turned out empty.
+ *
+ *   - 'pick'    : user explicit pick (dropdown / timeline). Do NOT auto-skip.
+ *   - 'next'    : A/D hotkey moving forward. On empty, skip forward from here.
+ *   - 'prev'    : A/D hotkey moving backward. On empty, skip backward from here.
+ *   - 'initial' : task/collection/view change or app boot. Jump to first
+ *                 non-empty slice anywhere in the collection ("land on cover").
+ */
+export type SliceNavIntent = 'pick' | 'next' | 'prev' | 'initial';
+
 interface MapStore {
   // Collection & slice navigation (was window & slice)
   activeCollectionId: number | null;
   activeSliceIndex: number;
   collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
+  sliceNavIntent: SliceNavIntent;
   viewSnapshots: Record<number, ViewSnapshot>;
 
   // Layer selection
@@ -41,6 +55,7 @@ interface MapStore {
   setActiveCollectionId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
+  setSliceNavIntent: (intent: SliceNavIntent) => void;
   markSliceEmpty: (sliceKey: string) => void;
   clearEmptySlices: () => void;
   saveViewSnapshot: (viewId: number | null) => void;
@@ -85,6 +100,7 @@ const initialState = {
   activeSliceIndex: 0,
   collectionSliceIndices: {} as Record<number, number>,
   emptySlices: {} as Record<string, true>,
+  sliceNavIntent: 'initial' as SliceNavIntent,
 
   /** Saved per-view state so switching views preserves position + empty info */
   viewSnapshots: {} as Record<number, ViewSnapshot>,
@@ -135,6 +151,8 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({
       collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index },
     })),
+
+  setSliceNavIntent: (intent) => set({ sliceNavIntent: intent }),
 
   markSliceEmpty: (sliceKey) =>
     set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),

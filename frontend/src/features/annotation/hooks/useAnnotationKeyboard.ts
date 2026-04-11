@@ -39,6 +39,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const triggerPan = useMapStore((s) => s.triggerPan);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const setSliceNavIntent = useMapStore((s) => s.setSliceNavIntent);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const showBasemap = useMapStore((s) => s.showBasemap);
   const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
@@ -133,6 +134,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
       if (!currentEntry) return;
+      // Remember which direction the user travelled in, so that if the
+      // landed-on slice later turns out empty (detected async by the probe),
+      // we keep skipping in that same direction instead of jumping to cover.
+      setSliceNavIntent(direction);
       const colId = currentEntry.collection_id;
       const nonEmpty: number[] = [];
       for (let i = 0; i < currentSliceCount; i++) {
@@ -179,6 +184,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       emptySlices,
       setActiveSliceIndex,
       setActiveCollectionId,
+      setSliceNavIntent,
       firstNonEmptySlice,
     ]
   );
@@ -187,6 +193,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {
       if (viewCollections.length === 0) return;
+      // Fresh collection: treat like an initial load so any empty-slice
+      // probe lands on the cover slice rather than hotkey-direction-skipping.
+      setSliceNavIntent('initial');
       const targetIdx =
         direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
       const target = viewCollections[targetIdx];
@@ -210,6 +219,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       viewCollections,
       setActiveCollectionId,
       setActiveSliceIndex,
+      setSliceNavIntent,
       firstNonEmptySlice,
       collectionSliceIndices,
       emptySlices,
