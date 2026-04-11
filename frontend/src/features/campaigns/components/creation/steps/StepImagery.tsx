@@ -358,7 +358,7 @@ export const StepImagery = ({
           <h3 className="text-sm font-semibold text-neutral-900">Imagery Sources</h3>
           <p className="text-xs text-neutral-500 mt-0.5">
             Define where imagery comes from, the temporal intervals available, and how it should be
-            visualized. Each source represents a data provider (e.g. Sentinel-2, Landsat, NAIP) with
+            visualized. Each source represents a dataset (e.g. Sentinel-2, Landsat, NAIP) with
             collections that cover specific time periods.
           </p>
         </div>

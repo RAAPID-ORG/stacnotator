@@ -272,7 +272,7 @@ export const MainAnnotationsContainer = ({
         {/* Top-right controls for task mode */}
         {isTaskMode && (
           <div
-            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2 select-none"
             data-tour="map-controls"
           >
             {/* Selectors row */}
@@ -450,7 +450,7 @@ export const MainAnnotationsContainer = ({
 
         {isOpenMode && (
           <div
-            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2 select-none"
             data-tour="map-controls"
           >
             {/* Selectors row */}

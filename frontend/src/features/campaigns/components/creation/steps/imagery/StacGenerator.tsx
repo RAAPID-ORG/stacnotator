@@ -27,6 +27,8 @@ export const StacGenerator = ({
   const [showJson, setShowJson] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showCoverAdvanced, setShowCoverAdvanced] = useState(false);
+  // When on, each collection gets a single slice spanning its full period.
+  const [noSlices, setNoSlices] = useState(false);
   const initialPresetApplied = useRef(false);
 
   const update = <K extends keyof StacConfig>(key: K, value: StacConfig[K]) => {
@@ -95,6 +97,25 @@ export const StacGenerator = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When "no slices" is on, keep slice period locked to the collection period
+  // so each collection ends up with a single slice covering its full range.
+  useEffect(() => {
+    if (!noSlices) return;
+    setConfig((prev) => {
+      if (
+        prev.slicePeriodInterval === prev.collectionPeriodInterval &&
+        prev.slicePeriodUnit === prev.collectionPeriodUnit
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        slicePeriodInterval: prev.collectionPeriodInterval,
+        slicePeriodUnit: prev.collectionPeriodUnit,
+      };
+    });
+  }, [noSlices, config.collectionPeriodInterval, config.collectionPeriodUnit]);
 
   /** Extract eo:cloud_cover value from a CQL2 JSON body */
   const extractCloudCover = (obj: unknown): number | null => {
@@ -389,36 +410,51 @@ export const StacGenerator = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-700 flex items-center gap-1">
-              Slice Period
-              <Tooltip text="How to divide each collection into slices. E.g. 1 week creates weekly slices within each collection." />
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={config.slicePeriodInterval}
-              onChange={(e) => update('slicePeriodInterval', Math.max(1, Number(e.target.value)))}
-              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
-            />
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={noSlices}
+            onChange={(e) => setNoSlices(e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-neutral-300 text-brand-600 focus:ring-brand-600"
+          />
+          <span className="text-xs text-neutral-700 flex items-center gap-1">
+            Don&apos;t slice collections
+            <Tooltip text="Each collection becomes a single slice spanning its full period - skip this if you want temporal subdivisions within each collection." />
+          </span>
+        </label>
+
+        {!noSlices && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-neutral-700 flex items-center gap-1">
+                Slice Period
+                <Tooltip text="How to divide each collection into slices. E.g. 1 week creates weekly slices within each collection." />
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={config.slicePeriodInterval}
+                onChange={(e) => update('slicePeriodInterval', Math.max(1, Number(e.target.value)))}
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-neutral-700">Slice Unit</label>
+              <select
+                value={config.slicePeriodUnit}
+                onChange={(e) =>
+                  update('slicePeriodUnit', e.target.value as 'days' | 'weeks' | 'months' | 'years')
+                }
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
+              >
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+                <option value="years">Years</option>
+              </select>
+            </div>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-700">Slice Unit</label>
-            <select
-              value={config.slicePeriodUnit}
-              onChange={(e) =>
-                update('slicePeriodUnit', e.target.value as 'days' | 'weeks' | 'months' | 'years')
-              }
-              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
-            >
-              <option value="days">Days</option>
-              <option value="weeks">Weeks</option>
-              <option value="months">Months</option>
-              <option value="years">Years</option>
-            </select>
-          </div>
-        </div>
+        )}
 
         {/* Cover slice */}
         <div className="rounded-md border border-neutral-200 p-3 space-y-3">

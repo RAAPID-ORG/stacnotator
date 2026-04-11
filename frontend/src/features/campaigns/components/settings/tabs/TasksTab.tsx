@@ -109,13 +109,27 @@ export const TasksTab: React.FC<Props> = ({
               The id <strong>must be unique within your whole campaign and must be numeric.</strong>
             </p>
             <div className="flex gap-3 items-center">
-              <input
-                type="file"
-                accept=".csv,.geojson,.json"
-                onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
-                disabled={uploadingTasks}
-                className="flex-1 h-9 text-sm border border-neutral-300 rounded-md px-3 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-neutral-100 file:text-neutral-700 file:font-medium hover:file:bg-neutral-200 disabled:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
-              />
+              <label
+                className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
+                  uploadingTasks
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer hover:border-neutral-400'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".csv,.geojson,.json"
+                  onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
+                  disabled={uploadingTasks}
+                  className="sr-only"
+                />
+                <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
+                  Choose file
+                </span>
+                <span className="text-xs text-neutral-500 truncate">
+                  {taskFile && taskFile.size > 0 ? taskFile.name : 'No file selected'}
+                </span>
+              </label>
               <Button
                 onClick={handleUploadAnnotationTasks}
                 disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
