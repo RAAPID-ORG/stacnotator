@@ -112,8 +112,61 @@ Each `ImageryContainer` (map window) monitors 204 reports from the tile loader. 
 - **Per-view state:** Empty slice tracking is saved per view and restored when switching between views.
 
 ### Tile Prefetching
-Cover slices for upcoming tasks are prefetched in the background to warm the browser cache. Prefetching is scoped to the active view's collections only. It pauses while the active layer is loading and resumes when idle. Prefetching is divided into multiple priorities:
 
-- P1: Fetch cover slices from the current task at the main windows viewport.
-- P2: Fetch the cover slices of the next task  (at main window viewport and default zoom).
-- P3: Fetch the cover slices of the task after (at main window viewport and default zoom).
+Cover slices for upcoming tasks are prefetched in the background to warm the browser cache so that when the user advances, tiles render instantly. Prefetching is scoped to the active view's collections only. It pauses while the active layer is loading and resumes when idle.
+
+#### How it works
+
+The preloader (`frontend/src/features/annotation/components/Map/tilePreloader.ts`) is an ad-hoc priority queue driven by a `setInterval` drain loop. For each prefetch job, it expands a URL template + extent + zoom into a list of concrete `{z}/{x}/{y}` tile URLs using OL's `createXYZ()` tile grid so that the coords match exactly what OL will later request, then loads each URL via a plain `<img crossOrigin="anonymous">` element (capped at `MAX_CONCURRENT = 50` in flight).
+
+`<img>` is used instead of `fetch()` because OpenLayers also loads tiles through `<img crossOrigin="anonymous">`. Both mechanisms share the same browser HTTP cache partition, so an `<img>`-preloaded response is later served to OL's tile img as a cache hit. I noticed in the past aht mixing `fetch()` and `<img>` in some browsers seemt to put them in different cache partitions and the warming effect is lost.
+
+#### Priorities
+
+Five levels, lower number = higher priority:
+
+| Priority | What | Zoom |
+|---|---|---|
+| P1 | Current task's **other** collections (cover slices) - so switching collection inside the same task is instant | current viewport zoom |
+| P2 | **Next** task's active collection (cover slice) | main window viewport at default zoom |
+| P3 | Next task's **other** collections (cover slices) | main window viewport at  default zoom |
+| P4 | **Task after next's** active collection (cover slice) | main window viewport at  default zoom |
+| P5 | Task after next's other collections (cover slices) | main window viewport at  default zoom |
+
+P1 is enqueued once the active layer finishes its initial load for the current task (via `LayerManager.onBusyChange`). P2-P5 are enqueued when the preloader goes idle, so they only run once P1 has drained.
+
+If a prefetched group accumulates enough consecutive tile-load errors with no successes (`EMPTY_TILE_THRESHOLD`), the group is auto-aborted and a fallback request is enqueued for the next slice in the same collection - so the annotator doesn't end up stuck waiting for an empty cover slice when they advance.
+
+#### Lifecycle on task navigation
+
+On `currentTaskIndex` change the preloader's queue is cleared and its internal URL-dedup cache is reset, then the new task's P1/P2/P3-etc jobs are enqueued from scratch. A generation counter (`generation++`) invalidates any stale bookkeeping from in-flight loads belonging to the previous task.
+
+**Important:** in-flight `<img>` loads are deliberately **not** aborted on task change. Chromium coalesces concurrent same-URL `<img>` fetches into a single underlying network request, so aborting a preloader img via `img.src = ''` also aborts any OpenLayers tile img sharing that fetch. OL then transitions the affected tile to `TileState.ERROR`, which it never retries within a source, leaving scattered permanently-gray tiles on the map. Letting in-flight loads drain naturally is safe because (a) `MAX_CONCURRENT = 50` is enforced by an `inflight` counter that only decrements on real completion, so fast navigation cannot pile up requests, and (b) the generation guard already ignores stale results. In-flight loads are only aborted on preloader `dispose()` (component unmount).
+
+### Custom Tile Load Functions
+
+OpenLayers tile sources are configured with custom `tileLoadFunction`s in a few places:
+
+- **`tileLoadWithHatch`** - intercepts fetch responses and renders a 45° hatch pattern on `204 No Content` replies (used for empty/no-data slice detection, see above).
+- **`tileLoadWithAuth`** - appends a short-lived tiler auth token (`?token=...`) to self-hosted tiler URLs before loading, refreshing the token as needed.
+
+Only the self-hosted tiler uses `tileLoadWithAuth`. MPC tiles go through the default loader.
+
+### Empty-tile / broken-source heuristic
+
+Both `WindowMap` and the `TilePreloader` track per-source `tileloaderror` / `tileloadend` counts and fire an `onEmptyTiles` callback if `EMPTY_TILE_THRESHOLD` errors occur with zero successes. This is how a broken signed URL or a genuinely empty cover slice is detected and surfaced.
+
+Because OL caches errored tiles permanently within a source, `WindowMap` also recreates its `XYZ` source (via `setSource(new XYZ(...))`) on task navigation. This resets the per-source error cache and lets a re-navigation recover from any stuck-error state even if the underlying URL is fine.
+
+### Known rough edges - refactor candidate
+
+The custom tile loading stack has grown organically across several waves of fixes (flaky MPC responses, empty-slice detection, hatch rendering, auth tokens, background prefetching, error-retry workarounds) and is now messier than it should be. In particular:
+
+- The empty-tile heuristic is duplicated in **two** places (`WindowMap.tsx` event listeners and `tilePreloader.ts` `groupStats`) with slightly different counter semantics.
+- `WindowMap` recreates its tile source on every task switch as a workaround for OL not retrying errored tiles - effectively a per-component "refresh" that is load-bearing but undocumented in the component's public API.
+- The preloader shares a cache partition with OL by convention (both using `<img crossOrigin="anonymous">`) and any future change that moves OL to `fetch()`-based tile loading will silently break prefetch warming.
+- Preloader pause/resume is driven by `LayerManager.onBusyChange` which assumes one dominant "active" layer; multi-layer views complicate the bookkeeping.
+- The recent "do not abort in-flight on task switch" fix (coalescence-poisoning gray tiles) is a subtle invariant that lives only in code comments - if someone re-introduces an `_abortInflight()` call into `clear()` or `pause()`, the bug silently returns.
+- There is no ERROR-state retry path on the **main** map source at all, so any tile that does end up errored (for any reason) stays gray until the user changes slice/collection/visualization.
+
+A future refactor should: try to use more OL native semantics and less custom workarounds and try to remove duplicate code. In general it is still hard to follow along from the codebase, as the prefetching and tile-loading handling is split over multiple components.

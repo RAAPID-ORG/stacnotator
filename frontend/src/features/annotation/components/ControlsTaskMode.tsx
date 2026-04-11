@@ -56,6 +56,45 @@ export const AnnotationControls = ({
   const hasEmbeddingYear = campaign?.settings?.embedding_year != null;
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
+  const knnStatus = useCampaignStore((s) => s.knnValidationStatus);
+
+  /**
+   * Compute whether KNN validation can actually run for the current task +
+   * selected label, and return a human-readable reason if not. Null reason
+   * means the toggle is usable.
+   */
+  const knnDisabledReason: string | null = (() => {
+    if (!hasEmbeddingYear) {
+      return 'No embedding year has been configured for this campaign. Set it in Campaign Settings to enable this feature.';
+    }
+    if (campaign?.embedding_status === 'registering') {
+      return 'Satellite embeddings are still being computed for this campaign. Try again once that finishes.';
+    }
+    if (campaign?.embedding_status === 'failed') {
+      return 'Embedding generation failed for this campaign - KNN validation cannot run. See Campaign Settings for details.';
+    }
+    if (currentTask && !currentTask.has_embedding) {
+      return 'No embedding exists for this specific task, so validation will be skipped here. Other tasks may still validate.';
+    }
+    if (knnStatus) {
+      const { required_total, required_per_label, total_labeled_with_embedding, per_label_counts } =
+        knnStatus;
+      if (total_labeled_with_embedding < required_total) {
+        const missing = required_total - total_labeled_with_embedding;
+        return `Not enough labeled annotations yet to build a neighbour set. Need at least ${required_total} total, have ${total_labeled_with_embedding} (${missing} more needed).`;
+      }
+      if (selectedLabelId != null) {
+        const current = per_label_counts[String(selectedLabelId)] ?? 0;
+        if (current < required_per_label) {
+          const missing = required_per_label - current;
+          const labelName = labels.find((l) => l.id === selectedLabelId)?.name ?? 'this label';
+          return `Not enough prior annotations of "${labelName}" to validate against (need ${required_per_label}, have ${current} - ${missing} more needed).`;
+        }
+      }
+    }
+    return null;
+  })();
+  const knnAvailable = knnDisabledReason === null;
 
   // Local state for goto input
   const [gotoValue, setGotoValue] = useState<string>('');
@@ -241,7 +280,7 @@ export const AnnotationControls = ({
           <div className="border-t border-neutral-300"></div>
 
           {/* KNN Validation Toggle */}
-          {hasEmbeddingYear ? (
+          {knnAvailable ? (
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <div className="relative">
                 <input
@@ -270,9 +309,8 @@ export const AnnotationControls = ({
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
                   Experimental feature - use with care! Checks your label against prior annotations
                   using embedding similarity from AlphaEarth in {campaign?.settings?.embedding_year}{' '}
-                  (kNN, with k = 5). You'll be asked to confirm if your label disagrees with the
-                  majority. You need to have placed at least 5 annotations per label for the
-                  validation to work.
+                  (kNN, with k = {knnStatus?.required_per_label ?? 5}). You&apos;ll be asked to
+                  confirm if your label disagrees with the majority.
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>
@@ -297,9 +335,8 @@ export const AnnotationControls = ({
                     clipRule="evenodd"
                   />
                 </svg>
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-48 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
-                  KNN label validation is unavailable - no embedding year has been configured for
-                  this campaign. Set it in Campaign Settings to enable this feature.
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-56 px-2.5 py-2 bg-neutral-800 text-white text-[12px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50">
+                  KNN label validation is unavailable: {knnDisabledReason}
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-800"></div>
                 </div>
               </div>

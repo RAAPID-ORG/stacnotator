@@ -16,6 +16,7 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    KnnValidationStatusOut,
     ValidateLabelSubmissionsResponse,
 )
 from src.auth.dependencies import require_approved_user, require_authenticated_user
@@ -130,6 +131,27 @@ def validate_annotation_submission(
         campaign_id=campaign_id,
         annotation_task_id=annotation_task_id,
         label_id=label_id,
+    )
+
+
+@router.get(
+    "/campaigns/{campaign_id}/knn-validation-status",
+    response_model=KnnValidationStatusOut,
+)
+def get_knn_validation_status(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Summarize how close the campaign is to having enough data for KNN
+    label validation. Used by the annotator UI to explain why validation
+    is unavailable on a given task/label.
+    """
+    embedding_year = campaign.settings.embedding_year if campaign.settings else None
+    return embeddings_service.get_validation_status(
+        db,
+        campaign_id=campaign_id,
+        embedding_year=embedding_year,
     )
 
 

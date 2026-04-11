@@ -21,6 +21,7 @@ from src.annotation.models import (
     AnnotationGeometry,
     AnnotationTask,
     AnnotationTaskAssignment,
+    Embedding,
 )
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.auth.models import User
@@ -89,7 +90,10 @@ def get_annotation_task_by_id(
         )
     )
 
-    return db.scalars(stmt).unique().first()
+    task = db.scalars(stmt).unique().first()
+    if task is not None:
+        _attach_has_embedding(db, [task])
+    return task
 
 
 def get_annotation_tasks_for_campaign(
@@ -121,7 +125,27 @@ def get_annotation_tasks_for_campaign(
         .order_by(AnnotationTask.annotation_number)
     )
 
-    return db.scalars(stmt).unique().all()
+    tasks = db.scalars(stmt).unique().all()
+    _attach_has_embedding(db, tasks)
+    return tasks
+
+
+def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
+    """Set `has_embedding` on each task via one lightweight indexed lookup.
+
+    Kept out of the main joinedload chain so it does not multiply the result
+    rows; Embedding has its own hnsw index and FK on annotation_task_id.
+    """
+    if not tasks:
+        return
+    task_ids = [t.id for t in tasks]
+    embedded_ids = set(
+        db.execute(
+            select(Embedding.annotation_task_id).where(Embedding.annotation_task_id.in_(task_ids))
+        ).scalars()
+    )
+    for task in tasks:
+        task.has_embedding = task.id in embedded_ids
 
 
 def get_annotation_task_id_for_annotation(

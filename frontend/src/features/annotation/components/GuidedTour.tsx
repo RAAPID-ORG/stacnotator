@@ -43,7 +43,10 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <p>
         This guided tour will walk you through all the key features of the annotation workspace.
-        Almost every action has a keyboard shortcut, making your workflow fast and seamless.
+        <br />
+        <br />
+        Almost every action has a <strong>keyboard shortcut</strong>, making your workflow fast and
+        seamless. We recommend trying to use only the keyboard for a better experience.
       </p>
     ),
     placement: 'bottom',

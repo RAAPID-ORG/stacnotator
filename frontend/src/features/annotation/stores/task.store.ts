@@ -225,6 +225,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             ...getFormStateForTask(updatedTask),
           });
           useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
+          // Removing a labeled annotation also changes KNN counts.
+          useCampaignStore.getState().refreshKnnValidationStatus();
           return;
         }
 
@@ -302,6 +304,13 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         const successMessage =
           labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
         useLayoutStore.getState().showAlert(successMessage, 'success');
+
+        // A labeled submission may change what the KNN validator has to work
+        // with (total count and the submitted label's count); refresh async
+        // so the tooltip in AnnotationControls reflects the latest state.
+        if (labelId !== null) {
+          useCampaignStore.getState().refreshKnnValidationStatus();
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to submit annotation';
         useLayoutStore.getState().showAlert(message, 'error');

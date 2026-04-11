@@ -381,7 +381,7 @@ export const MainAnnotationsContainer = ({
                   className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     preloadingEnabled
-                      ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading)'
+                      ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading). Preloading only applies to cover slices at the default zoom level. Ensure to set the default zoom level appropriately for your campaign to get the best experience.'
                       : 'Enable tile preloading (prefetches tiles for faster navigation)'
                   }
                 >

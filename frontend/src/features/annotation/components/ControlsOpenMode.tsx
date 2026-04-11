@@ -246,20 +246,16 @@ const OpenModeControls = () => {
                         <span>{index + 1}</span>
                       </span>
                     </button>
-                    {/* Magic Wand Icon - only for polygon labels */}
+                    {/* Magic Wand Icon - only for polygon labels.
+                        Currently disabled: the click-to-segment backend (SAM3)
+                        requires GPU inference which we don't have provisioned. */}
                     {label.geometry_type === 'polygon' && (
                       <button
-                        onClick={(e) => handleMagicWandToggle(e, label.id)}
-                        title={
-                          magicWandEnabled[label.id]
-                            ? 'Magic wand active - Click to draw automatically'
-                            : 'Magic wand inactive - Click to enable'
-                        }
-                        className={`absolute top-0.5 right-0.5 p-0.5 rounded transition-all hover:scale-110 ${
-                          magicWandEnabled[label.id]
-                            ? 'bg-purple-500 text-white shadow-md'
-                            : 'bg-neutral-200 text-neutral-500 hover:bg-neutral-300'
-                        }`}
+                        type="button"
+                        disabled
+                        title="Disabled - no GPUs available to run SAM3 click image segmentation"
+                        aria-disabled="true"
+                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-neutral-200 text-neutral-400 cursor-not-allowed opacity-60"
                         style={{ zIndex: 10 }}
                       >
                         <svg

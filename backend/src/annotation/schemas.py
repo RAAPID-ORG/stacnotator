@@ -80,6 +80,10 @@ class AnnotationTaskOut(BaseModel):
     geometry: GeometryOut
     assignments: list[AnnotationTaskAssignmentOut] | None
     annotations: list[AnnotationFromTaskOut]
+    # Whether a satellite embedding vector exists for this task. Populated by
+    # the task list/fetch query (extra attribute on the ORM instance). Used by
+    # the frontend to show why KNN label validation is unavailable on a task.
+    has_embedding: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -228,3 +232,26 @@ class ValidateLabelSubmissionsResponse(BaseModel):
         "disabled",
     ]
     agrees: bool | None = None
+
+
+class KnnValidationStatusOut(BaseModel):
+    """Summary of what the KNN label validator has available.
+
+    Used by the frontend to explain to annotators why validation may be
+    unavailable for a given task/label (e.g. not enough prior labels yet).
+    """
+
+    # True when an embedding year is set on the campaign. If false, nothing
+    # else in this response is meaningful.
+    enabled: bool
+    # Minimum number of embedded+labeled neighbours required for a specific
+    # label before validation runs for that label (k in kNN).
+    required_per_label: int
+    # Minimum total number of embedded+labeled tasks required in the campaign.
+    required_total: int
+    # Current total of distinct tasks that have both an embedding and at least
+    # one labeled annotation.
+    total_labeled_with_embedding: int
+    # Per-label count of distinct embedded tasks carrying that label. Key is
+    # label_id as a string (JSON object key convention).
+    per_label_counts: dict[str, int]
