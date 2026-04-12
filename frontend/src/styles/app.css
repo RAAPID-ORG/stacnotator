@@ -290,7 +290,7 @@ input[type='range'] {
 .active-window {
   border-color: var(--color-brand-500) !important;
   box-shadow:
-    0 0 0 1px var(--color-brand-500 / 0.3),
+    0 0 0 1px rgb(65 120 93 / 0.3),
     0 4px 14px rgb(40 35 25 / 0.1) !important;
   transition:
     border-color 0.18s ease,
