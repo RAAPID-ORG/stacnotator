@@ -19,7 +19,6 @@ interface TourStep {
   /** Friendly label for the hotkey(s) the user must press */
   requiredKeyLabel?: string;
   /** Number of times the user must press the required key (default 1) */
-  requiredPressCount?: number;
   /** Whether to scroll the target into view (default true) */
   scrollIntoView?: boolean;
 }
@@ -137,40 +136,38 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
           <kbd className="tour-kbd">D</kbd> to go to the <strong>next slice</strong>.
         </p>
         <p className="text-sm text-neutral-500 italic">
-          Try pressing A or D twice now to move through the slices.
+          Try pressing A and then D to move in both directions.
         </p>
       </div>
     ),
     placement: 'bottom',
-    requiredKeys: ['d', 'a'],
-    requiredKeyLabel: 'A or D',
-    requiredPressCount: 2,
+    requiredKeys: ['a', 'd'],
+    requiredKeyLabel: 'A and D',
   },
 
-  // Practice: navigate windows (both directions)
+  // Practice: navigate windows
   {
     target: '[data-tour="timeline-sidebar"]',
     title: 'Practice: Navigate Windows',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Shift+D</kbd> to go to the <strong>next window</strong>{' '}
-          and <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
-          Often times you will want to through imagery in these bigger steps rather then
-          individually by slice as the first slice (cover slice) is often supposed to be
+          Press <kbd className="tour-kbd">Shift+A</kbd> to go to the{' '}
+          <strong>previous window</strong> and <kbd className="tour-kbd">Shift+D</kbd> to go to the{' '}
+          <strong>next window</strong>. Often you will want to browse imagery in these bigger steps
+          rather than individually by slice, as the first slice (cover slice) is often
           representative of the whole window. These are also preloaded at your default zoom-level to
-          make your workflow faster. Ensure to set the default zoom-level to the one you usually
-          annotate at in the campaign settings for the best experience.
+          make your workflow faster. Set the default zoom in campaign settings for the best
+          experience.
         </p>
         <p className="text-sm text-neutral-500 italic">
-          Try pressing Shift+D and then Shift+A to navigate both directions.
+          Try pressing Shift+A and then Shift+D to navigate both directions.
         </p>
       </div>
     ),
     placement: 'right',
-    requiredKeys: ['shift+d', 'shift+a'],
-    requiredKeyLabel: 'Shift+A or Shift+D',
-    requiredPressCount: 2,
+    requiredKeys: ['shift+a', 'shift+d'],
+    requiredKeyLabel: 'Shift+A and Shift+D',
   },
 
   // Tip: hold to cycle windows
@@ -383,7 +380,6 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'left',
     requiredKeys: ['s', 'w'],
     requiredKeyLabel: 'W or S',
-    requiredPressCount: 1,
   },
 
   // Practice: zoom & pan
@@ -410,7 +406,6 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
     requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
     requiredKeyLabel: 'Alt+↑ or Alt+↓',
-    requiredPressCount: 1,
   },
 
   // Imagery source switching (top level of the layer dropdown)
@@ -679,24 +674,45 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'top',
   },
 
-  // 6. Practice: navigate slices & windows
+  // 6a. Practice: navigate slices
   {
     target: '[data-tour="main-map"]',
-    title: 'Practice: Navigate Slices & Windows',
+    title: 'Practice: Navigate Slices',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">A</kbd> / <kbd className="tour-kbd">D</kbd> to navigate
-          between slices, and <kbd className="tour-kbd">Shift+A</kbd> /{' '}
-          <kbd className="tour-kbd">Shift+D</kbd> to navigate between windows.
+          Press <kbd className="tour-kbd">A</kbd> to go to the <strong>previous slice</strong> and{' '}
+          <kbd className="tour-kbd">D</kbd> to go to the <strong>next slice</strong>.
         </p>
-        <p className="text-sm text-neutral-500 italic">Try pressing D now.</p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing A and then D to move in both directions.
+        </p>
       </div>
     ),
     placement: 'bottom',
-    requiredKeys: ['d', 'a'],
-    requiredKeyLabel: 'A or D',
-    requiredPressCount: 1,
+    requiredKeys: ['a', 'd'],
+    requiredKeyLabel: 'A and D',
+  },
+
+  // 6b. Practice: navigate windows
+  {
+    target: '[data-tour="timeline-sidebar"]',
+    title: 'Practice: Navigate Windows',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Press <kbd className="tour-kbd">Shift+A</kbd> to go to the{' '}
+          <strong>previous window</strong> and <kbd className="tour-kbd">Shift+D</kbd> to go to the{' '}
+          <strong>next window</strong>.
+        </p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing Shift+A and then Shift+D to navigate both directions.
+        </p>
+      </div>
+    ),
+    placement: 'right',
+    requiredKeys: ['shift+a', 'shift+d'],
+    requiredKeyLabel: 'Shift+A and Shift+D',
   },
 
   // 7a. Imagery source switching (top level of the layer dropdown)
@@ -871,7 +887,6 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
     requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
     requiredKeyLabel: 'Alt+↑ or Alt+↓',
-    requiredPressCount: 1,
   },
 
   // 14. Minimap
@@ -1041,7 +1056,7 @@ interface GuidedTourProps {
 export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const [currentStep, setCurrentStep] = useState(0);
-  const [pressCount, setPressCount] = useState(0);
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [keyFulfilled, setKeyFulfilled] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -1074,7 +1089,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
 
   // Reset key tracking when step changes
   useEffect(() => {
-    setPressCount(0);
+    setPressedKeys(new Set());
     setKeyFulfilled(false);
   }, [currentStep]);
 
@@ -1082,17 +1097,14 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const stepRef = useRef(step);
   stepRef.current = step;
 
-  // Listen for required key presses
+  // Listen for required key presses — each unique key must be pressed at
+  // least once before the step is fulfilled (not just N presses of any key).
   useEffect(() => {
     if (!isOpen || !step?.requiredKeys || keyFulfilled) return;
 
-    const required = step.requiredPressCount ?? 1;
-
     const handler = (e: KeyboardEvent) => {
-      // Ignore key-repeat events so holding a key doesn't spam the counter
       if (e.repeat) return;
 
-      // Ignore if typing in an input
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
@@ -1101,25 +1113,23 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
       const currentStep = stepRef.current;
       if (!currentStep?.requiredKeys) return;
 
-      // Build the key identifier to match against requiredKeys
       const parts: string[] = [];
       if (e.shiftKey) parts.push('shift');
       if (e.altKey) parts.push('alt');
       if (e.ctrlKey) parts.push('ctrl');
       parts.push(e.key.toLowerCase());
       const combo = parts.join('+');
-
-      // Also check just the plain key for simple keys
       const plainKey = e.key.toLowerCase();
 
-      const matched = currentStep.requiredKeys.some(
+      const matchedKey = currentStep.requiredKeys.find(
         (k) => k.toLowerCase() === combo || k.toLowerCase() === plainKey
       );
 
-      if (matched) {
-        setPressCount((prev) => {
-          const next = prev + 1;
-          if (next >= required) {
+      if (matchedKey) {
+        setPressedKeys((prev) => {
+          const next = new Set(prev);
+          next.add(matchedKey.toLowerCase());
+          if (currentStep.requiredKeys!.every((k) => next.has(k.toLowerCase()))) {
             setKeyFulfilled(true);
           }
           return next;
@@ -1240,6 +1250,14 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     }
   }, [isLastStep, onClose]);
 
+  // Auto-advance after all required keys are pressed so the user doesn't
+  // have to move their mouse to the tooltip to click "Next".
+  useEffect(() => {
+    if (!keyFulfilled) return;
+    const timer = setTimeout(() => handleNext(), 800);
+    return () => clearTimeout(timer);
+  }, [keyFulfilled, handleNext]);
+
   const handlePrev = useCallback(() => {
     setCurrentStep((s) => Math.max(0, s - 1));
   }, []);
@@ -1275,7 +1293,6 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   if (!isOpen || !step) return null;
 
   const needsKeyPress = !!step.requiredKeys && !keyFulfilled;
-  const requiredTotal = step.requiredPressCount ?? 1;
   const progressPct = Math.round(((currentStep + 1) / steps.length) * 100);
 
   return (
@@ -1334,7 +1351,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
           {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 rounded-t-xl overflow-hidden">
             <div
-              className="h-full bg-brand-500 transition-all duration-300"
+              className="h-full bg-brand-600 transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -1375,28 +1392,23 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
                           clipRule="evenodd"
                         />
                       </svg>
-                      Done! Click Next to continue.
+                      Done!
                     </span>
                   ) : (
-                    <>
-                      Press <kbd className="tour-kbd">{step.requiredKeyLabel}</kbd>
-                      {requiredTotal > 1 && (
-                        <span className="ml-1 text-neutral-400">
-                          ({pressCount}/{requiredTotal})
-                        </span>
-                      )}
-                    </>
+                    <>Press</>
                   )}
                 </span>
                 {!keyFulfilled && (
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: requiredTotal }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          i < pressCount ? 'bg-brand-500' : 'bg-neutral-300'
+                  <div className="flex gap-1">
+                    {step.requiredKeys.map((k) => (
+                      <kbd
+                        key={k}
+                        className={`tour-kbd text-[10px] transition-opacity ${
+                          pressedKeys.has(k.toLowerCase()) ? 'opacity-40 line-through' : ''
                         }`}
-                      />
+                      >
+                        {k}
+                      </kbd>
                     ))}
                   </div>
                 )}
@@ -1425,7 +1437,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
               <button
                 onClick={handleNext}
                 disabled={needsKeyPress}
-                className="px-4 py-1.5 text-xs font-bold bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-1.5 text-xs font-bold bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {isLastStep ? 'Finish' : 'Next →'}
               </button>

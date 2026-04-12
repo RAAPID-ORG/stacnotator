@@ -63,8 +63,18 @@ const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10 }: MapProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Starting a pan should never leave an accidentally-focused picker/select
+  // as the target of subsequent keyboard/space-bar events. Blur whatever the
+  // user's previous click may have focused so the drag is just a drag.
+  const handlePointerDown = () => {
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && typeof active.blur === 'function') {
+      active.blur();
+    }
+  };
+
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full" onPointerDown={handlePointerDown}>
       <div ref={mapRef} className="w-full h-full bg-neutral-200" />
     </div>
   );

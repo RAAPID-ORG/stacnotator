@@ -62,7 +62,6 @@ const TimelineSidebar = ({
   const allStepsRef = useRef<TimelineStep[]>([]);
   const yToStepRef = useRef<(clientY: number) => TimelineStep | null>(() => null);
 
-  // Resolve the current view's collections
   const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
 
   const viewCollections = useMemo(() => {
@@ -76,7 +75,6 @@ const TimelineSidebar = ({
       .filter((r) => r.collection);
   }, [selectedView, campaign.imagery_sources]);
 
-  // Compute overall date range from all collections' slices
   const dateRange = useMemo(() => {
     let earliest: string | null = null;
     let latest: string | null = null;
@@ -254,51 +252,51 @@ const TimelineSidebar = ({
     <div className="relative h-full" data-tour="timeline-sidebar">
       <button
         onClick={onToggleCollapse}
-        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-5 h-10 bg-neutral-100 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-r border border-l-0 border-neutral-200 transition-colors cursor-pointer flex items-center justify-center"
+        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-[1001] w-4 h-12 bg-white hover:bg-neutral-50 text-neutral-400 hover:text-neutral-700 rounded-r-md border border-l-0 border-neutral-200 shadow-sm transition-colors cursor-pointer flex items-center justify-center"
         title={collapsed ? 'Show timeline' : 'Hide timeline'}
+        type="button"
       >
         <svg
           width="8"
           height="14"
           viewBox="0 0 8 14"
-          fill="currentColor"
-          className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}
+          fill="none"
+          className={`transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`}
         >
           <path
-            d="M7 1L1 7L7 13"
+            d="M6 1L1.5 7L6 13"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            fill="none"
           />
         </svg>
       </button>
 
       <div
-        className={`transition-all duration-300 ease-in-out overflow-hidden border-r border-neutral-200 h-full bg-white ${
-          collapsed ? 'w-0' : 'w-[56px]'
-        }`}
+        className="overflow-hidden border-r border-neutral-200 h-full bg-white"
+        style={{
+          width: collapsed ? 0 : 60,
+          transition: 'width 180ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
       >
         {!collapsed && (
-          <div className="h-full flex flex-col px-1 py-1 select-none">
-            <div className="text-[10px] font-medium text-neutral-500 mb-1 text-center leading-tight">
+          <div className="h-full flex flex-col px-1.5 py-2 select-none">
+            <div className="text-[9px] font-medium text-neutral-500 uppercase tracking-wider mb-2 text-center leading-tight">
               {formatDateLabel(dateRange.start)}
             </div>
 
             <div
               ref={trackRef}
-              className="flex-1 flex flex-col relative cursor-ns-resize"
+              className="flex-1 flex flex-col relative cursor-ns-resize group/track"
               onPointerDown={startDrag}
             >
-              <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-px bg-brand-300 pointer-events-none" />
+              <div className="absolute left-1/2 -translate-x-px top-0 bottom-0 w-px bg-neutral-200 pointer-events-none" />
 
               {viewCollections.map(({ collection }, _index) => {
                 if (!collection) return null;
                 const isActive = collection.id === liveCollectionId;
                 const segH = `${100 / totalCollections}%`;
-                const slices = collection.slices;
-                const _hasSlices = isActive && slices.length > 1;
 
                 return (
                   <div
@@ -307,21 +305,20 @@ const TimelineSidebar = ({
                     style={{ height: segH, minHeight: segH }}
                   >
                     {isActive ? (
-                      <div
-                        className="absolute inset-x-0 inset-y-0 flex flex-col items-center justify-center
-                        border-2 border-brand-500 rounded bg-brand-50 z-10 py-1 gap-0.5"
-                      >
-                        <span className="text-[8px] font-bold text-brand-700 leading-tight text-center px-0.5 break-words w-full">
+                      <div className="absolute inset-x-0 inset-y-0.5 flex flex-col items-center justify-center bg-brand-50 border border-brand-500 rounded-md shadow-sm z-10 px-0.5">
+                        <span className="text-[9px] font-semibold text-brand-800 leading-tight text-center break-words w-full">
                           {collection.name}
                         </span>
                       </div>
                     ) : (
                       <div
-                        className="absolute inset-x-0 inset-y-0 flex items-center justify-center
-                        group rounded transition-all duration-150 hover:bg-neutral-50 hover:border hover:border-brand-300 z-10"
+                        className="absolute inset-x-0 inset-y-0 flex items-center justify-center z-10"
                         title={collection.name}
                       >
-                        <div className="w-3 h-px bg-neutral-300 group-hover:bg-brand-500 transition-colors" />
+                        <div className="relative flex items-center justify-center w-full h-full">
+                          <div className="h-px w-3 bg-neutral-300 group-hover/track:bg-neutral-400 transition-colors" />
+                          <div className="absolute inset-x-1 inset-y-0 rounded hover:bg-neutral-100/70 transition-colors" />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -330,20 +327,17 @@ const TimelineSidebar = ({
 
               {isDragging && tooltip && (
                 <div
-                  className="absolute left-full ml-2 z-50 pointer-events-none"
-                  style={{ top: Math.max(0, tooltip.y - 16) }}
+                  className="absolute left-full ml-3 z-50 pointer-events-none"
+                  style={{ top: Math.max(0, tooltip.y - 14) }}
                 >
-                  <div
-                    className="bg-neutral-900 text-white text-[10px] rounded px-2 py-1
-                    shadow-lg whitespace-nowrap border border-neutral-700 leading-snug"
-                  >
+                  <div className="bg-neutral-800 text-white text-[10px] rounded-md px-2.5 py-1.5 shadow-lg whitespace-nowrap leading-snug">
                     {tooltip.text}
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="text-[10px] font-medium text-neutral-500 mt-1 text-center leading-tight">
+            <div className="text-[9px] font-medium text-neutral-500 uppercase tracking-wider mt-2 text-center leading-tight">
               {formatDateLabel(dateRange.end)}
             </div>
           </div>

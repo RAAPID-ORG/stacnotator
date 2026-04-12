@@ -272,7 +272,7 @@ export const MainAnnotationsContainer = ({
         {/* Top-right controls for task mode */}
         {isTaskMode && (
           <div
-            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2 select-none"
             data-tour="map-controls"
           >
             {/* Selectors row */}
@@ -351,7 +351,7 @@ export const MainAnnotationsContainer = ({
               {windowCollections.length > 1 && (
                 <button
                   onClick={toggleViewSync}
-                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     viewSyncEnabled
                       ? 'Unlink (sync) small windows from main map pan/zoom. Use this if you internet connection is slow. (L)'
@@ -391,7 +391,7 @@ export const MainAnnotationsContainer = ({
               {isTaskMode && (
                 <button
                   onClick={togglePreloading}
-                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     preloadingEnabled
                       ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading). Preloading only applies to cover slices at the default zoom level. Ensure to set the default zoom level appropriately for your campaign to get the best experience.'
@@ -450,7 +450,7 @@ export const MainAnnotationsContainer = ({
 
         {isOpenMode && (
           <div
-            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2"
+            className="absolute top-2.5 right-2.5 z-[1000] flex items-start gap-2 select-none"
             data-tour="map-controls"
           >
             {/* Selectors row */}
@@ -540,7 +540,7 @@ export const MainAnnotationsContainer = ({
               {windowCollections.length > 1 && (
                 <button
                   onClick={toggleViewSync}
-                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     viewSyncEnabled
                       ? 'Unlink (sync) small windows from main map pan/zoom (L)'
@@ -580,7 +580,7 @@ export const MainAnnotationsContainer = ({
               {isTaskMode && (
                 <button
                   onClick={togglePreloading}
-                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-500 text-white border-brand-500 hover:bg-brand-600' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
+                  className={`p-1.5 rounded-md border shadow-sm backdrop-blur-sm transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700' : 'bg-white/95 text-neutral-400 border-white/60 hover:bg-white hover:text-neutral-600'}`}
                   title={
                     preloadingEnabled
                       ? 'Disable tile preloading (prefetches tiles for faster navigation)'

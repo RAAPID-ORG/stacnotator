@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { UserOutDetailed } from '~/api/client';
+import { Button } from '~/shared/ui/forms';
 
 export type PlatformUsersTableProps = {
   users: UserOutDetailed[];
@@ -110,60 +111,59 @@ export const PlatformUsersTable = ({
   const allSelected = selectedUsers.size === users.length && users.length > 0;
   const someSelected = selectedUsers.size > 0 && selectedUsers.size < users.length;
 
+  // Compact inline action button. Consistent height + radius with everything
+  // else, just scaled down for a dense table row.
+  const rowActionCls =
+    'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+
   return (
     <div className="space-y-4">
-      {/* Bulk Actions */}
+      {/* Bulk actions strip */}
       {selectedUsers.size > 0 && (
-        <div className="bg-brand-50 border border-brand-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-brand-800">
-              {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} selected
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleBulkAction('approve')}
-                disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => handleBulkAction('revoke')}
-                disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-red-400 text-white rounded hover:bg-red-600 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Revoke Approval
-              </button>
-              <button
-                onClick={() => handleBulkAction('deny')}
-                disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Deny
-              </button>
-              <button
-                onClick={() => handleBulkAction('grant-admin')}
-                disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-brand-400 text-white rounded hover:bg-brand-500 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Make Admin
-              </button>
-              <button
-                onClick={() => handleBulkAction('revoke-admin')}
-                disabled={processingAction}
-                className="px-3 py-1.5 text-sm bg-amber-400 text-white rounded hover:bg-amber-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-              >
-                Revoke Admin
-              </button>
-            </div>
+        <div className="bg-brand-50 border border-brand-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-brand-800">
+            {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} selected
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => handleBulkAction('approve')}
+              disabled={processingAction}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleBulkAction('revoke')}
+              disabled={processingAction}
+            >
+              Revoke approval
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => handleBulkAction('deny')}
+              disabled={processingAction}
+            >
+              Deny
+            </Button>
+            <Button onClick={() => handleBulkAction('grant-admin')} disabled={processingAction}>
+              Make admin
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleBulkAction('revoke-admin')}
+              disabled={processingAction}
+            >
+              Revoke admin
+            </Button>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto border border-neutral-200 rounded-lg">
+      <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
         <table className="w-full">
-          <thead className="bg-neutral-50 border-b border-neutral-200">
+          <thead className="bg-neutral-50/50 border-b border-neutral-200">
             <tr>
               <th className="w-12 px-4 py-3 text-left">
                 <input
@@ -179,36 +179,42 @@ export const PlatformUsersTable = ({
                   className="w-4 h-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Email</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">
-                Display Name
+              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                Email
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-neutral-700">Role</th>
-              <th className="px-4 py-3 text-right text-sm font-semibold text-neutral-700">
+              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                Display name
+              </th>
+              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                Role
+              </th>
+              <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-200">
+          <tbody className="divide-y divide-neutral-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8">
+                <td colSpan={6} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-brand-600"></div>
-                    <span className="text-sm text-neutral-600">Loading users...</span>
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
+                    <span className="text-xs text-neutral-500">Loading users…</span>
                   </div>
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-neutral-500">
                   No users found
                 </td>
               </tr>
             ) : (
               users.map((user) => (
-                <tr key={user.id} className="hover:bg-neutral-50 transition-colors">
+                <tr key={user.id} className="hover:bg-neutral-50/60 transition-colors">
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -219,13 +225,13 @@ export const PlatformUsersTable = ({
                     />
                   </td>
                   <td className="px-4 py-3 text-sm text-neutral-900">{user.email}</td>
-                  <td className="px-4 py-3 text-sm text-neutral-700">{user.display_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
                         user.is_approved
-                          ? 'bg-neutral-100 text-neutral-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-brand-50 text-brand-800 border-brand-200'
+                          : 'bg-yellow-50 text-yellow-800 border-yellow-200'
                       }`}
                     >
                       {user.is_approved ? 'Approved' : 'Pending'}
@@ -233,30 +239,32 @@ export const PlatformUsersTable = ({
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
                         user.is_admin
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-neutral-100 text-neutral-800'
+                          ? 'bg-accent-50 text-accent-800 border-accent-200'
+                          : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
                       {user.is_admin ? 'Admin' : 'User'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-1.5">
                       {!user.is_approved ? (
                         <>
                           <button
                             onClick={() => handleSingleAction(user.id, 'approve')}
                             disabled={processingAction}
-                            className="px-2 py-1 text-xs bg-neutral-200 text-neutral-800 rounded hover:bg-neutral-400 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                            className={`${rowActionCls} bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50`}
+                            type="button"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => handleSingleAction(user.id, 'deny')}
                             disabled={processingAction}
-                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                            className={`${rowActionCls} text-red-600 hover:bg-red-50`}
+                            type="button"
                           >
                             Deny
                           </button>
@@ -265,26 +273,29 @@ export const PlatformUsersTable = ({
                         <button
                           onClick={() => handleSingleAction(user.id, 'revoke')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-red-200 text-white rounded hover:bg-red-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-red-600 hover:bg-red-50`}
+                          type="button"
                         >
-                          Revoke Approval
+                          Revoke approval
                         </button>
                       )}
                       {!user.is_admin ? (
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-brand-500 text-white rounded hover:bg-brand-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-brand-700 hover:bg-brand-50`}
+                          type="button"
                         >
-                          Make Admin
+                          Make admin
                         </button>
                       ) : (
                         <button
                           onClick={() => handleSingleAction(user.id, 'revoke-admin')}
                           disabled={processingAction}
-                          className="px-2 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-amber-700 hover:bg-amber-50`}
+                          type="button"
                         >
-                          Revoke Admin
+                          Revoke admin
                         </button>
                       )}
                     </div>

@@ -8,6 +8,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
+import { Dropdown } from '~/shared/ui/motion';
 
 const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
@@ -106,7 +107,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
     taskFilter.assignedTo[0] === currentUser.id;
 
   return (
-    <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[280px] p-3">
+    <div className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[280px] p-3">
       <div className="space-y-3">
         {/* Assigned To Section */}
         <div>
@@ -118,7 +119,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
               onClick={handleShowAll}
               className={`px-2 py-1 text-xs rounded ${
                 isShowingAll
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-600 text-white'
                   : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
             >
@@ -129,7 +130,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
                 onClick={handleShowMine}
                 className={`px-2 py-1 text-xs rounded ${
                   isShowingMineOnly
-                    ? 'bg-brand-500 text-white'
+                    ? 'bg-brand-600 text-white'
                     : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                 }`}
               >
@@ -410,7 +411,7 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-4 py-0.5 bg-white border-b border-neutral-200 flex-shrink-0"
+      className="flex items-center justify-between px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0"
     >
       <div className="flex items-center gap-2">
         {/* Views Dropdown */}
@@ -429,31 +430,32 @@ export const AnnotationToolbar = () => {
               <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
             </svg>
           </button>
-          {showImageryDropdown && (
-            <div className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto">
-              {views.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>
-              ) : (
-                views.map((view) => (
-                  <button
-                    key={view.id}
-                    onClick={() => {
-                      setSelectedViewId(view.id);
-                      setShowImageryDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
-                      selectedViewId === view.id
-                        ? 'bg-neutral-100 text-brand-700 font-medium'
-                        : 'text-neutral-900'
-                    }`}
-                    type="button"
-                  >
-                    <div className="font-medium">{view.name}</div>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
+          <Dropdown
+            open={showImageryDropdown}
+            className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto origin-top-left"
+          >
+            {views.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>
+            ) : (
+              views.map((view) => (
+                <button
+                  key={view.id}
+                  onClick={() => {
+                    setSelectedViewId(view.id);
+                    setShowImageryDropdown(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 transition-colors ${
+                    selectedViewId === view.id
+                      ? 'bg-neutral-100 text-brand-700 font-medium'
+                      : 'text-neutral-900'
+                  }`}
+                  type="button"
+                >
+                  <div className="font-medium">{view.name}</div>
+                </button>
+              ))
+            )}
+          </Dropdown>
         </div>
 
         {/* Task Filter Dropdown */}
@@ -473,9 +475,12 @@ export const AnnotationToolbar = () => {
                 <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
               </svg>
             </button>
-            {showTaskFilterDropdown && (
+            <Dropdown
+              open={showTaskFilterDropdown}
+              className="absolute top-full left-0 mt-1 origin-top-left z-20"
+            >
               <TaskFilterPanel onClose={() => setShowTaskFilterDropdown(false)} />
-            )}
+            </Dropdown>
           </div>
         )}
 
@@ -583,56 +588,57 @@ export const AnnotationToolbar = () => {
               <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
             </svg>
           </button>
-          {showExportDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[240px]">
-              {campaign?.mode === 'tasks' && (
-                <label
-                  className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${
-                    hasConflicts
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'cursor-pointer hover:bg-neutral-50'
-                  }`}
-                  title={
-                    hasConflicts
-                      ? 'Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.'
-                      : undefined
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    checked={mergeOnAgreement}
-                    disabled={hasConflicts}
-                    onChange={(e) => setMergeOnAgreement(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span className="text-[11px] leading-snug text-neutral-700">
-                    <span className="font-medium block">Merge on agreement</span>
-                    <span className="text-neutral-500">
-                      {hasConflicts
-                        ? 'Disabled - resolve conflicting tasks first.'
-                        : 'Collapse multi-annotator tasks into one row when all agree.'}
-                    </span>
+          <Dropdown
+            open={showExportDropdown}
+            className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[240px] origin-top-left"
+          >
+            {campaign?.mode === 'tasks' && (
+              <label
+                className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${
+                  hasConflicts
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'cursor-pointer hover:bg-neutral-50'
+                }`}
+                title={
+                  hasConflicts
+                    ? 'Disabled: this campaign has conflicting tasks. Resolve them in review mode before merging on agreement.'
+                    : undefined
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={mergeOnAgreement}
+                  disabled={hasConflicts}
+                  onChange={(e) => setMergeOnAgreement(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-[11px] leading-snug text-neutral-700">
+                  <span className="font-medium block">Merge on agreement</span>
+                  <span className="text-neutral-500">
+                    {hasConflicts
+                      ? 'Disabled - resolve conflicting tasks first.'
+                      : 'Collapse multi-annotator tasks into one row when all agree.'}
                   </span>
-                </label>
-              )}
-              <button
-                onClick={() => handleExport('geojson')}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
-                type="button"
-              >
-                <div className="font-medium">GeoJSON</div>
-                <div className="text-[10px] text-neutral-500">FeatureCollection (.geojson)</div>
-              </button>
-              <button
-                onClick={() => handleExport('csv')}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
-                type="button"
-              >
-                <div className="font-medium">CSV</div>
-                <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
-              </button>
-            </div>
-          )}
+                </span>
+              </label>
+            )}
+            <button
+              onClick={() => handleExport('geojson')}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
+              type="button"
+            >
+              <div className="font-medium">GeoJSON</div>
+              <div className="text-[10px] text-neutral-500">FeatureCollection (.geojson)</div>
+            </button>
+            <button
+              onClick={() => handleExport('csv')}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
+              type="button"
+            >
+              <div className="font-medium">CSV</div>
+              <div className="text-[10px] text-neutral-500">Tabular export (.csv)</div>
+            </button>
+          </Dropdown>
         </div>
       </div>
 
@@ -675,28 +681,29 @@ export const AnnotationToolbar = () => {
                   <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
                 </svg>
               </button>
-              {showSaveDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-300 rounded shadow-lg z-20 min-w-[160px]">
+              <Dropdown
+                open={showSaveDropdown}
+                className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[160px] origin-top-left"
+              >
+                <button
+                  onClick={() => handleSaveLayout(false)}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
+                  type="button"
+                >
+                  <div className="font-medium">Save as personal</div>
+                  <div className="text-[10px] text-neutral-500">Only for you</div>
+                </button>
+                {isCampaignAdmin && (
                   <button
-                    onClick={() => handleSaveLayout(false)}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900"
+                    onClick={() => handleSaveLayout(true)}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
                     type="button"
                   >
-                    <div className="font-medium">Save as Personal</div>
-                    <div className="text-[10px] text-neutral-500">Only for you</div>
+                    <div className="font-medium">Save as default</div>
+                    <div className="text-[10px] text-neutral-500">For all users</div>
                   </button>
-                  {isCampaignAdmin && (
-                    <button
-                      onClick={() => handleSaveLayout(true)}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 transition-colors text-neutral-900 border-t border-neutral-200"
-                      type="button"
-                    >
-                      <div className="font-medium">Save as Default</div>
-                      <div className="text-[10px] text-neutral-500">For all users</div>
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </Dropdown>
             </div>
             <button
               onClick={handleResetLayout}
@@ -776,41 +783,42 @@ export const AnnotationToolbar = () => {
               <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
             </svg>
           </button>
-          {showGuide && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col">
-              <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
-                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
-                  Campaign Guide
-                </span>
-                <button
-                  onClick={toggleGuide}
-                  className="text-neutral-400 hover:text-neutral-600"
-                  type="button"
+          <Dropdown
+            open={showGuide}
+            className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 w-[420px] max-h-[70vh] flex flex-col origin-top-right"
+          >
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-neutral-100">
+              <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Campaign guide
+              </span>
+              <button
+                onClick={toggleGuide}
+                className="text-neutral-400 hover:text-neutral-600"
+                type="button"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-              <div className="overflow-y-auto px-4 py-3">
-                <div className="markdown-body">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['html']}>
-                    {campaign.settings?.guide_markdown || 'No guide available for this campaign.'}
-                  </ReactMarkdown>
-                </div>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto px-4 py-3">
+              <div className="markdown-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml disallowedElements={['html']}>
+                  {campaign.settings?.guide_markdown || 'No guide available for this campaign.'}
+                </ReactMarkdown>
               </div>
             </div>
-          )}
+          </Dropdown>
         </div>
 
         {/* Keyboard Shortcuts Help */}
@@ -841,89 +849,90 @@ export const AnnotationToolbar = () => {
             </svg>
           </button>
 
-          {showKeyboardHelp && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] max-h-[70vh] overflow-y-auto p-3">
-              <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                Keyboard Shortcuts
-              </div>
-              {campaign.mode === 'open' ? (
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
-                    Tools
-                  </div>
-                  {(
-                    [
-                      { key: 'V', description: 'Pan tool' },
-                      { key: 'R', description: 'Annotate tool' },
-                      { key: 'E', description: 'Edit tool' },
-                      { key: 'T', description: 'Timeseries probe' },
-                      { key: '1-9', description: 'Select label & annotate' },
-                      { key: 'Space', description: 'Fit view to annotations' },
-                      { key: 'Alt+drag', description: 'Move feature' },
-                      { key: 'Escape', description: 'Cancel / deselect edit' },
-                    ] as { key: string; description: string }[]
-                  ).map((shortcut) => (
-                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                      <span className="text-neutral-600">{shortcut.description}</span>
-                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                        {shortcut.key}
-                      </kbd>
-                    </div>
-                  ))}
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
-                    Navigation
-                  </div>
-                  {(
-                    [
-                      { key: 'A / D', description: 'Previous / Next slice' },
-                      { key: 'Shift+A / D', description: 'Previous / Next collection' },
-                    ] as { key: string; description: string }[]
-                  ).map((shortcut) => (
-                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                      <span className="text-neutral-600">{shortcut.description}</span>
-                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                        {shortcut.key}
-                      </kbd>
-                    </div>
-                  ))}
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
-                    Map
-                  </div>
-                  {(
-                    [
-                      { key: '↑ ↓ ← →', description: 'Pan map' },
-                      { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
-                      { key: 'O', description: 'Toggle crosshair' },
-                      { key: 'L', description: 'Toggle view link (sync)' },
-                      { key: 'I', description: 'Cycle imagery source' },
-                      { key: 'Shift+I', description: 'Cycle visualization' },
-                      { key: 'V', description: 'Cycle view' },
-                      { key: 'G', description: 'Toggle campaign guide' },
-                      { key: 'H', description: 'Toggle keyboard help' },
-                    ] as { key: string; description: string }[]
-                  ).map((shortcut) => (
-                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                      <span className="text-neutral-600">{shortcut.description}</span>
-                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                        {shortcut.key}
-                      </kbd>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {KEYBOARD_SHORTCUTS.map((shortcut) => (
-                    <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                      <span className="text-neutral-600">{shortcut.description}</span>
-                      <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                        {shortcut.key}
-                      </kbd>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <Dropdown
+            open={showKeyboardHelp}
+            className="absolute top-full right-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[220px] max-h-[70vh] overflow-y-auto p-3 origin-top-right"
+          >
+            <div className="text-[11px] font-medium text-neutral-500 mb-2 uppercase tracking-wider">
+              Keyboard shortcuts
             </div>
-          )}
+            {campaign.mode === 'open' ? (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
+                  Tools
+                </div>
+                {(
+                  [
+                    { key: 'V', description: 'Pan tool' },
+                    { key: 'R', description: 'Annotate tool' },
+                    { key: 'E', description: 'Edit tool' },
+                    { key: 'T', description: 'Timeseries probe' },
+                    { key: '1-9', description: 'Select label & annotate' },
+                    { key: 'Space', description: 'Fit view to annotations' },
+                    { key: 'Alt+drag', description: 'Move feature' },
+                    { key: 'Escape', description: 'Cancel / deselect edit' },
+                  ] as { key: string; description: string }[]
+                ).map((shortcut) => (
+                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-600">{shortcut.description}</span>
+                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                      {shortcut.key}
+                    </kbd>
+                  </div>
+                ))}
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                  Navigation
+                </div>
+                {(
+                  [
+                    { key: 'A / D', description: 'Previous / Next slice' },
+                    { key: 'Shift+A / D', description: 'Previous / Next collection' },
+                  ] as { key: string; description: string }[]
+                ).map((shortcut) => (
+                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-600">{shortcut.description}</span>
+                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                      {shortcut.key}
+                    </kbd>
+                  </div>
+                ))}
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
+                  Map
+                </div>
+                {(
+                  [
+                    { key: '↑ ↓ ← →', description: 'Pan map' },
+                    { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
+                    { key: 'O', description: 'Toggle crosshair' },
+                    { key: 'L', description: 'Toggle view link (sync)' },
+                    { key: 'I', description: 'Cycle imagery source' },
+                    { key: 'Shift+I', description: 'Cycle visualization' },
+                    { key: 'V', description: 'Cycle view' },
+                    { key: 'G', description: 'Toggle campaign guide' },
+                    { key: 'H', description: 'Toggle keyboard help' },
+                  ] as { key: string; description: string }[]
+                ).map((shortcut) => (
+                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-600">{shortcut.description}</span>
+                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                      {shortcut.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {KEYBOARD_SHORTCUTS.map((shortcut) => (
+                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
+                    <span className="text-neutral-600">{shortcut.description}</span>
+                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
+                      {shortcut.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Dropdown>
         </div>
       </div>
     </header>

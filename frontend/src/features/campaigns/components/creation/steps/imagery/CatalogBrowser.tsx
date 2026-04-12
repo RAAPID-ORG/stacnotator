@@ -766,7 +766,7 @@ export const CatalogBrowser = ({
           type="button"
           onClick={handleGenerate}
           disabled={!isValid}
-          className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
+          className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
         >
           {singleCollection
             ? 'Add Collection'
@@ -825,7 +825,7 @@ export const CatalogBrowser = ({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
-                className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
             )}
 
@@ -863,13 +863,13 @@ export const CatalogBrowser = ({
                         value={customCatalogUrl}
                         onChange={(e) => setCustomCatalogUrl(e.target.value)}
                         placeholder="https://earth-search.aws.element84.com/v1"
-                        className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-500 outline-none"
+                        className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-600 outline-none"
                       />
                       <button
                         type="button"
                         onClick={loadCustomCatalog}
                         disabled={!customCatalogUrl.trim()}
-                        className="px-3 py-1.5 text-xs bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
+                        className="px-3 py-1.5 text-xs bg-brand-600 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Load
                       </button>
@@ -1069,7 +1069,7 @@ export const CatalogBrowser = ({
                         onClick={() => setMode('mosaic')}
                         className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
                           mode === 'mosaic'
-                            ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                             : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
                         }`}
                       >
@@ -1080,7 +1080,7 @@ export const CatalogBrowser = ({
                         onClick={() => setMode('single-item')}
                         className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
                           mode === 'single-item'
-                            ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                             : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
                         }`}
                       >
@@ -1138,7 +1138,7 @@ export const CatalogBrowser = ({
                         <select
                           value={itemSort}
                           onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
-                          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                         >
                           <option value="date_desc">Date (newest first)</option>
                           <option value="date_asc">Date (oldest first)</option>
@@ -1188,7 +1188,7 @@ export const CatalogBrowser = ({
                               onChange={(e) =>
                                 setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
                               }
-                              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             />
                           </div>
                           <div className="space-y-1">
@@ -1200,7 +1200,7 @@ export const CatalogBrowser = ({
                                   e.target.value as 'weeks' | 'months' | 'years'
                                 )
                               }
-                              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             >
                               <option value="weeks">Weeks</option>
                               <option value="months">Months</option>
@@ -1223,7 +1223,7 @@ export const CatalogBrowser = ({
                             onChange={(e) =>
                               setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
                             }
-                            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                           />
                         </div>
                         <div className="space-y-1">
@@ -1235,7 +1235,7 @@ export const CatalogBrowser = ({
                                 e.target.value as 'days' | 'weeks' | 'months' | 'years'
                               )
                             }
-                            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                           >
                             <option value="days">Days</option>
                             <option value="weeks">Weeks</option>
@@ -1300,7 +1300,7 @@ export const CatalogBrowser = ({
                             min="1"
                             value={coverSliceNth}
                             onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
-                            className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+                            className="w-20 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs bg-transparent"
                           />
                         </div>
                       )}
@@ -1346,7 +1346,7 @@ export const CatalogBrowser = ({
                               <select
                                 value={coverItemSort}
                                 onChange={(e) => setCoverItemSort(e.target.value as ItemSortOption)}
-                                className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent"
+                                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                               >
                                 <option value="date_desc">Date (newest first)</option>
                                 <option value="date_asc">Date (oldest first)</option>
@@ -1560,7 +1560,7 @@ export const CatalogBrowser = ({
                           value={visualizations[activeVizIndex]?.name || ''}
                           onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
                           placeholder="e.g. True Color"
-                          className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                          className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                         />
                       </div>
 

@@ -7,6 +7,12 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <title>STACNotator</title>
+    <!-- Set the canvas background on the very first paint so there's no
+         flash of white before our CSS loads. Keep this RGB in sync with
+         --color-canvas in src/styles/app.css. -->
+    <style>
+      html, body { background: rgb(247, 246, 245); }
+    </style>
   </head>
   <body>
     <div id="root"></div>

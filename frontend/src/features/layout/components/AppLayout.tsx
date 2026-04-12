@@ -33,7 +33,7 @@ export const AppLayout = () => {
   } = useLayoutStore();
 
   return (
-    <div className="flex h-screen w-full bg-neutral-50">
+    <div className="flex h-screen w-full">
       {!isFullscreen && (
         <AppSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
       )}

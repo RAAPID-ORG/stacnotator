@@ -145,7 +145,7 @@ export const VizConfigPanel = ({
                   onClick={() => applyPreset(p)}
                   className={`text-xs px-2.5 py-1 rounded-md border transition-colors cursor-pointer ${
                     isActive
-                      ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                      ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                       : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50'
                   }`}
                 >
@@ -214,7 +214,7 @@ export const VizConfigPanel = ({
           <select
             value={vizParams.colormapName || 'viridis'}
             onChange={(e) => update('colormapName', e.target.value)}
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           >
             {COLORMAPS.map((cm) => (
               <option key={cm.value} value={cm.value}>
@@ -243,7 +243,7 @@ export const VizConfigPanel = ({
               }}
               className={`flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors cursor-pointer ${
                 rescaleMode === mode
-                  ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                  ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
                   : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
               }`}
             >
@@ -258,7 +258,7 @@ export const VizConfigPanel = ({
               value={vizParams.rescale || ''}
               onChange={(e) => update('rescale', e.target.value)}
               placeholder={defaultRescale || 'e.g. 0,3000'}
-              className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
             />
             <p className="text-[11px] text-neutral-400">
               Fixed min,max applied to each band.
@@ -287,7 +287,7 @@ export const VizConfigPanel = ({
           <select
             value={vizParams.compositing || 'first'}
             onChange={(e) => update('compositing', e.target.value)}
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           >
             <option value="first">First valid pixel</option>
             <option value="mean">Mean</option>
@@ -332,7 +332,7 @@ export const VizConfigPanel = ({
                 value={vizParams.expression || ''}
                 onChange={(e) => update('expression', e.target.value || undefined)}
                 placeholder="e.g. (B08-B04)/(B08+B04)"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
               <p className="text-[11px] text-neutral-400">
                 Math on asset bands. Overrides band selection for rendering.
@@ -345,7 +345,7 @@ export const VizConfigPanel = ({
                 value={vizParams.colorFormula || ''}
                 onChange={(e) => update('colorFormula', e.target.value || undefined)}
                 placeholder="e.g. gamma RGB 3.5 saturation 1.7"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
             </div>
             <div className="space-y-1">
@@ -353,7 +353,7 @@ export const VizConfigPanel = ({
               <select
                 value={vizParams.resampling || ''}
                 onChange={(e) => update('resampling', e.target.value || undefined)}
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               >
                 <option value="">Default (nearest)</option>
                 <option value="bilinear">Bilinear</option>
@@ -369,7 +369,7 @@ export const VizConfigPanel = ({
                 value={vizParams.maskLayer ?? ''}
                 onChange={(e) => update('maskLayer', e.target.value || undefined)}
                 placeholder="e.g. SCL"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
               <p className="text-[10px] text-neutral-400">
                 Asset name used as pixel mask (e.g. SCL for Sentinel-2 Scene Classification)
@@ -392,7 +392,7 @@ export const VizConfigPanel = ({
                   )
                 }
                 placeholder="e.g. 0, 1, 8, 9, 10"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
               <p className="text-[10px] text-neutral-400">
                 Pixel values in the mask layer to exclude (clouds, nodata, shadows, etc.)
@@ -423,7 +423,7 @@ export const VizConfigPanel = ({
                   update('extraParams', Object.keys(params).length > 0 ? params : undefined);
                 }}
                 placeholder="e.g. asset_bidx=image|1,2,3&post_process=..."
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
               <p className="text-[10px] text-neutral-400">
                 Additional query parameters passed directly to the tiler. Format:

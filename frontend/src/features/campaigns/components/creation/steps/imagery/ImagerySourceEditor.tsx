@@ -124,7 +124,7 @@ export const ImagerySourceEditor = ({
               max="22"
               value={source.defaultZoom}
               onChange={(e) => onChange({ defaultZoom: Number(e.target.value) })}
-              className="w-14 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
+              className="w-14 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs text-center"
             />
             {source.defaultZoom < 10 && (
               <span className="text-[10px] text-amber-600">
@@ -173,7 +173,7 @@ export const ImagerySourceEditor = ({
                 placeholder="e.g. True Color"
                 value={viz.name}
                 onChange={(e) => renameVisualization(i, e.target.value)}
-                className="flex-1 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                className="flex-1 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
               />
               <button
                 type="button"
@@ -250,7 +250,7 @@ export const ImagerySourceEditor = ({
                   }}
                   title="Click to configure"
                   className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
-                    px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/5"
+                    px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/5"
                 >
                   <IconSettings className="w-3 h-3 mr-1.5 shrink-0 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
                   <span className="text-xs font-medium leading-tight truncate max-w-[120px]">
@@ -301,9 +301,9 @@ export const ImagerySourceEditor = ({
               className="w-full text-left px-4 py-3.5 rounded-lg bg-brand-50 border border-brand-200 hover:bg-brand-100 cursor-pointer transition-colors"
             >
               <span className="text-sm font-semibold text-brand-700 flex items-center gap-1.5">
-                <IconStac className="w-3.5 h-3.5 text-brand-500" />
+                <IconStac className="w-3.5 h-3.5 text-brand-700" />
                 Temporal Series
-                <span className="ml-auto text-[10px] font-medium bg-brand-500 text-white px-1.5 py-0.5 rounded-full">
+                <span className="ml-auto text-[10px] font-medium bg-brand-600 text-white px-1.5 py-0.5 rounded-full">
                   Recommended
                 </span>
               </span>

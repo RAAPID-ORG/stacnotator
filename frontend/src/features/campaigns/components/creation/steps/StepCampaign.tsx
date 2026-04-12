@@ -1,4 +1,5 @@
 import type { CampaignCreate } from '~/api/client';
+import { Input } from '~/shared/ui/forms';
 export const StepCampaign = ({
   form,
   setForm,
@@ -11,9 +12,8 @@ export const StepCampaign = ({
       <div className="space-y-4">
         <p className="text-sm text-neutral-700">Give your campaign a clear, human-readable name.</p>
 
-        <input
-          className="w-full border-brand-500 border-b focus:border-b focus:border-b-2 outline-none focus:ring-0"
-          placeholder="Your Campaign Name..."
+        <Input
+          placeholder="Your campaign name…"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
@@ -30,7 +30,7 @@ export const StepCampaign = ({
               value="tasks"
               checked={form.mode === 'tasks'}
               onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-500 focus:ring-brand-500"
+              className="mt-1 text-brand-700 focus:ring-brand-600"
             />
             <div className="flex-1">
               <div className="font-medium text-sm text-neutral-900">Tasks</div>
@@ -47,7 +47,7 @@ export const StepCampaign = ({
               value="open"
               checked={form.mode === 'open'}
               onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-500 focus:ring-brand-500"
+              className="mt-1 text-brand-700 focus:ring-brand-600"
             />
             <div className="flex-1">
               <div className="font-medium text-sm text-neutral-900">Open</div>
@@ -67,7 +67,7 @@ export const StepCampaign = ({
             type="checkbox"
             checked={form.is_public ?? false}
             onChange={(e) => setForm({ ...form, is_public: e.target.checked })}
-            className="mt-1 text-brand-500 focus:ring-brand-500"
+            className="mt-1 text-brand-700 focus:ring-brand-600"
           />
           <div className="flex-1">
             <div className="font-medium text-sm text-neutral-900">Public campaign</div>

@@ -26,6 +26,7 @@
     "chart.js": "^4.5.1",
     "chartjs-plugin-zoom": "^2.2.0",
     "firebase": "^12.7.0",
+    "framer-motion": "^12.38.0",
     "isbot": "^5.1.31",
     "leaflet": "^1.9.4",
     "leaflet-edgebuffer": "^1.0.7",

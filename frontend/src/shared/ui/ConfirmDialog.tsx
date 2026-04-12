@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Button } from './forms';
+import { AnimatePresence, motion, dialogBackdropVariants, dialogPanelVariants } from './motion';
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
@@ -27,8 +29,6 @@ export const ConfirmDialog = ({
 }: ConfirmDialogProps) => {
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
-  if (!isOpen) return null;
-
   const handleConfirm = async () => {
     await onConfirm(showDontAskAgain ? dontAskAgain : undefined);
     setDontAskAgain(false);
@@ -40,46 +40,62 @@ export const ConfirmDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 animate-scale-in">
-        <div className="p-6">
-          <h2 className="text-lg font-semibold text-brand-800 mb-2">{title}</h2>
-          {description && <p className="text-sm text-neutral-600 mb-6">{description}</p>}
-          {showDontAskAgain && (
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={dontAskAgain}
-                onChange={(e) => setDontAskAgain(e.target.checked)}
-                className="w-4 h-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500 cursor-pointer"
-              />
-              <span className="text-xs text-neutral-600">Don't ask again this session</span>
-            </label>
-          )}
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50"
+          variants={dialogBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+        >
+          <motion.div
+            className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 border border-neutral-200"
+            variants={dialogPanelVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <div className="p-6">
+              <h2 className="text-base font-semibold text-neutral-900 mb-1.5">{title}</h2>
+              {description && (
+                <p className="text-sm text-neutral-600 mb-5 leading-relaxed">{description}</p>
+              )}
+              {showDontAskAgain && (
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={dontAskAgain}
+                    onChange={(e) => setDontAskAgain(e.target.checked)}
+                    className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer"
+                  />
+                  <span className="text-xs text-neutral-600">
+                    Don&apos;t ask again this session
+                  </span>
+                </label>
+              )}
+            </div>
 
-        <div className="border-t border-neutral-200 flex gap-3 p-4 justify-end">
-          <button
-            onClick={handleCancel}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={isLoading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-              isDangerous ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-500 hover:bg-brand-700'
-            }`}
-          >
-            {isLoading && (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-            )}
-            {confirmText}
-          </button>
-        </div>
-      </div>
-    </div>
+            <div className="border-t border-neutral-100 flex gap-2 p-4 justify-end bg-neutral-50/50 rounded-b-xl">
+              <Button variant="secondary" onClick={handleCancel} disabled={isLoading}>
+                {cancelText}
+              </Button>
+              <Button
+                variant={isDangerous ? 'danger' : 'primary'}
+                onClick={handleConfirm}
+                disabled={isLoading}
+                leading={
+                  isLoading ? (
+                    <div className="w-4 h-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : undefined
+                }
+              >
+                {confirmText}
+              </Button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

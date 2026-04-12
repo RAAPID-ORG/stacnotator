@@ -16,7 +16,7 @@ export const Breadcrumbs = ({ items }: BreadcrumbsProps) => {
   const allItems: BreadcrumbItem[] = [{ label: 'Home', path: '/' }, ...items];
 
   return (
-    <header className="px-4 py-1.5 text-sm font-normal bg-neutral-50 border-b border-neutral-200 flex-shrink-0">
+    <header className="px-4 py-1.5 text-xs bg-white border-b border-neutral-200 flex-shrink-0">
       <nav className="flex items-center">
         {allItems.map((item, index) => {
           const isLast = index === allItems.length - 1;
@@ -26,15 +26,14 @@ export const Breadcrumbs = ({ items }: BreadcrumbsProps) => {
               {item.path && !isLast ? (
                 <Link
                   to={item.path}
-                  className="text-neutral-700 hover:text-brand-700 px-2 py-0.5 rounded transition-colors pointer-cursor"
+                  className="text-neutral-500 hover:text-neutral-900 px-2 py-0.5 rounded transition-colors"
                 >
                   {item.label}
                 </Link>
               ) : (
-                <span className="font-semibold text-brand-700 px-2 py-0.5">{item.label}</span>
+                <span className="font-medium text-neutral-900 px-2 py-0.5">{item.label}</span>
               )}
-
-              {!isLast && <span className="text-neutral-700"> / </span>}
+              {!isLast && <span className="text-neutral-300">/</span>}
             </span>
           );
         })}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
+import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/features/layout/layout.store';
 import {
   listUsers,
@@ -19,6 +20,7 @@ import {
   PasswordRequirementsList,
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
+import { FadeIn } from '~/shared/ui/motion';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
@@ -293,79 +295,235 @@ export const SettingsPage = () => {
     );
   }
 
+  const sectionCls =
+    'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
+
   return (
     <>
       <div className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto p-8">
-          <div className="mb-3">
-            <h1 className="text-3xl font-bold text-brand-800 mb-2">Settings</h1>
-            <p className="text-sm text-neutral-600">Manage your profile and platform settings</p>
-          </div>
+        <FadeIn className="page">
+          <header className="page-header">
+            <div>
+              <h1 className="page-title">Settings</h1>
+              <p className="page-subtitle">Manage your profile and platform settings.</p>
+            </div>
+          </header>
 
-          {/* Tab Navigation */}
-          <div className="flex gap-4 mb-3 border-b border-neutral-200">
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`px-4 py-3 border-b-2 transition-colors ${
-                activeTab === 'profile'
-                  ? 'border-brand-600 text-brand-800 font-medium'
-                  : 'border-transparent text-neutral-600 hover:text-brand-800'
-              }`}
-              type="button"
-            >
-              Profile
-            </button>
-            {account.is_admin && (
+          <div className="surface">
+            {/* Tab nav inset into the surface header */}
+            <div className="flex gap-4 px-6 border-b border-neutral-200">
               <button
-                onClick={() => setActiveTab('users')}
-                className={`px-4 py-3 border-b-2 transition-colors ${
-                  activeTab === 'users'
-                    ? 'border-brand-600 text-brand-800 font-medium'
-                    : 'border-transparent text-neutral-600 hover:text-brand-800'
+                onClick={() => setActiveTab('profile')}
+                className={`px-1 py-3 border-b-2 transition-colors ${
+                  activeTab === 'profile'
+                    ? 'border-brand-600 text-brand-700 font-medium'
+                    : 'border-transparent text-neutral-500 hover:text-brand-700'
                 }`}
                 type="button"
               >
-                User Management
+                Profile
               </button>
-            )}
-          </div>
+              {account.is_admin && (
+                <button
+                  onClick={() => setActiveTab('users')}
+                  className={`px-1 py-3 border-b-2 transition-colors ${
+                    activeTab === 'users'
+                      ? 'border-brand-600 text-brand-700 font-medium'
+                      : 'border-transparent text-neutral-500 hover:text-brand-700'
+                  }`}
+                  type="button"
+                >
+                  User management
+                </button>
+              )}
+            </div>
 
-          {/* Tab Content */}
-          {activeTab === 'profile' && (
-            <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-neutral-200 p-6">
-                <h2 className="text-lg font-semibold text-brand-800 mb-4">Profile Information</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">Email</label>
-                    <input
-                      type="text"
-                      value={account.email}
-                      disabled
-                      className="w-full border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Display Name
-                    </label>
-                    {isEditingDisplayName ? (
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={displayNameInput}
-                          onChange={(e) => setDisplayNameInput(e.target.value)}
-                          disabled={saving}
-                          className="flex-1 border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                          placeholder="Enter display name"
-                          autoFocus
-                        />
-                        <button
-                          onClick={handleSaveDisplayName}
-                          disabled={saving || !displayNameInput.trim()}
-                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            <div className="p-6">
+              {/* Tab Content */}
+              {activeTab === 'profile' && (
+                <div>
+                  <section className={sectionCls}>
+                    <h2 className="section-heading">Profile information</h2>
+                    <div className="space-y-4">
+                      <Field label="Email">
+                        <Input type="text" value={account.email} disabled />
+                      </Field>
+                      <Field label="Display name">
+                        {isEditingDisplayName ? (
+                          <div className="flex gap-2">
+                            <Input
+                              type="text"
+                              value={displayNameInput}
+                              onChange={(e) => setDisplayNameInput(e.target.value)}
+                              disabled={saving}
+                              placeholder="Enter display name"
+                              autoFocus
+                            />
+                            <Button
+                              onClick={handleSaveDisplayName}
+                              disabled={saving || !displayNameInput.trim()}
+                              leading={
+                                saving ? (
+                                  <svg
+                                    className="w-4 h-4 animate-spin"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    />
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    />
+                                  </svg>
+                                ) : undefined
+                              }
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={handleCancelEditDisplayName}
+                              disabled={saving}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              type="text"
+                              value={account.display_name || ''}
+                              disabled
+                              placeholder="No display name set"
+                            />
+                            <Button variant="secondary" onClick={handleStartEditDisplayName}>
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </Field>
+                      <Field label="Account status">
+                        <div className="flex gap-2">
+                          <span
+                            className={`inline-flex px-3 py-1.5 text-xs font-medium rounded-full ${
+                              account.is_approved
+                                ? 'bg-brand-50 text-brand-800 border border-brand-200'
+                                : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                            }`}
+                          >
+                            {account.is_approved ? 'Approved' : 'Pending approval'}
+                          </span>
+                          {account.is_admin && (
+                            <span className="inline-flex px-3 py-1.5 text-xs font-medium rounded-full bg-brand-100 text-brand-800 border border-brand-200">
+                              Administrator
+                            </span>
+                          )}
+                        </div>
+                      </Field>
+                    </div>
+                  </section>
+
+                  {/* Change Password - only for email/password-authenticated users */}
+                  {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
+                    <section className={sectionCls}>
+                      <h2 className="section-heading">Change password</h2>
+
+                      {!isChangingPassword ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setIsChangingPassword(true);
+                            setPasswordError(null);
+                            setPasswordSuccess(false);
+                          }}
                         >
-                          {saving && (
+                          Change password
+                        </Button>
+                      ) : (
+                        <div className="space-y-4 max-w-md">
+                          {passwordError && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                              {passwordError}
+                            </div>
+                          )}
+                          <Field label="Current password">
+                            <Input
+                              type="password"
+                              value={currentPassword}
+                              onChange={(e) => setCurrentPassword(e.target.value)}
+                              disabled={saving}
+                              autoComplete="current-password"
+                            />
+                          </Field>
+                          <Field label="New password">
+                            <Input
+                              type="password"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              disabled={saving}
+                              autoComplete="new-password"
+                            />
+                            <PasswordRequirementsList password={newPassword} />
+                          </Field>
+                          <Field label="Confirm new password">
+                            <Input
+                              type="password"
+                              value={confirmNewPassword}
+                              onChange={(e) => setConfirmNewPassword(e.target.value)}
+                              disabled={saving}
+                              autoComplete="new-password"
+                            />
+                          </Field>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={handleChangePassword}
+                              disabled={saving || !newPasswordMeetsRequirements}
+                            >
+                              {saving ? 'Saving…' : 'Update password'}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                setIsChangingPassword(false);
+                                setCurrentPassword('');
+                                setNewPassword('');
+                                setConfirmNewPassword('');
+                                setPasswordError(null);
+                              }}
+                              disabled={saving}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'users' && account.is_admin && (
+                <div>
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between">
+                      <h2 className="section-heading">
+                        Platform users{' '}
+                        <span className="text-neutral-400 font-normal">({users.length})</span>
+                      </h2>
+                      <Button
+                        variant="secondary"
+                        onClick={loadUsers}
+                        disabled={isPageLoading}
+                        leading={
+                          isPageLoading ? (
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                               <circle
                                 className="opacity-25"
@@ -381,197 +539,27 @@ export const SettingsPage = () => {
                                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                               />
                             </svg>
-                          )}
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancelEditDisplayName}
-                          disabled={saving}
-                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={account.display_name || ''}
-                          disabled
-                          className="flex-1 border border-neutral-300 rounded px-3 py-2 bg-neutral-50 cursor-not-allowed"
-                          placeholder="No display name set"
-                        />
-                        <button
-                          onClick={handleStartEditDisplayName}
-                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Account Status
-                    </label>
-                    <div className="flex gap-2">
-                      <span
-                        className={`inline-flex px-3 py-1.5 text-sm font-medium rounded-full ${
-                          account.is_approved
-                            ? 'bg-neutral-100 text-neutral-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
+                          ) : undefined
+                        }
                       >
-                        {account.is_approved ? 'Approved' : 'Pending Approval'}
-                      </span>
-                      {account.is_admin && (
-                        <span className="inline-flex px-3 py-1.5 text-sm font-medium rounded-full bg-brand-300 text-brand-800">
-                          Administrator
-                        </span>
-                      )}
+                        Refresh
+                      </Button>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Change Password - only for email/password-authenticated users */}
-              {supportsChangePassword && authManager.getActiveProviderId() === 'email' && (
-                <div className="bg-white rounded-lg border border-neutral-200 p-6">
-                  <h2 className="text-lg font-semibold text-brand-800 mb-4">Change Password</h2>
-
-                  {!isChangingPassword ? (
-                    <button
-                      onClick={() => {
-                        setIsChangingPassword(true);
-                        setPasswordError(null);
-                        setPasswordSuccess(false);
-                      }}
-                      className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 transition-colors"
-                    >
-                      Change password
-                    </button>
-                  ) : (
-                    <div className="space-y-4 max-w-md">
-                      {passwordError && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                          {passwordError}
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">
-                          Current password
-                        </label>
-                        <input
-                          type="password"
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          disabled={saving}
-                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                          autoComplete="current-password"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">
-                          New password
-                        </label>
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          disabled={saving}
-                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                          autoComplete="new-password"
-                        />
-                        <PasswordRequirementsList password={newPassword} />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">
-                          Confirm new password
-                        </label>
-                        <input
-                          type="password"
-                          value={confirmNewPassword}
-                          onChange={(e) => setConfirmNewPassword(e.target.value)}
-                          disabled={saving}
-                          className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
-                          autoComplete="new-password"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleChangePassword}
-                          disabled={saving || !newPasswordMeetsRequirements}
-                          className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {saving ? 'Saving…' : 'Update password'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsChangingPassword(false);
-                            setCurrentPassword('');
-                            setNewPassword('');
-                            setConfirmNewPassword('');
-                            setPasswordError(null);
-                          }}
-                          disabled={saving}
-                          className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                    <PlatformUsersTable
+                      users={users}
+                      onApprove={handleApprove}
+                      onRevoke={handleRevoke}
+                      onDeny={handleDeny}
+                      onGrantAdmin={handleGrantAdmin}
+                      onRevokeAdmin={handleRevokeAdmin}
+                      loading={isPageLoading}
+                    />
+                  </section>
                 </div>
               )}
             </div>
-          )}
-
-          {activeTab === 'users' && account.is_admin && (
-            <div className="space-y-3">
-              <div className="bg-white rounded-lg border border-neutral-200 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-brand-800">
-                    Platform Users ({users.length})
-                  </h2>
-                  <button
-                    onClick={loadUsers}
-                    disabled={isPageLoading}
-                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-50 disabled:bg-neutral-50 disabled:cursor-not-allowed transition-colors text-neutral-700 flex items-center gap-2"
-                  >
-                    {isPageLoading && (
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                    )}
-                    Refresh
-                  </button>
-                </div>
-                <PlatformUsersTable
-                  users={users}
-                  onApprove={handleApprove}
-                  onRevoke={handleRevoke}
-                  onDeny={handleDeny}
-                  onGrantAdmin={handleGrantAdmin}
-                  onRevokeAdmin={handleRevokeAdmin}
-                  loading={isPageLoading}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        </FadeIn>
       </div>
 
       {/* Loading Overlay */}

@@ -29,6 +29,7 @@ interface TaskStore {
   taskFilter: TaskFilter;
   isSubmitting: boolean;
   isNavigating: boolean;
+  tasksLoaded: boolean;
 
   // Form state
   selectedLabelId: number | null;
@@ -129,6 +130,7 @@ const initialState = {
   taskFilter: { assignedTo: [] as string[], statuses: ['pending' as TaskStatus] },
   isSubmitting: false,
   isNavigating: false,
+  tasksLoaded: false,
   selectedLabelId: null as number | null,
   comment: '',
   confidence: 5,
@@ -151,6 +153,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
       const allTasks = tasksRes.data!.tasks;
       const currentUserId = useAccountStore.getState().account?.id;
+      const campaign = useCampaignStore.getState().campaign;
 
       let taskFilter: TaskFilter;
       let visibleTasks: AnnotationTaskOut[];
@@ -165,11 +168,23 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
         currentTaskIndex = idx !== -1 ? idx : 0;
       } else {
+        // Public campaigns show all tasks by default since most users
+        // won't have explicit assignments. Private campaigns default to
+        // showing only the current user's assigned tasks.
+        const showAll = campaign?.is_public;
         taskFilter = {
-          assignedTo: currentUserId ? [currentUserId] : [],
+          assignedTo: showAll || !currentUserId ? [] : [currentUserId],
           statuses: ['pending'],
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
+
+        // If the user-scoped filter yields nothing but unfiltered tasks
+        // exist, auto-widen to show everything so the user lands on a
+        // task instead of an empty screen.
+        if (visibleTasks.length === 0 && allTasks.length > 0 && !showAll) {
+          taskFilter = { assignedTo: [], statuses: ['pending'] };
+          visibleTasks = applyTaskFilter(allTasks, taskFilter);
+        }
       }
 
       const targetTask = visibleTasks[currentTaskIndex] || null;
@@ -179,6 +194,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         visibleTasks,
         taskFilter,
         currentTaskIndex,
+        tasksLoaded: true,
         ...getFormStateForTask(targetTask),
       });
     },

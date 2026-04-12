@@ -358,7 +358,7 @@ export const StepImagery = ({
           <h3 className="text-sm font-semibold text-neutral-900">Imagery Sources</h3>
           <p className="text-xs text-neutral-500 mt-0.5">
             Define where imagery comes from, the temporal intervals available, and how it should be
-            visualized. Each source represents a data provider (e.g. Sentinel-2, Landsat, NAIP) with
+            visualized. Each source represents a dataset (e.g. Sentinel-2, Landsat, NAIP) with
             collections that cover specific time periods.
           </p>
         </div>
@@ -381,10 +381,10 @@ export const StepImagery = ({
                     px-4 py-3 shrink-0
                     ${
                       isEditing
-                        ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-md'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 shadow-md'
                         : notInAnyView
                           ? 'border-red-300 bg-red-50/40 text-neutral-800 hover:border-red-400 hover:bg-red-50'
-                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/10'
+                          : 'border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10'
                     }`}
                 >
                   {notInAnyView && !isEditing && (
@@ -468,8 +468,8 @@ export const StepImagery = ({
               })()}
             </div>
 
-            <div className="rounded-lg border-2 border-brand-500 bg-white shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-brand-500 text-white">
+            <div className="rounded-lg border-2 border-brand-600 bg-white shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 bg-brand-600 text-white">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <IconSettings className="w-4 h-4 text-white/80 shrink-0" />
                   <input
@@ -517,8 +517,13 @@ export const StepImagery = ({
             <h3 className="text-sm font-semibold text-neutral-900">View Layout</h3>
             <p className="text-xs text-neutral-500 mt-0.5">
               Configure how imagery appears in the annotation tool. Arrange sources into views
-              (tabs), choose which collections are visible as map windows, and control the layout
-              annotators will work with.
+              (tabs) and choose which collections are visible as map windows.
+            </p>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              When you add a source, all its collections become available as windows in the active
+              view. You can then toggle individual windows on/off from the canvas. These collections
+              are then still reachable through explicit layer selection in the main (large) map,
+              however they do not get a dedicated (small) preview window.
             </p>
           </div>
           <CanvasPreview
@@ -552,7 +557,7 @@ export const StepImagery = ({
                 className="w-full text-left px-4 py-2.5 rounded-lg bg-brand-50/50 border border-brand-100 hover:bg-brand-100 cursor-pointer transition-colors"
               >
                 <span className="text-sm font-medium text-brand-700 flex items-center gap-1.5">
-                  <IconStac className="w-3.5 h-3.5 text-brand-500" />
+                  <IconStac className="w-3.5 h-3.5 text-brand-700" />
                   {preset.label}
                   <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold ml-auto">
                     MPC
@@ -575,9 +580,11 @@ export const StepImagery = ({
         </Modal>
       )}
 
-      {/* Section 3: Basemaps */}
+      {/* Section 3: Basemaps - simple list, one row per entry. Name + URL
+          sit side by side as standard inputs; delete is a quiet X at the end.
+          No nested cards, no pills. */}
       <section>
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-semibold text-neutral-900">Basemaps</h3>
             <p className="text-xs text-neutral-500 mt-0.5">
@@ -587,45 +594,44 @@ export const StepImagery = ({
           <button
             type="button"
             onClick={addBasemap}
-            className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add
+            + Add basemap
           </button>
         </div>
 
         {state.basemaps.length === 0 ? (
           <p className="text-xs text-neutral-400 italic">No basemaps configured.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
             {state.basemaps.map((bm) => (
-              <div
-                key={bm.id}
-                className="group flex items-center gap-2 rounded border border-neutral-200 bg-white pl-2.5 pr-1 py-1 text-xs"
-              >
+              <li key={bm.id} className="flex items-center gap-3 py-2">
                 <input
                   type="text"
                   value={bm.name}
                   onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
                   placeholder="Name"
-                  className="w-24 border-0 border-b border-transparent focus:border-brand-500 outline-none text-xs py-0 px-0"
+                  className="w-40 h-8 px-2.5 text-xs border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
                 />
                 <input
                   type="text"
                   value={bm.url}
                   onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                   placeholder="https://.../{z}/{x}/{y}.png"
-                  className="w-56 border-0 border-b border-transparent focus:border-brand-500 outline-none text-[11px] font-mono py-0 px-0 text-neutral-500"
+                  className="flex-1 h-8 px-2.5 text-[11px] font-mono text-neutral-700 border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => removeBasemap(bm.id)}
-                  className="text-neutral-300 hover:text-red-500 transition-colors cursor-pointer p-0.5 opacity-0 group-hover:opacity-100"
+                  className="text-neutral-400 hover:text-red-600 transition-colors cursor-pointer p-1 shrink-0"
+                  aria-label="Remove basemap"
+                  title="Remove basemap"
                 >
-                  <IconTrash className="w-3 h-3" />
+                  <IconTrash className="w-3.5 h-3.5" />
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
 

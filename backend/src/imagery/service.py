@@ -1081,7 +1081,7 @@ def _create_views(
         window_refs = [r for r in mapped_refs if r.get("show_as_window")]
         COLS_PER_ROW = 6
         WINDOW_W = 10
-        WINDOW_H = 7
+        WINDOW_H = 9
         START_Y = DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT[0]["h"]  # directly below the main canvas
         view_layout_data = []
         for w_idx, ref in enumerate(window_refs):

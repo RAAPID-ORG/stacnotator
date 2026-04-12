@@ -61,10 +61,17 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
     setShowLayerDropdown(false);
   };
 
+  // If a mouse button is held, the user is mid-drag (panning the map). Don't
+  // open the dropdown in that case - the drag should just pass through.
+  const openIfIdle = (e: React.MouseEvent) => {
+    if (e.buttons !== 0) return;
+    setShowLayerDropdown(true);
+  };
+
   return (
-    <div className="relative" onMouseLeave={() => setShowLayerDropdown(false)}>
+    <div className="relative select-none" onMouseLeave={() => setShowLayerDropdown(false)}>
       <button
-        onMouseEnter={() => setShowLayerDropdown(true)}
+        onMouseEnter={openIfIdle}
         className="px-2 py-1 bg-white/95 backdrop-blur-sm text-neutral-800 text-xs font-medium rounded-md border border-white/60 shadow-sm hover:bg-white transition-colors flex items-center gap-1.5 cursor-pointer"
         title="Select layer ('i' for layer switching and 'shift + i' for visualization switching)"
       >
@@ -79,7 +86,7 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
       {showLayerDropdown && (
         <div
           className="absolute top-full left-0 pt-0.5 z-[1001]"
-          onMouseEnter={() => setShowLayerDropdown(true)}
+          onMouseEnter={openIfIdle}
           onMouseLeave={() => setShowLayerDropdown(false)}
         >
           <div className="bg-white border border-neutral-200 rounded-md shadow-lg min-w-[220px] max-h-[300px] overflow-y-auto">

@@ -36,7 +36,7 @@ export const VizParamsInlineEditor = ({
               )
             }
             placeholder="e.g. B04, B03, B02"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
           />
         </div>
         <div className="space-y-0.5">
@@ -46,7 +46,7 @@ export const VizParamsInlineEditor = ({
             value={vizParams.rescale ?? ''}
             onChange={(e) => onChange('rescale', e.target.value || undefined)}
             placeholder="e.g. 0,3000"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
           />
         </div>
       </div>
@@ -58,7 +58,7 @@ export const VizParamsInlineEditor = ({
             value={vizParams.colormapName ?? ''}
             onChange={(e) => onChange('colormapName', e.target.value || undefined)}
             placeholder="e.g. viridis"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
           />
         </div>
         <div className="space-y-0.5">
@@ -68,7 +68,7 @@ export const VizParamsInlineEditor = ({
             value={vizParams.colorFormula ?? ''}
             onChange={(e) => onChange('colorFormula', e.target.value || undefined)}
             placeholder="e.g. Gamma RGB 3.2"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
           />
         </div>
       </div>
@@ -80,7 +80,7 @@ export const VizParamsInlineEditor = ({
             value={vizParams.expression ?? ''}
             onChange={(e) => onChange('expression', e.target.value || undefined)}
             placeholder="e.g. (B08-B04)/(B08+B04)"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
           />
         </div>
         {showCompositing && (
@@ -91,7 +91,7 @@ export const VizParamsInlineEditor = ({
               onChange={(e) =>
                 onChange('compositing', e.target.value === 'first' ? undefined : e.target.value)
               }
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs bg-transparent"
             >
               <option value="first">First valid pixel</option>
               <option value="mean">Mean</option>
@@ -115,7 +115,7 @@ export const VizParamsInlineEditor = ({
         <select
           value={vizParams.resampling ?? ''}
           onChange={(e) => onChange('resampling', e.target.value || undefined)}
-          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs bg-transparent"
+          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs bg-transparent"
         >
           <option value="">Default (nearest)</option>
           <option value="bilinear">Bilinear</option>
@@ -132,7 +132,7 @@ export const VizParamsInlineEditor = ({
             value={vizParams.maskLayer ?? ''}
             onChange={(e) => onChange('maskLayer', e.target.value || undefined)}
             placeholder="e.g. SCL"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
           />
         </div>
         <div className="space-y-0.5">
@@ -152,7 +152,7 @@ export const VizParamsInlineEditor = ({
               )
             }
             placeholder="e.g. 0, 1, 8, 9, 10"
-            className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
           />
         </div>
       </div>
@@ -167,7 +167,7 @@ export const VizParamsInlineEditor = ({
             const v = Math.max(1, Math.min(10, Number(e.target.value)));
             onChange('maxItems', v === 5 ? undefined : v);
           }}
-          className="w-20 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+          className="w-20 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
         />
       </div>
       <div className="space-y-0.5">
@@ -195,7 +195,7 @@ export const VizParamsInlineEditor = ({
             onChange('extraParams', Object.keys(params).length > 0 ? params : undefined);
           }}
           placeholder="e.g. asset_bidx=image|1,2,3"
-          className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs font-mono"
+          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
         />
       </div>
     </div>

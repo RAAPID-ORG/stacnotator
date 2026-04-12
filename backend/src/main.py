@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
@@ -47,13 +48,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Set all CORS enabled origins
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# Set all CORS enabled origins.
+# max_age=86400 caches the preflight for 24h so repeated saves in a session
+# skip the OPTIONS round-trip (meaningful on cross-region deployments).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS", "PATCH", "DELETE", "PUT"],
     allow_headers=["*"],
+    max_age=86400,
 )
 
 # Include actual routers from each module with /api prefix

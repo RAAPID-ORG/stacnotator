@@ -102,7 +102,7 @@ export function ReviewerAssignmentModal({
                 onClick={() => setActiveTab('percentage')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
                   activeTab === 'percentage'
-                    ? 'bg-brand-500 text-white border-brand-500'
+                    ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
@@ -112,7 +112,7 @@ export function ReviewerAssignmentModal({
                 onClick={() => setActiveTab('fixed')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
                   activeTab === 'fixed'
-                    ? 'bg-brand-500 text-white border-brand-500'
+                    ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
@@ -205,7 +205,7 @@ export function ReviewerAssignmentModal({
             </label>
             <button
               onClick={handleSelectAllReviewers}
-              className="text-sm text-brand-500 hover:text-brand-600 mb-3"
+              className="text-sm text-brand-700 hover:text-brand-600 mb-3"
             >
               {selectedReviewers.length === campaignUsers.length ? 'Deselect All' : 'Select All'}
             </button>
@@ -226,7 +226,7 @@ export function ReviewerAssignmentModal({
                     <div className="font-medium text-neutral-900">{cu.user.display_name}</div>
                     <div className="text-sm text-neutral-500">{cu.user.email}</div>
                     {cu.is_admin && (
-                      <span className="text-xs text-brand-500 font-semibold">Admin</span>
+                      <span className="text-xs text-brand-700 font-semibold">Admin</span>
                     )}
                     {cu.is_authorative_reviewer && (
                       <span className="text-xs text-purple-500 font-semibold ml-2">
@@ -263,7 +263,7 @@ export function ReviewerAssignmentModal({
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || loading}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 disabled:opacity-50"
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
           >
             {loading
               ? 'Assigning...'
