@@ -453,10 +453,19 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
-                  className={`drag-handle card-header !py-0.5 !gap-2 ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-brand-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
+                  className={`drag-handle card-header !py-0.5 !gap-2 group/header ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-neutral-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
+                  title={`${source.name} — ${collection.name}`}
                 >
-                  <span className="truncate flex-1 min-w-0">{collection.name}</span>
+                  <span className="truncate flex-1 min-w-0">
+                    <span
+                      className={`hidden group-hover/header:inline ${isActiveCol ? 'text-white/70' : 'text-neutral-400'}`}
+                    >
+                      {source.name}
+                      <span className="mx-1">›</span>
+                    </span>
+                    {collection.name}
+                  </span>
                   <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
                 </div>
                 <ImageryContainer collectionId={collection.id} sourceId={source.id} />

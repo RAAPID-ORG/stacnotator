@@ -517,8 +517,13 @@ export const StepImagery = ({
             <h3 className="text-sm font-semibold text-neutral-900">View Layout</h3>
             <p className="text-xs text-neutral-500 mt-0.5">
               Configure how imagery appears in the annotation tool. Arrange sources into views
-              (tabs), choose which collections are visible as map windows, and control the layout
-              annotators will work with.
+              (tabs) and choose which collections are visible as map windows.
+            </p>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              When you add a source, all its collections become available as windows in the active
+              view. You can then toggle individual windows on/off from the canvas. These collections
+              are then still reachable through explicit layer selection in the main (large) map,
+              however they do not get a dedicated (small) preview window.
             </p>
           </div>
           <CanvasPreview

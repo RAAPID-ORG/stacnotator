@@ -54,6 +54,7 @@ export const AnnotationPage = () => {
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const allTasks = useTaskStore((s) => s.allTasks);
+  const tasksLoaded = useTaskStore((s) => s.tasksLoaded);
   const accountId = useAccountStore((s) => s.account?.id);
 
   // UI store
@@ -220,28 +221,14 @@ export const AnnotationPage = () => {
       {campaign &&
       ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
         <Canvas commentInputRef={commentInputRef} />
+      ) : campaign?.mode === 'tasks' && !tasksLoaded ? (
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-4">
-            <div className="mb-4">
-              <svg
-                className="mx-auto h-16 w-16 text-neutral-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            {/* Distinguish "no tasks set up on the campaign at all" (admin action
-                needed) from "user filtered them all out / completed them" */}
-            {campaign.mode === 'tasks' && allTasks.length === 0 ? (
+            {campaign?.mode === 'tasks' && allTasks.length === 0 ? (
               <>
                 <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
                   No annotation tasks yet
@@ -263,13 +250,22 @@ export const AnnotationPage = () => {
             ) : (
               <>
                 <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
-                  No tasks available
+                  All tasks completed
                 </h2>
-                <p className="text-sm text-neutral-500 leading-relaxed">
-                  You&apos;ve completed all assigned annotation tasks for this campaign.
-                  <br />
-                  Change your filter settings to see more tasks that were not assigned to you.
+                <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                  You&apos;ve completed all pending tasks matching your current filter.
                 </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    useTaskStore.getState().setTaskFilter({
+                      assignedTo: [],
+                      statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+                    });
+                  }}
+                >
+                  View all tasks
+                </Button>
               </>
             )}
           </div>
