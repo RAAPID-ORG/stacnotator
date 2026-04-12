@@ -197,13 +197,10 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     title: 'Map Controls',
     content: (
       <div className="space-y-2">
-        <p>These buttons control the map display:</p>
+        <p>These controls in the header bar let you manage the map:</p>
         <ul className="list-disc list-inside space-y-1 text-sm">
           <li>
-            <strong>Window selector</strong> - choose a window directly
-          </li>
-          <li>
-            <strong>Slice selector</strong> - choose a slice directly
+            <strong>Layer / Window / Slice selectors</strong> - switch imagery directly
           </li>
           <li>
             <strong>Recenter</strong> - snap back to the task location (Space)
@@ -217,7 +214,7 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         </ul>
       </div>
     ),
-    placement: 'left',
+    placement: 'bottom',
   },
 
   // Practice: recenter
@@ -289,7 +286,7 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         </p>
       </div>
     ),
-    placement: 'left',
+    placement: 'bottom',
   },
 
   // Timeseries chart (only if configured)

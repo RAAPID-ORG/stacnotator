@@ -58,9 +58,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   // Derive the selected view and its ordered collections
   const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
 
+  // Derive active source from activeCollectionId
+  const activeSourceId = useMemo(() => {
+    if (!campaign || !activeCollectionId) return null;
+    return (
+      campaign.imagery_sources.find((s) => s.collections.some((c) => c.id === activeCollectionId))
+        ?.id ?? null
+    );
+  }, [campaign, activeCollectionId]);
+
+  // Scoped to the active source so hotkeys stay within one source
   const viewCollections = useMemo(() => {
     if (!selectedView || !campaign) return [];
     return selectedView.collection_refs
+      .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
       .map((ref) => {
         const source = campaign.imagery_sources.find((s) =>
           s.collections.some((c) => c.id === ref.collection_id)
@@ -76,7 +87,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       collection: { id: number; slices: { name: string }[] };
       source: { id: number };
     }[];
-  }, [selectedView, campaign]);
+  }, [selectedView, campaign, activeSourceId]);
 
   // Current active collection and its position
   const currentCollectionIndex = viewCollections.findIndex(
@@ -262,7 +273,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
     if (nextEntryIdx < sourceGroups.length) {
       // Switch to an imagery source (first viz)
-      setSelectedLayerIndex(sourceGroups[nextEntryIdx].startIdx);
+      const nextGroup = sourceGroups[nextEntryIdx];
+      setSelectedLayerIndex(nextGroup.startIdx);
+      // Also switch to that source's collection so the map tiles update
+      const targetSource = campaign?.imagery_sources.find((s) => s.name === nextGroup.name);
+      if (targetSource && selectedView) {
+        const ref = selectedView.collection_refs.find((r) => r.source_id === targetSource.id);
+        if (ref) setActiveCollectionId(ref.collection_id);
+      }
     } else {
       // Switch to a specific basemap
       const bmIdx = nextEntryIdx - sourceGroups.length;
@@ -278,6 +296,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     setSelectedLayerIndex,
     setShowBasemap,
     setSelectedBasemapId,
+    campaign,
+    selectedView,
+    setActiveCollectionId,
   ]);
 
   /** Shift+I: cycle visualizations within the active source (the source owning activeCollectionId) */

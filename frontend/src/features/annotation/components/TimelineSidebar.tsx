@@ -64,16 +64,25 @@ const TimelineSidebar = ({
 
   const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
 
+  // Derive active source so the timeline only shows that source's collections
+  const activeSourceId = useMemo(() => {
+    return (
+      campaign.imagery_sources.find((s) => s.collections.some((c) => c.id === activeCollectionId))
+        ?.id ?? null
+    );
+  }, [campaign.imagery_sources, activeCollectionId]);
+
   const viewCollections = useMemo(() => {
     if (!selectedView) return [];
     return selectedView.collection_refs
+      .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
       .map((ref) => {
         const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         return { ...ref, collection, source };
       })
       .filter((r) => r.collection);
-  }, [selectedView, campaign.imagery_sources]);
+  }, [selectedView, campaign.imagery_sources, activeSourceId]);
 
   const dateRange = useMemo(() => {
     let earliest: string | null = null;

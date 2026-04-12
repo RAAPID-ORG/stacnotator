@@ -30,6 +30,7 @@ interface CanvasProps {
 
 export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const headerControlsRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -260,7 +261,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
     return (
       <div className="flex items-center justify-between gap-3 w-full">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 shrink-0">
           {!isOpenMode && currentTask ? (
             <>
               {taskStatus && (
@@ -286,6 +287,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </span>
           )}
         </div>
+
+        {/* Slot for map controls (selectors + actions), filled via portal from MainAnnotationContainer */}
+        <div
+          ref={headerControlsRef}
+          className="flex items-center gap-2 min-w-0 flex-1 justify-end"
+          data-tour="map-controls"
+        />
 
         {!isOpenMode ? (
           <div className="flex items-center gap-2 shrink-0">
@@ -382,7 +390,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMainHeader()}
             </div>
-            <MainAnnotationsContainer commentInputRef={commentInputRef} />
+            <MainAnnotationsContainer
+              commentInputRef={commentInputRef}
+              headerSlotRef={headerControlsRef}
+            />
           </div>
 
           {campaign.time_series.length > 0 && (

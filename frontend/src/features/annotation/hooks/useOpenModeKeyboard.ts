@@ -23,6 +23,7 @@ import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useCampaignStore((s) => s.campaign);
+  const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
@@ -137,10 +138,17 @@ export const useOpenModeKeyboard = () => {
             const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
 
             if (nextEntryIdx < sourceGroups.length) {
-              // Switch to an imagery source (first viz)
+              // Switch to an imagery source (first viz) + switch collection
               const group = sourceGroups[nextEntryIdx];
               useMapStore.getState().setSelectedLayerIndex(group.startIdx);
-              // setSelectedLayerIndex already sets showBasemap=false
+              const targetSource = campaign.imagery_sources.find((s) => s.name === group.name);
+              const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId);
+              if (targetSource && selectedView) {
+                const ref = selectedView.collection_refs.find(
+                  (r) => r.source_id === targetSource.id
+                );
+                if (ref) useMapStore.getState().setActiveCollectionId(ref.collection_id);
+              }
             } else {
               // Switch to a specific basemap
               const bmIdx = nextEntryIdx - sourceGroups.length;
@@ -175,6 +183,7 @@ export const useOpenModeKeyboard = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     campaign,
+    selectedViewId,
     setSelectedLabelId,
     setActiveTool,
     setTimeseriesPoint,

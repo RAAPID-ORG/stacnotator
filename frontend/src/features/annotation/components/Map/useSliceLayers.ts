@@ -125,19 +125,39 @@ export function useSliceLayers({
         });
       }
 
-      // Build UI layer list: use active source's viz entries (not global list)
-      // so layer IDs match the active collection's tile_url visualization names
+      // Build UI layer list: one entry per (source × visualization) for all
+      // sources referenced in the current view, deduplicated by source ID.
       const allLayers = lm.getLayers();
       const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
-      const seen = new Set<string>();
-      const vizLayers = activeSourceVizEntries
-        .map((v) => {
-          const id = makeLayerId(activeCollection.id, activeSliceIndex, v.vizName);
-          if (seen.has(id)) return null;
-          seen.add(id);
-          return allLayers.find((l) => l.id === id) ?? null;
-        })
-        .filter((l): l is Layer => l !== null);
+      const vizLayers: Layer[] = [];
+
+      const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+      const viewRefs = selectedView?.collection_refs ?? [];
+
+      // Pick one collection per source (prefer the active collection if it
+      // belongs to that source, otherwise take the first ref).
+      const seenSources = new Set<number>();
+      for (const ref of viewRefs) {
+        if (seenSources.has(ref.source_id)) continue;
+        seenSources.add(ref.source_id);
+
+        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
+        if (!source) continue;
+
+        // Use active collection if it belongs to this source, else first ref
+        const collectionId = source.collections.some((c) => c.id === activeCollectionId)
+          ? activeCollectionId!
+          : ref.collection_id;
+        const collection = source.collections.find((c) => c.id === collectionId);
+        if (!collection) continue;
+
+        const sliceIdx = Math.min(activeSliceIndex, collection.slices.length - 1);
+        for (const viz of source.visualizations) {
+          const id = makeLayerId(collection.id, sliceIdx, viz.name);
+          const existing = allLayers.find((l) => l.id === id);
+          if (existing) vizLayers.push(existing);
+        }
+      }
 
       const uiLayers = [...vizLayers, ...basemapLayers];
       setLayers(uiLayers);
@@ -152,6 +172,7 @@ export function useSliceLayers({
       activeSourceVizEntries,
       showBasemap,
       selectedBasemapId,
+      selectedViewId,
       onLayersChange,
     ]
   );
