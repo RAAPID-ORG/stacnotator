@@ -113,7 +113,7 @@ class CollectionStacConfig(Base):
     # when the campaign bbox changes.  Format: [{"viz_name": "...", "url_template": "..."}]
     viz_url_templates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
-    # ── New fields for STAC catalog browser / TiTiler integration ──
+    # New fields for STAC catalog browser / TiTiler integration ──
     catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
     tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)

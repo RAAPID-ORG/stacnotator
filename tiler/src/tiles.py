@@ -147,7 +147,7 @@ def mosaic_tile(
     tile_bounds = tms.bounds(morecantile.Tile(x, y, z))
     tile_bbox = [tile_bounds.left, tile_bounds.bottom, tile_bounds.right, tile_bounds.top]
 
-    # ── Step 1: Spatial DB lookup ──
+    #  Spatial DB lookup
     t_db = time.perf_counter()
     matching_items = _get_items_for_tile(mosaic_id, tile_bbox, limit=max_items, db=db)
     t_db_done = time.perf_counter()
@@ -159,7 +159,7 @@ def mosaic_tile(
         )
         return Response(content=_empty_tile(), media_type="image/png")
 
-    # ── Step 2: Prepare reader kwargs ──
+    # Prepare reader kwargs
     is_ndvi_best = compositing == "ndvi_best"
     display_assets = list(assets)
     if is_ndvi_best and assets:
@@ -197,7 +197,7 @@ def mosaic_tile(
 
     apply_mask = bool(mask_layer and mask_values)
 
-    # ── Step 3: Read COGs + composite ──
+    # Read COGs + composite
     item_timings: list[str] = []
 
     def read_tile(href: str):
@@ -246,7 +246,7 @@ def mosaic_tile(
         )
         return Response(content=_empty_tile(), media_type="image/png")
 
-    # ── Step 4: Post-process (rescale, colormap, render) ──
+    # Post-process (rescale, colormap, render)
     t_render = time.perf_counter()
 
     if rescale:

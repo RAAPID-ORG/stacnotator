@@ -181,7 +181,7 @@ def update_tile_urls(
     return {"status": "updated"}
 
 
-# ── View endpoints ──
+# View endpoints
 
 
 @router.post("/{campaign_id}/imagery/views")
