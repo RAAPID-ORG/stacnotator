@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { COUNTRY_BBOXES } from '~/features/campaigns/utils/countryBboxes';
+import { Input } from '~/shared/ui/forms';
 
 interface BoundingBoxEditorProps {
   value: {
@@ -314,7 +315,7 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
                   }}
                   onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
                   placeholder="Search country or region..."
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                 />
               </div>
               <div className="relative group">
@@ -361,48 +362,44 @@ export const BoundingBoxEditor = ({ value, onChange }: BoundingBoxEditorProps) =
           </div>
 
           {/* Coordinate Inputs */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1">
-              <span className="text-xs text-neutral-700">West (Long)</span>
-              <input
+              <span className="text-xs font-medium text-neutral-700">West (Long)</span>
+              <Input
                 type="number"
                 step="any"
                 value={value.bbox_west}
                 onChange={(e) => onChange({ bbox_west: Number(e.target.value) })}
-                className="w-full border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0"
               />
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs text-neutral-700">South (Lat)</span>
-              <input
+              <span className="text-xs font-medium text-neutral-700">South (Lat)</span>
+              <Input
                 type="number"
                 step="any"
                 value={value.bbox_south}
                 onChange={(e) => onChange({ bbox_south: Number(e.target.value) })}
-                className="w-full border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0"
               />
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs text-neutral-700">East (Long)</span>
-              <input
+              <span className="text-xs font-medium text-neutral-700">East (Long)</span>
+              <Input
                 type="number"
                 step="any"
                 value={value.bbox_east}
                 onChange={(e) => onChange({ bbox_east: Number(e.target.value) })}
-                className="w-full border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0"
               />
             </label>
 
             <label className="space-y-1">
-              <span className="text-xs text-neutral-700">North (Lat)</span>
-              <input
+              <span className="text-xs font-medium text-neutral-700">North (Lat)</span>
+              <Input
                 type="number"
                 step="any"
                 value={value.bbox_north}
                 onChange={(e) => onChange({ bbox_north: Number(e.target.value) })}
-                className="w-full border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0"
               />
             </label>
 

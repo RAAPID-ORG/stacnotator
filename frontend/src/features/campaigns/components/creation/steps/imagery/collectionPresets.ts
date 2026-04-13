@@ -61,34 +61,40 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color',
       assets: ['red', 'green', 'blue'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
     },
     {
       label: 'False Color',
       assets: ['nir08', 'red', 'green'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.3 Sigmoidal RGB 15 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
     },
     {
       label: 'SWIR',
       assets: ['swir16', 'nir08', 'red'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
     },
     {
       label: 'Agriculture',
       assets: ['swir16', 'nir08', 'blue'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
     },
   ],
   'landsat-c2-l1': [
     {
       label: 'True Color',
       assets: ['red', 'green', 'blue'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.0 Sigmoidal RGB 20 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
     },
     {
       label: 'False Color',
       assets: ['nir08', 'red', 'green'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.3 Sigmoidal RGB 15 0.35',
+      rescale: '7500,40000',
+      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
     },
   ],
   'cop-dem-glo-30': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
@@ -132,8 +138,10 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
   ],
   'sentinel-1-grd': [
-    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys', rescale: '0,0.4' },
-    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys', rescale: '0,0.1' },
+    // MPC stores VV/VH as uint16 amplitude DNs; single-band grayscale uses 0..250
+    // (matches the MPC Explorer defaults for sentinel-1-grd).
+    { label: 'VV Backscatter', assets: ['vv'], colormap: 'greys', rescale: '0,250' },
+    { label: 'VH Backscatter', assets: ['vh'], colormap: 'greys', rescale: '0,250' },
   ],
   'modis-13Q1-061': [
     { label: 'NDVI', assets: ['250m_16_days_NDVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
@@ -144,14 +152,14 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
 export const KNOWN_RESCALE: Record<string, string> = {
   'cop-dem-glo-30': '0,4000',
   'cop-dem-glo-90': '0,4000',
-  'sentinel-1-grd': '0,0.4',
+  'sentinel-1-grd': '0,250',
   naip: '0,255',
 };
 
 export function guessRescale(collectionId: string): string | undefined {
   const id = collectionId.toLowerCase();
   if (id.includes('dem') || id.includes('elevation')) return '0,4000';
-  if (id.includes('sentinel-1') || id.includes('sar')) return '0,0.4';
+  if (id.includes('sentinel-1') || id.includes('sar')) return '0,250';
   return undefined;
 }
 

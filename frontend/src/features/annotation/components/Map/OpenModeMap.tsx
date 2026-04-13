@@ -107,7 +107,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       mapReady: mapReadyRef.current,
       onReady,
       onLayersChange,
-      preloadDepth: 2,
+      preloadDepth: Infinity,
     });
 
     // Imperative handle: fitAnnotations

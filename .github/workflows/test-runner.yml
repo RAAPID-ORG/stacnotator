@@ -1,0 +1,43 @@
+name: Test Self-Hosted Runner & OIDC
+
+on:
+  workflow_dispatch: # Manual trigger only
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test-runner:
+    name: "Verify Runner & Azure OIDC"
+    runs-on: [self-hosted, linux, x64, azure]
+    steps:
+      - name: Check runner environment
+        run: |
+          echo "=== Runner Info ==="
+          echo "Hostname: $(hostname)"
+          echo "OS: $(cat /etc/os-release | grep PRETTY_NAME)"
+          echo ""
+          echo "=== Docker ==="
+          docker --version
+          echo ""
+          echo "=== Azure CLI ==="
+          az --version | head -1
+
+      - name: Azure Login via OIDC (dev identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEV }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure access
+        run: |
+          echo "=== Logged in as ==="
+          az account show --query '{subscription:name, user:user.name}' -o table
+          echo ""
+          echo "=== Can list KV secrets (stacnotator-dev) ==="
+          az keyvault secret list --vault-name kv-stacnotator-dev-pro --query '[].name' -o tsv || echo "KV access check done"
+          echo ""
+          echo "=== Can reach ACR ==="
+          az acr list --query '[?contains(name,`stacnotator`)].{name:name, loginServer:loginServer}' -o table

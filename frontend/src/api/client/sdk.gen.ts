@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, AddViewData, AddViewErrors, AddViewResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeErrors, CreateAnnotationOpenmodeResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutData, CreateNewCanvasLayoutErrors, CreateNewCanvasLayoutResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteSourceData, DeleteSourceErrors, DeleteSourceResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, DemoteAuthorativeReviewerData, DemoteAuthorativeReviewerErrors, DemoteAuthorativeReviewerResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointErrors, GetCampaignStatisticsEndpointResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonErrors, IngestAnnotationTasksFromGeojsonResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListCatalogsData, ListCatalogsResponses, ListUsersData, ListUsersResponses, MakeUserAuthorativeReviewerData, MakeUserAuthorativeReviewerErrors, MakeUserAuthorativeReviewerResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RefreshCollectionImageryData, RefreshCollectionImageryErrors, RefreshCollectionImageryResponses, RegisterMosaicData, RegisterMosaicErrors, RegisterMosaicResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RemoveUserFromTaskData, RemoveUserFromTaskErrors, RemoveUserFromTaskResponses, ReorderViewsData, ReorderViewsErrors, ReorderViewsResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, SearchData, SearchErrors, SearchResponses, UnassignUserFromTaskData, UnassignUserFromTaskErrors, UnassignUserFromTaskResponses, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeErrors, UpdateAnnotationOpenmodeResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignGuideData, UpdateCampaignGuideErrors, UpdateCampaignGuideResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses, UpdateCampaignVisibilityData, UpdateCampaignVisibilityErrors, UpdateCampaignVisibilityResponses, UpdateCollectionData, UpdateCollectionErrors, UpdateCollectionResponses, UpdateEmbeddingYearData, UpdateEmbeddingYearErrors, UpdateEmbeddingYearResponses, UpdateSampleExtentData, UpdateSampleExtentErrors, UpdateSampleExtentResponses, UpdateSourceData, UpdateSourceErrors, UpdateSourceResponses, UpdateTileUrlsData, UpdateTileUrlsErrors, UpdateTileUrlsResponses, UpdateViewData, UpdateViewErrors, UpdateViewResponses, UpdateVizParamsData, UpdateVizParamsErrors, UpdateVizParamsResponses, ValidateAnnotationSubmissionData, ValidateAnnotationSubmissionErrors, ValidateAnnotationSubmissionResponses } from './types.gen';
+import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, AddViewData, AddViewErrors, AddViewResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeErrors, CreateAnnotationOpenmodeResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutData, CreateNewCanvasLayoutErrors, CreateNewCanvasLayoutResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteSourceData, DeleteSourceErrors, DeleteSourceResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, DemoteAuthorativeReviewerData, DemoteAuthorativeReviewerErrors, DemoteAuthorativeReviewerResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointErrors, GetCampaignStatisticsEndpointResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetKnnValidationStatusData, GetKnnValidationStatusErrors, GetKnnValidationStatusResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonErrors, IngestAnnotationTasksFromGeojsonResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListCatalogsData, ListCatalogsResponses, ListUsersData, ListUsersResponses, MakeUserAuthorativeReviewerData, MakeUserAuthorativeReviewerErrors, MakeUserAuthorativeReviewerResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, RefreshCollectionImageryData, RefreshCollectionImageryErrors, RefreshCollectionImageryResponses, RegisterMosaicData, RegisterMosaicErrors, RegisterMosaicResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RemoveUserFromTaskData, RemoveUserFromTaskErrors, RemoveUserFromTaskResponses, ReorderViewsData, ReorderViewsErrors, ReorderViewsResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, SearchData, SearchErrors, SearchResponses, UnassignUserFromTaskData, UnassignUserFromTaskErrors, UnassignUserFromTaskResponses, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeErrors, UpdateAnnotationOpenmodeResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignGuideData, UpdateCampaignGuideErrors, UpdateCampaignGuideResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses, UpdateCampaignVisibilityData, UpdateCampaignVisibilityErrors, UpdateCampaignVisibilityResponses, UpdateCollectionData, UpdateCollectionErrors, UpdateCollectionResponses, UpdateEmbeddingYearData, UpdateEmbeddingYearErrors, UpdateEmbeddingYearResponses, UpdateSampleExtentData, UpdateSampleExtentErrors, UpdateSampleExtentResponses, UpdateSourceData, UpdateSourceErrors, UpdateSourceResponses, UpdateTileUrlsData, UpdateTileUrlsErrors, UpdateTileUrlsResponses, UpdateViewData, UpdateViewErrors, UpdateViewResponses, UpdateVizParamsData, UpdateVizParamsErrors, UpdateVizParamsResponses, ValidateAnnotationSubmissionData, ValidateAnnotationSubmissionErrors, ValidateAnnotationSubmissionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -308,6 +308,12 @@ export const makeUserAuthorativeReviewer = <ThrowOnError extends boolean = false
 
 /**
  * Get Campaign Users
+ *
+ * List users on a campaign with their roles.
+ *
+ * Any campaign member can call this: the annotation page needs it to look
+ * up the current user's admin / reviewer flags on load, and review mode
+ * already surfaces other annotators anyway, so the list isn't sensitive.
  */
 export const getCampaignUsers = <ThrowOnError extends boolean = false>(options: Options<GetCampaignUsersData, ThrowOnError>) => (options.client ?? client).get<GetCampaignUsersResponses, GetCampaignUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -572,6 +578,19 @@ export const validateAnnotationSubmission = <ThrowOnError extends boolean = fals
 });
 
 /**
+ * Get Knn Validation Status
+ *
+ * Summarize how close the campaign is to having enough data for KNN
+ * label validation. Used by the annotator UI to explain why validation
+ * is unavailable on a given task/label.
+ */
+export const getKnnValidationStatus = <ThrowOnError extends boolean = false>(options: Options<GetKnnValidationStatusData, ThrowOnError>) => (options.client ?? client).get<GetKnnValidationStatusResponses, GetKnnValidationStatusErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/campaigns/{campaign_id}/knn-validation-status',
+    ...options
+});
+
+/**
  * Ingest Annotation Tasks From Csv
  */
 export const ingestAnnotationTasksFromCsv = <ThrowOnError extends boolean = false>(options: Options<IngestAnnotationTasksFromCsvData, ThrowOnError>) => (options.client ?? client).post<IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromCsvErrors, ThrowOnError>({
@@ -647,6 +666,13 @@ export const deleteAnnotation = <ThrowOnError extends boolean = false>(options: 
 
 /**
  * Export Annotations
+ *
+ * Export campaign annotations as CSV.
+ *
+ * When ``merge_on_agreement`` is true, multi-annotator tasks whose
+ * annotators all agreed on the same label are collapsed into a single
+ * row. Tasks with disagreement (conflict) cause the request to fail
+ * with HTTP 400 - resolve the conflicts first.
  */
 export const exportAnnotations = <ThrowOnError extends boolean = false>(options: Options<ExportAnnotationsData, ThrowOnError>) => (options.client ?? client).get<ExportAnnotationsResponses, ExportAnnotationsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -658,6 +684,8 @@ export const exportAnnotations = <ThrowOnError extends boolean = false>(options:
  * Export Annotations Geojson
  *
  * Export all annotations for a campaign as a GeoJSON FeatureCollection file.
+ *
+ * See ``export_annotations`` for the meaning of ``merge_on_agreement``.
  */
 export const exportAnnotationsGeojson = <ThrowOnError extends boolean = false>(options: Options<ExportAnnotationsGeojsonData, ThrowOnError>) => (options.client ?? client).get<ExportAnnotationsGeojsonResponses, ExportAnnotationsGeojsonErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -925,7 +953,7 @@ export const updateView = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Reorder Views
  *
- * Reorder views. Body: { "view_ids": [3, 1, 2] } — new display order.
+ * Reorder views. Body: { "view_ids": [3, 1, 2] } - new display order.
  */
 export const reorderViews = <ThrowOnError extends boolean = false>(options: Options<ReorderViewsData, ThrowOnError>) => (options.client ?? client).put<ReorderViewsResponses, ReorderViewsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -952,7 +980,10 @@ export const listCatalogs = <ThrowOnError extends boolean = false>(options?: Opt
 /**
  * Get Collections
  *
- * List collections from a STAC API catalog.
+ * List collections from a STAC API catalog, with a 1h cache.
+ *
+ * Serves stale data on upstream failure so a transient MPC timeout
+ * doesn't block the user.
  */
 export const getCollections = <ThrowOnError extends boolean = false>(options: Options<GetCollectionsData, ThrowOnError>) => (options.client ?? client).get<GetCollectionsResponses, GetCollectionsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

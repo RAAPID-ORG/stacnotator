@@ -14,6 +14,8 @@ import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeserie
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/creation/steps/imagery/types';
+import { Button } from '~/shared/ui/forms';
+import { FadeIn } from '~/shared/ui/motion';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
@@ -140,60 +142,48 @@ export const CreateCampaignPage = () => {
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="max-w-6xl mx-auto p-8">
-        {/* Page header */}
-        <div className="mb-3">
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">New Campaign</h1>
-          <p className="text-sm text-neutral-500">
-            Set up your campaign step by step -configure details, settings, imagery, and more.
-          </p>
-        </div>
+      <FadeIn className="page">
+        <header className="page-header">
+          <div>
+            <h1 className="page-title">New campaign</h1>
+            <p className="page-subtitle">
+              Set up your campaign step by step - details, settings, imagery, and more.
+            </p>
+          </div>
+        </header>
 
-        {/* Step indicator */}
-        <div className="mb-8">
+        <div className="mb-6">
           <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} onStepClick={setStep} />
         </div>
 
-        {/* Step content */}
-        <div className="bg-white rounded-lg border border-neutral-200 p-6">{getStepContent()}</div>
+        <div className="surface">
+          <div className="p-6">{getStepContent()}</div>
+        </div>
 
-        {/* Navigation */}
         <div className="flex items-center justify-between mt-6 pb-8">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={step === 1 ? () => navigate('/campaigns') : () => setStep(step - 1)}
-            className="px-4 py-2 text-sm font-medium text-neutral-700 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors cursor-pointer"
           >
             {step === 1 ? 'Cancel' : 'Back'}
-          </button>
+          </Button>
 
           {step < totalSteps ? (
-            <button
-              type="button"
-              onClick={() => setStep(step + 1)}
-              className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-700 transition-colors cursor-pointer"
-            >
-              Continue
-            </button>
+            <Button onClick={() => setStep(step + 1)}>Continue</Button>
           ) : (
             <div className="relative group">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={showValidation && !validation.isValid}
-                className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
-              >
-                Create Campaign
-              </button>
+              <Button onClick={handleSubmit} disabled={showValidation && !validation.isValid}>
+                Create campaign
+              </Button>
               {showValidation && !validation.isValid && (
-                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
                 </span>
               )}
             </div>
           )}
         </div>
-      </div>
+      </FadeIn>
     </div>
   );
 };

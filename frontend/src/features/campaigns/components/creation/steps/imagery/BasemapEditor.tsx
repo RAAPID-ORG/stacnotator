@@ -57,14 +57,14 @@ export const BasemapEditor = ({ basemaps, onChange }: BasemapEditorProps) => {
               placeholder="Basemap name (e.g. OSM, Satellite)"
               value={basemap.name}
               onChange={(e) => updateBasemap(basemap.id, { name: e.target.value })}
-              className="w-full border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-sm"
+              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
             />
             <input
               type="text"
               placeholder="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               value={basemap.url}
               onChange={(e) => updateBasemap(basemap.id, { url: e.target.value })}
-              className="w-full border border-neutral-200 rounded px-2 py-1 text-xs font-mono focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
             />
           </div>
           <button

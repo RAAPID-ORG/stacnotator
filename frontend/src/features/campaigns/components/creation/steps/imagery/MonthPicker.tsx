@@ -37,8 +37,8 @@ export const MonthPicker = ({ value, onChange, disabled, className }: MonthPicke
     onChange(`${y}-${m}`);
   };
 
-  const selectClass = `border-0 border-b border-brand-500 focus:border-b-2 outline-none focus:ring-0 text-sm bg-transparent py-0.5 cursor-pointer ${
-    disabled ? 'bg-neutral-100 text-neutral-500 cursor-not-allowed' : ''
+  const selectClass = `h-8 px-2 text-sm border border-neutral-300 rounded-md bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none cursor-pointer transition-colors ${
+    disabled ? 'bg-neutral-50 text-neutral-400 cursor-not-allowed' : ''
   } ${className ?? ''}`;
 
   return (

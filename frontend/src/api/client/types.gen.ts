@@ -186,6 +186,10 @@ export type AnnotationTaskOut = {
      * Annotations
      */
     annotations: Array<AnnotationFromTaskOut>;
+    /**
+     * Has Embedding
+     */
+    has_embedding?: boolean;
 };
 
 /**
@@ -848,8 +852,10 @@ export type CollectionStacConfigCreate = {
      * Stac Collection Id
      */
     stac_collection_id?: string | null;
-    viz_params?: VizParamsCreate | null;
-    cover_viz_params?: VizParamsCreate | null;
+    /**
+     * Visualizations
+     */
+    visualizations?: Array<NamedVizParamsCreate>;
     /**
      * Max Cloud Cover
      */
@@ -1290,6 +1296,39 @@ export type ImageryViewUpdate = {
 };
 
 /**
+ * KnnValidationStatusOut
+ *
+ * Summary of what the KNN label validator has available.
+ *
+ * Used by the frontend to explain to annotators why validation may be
+ * unavailable for a given task/label (e.g. not enough prior labels yet).
+ */
+export type KnnValidationStatusOut = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Required Per Label
+     */
+    required_per_label: number;
+    /**
+     * Required Total
+     */
+    required_total: number;
+    /**
+     * Total Labeled With Embedding
+     */
+    total_labeled_with_embedding: number;
+    /**
+     * Per Label Counts
+     */
+    per_label_counts: {
+        [key: string]: number;
+    };
+};
+
+/**
  * LabelBase
  *
  * A label that can be assigned to an annotation within a campaign.
@@ -1353,6 +1392,18 @@ export type MosaicRegisterResponse = {
     assets: {
         [key: string]: AssetInfo;
     };
+};
+
+/**
+ * NamedVizParamsCreate
+ */
+export type NamedVizParamsCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    viz_params: VizParamsCreate;
+    cover_viz_params?: VizParamsCreate | null;
 };
 
 /**
@@ -3289,6 +3340,36 @@ export type ValidateAnnotationSubmissionResponses = {
 
 export type ValidateAnnotationSubmissionResponse = ValidateAnnotationSubmissionResponses[keyof ValidateAnnotationSubmissionResponses];
 
+export type GetKnnValidationStatusData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/knn-validation-status';
+};
+
+export type GetKnnValidationStatusErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetKnnValidationStatusError = GetKnnValidationStatusErrors[keyof GetKnnValidationStatusErrors];
+
+export type GetKnnValidationStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: KnnValidationStatusOut;
+};
+
+export type GetKnnValidationStatusResponse = GetKnnValidationStatusResponses[keyof GetKnnValidationStatusResponses];
+
 export type IngestAnnotationTasksFromCsvData = {
     body: BodyIngestAnnotationTasksFromCsv;
     path: {
@@ -3453,7 +3534,12 @@ export type ExportAnnotationsData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Merge On Agreement
+         */
+        merge_on_agreement?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/export-annotations';
 };
 
@@ -3481,7 +3567,12 @@ export type ExportAnnotationsGeojsonData = {
          */
         campaign_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Merge On Agreement
+         */
+        merge_on_agreement?: boolean;
+    };
     url: '/api/campaigns/{campaign_id}/export-annotations-geojson';
 };
 

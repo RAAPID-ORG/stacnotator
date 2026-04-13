@@ -6,6 +6,7 @@ import type {
   CampaignSettingsOut,
 } from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/components/creation/steps/StepAddTimeseries';
+import { Button } from '~/shared/ui/forms';
 
 interface Props {
   newTimeseries: TimeSeriesCreate[];
@@ -33,32 +34,15 @@ export const TimeseriesTab: React.FC<Props> = ({
   campaignSettings,
 }) => {
   return (
-    <div id="tab-timeseries" role="tabpanel" className="space-y-3">
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Add Timeseries</h2>
-        <p className="text-sm text-neutral-500 mb-3">
-          Time series show how a location changes over time using spectral indices (e.g. NDVI,
-          NDWI). They are displayed as interactive charts alongside imagery during annotation to
-          provide temporal context.
-        </p>
-        <div className="flex items-start gap-2.5 px-4 py-3 mb-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-          <svg
-            className="w-5 h-5 shrink-0 mt-0.5 text-blue-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
-            />
-          </svg>
-          <span>
-            Currently only NDVI is supported. Custom band combinations will be available in a future
-            update. If you need a different index now, please reach out to the maintainers.
-          </span>
+    <div id="tab-timeseries" role="tabpanel">
+      <section className="space-y-4">
+        <div>
+          <h2 className="section-heading">Add timeseries</h2>
+          <p className="section-description">
+            Time series show how a location changes over time using spectral indices (e.g. NDVI,
+            NDWI). They are displayed as interactive charts alongside imagery during annotation to
+            provide temporal context.
+          </p>
         </div>
         <StepAddTimeseries
           form={
@@ -77,44 +61,38 @@ export const TimeseriesTab: React.FC<Props> = ({
         />
 
         {newTimeseries.length > 0 && (
-          <button
-            type="button"
-            onClick={handleAddTimeseries}
-            disabled={saving}
-            className="mt-4 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-200 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            Add {newTimeseries.length} Timeseries
-          </button>
+          <Button onClick={handleAddTimeseries} disabled={saving}>
+            Add {newTimeseries.length} timeseries
+          </Button>
         )}
-      </div>
+      </section>
 
       {timeseries.length > 0 && (
-        <div className="bg-white rounded-lg border border-neutral-300 p-6">
-          <h2 className="text-lg font-semibold text-neutral-900 mb-4">
-            Existing Timeseries ({timeseries.length})
+        <section className="mt-8 pt-6 border-t border-neutral-100 space-y-3">
+          <h2 className="section-heading">
+            Existing timeseries{' '}
+            <span className="text-neutral-400 font-normal">({timeseries.length})</span>
           </h2>
-          <div className="space-y-3">
+          <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
             {timeseries.map((ts) => (
-              <div
-                key={ts.id}
-                className="rounded-lg border border-neutral-300 p-4 flex justify-between items-start"
-              >
-                <div>
-                  <h4 className="font-medium text-neutral-900">{ts.name}</h4>
-                  <p className="text-sm text-neutral-500 mt-1">
-                    Start: {ts.start_ym} | End: {ts.end_ym}
-                  </p>
+              <li key={ts.id} className="flex items-start justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-neutral-900">{ts.name}</div>
+                  <div className="text-xs text-neutral-500 mt-0.5">
+                    {ts.start_ym} – {ts.end_ym}
+                  </div>
                 </div>
                 <button
                   onClick={() => setDeleteConfirm({ timeseriesId: ts.id })}
-                  className="text-sm text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                  className="text-xs text-red-600 hover:text-red-800 transition-colors cursor-pointer shrink-0"
+                  type="button"
                 >
                   Remove
                 </button>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
     </div>
   );

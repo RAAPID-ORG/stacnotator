@@ -47,11 +47,7 @@ APP_TILER="stacnotator-${ENV}-tiler"
 APP_SWA="stacnotator-${ENV}-frontend"
 
 # Project name as used in Terraform (matches KV secret naming)
-if [ "$ENV" = "prod" ]; then
-    PROJECT_NAME="stacnotator"
-else
-    PROJECT_NAME="stacnotator-${ENV}"
-fi
+PROJECT_NAME="stacnotator-${ENV}"
 
 # Resource sizing per environment
 if [ "$ENV" = "dev" ]; then
@@ -59,9 +55,9 @@ if [ "$ENV" = "dev" ]; then
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
     TILER_DEDICATED=false
 else
-    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=3  BACKEND_WORKERS=4
-    TILER_CPU=16     TILER_MEM=32Gi   TILER_MIN=1    TILER_MAX=2    TILER_WORKERS=32
-    TILER_DEDICATED=true
+    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=2  BACKEND_WORKERS=4
+    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
+    TILER_DEDICATED=false
 fi
 
 echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
@@ -102,7 +98,7 @@ echo -e "  RG:        $RESOURCE_GROUP"
 echo -e "  Tag:       $IMAGE_TAG"
 echo -e "  Backend:   Container App (${BACKEND_CPU} CPU, ${BACKEND_MEM}, ${BACKEND_MIN}-${BACKEND_MAX} replicas)"
 if [ "$TILER_DEDICATED" = "true" ]; then
-    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D16 dedicated)"
+    echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, D8 dedicated)"
 else
     echo -e "  Tiler:     Container App (${TILER_CPU} CPU, ${TILER_MEM}, consumption)"
 fi
@@ -199,7 +195,7 @@ if [ "$TILER_DEDICATED" = "true" ]; then
         az containerapp env workload-profile add \
             --name "$CAE_NAME" -g "$RESOURCE_GROUP" \
             --workload-profile-name "tiler-dedicated" \
-            --workload-profile-type D16 \
+            --workload-profile-type D8 \
             --min-nodes 0 --max-nodes 1 \
             --output none
         echo -e "${GREEN}  ✓ Workload profile added${NC}"
@@ -262,6 +258,21 @@ for i in $(seq 1 $MIGRATION_RETRIES); do
 done
 
 if [ -n "$REPLICA_NAME" ]; then
+    # Resolve the target DB host so the operator knows which server will be migrated
+    MIGRATION_DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" \
+        --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || echo "unknown")
+    echo -e "${YELLOW}Migrations will run against:${NC}"
+    echo -e "  Host:     ${MIGRATION_DB_HOST}"
+    echo -e "  Database: stacnotator"
+    echo -e "  User:     psqladmin"
+    if [ "$CI" != "true" ]; then
+        read -p "Run migrations? (y/N): " CONFIRM_MIGRATE
+        if [[ ! "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}Skipping migrations. Run manually:${NC}"
+            echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+        fi
+    fi
+    if [ "$CI" = "true" ] || [[ "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Running database migrations...${NC}"
     # az containerapp exec doesn't reliably return the command's exit code,
     # so we wrap alembic to echo a sentinel on success.
@@ -276,6 +287,7 @@ if [ -n "$REPLICA_NAME" ]; then
         echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
     else
         echo -e "${GREEN}✓ Migrations done${NC}"
+    fi
     fi
 else
     echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
@@ -342,10 +354,17 @@ echo -e "${GREEN}✓ Frontend deployed${NC}"
 # Update CORS
 echo ""
 echo -e "${YELLOW}Updating CORS...${NC}"
+CORS_ORIGINS_VALUE="https://$FRONTEND_URL"
+if [ -n "$CUSTOM_DOMAINS" ]; then
+    # CUSTOM_DOMAINS is a comma-separated list of full origins,
+    # e.g. "https://www.stacnotator.io,https://stacnotator.io"
+    CORS_ORIGINS_VALUE="${CORS_ORIGINS_VALUE},${CUSTOM_DOMAINS}"
+fi
+echo -e "${BLUE}  CORS_ORIGINS=${CORS_ORIGINS_VALUE}${NC}"
 az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none
+    --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none
 az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=https://$FRONTEND_URL" --output none 2>/dev/null || true
+    --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none 2>/dev/null || true
 echo -e "${GREEN}✓ CORS updated${NC}"
 
 echo ""

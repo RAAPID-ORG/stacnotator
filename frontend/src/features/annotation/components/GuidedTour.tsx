@@ -19,7 +19,6 @@ interface TourStep {
   /** Friendly label for the hotkey(s) the user must press */
   requiredKeyLabel?: string;
   /** Number of times the user must press the required key (default 1) */
-  requiredPressCount?: number;
   /** Whether to scroll the target into view (default true) */
   scrollIntoView?: boolean;
 }
@@ -43,7 +42,10 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <p>
         This guided tour will walk you through all the key features of the annotation workspace.
-        Almost every action has a keyboard shortcut, making your workflow fast and seamless.
+        <br />
+        <br />
+        Almost every action has a <strong>keyboard shortcut</strong>, making your workflow fast and
+        seamless. We recommend trying to use only the keyboard for a better experience.
       </p>
     ),
     placement: 'bottom',
@@ -134,38 +136,38 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
           <kbd className="tour-kbd">D</kbd> to go to the <strong>next slice</strong>.
         </p>
         <p className="text-sm text-neutral-500 italic">
-          Try pressing A or D twice now to move through the slices.
+          Try pressing A and then D to move in both directions.
         </p>
       </div>
     ),
     placement: 'bottom',
-    requiredKeys: ['d', 'a'],
-    requiredKeyLabel: 'A or D',
-    requiredPressCount: 2,
+    requiredKeys: ['a', 'd'],
+    requiredKeyLabel: 'A and D',
   },
 
-  // Practice: navigate windows (both directions)
+  // Practice: navigate windows
   {
     target: '[data-tour="timeline-sidebar"]',
     title: 'Practice: Navigate Windows',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Shift+D</kbd> to go to the <strong>next window</strong>{' '}
-          and <kbd className="tour-kbd">Shift+A</kbd> to go to the <strong>previous window</strong>.
-          Often times you will want to through imagery in these bigger steps rather then
-          individually by slice as the first slice (cover slice) is often supposed to be
-          representative of the whole window. These are also preloaded to make you workflow faster.
+          Press <kbd className="tour-kbd">Shift+A</kbd> to go to the{' '}
+          <strong>previous window</strong> and <kbd className="tour-kbd">Shift+D</kbd> to go to the{' '}
+          <strong>next window</strong>. Often you will want to browse imagery in these bigger steps
+          rather than individually by slice, as the first slice (cover slice) is often
+          representative of the whole window. These are also preloaded at your default zoom-level to
+          make your workflow faster. Set the default zoom in campaign settings for the best
+          experience.
         </p>
         <p className="text-sm text-neutral-500 italic">
-          Try pressing Shift+D and then Shift+A to navigate both directions.
+          Try pressing Shift+A and then Shift+D to navigate both directions.
         </p>
       </div>
     ),
     placement: 'right',
-    requiredKeys: ['shift+d', 'shift+a'],
-    requiredKeyLabel: 'Shift+A or Shift+D',
-    requiredPressCount: 2,
+    requiredKeys: ['shift+a', 'shift+d'],
+    requiredKeyLabel: 'Shift+A and Shift+D',
   },
 
   // Tip: hold to cycle windows
@@ -195,13 +197,10 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     title: 'Map Controls',
     content: (
       <div className="space-y-2">
-        <p>These buttons control the map display:</p>
+        <p>These controls in the header bar let you manage the map:</p>
         <ul className="list-disc list-inside space-y-1 text-sm">
           <li>
-            <strong>Window selector</strong> - choose a window directly
-          </li>
-          <li>
-            <strong>Slice selector</strong> - choose a slice directly
+            <strong>Layer / Window / Slice selectors</strong> - switch imagery directly
           </li>
           <li>
             <strong>Recenter</strong> - snap back to the task location (Space)
@@ -215,7 +214,7 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         </ul>
       </div>
     ),
-    placement: 'left',
+    placement: 'bottom',
   },
 
   // Practice: recenter
@@ -287,7 +286,7 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         </p>
       </div>
     ),
-    placement: 'left',
+    placement: 'bottom',
   },
 
   // Timeseries chart (only if configured)
@@ -378,7 +377,6 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'left',
     requiredKeys: ['s', 'w'],
     requiredKeyLabel: 'W or S',
-    requiredPressCount: 1,
   },
 
   // Practice: zoom & pan
@@ -405,44 +403,42 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
     requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
     requiredKeyLabel: 'Alt+↑ or Alt+↓',
-    requiredPressCount: 1,
   },
 
-  // Imagery source switching
+  // Imagery source switching (top level of the layer dropdown)
   {
-    target: '[data-tour="imagery-selector"]',
+    target: '[data-tour="layer-selector"]',
     title: 'Switching Imagery Sources',
     content: (
       <div className="space-y-2">
         <p>
-          Open the <strong>imagery source</strong> dropdown to switch between the different sources
-          configured for this view (e.g. Sentinel-2, basemaps, etc.).
+          Open this dropdown to switch between <strong>imagery sources</strong> - the top-level
+          groups here (e.g. Sentinel-2, Landsat, basemaps).
         </p>
         <p>
-          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources
-          without opening the dropdown.
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through sources without
+          opening the dropdown.
         </p>
       </div>
     ),
-    placement: 'bottom',
+    placement: 'left',
   },
 
-  // Visualization switching
+  // Visualization switching (second level of the same layer dropdown)
   {
-    target: '[data-tour="map-controls"]',
+    target: '[data-tour="layer-selector"]',
     title: 'Switching Visualization Layers',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within
-          the current source (e.g. True Color → False Color → NDVI). You can also use the
-          visualization dropdown in the map controls.
+          Inside the same dropdown, each source expands to its <strong>visualization layers</strong>{' '}
+          (e.g. True Color → False Color → NDVI). Pick one to change how the current source is
+          rendered. <kbd className="tour-kbd">Shift+I</kbd> cycles through them.
         </p>
         <p>
-          <strong>Note:</strong> Visualization options are only available for imagery sources that
-          have them configured. For example, basemaps typically do not have multiple visualization
-          layers - only sources like Sentinel-2 with pre-configured band combinations will show
-          visualization options.
+          <strong>Note:</strong> Visualization options are only available for sources that have them
+          configured. Basemaps typically do not have multiple visualizations - only sources like
+          Sentinel-2 with pre-configured band combinations will show visualization options.
         </p>
       </div>
     ),
@@ -494,6 +490,25 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         a personal or default layout for the campaign. Use the fullscreen button to maximize the
         annotation workspace.
       </p>
+    ),
+    placement: 'bottom',
+  },
+
+  // Campaign guide
+  {
+    target: '[data-tour="campaign-guide"]',
+    title: 'Campaign Guide',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Each campaign can include a <strong>guide</strong> written by its owner with instructions,
+          label definitions, and examples. Open it from the toolbar or press{' '}
+          <kbd className="tour-kbd">G</kbd> to toggle it.
+        </p>
+        <p className="text-sm text-neutral-500">
+          If the guide is empty, ask your campaign admin to fill it in from Campaign Settings.
+        </p>
+      </div>
     ),
     placement: 'bottom',
   },
@@ -656,41 +671,76 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'top',
   },
 
-  // 6. Practice: navigate slices & windows
+  // 6a. Practice: navigate slices
   {
     target: '[data-tour="main-map"]',
-    title: 'Practice: Navigate Slices & Windows',
+    title: 'Practice: Navigate Slices',
     content: (
       <div className="space-y-2">
         <p>
-          Press <kbd className="tour-kbd">A</kbd> / <kbd className="tour-kbd">D</kbd> to navigate
-          between slices, and <kbd className="tour-kbd">Shift+A</kbd> /{' '}
-          <kbd className="tour-kbd">Shift+D</kbd> to navigate between windows.
+          Press <kbd className="tour-kbd">A</kbd> to go to the <strong>previous slice</strong> and{' '}
+          <kbd className="tour-kbd">D</kbd> to go to the <strong>next slice</strong>.
         </p>
-        <p className="text-sm text-neutral-500 italic">Try pressing D now.</p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing A and then D to move in both directions.
+        </p>
       </div>
     ),
     placement: 'bottom',
-    requiredKeys: ['d', 'a'],
-    requiredKeyLabel: 'A or D',
-    requiredPressCount: 1,
+    requiredKeys: ['a', 'd'],
+    requiredKeyLabel: 'A and D',
   },
 
-  // 7. Imagery Sources & Visualizations
+  // 6b. Practice: navigate windows
   {
-    target: '[data-tour="map-controls"]',
-    title: 'Imagery Sources & Visualizations',
+    target: '[data-tour="timeline-sidebar"]',
+    title: 'Practice: Navigate Windows',
     content: (
       <div className="space-y-2">
         <p>
-          The <strong>imagery source</strong> and <strong>visualization</strong> dropdowns in the
-          top-right of the map let you switch which satellite imagery or basemap is displayed and
-          which band combination (e.g. True Color, NDVI) is applied.
+          Press <kbd className="tour-kbd">Shift+A</kbd> to go to the{' '}
+          <strong>previous window</strong> and <kbd className="tour-kbd">Shift+D</kbd> to go to the{' '}
+          <strong>next window</strong>.
+        </p>
+        <p className="text-sm text-neutral-500 italic">
+          Try pressing Shift+A and then Shift+D to navigate both directions.
+        </p>
+      </div>
+    ),
+    placement: 'right',
+    requiredKeys: ['shift+a', 'shift+d'],
+    requiredKeyLabel: 'Shift+A and Shift+D',
+  },
+
+  // 7a. Imagery source switching (top level of the layer dropdown)
+  {
+    target: '[data-tour="layer-selector"]',
+    title: 'Switching Imagery Sources',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Open this dropdown to switch between <strong>imagery sources</strong> - the top-level
+          groups here (e.g. Sentinel-2, Landsat, basemaps).
         </p>
         <p>
-          You can also press <kbd className="tour-kbd">I</kbd> to cycle through imagery sources and{' '}
-          <kbd className="tour-kbd">Shift+I</kbd> to cycle through visualization layers within the
-          current source.
+          You can also press <kbd className="tour-kbd">I</kbd> to cycle through sources without
+          opening the dropdown.
+        </p>
+      </div>
+    ),
+    placement: 'left',
+  },
+
+  // 7b. Visualization switching (second level of the same layer dropdown)
+  {
+    target: '[data-tour="layer-selector"]',
+    title: 'Switching Visualization Layers',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Inside the same dropdown, each source expands to its <strong>visualization layers</strong>{' '}
+          (e.g. True Color → False Color → NDVI). Pick one to change how the current source is
+          rendered. <kbd className="tour-kbd">Shift+I</kbd> cycles through them.
         </p>
         <p className="text-sm text-neutral-500">
           Note: The <em>canvas view</em> dropdown in the toolbar selects which view is active, while
@@ -834,7 +884,6 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
     requiredKeys: ['alt+arrowup', 'alt+arrowdown'],
     requiredKeyLabel: 'Alt+↑ or Alt+↓',
-    requiredPressCount: 1,
   },
 
   // 14. Minimap
@@ -899,7 +948,26 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'bottom',
   },
 
-  // 16. Keyboard help
+  // 16a. Campaign guide
+  {
+    target: '[data-tour="campaign-guide"]',
+    title: 'Campaign Guide',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Each campaign can include a <strong>guide</strong> written by its owner with instructions,
+          label definitions, and examples. Open it from the toolbar or press{' '}
+          <kbd className="tour-kbd">G</kbd> to toggle it.
+        </p>
+        <p className="text-sm text-neutral-500">
+          If the guide is empty, ask your campaign admin to fill it in from Campaign Settings.
+        </p>
+      </div>
+    ),
+    placement: 'bottom',
+  },
+
+  // 16b. Keyboard help
   {
     target: '[data-tour="keyboard-help"]',
     title: 'Keyboard Help',
@@ -985,7 +1053,7 @@ interface GuidedTourProps {
 export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const [currentStep, setCurrentStep] = useState(0);
-  const [pressCount, setPressCount] = useState(0);
+  const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [keyFulfilled, setKeyFulfilled] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -1018,7 +1086,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
 
   // Reset key tracking when step changes
   useEffect(() => {
-    setPressCount(0);
+    setPressedKeys(new Set());
     setKeyFulfilled(false);
   }, [currentStep]);
 
@@ -1026,17 +1094,14 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const stepRef = useRef(step);
   stepRef.current = step;
 
-  // Listen for required key presses
+  // Listen for required key presses — each unique key must be pressed at
+  // least once before the step is fulfilled (not just N presses of any key).
   useEffect(() => {
     if (!isOpen || !step?.requiredKeys || keyFulfilled) return;
 
-    const required = step.requiredPressCount ?? 1;
-
     const handler = (e: KeyboardEvent) => {
-      // Ignore key-repeat events so holding a key doesn't spam the counter
       if (e.repeat) return;
 
-      // Ignore if typing in an input
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return;
@@ -1045,25 +1110,23 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
       const currentStep = stepRef.current;
       if (!currentStep?.requiredKeys) return;
 
-      // Build the key identifier to match against requiredKeys
       const parts: string[] = [];
       if (e.shiftKey) parts.push('shift');
       if (e.altKey) parts.push('alt');
       if (e.ctrlKey) parts.push('ctrl');
       parts.push(e.key.toLowerCase());
       const combo = parts.join('+');
-
-      // Also check just the plain key for simple keys
       const plainKey = e.key.toLowerCase();
 
-      const matched = currentStep.requiredKeys.some(
+      const matchedKey = currentStep.requiredKeys.find(
         (k) => k.toLowerCase() === combo || k.toLowerCase() === plainKey
       );
 
-      if (matched) {
-        setPressCount((prev) => {
-          const next = prev + 1;
-          if (next >= required) {
+      if (matchedKey) {
+        setPressedKeys((prev) => {
+          const next = new Set(prev);
+          next.add(matchedKey.toLowerCase());
+          if (currentStep.requiredKeys!.every((k) => next.has(k.toLowerCase()))) {
             setKeyFulfilled(true);
           }
           return next;
@@ -1184,6 +1247,14 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     }
   }, [isLastStep, onClose]);
 
+  // Auto-advance after all required keys are pressed so the user doesn't
+  // have to move their mouse to the tooltip to click "Next".
+  useEffect(() => {
+    if (!keyFulfilled) return;
+    const timer = setTimeout(() => handleNext(), 800);
+    return () => clearTimeout(timer);
+  }, [keyFulfilled, handleNext]);
+
   const handlePrev = useCallback(() => {
     setCurrentStep((s) => Math.max(0, s - 1));
   }, []);
@@ -1219,7 +1290,6 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   if (!isOpen || !step) return null;
 
   const needsKeyPress = !!step.requiredKeys && !keyFulfilled;
-  const requiredTotal = step.requiredPressCount ?? 1;
   const progressPct = Math.round(((currentStep + 1) / steps.length) * 100);
 
   return (
@@ -1278,7 +1348,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
           {/* Progress bar */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-neutral-200 rounded-t-xl overflow-hidden">
             <div
-              className="h-full bg-brand-500 transition-all duration-300"
+              className="h-full bg-brand-600 transition-all duration-300"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -1319,28 +1389,23 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
                           clipRule="evenodd"
                         />
                       </svg>
-                      Done! Click Next to continue.
+                      Done!
                     </span>
                   ) : (
-                    <>
-                      Press <kbd className="tour-kbd">{step.requiredKeyLabel}</kbd>
-                      {requiredTotal > 1 && (
-                        <span className="ml-1 text-neutral-400">
-                          ({pressCount}/{requiredTotal})
-                        </span>
-                      )}
-                    </>
+                    <>Press</>
                   )}
                 </span>
                 {!keyFulfilled && (
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: requiredTotal }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          i < pressCount ? 'bg-brand-500' : 'bg-neutral-300'
+                  <div className="flex gap-1">
+                    {step.requiredKeys.map((k) => (
+                      <kbd
+                        key={k}
+                        className={`tour-kbd text-[10px] transition-opacity ${
+                          pressedKeys.has(k.toLowerCase()) ? 'opacity-40 line-through' : ''
                         }`}
-                      />
+                      >
+                        {k}
+                      </kbd>
                     ))}
                   </div>
                 )}
@@ -1369,7 +1434,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
               <button
                 onClick={handleNext}
                 disabled={needsKeyPress}
-                className="px-4 py-1.5 text-xs font-bold bg-brand-500 text-white rounded-md hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-1.5 text-xs font-bold bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {isLastStep ? 'Finish' : 'Next →'}
               </button>

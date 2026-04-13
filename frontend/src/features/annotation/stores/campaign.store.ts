@@ -4,7 +4,9 @@ import {
   getCampaignWithImageryWindows,
   getCampaignUsers,
   createNewCanvasLayout,
+  getKnnValidationStatus,
   type CampaignOutFull,
+  type KnnValidationStatusOut,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -57,6 +59,11 @@ interface CampaignStore {
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
 
+  // KNN label validation status (embedding counts vs. thresholds). Refreshed
+  // on campaign load and after each annotation submission so the tooltip in
+  // AnnotationControls can explain why validation is / isn't available.
+  knnValidationStatus: KnnValidationStatusOut | null;
+
   // View selection (replaces imagery selection)
   selectedViewId: number | null;
 
@@ -71,6 +78,7 @@ interface CampaignStore {
     initialTaskId?: number,
     isReviewMode?: boolean
   ) => Promise<void>;
+  refreshKnnValidationStatus: () => Promise<void>;
   setSelectedViewId: (id: number | null) => void;
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
@@ -87,6 +95,7 @@ const initialState = {
   isReviewMode: false,
   isAuthoritativeReviewer: false,
   isCampaignAdmin: false,
+  knnValidationStatus: null as KnnValidationStatusOut | null,
   selectedViewId: null as number | null,
   currentLayout: null as Layout | null,
   savedLayout: null as Layout | null,
@@ -100,9 +109,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     set({ isLoadingCampaign: true });
 
     try {
-      const [campaignRes, usersRes] = await Promise.all([
+      const [campaignRes, usersRes, knnRes] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
         getCampaignUsers({ path: { campaign_id: campaignId } }),
+        getKnnValidationStatus({ path: { campaign_id: campaignId } }),
       ]);
 
       const campaign = campaignRes.data!;
@@ -141,6 +151,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
       set({
         campaign,
+        knnValidationStatus: knnRes.data ?? null,
         selectedViewId,
         currentLayout: mergedLayout,
         savedLayout: mergedLayout,
@@ -156,6 +167,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
+        // Campaign boot: any empty-probe should land on the cover slice.
+        sliceNavIntent: 'initial',
       });
 
       // Load tasks
@@ -201,6 +214,19 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
     const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
+    // Switching view is effectively a fresh start for the slice probe.
+    useMapStore.getState().setSliceNavIntent('initial');
+  },
+
+  refreshKnnValidationStatus: async () => {
+    const { campaign } = get();
+    if (!campaign) return;
+    try {
+      const res = await getKnnValidationStatus({ path: { campaign_id: campaign.id } });
+      if (res.data) set({ knnValidationStatus: res.data });
+    } catch (error) {
+      console.warn('Failed to refresh KNN validation status', error);
+    }
   },
 
   setCurrentLayout: (layout) => set({ currentLayout: layout }),

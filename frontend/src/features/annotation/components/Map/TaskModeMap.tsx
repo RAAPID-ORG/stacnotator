@@ -116,7 +116,7 @@ const TaskModeMap = ({
     onLayersChange,
   });
 
-  // Tile preloading (task mode only) — temporarily disabled for debugging
+  // Tile preloading (task mode only) - temporarily disabled for debugging
   useTilePreloading({
     layerManager,
     campaign,

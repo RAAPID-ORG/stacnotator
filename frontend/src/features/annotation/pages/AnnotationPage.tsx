@@ -4,6 +4,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
+import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
@@ -12,6 +13,33 @@ import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { Button } from '~/shared/ui/forms';
+
+/**
+ * Key used to mark that a given (user, campaign) pair has already seen the
+ * guided tour. localStorage-scoped: resets on new devices/browsers, which is
+ * acceptable for an onboarding nudge.
+ */
+const tourSeenKey = (userId: string, campaignId: number) =>
+  `stacnotator:tour-seen:${userId}:${campaignId}`;
+
+const hasSeenTour = (userId: string | undefined, campaignId: number): boolean => {
+  if (!userId) return true; // fail-safe: don't auto-open if we can't identify user
+  try {
+    return localStorage.getItem(tourSeenKey(userId, campaignId)) === '1';
+  } catch {
+    return true;
+  }
+};
+
+const markTourSeen = (userId: string | undefined, campaignId: number) => {
+  if (!userId) return;
+  try {
+    localStorage.setItem(tourSeenKey(userId, campaignId), '1');
+  } catch {
+    // localStorage unavailable (private browsing etc.) - ignore
+  }
+};
 
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -21,9 +49,13 @@ export const AnnotationPage = () => {
 
   // Store subscriptions
   const campaign = useCampaignStore((s) => s.campaign);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
   const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
+  const allTasks = useTaskStore((s) => s.allTasks);
+  const tasksLoaded = useTaskStore((s) => s.tasksLoaded);
+  const accountId = useAccountStore((s) => s.account?.id);
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -101,14 +133,34 @@ export const AnnotationPage = () => {
     }
   }, [campaign, setBreadcrumbs]);
 
+  // Auto-show the guided tour the first time this user opens this campaign.
+  // For task-mode we wait until visibleTasks > 0 so the tour can actually
+  // walk through the task UI. Fires at most once per (user, campaign) pair,
+  // tracked in localStorage.
+  const [autoTourChecked, setAutoTourChecked] = useState(false);
+  useEffect(() => {
+    if (!showContent || !campaign || autoTourChecked || !accountId) return;
+    const canTour = campaign.mode === 'open' || visibleTasks.length > 0;
+    if (!canTour) return; // wait for tasks (task mode with empty visibleTasks)
+    setAutoTourChecked(true);
+    if (!hasSeenTour(accountId, campaign.id)) {
+      setShowGuidedTour(true);
+    }
+  }, [showContent, campaign, visibleTasks.length, accountId, autoTourChecked, setShowGuidedTour]);
+
+  const handleTourClose = () => {
+    setShowGuidedTour(false);
+    if (campaign && accountId) markTourSeen(accountId, campaign.id);
+  };
+
   // Early returns
 
   if (isRegistering && !hasBeenReady) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center space-y-3">
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="text-center max-w-md space-y-4">
           <svg
-            className="animate-spin h-8 w-8 text-blue-500 mx-auto"
+            className="animate-spin h-7 w-7 text-brand-600 mx-auto"
             viewBox="0 0 24 24"
             fill="none"
           >
@@ -126,8 +178,8 @@ export const AnnotationPage = () => {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
             />
           </svg>
-          <p className="text-lg font-semibold text-neutral-800">Campaign setup in progress</p>
-          <p className="text-sm text-neutral-500 max-w-md">
+          <h2 className="text-base font-semibold text-neutral-900">Campaign setup in progress</h2>
+          <p className="text-sm text-neutral-500 leading-relaxed">
             {campaign?.registration_status === 'registering' &&
               'Tile imagery is being registered from the STAC catalog. '}
             {campaign?.embedding_status === 'registering' &&
@@ -135,13 +187,9 @@ export const AnnotationPage = () => {
             This may take a few minutes. You&apos;ll be able to start annotating once setup
             completes.
           </p>
-          <button
-            onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
-            className="mt-2 px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 border border-brand-300 rounded-lg hover:bg-brand-100 transition-colors"
-            type="button"
-          >
-            Go to Settings
-          </button>
+          <Button onClick={() => navigate(`/campaigns/${campaignId}/settings`)}>
+            Go to settings
+          </Button>
         </div>
       </div>
     );
@@ -150,17 +198,17 @@ export const AnnotationPage = () => {
   if (!showContent) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading annotator..." />
+        <LoadingSpinner size="lg" text="Loading annotator…" />
       </div>
     );
   }
 
   if (!campaign) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center px-6">
         <div className="text-center">
-          <p className="text-lg font-semibold text-brand-800 mb-2">Campaign not found</p>
-          <p className="text-neutral-600">The requested campaign could not be loaded.</p>
+          <h2 className="text-base font-semibold text-neutral-900 mb-1">Campaign not found</h2>
+          <p className="text-sm text-neutral-500">The requested campaign could not be loaded.</p>
         </div>
       </div>
     );
@@ -173,34 +221,57 @@ export const AnnotationPage = () => {
       {campaign &&
       ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
         <Canvas commentInputRef={commentInputRef} />
+      ) : campaign?.mode === 'tasks' && !tasksLoaded ? (
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-4">
-            <div className="mb-4">
-              <svg
-                className="mx-auto h-16 w-16 text-neutral-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-neutral-900 mb-2">No Tasks Available</h3>
-            <p className="text-neutral-600 mb-1">
-              You've completed all assigned annotation tasks for this campaign! <br />
-              Change your filter settings to see more tasks that were not assigned to you.
-            </p>
+            {campaign?.mode === 'tasks' && allTasks.length === 0 ? (
+              <>
+                <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
+                  No annotation tasks yet
+                </h2>
+                <p className="text-sm text-neutral-500 mb-5 leading-relaxed">
+                  This campaign has no tasks set up. Tasks define the points or polygons that
+                  annotators will label.
+                </p>
+                {isCampaignAdmin ? (
+                  <Button onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}>
+                    Set up tasks in settings
+                  </Button>
+                ) : (
+                  <p className="text-xs text-neutral-500 italic">
+                    Ask a campaign admin to create tasks before you can start annotating.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
+                  All tasks completed
+                </h2>
+                <p className="text-sm text-neutral-500 mb-4 leading-relaxed">
+                  You&apos;ve completed all pending tasks matching your current filter.
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    useTaskStore.getState().setTaskFilter({
+                      assignedTo: [],
+                      statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+                    });
+                  }}
+                >
+                  View all tasks
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
-      <GuidedTour isOpen={showGuidedTour} onClose={() => setShowGuidedTour(false)} />
+      <GuidedTour isOpen={showGuidedTour} onClose={handleTourClose} />
     </div>
   );
 };

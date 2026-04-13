@@ -29,7 +29,7 @@ export function PasswordRequirementIndicator({
     <div className="flex items-center gap-2 text-xs">
       <div
         className={`w-4 h-4 rounded-full flex items-center justify-center ${
-          met ? 'bg-brand-500' : partial ? 'bg-neutral-300' : 'bg-neutral-200'
+          met ? 'bg-brand-600' : partial ? 'bg-neutral-300' : 'bg-neutral-200'
         }`}
       >
         {met && (

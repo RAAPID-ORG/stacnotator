@@ -16,6 +16,7 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    KnnValidationStatusOut,
     ValidateLabelSubmissionsResponse,
 )
 from src.auth.dependencies import require_approved_user, require_authenticated_user
@@ -130,6 +131,27 @@ def validate_annotation_submission(
         campaign_id=campaign_id,
         annotation_task_id=annotation_task_id,
         label_id=label_id,
+    )
+
+
+@router.get(
+    "/campaigns/{campaign_id}/knn-validation-status",
+    response_model=KnnValidationStatusOut,
+)
+def get_knn_validation_status(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Summarize how close the campaign is to having enough data for KNN
+    label validation. Used by the annotator UI to explain why validation
+    is unavailable on a given task/label.
+    """
+    embedding_year = campaign.settings.embedding_year if campaign.settings else None
+    return embeddings_service.get_validation_status(
+        db,
+        campaign_id=campaign_id,
+        embedding_year=embedding_year,
     )
 
 
@@ -266,9 +288,20 @@ def delete_annotation(
 
 @router.get("/campaigns/{campaign_id}/export-annotations")
 def export_annotations(
-    db: Session = Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
+    merge_on_agreement: bool = False,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    annotations_df = service.build_annotations_export(db, campaign)
+    """Export campaign annotations as CSV.
+
+    When ``merge_on_agreement`` is true, multi-annotator tasks whose
+    annotators all agreed on the same label are collapsed into a single
+    row. Tasks with disagreement (conflict) cause the request to fail
+    with HTTP 400 - resolve the conflicts first.
+    """
+    annotations_df = service.build_annotations_export(
+        db, campaign, merge_on_agreement=merge_on_agreement
+    )
     campaign_name_cleaned = clean_filename(campaign.name)
     buffer = io.StringIO()
     annotations_df.to_csv(buffer, index=False)
@@ -286,11 +319,17 @@ def export_annotations(
 
 @router.get("/campaigns/{campaign_id}/export-annotations-geojson")
 def export_annotations_geojson(
-    db: Session = Depends(get_db), campaign: Campaign = Depends(require_campaign_access)
+    merge_on_agreement: bool = False,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
 ):
-    """Export all annotations for a campaign as a GeoJSON FeatureCollection file."""
+    """Export all annotations for a campaign as a GeoJSON FeatureCollection file.
 
-    geojson = service.build_annotations_geojson_export(db, campaign)
+    See ``export_annotations`` for the meaning of ``merge_on_agreement``.
+    """
+    geojson = service.build_annotations_geojson_export(
+        db, campaign, merge_on_agreement=merge_on_agreement
+    )
     campaign_name_cleaned = clean_filename(campaign.name)
     content = json.dumps(geojson)
     buffer = io.StringIO(content)

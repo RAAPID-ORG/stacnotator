@@ -305,7 +305,7 @@ export const CanvasPreview = ({
               key={v.id}
               className={`group flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-600 text-white'
                   : 'text-neutral-300 border border-neutral-500 hover:bg-neutral-600'
               }`}
               onClick={() => {
@@ -466,7 +466,7 @@ export const CanvasPreview = ({
                     }}
                     className={`group flex items-center gap-0.5 rounded transition-colors cursor-grab active:cursor-grabbing ${
                       isSelected
-                        ? 'bg-brand-500 text-white'
+                        ? 'bg-brand-600 text-white'
                         : 'text-neutral-600 hover:bg-neutral-100'
                     } ${dragOverIdx === idx ? 'ring-1 ring-brand-400 ring-offset-1' : ''}`}
                   >
@@ -660,7 +660,7 @@ export const CanvasPreview = ({
                       }}
                       className={`w-full text-left px-1.5 py-1 rounded text-[11px] leading-tight cursor-pointer transition-colors truncate flex items-center gap-1 ${
                         isSelected
-                          ? 'bg-brand-500 text-white font-medium'
+                          ? 'bg-brand-600 text-white font-medium'
                           : 'text-neutral-600 hover:bg-neutral-100'
                       }`}
                       title={label}

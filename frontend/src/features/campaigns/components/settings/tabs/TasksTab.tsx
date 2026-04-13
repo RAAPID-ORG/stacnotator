@@ -3,6 +3,7 @@ import { TaskGenerationSection } from '~/features/campaigns/components/settings/
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import type { AnnotationTaskOut, CampaignUserOut, GenerateTasksResponse } from '~/api/client';
+import { Button } from '~/shared/ui/forms';
 
 interface Props {
   annotationTasks: AnnotationTaskOut[];
@@ -44,75 +45,97 @@ export const TasksTab: React.FC<Props> = ({
   campaignId,
   bbox,
 }) => {
+  const sectionCls =
+    'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
+
   return (
-    <div id="tab-tasks" role="tabpanel" className="space-y-3">
-      {/* Task Locations Map */}
+    <div id="tab-tasks" role="tabpanel">
+      {/* Task Locations Map - shown above the form sections, no card wrapper */}
       {annotationTasks.length > 0 && bbox && (
-        <TaskLocationsMap tasks={annotationTasks} bbox={bbox} />
+        <section className="mb-6">
+          <TaskLocationsMap tasks={annotationTasks} bbox={bbox} />
+        </section>
       )}
 
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Add Annotation Tasks</h2>
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Add annotation tasks</h2>
+          <p className="section-description">
+            Tasks define the points or polygons annotators will label. Upload existing locations or
+            generate them with random/grid sampling.
+          </p>
+        </div>
 
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-neutral-700 mb-3">
-            How would you like to create tasks?
-          </label>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                if (taskFile === null) {
-                  setTaskFile(new File([], ''));
-                }
-              }}
-              className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                taskFile !== null
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-              }`}
-            >
-              <div className="font-medium">Upload File</div>
-              <div className="text-xs mt-1 opacity-90">Upload tasks from CSV or GeoJSON</div>
-            </button>
-            <button
-              onClick={() => setTaskFile(null)}
-              className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                taskFile === null
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
-              }`}
-            >
-              <div className="font-medium">Generate via Sampling</div>
-              <div className="text-xs mt-1 opacity-90">
-                Create tasks using random or grid sampling
-              </div>
-            </button>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            onClick={() => {
+              if (taskFile === null) {
+                setTaskFile(new File([], ''));
+              }
+            }}
+            className={`text-left px-4 py-3 rounded-lg border transition-colors ${
+              taskFile !== null
+                ? 'bg-brand-50 text-brand-800 border-brand-400'
+                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+            }`}
+            type="button"
+          >
+            <div className="text-sm font-medium">Upload file</div>
+            <div className="text-xs text-neutral-500 mt-0.5">Upload tasks from CSV or GeoJSON</div>
+          </button>
+          <button
+            onClick={() => setTaskFile(null)}
+            className={`text-left px-4 py-3 rounded-lg border transition-colors ${
+              taskFile === null
+                ? 'bg-brand-50 text-brand-800 border-brand-400'
+                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+            }`}
+            type="button"
+          >
+            <div className="text-sm font-medium">Generate via sampling</div>
+            <div className="text-xs text-neutral-500 mt-0.5">
+              Create tasks using random or grid sampling
+            </div>
+          </button>
         </div>
 
         {taskFile !== null && (
-          <div>
-            <h3 className="text-md font-semibold text-neutral-900 mb-3">Upload Task Locations</h3>
-            <p className="text-sm text-neutral-500 mb-4">
+          <div className="space-y-3">
+            <p className="text-xs text-neutral-500 leading-relaxed">
               Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
               <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
-              preserved and shown as sample extents during annotation.
+              preserved and shown as sample extents during annotation. For Points you may want to
+              specify the sample extent (bbox size around the point) under the General Settings tab.
+              The id <strong>must be unique within your whole campaign and must be numeric.</strong>
             </p>
-            <div className="flex gap-4 items-center">
-              <input
-                type="file"
-                accept=".csv,.geojson,.json"
-                onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
-                disabled={uploadingTasks}
-                className="flex-1 px-3 py-2 border border-neutral-300 rounded disabled:bg-neutral-50 disabled:cursor-not-allowed"
-              />
-              <button
+            <div className="flex gap-3 items-center">
+              <label
+                className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
+                  uploadingTasks
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'cursor-pointer hover:border-neutral-400'
+                }`}
+              >
+                <input
+                  type="file"
+                  accept=".csv,.geojson,.json"
+                  onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
+                  disabled={uploadingTasks}
+                  className="sr-only"
+                />
+                <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
+                  Choose file
+                </span>
+                <span className="text-xs text-neutral-500 truncate">
+                  {taskFile && taskFile.size > 0 ? taskFile.name : 'No file selected'}
+                </span>
+              </label>
+              <Button
                 onClick={handleUploadAnnotationTasks}
                 disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
-                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 Upload
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -124,10 +147,15 @@ export const TasksTab: React.FC<Props> = ({
             onError={onTaskGenerationError}
           />
         )}
-      </div>
+      </section>
 
-      <div className="bg-white rounded-lg border border-neutral-300 p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-4">Annotation Tasks Overview</h2>
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">
+            Annotation tasks{' '}
+            <span className="text-neutral-400 font-normal">({annotationTasks.length})</span>
+          </h2>
+        </div>
         {annotationTasks.length > 0 ? (
           <AnnotationTasksTable
             tasks={annotationTasks}
@@ -143,7 +171,7 @@ export const TasksTab: React.FC<Props> = ({
             No annotation tasks yet. Upload a file or generate tasks using sampling above.
           </p>
         )}
-      </div>
+      </section>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Button, Field, Select } from '~/shared/ui/forms';
 import {
   addUsersToCampaign,
   getCampaignUsers,
@@ -219,113 +220,125 @@ export const CampaignUsersSection = ({
     );
   }
 
-  return (
-    <div className="space-y-8">
-      {/* Add User Section */}
-      <div className="bg-white rounded-lg border border-neutral-200 p-6">
-        <h2 className="text-lg font-semibold text-brand-800 mb-4">Add New User</h2>
+  // Inline compact action button - consistent with PlatformUsersTable.
+  const rowActionCls =
+    'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
+  const sectionCls =
+    'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-neutral-700 mb-2">Select User</label>
-            <select
+  return (
+    <div>
+      {/* Add user */}
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Add user</h2>
+          <p className="section-description">
+            Add a platform user to this campaign. They can then be assigned tasks and roles.
+          </p>
+        </div>
+        <div className="flex gap-3 items-end">
+          <Field label="Select user" className="flex-1">
+            <Select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full border border-neutral-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-600"
               disabled={addingUser || availableUsers.length === 0}
             >
               <option value="">
-                {availableUsers.length === 0 ? 'No users available' : 'Select a user...'}
+                {availableUsers.length === 0 ? 'No users available' : 'Select a user…'}
               </option>
               {availableUsers.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.display_name} ({user.email})
                 </option>
               ))}
-            </select>
-          </div>
-          <button
-            onClick={handleAddUser}
-            disabled={addingUser || !selectedUserId}
-            className="px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-            type="button"
-          >
-            {addingUser ? 'Adding...' : 'Add User'}
-          </button>
+            </Select>
+          </Field>
+          <Button onClick={handleAddUser} disabled={addingUser || !selectedUserId}>
+            {addingUser ? 'Adding…' : 'Add user'}
+          </Button>
         </div>
-      </div>
+      </section>
 
-      {/* Users List */}
-      <div className="bg-white rounded-lg border border-neutral-200 p-6">
-        <h2 className="text-lg font-semibold text-brand-800 mb-4">Campaign Users</h2>
+      {/* Users list */}
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">
+            Campaign users <span className="text-neutral-400 font-normal">({users.length})</span>
+          </h2>
+        </div>
 
         {users.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-neutral-500 text-sm">No users assigned to this campaign yet.</p>
+          <div className="text-center py-10 text-sm text-neutral-500">
+            No users assigned to this campaign yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-neutral-200 rounded-xl bg-white">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-200">
-                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Email</th>
-                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Role</th>
-                  <th className="px-4 py-3 text-left font-medium text-neutral-700">Actions</th>
+              <thead className="bg-neutral-50/50 border-b border-neutral-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-neutral-100">
                 {users.map((user) => (
-                  <tr
-                    key={user.user.id}
-                    className="border-b border-neutral-200 hover:bg-neutral-50 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-neutral-900 font-medium">
+                  <tr key={user.user.id} className="hover:bg-neutral-50/60 transition-colors">
+                    <td className="px-4 py-3 text-sm font-medium text-neutral-900">
                       {user.user.display_name}
                     </td>
-                    <td className="px-4 py-3 text-neutral-600 text-xs">{user.user.email}</td>
+                    <td className="px-4 py-3 text-xs text-neutral-500">{user.user.email}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-wrap gap-1">
                         <span
-                          className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                          className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
                             user.is_admin
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-blue-100 text-blue-800'
+                              ? 'bg-brand-50 text-brand-800 border-brand-200'
+                              : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                           }`}
                         >
                           {user.is_admin ? 'Admin' : 'Member'}
                         </span>
                         {user.is_authorative_reviewer && (
-                          <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
-                            Authoritative Reviewer
+                          <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-accent-50 text-accent-800 border border-accent-200">
+                            Authoritative reviewer
                           </span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2 flex-wrap">
+                      <div className="flex justify-end gap-1.5 flex-wrap">
                         <button
                           onClick={() => handleToggleAdmin(user)}
                           disabled={saving}
-                          className="text-xs px-2 py-1 border border-neutral-300 rounded hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-neutral-700 hover:bg-neutral-100`}
                           type="button"
                         >
-                          {user.is_admin ? 'Revoke Admin' : 'Make Admin'}
+                          {user.is_admin ? 'Revoke admin' : 'Make admin'}
                         </button>
                         <button
                           onClick={() => handleToggleAuthorativeReviewer(user)}
                           disabled={saving}
-                          className="text-xs px-2 py-1 border border-indigo-300 text-indigo-600 rounded hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-accent-700 hover:bg-accent-50`}
                           type="button"
                         >
                           {user.is_authorative_reviewer
-                            ? 'Remove Authoritative Reviewer'
-                            : 'Make Authoritative Reviewer'}
+                            ? 'Remove auth. reviewer'
+                            : 'Make auth. reviewer'}
                         </button>
                         <button
                           onClick={() => handleRemoveUser(user)}
                           disabled={saving}
-                          className="text-xs px-2 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className={`${rowActionCls} text-red-600 hover:bg-red-50`}
                           type="button"
                         >
                           Remove
@@ -338,7 +351,7 @@ export const CampaignUsersSection = ({
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };

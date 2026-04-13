@@ -44,8 +44,8 @@ export const StepIndicator = ({
               <div
                 className={`
                   h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0
-                  ${done ? 'bg-brand-500 text-white' : ''}
-                  ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-500' : ''}
+                  ${done ? 'bg-brand-600 text-white' : ''}
+                  ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : ''}
                   ${!done && !active ? 'bg-neutral-100 text-neutral-400' : ''}
                 `}
               >

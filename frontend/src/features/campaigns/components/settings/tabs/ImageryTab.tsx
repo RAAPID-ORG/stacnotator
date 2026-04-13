@@ -37,8 +37,7 @@ import { Modal } from '~/shared/ui/Modal';
 import { fetchCollections } from '~/api/stacBrowser';
 import type { AssetInfo } from '~/features/campaigns/components/creation/steps/imagery/collectionPresets';
 
-// ── snake_case ↔ camelCase ──
-
+// snake_case to camelCase
 function toFrontend(d: Record<string, unknown> | null | undefined): VizParams {
   const p = d ?? {};
   return {
@@ -80,8 +79,6 @@ function toBackend(vp: VizParams): Record<string, unknown> {
   return d;
 }
 
-// ── Props ──
-
 interface Props {
   imagery: ImagerySourceOut[];
   views: ImageryViewOut[];
@@ -102,10 +99,10 @@ export const ImageryTab: React.FC<Props> = ({
   onSourceUpdated,
   onCollectionVizUpdated,
 }) => (
-  <div id="tab-imagery" role="tabpanel" className="space-y-3">
-    <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+  <div id="tab-imagery" role="tabpanel">
+    <div className="flex items-start gap-2.5 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-800 mb-6">
       <svg
-        className="w-5 h-5 shrink-0 mt-0.5 text-amber-500"
+        className="w-4 h-4 shrink-0 mt-0.5 text-amber-600"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -122,16 +119,19 @@ export const ImageryTab: React.FC<Props> = ({
         collections may require re-registration.
       </span>
     </div>
+
     {/* Sources */}
-    <div className="bg-white rounded-lg border border-neutral-300 p-6">
-      <h2 className="text-base font-semibold text-neutral-900 mb-4">
-        Imagery Sources ({imagery.length})
-      </h2>
-      <div className="space-y-4">
-        {imagery.length === 0 ? (
-          <p className="text-xs text-neutral-500">No imagery sources added yet.</p>
-        ) : (
-          imagery.map((src) => (
+    <section className="space-y-4">
+      <div>
+        <h2 className="section-heading">
+          Imagery sources <span className="text-neutral-400 font-normal">({imagery.length})</span>
+        </h2>
+      </div>
+      {imagery.length === 0 ? (
+        <p className="text-xs text-neutral-500">No imagery sources added yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {imagery.map((src) => (
             <SourceCard
               key={src.id}
               source={src}
@@ -140,25 +140,27 @@ export const ImageryTab: React.FC<Props> = ({
               onUpdated={onSourceUpdated}
               onRefresh={onCollectionVizUpdated}
             />
-          ))
-        )}
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </section>
 
     {/* Views */}
-    <div className="bg-white rounded-lg border border-neutral-300 p-6">
-      <h2 className="text-base font-semibold text-neutral-900 mb-4">View Layout</h2>
+    <section className="space-y-4 pt-6 mt-8 border-t border-neutral-100">
+      <div>
+        <h2 className="section-heading">View layout</h2>
+      </div>
       <ViewsEditor
         views={views}
         sources={imagery}
         campaignId={campaignId}
         onChanged={onCollectionVizUpdated}
       />
-    </div>
+    </section>
   </div>
 );
 
-// ── Source card (matches ImagerySourceEditor layout) ──
+// Source card matches ImagerySourceEditor layout
 
 function SourceCard({
   source,
@@ -239,7 +241,7 @@ function SourceCard({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="text-sm font-medium text-neutral-900 border-b border-transparent hover:border-neutral-300 focus:border-brand-500 outline-none px-0.5 py-0.5 -ml-0.5"
+            className="text-sm font-medium text-neutral-900 border-b border-transparent hover:border-neutral-300 focus:border-brand-600 outline-none px-0.5 py-0.5 -ml-0.5"
             placeholder="Source name"
           />
           <button
@@ -264,7 +266,7 @@ function SourceCard({
               max="22"
               value={zoom}
               onChange={(e) => setZoom(Math.max(1, Math.min(22, Number(e.target.value))))}
-              className="w-14 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs text-center"
+              className="w-14 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs text-center"
             />
             {zoom < 10 && (
               <span className="text-[10px] text-amber-600">
@@ -295,7 +297,7 @@ function SourceCard({
               type="button"
               onClick={handleSaveSource}
               disabled={saving}
-              className="ml-auto px-2.5 py-1 text-xs font-medium bg-brand-500 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
+              className="ml-auto px-2.5 py-1 text-xs font-medium bg-brand-600 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -328,7 +330,7 @@ function SourceCard({
                   next[i] = e.target.value;
                   setVizNames(next);
                 }}
-                className="flex-1 border-brand-500 border-b focus:border-b-2 outline-none focus:ring-0 text-xs"
+                className="flex-1 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
               />
               <button
                 type="button"
@@ -373,7 +375,7 @@ function SourceCard({
                 type="button"
                 onClick={handleSaveViz}
                 disabled={vizSaving}
-                className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-500 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
+                className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-600 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {vizSaving ? 'Saving...' : 'Save Visualizations'}
               </button>
@@ -406,7 +408,7 @@ function SourceCard({
                     }}
                     title="Click to configure"
                     className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer
-                      px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-500/5"
+                      px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/5"
                   >
                     <IconSettings className="w-3 h-3 mr-1.5 shrink-0 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
                     <span className="text-xs font-medium leading-tight truncate max-w-[120px]">
@@ -429,7 +431,6 @@ function SourceCard({
         )}
       </div>
 
-      {/* Collection editing modal */}
       {editingCollection && (
         <CollectionEditModal
           collection={editingCollection}
@@ -444,8 +445,6 @@ function SourceCard({
     </>
   );
 }
-
-// ── Collection editing modal ──
 
 function CollectionEditModal({
   collection,
@@ -506,7 +505,7 @@ function CollectionEditModal({
               type="text"
               value={colName}
               onChange={(e) => setColName(e.target.value)}
-              className="w-full border border-neutral-200 rounded px-2.5 py-1.5 text-xs focus:border-brand-500 outline-none"
+              className="w-full border border-neutral-200 rounded px-2.5 py-1.5 text-xs focus:border-brand-600 outline-none"
             />
           </div>
 
@@ -519,7 +518,7 @@ function CollectionEditModal({
               <select
                 value={coverIndex}
                 onChange={(e) => setCoverIndex(Number(e.target.value))}
-                className="w-full border border-neutral-200 rounded px-2.5 py-1.5 text-xs focus:border-brand-500 outline-none"
+                className="w-full border border-neutral-200 rounded px-2.5 py-1.5 text-xs focus:border-brand-600 outline-none"
               >
                 {collection.slices.map((sl, i) => (
                   <option key={i} value={i}>
@@ -560,7 +559,7 @@ function CollectionEditModal({
                 type="button"
                 onClick={handleSaveMeta}
                 disabled={metaSaving}
-                className="px-2.5 py-1 text-[11px] font-medium bg-brand-500 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 text-[11px] font-medium bg-brand-600 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {metaSaving ? 'Saving...' : 'Save'}
               </button>
@@ -594,8 +593,6 @@ function CollectionEditModal({
     </Modal>
   );
 }
-
-// ── STAC collection viz editor (VizConfigPanel tabs) ──
 
 function StacVizEditor({
   collection,
@@ -725,7 +722,7 @@ function StacVizEditor({
     <div className="space-y-3">
       {loadingAssets ? (
         <div className="flex items-center justify-center py-8 gap-2">
-          <svg className="animate-spin h-4 w-4 text-brand-500" viewBox="0 0 24 24" fill="none">
+          <svg className="animate-spin h-4 w-4 text-brand-700" viewBox="0 0 24 24" fill="none">
             <circle
               className="opacity-25"
               cx="12"
@@ -819,7 +816,7 @@ function StacVizEditor({
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-500 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
+              className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-600 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save Viz Params'}
             </button>
@@ -837,8 +834,6 @@ function StacVizEditor({
     </div>
   );
 }
-
-// ── XYZ collection URL editor ──
 
 function XyzUrlEditor({
   collection,
@@ -896,7 +891,7 @@ function XyzUrlEditor({
             value={urls[name] ?? ''}
             onChange={(e) => setUrls((prev) => ({ ...prev, [name]: e.target.value }))}
             placeholder="https://.../{z}/{x}/{y}.png"
-            className="w-full text-[11px] font-mono border border-neutral-200 rounded px-2 py-1.5 focus:border-brand-500 outline-none"
+            className="w-full text-[11px] font-mono border border-neutral-200 rounded px-2 py-1.5 focus:border-brand-600 outline-none"
           />
         </div>
       ))}
@@ -905,7 +900,7 @@ function XyzUrlEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-500 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
+          className="ml-auto px-2.5 py-1 text-[11px] font-medium bg-brand-600 text-white rounded hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Save URLs'}
         </button>
@@ -914,8 +909,6 @@ function XyzUrlEditor({
     </div>
   );
 }
-
-// ── Helpers ──
 
 function parseTileUrlVizParams(tileUrl: string): VizParams | null {
   try {
@@ -945,8 +938,6 @@ function parseTileUrlVizParams(tileUrl: string): VizParams | null {
     return null;
   }
 }
-
-// ── Refresh mosaic button ──
 
 function RefreshMosaicButton({
   collectionId,
@@ -1014,7 +1005,8 @@ function RefreshMosaicButton({
   );
 }
 
-// ── Views editor (matches CanvasPreview layout from creation) ──
+/** Temporary ID counter for locally-created views (negative to avoid server ID collisions). */
+let tempIdCounter = -1;
 
 function ViewsEditor({
   views,
@@ -1027,6 +1019,11 @@ function ViewsEditor({
   campaignId: number;
   onChanged?: () => void;
 }) {
+  // Local working copy – all mutations go here, API calls only on save
+  const [localViews, setLocalViews] = useState<ImageryViewOut[]>(() =>
+    [...views].sort((a, b) => a.display_order - b.display_order)
+  );
+  const [deletedViewIds, setDeletedViewIds] = useState<number[]>([]);
   const [activeViewId, setActiveViewId] = useState<number | null>(views[0]?.id ?? null);
   const [editingViewName, setEditingViewName] = useState<number | null>(null);
   const showAlert = useLayoutStore((s) => s.showAlert);
@@ -1039,6 +1036,13 @@ function ViewsEditor({
   } | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Sync from server when the prop changes (e.g. after save completes)
+  const serverFingerprint = views.map((v) => `${v.id}:${v.display_order}`).join(',');
+  useEffect(() => {
+    setLocalViews([...views].sort((a, b) => a.display_order - b.display_order));
+    setDeletedViewIds([]);
+  }, [serverFingerprint]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (addSourceOpen && addSourceBtnRef.current) {
       const rect = addSourceBtnRef.current.getBoundingClientRect();
@@ -1048,13 +1052,22 @@ function ViewsEditor({
 
   // Keep activeViewId valid
   useEffect(() => {
-    if (!views.find((v) => v.id === activeViewId) && views.length > 0) {
-      setActiveViewId(views[0].id);
+    if (!localViews.find((v) => v.id === activeViewId) && localViews.length > 0) {
+      setActiveViewId(localViews[0].id);
     }
-  }, [views, activeViewId]);
+  }, [localViews, activeViewId]);
 
-  const activeView = views.find((v) => v.id === activeViewId) ?? views[0] ?? null;
+  const activeView = localViews.find((v) => v.id === activeViewId) ?? localViews[0] ?? null;
   const allRefs = activeView?.collection_refs ?? [];
+
+  // Dirty detection
+  const isDirty = (() => {
+    if (deletedViewIds.length > 0) return true;
+    if (localViews.some((v) => v.id < 0)) return true; // has new views
+    if (localViews.length !== views.length) return true;
+    const serverSorted = [...views].sort((a, b) => a.display_order - b.display_order);
+    return JSON.stringify(localViews) !== JSON.stringify(serverSorted);
+  })();
 
   // Resolve refs to source/collection objects
   type ResolvedRef = {
@@ -1090,19 +1103,14 @@ function ViewsEditor({
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
-  const saveRefs = async (viewId: number, newRefs: ViewCollectionRefItem[]) => {
-    setSaving(true);
-    try {
-      await apiUpdateView({
-        path: { campaign_id: campaignId, view_id: viewId },
-        body: { collection_refs: newRefs },
-      });
-      onChanged?.();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
+  // Local mutation helpers (no API calls)
+
+  const updateViewLocally = (viewId: number, patch: Partial<ImageryViewOut>) => {
+    setLocalViews((prev) => prev.map((v) => (v.id === viewId ? { ...v, ...patch } : v)));
+  };
+
+  const setViewRefs = (viewId: number, newRefs: ViewCollectionRefItem[]) => {
+    updateViewLocally(viewId, { collection_refs: newRefs });
   };
 
   const toggleCollectionVisibility = (collectionId: number, sourceId: number) => {
@@ -1112,18 +1120,16 @@ function ViewsEditor({
         ? { ...r, show_as_window: !r.show_as_window }
         : r
     );
-    saveRefs(activeView.id, newRefs);
+    setViewRefs(activeView.id, newRefs);
   };
 
   const toggleSourceInView = (sourceId: number) => {
     if (!activeView) return;
     const isAssigned = activeView.collection_refs.some((r) => r.source_id === sourceId);
     if (isAssigned) {
-      // Remove all collections from this source
       const newRefs = activeView.collection_refs.filter((r) => r.source_id !== sourceId);
-      saveRefs(activeView.id, newRefs);
+      setViewRefs(activeView.id, newRefs);
     } else {
-      // Add all collections from this source
       const source = sources.find((s) => s.id === sourceId);
       if (!source) return;
       const newRefs: ViewCollectionRefItem[] = [
@@ -1134,7 +1140,7 @@ function ViewsEditor({
           show_as_window: true,
         })),
       ];
-      saveRefs(activeView.id, newRefs);
+      setViewRefs(activeView.id, newRefs);
     }
   };
 
@@ -1146,71 +1152,112 @@ function ViewsEditor({
     const reordered = ordered.flatMap((sid) =>
       activeView.collection_refs.filter((r) => r.source_id === sid)
     );
-    saveRefs(activeView.id, reordered);
+    setViewRefs(activeView.id, reordered);
   };
 
-  const handleAddView = async () => {
+  const handleAddView = () => {
+    const id = tempIdCounter--;
+    const newView: ImageryViewOut = {
+      id,
+      name: `View ${localViews.length + 1}`,
+      display_order: localViews.length,
+      collection_refs: [],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    };
+    setLocalViews((prev) => [...prev, newView]);
+    setActiveViewId(id);
+  };
+
+  const handleDeleteView = (viewId: number) => {
+    if (viewId > 0) setDeletedViewIds((prev) => [...prev, viewId]);
+    setLocalViews((prev) => {
+      const next = prev.filter((v) => v.id !== viewId);
+      // Re-assign display_order
+      return next.map((v, i) => ({ ...v, display_order: i }));
+    });
+  };
+
+  const handleRenameView = (viewId: number, newName: string) => {
+    updateViewLocally(viewId, { name: newName });
+  };
+
+  const handleMoveView = (viewId: number, direction: -1 | 1) => {
+    setLocalViews((prev) => {
+      const idx = prev.findIndex((v) => v.id === viewId);
+      if (idx < 0) return prev;
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return next.map((v, i) => ({ ...v, display_order: i }));
+    });
+  };
+
+  const handleDiscard = () => {
+    setLocalViews([...views].sort((a, b) => a.display_order - b.display_order));
+    setDeletedViewIds([]);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const { data } = await apiAddView({
-        path: { campaign_id: campaignId },
-        body: { name: `View ${views.length + 1}` },
-      });
-      onChanged?.();
-      if (data && typeof data === 'object' && 'id' in data) {
-        setActiveViewId((data as { id: number }).id);
+      // 1. Delete removed views (only those that existed on the server)
+      for (const id of deletedViewIds) {
+        await apiDeleteView({ path: { campaign_id: campaignId, view_id: id } });
       }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
-  const handleDeleteView = async (viewId: number) => {
-    try {
-      await apiDeleteView({ path: { campaign_id: campaignId, view_id: viewId } });
+      // 2. Create new views (temp id < 0), collecting id mapping
+      const idMap = new Map<number, number>(); // tempId → serverId
+      for (const v of localViews) {
+        if (v.id < 0) {
+          const { data } = await apiAddView({
+            path: { campaign_id: campaignId },
+            body: { name: v.name },
+          });
+          if (data && typeof data === 'object' && 'id' in data) {
+            idMap.set(v.id, (data as { id: number }).id);
+          }
+        }
+      }
+
+      // 3. Update all surviving views (name, display_order, collection_refs)
+      const serverSorted = [...views].sort((a, b) => a.display_order - b.display_order);
+      for (const local of localViews) {
+        const serverId = local.id < 0 ? idMap.get(local.id) : local.id;
+        if (!serverId) continue;
+
+        const server = serverSorted.find((v) => v.id === serverId);
+        const body: Record<string, unknown> = {};
+
+        if (!server || server.name !== local.name) body.name = local.name;
+        if (!server || server.display_order !== local.display_order)
+          body.display_order = local.display_order;
+        if (
+          !server ||
+          JSON.stringify(server.collection_refs) !== JSON.stringify(local.collection_refs)
+        )
+          body.collection_refs = local.collection_refs;
+
+        if (Object.keys(body).length > 0) {
+          await apiUpdateView({
+            path: { campaign_id: campaignId, view_id: serverId },
+            body,
+          });
+        }
+      }
+
+      showAlert('Views saved', 'success');
       onChanged?.();
     } catch (e) {
       console.error(e);
+      showAlert('Failed to save views', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleRenameView = async (viewId: number, newName: string) => {
-    try {
-      await apiUpdateView({
-        path: { campaign_id: campaignId, view_id: viewId },
-        body: { name: newName },
-      });
-      onChanged?.();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const sortedViews = [...views].sort((a, b) => a.display_order - b.display_order);
-
-  const handleMoveView = async (viewId: number, direction: -1 | 1) => {
-    const idx = sortedViews.findIndex((v) => v.id === viewId);
-    if (idx < 0) return;
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= sortedViews.length) return;
-    const viewA = sortedViews[idx];
-    const viewB = sortedViews[newIdx];
-    try {
-      await Promise.all([
-        apiUpdateView({
-          path: { campaign_id: campaignId, view_id: viewA.id },
-          body: { display_order: newIdx },
-        }),
-        apiUpdateView({
-          path: { campaign_id: campaignId, view_id: viewB.id },
-          body: { display_order: idx },
-        }),
-      ]);
-      onChanged?.();
-      showAlert('View order updated', 'success');
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const sortedViews = localViews;
 
   return (
     <div className="rounded-lg bg-neutral-100 border border-neutral-200 overflow-hidden">
@@ -1224,7 +1271,7 @@ function ViewsEditor({
               key={v.id}
               className={`group flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-brand-500 text-white'
+                  ? 'bg-brand-600 text-white'
                   : 'text-neutral-300 border border-neutral-500 hover:bg-neutral-600'
               }`}
               onClick={() => {
@@ -1618,9 +1665,25 @@ function ViewsEditor({
         })()}
       </div>
 
-      {saving && (
-        <div className="px-3 pb-2">
-          <span className="text-[10px] text-neutral-400">Saving...</span>
+      {/* Save / discard bar */}
+      {isDirty && (
+        <div className="px-3 pb-2.5 pt-1 flex items-center gap-2 border-t border-neutral-200">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleDiscard}
+            className="px-3 py-1 text-xs font-medium rounded-md text-neutral-600 hover:bg-neutral-100 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            Discard
+          </button>
         </div>
       )}
     </div>

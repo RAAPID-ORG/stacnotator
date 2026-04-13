@@ -4,7 +4,7 @@
  *
  * Uses <img> (not fetch()) because OL loads tiles via <img crossOrigin="anonymous">.
  * Both must use the same request mechanism to share the browser's HTTP cache
- * partition — mixing fetch() and <img> causes intermittent gray tiles.
+ * partition - mixing fetch() and <img> causes intermittent gray tiles.
  *
  * Design:
  *   - Priority queue - lower number = higher priority.
@@ -116,7 +116,12 @@ export class TilePreloader {
   pause() {
     if (this.paused) return;
     this.paused = true;
-    this._abortInflight();
+    // Deliberately do NOT _abortInflight() here. Chromium coalesces concurrent
+    // <img> loads for the same URL into a single underlying fetch, so canceling
+    // a preloader img also cancels OL's tile <img> for that URL - OL then marks
+    // the tile TileState.ERROR permanently and the user sees a stuck gray tile.
+    // drain()'s `if (this.paused) return` already blocks new starts, which is
+    // all pause() needs to do. Let in-flight drain naturally.
   }
 
   resume() {
@@ -150,7 +155,12 @@ export class TilePreloader {
     this.tileQueue = [];
     this.groupStats.clear();
     this.generation++;
-    this._abortInflight();
+    // Deliberately do NOT _abortInflight() here. See pause() for the full
+    // reason: Chromium coalesces same-URL <img> fetches, so aborting a preloader
+    // img also aborts any OL tile img sharing that fetch, putting the OL tile
+    // into terminal TileState.ERROR. The generation++ above makes loadOne()'s
+    // done() callback a no-op for stale completions, so in-flight drain
+    // naturally without polluting our bookkeeping.
   }
 
   clearCache() {
@@ -161,6 +171,9 @@ export class TilePreloader {
   dispose() {
     this.disposed = true;
     this.clear();
+    // On unmount it is safe (and desirable) to drop any remaining in-flight
+    // loads - there is no OL map left to share them with.
+    this._abortInflight();
     if (this.drainTimer) {
       clearInterval(this.drainTimer);
       this.drainTimer = null;

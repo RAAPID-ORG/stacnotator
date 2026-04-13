@@ -46,7 +46,12 @@ export async function fetchCollections(catalogUrl: string): Promise<StacCollecti
   const { data, error } = await _getCollections({
     query: { catalog_url: catalogUrl },
   });
-  if (error) throw new Error('Failed to fetch collections');
+  if (error) {
+    const detail =
+      (error as { detail?: unknown })?.detail ??
+      (typeof error === 'string' ? error : JSON.stringify(error));
+    throw new Error(`Failed to fetch collections: ${detail}`);
+  }
   return data as StacCollection[];
 }
 

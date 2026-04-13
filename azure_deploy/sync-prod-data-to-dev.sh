@@ -57,9 +57,9 @@ PROD_PG_HOST="${PROD_PG_SERVER}.postgres.database.azure.com"
 PROD_KV_NAME=$(az keyvault list -g "$PROD_RG" --query "[0].name" -o tsv 2>/dev/null || true)
 [ -z "$PROD_KV_NAME" ] && echo -e "${RED}Error: No Key Vault found in $PROD_RG${NC}" && exit 1
 
-PROD_PG_PASS=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
-PROD_PG_HOST_KV=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-postgres-host" --query "value" -o tsv 2>/dev/null || true)
-PROD_CONN_STR=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
+PROD_PG_PASS=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
+PROD_PG_HOST_KV=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-postgres-host" --query "value" -o tsv 2>/dev/null || true)
+PROD_CONN_STR=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
 
 if [ -n "$PROD_CONN_STR" ]; then
     PROD_PG_USER=$(echo "$PROD_CONN_STR" | sed -n 's|.*://\([^:]*\):.*|\1|p')

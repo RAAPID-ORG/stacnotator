@@ -7,6 +7,7 @@ import {
   formatTaskStatus,
 } from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
+import { Button } from '~/shared/ui/forms';
 
 interface AnnotationTasksTableProps {
   tasks: AnnotationTaskOut[];
@@ -114,86 +115,86 @@ export const AnnotationTasksTable = ({
 
       {onOpenBulkAssign && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-neutral-600">
-            {selectedTasks.size > 0 && <span>{selectedTasks.size} task(s) selected</span>}
+          <div className="text-xs text-neutral-500">
+            {selectedTasks.size > 0 && <span>{selectedTasks.size} selected</span>}
           </div>
           <div className="flex items-center gap-2">
             {onDeleteTasks && (
-              <button
+              <Button
+                variant="danger"
                 onClick={handleDeleteSelected}
                 disabled={selectedTasks.size === 0 || isDeleting}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-500"
               >
-                {isDeleting ? 'Deleting...' : 'Delete Selected'}
-              </button>
+                {isDeleting ? 'Deleting…' : 'Delete selected'}
+              </Button>
             )}
-            <button
-              onClick={onOpenBulkAssign}
-              disabled={isDeleting}
-              className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
-            >
-              Bulk Assign Tasks
-            </button>
+            <Button variant="secondary" onClick={onOpenBulkAssign} disabled={isDeleting}>
+              Bulk assign
+            </Button>
             {onOpenReviewerAssign && (
-              <button
-                onClick={onOpenReviewerAssign}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium disabled:opacity-50"
-              >
-                Assign Reviewers
-              </button>
+              <Button variant="secondary" onClick={onOpenReviewerAssign} disabled={isDeleting}>
+                Assign reviewers
+              </Button>
             )}
           </div>
         </div>
       )}
 
-      <div className="overflow-x-auto border border-neutral-300 rounded-lg">
+      <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-300">
+            <tr className="border-b border-neutral-200">
               {onAssignTasks && (
-                <th className="px-4 py-3 text-left">
+                <th className="px-3 py-2 text-left">
                   <input
                     type="checkbox"
                     checked={selectedTasks.size === tasks.length && tasks.length > 0}
                     onChange={handleSelectAll}
-                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                    className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                   />
                 </th>
               )}
-              <th className="px-4 py-3 text-left font-medium text-neutral-700">Annotation #</th>
-              <th className="px-4 py-3 text-left font-medium text-neutral-700">Status</th>
-              <th className="px-4 py-3 text-left font-medium text-neutral-700">Coordinates</th>
+              <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Annotation #
+              </th>
+              <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Coordinates
+              </th>
               {onAssignTasks && campaignUsers.length > 0 && (
-                <th className="px-4 py-3 text-left font-medium text-neutral-700">Assigned User</th>
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                  Assigned
+                </th>
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-neutral-100">
             {tasks.map((task) => {
               const latLon = extractCentroidFromWKT(task.geometry.geometry);
               const isAssigning = assigningTaskId === task.id;
               return (
                 <tr
                   key={task.id}
-                  className={`border-b bg-white border-neutral-200 hover:bg-neutral-50 transition-colors ${
-                    selectedTasks.has(task.id) ? 'bg-brand-50' : ''
+                  className={`hover:bg-neutral-50 transition-colors ${
+                    selectedTasks.has(task.id) ? 'bg-brand-50/60' : ''
                   }`}
                 >
                   {onAssignTasks && (
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <input
                         type="checkbox"
                         checked={selectedTasks.has(task.id)}
                         onChange={() => handleToggleTask(task.id)}
-                        className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
+                        className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                       />
                     </td>
                   )}
-                  <td className="px-4 py-3 text-neutral-900 font-medium">
+                  <td className="px-3 py-2 text-neutral-900 font-medium tabular-nums">
                     {task.annotation_number}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     <div className="group relative inline-block">
                       <span
                         className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(task.task_status as TaskStatus)}`}
@@ -230,11 +231,11 @@ export const AnnotationTasksTable = ({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                  <td className="px-3 py-2 text-neutral-600 text-xs font-mono tabular-nums">
                     {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
                   </td>
                   {onAssignTasks && campaignUsers.length > 0 && (
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1 items-center">
                         {task.assignments && task.assignments.length > 0 ? (
                           task.assignments.map((assignment) => {
@@ -338,38 +339,37 @@ export const AnnotationTasksTable = ({
         </table>
       </div>
 
-      {/* Summary Stats */}
-      <div className="mt-4 pt-4 border-t border-neutral-200 flex items-center gap-6 text-sm text-neutral-600">
+      <div className="flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-neutral-500">
         <span>
-          Total: <strong className="text-neutral-900">{tasks.length}</strong>
+          Total <strong className="text-neutral-900 tabular-nums">{tasks.length}</strong>
         </span>
         <span>
-          Complete:{' '}
-          <strong className="text-neutral-900">
+          Complete{' '}
+          <strong className="text-neutral-900 tabular-nums">
             {tasks.filter((t) => t.task_status === 'done').length}
           </strong>
         </span>
         <span>
-          Partial:{' '}
-          <strong className="text-neutral-900">
+          Partial{' '}
+          <strong className="text-neutral-900 tabular-nums">
             {tasks.filter((t) => t.task_status === 'partial').length}
           </strong>
         </span>
         <span>
-          Conflicting:{' '}
-          <strong className="text-neutral-900">
+          Conflicting{' '}
+          <strong className="text-neutral-900 tabular-nums">
             {tasks.filter((t) => t.task_status === 'conflicting').length}
           </strong>
         </span>
         <span>
-          Pending:{' '}
-          <strong className="text-neutral-900">
+          Pending{' '}
+          <strong className="text-neutral-900 tabular-nums">
             {tasks.filter((t) => t.task_status === 'pending').length}
           </strong>
         </span>
         <span>
-          Skipped:{' '}
-          <strong className="text-neutral-900">
+          Skipped{' '}
+          <strong className="text-neutral-900 tabular-nums">
             {tasks.filter((t) => t.task_status === 'skipped').length}
           </strong>
         </span>

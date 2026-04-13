@@ -244,10 +244,39 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         markSliceEmpty(sliceKey);
         if (alreadyKnownEmpty) return;
 
+        // Decide whether (and in which direction) to auto-skip based on the
+        // most recent navigation intent. Read it fresh here rather than as a
+        // dep so we see the latest value even if the producer set it on the
+        // same tick as the slice change.
+        const intent = useMapStore.getState().sliceNavIntent;
+        if (intent === 'pick') {
+          // User explicitly picked this slice. Respect it - they get to see
+          // the empty tile. No auto-skip, no alert.
+          return;
+        }
+
         const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
-        const nextIndex = slices.findIndex(
-          (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
-        );
+        let nextIndex = -1;
+        if (intent === 'next') {
+          for (let i = currentSliceIndex + 1; i < slices.length; i++) {
+            if (!currentEmpty[`${collectionId}-${i}`]) {
+              nextIndex = i;
+              break;
+            }
+          }
+        } else if (intent === 'prev') {
+          for (let i = currentSliceIndex - 1; i >= 0; i--) {
+            if (!currentEmpty[`${collectionId}-${i}`]) {
+              nextIndex = i;
+              break;
+            }
+          }
+        } else {
+          // 'initial' - fresh load, land on first non-empty anywhere.
+          nextIndex = slices.findIndex(
+            (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
+          );
+        }
 
         if (nextIndex !== -1) {
           if (isActiveCollection) {
@@ -282,44 +311,15 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     isDraggingRef.current = false;
   };
 
-  const handleSliceChange = (index: number) => {
-    if (isActiveCollection) {
-      setActiveSliceIndex(index);
-    } else {
-      useMapStore.getState().setCollectionSliceIndex(collectionId, index);
-    }
-  };
-
   return (
     <div
-      className="flex-1 relative overflow-hidden"
+      className="flex-1 relative overflow-hidden select-none"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {slices.length > 1 && (
-        <div className="absolute bottom-1 right-1 z-[1000]">
-          <select
-            value={currentSliceIndex}
-            onChange={(e) => handleSliceChange(Number(e.target.value))}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="text-[10px] px-1.5 py-0.5 bg-white/95 border border-neutral-200 rounded text-neutral-800 cursor-pointer hover:bg-white backdrop-blur-sm"
-            title="Select time slice"
-          >
-            {slices.map((slice, idx) => {
-              const key = `${collectionId}-${idx}`;
-              const isEmpty = !isOpenMode && emptySlices[key];
-              return (
-                <option key={idx} value={idx} style={isEmpty ? { color: '#aaa' } : undefined}>
-                  {slice.name}
-                  {isEmpty ? ' (no data)' : ''}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      )}
+      {/* Slice dropdown lives in the card header (see Canvas.tsx), not in
+          the imagery body, so it doesn't steal space from the tile view. */}
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">

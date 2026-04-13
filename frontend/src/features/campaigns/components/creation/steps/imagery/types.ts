@@ -181,7 +181,7 @@ export const emptySource = (): ImagerySource => ({
   id: createId(),
   name: '',
   crosshairHex6: 'ff0000',
-  defaultZoom: 14,
+  defaultZoom: 15,
   visualizations: [{ name: 'True Color' }],
   collections: [],
 });
@@ -313,7 +313,7 @@ function makeSearchBody(
     {
       bbox: '{campaignBBoxPlaceholder}',
       filter: { op: 'and', args },
-      metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'median' },
+      metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'first' },
       filterLang: 'cql2-json',
       collections,
     },
@@ -335,11 +335,11 @@ export const STAC_PRESETS: StacPreset[] = [
       vizUrls: [
         {
           vizName: 'True Color',
-          url: `${PC_TILES_BASE}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=median`,
+          url: `${PC_TILES_BASE}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=first`,
         },
         {
           vizName: 'False Color',
-          url: `${PC_TILES_BASE}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35&collection=sentinel-2-l2a&pixel_selection=median`,
+          url: `${PC_TILES_BASE}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35&collection=sentinel-2-l2a&pixel_selection=first`,
         },
       ],
     },
@@ -356,7 +356,7 @@ export const STAC_PRESETS: StacPreset[] = [
       vizUrls: [
         {
           vizName: 'True Color',
-          url: `${PC_TILES_BASE}?collection=landsat-c2-l2&assets=red&assets=green&assets=blue&color_formula=gamma+RGB+2.7,+saturation+1.5,+sigmoidal+RGB+15+0.55&nodata=0&pixel_selection=median&rescale=0,30000`,
+          url: `${PC_TILES_BASE}?collection=landsat-c2-l2&assets=red&assets=green&assets=blue&color_formula=gamma+RGB+1.7+saturation+1.7+sigmoidal+RGB+15+0.35&nodata=0&pixel_selection=first&rescale=7500,40000`,
         },
       ],
     },
@@ -371,7 +371,7 @@ export const STAC_PRESETS: StacPreset[] = [
       vizUrls: [
         {
           vizName: 'True Color',
-          url: `${PC_TILES_BASE}?collection=hls2-s30&collection=hls2-l30&assets=B04&assets=B03&assets=B02&color_formula=gamma+RGB+2.7,+saturation+1.5,+sigmoidal+RGB+15+0.55&nodata=0&pixel_selection=median&rescale=0,3000`,
+          url: `${PC_TILES_BASE}?collection=hls2-s30&collection=hls2-l30&assets=B04&assets=B03&assets=B02&color_formula=gamma+RGB+2.7,+saturation+1.5,+sigmoidal+RGB+15+0.55&nodata=0&pixel_selection=first&rescale=0,3000`,
         },
       ],
     },

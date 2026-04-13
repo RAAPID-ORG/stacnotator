@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
 import type { LabelBase } from '~/api/client';
+import { Input, Select } from '~/shared/ui/forms';
 
 const GEOMETRY_TYPES = [
   { value: 'point', label: '● Point' },
@@ -55,51 +56,50 @@ export const LabelsEditor = ({
         <div key={label.id} className="flex gap-2 items-center">
           <span className="text-xs text-neutral-500 w-8">{label.id}</span>
 
-          <input
-            type="text"
-            value={label.name}
-            placeholder="Label name"
-            ref={(el) => {
-              if (el) inputRefs.current.set(label.id, el);
-              else inputRefs.current.delete(label.id);
-            }}
-            onChange={(e) => updateLabel(label.id, e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                addLabel();
-              }
-            }}
-            disabled={readOnly}
-            className={`flex-1 border-b border-neutral-600 outline-none ${
-              readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''
-            }`}
-          />
+          <div className="flex-1">
+            <Input
+              type="text"
+              value={label.name}
+              placeholder="Label name"
+              ref={(el) => {
+                if (el) inputRefs.current.set(label.id, el);
+                else inputRefs.current.delete(label.id);
+              }}
+              onChange={(e) => updateLabel(label.id, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addLabel();
+                }
+              }}
+              disabled={readOnly}
+            />
+          </div>
 
           {showGeometryType && (
-            <select
-              value={label.geometry_type || 'polygon'}
-              onChange={(e) =>
-                updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')
-              }
-              disabled={readOnly}
-              className={`text-xs border border-neutral-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-brand-500 ${
-                readOnly ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed' : ''
-              }`}
-            >
-              {GEOMETRY_TYPES.map((gt) => (
-                <option key={gt.value} value={gt.value}>
-                  {gt.label}
-                </option>
-              ))}
-            </select>
+            <div className="w-36">
+              <Select
+                value={label.geometry_type || 'polygon'}
+                onChange={(e) =>
+                  updateGeometryType(label.id, e.target.value as 'point' | 'polygon' | 'line')
+                }
+                disabled={readOnly}
+              >
+                {GEOMETRY_TYPES.map((gt) => (
+                  <option key={gt.value} value={gt.value}>
+                    {gt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           )}
 
           {!readOnly && (
             <button
               onClick={() => removeLabel(label.id)}
-              className="text-xs text-red-500 hover:text-red-700 transition-colors"
+              className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
               type="button"
+              aria-label="Remove label"
             >
               ✕
             </button>
@@ -110,7 +110,7 @@ export const LabelsEditor = ({
       {!readOnly && (
         <button
           onClick={addLabel}
-          className="text-sm text-neutral-700 hover:text-neutral-900 transition-colors cursor-pointer"
+          className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           type="button"
         >
           + Add label

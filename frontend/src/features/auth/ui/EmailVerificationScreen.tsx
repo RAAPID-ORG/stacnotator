@@ -50,8 +50,8 @@ export function EmailVerificationScreen() {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-neutral-50">
-      <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md text-center">
+    <div className="h-screen w-screen flex items-center justify-center">
+      <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
           <svg
             className="w-8 h-8 text-amber-600"
@@ -91,7 +91,7 @@ export function EmailVerificationScreen() {
           <button
             onClick={handleRefresh}
             disabled={checking}
-            className="w-full px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:opacity-50 cursor-pointer transition-colors"
+            className="w-full px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700 disabled:opacity-50 cursor-pointer transition-colors"
           >
             {checking ? 'Checking...' : "I've verified my email"}
           </button>

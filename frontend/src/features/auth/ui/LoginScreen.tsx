@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import { PasswordRequirementsList, passwordMeetsAllRequirements } from './PasswordRequirements';
+import { Button, Field, Input } from '~/shared/ui/forms';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -120,8 +121,8 @@ export function LoginScreen() {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-neutral-50">
-      <div className="bg-white rounded-lg shadow-md p-8 w-full max-w-md">
+    <div className="h-screen w-screen flex items-center justify-center">
+      <div className="bg-white border border-neutral-200 rounded-xl shadow-sm p-8 w-full max-w-md">
         <h1 className="text-xl font-semibold text-brand-800 mb-4">
           {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
         </h1>
@@ -149,88 +150,64 @@ export function LoginScreen() {
 
         {mode === 'forgot-password' ? (
           <form onSubmit={handlePasswordReset} className="space-y-4 mb-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-brand-700 mb-1">
-                Email
-              </label>
-              <input
+            <Field label="Email">
+              <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                className="w-full px-3 py-2 border border-brand-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                 placeholder="Enter your email"
               />
-            </div>
+            </Field>
             {!resetEmailSent && (
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              >
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? 'Sending…' : 'Send reset link'}
-              </button>
+              </Button>
             )}
           </form>
         ) : (
           <form onSubmit={handleEmailSubmit} className="space-y-4 mb-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-brand-700 mb-1">
-                Email
-              </label>
-              <input
+            <Field label="Email">
+              <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
-                className="w-full px-3 py-2 border border-brand-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                 placeholder="Enter your email"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-brand-700 mb-1">
-                Password
-              </label>
-              <input
+            <Field label="Password">
+              <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="w-full px-3 py-2 border border-brand-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                 placeholder="Enter your password"
               />
-
               {mode === 'register' && <PasswordRequirementsList password={password} />}
-            </div>
+            </Field>
 
             {mode === 'register' && (
-              <div>
-                <label
-                  htmlFor="confirmPassword"
-                  className="block text-sm font-medium text-brand-700 mb-1"
-                >
-                  Confirm Password
-                </label>
-                <input
+              <Field label="Confirm password">
+                <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={loading}
-                  className="w-full px-3 py-2 border border-brand-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
                   placeholder="Confirm your password"
                 />
-              </div>
+              </Field>
             )}
 
             <button
               type="submit"
               disabled={loading || (mode === 'register' && !passwordMeetsRequirements)}
-              className="w-full px-4 py-2 bg-brand-500 text-white rounded hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              className="w-full inline-flex items-center justify-center h-9 px-4 text-sm font-medium bg-brand-600 text-white rounded-md shadow-sm hover:bg-brand-700 disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed transition-colors"
             >
               {loading
                 ? mode === 'login'
@@ -251,7 +228,7 @@ export function LoginScreen() {
                   setResetEmailSent(false);
                 }}
                 disabled={loading}
-                className="w-full text-center text-sm text-brand-500 hover:text-brand-700 font-medium disabled:opacity-50 cursor-pointer"
+                className="w-full text-center text-sm text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
               >
                 Forgot your password?
               </button>
@@ -266,7 +243,7 @@ export function LoginScreen() {
                 <div className="w-full border-t border-brand-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-brand-500">or</span>
+                <span className="px-2 bg-white text-brand-700">or</span>
               </div>
             </div>
 
@@ -290,7 +267,7 @@ export function LoginScreen() {
                 setResetEmailSent(false);
               }}
               disabled={loading}
-              className="text-brand-500 hover:text-brand-700 font-medium disabled:opacity-50 cursor-pointer"
+              className="text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
             >
               Back to sign in
             </button>
@@ -301,7 +278,7 @@ export function LoginScreen() {
                 type="button"
                 onClick={toggleMode}
                 disabled={loading}
-                className="text-brand-500 hover:text-brand-700 font-medium disabled:opacity-50 cursor-pointer"
+                className="text-brand-700 hover:text-brand-900 font-medium disabled:opacity-50 cursor-pointer"
               >
                 {mode === 'login' ? 'Register' : 'Sign in'}
               </button>

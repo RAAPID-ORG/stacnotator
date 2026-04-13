@@ -35,7 +35,7 @@ export const StepReview = ({
 
       {validation.isValid && <ValidationSuccess />}
 
-      <pre className="bg-neutral-100 rounded-md p-4 text-xs text-neutral-700 overflow-auto">
+      <pre className="bg-neutral-100 rounded-md p-4 text-xs text-neutral-700 overflow-auto max-h-80">
         {JSON.stringify(form, null, 2)}
       </pre>
     </div>

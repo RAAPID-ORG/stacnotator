@@ -53,8 +53,8 @@ export class XYZLayer extends Layer {
         minZoom: this.minZoom,
         maxZoom: this.maxZoom,
         crossOrigin: 'anonymous',
-        cacheSize: this.layerType === 'imagery' ? 128 : 512,
-        transition: 0,
+        cacheSize: 512,
+        transition: 150,
         ...(this.layerType === 'imagery' && isSelfHostedUrl(this.urlTemplate)
           ? {
               tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void,
