@@ -43,7 +43,7 @@ export const ConfirmDialog = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[1000]"
           variants={dialogBackdropVariants}
           initial="hidden"
           animate="visible"

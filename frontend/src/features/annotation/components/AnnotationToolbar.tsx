@@ -484,69 +484,72 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* Review Mode Toggle + Navigate to Review Page (tasks mode only) */}
-        {campaign.mode === 'tasks' && (
-          <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
-            {/* Toggle review mode on/off */}
-            <button
-              onClick={() => {
-                const turningOn = !isReviewMode;
-                useCampaignStore.setState({ isReviewMode: turningOn });
-                // When entering review mode, widen the task filter to show
-                // everything except pending. Pending tasks haven't been
-                // labeled by anyone yet so there's nothing to review there,
-                // and the default filter is pending-only which would hide
-                // everything a reviewer actually wants to see.
-                if (turningOn) {
-                  useTaskStore.getState().setTaskFilter({
-                    assignedTo: [],
-                    statuses: ['partial', 'done', 'skipped', 'conflicting'],
-                  });
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
-                isReviewMode
-                  ? 'bg-amber-50 text-amber-700 font-medium'
-                  : 'text-neutral-700 hover:bg-neutral-50'
-              }`}
-              type="button"
-              title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className={isReviewMode ? 'text-amber-600' : 'text-neutral-500'}
+        {/* Review Mode Toggle (tasks mode only) + Navigate to Review Page (both modes) */}
+        <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
+          {campaign.mode === 'tasks' && (
+            <>
+              {/* Toggle review mode on/off */}
+              <button
+                onClick={() => {
+                  const turningOn = !isReviewMode;
+                  useCampaignStore.setState({ isReviewMode: turningOn });
+                  // When entering review mode, widen the task filter to show
+                  // everything except pending. Pending tasks haven't been
+                  // labeled by anyone yet so there's nothing to review there,
+                  // and the default filter is pending-only which would hide
+                  // everything a reviewer actually wants to see.
+                  if (turningOn) {
+                    useTaskStore.getState().setTaskFilter({
+                      assignedTo: [],
+                      statuses: ['partial', 'done', 'skipped', 'conflicting'],
+                    });
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+                  isReviewMode
+                    ? 'bg-amber-50 text-amber-700 font-medium'
+                    : 'text-neutral-700 hover:bg-neutral-50'
+                }`}
+                type="button"
+                title={isReviewMode ? 'Exit review mode' : 'Enter review mode'}
               >
-                <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
-                />
-              </svg>
-              <span>Review{isReviewMode ? ' ✓' : ''}</span>
-            </button>
-            {/* Divider */}
-            <div className="w-px h-5 bg-neutral-200" />
-            {/* Navigate to review page */}
-            <button
-              onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
-              className="flex items-center px-2 py-1.5 text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700 transition-colors"
-              type="button"
-              title="Go to review page"
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
-                />
-              </svg>
-            </button>
-          </div>
-        )}
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className={isReviewMode ? 'text-amber-600' : 'text-neutral-500'}
+                >
+                  <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
+                  />
+                </svg>
+                <span>Review{isReviewMode ? ' ✓' : ''}</span>
+              </button>
+              {/* Divider */}
+              <div className="w-px h-5 bg-neutral-200" />
+            </>
+          )}
+          {/* Navigate to review page */}
+          <button
+            onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
+            type="button"
+            title="Go to review page"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
+              />
+            </svg>
+            {campaign.mode !== 'tasks' && <span>Review</span>}
+          </button>
+        </div>
 
         {/* Campaign Settings Button (admin only) */}
         {isCampaignAdmin && (

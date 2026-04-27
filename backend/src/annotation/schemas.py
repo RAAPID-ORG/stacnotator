@@ -206,6 +206,14 @@ class AnnotationCreate(BaseModel):
     confidence: int | None
 
 
+class BatchDeleteAnnotationsRequest(BaseModel):
+    annotation_ids: list[int]
+
+
+class BatchDeleteAnnotationsResponse(BaseModel):
+    deleted_count: int
+
+
 class AnnotationUpdate(BaseModel):
     label_id: int | None
     comment: str | None

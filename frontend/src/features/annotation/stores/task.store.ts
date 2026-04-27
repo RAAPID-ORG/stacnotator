@@ -315,11 +315,9 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           allTasks: replaceTaskInList(allTasks, updatedTask),
           visibleTasks: updatedVisible,
           isSubmitting: false,
-          currentTaskIndex: nextIndex,
-          ...getFormStateForTask(nextTask),
         });
+        startNavigation({ currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
 
-        useMapStore.setState({ probeTimeseriesPoint: null, emptySlices: {}, viewSnapshots: {} });
         const successMessage =
           labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
         useLayoutStore.getState().showAlert(successMessage, 'success');

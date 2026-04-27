@@ -776,6 +776,84 @@ def delete_annotation(
         raise HTTPException(status_code=500, detail="Failed to delete annotation") from e
 
 
+def delete_annotations_bulk(
+    db: Session,
+    annotation_ids: list[int],
+    campaign: Campaign,
+    user_id: UUID,
+) -> int:
+    """
+    Delete multiple annotations from a campaign in one transaction.
+
+    Mirrors `delete_annotation` semantics: in public campaigns, non-admins can
+    only delete their own annotations. Task-linked annotations have their
+    per-user assignment status reset to 'pending' so the task re-opens.
+
+    Returns the number of annotations actually deleted.
+    """
+    if not annotation_ids:
+        return 0
+
+    annotations = db.scalars(
+        select(Annotation).where(
+            Annotation.id.in_(annotation_ids),
+            Annotation.campaign_id == campaign.id,
+        )
+    ).all()
+
+    found_ids = {a.id for a in annotations}
+    missing = set(annotation_ids) - found_ids
+    if missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Annotations not found in campaign: {sorted(missing)}",
+        )
+
+    # Public-campaign ownership check applies whenever the requester isn't an admin
+    if campaign.is_public and not _is_campaign_admin(db, user_id, campaign.id):
+        not_owned = [a.id for a in annotations if a.created_by_user_id != user_id]
+        if not_owned:
+            raise HTTPException(
+                status_code=403,
+                detail=f"You can only delete your own annotations: {sorted(not_owned)}",
+            )
+
+    try:
+        # Reset assignment.status -> pending for any task-linked deletions, in
+        # one round trip rather than N.
+        task_user_pairs = [
+            (a.annotation_task_id, a.created_by_user_id)
+            for a in annotations
+            if a.annotation_task_id is not None
+        ]
+        if task_user_pairs:
+            task_ids = {tid for tid, _ in task_user_pairs}
+            user_ids = {uid for _, uid in task_user_pairs}
+            pair_set = set(task_user_pairs)
+            assignments = db.scalars(
+                select(AnnotationTaskAssignment).where(
+                    AnnotationTaskAssignment.task_id.in_(task_ids),
+                    AnnotationTaskAssignment.user_id.in_(user_ids),
+                )
+            ).all()
+            for assignment in assignments:
+                if (assignment.task_id, assignment.user_id) in pair_set:
+                    assignment.status = ANNOTATION_TASK_STATUS_PENDING
+
+        for annotation in annotations:
+            db.delete(annotation)
+
+        db.commit()
+        return len(annotations)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to bulk-delete annotations")
+        raise HTTPException(status_code=500, detail="Failed to delete annotations") from e
+
+
 # ============================================================================
 # Data Export
 # ============================================================================

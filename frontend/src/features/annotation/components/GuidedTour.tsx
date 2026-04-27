@@ -1094,7 +1094,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const stepRef = useRef(step);
   stepRef.current = step;
 
-  // Listen for required key presses — each unique key must be pressed at
+  // Listen for required key presses - each unique key must be pressed at
   // least once before the step is fulfilled (not just N presses of any key).
   useEffect(() => {
     if (!isOpen || !step?.requiredKeys || keyFulfilled) return;

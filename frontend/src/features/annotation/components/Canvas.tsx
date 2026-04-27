@@ -466,7 +466,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 <div
                   className={`drag-handle card-header !py-0.5 !gap-2 group/header ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-neutral-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
-                  title={`${source.name} — ${collection.name}`}
+                  title={`${source.name} - ${collection.name}`}
                 >
                   <span className="truncate flex-1 min-w-0">
                     <span

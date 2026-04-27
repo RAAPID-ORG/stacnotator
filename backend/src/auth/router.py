@@ -61,11 +61,20 @@ def get_tiler_token(
 
 @router.get("/users", response_model=list[UserOutDetailed])
 def list_users(
-    _: dict = Depends(require_admin),
+    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    """List all users in the system (admin only)."""
-    return service.get_all_users(db)
+    """
+    List users in the system.
+
+    Platform admins see all users (including pending/denied). Other approved
+    users see only approved users - needed so campaign admins can pick members
+    to add to their campaigns.
+    """
+    users = service.get_all_users(db)
+    if user.is_admin:
+        return users
+    return [u for u in users if u.is_approved]
 
 
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)
