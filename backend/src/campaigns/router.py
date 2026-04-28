@@ -21,6 +21,7 @@ from src.campaigns.schemas import (
     CampaignUsersResponse,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
+    UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignGuideRequest,
     UpdateCampaignNameRequest,
@@ -310,6 +311,26 @@ def unassign_user_from_task(
     """Remove a user's assignment from a specific task."""
     service.unassign_user_from_task(db, campaign_id, task_id, user_id)
     return {"message": f"Successfully unassigned user from task {task_id}"}
+
+
+@router.post(
+    "/{campaign_id}/unassign-tasks",
+    status_code=200,
+)
+def batch_unassign_tasks(
+    campaign_id: int,
+    req: UnassignTasksRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """
+    Batch-remove assignments from multiple tasks.
+
+    If `user_ids` is provided, only those users are unassigned from each task.
+    Otherwise, all users are unassigned from each task in `task_ids`.
+    """
+    deleted = service.unassign_users_from_tasks(db, campaign_id, req.task_ids, req.user_ids)
+    return {"message": f"Successfully removed {deleted} assignment(s)"}
 
 
 @router.post(

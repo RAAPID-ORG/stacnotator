@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import {
+  batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
   getCampaignUsers,
   type AnnotationOut,
@@ -14,6 +15,7 @@ import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility'
 import { OpenModeDistributionMap } from '~/features/annotation/components/OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import type { SortOption, UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
@@ -37,6 +39,10 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
+
+  const [selectedAnnotationIds, setSelectedAnnotationIds] = useState<Set<number>>(new Set());
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -127,6 +133,93 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     });
     return { total: annotations.length, withConfidence };
   }, [annotations]);
+
+  const isCampaignAdmin = useMemo(
+    () => !!campaignUsers.find((cu) => cu.user.id === currentUser?.id && cu.is_admin),
+    [campaignUsers, currentUser?.id]
+  );
+
+  // Mirror backend rule (annotation/service.py:delete_annotations_bulk):
+  // public campaigns require ownership unless admin; private campaigns let any
+  // member with access delete anything.
+  const canDeleteAnnotation = (ann: AnnotationOut): boolean => {
+    if (!campaign.is_public) return true;
+    return isCampaignAdmin || ann.created_by_user_id === currentUser?.id;
+  };
+
+  const deletableFilteredIds = useMemo(
+    () => filteredAnnotations.filter(canDeleteAnnotation).map((a) => a.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredAnnotations, isCampaignAdmin, currentUser?.id, campaign.is_public]
+  );
+
+  // Drop selections that are no longer visible after filter/search changes.
+  useEffect(() => {
+    setSelectedAnnotationIds((prev) => {
+      const visible = new Set(filteredAnnotations.map((a) => a.id));
+      let changed = false;
+      const next = new Set<number>();
+      prev.forEach((id) => {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [filteredAnnotations]);
+
+  const toggleAnnotationSelected = (id: number) => {
+    setSelectedAnnotationIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allDeletableSelected =
+    deletableFilteredIds.length > 0 &&
+    deletableFilteredIds.every((id) => selectedAnnotationIds.has(id));
+
+  const toggleSelectAllDeletable = () => {
+    setSelectedAnnotationIds((prev) => {
+      if (allDeletableSelected) {
+        const next = new Set(prev);
+        deletableFilteredIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      const next = new Set(prev);
+      deletableFilteredIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedAnnotationIds.size === 0) return;
+    const ids = Array.from(selectedAnnotationIds);
+    try {
+      setIsBatchDeleting(true);
+      const { data, error } = await batchDeleteAnnotations({
+        path: { campaign_id: campaignId },
+        body: { annotation_ids: ids },
+      });
+      if (error || !data) {
+        throw new Error(
+          (error as { detail?: string } | undefined)?.detail ?? 'Failed to delete annotations'
+        );
+      }
+      const idSet = new Set(ids);
+      setAnnotations((prev) => prev.filter((a) => !idSet.has(a.id)));
+      setSelectedAnnotationIds(new Set());
+      setConfirmBatchDelete(false);
+      showAlert(`Deleted ${data.deleted_count} annotation(s)`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete annotations';
+      showAlert(message, 'error');
+      console.error(err);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
 
   const handleNavigateToAnnotation = (ann: AnnotationOut) => {
     const centroid = extractCentroidFromWKT(ann.geometry.geometry);
@@ -339,9 +432,36 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           </div>
         ) : (
           <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
+            {/* Batch actions toolbar - shown only when there are selectable rows */}
+            {deletableFilteredIds.length > 0 && (
+              <div className="flex items-center justify-between gap-3 px-4 py-2 border-b border-neutral-200 bg-neutral-50">
+                <span className="text-xs text-neutral-600">
+                  {selectedAnnotationIds.size > 0
+                    ? `${selectedAnnotationIds.size} selected`
+                    : `Select annotations to delete (${deletableFilteredIds.length} available)`}
+                </span>
+                <Button
+                  variant="danger"
+                  onClick={() => setConfirmBatchDelete(true)}
+                  disabled={selectedAnnotationIds.size === 0 || isBatchDeleting}
+                >
+                  {isBatchDeleting ? 'Deleting…' : 'Delete selected'}
+                </Button>
+              </div>
+            )}
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-3 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all deletable annotations"
+                      checked={allDeletableSelected}
+                      onChange={toggleSelectAllDeletable}
+                      disabled={deletableFilteredIds.length === 0}
+                      className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                     ID
                   </th>
@@ -373,6 +493,8 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                   const centroid = extractCentroidFromWKT(ann.geometry.geometry);
                   const isMine = ann.created_by_user_id === currentUser?.id;
                   const createdAt = new Date(ann.created_at);
+                  const canDelete = canDeleteAnnotation(ann);
+                  const isSelected = selectedAnnotationIds.has(ann.id);
 
                   return (
                     <tr
@@ -381,6 +503,21 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                       onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
                       onMouseLeave={() => setHighlightedAnnotationId(null)}
                     >
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select annotation ${ann.id}`}
+                          checked={isSelected}
+                          onChange={() => toggleAnnotationSelected(ann.id)}
+                          disabled={!canDelete}
+                          title={
+                            !canDelete
+                              ? 'You can only delete your own annotations in this campaign'
+                              : undefined
+                          }
+                          className="w-4 h-4 rounded border-neutral-300 text-brand-700 focus:ring-brand-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                      </td>
                       <td className="px-4 py-3 text-neutral-900 font-medium font-mono text-xs">
                         {ann.id}
                       </td>
@@ -468,6 +605,18 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           </div>
         )}
       </FadeIn>
+
+      <ConfirmDialog
+        isOpen={confirmBatchDelete}
+        title="Delete selected annotations?"
+        description={`This will permanently delete ${selectedAnnotationIds.size} annotation(s). This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous
+        isLoading={isBatchDeleting}
+        onConfirm={handleBatchDelete}
+        onCancel={() => setConfirmBatchDelete(false)}
+      />
     </div>
   );
 };

@@ -9,9 +9,12 @@ interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
+const SLICE_AUTONAV_INTERVAL_MS = 500;
+
 export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboardOptions) => {
   const digitBuffer = useRef<string>('');
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sliceAutoNavRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
@@ -237,6 +240,34 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     ]
   );
 
+  // Keep refs to the latest nav callbacks so the autoscroll interval reads
+  // current state on each tick instead of the stale closures captured when
+  // the interval was started.
+  const navigateSliceRef = useRef(navigateSlice);
+  const navigateCollectionRef = useRef(navigateCollection);
+  useEffect(() => {
+    navigateSliceRef.current = navigateSlice;
+    navigateCollectionRef.current = navigateCollection;
+  });
+
+  const stopSliceAutoNav = useCallback(() => {
+    if (sliceAutoNavRef.current) {
+      clearInterval(sliceAutoNavRef.current);
+      sliceAutoNavRef.current = null;
+    }
+  }, []);
+
+  const startSliceAutoNav = useCallback(
+    (direction: 'next' | 'prev', mode: 'slice' | 'collection') => {
+      stopSliceAutoNav();
+      sliceAutoNavRef.current = setInterval(() => {
+        if (mode === 'collection') navigateCollectionRef.current(direction);
+        else navigateSliceRef.current(direction);
+      }, SLICE_AUTONAV_INTERVAL_MS);
+    },
+    [stopSliceAutoNav]
+  );
+
   // Pre-compute source → viz index ranges for I / Shift+I cycling
   const sourceGroups = useMemo(() => {
     const groups: { name: string; startIdx: number; count: number }[] = [];
@@ -425,25 +456,29 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           if (!isNavigating) nextTask();
           break;
 
-        // Slice/Collection navigation: A/D for slices, Shift+A/D for collections
+        // Slice/Collection navigation: A/D for slices, Shift+A/D for collections.
+        // Holding the key auto-advances at SLICE_AUTONAV_INTERVAL_MS cadence
+        // (OS key-repeat would be too fast for time-series scrubbing).
         case 'a':
-        case 'A':
+        case 'A': {
           e.preventDefault();
-          if (e.shiftKey) {
-            navigateCollection('prev');
-          } else {
-            navigateSlice('prev');
-          }
+          if (e.repeat) break;
+          const mode = e.shiftKey ? 'collection' : 'slice';
+          if (mode === 'collection') navigateCollection('prev');
+          else navigateSlice('prev');
+          startSliceAutoNav('prev', mode);
           break;
+        }
         case 'd':
-        case 'D':
+        case 'D': {
           e.preventDefault();
-          if (e.shiftKey) {
-            navigateCollection('next');
-          } else {
-            navigateSlice('next');
-          }
+          if (e.repeat) break;
+          const mode = e.shiftKey ? 'collection' : 'slice';
+          if (mode === 'collection') navigateCollection('next');
+          else navigateSlice('next');
+          startSliceAutoNav('next', mode);
           break;
+        }
 
         // Map controls
         case ' ':
@@ -553,10 +588,25 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+        stopSliceAutoNav();
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', stopSliceAutoNav);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', stopSliceAutoNav);
+      // Note: don't stop the autoscroll interval here. This effect re-runs on
+      // every nav state change (activeSliceIndex updates → navigateSlice gets
+      // a new identity → effect re-runs), so clearing it would kill the
+      // interval after the first tick. Interval is stopped on keyup/blur, and
+      // on unmount via the dedicated effect below.
       if (digitTimeoutRef.current) {
         clearTimeout(digitTimeoutRef.current);
         digitTimeoutRef.current = null;
@@ -572,6 +622,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     nextTask,
     navigateSlice,
     navigateCollection,
+    startSliceAutoNav,
+    stopSliceAutoNav,
     triggerRefocus,
     toggleCrosshair,
     triggerZoomIn,
@@ -588,5 +640,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     cycleView,
   ]);
 
-  // Removed duplicate cleanup useEffect - consolidated above
+  // Stop slice autoscroll only on unmount. stopSliceAutoNav has empty deps so
+  // this effect's identity is stable and the cleanup only fires on unmount.
+  useEffect(() => {
+    return () => stopSliceAutoNav();
+  }, [stopSliceAutoNav]);
 };

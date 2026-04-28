@@ -379,6 +379,26 @@ export type BasemapOut = {
 };
 
 /**
+ * BatchDeleteAnnotationsRequest
+ */
+export type BatchDeleteAnnotationsRequest = {
+    /**
+     * Annotation Ids
+     */
+    annotation_ids: Array<number>;
+};
+
+/**
+ * BatchDeleteAnnotationsResponse
+ */
+export type BatchDeleteAnnotationsResponse = {
+    /**
+     * Deleted Count
+     */
+    deleted_count: number;
+};
+
+/**
  * Body_generateTasksFromSampling
  */
 export type BodyGenerateTasksFromSampling = {
@@ -1692,6 +1712,25 @@ export type TimeseriesListResponse = {
      * Items
      */
     items: Array<TimeSeriesOut>;
+};
+
+/**
+ * UnassignTasksRequest
+ *
+ * Request to batch-unassign users from annotation tasks.
+ *
+ * If `user_ids` is provided, only those users are unassigned from each task.
+ * If omitted, all users are unassigned from each task.
+ */
+export type UnassignTasksRequest = {
+    /**
+     * Task Ids
+     */
+    task_ids: Array<number>;
+    /**
+     * User Ids
+     */
+    user_ids?: Array<string> | null;
 };
 
 /**
@@ -3115,6 +3154,34 @@ export type UnassignUserFromTaskResponses = {
     200: unknown;
 };
 
+export type BatchUnassignTasksData = {
+    body: UnassignTasksRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/unassign-tasks';
+};
+
+export type BatchUnassignTasksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BatchUnassignTasksError = BatchUnassignTasksErrors[keyof BatchUnassignTasksErrors];
+
+export type BatchUnassignTasksResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type AssignReviewersData = {
     body: AssignReviewersRequest;
     path: {
@@ -3525,6 +3592,36 @@ export type DeleteAnnotationResponses = {
 };
 
 export type DeleteAnnotationResponse = DeleteAnnotationResponses[keyof DeleteAnnotationResponses];
+
+export type BatchDeleteAnnotationsData = {
+    body: BatchDeleteAnnotationsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/batch-delete';
+};
+
+export type BatchDeleteAnnotationsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BatchDeleteAnnotationsError = BatchDeleteAnnotationsErrors[keyof BatchDeleteAnnotationsErrors];
+
+export type BatchDeleteAnnotationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchDeleteAnnotationsResponse;
+};
+
+export type BatchDeleteAnnotationsResponse2 = BatchDeleteAnnotationsResponses[keyof BatchDeleteAnnotationsResponses];
 
 export type ExportAnnotationsData = {
     body?: never;

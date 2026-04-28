@@ -8,6 +8,7 @@ import {
 } from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { Button } from '~/shared/ui/forms';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 
 interface AnnotationTasksTableProps {
   tasks: AnnotationTaskOut[];
@@ -16,6 +17,7 @@ interface AnnotationTasksTableProps {
   onUnassignTask?: (taskId: number, userId: string) => Promise<void>;
   onOpenBulkAssign?: () => void;
   onOpenReviewerAssign?: () => void;
+  onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
 }
 
@@ -26,11 +28,14 @@ export const AnnotationTasksTable = ({
   onUnassignTask,
   onOpenBulkAssign,
   onOpenReviewerAssign,
+  onBatchUnassignTasks,
   onDeleteTasks,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
+  const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +105,23 @@ export const AnnotationTasksTable = ({
     }
   };
 
+  const selectedTasksHaveAssignments = tasks.some(
+    (t) => selectedTasks.has(t.id) && t.assignments && t.assignments.length > 0
+  );
+
+  const handleBatchUnassignSelected = async () => {
+    if (!onBatchUnassignTasks || selectedTasks.size === 0) return;
+
+    try {
+      setIsBatchUnassigning(true);
+      await onBatchUnassignTasks(Array.from(selectedTasks));
+      setSelectedTasks(new Set());
+    } finally {
+      setIsBatchUnassigning(false);
+      setConfirmBatchUnassign(false);
+    }
+  };
+
   if (tasks.length === 0) {
     return (
       <div className="text-center py-12">
@@ -123,16 +145,45 @@ export const AnnotationTasksTable = ({
               <Button
                 variant="danger"
                 onClick={handleDeleteSelected}
-                disabled={selectedTasks.size === 0 || isDeleting}
+                disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
               >
                 {isDeleting ? 'Deleting…' : 'Delete selected'}
               </Button>
             )}
-            <Button variant="secondary" onClick={onOpenBulkAssign} disabled={isDeleting}>
+            {onBatchUnassignTasks && (
+              <Button
+                variant="secondary"
+                onClick={() => setConfirmBatchUnassign(true)}
+                disabled={
+                  selectedTasks.size === 0 ||
+                  !selectedTasksHaveAssignments ||
+                  isDeleting ||
+                  isBatchUnassigning
+                }
+                title={
+                  selectedTasks.size === 0
+                    ? 'Select tasks to unassign'
+                    : !selectedTasksHaveAssignments
+                      ? 'Selected tasks have no assignments'
+                      : undefined
+                }
+              >
+                {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              onClick={onOpenBulkAssign}
+              disabled={isDeleting || isBatchUnassigning}
+            >
               Bulk assign
             </Button>
             {onOpenReviewerAssign && (
-              <Button variant="secondary" onClick={onOpenReviewerAssign} disabled={isDeleting}>
+              <Button
+                variant="secondary"
+                onClick={onOpenReviewerAssign}
+                disabled={isDeleting || isBatchUnassigning}
+              >
                 Assign reviewers
               </Button>
             )}
@@ -374,6 +425,18 @@ export const AnnotationTasksTable = ({
           </strong>
         </span>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmBatchUnassign}
+        title="Unassign selected tasks?"
+        description={`This will remove all user assignments from ${selectedTasks.size} selected task(s). Annotations already submitted are preserved. This action cannot be undone.`}
+        confirmText="Unassign"
+        cancelText="Cancel"
+        isDangerous
+        isLoading={isBatchUnassigning}
+        onConfirm={handleBatchUnassignSelected}
+        onCancel={() => setConfirmBatchUnassign(false)}
+      />
     </div>
   );
 };

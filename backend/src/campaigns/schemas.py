@@ -290,6 +290,18 @@ class DeleteAnnotationTasksRequest(BaseModel):
     task_ids: list[int]
 
 
+class UnassignTasksRequest(BaseModel):
+    """
+    Request to batch-unassign users from annotation tasks.
+
+    If `user_ids` is provided, only those users are unassigned from each task.
+    If omitted, all users are unassigned from each task.
+    """
+
+    task_ids: list[int]
+    user_ids: list[UUID] | None = None
+
+
 # ============================================================================
 # Campaign Statistics Schemas
 # ============================================================================

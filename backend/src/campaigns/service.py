@@ -13,6 +13,11 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation import embeddings_service
+from src.annotation.constants import (
+    ANNOTATION_TASK_STATUS_DONE,
+    ANNOTATION_TASK_STATUS_PENDING,
+    ANNOTATION_TASK_STATUS_SKIPPED,
+)
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment, Embedding
 from src.auth.models import User
 from src.auth.service import is_admin as is_global_admin
@@ -647,6 +652,46 @@ def demote_authorative_reviewer(db: Session, campaign_id: int, user_id: UUID) ->
     db.commit()
 
 
+def _seed_assignment_status(
+    db: Session, pairs: list[tuple[int, UUID]]
+) -> dict[tuple[int, UUID], str]:
+    """
+    For each (task_id, user_id) pair, return the assignment status that
+    reflects an existing annotation by that user on that task. Pairs without
+    a pre-existing annotation are omitted (caller defaults to 'pending').
+
+    Reconciles the case where a user labeled a task before being assigned
+    (or was unassigned then re-assigned) - without this, the new assignment
+    would falsely read 'pending' even though their work is already on file.
+    """
+    if not pairs:
+        return {}
+
+    task_ids = {tid for tid, _ in pairs}
+    user_ids = {uid for _, uid in pairs}
+    pair_set = set(pairs)
+
+    rows = db.execute(
+        select(
+            Annotation.annotation_task_id,
+            Annotation.created_by_user_id,
+            Annotation.label_id,
+        ).where(
+            Annotation.annotation_task_id.in_(task_ids),
+            Annotation.created_by_user_id.in_(user_ids),
+        )
+    ).all()
+
+    seeded: dict[tuple[int, UUID], str] = {}
+    for task_id, user_id, label_id in rows:
+        if (task_id, user_id) not in pair_set:
+            continue
+        seeded[(task_id, user_id)] = (
+            ANNOTATION_TASK_STATUS_DONE if label_id is not None else ANNOTATION_TASK_STATUS_SKIPPED
+        )
+    return seeded
+
+
 def assign_tasks_to_users(
     db: Session, campaign_id: int, task_assignments: dict[int, list[UUID]]
 ) -> None:
@@ -692,20 +737,32 @@ def assign_tasks_to_users(
             detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
         )
 
-    # Create or update task assignments (multiple users per task)
-    for task_id, assigned_user_ids in task_assignments.items():
-        # Get existing assignments for this task
-        stmt = select(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id == task_id)
-        existing_assignments = db.scalars(stmt).all()
-        existing_user_ids = {assignment.user_id for assignment in existing_assignments}
+    # Determine which (task, user) pairs would be newly created
+    existing_pairs = set(
+        db.execute(
+            select(AnnotationTaskAssignment.task_id, AnnotationTaskAssignment.user_id).where(
+                AnnotationTaskAssignment.task_id.in_(task_ids)
+            )
+        ).all()
+    )
 
-        # Create new assignments only for users not already assigned
-        for user_id in assigned_user_ids:
-            if user_id not in existing_user_ids:
-                assignment = AnnotationTaskAssignment(
-                    task_id=task_id, user_id=user_id, status="pending"
-                )
-                db.add(assignment)
+    new_pairs: list[tuple[int, UUID]] = [
+        (task_id, user_id)
+        for task_id, assigned_user_ids in task_assignments.items()
+        for user_id in assigned_user_ids
+        if (task_id, user_id) not in existing_pairs
+    ]
+
+    seeded_status = _seed_assignment_status(db, new_pairs)
+
+    for task_id, user_id in new_pairs:
+        db.add(
+            AnnotationTaskAssignment(
+                task_id=task_id,
+                user_id=user_id,
+                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
+            )
+        )
 
     db.commit()
 
@@ -737,6 +794,47 @@ def unassign_user_from_task(db: Session, campaign_id: int, task_id: int, user_id
         )
 
     db.commit()
+
+
+def unassign_users_from_tasks(
+    db: Session,
+    campaign_id: int,
+    task_ids: list[int],
+    user_ids: list[UUID] | None = None,
+) -> int:
+    """
+    Batch-remove user assignments from multiple tasks.
+
+    If `user_ids` is None, removes ALL assignments from each task.
+    Otherwise, removes only the listed users from each task.
+
+    Returns the number of assignment rows deleted.
+    """
+    if not task_ids:
+        return 0
+
+    # Verify all tasks belong to the campaign
+    stmt = select(AnnotationTask.id).where(
+        AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
+    )
+    found_task_ids = set(db.scalars(stmt).all())
+    missing_task_ids = set(task_ids) - found_task_ids
+
+    if missing_task_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
+        )
+
+    where_clauses = [AnnotationTaskAssignment.task_id.in_(task_ids)]
+    if user_ids is not None:
+        if not user_ids:
+            return 0
+        where_clauses.append(AnnotationTaskAssignment.user_id.in_(user_ids))
+
+    result = db.execute(delete(AnnotationTaskAssignment).where(*where_clauses))
+    db.commit()
+    return result.rowcount or 0
 
 
 def assign_reviewers_percentage(
@@ -806,20 +904,25 @@ def assign_reviewers_percentage(
             existing_assignments_map[assignment.task_id] = set()
         existing_assignments_map[assignment.task_id].add(assignment.user_id)
 
-    # Assign reviewers to selected tasks
+    # Decide which (task, reviewer) pairs are new before instantiating
+    new_pairs: list[tuple[int, UUID]] = []
     for task in tasks_to_review:
         existing_user_ids = existing_assignments_map.get(task.id, set())
-
-        # Randomly select reviewers from the pool
         selected_reviewers = random.sample(reviewer_ids, min(num_reviewers, len(reviewer_ids)))
-
-        # Create assignments only for reviewers not already assigned
         for user_id in selected_reviewers:
             if user_id not in existing_user_ids:
-                assignment = AnnotationTaskAssignment(
-                    task_id=task.id, user_id=user_id, status="pending"
-                )
-                db.add(assignment)
+                new_pairs.append((task.id, user_id))
+
+    seeded_status = _seed_assignment_status(db, new_pairs)
+
+    for task_id, user_id in new_pairs:
+        db.add(
+            AnnotationTaskAssignment(
+                task_id=task_id,
+                user_id=user_id,
+                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
+            )
+        )
 
     db.commit()
 
@@ -894,20 +997,25 @@ def assign_reviewers_fixed(
             existing_assignments_map[assignment.task_id] = set()
         existing_assignments_map[assignment.task_id].add(assignment.user_id)
 
-    # Assign reviewers to selected tasks
+    # Decide which (task, reviewer) pairs are new before instantiating
+    new_pairs: list[tuple[int, UUID]] = []
     for task in tasks_to_review:
         existing_user_ids = existing_assignments_map.get(task.id, set())
-
-        # Randomly select reviewers from the pool
         selected_reviewers = random.sample(reviewer_ids, min(num_reviewers, len(reviewer_ids)))
-
-        # Create assignments only for reviewers not already assigned
         for user_id in selected_reviewers:
             if user_id not in existing_user_ids:
-                assignment = AnnotationTaskAssignment(
-                    task_id=task.id, user_id=user_id, status="pending"
-                )
-                db.add(assignment)
+                new_pairs.append((task.id, user_id))
+
+    seeded_status = _seed_assignment_status(db, new_pairs)
+
+    for task_id, user_id in new_pairs:
+        db.add(
+            AnnotationTaskAssignment(
+                task_id=task_id,
+                user_id=user_id,
+                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
+            )
+        )
 
     db.commit()
 

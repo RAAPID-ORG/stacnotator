@@ -3,6 +3,7 @@ from typing import Literal
 import ee
 import pandas as pd
 from fastapi import HTTPException
+from googleapiclient.errors import HttpError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -183,10 +184,25 @@ def fetch_ndvi_timeseries_ee(
         lambda img: add_ndvi_band_to_ee_image(img, **config["NDVI"]["bands"])
     ).map(config["cloudmask_callable"])
 
-    # Extract NDVI & cloud values at the point over time
-    region_data = (
-        collection.select(["NDVI", "cloud"]).getRegion(point, config["NDVI"]["scale"]).getInfo()
-    )
+    # Extract NDVI & cloud values at the point over time. The EE client retries
+    # 429s with backoff internally; if it still fails we surface a clean error
+    # instead of letting the raw stack trace become a 500.
+    try:
+        region_data = (
+            collection.select(["NDVI", "cloud"]).getRegion(point, config["NDVI"]["scale"]).getInfo()
+        )
+    except (ee.EEException, HttpError) as exc:
+        status = getattr(getattr(exc, "resp", None), "status", None)
+        message = str(exc)
+        if status == 429 or "429" in message or "quota" in message.lower():
+            raise HTTPException(
+                status_code=503,
+                detail="Earth Engine is rate-limiting requests. Please retry in a moment.",
+            ) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"Earth Engine request failed: {message}",
+        ) from exc
 
     # First row: column headers, subsequent rows: [longitude, latitude, time, NDVI]
     columns = region_data[0]

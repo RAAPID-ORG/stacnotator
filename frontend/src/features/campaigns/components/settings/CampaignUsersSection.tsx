@@ -57,8 +57,9 @@ export const CampaignUsersSection = ({
       const { data } = await listUsers({});
       setAllUsers(data || []);
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load users available to add';
+      onError?.(message);
       console.error(err);
-      // Don't set error state, just log - this is a secondary feature
     }
   };
 

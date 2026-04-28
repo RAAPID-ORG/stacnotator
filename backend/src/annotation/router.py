@@ -16,6 +16,8 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    BatchDeleteAnnotationsRequest,
+    BatchDeleteAnnotationsResponse,
     KnnValidationStatusOut,
     ValidateLabelSubmissionsResponse,
 )
@@ -284,6 +286,32 @@ def delete_annotation(
             )
 
     return None
+
+
+@router.post(
+    "/campaigns/{campaign_id}/annotations/batch-delete",
+    response_model=BatchDeleteAnnotationsResponse,
+)
+def batch_delete_annotations(
+    campaign_id: int,
+    req: BatchDeleteAnnotationsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> BatchDeleteAnnotationsResponse:
+    """
+    Delete multiple annotations from a campaign in one call.
+
+    Public campaigns: non-admins may only delete their own annotations.
+    Task-linked annotations have their per-user assignment reset to 'pending'.
+    """
+    deleted = service.delete_annotations_bulk(
+        db=db,
+        annotation_ids=req.annotation_ids,
+        campaign=campaign,
+        user_id=user.id,
+    )
+    return BatchDeleteAnnotationsResponse(deleted_count=deleted)
 
 
 @router.get("/campaigns/{campaign_id}/export-annotations")

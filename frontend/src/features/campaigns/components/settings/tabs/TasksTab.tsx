@@ -18,6 +18,7 @@ interface Props {
   onOpenReviewerAssign: () => void;
   handleAssignSingleTask: (taskId: number, userId: string) => Promise<void>;
   handleUnassignTask: (taskId: number, userId: string) => Promise<void>;
+  handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
   campaignId: number;
   bbox?: {
@@ -41,6 +42,7 @@ export const TasksTab: React.FC<Props> = ({
   onOpenReviewerAssign,
   handleAssignSingleTask,
   handleUnassignTask,
+  handleBatchUnassignTasks,
   handleDeleteTasks,
   campaignId,
   bbox,
@@ -164,6 +166,7 @@ export const TasksTab: React.FC<Props> = ({
             onUnassignTask={handleUnassignTask}
             onOpenBulkAssign={onOpenBulkAssign}
             onOpenReviewerAssign={onOpenReviewerAssign}
+            onBatchUnassignTasks={handleBatchUnassignTasks}
             onDeleteTasks={handleDeleteTasks}
           />
         ) : (

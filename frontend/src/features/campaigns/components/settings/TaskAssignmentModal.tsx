@@ -24,7 +24,12 @@ export const TaskAssignmentModal = ({
   const [assigning, setAssigning] = useState(false);
 
   const unassignedTasks = useMemo(
-    () => tasks.filter((t) => !t.assignments || t.assignments.length === 0),
+    () =>
+      tasks.filter(
+        (t) =>
+          (!t.assignments || t.assignments.length === 0) &&
+          (!t.annotations || t.annotations.length === 0)
+      ),
     [tasks]
   );
 

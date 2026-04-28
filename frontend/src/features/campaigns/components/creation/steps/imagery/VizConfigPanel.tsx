@@ -302,7 +302,7 @@ export const VizConfigPanel = ({
             <p className="text-[10px] text-amber-600 mt-1">
               Non-first-valid compositing reads multiple scenes per tile - expect ~10x slower data
               loading. For MPC this also routes through our self-hosted tiler instead of MPC's fast
-              tile endpoint.
+              tile endpoint. Capped at 5 scenes per tile (lowest cloud cover first).
             </p>
           )}
         </div>

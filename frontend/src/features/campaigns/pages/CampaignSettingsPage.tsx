@@ -30,6 +30,7 @@ import {
   ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
   unassignUserFromTask,
+  batchUnassignTasks,
   assignReviewers,
   deleteAnnotationTasks,
   deleteCampaign,
@@ -534,6 +535,36 @@ export const CampaignSettingsPage = () => {
     }
   };
 
+  const handleBatchUnassignTasks = async (taskIds: number[]) => {
+    if (taskIds.length === 0) {
+      showAlert('No tasks selected', 'error');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      await batchUnassignTasks({
+        path: { campaign_id: numericCampaignId },
+        body: { task_ids: taskIds },
+      });
+
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
+
+      showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to unassign tasks';
+      showAlert(message, 'error');
+      console.error(err);
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDeleteTasks = async (taskIds: number[]) => {
     if (taskIds.length === 0) {
       showAlert('No tasks selected', 'error');
@@ -803,6 +834,7 @@ export const CampaignSettingsPage = () => {
                   onOpenReviewerAssign={() => setShowReviewerModal(true)}
                   handleAssignSingleTask={handleAssignSingleTask}
                   handleUnassignTask={handleUnassignTask}
+                  handleBatchUnassignTasks={handleBatchUnassignTasks}
                   handleDeleteTasks={handleDeleteTasks}
                   campaignId={numericCampaignId}
                   bbox={
