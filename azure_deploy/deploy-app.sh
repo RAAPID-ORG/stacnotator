@@ -227,13 +227,16 @@ else
                    "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
                    "WORKERS=$TILER_WORKERS" "TIMEOUT=120" "MAX_REQUESTS=500" \
                    "GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR" \
-                   "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=NO" \
+                   "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES" \
                    "GDAL_HTTP_MULTIPLEX=YES" \
+                   "GDAL_HTTP_VERSION=2" \
                    "GDAL_HTTP_TIMEOUT=60" \
                    "GDAL_HTTP_MAX_RETRY=3" \
                    "GDAL_HTTP_RETRY_DELAY=1" \
+                   "GDAL_INGESTED_BYTES_AT_OPEN=32768" \
                    "VSI_CACHE=TRUE" \
                    "VSI_CACHE_SIZE=536870912" \
+                   "CPL_VSIL_CURL_CACHE_SIZE=200000000" \
                    "GDAL_CACHEMAX=256" \
                    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff" \
                    "CORS_ORIGINS=__PENDING__" \
