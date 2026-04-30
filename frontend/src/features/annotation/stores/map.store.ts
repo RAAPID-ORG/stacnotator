@@ -26,6 +26,10 @@ interface MapStore {
   selectedLayerIndex: number;
   showBasemap: boolean;
   selectedBasemapId: string | null;
+  // Per-source memory so cycling I → static → back to a source restores the
+  // last collection + visualization the user was on, instead of resetting to
+  // the first slice / first viz.
+  lastSourceState: Record<number, { collectionId: number; layerIndex: number }>;
 
   // Map viewport (synced across all map instances)
   currentMapCenter: [number, number] | null;
@@ -50,6 +54,9 @@ interface MapStore {
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
   timeseriesPoint: { lat: number; lon: number } | null;
   probeTimeseriesPoint: { lat: number; lon: number } | null;
+  // True when the chart has hidden the relevant datasets, so the map should
+  // suppress the probe marker overlay even though probeTimeseriesPoint is set.
+  probeMarkerHidden: boolean;
 
   // Actions
   setActiveCollectionId: (id: number | null) => void;
@@ -64,6 +71,7 @@ interface MapStore {
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
+  recordSourceState: (sourceId: number, collectionId: number, layerIndex: number) => void;
 
   setMapCenter: (center: [number, number]) => void;
   setMapZoom: (zoom: number) => void;
@@ -80,6 +88,7 @@ interface MapStore {
   setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
+  setProbeMarkerHidden: (hidden: boolean) => void;
   toggleViewSync: () => void;
   togglePreloading: () => void;
 
@@ -108,6 +117,7 @@ const initialState = {
   selectedLayerIndex: 0,
   showBasemap: false,
   selectedBasemapId: null as string | null,
+  lastSourceState: {} as Record<number, { collectionId: number; layerIndex: number }>,
 
   currentMapCenter: null as [number, number] | null,
   currentMapZoom: null as number | null,
@@ -124,6 +134,7 @@ const initialState = {
   activeTool: 'pan' as const,
   timeseriesPoint: null as { lat: number; lon: number } | null,
   probeTimeseriesPoint: null as { lat: number; lon: number } | null,
+  probeMarkerHidden: false,
   viewSyncEnabled: true,
   preloadingEnabled: true,
 };
@@ -203,6 +214,14 @@ export const useMapStore = create<MapStore>((set) => ({
   setShowBasemap: (show) => set({ showBasemap: show }),
   setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
 
+  recordSourceState: (sourceId, collectionId, layerIndex) =>
+    set((s) => ({
+      lastSourceState: {
+        ...s.lastSourceState,
+        [sourceId]: { collectionId, layerIndex },
+      },
+    })),
+
   setMapCenter: (center) => set({ currentMapCenter: center }),
   setMapZoom: (zoom) => set({ currentMapZoom: zoom }),
   setMapBounds: (bounds) => set({ currentMapBounds: bounds }),
@@ -221,6 +240,7 @@ export const useMapStore = create<MapStore>((set) => ({
 
   setTimeseriesPoint: (point) => set({ timeseriesPoint: point }),
   setProbeTimeseriesPoint: (point) => set({ probeTimeseriesPoint: point }),
+  setProbeMarkerHidden: (hidden) => set({ probeMarkerHidden: hidden }),
 
   toggleViewSync: () => set((s) => ({ viewSyncEnabled: !s.viewSyncEnabled })),
   togglePreloading: () => set((s) => ({ preloadingEnabled: !s.preloadingEnabled })),

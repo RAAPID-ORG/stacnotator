@@ -276,17 +276,18 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       setActiveLayerId(controlledActiveLayerId);
     }, [controlledActiveLayerId, setActiveLayerId]);
 
-    // Probe marker overlay
-
+    // Probe marker overlay - hidden when probePoint is null OR the chart
+    // legend has hidden the corresponding datasets (probeMarkerHidden).
+    const probeMarkerHidden = useMapStore((s) => s.probeMarkerHidden);
     useEffect(() => {
       const overlay = probeOverlayRef.current;
       if (!overlay) return;
-      if (probePoint) {
+      if (probePoint && !probeMarkerHidden) {
         overlay.setPosition(fromLonLat([probePoint.lon, probePoint.lat]));
       } else {
         overlay.setPosition(undefined);
       }
-    }, [probePoint?.lat, probePoint?.lon, probePoint]);
+    }, [probePoint?.lat, probePoint?.lon, probePoint, probeMarkerHidden]);
 
     // Render
 

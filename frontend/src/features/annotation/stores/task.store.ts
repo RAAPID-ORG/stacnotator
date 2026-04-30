@@ -318,10 +318,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         });
         startNavigation({ currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
 
-        const successMessage =
-          labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
-        useLayoutStore.getState().showAlert(successMessage, 'success');
-
         // A labeled submission may change what the KNN validator has to work
         // with (total count and the submitted label's count); refresh async
         // so the tooltip in AnnotationControls reflects the latest state.

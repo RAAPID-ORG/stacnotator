@@ -127,13 +127,15 @@ export function LoginScreen() {
           {mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
         </h1>
 
-        <p className="text-sm text-brand-600 mb-6">
-          {mode === 'login'
-            ? 'Please sign in to continue.'
-            : mode === 'register'
-              ? 'Create a new account to get started.'
-              : "Enter your email and we'll send you a reset link."}
-        </p>
+        {!(mode === 'forgot-password' && resetEmailSent) && (
+          <p className="text-sm text-brand-600 mb-6">
+            {mode === 'login'
+              ? 'Please sign in to continue.'
+              : mode === 'register'
+                ? 'Create a new account to get started.'
+                : "Enter your email and we'll send you a reset link."}
+          </p>
+        )}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
@@ -149,23 +151,23 @@ export function LoginScreen() {
         ) : null}
 
         {mode === 'forgot-password' ? (
-          <form onSubmit={handlePasswordReset} className="space-y-4 mb-4">
-            <Field label="Email">
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-                placeholder="Enter your email"
-              />
-            </Field>
-            {!resetEmailSent && (
+          !resetEmailSent && (
+            <form onSubmit={handlePasswordReset} className="space-y-4 mb-4">
+              <Field label="Email">
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  placeholder="Enter your email"
+                />
+              </Field>
               <Button type="submit" disabled={loading} className="w-full">
                 {loading ? 'Sending…' : 'Send reset link'}
               </Button>
-            )}
-          </form>
+            </form>
+          )
         ) : (
           <form onSubmit={handleEmailSubmit} className="space-y-4 mb-4">
             <Field label="Email">

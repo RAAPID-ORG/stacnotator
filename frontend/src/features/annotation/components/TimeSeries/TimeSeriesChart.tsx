@@ -22,6 +22,8 @@ import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './time
 import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
+import { useMapStore } from '../../stores/map.store';
+import { useCampaignStore } from '../../stores/campaign.store';
 
 ChartJS.register(
   LineElement,
@@ -172,6 +174,51 @@ export const TimeSeriesChart = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
   }, [timeseriesIds, probeLatLon?.lat, probeLatLon?.lon]);
 
+  // Whether the on-map probe marker corresponds to probe series (task mode)
+  // or to the main series (open mode). The Canvas passes probeLatLon=undefined
+  // in open mode and a value (possibly null) in task mode.
+  const isOpenMode = probeLatLon === undefined;
+
+  // When the user clicks a new point, ensure the relevant legend toggles are
+  // reset so the marker reappears on screen.
+  useEffect(() => {
+    if (!probeLatLon) return;
+    setHiddenDatasets((prev) => {
+      const next = new Set(prev);
+      for (let i = 0; i < timeseries.length; i++) next.delete(timeseries.length + i);
+      return next;
+    });
+  }, [probeLatLon?.lat, probeLatLon?.lon, timeseries.length]);
+
+  useEffect(() => {
+    if (!isOpenMode || !latLon) return;
+    setHiddenDatasets((prev) => {
+      const next = new Set(prev);
+      for (let i = 0; i < timeseries.length; i++) next.delete(i);
+      return next;
+    });
+  }, [isOpenMode, latLon?.lat, latLon?.lon, timeseries.length]);
+
+  // Sync map-marker visibility with the legend so toggling everything off in
+  // the chart hides the on-map crosshair too.
+  const markerHidden = useMemo(() => {
+    if (timeseries.length === 0) return false;
+    if (probeLatLon) {
+      return timeseries.every((_, i) => hiddenDatasets.has(timeseries.length + i));
+    }
+    if (isOpenMode && latLon) {
+      return timeseries.every((_, i) => hiddenDatasets.has(i));
+    }
+    return false;
+  }, [hiddenDatasets, timeseries, probeLatLon, latLon, isOpenMode]);
+
+  useEffect(() => {
+    useMapStore.getState().setProbeMarkerHidden(markerHidden);
+    return () => {
+      useMapStore.getState().setProbeMarkerHidden(false);
+    };
+  }, [markerHidden]);
+
   const chartData = useMemo(() => {
     if (!data) return null;
 
@@ -302,6 +349,109 @@ export const TimeSeriesChart = ({
     smoothOrder,
     hiddenDatasets,
   ]);
+
+  // Resolve the slice currently shown on the map so we can highlight its
+  // date range on the chart. Pulls from stores directly to keep the call
+  // site (Canvas) untouched.
+  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
+  const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const campaign = useCampaignStore((s) => s.campaign);
+  const activeSlice = useMemo(() => {
+    if (!campaign || activeCollectionId === null) return null;
+    for (const src of campaign.imagery_sources) {
+      const col = src.collections.find((c) => c.id === activeCollectionId);
+      if (col) return col.slices[activeSliceIndex] ?? null;
+    }
+    return null;
+  }, [campaign, activeCollectionId, activeSliceIndex]);
+
+  // Map slice start/end dates → label indices (categorical x-axis).
+  // Use the closest label inside the slice range; if no label falls inside
+  // (e.g. labels are sparse compared to slice width) snap to nearest.
+  const sliceMarkerRef = useRef<{ startIdx: number; endIdx: number } | null>(null);
+  useEffect(() => {
+    if (!activeSlice || !chartData?.labels.length) {
+      sliceMarkerRef.current = null;
+      chartRef.current?.update('none');
+      return;
+    }
+    const sliceStart = new Date(activeSlice.start_date).getTime();
+    const sliceEnd = new Date(activeSlice.end_date).getTime();
+    const labels = chartData.labels;
+    let startIdx = -1;
+    let endIdx = -1;
+    for (let i = 0; i < labels.length; i++) {
+      const t = new Date(labels[i]).getTime();
+      if (t >= sliceStart && t <= sliceEnd) {
+        if (startIdx === -1) startIdx = i;
+        endIdx = i;
+      }
+    }
+    if (startIdx === -1) {
+      // No labels strictly inside the slice — snap to the nearest single label
+      let nearest = 0;
+      let bestDist = Infinity;
+      const center = (sliceStart + sliceEnd) / 2;
+      for (let i = 0; i < labels.length; i++) {
+        const t = new Date(labels[i]).getTime();
+        const d = Math.abs(t - center);
+        if (d < bestDist) {
+          bestDist = d;
+          nearest = i;
+        }
+      }
+      sliceMarkerRef.current = { startIdx: nearest, endIdx: nearest };
+    } else {
+      sliceMarkerRef.current = { startIdx, endIdx };
+    }
+    chartRef.current?.update('none');
+  }, [activeSlice, chartData?.labels]);
+
+  // Inline plugin: subtle band + edge lines indicating the active map slice.
+  const sliceMarkerPlugin = useMemo(
+    () => ({
+      id: 'sliceMarker',
+      afterDatasetsDraw(chart: ChartJS<'line'>) {
+        const marker = sliceMarkerRef.current;
+        if (!marker) return;
+        const xScale = chart.scales.x;
+        if (!xScale) return;
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+
+        // Half-step padding so a single-point slice gets a visible band.
+        const halfStep =
+          marker.endIdx === marker.startIdx
+            ? Math.abs(xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2 || 4
+            : 0;
+        const xLeft = xScale.getPixelForValue(marker.startIdx) - halfStep;
+        const xRight = xScale.getPixelForValue(marker.endIdx) + halfStep;
+        const left = Math.max(chartArea.left, Math.min(xLeft, xRight));
+        const right = Math.min(chartArea.right, Math.max(xLeft, xRight));
+        if (right <= chartArea.left || left >= chartArea.right) return;
+
+        ctx.save();
+        // Soft fill band
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.10)'; // amber tint
+        ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+
+        // Edge lines
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(Math.round(left) + 0.5, chartArea.top);
+        ctx.lineTo(Math.round(left) + 0.5, chartArea.bottom);
+        if (right - left > 1) {
+          ctx.moveTo(Math.round(right) + 0.5, chartArea.top);
+          ctx.lineTo(Math.round(right) + 0.5, chartArea.bottom);
+        }
+        ctx.stroke();
+        ctx.restore();
+      },
+    }),
+    []
+  );
 
   // Error state
   if (error) {
@@ -535,6 +685,7 @@ export const TimeSeriesChart = ({
         <Line
           ref={chartRef}
           data={chartData}
+          plugins={[sliceMarkerPlugin]}
           options={{
             responsive: true,
             maintainAspectRatio: false,
@@ -592,6 +743,8 @@ export const TimeSeriesChart = ({
                 },
               },
               y: {
+                min: 0,
+                max: 1,
                 ticks: {
                   font: { size: 8 },
                   maxTicksLimit: 5,
