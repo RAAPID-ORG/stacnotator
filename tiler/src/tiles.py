@@ -81,7 +81,7 @@ def _get_items_for_tile(
         db.execute(
             text(
                 """
-                SELECT item_id, href, bbox_west, bbox_south, bbox_east, bbox_north
+                SELECT item_id, href, stac_item
                 FROM data.mosaic_items
                 WHERE mosaic_id = :mosaic_id
                   AND ST_Intersects(geom, ST_GeomFromEWKT(:tile_wkt))
@@ -96,7 +96,10 @@ def _get_items_for_tile(
     )
 
     if rows:
-        return [{"href": r["href"], "id": r["item_id"]} for r in rows]
+        return [
+            {"href": r["href"], "id": r["item_id"], "stac_item": r["stac_item"]}
+            for r in rows
+        ]
 
     # Fallback: geom not populated (old data) - use Python bbox check
     items = (
@@ -109,7 +112,7 @@ def _get_items_for_tile(
     for it in items:
         if not (it.bbox_west <= east and it.bbox_east >= west and it.bbox_south <= north and it.bbox_north >= south):
             continue
-        matching.append({"href": it.href, "id": it.item_id})
+        matching.append({"href": it.href, "id": it.item_id, "stac_item": it.stac_item})
         if len(matching) >= limit:
             break
     return matching
@@ -200,9 +203,12 @@ def mosaic_tile(
     # Read COGs + composite
     item_timings: list[str] = []
 
-    def read_tile(href: str):
+    def read_tile(item: dict):
+        href = item["href"]
+        stac_item = item.get("stac_item")
         t0 = time.perf_counter()
-        with PCSignedSTACReader(href) as src:
+        reader_args = {"item": stac_item} if stac_item else {}
+        with PCSignedSTACReader(href, **reader_args) as src:
             t_open = time.perf_counter()
             img = src.tile(x, y, z, **reader_kwargs)
             t_tile = time.perf_counter()
@@ -222,7 +228,6 @@ def mosaic_tile(
             return img
 
     t_cog = time.perf_counter()
-    item_hrefs = [item["href"] for item in matching_items]
     # For first-valid: process one item at a time so is_done short-circuits
     # after the first fully-valid image. For statistical methods: read all in parallel.
     is_first = compositing == "first"
@@ -234,7 +239,7 @@ def mosaic_tile(
     if is_first:
         mosaic_kwargs["chunk_size"] = 1
         mosaic_kwargs["threads"] = 1
-    img, _ = mosaic_reader(item_hrefs, read_tile, **mosaic_kwargs)
+    img, _ = mosaic_reader(matching_items, read_tile, **mosaic_kwargs)
     t_cog_done = time.perf_counter()
 
     if img is None or not img.mask.any():

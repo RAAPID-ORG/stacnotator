@@ -35,3 +35,4 @@ class MosaicItem(Base):
     bbox_north: Mapped[float] = mapped_column(Float, nullable=False)
     datetime: Mapped[str] = mapped_column(String, nullable=False)
     cloud_cover: Mapped[float | None] = mapped_column(Float, nullable=True)
+    stac_item: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

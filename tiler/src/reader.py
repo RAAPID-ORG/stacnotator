@@ -58,18 +58,24 @@ def _sign_with_retry(item: dict) -> dict:
 class PCSignedSTACReader(STACReader):
     """STACReader that signs MPC asset URLs and caches signed items.
 
-    Sign failures (after retries) propagate to the caller — rio-tiler's
+    Sign failures (after retries) propagate to the caller - rio-tiler's
     mosaic_reader skips failed items and continues with the rest. The
     unsigned item is NOT cached, so the next request retries from scratch.
     """
 
     def __init__(self, input: str, *args: Any, **kwargs: Any):
+        # Cache holds already-signed items: prefer it over a caller-supplied
+        # unsigned dict so we avoid re-signing.
         cached = _get_cached_item(input)
         if cached:
             kwargs["item"] = cached
-        super().__init__(input, *args, **kwargs)
+            super().__init__(input, *args, **kwargs)
+            return
 
-        if cached or not self.item:
+        # No cache hit. STACReader will use kwargs["item"] if the caller
+        # passed one; otherwise it fetches the item JSON from the source catalog over HTTP.
+        super().__init__(input, *args, **kwargs)
+        if not self.item:
             return
 
         if _is_mpc(input):
