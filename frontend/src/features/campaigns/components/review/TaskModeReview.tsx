@@ -30,6 +30,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -56,6 +57,11 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       if (selectedUserIds.length > 0) {
         const assignments = task.assignments || [];
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
+      }
+      if (selectedConfidences.length > 0) {
+        const taskConfs = (task.annotations || []).map((a) => a.confidence ?? 0);
+        if (taskConfs.length === 0) taskConfs.push(0);
+        if (!taskConfs.some((c) => selectedConfidences.includes(c))) return false;
       }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -87,7 +93,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       if (sortOption === 'id-desc') return b.annotation_number - a.annotation_number;
       return 0;
     });
-  }, [tasks, statusFilter, selectedUserIds, searchQuery, sortOption]);
+  }, [tasks, statusFilter, selectedUserIds, selectedConfidences, searchQuery, sortOption]);
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
@@ -215,6 +221,59 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                 setSelectedUserIds={setSelectedUserIds}
                 currentUserId={currentUser?.id}
               />
+
+              {/* Confidence Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-neutral-700">Confidence:</label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setSelectedConfidences([])}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.length === 0
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {[1, 2, 3, 4, 5].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(c)
+                            ? selectedConfidences.filter((x) => x !== c)
+                            : [...selectedConfidences, c]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(c)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setSelectedConfidences(
+                        selectedConfidences.includes(0)
+                          ? selectedConfidences.filter((x) => x !== 0)
+                          : [...selectedConfidences, 0]
+                      )
+                    }
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.includes(0)
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                    title="Tasks with annotations missing a confidence rating, or no annotations"
+                  >
+                    No rating
+                  </button>
+                </div>
+              </div>
 
               {/* Sort By */}
               <div className="flex items-center gap-2">

@@ -37,6 +37,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
+  const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -106,6 +107,10 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
         (ann.label_id === null || !selectedLabelIds.includes(ann.label_id))
       )
         return false;
+      if (selectedConfidences.length > 0) {
+        const c = ann.confidence ?? 0;
+        if (!selectedConfidences.includes(c)) return false;
+      }
       if (searchQuery && !ann.id.toString().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
@@ -124,7 +129,14 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
       if (sortOption === 'id-desc') return b.id - a.id;
       return 0;
     });
-  }, [annotations, selectedUserIds, selectedLabelIds, searchQuery, sortOption]);
+  }, [
+    annotations,
+    selectedUserIds,
+    selectedLabelIds,
+    selectedConfidences,
+    searchQuery,
+    sortOption,
+  ]);
 
   const stats = useMemo(() => {
     let withConfidence = 0;
@@ -353,6 +365,59 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 setSelectedUserIds={setSelectedUserIds}
                 currentUserId={currentUser?.id}
               />
+
+              {/* Confidence Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-neutral-700">Confidence:</label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setSelectedConfidences([])}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.length === 0
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {[1, 2, 3, 4, 5].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(c)
+                            ? selectedConfidences.filter((x) => x !== c)
+                            : [...selectedConfidences, c]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(c)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setSelectedConfidences(
+                        selectedConfidences.includes(0)
+                          ? selectedConfidences.filter((x) => x !== 0)
+                          : [...selectedConfidences, 0]
+                      )
+                    }
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.includes(0)
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                    title="Annotations without a confidence rating"
+                  >
+                    No rating
+                  </button>
+                </div>
+              </div>
 
               {/* Sort By */}
               <div className="flex items-center gap-2">

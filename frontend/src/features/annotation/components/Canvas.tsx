@@ -341,7 +341,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </button>
             <a
               href={`https://earth.google.com/web/search/${latLon.lat},${latLon.lon}`}
-              target="googleEarth"
+              target="_blank"
               rel="noopener noreferrer"
               className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
               title="Open in Google Earth"
