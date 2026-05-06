@@ -92,7 +92,7 @@ def get_annotation_task_by_id(
         .options(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations),
+            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
         )
     )
 
@@ -126,7 +126,7 @@ def get_annotation_tasks_for_campaign(
         .options(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations),
+            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
         )
         .order_by(AnnotationTask.annotation_number)
     )
@@ -724,6 +724,7 @@ def get_annotations_for_campaign(
         .where(Annotation.campaign_id == campaign_id)
         .options(
             joinedload(Annotation.geometry),
+            joinedload(Annotation.creator),
         )
     )
     annotations = db.scalars(stmt).unique().all()

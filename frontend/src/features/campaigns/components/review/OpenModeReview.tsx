@@ -60,7 +60,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           const usersRes = await getCampaignUsers({ path: { campaign_id: campaignId } });
           setCampaignUsers(usersRes.data?.users || []);
         } catch {
-          // Non-admin: user list will be derived from annotations
+          /* empty */
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load annotations';
@@ -74,29 +74,20 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   }, [campaignId, showAlert]);
 
   const uniqueUsers = useMemo((): UserInfo[] => {
-    if (campaignUsers.length > 0) {
-      return campaignUsers
-        .map((cu) => ({
-          id: cu.user.id,
-          email: cu.user.email,
-          displayName: cu.user.display_name,
-        }))
-        .sort((a, b) =>
-          (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
-        );
-    }
     const m = new Map<string, UserInfo>();
     annotations.forEach((ann) => {
       if (!m.has(ann.created_by_user_id)) {
         m.set(ann.created_by_user_id, {
           id: ann.created_by_user_id,
-          email: null,
-          displayName: null,
+          email: ann.created_by_user_email ?? null,
+          displayName: ann.created_by_user_display_name ?? null,
         });
       }
     });
-    return Array.from(m.values());
-  }, [campaignUsers, annotations]);
+    return Array.from(m.values()).sort((a, b) =>
+      (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
+    );
+  }, [annotations]);
 
   const labels = campaign.settings.labels;
 
@@ -248,11 +239,14 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     }
   };
 
-  const getUserDisplayName = (userId: string): string => {
-    if (userId === currentUser?.id) return currentUser.display_name || currentUser.email || 'You';
-    const cu = campaignUsers.find((u) => u.user.id === userId);
-    if (cu) return cu.user.display_name || cu.user.email;
-    return userId.substring(0, 8);
+  const getUserDisplayName = (ann: AnnotationOut): string => {
+    if (ann.created_by_user_id === currentUser?.id)
+      return currentUser.display_name || currentUser.email || 'You';
+    return (
+      ann.created_by_user_display_name ||
+      ann.created_by_user_email ||
+      ann.created_by_user_id.substring(0, 8)
+    );
   };
 
   const getLabelName = (labelId: number | null): string => {
@@ -320,7 +314,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
         )}
 
         {/* Filters */}
-        <div className="surface mb-6">
+        <div className="surface surface-unclipped mb-6">
           <div className="px-5 py-4 space-y-3">
             <h3 className="section-heading">Filters & search</h3>
             <div className="flex flex-wrap items-center gap-4">
@@ -614,7 +608,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                       </td>
                       <td className="px-4 py-3 text-neutral-700 text-sm">
                         {isMine && <span className="text-brand-600 font-medium">(You) </span>}
-                        {getUserDisplayName(ann.created_by_user_id)}
+                        {getUserDisplayName(ann)}
                       </td>
                       <td className="px-4 py-3">
                         {ann.confidence != null ? (

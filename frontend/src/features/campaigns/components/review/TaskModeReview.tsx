@@ -110,7 +110,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
-    tasks.forEach((t) =>
+    tasks.forEach((t) => {
       t.assignments?.forEach((a) => {
         if (!m.has(a.user_id))
           m.set(a.user_id, {
@@ -118,8 +118,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             email: a.user_email || null,
             displayName: a.user_display_name || null,
           });
-      })
-    );
+      });
+      t.annotations?.forEach((ann) => {
+        if (!m.has(ann.created_by_user_id)) {
+          m.set(ann.created_by_user_id, {
+            id: ann.created_by_user_id,
+            email: ann.created_by_user_email ?? null,
+            displayName: ann.created_by_user_display_name ?? null,
+          });
+        }
+      });
+    });
     return Array.from(m.values()).sort((a, b) =>
       (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
     );
@@ -192,7 +201,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         {tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
         {/* Filters - inside the page surface, no nested card */}
-        <div className="surface">
+        <div className="surface surface-unclipped">
           <div className="px-5 py-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="section-heading">Filters & search</h3>
@@ -450,7 +459,9 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 const isCurrentUser = ann.created_by_user_id === currentUser?.id;
                                 const displayName = isCurrentUser
                                   ? currentUser.display_name || currentUser.email || 'You'
-                                  : annotator?.user_display_name ||
+                                  : ann.created_by_user_display_name ||
+                                    ann.created_by_user_email ||
+                                    annotator?.user_display_name ||
                                     annotator?.user_email ||
                                     ann.created_by_user_id?.substring(0, 8) ||
                                     'Unknown';

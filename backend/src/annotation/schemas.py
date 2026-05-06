@@ -35,12 +35,25 @@ class AnnotationFromTaskOut(BaseModel):
     label_id: int | None
     comment: str | None
     created_by_user_id: UUID
+    created_by_user_email: str | None = None
+    created_by_user_display_name: str | None = None
     created_at: datetime
     updated_at: datetime
     confidence: int | None
     is_authoritative: bool
     flagged_for_review: bool
     flag_comment: str | None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_creator_info(cls, data):
+        """Surface email / display_name from the creator relationship so the
+        review pages can render the annotator even when the user is no longer
+        a campaign member or task assignee."""
+        if hasattr(data, "__dict__") and getattr(data, "creator", None) is not None:
+            data.__dict__["created_by_user_email"] = data.creator.email
+            data.__dict__["created_by_user_display_name"] = data.creator.display_name
+        return data
 
     model_config = ConfigDict(from_attributes=True)
 

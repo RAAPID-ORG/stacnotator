@@ -228,6 +228,7 @@ class Annotation(Base):
     annotation_task: Mapped["AnnotationTask | None"] = relationship(
         back_populates="annotations",
     )
+    creator: Mapped["User"] = relationship()
 
 
 class Embedding(Base):

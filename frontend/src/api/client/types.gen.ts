@@ -85,6 +85,14 @@ export type AnnotationFromTaskOut = {
      */
     created_by_user_id: string;
     /**
+     * Created By User Email
+     */
+    created_by_user_email?: string | null;
+    /**
+     * Created By User Display Name
+     */
+    created_by_user_display_name?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -130,6 +138,14 @@ export type AnnotationOut = {
      * Created By User Id
      */
     created_by_user_id: string;
+    /**
+     * Created By User Email
+     */
+    created_by_user_email?: string | null;
+    /**
+     * Created By User Display Name
+     */
+    created_by_user_display_name?: string | null;
     /**
      * Created At
      */
