@@ -200,6 +200,16 @@ export const useOpenModeKeyboard = () => {
           goToNextAnnotation();
           triggerFitAnnotations();
           break;
+        case 'f': {
+          e.preventDefault();
+          const annStore = useAnnotationStore.getState();
+          const id = annStore.selectedAnnotationId;
+          if (id == null) break;
+          const ann = annStore.annotations.find((a) => a.id === id);
+          if (!ann) break;
+          annStore.updateAnnotationFlags(id, !ann.flagged_for_review, ann.flag_comment);
+          break;
+        }
       }
     };
 

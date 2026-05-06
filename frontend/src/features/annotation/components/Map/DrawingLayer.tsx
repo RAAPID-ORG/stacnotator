@@ -114,6 +114,7 @@ const DrawingLayer = ({
   const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
   const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
   const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);
+  const setSelectedAnnotationId = useAnnotationStore((state) => state.setSelectedAnnotationId);
 
   const extendedLabels = useMemo(
     () => (campaign ? extendLabelsWithMetadata(campaign.settings.labels) : []),
@@ -298,10 +299,11 @@ const DrawingLayer = ({
       }
     });
     setSelectedFeatureId(null);
+    setSelectedAnnotationId(null);
     setEditControlsPos(null);
     originalGeometryRef.current = null;
     map.getTargetElement()?.style.setProperty('cursor', '');
-  }, [map]);
+  }, [map, setSelectedAnnotationId]);
 
   // 3a. Draw interaction (annotate mode)
   const setupDrawInteraction = useCallback(() => {
@@ -404,6 +406,7 @@ const DrawingLayer = ({
       const selectedFeatures = evt.selected;
       if (selectedFeatures.length === 0) {
         setSelectedFeatureId(null);
+        setSelectedAnnotationId(null);
         originalGeometryRef.current = null;
         return;
       }
@@ -412,6 +415,7 @@ const DrawingLayer = ({
       // Snapshot current geometry for ESC rollback
       originalGeometryRef.current = olFeatureToGeoJSONGeometry(feature);
       setSelectedFeatureId(String(annotationId));
+      setSelectedAnnotationId(annotationId);
     });
 
     // Alt+drag moves the whole selected feature; normal drag edits vertices.
@@ -458,7 +462,7 @@ const DrawingLayer = ({
     return () => {
       map.un('pointermove', handlePointerMove as unknown as () => void);
     };
-  }, [map, extendedLabels]); // refreshEditControlsPos intentionally omitted - called via stable ref
+  }, [map, extendedLabels, setSelectedAnnotationId]); // refreshEditControlsPos intentionally omitted - called via stable ref
 
   // 3d. Timeseries click handler
   const setupTimeseriesInteraction = useCallback(() => {
@@ -501,6 +505,22 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type, magicWandActive]);
 
+  // ESC during draw cancels the in-progress geometry without leaving annotate mode
+  useEffect(() => {
+    if (activeTool !== 'annotate') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const draw = drawInteractionRef.current;
+      if (!draw) return;
+      e.preventDefault();
+      e.stopPropagation();
+      draw.abortDrawing();
+    };
+    // Capture phase so we beat any window listeners that might also handle ESC
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [activeTool]);
+
   // 4. ESC key: cancel edit and roll back
   useEffect(() => {
     if (!selectedFeatureId || activeTool !== 'edit') return;
@@ -531,13 +551,14 @@ const DrawingLayer = ({
 
       select.getFeatures().clear();
       setSelectedFeatureId(null);
+      setSelectedAnnotationId(null);
       setEditControlsPos(null);
       originalGeometryRef.current = null;
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFeatureId, activeTool]);
+  }, [selectedFeatureId, activeTool, setSelectedAnnotationId]);
 
   // 5. Edit control handlers (confirm / delete)
   const handleConfirmEdit = useCallback(async () => {
@@ -563,9 +584,10 @@ const DrawingLayer = ({
 
     select.getFeatures().clear();
     setSelectedFeatureId(null);
+    setSelectedAnnotationId(null);
     setEditControlsPos(null);
     originalGeometryRef.current = null;
-  }, [selectedFeatureId, updateAnnotationGeometry]);
+  }, [selectedFeatureId, updateAnnotationGeometry, setSelectedAnnotationId]);
 
   const handleDeleteAnnotation = useCallback(async () => {
     const source = sourceRef.current;
@@ -583,9 +605,10 @@ const DrawingLayer = ({
 
     select.getFeatures().clear();
     setSelectedFeatureId(null);
+    setSelectedAnnotationId(null);
     setEditControlsPos(null);
     originalGeometryRef.current = null;
-  }, [selectedFeatureId, deleteAnnotation]);
+  }, [selectedFeatureId, deleteAnnotation, setSelectedAnnotationId]);
 
   // Render
   // The map canvas is owned by the parent; we only render the floating edit controls.

@@ -17,6 +17,7 @@ import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
+import { IconFlag } from '~/shared/ui/Icons';
 import type { SortOption, UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
@@ -38,6 +39,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
   const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -111,6 +113,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
         const c = ann.confidence ?? 0;
         if (!selectedConfidences.includes(c)) return false;
       }
+      if (flaggedOnly && !ann.flagged_for_review) return false;
       if (searchQuery && !ann.id.toString().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
@@ -134,6 +137,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     selectedUserIds,
     selectedLabelIds,
     selectedConfidences,
+    flaggedOnly,
     searchQuery,
     sortOption,
   ]);
@@ -419,6 +423,20 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 </div>
               </div>
 
+              {/* Flagged Filter */}
+              <button
+                onClick={() => setFlaggedOnly((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border ${
+                  flaggedOnly
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                }`}
+                title="Show only flagged annotations"
+              >
+                <IconFlag className="w-3.5 h-3.5" />
+                <span>Flagged only</span>
+              </button>
+
               {/* Sort By */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-neutral-700">Sort by:</label>
@@ -549,6 +567,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                     Comment
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Flag
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -631,6 +652,26 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
                               </div>
                             </div>
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {ann.flagged_for_review ? (
+                          <span
+                            className="relative group cursor-help inline-flex items-center text-rose-600"
+                            title={ann.flag_comment || 'Flagged for review'}
+                          >
+                            <IconFlag className="w-4 h-4" />
+                            {ann.flag_comment?.trim() && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                                <div className="bg-rose-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+                                  <div className="whitespace-pre-wrap">{ann.flag_comment}</div>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-rose-900"></div>
+                                </div>
+                              </div>
+                            )}
                           </span>
                         ) : (
                           <span className="text-neutral-400">-</span>

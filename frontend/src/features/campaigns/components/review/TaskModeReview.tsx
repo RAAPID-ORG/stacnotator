@@ -12,6 +12,7 @@ import { AnnotationDistributionMap } from '~/features/annotation/components/Anno
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
+import { IconFlag } from '~/shared/ui/Icons';
 import type { SortOption, StatusFilter, UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
@@ -31,6 +32,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -63,6 +65,9 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         if (taskConfs.length === 0) taskConfs.push(0);
         if (!taskConfs.some((c) => selectedConfidences.includes(c))) return false;
       }
+      if (flaggedOnly) {
+        if (!(task.annotations || []).some((a) => a.flagged_for_review)) return false;
+      }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         if (
@@ -93,7 +98,15 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       if (sortOption === 'id-desc') return b.annotation_number - a.annotation_number;
       return 0;
     });
-  }, [tasks, statusFilter, selectedUserIds, selectedConfidences, searchQuery, sortOption]);
+  }, [
+    tasks,
+    statusFilter,
+    selectedUserIds,
+    selectedConfidences,
+    flaggedOnly,
+    searchQuery,
+    sortOption,
+  ]);
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
@@ -275,6 +288,20 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                 </div>
               </div>
 
+              {/* Flagged Filter */}
+              <button
+                onClick={() => setFlaggedOnly((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border ${
+                  flaggedOnly
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                }`}
+                title="Show only tasks with at least one flagged annotation"
+              >
+                <IconFlag className="w-3.5 h-3.5" />
+                <span>Flagged only</span>
+              </button>
+
               {/* Sort By */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-neutral-700">Sort by:</label>
@@ -445,8 +472,16 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 return (
                                   <div
                                     key={ann.id}
-                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
+                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
                                   >
+                                    {ann.flagged_for_review && (
+                                      <span
+                                        className="text-rose-600"
+                                        title={ann.flag_comment || 'Flagged for review'}
+                                      >
+                                        <IconFlag className="w-3.5 h-3.5" />
+                                      </span>
+                                    )}
                                     <span className="font-medium" title="Annotator">
                                       {displayName}
                                     </span>

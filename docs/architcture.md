@@ -26,6 +26,6 @@ Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment
 
 ## Key Data Flow
 
-1. **Campaign creation:** Frontend builds imagery config → backend creates DB entries → background threads register mosaics (STAC searches) and fetch embeddings.
+1. **Campaign creation:** Frontend builds imagery config → backend creates DB entries → background threads register mosaics (STAC searches) and fetch embeddings if applicable.
 2. **Annotation:** Frontend loads campaign → fetches tiles from MPC or tiler and tasks-geometries from backend → user annotates → annotations stored via backend REST API.
-3. **Tile request (self-hosted):** Frontend requests tile → tiler queries PostGIS for intersecting items → reads COGs → composites → returns PNG.
+3. **Tile request (self-hosted):** Frontend requests auth token for tiler → requests tile signed with token → tiler queries PostGIS for intersecting stac items → reads COGs → composites → returns PNG.

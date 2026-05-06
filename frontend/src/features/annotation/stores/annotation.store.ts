@@ -17,6 +17,8 @@ interface OpenAnnotationStore {
   isSaving: boolean;
   /** Index into the annotations array sorted by updated_at for prev/next navigation. -1 = no selection */
   currentAnnotationIndex: number;
+  /** ID of the annotation currently selected in edit mode (mirrors DrawingLayer state). */
+  selectedAnnotationId: number | null;
 
   loadAnnotations: (campaignId: number) => Promise<void>;
   saveAnnotation: (
@@ -25,7 +27,13 @@ interface OpenAnnotationStore {
     comment?: string | null
   ) => Promise<AnnotationOut | null>;
   updateAnnotationGeometry: (annotationId: number, geometry: GeoJSON.Geometry) => Promise<void>;
+  updateAnnotationFlags: (
+    annotationId: number,
+    flagged: boolean,
+    flagComment: string | null
+  ) => Promise<void>;
   deleteAnnotation: (annotationId: number) => Promise<void>;
+  setSelectedAnnotationId: (id: number | null) => void;
   /** Navigate to previous annotation (older by updated_at) */
   goToPreviousAnnotation: () => AnnotationOut | null;
   /** Navigate to next annotation (newer by updated_at) */
@@ -42,6 +50,7 @@ const initialState = {
   isLoadingAnnotations: false,
   isSaving: false,
   currentAnnotationIndex: -1,
+  selectedAnnotationId: null as number | null,
 };
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
@@ -130,6 +139,49 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     }
   },
 
+  updateAnnotationFlags: async (annotationId, flagged, flagComment) => {
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign) return;
+
+    const annotation = get().annotations.find((a) => a.id === annotationId);
+    if (!annotation) return;
+
+    // Optimistic update so the UI reflects the toggle immediately.
+    set((s) => ({
+      annotations: s.annotations.map((a) =>
+        a.id === annotationId
+          ? { ...a, flagged_for_review: flagged, flag_comment: flagged ? flagComment : null }
+          : a
+      ),
+    }));
+
+    try {
+      const response = await updateAnnotationOpenmode({
+        path: { campaign_id: campaign.id, annotation_id: annotationId },
+        body: {
+          label_id: annotation.label_id,
+          comment: annotation.comment,
+          geometry_wkt: null,
+          is_authoritative: null,
+          flagged_for_review: flagged,
+          flag_comment: flagged ? flagComment : null,
+        },
+      });
+      const updated = response.data!;
+      set((s) => ({
+        annotations: s.annotations.map((a) => (a.id === annotationId ? updated : a)),
+      }));
+    } catch (error) {
+      // Roll back on failure.
+      set((s) => ({
+        annotations: s.annotations.map((a) => (a.id === annotationId ? annotation : a)),
+      }));
+      const message = error instanceof Error ? error.message : 'Failed to update flag';
+      useLayoutStore.getState().showAlert(message, 'error');
+      console.error('Update flag error:', error);
+    }
+  },
+
   deleteAnnotation: async (annotationId) => {
     const campaign = useCampaignStore.getState().campaign;
     if (!campaign) return;
@@ -201,6 +253,8 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
   },
 
   setCurrentAnnotationIndex: (index) => set({ currentAnnotationIndex: index }),
+
+  setSelectedAnnotationId: (id) => set({ selectedAnnotationId: id }),
 
   reset: () => set(initialState),
 }));

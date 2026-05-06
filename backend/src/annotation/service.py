@@ -514,6 +514,10 @@ def add_annotation_for_task(
             existing_annotation.confidence = annotation_create.confidence
             if annotation_create.is_authoritative is not None:
                 existing_annotation.is_authoritative = annotation_create.is_authoritative
+            existing_annotation.flagged_for_review = annotation_create.flagged_for_review or False
+            existing_annotation.flag_comment = (
+                annotation_create.flag_comment if annotation_create.flagged_for_review else None
+            )
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
                 annotation = existing_annotation
@@ -529,6 +533,10 @@ def add_annotation_for_task(
                 created_by_user_id=user_id,
                 confidence=annotation_create.confidence,
                 is_authoritative=annotation_create.is_authoritative or False,
+                flagged_for_review=annotation_create.flagged_for_review or False,
+                flag_comment=(
+                    annotation_create.flag_comment if annotation_create.flagged_for_review else None
+                ),
             )
             db.add(annotation)
 
@@ -585,6 +593,10 @@ def create_annotation(
             created_by_user_id=user_id,
             confidence=annotation_create.confidence,
             annotation_task_id=None,  # Standalone annotation
+            flagged_for_review=annotation_create.flagged_for_review or False,
+            flag_comment=(
+                annotation_create.flag_comment if annotation_create.flagged_for_review else None
+            ),
         )
         db.add(annotation)
         db.commit()
@@ -667,6 +679,13 @@ def update_annotation(
         # Update confidence if provided
         if annotation_update.confidence is not None:
             annotation.confidence = annotation_update.confidence
+
+        if annotation_update.flagged_for_review is not None:
+            annotation.flagged_for_review = annotation_update.flagged_for_review
+            if not annotation_update.flagged_for_review:
+                annotation.flag_comment = None
+        if annotation_update.flag_comment is not None and annotation.flagged_for_review:
+            annotation.flag_comment = annotation_update.flag_comment
 
         db.commit()
         db.refresh(annotation)
@@ -926,6 +945,8 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_comment",
     "stacnotator_confidence",
     "stacnotator_is_authoritative",
+    "stacnotator_flagged_for_review",
+    "stacnotator_flag_comment",
     "stacnotator_created_by_user_email",
     "stacnotator_created_at",
     "stacnotator_geometry_wkt",
@@ -1029,6 +1050,8 @@ def _build_export_record_for_annotation(
     record["stacnotator_comment"] = annotation.comment
     record["stacnotator_confidence"] = annotation.confidence
     record["stacnotator_is_authoritative"] = annotation.is_authoritative
+    record["stacnotator_flagged_for_review"] = annotation.flagged_for_review
+    record["stacnotator_flag_comment"] = annotation.flag_comment
     record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
     record["stacnotator_annotator_count"] = 1
@@ -1089,6 +1112,13 @@ def _build_export_record_merged(
     record["stacnotator_comment"] = " | ".join(comments) if comments else None
     record["stacnotator_confidence"] = mean_confidence
     record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
+    record["stacnotator_flagged_for_review"] = any(a.flagged_for_review for a in labeled)
+    flag_comments = [
+        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {a.flag_comment}"
+        for a in labeled
+        if a.flag_comment and a.flag_comment.strip()
+    ]
+    record["stacnotator_flag_comment"] = " | ".join(flag_comments) if flag_comments else None
     record["stacnotator_created_by_user_email"] = ", ".join(emails) if emails else None
     record["stacnotator_created_at"] = latest_created_at
     record["stacnotator_annotator_count"] = len(labeled)

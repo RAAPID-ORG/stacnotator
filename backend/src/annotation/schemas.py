@@ -39,6 +39,8 @@ class AnnotationFromTaskOut(BaseModel):
     updated_at: datetime
     confidence: int | None
     is_authoritative: bool
+    flagged_for_review: bool
+    flag_comment: str | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -199,6 +201,8 @@ class AnnotationFromTaskCreate(BaseModel):
     comment: str | None
     confidence: int | None
     is_authoritative: bool | None = None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class AnnotationTaskSubmitResponse(BaseModel):
@@ -216,6 +220,8 @@ class AnnotationCreate(BaseModel):
     comment: str | None
     geometry_wkt: str  # Geometry in WKT format
     confidence: int | None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class BatchDeleteAnnotationsRequest(BaseModel):
@@ -232,6 +238,8 @@ class AnnotationUpdate(BaseModel):
     geometry_wkt: str | None  # Geometry in WKT format
     confidence: int | None = None
     is_authoritative: bool | None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):

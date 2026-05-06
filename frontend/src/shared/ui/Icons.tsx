@@ -191,3 +191,9 @@ export const IconFolder = ({ className = 'w-4 h-4' }: IconProps) => (
     <path d="M2 5a1 1 0 011-1h4.586a1 1 0 01.707.293L10 6h7a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V5z" />
   </svg>
 );
+
+export const IconFlag = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M4 17V3M4 3h10l-2 4 2 4H4" />
+  </svg>
+);

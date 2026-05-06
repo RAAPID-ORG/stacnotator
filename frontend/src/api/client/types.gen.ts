@@ -24,6 +24,14 @@ export type AnnotationCreate = {
      * Confidence
      */
     confidence: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**
@@ -46,6 +54,14 @@ export type AnnotationFromTaskCreate = {
      * Is Authoritative
      */
     is_authoritative?: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**
@@ -84,6 +100,14 @@ export type AnnotationFromTaskOut = {
      * Is Authoritative
      */
     is_authoritative: boolean;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: boolean;
+    /**
+     * Flag Comment
+     */
+    flag_comment: string | null;
 };
 
 /**
@@ -122,6 +146,14 @@ export type AnnotationOut = {
      * Is Authoritative
      */
     is_authoritative: boolean;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: boolean;
+    /**
+     * Flag Comment
+     */
+    flag_comment: string | null;
     geometry: GeometryOut;
 };
 
@@ -233,6 +265,14 @@ export type AnnotationUpdate = {
      * Is Authoritative
      */
     is_authoritative: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**

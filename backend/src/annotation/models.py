@@ -201,6 +201,12 @@ class Annotation(Base):
         nullable=False,
         server_default=sa.false(),
     )
+    flagged_for_review: Mapped[bool] = mapped_column(
+        sa.Boolean,
+        nullable=False,
+        server_default=sa.false(),
+    )
+    flag_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit fields
     created_at: Mapped[DateTime] = mapped_column(

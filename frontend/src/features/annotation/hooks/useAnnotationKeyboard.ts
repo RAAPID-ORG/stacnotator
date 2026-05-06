@@ -23,6 +23,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
   const confidence = useTaskStore((s) => s.confidence);
+  const flaggedForReview = useTaskStore((s) => s.flaggedForReview);
+  const flagComment = useTaskStore((s) => s.flagComment);
   const isSubmitting = useTaskStore((s) => s.isSubmitting);
   const isNavigating = useTaskStore((s) => s.isNavigating);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -31,6 +33,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const previousTask = useTaskStore((s) => s.previousTask);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const setConfidence = useTaskStore((s) => s.setConfidence);
+  const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
@@ -388,7 +391,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       return;
     }
 
-    await submitAnnotation(selectedLabelId, comment, confidence);
+    await submitAnnotation(
+      selectedLabelId,
+      comment,
+      confidence,
+      undefined,
+      flaggedForReview,
+      flagComment
+    );
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
   }, [
     isSubmitting,
@@ -396,6 +406,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     selectedLabelId,
     comment,
     confidence,
+    flaggedForReview,
+    flagComment,
     submitAnnotation,
     showAlert,
     visibleTasks,
@@ -406,9 +418,21 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const handleSkip = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
 
-    await submitAnnotation(null, comment, confidence);
+    await submitAnnotation(null, comment, confidence, undefined, flaggedForReview, flagComment);
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
-  }, [isSubmitting, isNavigating, comment, confidence, submitAnnotation]);
+  }, [
+    isSubmitting,
+    isNavigating,
+    comment,
+    confidence,
+    flaggedForReview,
+    flagComment,
+    submitAnnotation,
+  ]);
+
+  const toggleFlagForReview = useCallback(() => {
+    setFlaggedForReview(!flaggedForReview);
+  }, [flaggedForReview, setFlaggedForReview]);
 
   // Focus comment box
   const focusComment = useCallback(() => {
@@ -564,6 +588,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           handleSkip();
           break;
 
+        // Flag for review
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFlagForReview();
+          break;
+
         // Toggle keyboard help
         case 'h':
         case 'H':
@@ -643,6 +674,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     adjustConfidence,
     handleSubmit,
     handleSkip,
+    toggleFlagForReview,
     toggleKeyboardHelp,
     toggleGuide,
     cycleSource,

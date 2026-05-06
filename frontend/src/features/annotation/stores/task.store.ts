@@ -35,6 +35,8 @@ interface TaskStore {
   selectedLabelId: number | null;
   comment: string;
   confidence: number;
+  flaggedForReview: boolean;
+  flagComment: string;
   magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
@@ -45,7 +47,9 @@ interface TaskStore {
     labelId: number | null,
     comment: string,
     confidence: number,
-    isAuthoritative?: boolean
+    isAuthoritative?: boolean,
+    flaggedForReview?: boolean,
+    flagComment?: string
   ) => Promise<void>;
   nextTask: () => void;
   previousTask: () => void;
@@ -55,6 +59,8 @@ interface TaskStore {
   setSelectedLabelId: (id: number | null) => void;
   setComment: (comment: string) => void;
   setConfidence: (confidence: number) => void;
+  setFlaggedForReview: (flagged: boolean) => void;
+  setFlagComment: (comment: string) => void;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -85,18 +91,28 @@ const applyTaskFilter = (
   });
 };
 
+const emptyFormState = {
+  selectedLabelId: null as number | null,
+  comment: '',
+  confidence: 5,
+  flaggedForReview: false,
+  flagComment: '',
+};
+
 const getFormStateForTask = (task: AnnotationTaskOut | null) => {
-  if (!task) return { selectedLabelId: null, comment: '', confidence: 5 };
+  if (!task) return emptyFormState;
   const currentUserId = useAccountStore.getState().account?.id;
-  if (!currentUserId) return { selectedLabelId: null, comment: '', confidence: 5 };
+  if (!currentUserId) return emptyFormState;
   const userAnn = task.annotations.find((a) => a.created_by_user_id === currentUserId);
   return userAnn
     ? {
         selectedLabelId: userAnn.label_id,
         comment: userAnn.comment || '',
         confidence: userAnn.confidence ?? 5,
+        flaggedForReview: userAnn.flagged_for_review ?? false,
+        flagComment: userAnn.flag_comment || '',
       }
-    : { selectedLabelId: null, comment: '', confidence: 5 };
+    : emptyFormState;
 };
 
 /** Resets map state relevant to task navigation. */
@@ -134,6 +150,8 @@ const initialState = {
   selectedLabelId: null as number | null,
   comment: '',
   confidence: 5,
+  flaggedForReview: false,
+  flagComment: '',
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
@@ -199,7 +217,14 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       });
     },
 
-    submitAnnotation: async (labelId, comment, confidence, isAuthoritative) => {
+    submitAnnotation: async (
+      labelId,
+      comment,
+      confidence,
+      isAuthoritative,
+      flaggedForReview,
+      flagComment
+    ) => {
       const { visibleTasks, allTasks, currentTaskIndex } = get();
       const task = visibleTasks[currentTaskIndex];
       const campaign = useCampaignStore.getState().campaign;
@@ -283,6 +308,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             comment: comment || null,
             confidence,
             is_authoritative: isAuthoritative ?? null,
+            flagged_for_review: flaggedForReview ?? false,
+            flag_comment: flaggedForReview ? flagComment || null : null,
           },
         });
 
@@ -392,13 +419,26 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     setSelectedLabelId: (id) => set({ selectedLabelId: id }),
     setComment: (comment) => set({ comment }),
     setConfidence: (confidence) => set({ confidence }),
+    setFlaggedForReview: (flagged) =>
+      set((s) => ({
+        flaggedForReview: flagged,
+        flagComment: flagged ? s.flagComment : '',
+      })),
+    setFlagComment: (flagComment) => set({ flagComment }),
     toggleMagicWand: (labelId) =>
       set((s) => ({
         magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
       })),
     setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
     setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
-    resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
+    resetAnnotationForm: () =>
+      set({
+        selectedLabelId: null,
+        comment: '',
+        confidence: 5,
+        flaggedForReview: false,
+        flagComment: '',
+      }),
 
     // Filter actions
     setTaskFilter: (filterUpdate) => {

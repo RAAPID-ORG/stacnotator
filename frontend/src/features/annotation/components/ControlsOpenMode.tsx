@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { LabelBase } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
@@ -142,6 +143,19 @@ const OpenModeControls = () => {
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
   const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
+  const selectedAnnotationId = useAnnotationStore((s) => s.selectedAnnotationId);
+  const updateAnnotationFlags = useAnnotationStore((s) => s.updateAnnotationFlags);
+  const selectedAnnotation =
+    selectedAnnotationId !== null
+      ? (annotations.find((a) => a.id === selectedAnnotationId) ?? null)
+      : null;
+  // Local draft for the flag comment textarea so the user can type without
+  // hammering the API on each keystroke. Pushed to the server on blur or
+  // when the toggle changes.
+  const [editFlagCommentDraft, setEditFlagCommentDraft] = useState('');
+  useEffect(() => {
+    setEditFlagCommentDraft(selectedAnnotation?.flag_comment ?? '');
+  }, [selectedAnnotation?.id, selectedAnnotation?.flag_comment]);
 
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
@@ -320,7 +334,7 @@ const OpenModeControls = () => {
 
         {/* Edit Tool Info */}
         {activeTool === 'edit' && (
-          <div className="flex flex-col gap-1.5 w-full">
+          <div className="flex flex-col gap-2 w-full">
             <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit Tool</span>
             <div className="text-[11px] text-neutral-600 flex flex-col gap-1 leading-relaxed">
               <p>Click a geometry to select it and show its vertices.</p>
@@ -345,6 +359,54 @@ const OpenModeControls = () => {
                 to cancel.
               </p>
             </div>
+
+            {selectedAnnotation && (
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
+                <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
+                  Selected annotation #{selectedAnnotation.id}
+                </span>
+                <label
+                  className="flex items-center gap-1.5 cursor-pointer select-none"
+                  title="Toggle flag-for-review on this annotation. Saves immediately. Press F to toggle."
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAnnotation.flagged_for_review}
+                    onChange={(e) =>
+                      updateAnnotationFlags(
+                        selectedAnnotation.id,
+                        e.target.checked,
+                        e.target.checked ? editFlagCommentDraft || null : null
+                      )
+                    }
+                    className="w-3.5 h-3.5 rounded border-neutral-300 text-rose-600 focus:ring-rose-500"
+                  />
+                  <span
+                    className={`text-[11px] ${selectedAnnotation.flagged_for_review ? 'text-rose-700 font-semibold' : 'text-neutral-600'}`}
+                  >
+                    Flag for review [F]
+                  </span>
+                </label>
+                {selectedAnnotation.flagged_for_review && (
+                  <textarea
+                    value={editFlagCommentDraft}
+                    onChange={(e) => setEditFlagCommentDraft(e.target.value)}
+                    onBlur={() => {
+                      if ((selectedAnnotation.flag_comment ?? '') !== editFlagCommentDraft) {
+                        updateAnnotationFlags(
+                          selectedAnnotation.id,
+                          true,
+                          editFlagCommentDraft || null
+                        );
+                      }
+                    }}
+                    placeholder="Why are you flagging this? (optional)"
+                    rows={2}
+                    className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 placeholder:text-neutral-400 transition-colors"
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -471,6 +533,12 @@ const OpenModeControls = () => {
               <span>Cycle viz</span>
               <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
                 Shift+I
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Flag selected (edit tool)</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                F
               </kbd>
             </div>
           </div>
