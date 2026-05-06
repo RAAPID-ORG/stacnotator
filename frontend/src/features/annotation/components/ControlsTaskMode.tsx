@@ -120,7 +120,8 @@ export const AnnotationControls = ({
   const handleSubmitAuthoritative = async () => {
     const confirmed = await useLayoutStore.getState().showConfirmDialog({
       title: 'Submit as authoritative?',
-      description: 'This will mark conflicting tasks as completed.',
+      description:
+        'Your label will be recorded as the canonical answer for this task and mark it completed, overriding any other annotators and skipping consensus from assignees.',
       confirmText: 'Submit Authoritative',
       cancelText: 'Cancel',
       isDangerous: true,
@@ -479,10 +480,15 @@ export const AnnotationControls = ({
             </button>
           </div>
 
-          {isReviewMode && isAuthoritativeReviewer && (
+          {isAuthoritativeReviewer && (
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmitAuthoritative}
+              title={
+                isAssignedToTask
+                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
+                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+              }
               className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               type="button"
             >

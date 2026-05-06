@@ -99,7 +99,9 @@ class AnnotationTaskOut(BaseModel):
         - skipped:     ALL assigned users skipped
         - partial:     At least one label, but some assignees still haven't
                        labeled (they either skipped or haven't acted yet)
-        - done:        Every assignee labeled and all labels match
+        - done:        Every assignee labeled and all labels match, OR an
+                       authoritative reviewer has submitted a label that
+                       overrides the assignment-based aggregation.
         - conflicting: Every assignee labeled and labels disagree
         """
         # Handle both ORM objects and dicts
@@ -109,7 +111,11 @@ class AnnotationTaskOut(BaseModel):
             # Access ORM attributes
             assignment_list = [{"user_id": a.user_id, "status": a.status} for a in assignments]
             annotation_list = [
-                {"label_id": a.label_id, "created_by_user_id": a.created_by_user_id}
+                {
+                    "label_id": a.label_id,
+                    "created_by_user_id": a.created_by_user_id,
+                    "is_authoritative": a.is_authoritative,
+                }
                 for a in annotations
             ]
         elif isinstance(data, dict):
@@ -122,6 +128,7 @@ class AnnotationTaskOut(BaseModel):
                     {
                         "label_id": a.label_id,
                         "created_by_user_id": a.created_by_user_id,
+                        "is_authoritative": getattr(a, "is_authoritative", False),
                     }
                     if hasattr(a, "label_id")
                     else a
@@ -132,8 +139,13 @@ class AnnotationTaskOut(BaseModel):
             return data
 
         labeled = [a for a in annotation_list if a.get("label_id") is not None]
+        has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
 
-        if not assignment_list:
+        if has_authoritative_label:
+            # An authoritative reviewer's label resolves the task on its own,
+            # overriding assignment-based aggregation.
+            status = TASK_STATUS_DONE
+        elif not assignment_list:
             # No assignment table entries - treat any label as done.
             status = TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
         else:

@@ -55,6 +55,18 @@ def list_campaigns(db: Session) -> list[Campaign]:
     return db.scalars(stmt).all()
 
 
+def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> bool:
+    """True if the user has the explicit authoritative-reviewer flag on this
+    campaign."""
+    cu = db.execute(
+        select(CampaignUser).where(
+            CampaignUser.campaign_id == campaign_id,
+            CampaignUser.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    return cu is not None and cu.is_authorative_reviewer
+
+
 def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[CampaignUser]:
     """
 
@@ -218,12 +230,13 @@ def create_campaign(
     )
     db.add(campaign_settings)
 
-    # Add user as admin
+    # Add user as admin. The campaign creator is also seeded as an
+    # authoritative reviewer so they can resolve tasks out of the box.
     campaign_user = CampaignUser(
         user_id=user_id,
         campaign_id=campaign.id,
         is_admin=True,
-        is_authorative_reviewer=False,
+        is_authorative_reviewer=True,
     )
     db.add(campaign_user)
 

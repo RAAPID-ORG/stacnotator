@@ -129,7 +129,15 @@ class TestAddAnnotationForTask:
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
 
-        db.execute.return_value.scalar_one_or_none.side_effect = [existing, None]
+        # is_authoritative=True triggers a CampaignUser lookup before the
+        # existing-annotation / assignment lookups.
+        reviewer_cu = MagicMock()
+        reviewer_cu.is_authorative_reviewer = True
+        db.execute.return_value.scalar_one_or_none.side_effect = [
+            reviewer_cu,
+            existing,
+            None,
+        ]
 
         payload = AnnotationFromTaskCreate(
             label_id=5, comment="revised", confidence=4, is_authoritative=True
@@ -171,6 +179,100 @@ class TestAddAnnotationForTask:
         add_annotation_for_task(db, task, payload, user_id)
 
         assert assignment.status == ANNOTATION_TASK_STATUS_DONE
+
+    def test_authoritative_submission_rejected_for_non_reviewer(self):
+        """is_authoritative=True from a user who is not an authoritative
+        reviewer of the campaign must be rejected with 403, and no annotation
+        should be created or committed."""
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+
+        non_reviewer_cu = MagicMock()
+        non_reviewer_cu.is_authorative_reviewer = False
+        db.execute.return_value.scalar_one_or_none.return_value = non_reviewer_cu
+
+        payload = AnnotationFromTaskCreate(
+            label_id=1, comment=None, confidence=None, is_authoritative=True
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            add_annotation_for_task(db, task, payload, user_id)
+
+        assert exc_info.value.status_code == 403
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_authoritative_submission_rejected_when_not_a_campaign_member(self):
+        """A user who is not in the CampaignUser table at all must also be
+        rejected when trying to submit authoritatively."""
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+
+        # No CampaignUser row -> scalar_one_or_none returns None
+        db.execute.return_value.scalar_one_or_none.return_value = None
+
+        payload = AnnotationFromTaskCreate(
+            label_id=1, comment=None, confidence=None, is_authoritative=True
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            add_annotation_for_task(db, task, payload, user_id)
+
+        assert exc_info.value.status_code == 403
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_authoritative_submission_accepted_for_reviewer(self):
+        """A user with the authoritative-reviewer flag can create a fresh
+        authoritative annotation, even with no assignment on the task."""
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+
+        reviewer_cu = MagicMock()
+        reviewer_cu.is_authorative_reviewer = True
+        # 1: CampaignUser lookup (reviewer check)
+        # 2: existing-annotation lookup -> none
+        # 3: assignment lookup -> none (reviewer is unassigned)
+        db.execute.return_value.scalar_one_or_none.side_effect = [reviewer_cu, None, None]
+
+        payload = AnnotationFromTaskCreate(
+            label_id=7, comment=None, confidence=None, is_authoritative=True
+        )
+        add_annotation_for_task(db, task, payload, user_id)
+
+        db.add.assert_called_once()
+        added = db.add.call_args[0][0]
+        assert isinstance(added, Annotation)
+        assert added.label_id == 7
+        assert added.is_authoritative is True
+        assert added.created_by_user_id == user_id
+        db.commit.assert_called_once()
+
+    def test_non_authoritative_submission_skips_reviewer_check(self):
+        """is_authoritative falsy must not trigger the reviewer lookup, so a
+        non-reviewer user can still label normally. The first scalar lookup
+        should be the existing-annotation query, not a CampaignUser query."""
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+
+        # Only existing-annotation + assignment lookups should run.
+        db.execute.return_value.scalar_one_or_none.side_effect = [None, None]
+
+        payload = AnnotationFromTaskCreate(
+            label_id=2, comment=None, confidence=None, is_authoritative=False
+        )
+        add_annotation_for_task(db, task, payload, user_id)
+
+        # Exactly two scalar_one_or_none calls -> no reviewer lookup happened.
+        assert db.execute.return_value.scalar_one_or_none.call_count == 2
+        db.add.assert_called_once()
+        added = db.add.call_args[0][0]
+        assert added.is_authoritative is False
+        db.commit.assert_called_once()
 
 
 class TestCreateAnnotation:

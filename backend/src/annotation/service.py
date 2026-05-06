@@ -32,6 +32,7 @@ from src.annotation.schemas import (
 from src.auth.models import User
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.service import is_authoritative_reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -473,6 +474,14 @@ def add_annotation_for_task(
         annotation_create: Annotation data from user
         user_id: ID of user creating the annotation
     """
+
+    if annotation_create.is_authoritative and not is_authoritative_reviewer(
+        db, annotation_task.campaign_id, user_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
+        )
 
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
