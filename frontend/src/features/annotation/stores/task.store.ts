@@ -19,6 +19,10 @@ export type TaskStatus = 'pending' | 'partial' | 'done' | 'skipped' | 'conflicti
 export interface TaskFilter {
   assignedTo: string[];
   statuses: TaskStatus[];
+  // 0 in selectedConfidences means "no rating" (annotation missing
+  // confidence, or task has no annotations).
+  selectedConfidences: number[];
+  flaggedOnly: boolean;
 }
 
 interface TaskStore {
@@ -82,12 +86,28 @@ const applyTaskFilter = (
 
   return allTasks.filter((task) => {
     const assignments = task.assignments || [];
+    const annotations = task.annotations || [];
+
     if (filterByUser) {
       const userAssignments = assignments.filter((a) => filter.assignedTo.includes(a.user_id));
       if (userAssignments.length === 0) return false;
-      return userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus));
+      if (!userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus)))
+        return false;
+    } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {
+      return false;
     }
-    return filter.statuses.includes(task.task_status as TaskStatus);
+
+    if (filter.selectedConfidences.length > 0) {
+      const taskConfs = annotations.map((a) => a.confidence ?? 0);
+      if (taskConfs.length === 0) taskConfs.push(0);
+      if (!taskConfs.some((c) => filter.selectedConfidences.includes(c))) return false;
+    }
+
+    if (filter.flaggedOnly && !annotations.some((a) => a.flagged_for_review)) {
+      return false;
+    }
+
+    return true;
   });
 };
 
@@ -143,7 +163,12 @@ const initialState = {
   allTasks: [] as AnnotationTaskOut[],
   visibleTasks: [] as AnnotationTaskOut[],
   currentTaskIndex: 0,
-  taskFilter: { assignedTo: [] as string[], statuses: ['pending' as TaskStatus] },
+  taskFilter: {
+    assignedTo: [] as string[],
+    statuses: ['pending' as TaskStatus],
+    selectedConfidences: [] as number[],
+    flaggedOnly: false,
+  },
   isSubmitting: false,
   isNavigating: false,
   tasksLoaded: false,
@@ -181,6 +206,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: [],
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
         const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
@@ -193,6 +220,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: showAll || !currentUserId ? [] : [currentUserId],
           statuses: ['pending'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
 
@@ -200,7 +229,12 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // exist, auto-widen to show everything so the user lands on a
         // task instead of an empty screen.
         if (visibleTasks.length === 0 && allTasks.length > 0 && !showAll) {
-          taskFilter = { assignedTo: [], statuses: ['pending'] };
+          taskFilter = {
+            assignedTo: [],
+            statuses: ['pending'],
+            selectedConfidences: [],
+            flaggedOnly: false,
+          };
           visibleTasks = applyTaskFilter(allTasks, taskFilter);
         }
       }
@@ -396,6 +430,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: [],
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
       } else {
@@ -459,7 +495,12 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     resetTaskFilter: () => {
       const currentUserId = useAccountStore.getState().account?.id;
       if (!currentUserId) return;
-      get().setTaskFilter({ assignedTo: [currentUserId], statuses: ['pending'] });
+      get().setTaskFilter({
+        assignedTo: [currentUserId],
+        statuses: ['pending'],
+        selectedConfidences: [],
+        flaggedOnly: false,
+      });
     },
 
     reset: () => set(initialState),
