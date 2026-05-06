@@ -1,6 +1,8 @@
 """Tests for annotation service layer."""
 
-from unittest.mock import MagicMock
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -14,6 +16,7 @@ from src.annotation.constants import (
 from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
+    _build_annotation_records,
     add_annotation_for_task,
     create_annotation,
     create_annotation_tasks_from_csv,
@@ -664,3 +667,144 @@ class TestPublicCampaignAnnotationOwnership:
             db, 10, campaign_id=1, user_id=other_user_id, campaign=self._make_private_campaign()
         )
         db.delete.assert_called_once_with(existing)
+
+
+class TestExportAnnotatorCount:
+    """Regression tests for stacnotator_annotator_count in CSV/GeoJSON exports.
+
+    Was hard-coded to 1 on the per-annotation (non-merged) path, hiding the
+    fact that multiple annotators contributed to a task. The fix threads the
+    per-task labeled-annotation count through, so downstream agreement
+    analyses can be derived from the export even without merge_on_agreement.
+
+    The pure-Python record builders are exercised directly via
+    ``_build_annotation_records``; ``_compute_task_status_for_export`` is
+    patched out so we don't need fully ORM-shaped task objects (it goes
+    through pydantic ``AnnotationTaskOut.model_validate``).
+    """
+
+    @staticmethod
+    def _campaign():
+        # _resolve_label_name reads campaign.settings.labels; an empty dict
+        # is enough for these tests (no label_name assertions).
+        return SimpleNamespace(settings=SimpleNamespace(labels={}))
+
+    @staticmethod
+    def _task(task_id=1, annotation_number=42):
+        return SimpleNamespace(
+            id=task_id,
+            annotation_number=annotation_number,
+            raw_source_data=None,
+        )
+
+    @staticmethod
+    def _ann(*, ann_id, label_id, user_id, task=None, **overrides):
+        ann = SimpleNamespace(
+            id=ann_id,
+            label_id=label_id,
+            comment=None,
+            confidence=None,
+            is_authoritative=False,
+            flagged_for_review=False,
+            flag_comment=None,
+            created_by_user_id=user_id,
+            created_at=datetime(2026, 5, 6, tzinfo=UTC),
+            annotation_task_id=task.id if task else None,
+            campaign_id=1,
+            annotation_task=task,
+            geometry=None,
+        )
+        for k, v in overrides.items():
+            setattr(ann, k, v)
+        return ann
+
+    def _records(self, annotations, *, merge=False):
+        with patch(
+            "src.annotation.service._compute_task_status_for_export",
+            return_value="done",
+        ):
+            records, _ = _build_annotation_records(
+                annotations=annotations,
+                campaign=self._campaign(),
+                user_email_map={},
+                merge_on_agreement=merge,
+                include_geometry_wkt=False,
+            )
+        return records
+
+    def test_single_labeled_annotator_non_merged(self):
+        task = self._task()
+        ann = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        rows = self._records([ann])
+        assert [r["stacnotator_annotator_count"] for r in rows] == [1]
+
+    def test_two_labeled_annotators_share_count_non_merged(self):
+        """Two labeled annotators on the same task -> both rows show count=2."""
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=task)
+        rows = self._records([a1, a2])
+        assert len(rows) == 2
+        assert all(r["stacnotator_annotator_count"] == 2 for r in rows)
+        # Sanity: both rows reference the same task so the count is per-task.
+        assert {r["stacnotator_task_id"] for r in rows} == {task.id}
+
+    def test_labeled_plus_authoritative_share_count_non_merged(self):
+        """Authoritative annotation is just another labeled row -> count includes it."""
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(
+            ann_id=2,
+            label_id=2,
+            user_id=uuid4(),
+            task=task,
+            is_authoritative=True,
+        )
+        rows = self._records([a1, a2])
+        assert all(r["stacnotator_annotator_count"] == 2 for r in rows)
+
+    def test_comment_only_does_not_inflate_count(self):
+        """A label-less (comment-only) annotation isn't a labeled annotator."""
+        task = self._task()
+        labeled = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        commenter = self._ann(
+            ann_id=2,
+            label_id=None,
+            user_id=uuid4(),
+            task=task,
+            comment="not sure",
+        )
+        rows = self._records([labeled, commenter])
+        assert len(rows) == 2
+        assert all(r["stacnotator_annotator_count"] == 1 for r in rows)
+
+    def test_standalone_open_mode_annotation_count_is_one(self):
+        """Standalone (no task) annotations are emitted unchanged with count=1."""
+        ann = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None)
+        rows = self._records([ann])
+        assert rows[0]["stacnotator_annotator_count"] == 1
+
+    def test_merged_path_unchanged(self):
+        """Sanity: merged path still aggregates to len(labeled)."""
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=task)
+        rows = self._records([a1, a2], merge=True)
+        assert len(rows) == 1
+        assert rows[0]["stacnotator_annotator_count"] == 2
+
+    def test_per_task_count_is_isolated_across_tasks(self):
+        """Two separate tasks: one with 2 annotators, one with 1, don't bleed."""
+        task_a = self._task(task_id=1, annotation_number=10)
+        task_b = self._task(task_id=2, annotation_number=11)
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task_a)
+        a2 = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=task_a)
+        b1 = self._ann(ann_id=3, label_id=1, user_id=uuid4(), task=task_b)
+        rows = self._records([a1, a2, b1])
+        by_task: dict[int, list[int]] = {}
+        for r in rows:
+            by_task.setdefault(r["stacnotator_task_id"], []).append(
+                r["stacnotator_annotator_count"]
+            )
+        assert by_task[task_a.id] == [2, 2]
+        assert by_task[task_b.id] == [1]

@@ -1028,12 +1028,19 @@ def _build_export_record_for_annotation(
     user_email_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
+    task_annotator_count: int = 1,
 ) -> dict:
     """Build one flat record for a single annotation (non-merged output).
 
     All stacnotator-generated keys are prefixed ``stacnotator_``. Keys from
     the task's ``raw_source_data`` (user-provided ingest columns) are kept
     un-prefixed so the downstream consumer can tell our IDs apart from theirs.
+
+    ``task_annotator_count`` is the number of labeled annotations on the
+    annotation's parent task (matches the merged-path definition). All rows
+    for the same task carry the same value so downstream agreement analyses
+    can be derived even when rows aren't collapsed. Standalone (open-mode)
+    annotations have no task grouping and default to 1.
     """
     record: dict = {}
 
@@ -1055,7 +1062,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_flag_comment"] = annotation.flag_comment
     record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
-    record["stacnotator_annotator_count"] = 1
+    record["stacnotator_annotator_count"] = task_annotator_count
     if include_geometry_wkt:
         record["stacnotator_geometry_wkt"] = (
             _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
@@ -1167,11 +1174,19 @@ def _build_annotation_records(
             )
         else:
             # Nothing to merge (zero or one labeled annotation) or merging is
-            # off - emit one row per annotation exactly as in non-merged mode.
+            # off - emit one row per annotation. Every row for the same task
+            # carries the same labeled-annotator count so agreement analyses
+            # remain possible without re-grouping by task_id.
+            labeled_count = len(labeled)
             for ann in task_anns:
                 records.append(
                     _build_export_record_for_annotation(
-                        ann, campaign, user_email_map, task_status, include_geometry_wkt
+                        ann,
+                        campaign,
+                        user_email_map,
+                        task_status,
+                        include_geometry_wkt,
+                        task_annotator_count=labeled_count,
                     )
                 )
                 canonical_annotations.append(ann)
