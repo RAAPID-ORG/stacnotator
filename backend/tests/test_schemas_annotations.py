@@ -31,6 +31,8 @@ def _make_task(assignments, annotations, task_id=1):
                 "updated_at": "2025-01-01T00:00:00",
                 "confidence": None,
                 "is_authoritative": False,
+                "flagged_for_review": False,
+                "flag_comment": None,
             }
             for i, a in enumerate(annotations, start=1)
         ],
