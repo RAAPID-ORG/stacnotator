@@ -34,7 +34,7 @@ import type { CampaignOutFull } from '~/api/client';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
-import type { ExtendedLabel } from '../ControlsOpenMode';
+import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
 
 interface OpenModeMapProps {

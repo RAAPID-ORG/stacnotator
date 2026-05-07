@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
+import { useMemo, useRef } from 'react';
 import ReactGridLayout, { getCompactor } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -15,6 +15,7 @@ import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { useContainerWidth } from '../hooks/useContainerWidth';
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -29,10 +30,8 @@ interface CanvasProps {
 }
 
 export const Canvas = ({ commentInputRef }: CanvasProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { containerRef, containerWidth, isMounted } = useContainerWidth();
   const headerControlsRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [isMounted, setIsMounted] = useState(false);
 
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
@@ -155,63 +154,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       null
     );
   })();
-
-  // Suspend ResizeObserver flushes while the sidebar transitions: otherwise
-  // every frame triggers a full grid re-layout + OpenLayers tile refetch,
-  // which stacks into a visible jerk. After the transition we apply the
-  // final width in one shot.
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let rafId: number | null = null;
-    let latestWidth = 0;
-    let suspendedUntil = 0;
-    let pendingSettle: ReturnType<typeof setTimeout> | null = null;
-
-    const flush = () => {
-      rafId = null;
-      setContainerWidth(latestWidth);
-    };
-
-    const scheduleFlush = () => {
-      if (rafId === null) rafId = requestAnimationFrame(flush);
-    };
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (!entries[0]) return;
-      latestWidth = entries[0].contentRect.width;
-      const now = performance.now();
-      if (now >= suspendedUntil) {
-        scheduleFlush();
-      } else {
-        if (pendingSettle) clearTimeout(pendingSettle);
-        pendingSettle = setTimeout(
-          () => {
-            pendingSettle = null;
-            scheduleFlush();
-          },
-          suspendedUntil - now + 20
-        );
-      }
-    });
-
-    resizeObserver.observe(containerRef.current);
-    setIsMounted(true);
-
-    const unsubscribe = useLayoutStore.subscribe((state, prev) => {
-      if (state.sidebarCollapsed !== prev.sidebarCollapsed) {
-        // 180ms transition + small settle buffer.
-        suspendedUntil = performance.now() + 220;
-      }
-    });
-
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      if (pendingSettle) clearTimeout(pendingSettle);
-      resizeObserver.disconnect();
-      unsubscribe();
-    };
-  }, []);
 
   // Open mode: viewport center. Task mode: task geometry centroid.
   const latLon = useMemo<LatLon | null>(() => {

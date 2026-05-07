@@ -3,34 +3,15 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationOut, LabelBase } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { generateLabelColors } from './labelColors';
 
 interface OpenModeDistributionMapProps {
   annotations: AnnotationOut[];
   labels: LabelBase[];
-  bbox: {
-    west: number;
-    south: number;
-    east: number;
-    north: number;
-  };
+  bbox: { west: number; south: number; east: number; north: number };
   highlightedAnnotationId: number | null;
   onAnnotationClick: (annotation: AnnotationOut) => void;
 }
-
-// Generate distinct colors for labels
-const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
-  const colors: Record<number, string> = {};
-  const hueStep = 360 / Math.max(labels.length, 1);
-
-  labels.forEach((label, index) => {
-    const hue = (index * hueStep) % 360;
-    const saturation = 70 + (index % 3) * 10;
-    const lightness = 45 + (index % 2) * 10;
-    colors[label.id] = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  });
-
-  return colors;
-};
 
 const NO_LABEL_COLOR = '#9CA3AF';
 
@@ -41,19 +22,17 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
   highlightedAnnotationId,
   onAnnotationClick,
 }) => {
-  const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const markersMapRef = useRef<Map<number, L.Marker>>(new Map());
   const [mapReady, setMapReady] = useState(false);
   const [labelColors, setLabelColors] = useState<Record<number, string>>({});
 
-  // Generate label colors
   useEffect(() => {
     setLabelColors(generateLabelColors(labels));
   }, [labels]);
 
-  // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -71,11 +50,9 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
       maxZoom: 19,
     }).addTo(map);
 
-    // Fit to bbox
     const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
     map.fitBounds(bounds, { padding: [20, 20] });
 
-    // Add bbox rectangle
     L.rectangle(bounds, {
       color: '#326247',
       weight: 2,
@@ -84,20 +61,17 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
     }).addTo(map);
 
     markersLayerRef.current = L.layerGroup().addTo(map);
-
     mapRef.current = map;
     setMapReady(true);
 
     return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        setMapReady(false);
-      }
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markersLayerRef.current = null;
+      setMapReady(false);
     };
   }, [bbox.west, bbox.south, bbox.east, bbox.north]);
 
-  // Update markers when annotations or label colors change
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current || !mapReady) return;
 
@@ -161,7 +135,6 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
     });
   }, [annotations, mapReady, labelColors, labels, highlightedAnnotationId, onAnnotationClick]);
 
-  // Pan to highlighted annotation
   useEffect(() => {
     if (!mapRef.current || !mapReady || highlightedAnnotationId === null) return;
     const marker = markersMapRef.current.get(highlightedAnnotationId);
@@ -171,7 +144,6 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
     }
   }, [highlightedAnnotationId, mapReady]);
 
-  // Calculate legend stats
   const labelStats = labels
     .map((label) => {
       const count = annotations.filter((a) => a.label_id === label.id).length;
@@ -183,7 +155,6 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
 
   return (
     <div>
-      {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-3 text-sm">
         {labelStats.map(({ label, count, color }) => (
           <div key={label.id} className="flex items-center gap-2">
@@ -207,7 +178,6 @@ export const OpenModeDistributionMap: React.FC<OpenModeDistributionMapProps> = (
         )}
       </div>
 
-      {/* Map Container */}
       <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
 
       <style>{`

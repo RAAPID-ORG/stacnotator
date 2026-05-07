@@ -15,7 +15,7 @@ import {
   computeExtentGeoJSON,
   convertWKTToGeoJSON,
 } from '~/shared/utils/utility';
-import { extendLabelsWithMetadata } from './ControlsOpenMode';
+import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;

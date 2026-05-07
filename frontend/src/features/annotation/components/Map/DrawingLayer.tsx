@@ -35,17 +35,14 @@ import type { Geometry } from 'ol/geom';
 import type { SelectEvent } from 'ol/interaction/Select';
 import type { DrawEvent } from 'ol/interaction/Draw';
 
-import type { ExtendedLabel } from '../ControlsOpenMode';
-import { extendLabelsWithMetadata } from '../ControlsOpenMode';
+import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 
-/** Feature property keys stored on each OL Feature */
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
 
-/** Build an OL style for a single annotation feature */
 function buildStyle(
   color: string,
   selected = false,
@@ -66,7 +63,6 @@ function buildStyle(
   });
 }
 
-/** Build a transient draw-preview style (used during active drawing) */
 function buildDrawStyle(color: string, geometryType: ExtendedLabel['geometry_type']): Style[] {
   return [
     new Style({
@@ -194,15 +190,11 @@ const DrawingLayer = ({
       const geometryType = label?.geometry_type ?? 'polygon';
 
       if (existing.has(annotation.id)) {
-        // Update geometry + style in-place if the WKT changed
         const existingFeature = existing.get(annotation.id)!;
-        const existingGeoJSON = olFeatureToGeoJSONGeometry(existingFeature);
-        if (JSON.stringify(existingGeoJSON) !== JSON.stringify(geoJSON)) {
-          const newGeom = geoJsonFormat.readGeometry(geoJSON, {
-            featureProjection: 'EPSG:3857',
-          }) as Geometry;
-          existingFeature.setGeometry(newGeom);
-        }
+        const newGeom = geoJsonFormat.readGeometry(geoJSON, {
+          featureProjection: 'EPSG:3857',
+        }) as Geometry;
+        existingFeature.setGeometry(newGeom);
         existingFeature.setStyle(buildStyle(color, false, false, geometryType));
       } else {
         // Add new feature

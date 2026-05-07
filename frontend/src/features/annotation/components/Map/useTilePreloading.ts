@@ -111,7 +111,6 @@ interface UseTilePreloadingOptions {
   visibleTasks: AnnotationTaskOut[];
   currentTaskIndex: number;
   defaultZoom: number;
-  /** Current map zoom level - used for prefetching current task at the zoom the user is at */
   currentZoom?: number;
   enabled: boolean;
 }
@@ -129,7 +128,6 @@ export function useTilePreloading({
   const preloaderRef = useRef<TilePreloader | null>(null);
   const hasEnqueuedCurrentRef = useRef(false);
   const hasEnqueuedNextRef = useRef(false);
-  // Capture the map canvas pixel size once so we preload the right number of tiles
   const mapSizeRef = useRef<[number, number] | null>(null);
 
   const campaignRef = useRef(campaign);

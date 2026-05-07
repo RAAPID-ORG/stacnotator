@@ -12,7 +12,7 @@ import {
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
-import { OpenModeDistributionMap } from '~/features/annotation/components/OpenModeDistributionMap';
+import { OpenModeDistributionMap } from './OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';

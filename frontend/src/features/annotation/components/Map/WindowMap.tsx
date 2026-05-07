@@ -22,7 +22,7 @@ import {
 
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
-import { extendLabelsWithMetadata } from '../ControlsOpenMode';
+import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
