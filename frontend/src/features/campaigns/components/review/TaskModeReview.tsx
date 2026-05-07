@@ -12,6 +12,7 @@ import { AnnotationDistributionMap } from '~/features/annotation/components/Anno
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
+import { IconFlag } from '~/shared/ui/Icons';
 import type { SortOption, StatusFilter, UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
@@ -30,6 +31,8 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -56,6 +59,14 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       if (selectedUserIds.length > 0) {
         const assignments = task.assignments || [];
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
+      }
+      if (selectedConfidences.length > 0) {
+        const taskConfs = (task.annotations || []).map((a) => a.confidence ?? 0);
+        if (taskConfs.length === 0) taskConfs.push(0);
+        if (!taskConfs.some((c) => selectedConfidences.includes(c))) return false;
+      }
+      if (flaggedOnly) {
+        if (!(task.annotations || []).some((a) => a.flagged_for_review)) return false;
       }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -87,11 +98,19 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       if (sortOption === 'id-desc') return b.annotation_number - a.annotation_number;
       return 0;
     });
-  }, [tasks, statusFilter, selectedUserIds, searchQuery, sortOption]);
+  }, [
+    tasks,
+    statusFilter,
+    selectedUserIds,
+    selectedConfidences,
+    flaggedOnly,
+    searchQuery,
+    sortOption,
+  ]);
 
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
-    tasks.forEach((t) =>
+    tasks.forEach((t) => {
       t.assignments?.forEach((a) => {
         if (!m.has(a.user_id))
           m.set(a.user_id, {
@@ -99,8 +118,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             email: a.user_email || null,
             displayName: a.user_display_name || null,
           });
-      })
-    );
+      });
+      t.annotations?.forEach((ann) => {
+        if (!m.has(ann.created_by_user_id)) {
+          m.set(ann.created_by_user_id, {
+            id: ann.created_by_user_id,
+            email: ann.created_by_user_email ?? null,
+            displayName: ann.created_by_user_display_name ?? null,
+          });
+        }
+      });
+    });
     return Array.from(m.values()).sort((a, b) =>
       (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
     );
@@ -173,7 +201,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         {tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
         {/* Filters - inside the page surface, no nested card */}
-        <div className="surface">
+        <div className="surface surface-unclipped">
           <div className="px-5 py-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="section-heading">Filters & search</h3>
@@ -215,6 +243,73 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                 setSelectedUserIds={setSelectedUserIds}
                 currentUserId={currentUser?.id}
               />
+
+              {/* Confidence Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-neutral-700">Confidence:</label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setSelectedConfidences([])}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.length === 0
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {[1, 2, 3, 4, 5].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(c)
+                            ? selectedConfidences.filter((x) => x !== c)
+                            : [...selectedConfidences, c]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(c)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setSelectedConfidences(
+                        selectedConfidences.includes(0)
+                          ? selectedConfidences.filter((x) => x !== 0)
+                          : [...selectedConfidences, 0]
+                      )
+                    }
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.includes(0)
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                    title="Tasks with annotations missing a confidence rating, or no annotations"
+                  >
+                    No rating
+                  </button>
+                </div>
+              </div>
+
+              {/* Flagged Filter */}
+              <button
+                onClick={() => setFlaggedOnly((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border ${
+                  flaggedOnly
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                }`}
+                title="Show only tasks with at least one flagged annotation"
+              >
+                <IconFlag className="w-3.5 h-3.5" />
+                <span>Flagged only</span>
+              </button>
 
               {/* Sort By */}
               <div className="flex items-center gap-2">
@@ -364,7 +459,9 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 const isCurrentUser = ann.created_by_user_id === currentUser?.id;
                                 const displayName = isCurrentUser
                                   ? currentUser.display_name || currentUser.email || 'You'
-                                  : annotator?.user_display_name ||
+                                  : ann.created_by_user_display_name ||
+                                    ann.created_by_user_email ||
+                                    annotator?.user_display_name ||
                                     annotator?.user_email ||
                                     ann.created_by_user_id?.substring(0, 8) ||
                                     'Unknown';
@@ -386,8 +483,16 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 return (
                                   <div
                                     key={ann.id}
-                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
+                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
                                   >
+                                    {ann.flagged_for_review && (
+                                      <span
+                                        className="text-rose-600"
+                                        title={ann.flag_comment || 'Flagged for review'}
+                                      >
+                                        <IconFlag className="w-3.5 h-3.5" />
+                                      </span>
+                                    )}
                                     <span className="font-medium" title="Annotator">
                                       {displayName}
                                     </span>

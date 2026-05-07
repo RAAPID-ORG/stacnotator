@@ -12,10 +12,10 @@ class Base(DeclarativeBase):
 
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,
     pool_size=20,
     max_overflow=40,
     pool_timeout=10,
+    pool_recycle=1800,
 )
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)

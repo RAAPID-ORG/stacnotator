@@ -346,6 +346,7 @@ def register_mosaic_sync(
                     "id": item.id,
                     "datetime": item_dt,
                     "cloud_cover": cloud_cover,
+                    "stac_item": item.to_dict(),
                 }
             )
 

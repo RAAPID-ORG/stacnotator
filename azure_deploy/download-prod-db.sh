@@ -64,12 +64,15 @@ if [ -z "$KV_NAME" ]; then
     exit 1
 fi
 
-# Try to get credentials from Key Vault secrets
-PG_PASS=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
-PG_HOST_FROM_KV=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-postgres-host" --query "value" -o tsv 2>/dev/null || true)
+# Secret names are env-prefixed (matches Terraform / deploy-app.sh / sync-prod-data-to-dev.sh):
+# e.g. for prod -> stacnotator-prod-postgres-admin-password
+PROJECT_NAME="stacnotator-${DEPLOY_ENV:-prod}"
+
+PG_PASS=$(az keyvault secret show --vault-name "$KV_NAME" --name "${PROJECT_NAME}-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
+PG_HOST_FROM_KV=$(az keyvault secret show --vault-name "$KV_NAME" --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || true)
 
 # Parse connection string for DB name and user if available
-CONN_STR=$(az keyvault secret show --vault-name "$KV_NAME" --name "stacnotator-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
+CONN_STR=$(az keyvault secret show --vault-name "$KV_NAME" --name "${PROJECT_NAME}-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
 
 if [ -n "$CONN_STR" ]; then
     # Connection string format: postgresql://user:pass@host:port/dbname

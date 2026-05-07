@@ -23,6 +23,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
   const confidence = useTaskStore((s) => s.confidence);
+  const flaggedForReview = useTaskStore((s) => s.flaggedForReview);
+  const flagComment = useTaskStore((s) => s.flagComment);
   const isSubmitting = useTaskStore((s) => s.isSubmitting);
   const isNavigating = useTaskStore((s) => s.isNavigating);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -31,6 +33,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const previousTask = useTaskStore((s) => s.previousTask);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const setConfidence = useTaskStore((s) => s.setConfidence);
+  const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
@@ -268,69 +271,79 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     [stopSliceAutoNav]
   );
 
-  // Pre-compute source → viz index ranges for I / Shift+I cycling
   const sourceGroups = useMemo(() => {
-    const groups: { name: string; startIdx: number; count: number }[] = [];
+    const sources = campaign?.imagery_sources ?? [];
+    const viewSourceIds = new Set((selectedView?.collection_refs ?? []).map((r) => r.source_id));
+    const groups: { id: number; startIdx: number; count: number }[] = [];
     let offset = 0;
-    for (const src of campaign?.imagery_sources ?? []) {
-      groups.push({ name: src.name, startIdx: offset, count: src.visualizations.length });
+    for (const src of sources) {
+      if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
+        offset += src.visualizations.length;
+        continue;
+      }
+      groups.push({ id: src.id, startIdx: offset, count: src.visualizations.length });
       offset += src.visualizations.length;
     }
     return groups;
-  }, [campaign?.imagery_sources]);
+  }, [campaign?.imagery_sources, selectedView?.collection_refs]);
 
   const basemaps = useMemo(() => campaign?.basemaps ?? [], [campaign?.basemaps]);
   const basemapIds = useMemo(() => basemaps.map((b) => `basemap-${b.id}`), [basemaps]);
 
-  /** I: cycle through imagery sources + individual basemaps (jump to first viz of next source) */
   const cycleSource = useCallback(() => {
-    // Each imagery source group is one entry, each basemap is one entry
+    const sources = campaign?.imagery_sources ?? [];
+    if (!selectedView) return;
+
     const totalEntries = sourceGroups.length + basemapIds.length;
     if (totalEntries <= 1) return;
 
+    const map = useMapStore.getState();
+    const { selectedLayerIndex: layerIdx, showBasemap: onBasemap } = map;
+    const colId = map.activeCollectionId;
+
     let currentEntryIdx: number;
-    if (showBasemap) {
-      // Find which basemap is currently active
-      const bmIdx = basemapIds.indexOf(selectedBasemapId ?? '');
-      currentEntryIdx = sourceGroups.length + (bmIdx >= 0 ? bmIdx : 0);
+    if (onBasemap) {
+      const bmIdx = basemapIds.indexOf(map.selectedBasemapId ?? '');
+      currentEntryIdx = sourceGroups.length + Math.max(0, bmIdx);
     } else {
-      currentEntryIdx = sourceGroups.findIndex(
-        (g) => selectedLayerIndex >= g.startIdx && selectedLayerIndex < g.startIdx + g.count
-      );
+      const srcByCollection = sources.find((s) => s.collections.some((c) => c.id === colId));
+      currentEntryIdx = srcByCollection
+        ? sourceGroups.findIndex((g) => g.id === srcByCollection.id)
+        : sourceGroups.findIndex((g) => layerIdx >= g.startIdx && layerIdx < g.startIdx + g.count);
       if (currentEntryIdx === -1) currentEntryIdx = 0;
+    }
+
+    if (!onBasemap && colId !== null) {
+      const currentSrc = sources.find((s) => s.collections.some((c) => c.id === colId));
+      if (currentSrc) map.recordSourceState(currentSrc.id, colId, layerIdx);
     }
 
     const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
 
-    if (nextEntryIdx < sourceGroups.length) {
-      // Switch to an imagery source (first viz)
-      const nextGroup = sourceGroups[nextEntryIdx];
-      setSelectedLayerIndex(nextGroup.startIdx);
-      // Also switch to that source's collection so the map tiles update
-      const targetSource = campaign?.imagery_sources.find((s) => s.name === nextGroup.name);
-      if (targetSource && selectedView) {
-        const ref = selectedView.collection_refs.find((r) => r.source_id === targetSource.id);
-        if (ref) setActiveCollectionId(ref.collection_id);
-      }
-    } else {
-      // Switch to a specific basemap
+    if (nextEntryIdx >= sourceGroups.length) {
       const bmIdx = nextEntryIdx - sourceGroups.length;
-      setShowBasemap(true);
-      setSelectedBasemapId(basemapIds[bmIdx]);
+      map.setShowBasemap(true);
+      map.setSelectedBasemapId(basemapIds[bmIdx]);
+      return;
     }
-  }, [
-    sourceGroups,
-    basemapIds,
-    selectedLayerIndex,
-    selectedBasemapId,
-    showBasemap,
-    setSelectedLayerIndex,
-    setShowBasemap,
-    setSelectedBasemapId,
-    campaign,
-    selectedView,
-    setActiveCollectionId,
-  ]);
+
+    const nextGroup = sourceGroups[nextEntryIdx];
+    const targetSource = sources.find((s) => s.id === nextGroup.id);
+    if (!targetSource) return;
+
+    map.setSelectedLayerIndex(nextGroup.startIdx);
+
+    const remembered = map.lastSourceState[targetSource.id];
+    const canRestore =
+      remembered &&
+      targetSource.collections.some((c) => c.id === remembered.collectionId) &&
+      selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
+
+    const targetCollectionId = canRestore
+      ? remembered.collectionId
+      : selectedView.collection_refs.find((r) => r.source_id === targetSource.id)?.collection_id;
+    if (targetCollectionId !== undefined) map.setActiveCollectionId(targetCollectionId);
+  }, [sourceGroups, basemapIds, campaign, selectedView]);
 
   /** Shift+I: cycle visualizations within the active source (the source owning activeCollectionId) */
   const cycleVisualization = useCallback(() => {
@@ -340,7 +353,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       s.collections.some((c) => c.id === activeCollectionId)
     );
     if (!activeSrc) return;
-    const activeGroup = sourceGroups.find((g) => g.name === activeSrc.name);
+    const activeGroup = sourceGroups.find((g) => g.id === activeSrc.id);
     if (!activeGroup || activeGroup.count <= 1) return;
     // Compute current position within the active source
     const posInGroup = Math.max(0, selectedLayerIndex - activeGroup.startIdx);
@@ -378,7 +391,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       return;
     }
 
-    await submitAnnotation(selectedLabelId, comment, confidence);
+    await submitAnnotation(
+      selectedLabelId,
+      comment,
+      confidence,
+      undefined,
+      flaggedForReview,
+      flagComment
+    );
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
   }, [
     isSubmitting,
@@ -386,6 +406,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     selectedLabelId,
     comment,
     confidence,
+    flaggedForReview,
+    flagComment,
     submitAnnotation,
     showAlert,
     visibleTasks,
@@ -396,9 +418,21 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const handleSkip = useCallback(async () => {
     if (isSubmitting || isNavigating) return;
 
-    await submitAnnotation(null, comment, confidence);
+    await submitAnnotation(null, comment, confidence, undefined, flaggedForReview, flagComment);
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
-  }, [isSubmitting, isNavigating, comment, confidence, submitAnnotation]);
+  }, [
+    isSubmitting,
+    isNavigating,
+    comment,
+    confidence,
+    flaggedForReview,
+    flagComment,
+    submitAnnotation,
+  ]);
+
+  const toggleFlagForReview = useCallback(() => {
+    setFlaggedForReview(!flaggedForReview);
+  }, [flaggedForReview, setFlaggedForReview]);
 
   // Focus comment box
   const focusComment = useCallback(() => {
@@ -554,6 +588,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           handleSkip();
           break;
 
+        // Flag for review
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFlagForReview();
+          break;
+
         // Toggle keyboard help
         case 'h':
         case 'H':
@@ -633,6 +674,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     adjustConfidence,
     handleSubmit,
     handleSkip,
+    toggleFlagForReview,
     toggleKeyboardHelp,
     toggleGuide,
     cycleSource,

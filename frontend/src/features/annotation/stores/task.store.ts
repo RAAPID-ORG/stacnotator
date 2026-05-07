@@ -19,6 +19,10 @@ export type TaskStatus = 'pending' | 'partial' | 'done' | 'skipped' | 'conflicti
 export interface TaskFilter {
   assignedTo: string[];
   statuses: TaskStatus[];
+  // 0 in selectedConfidences means "no rating" (annotation missing
+  // confidence, or task has no annotations).
+  selectedConfidences: number[];
+  flaggedOnly: boolean;
 }
 
 interface TaskStore {
@@ -35,6 +39,8 @@ interface TaskStore {
   selectedLabelId: number | null;
   comment: string;
   confidence: number;
+  flaggedForReview: boolean;
+  flagComment: string;
   magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
@@ -45,7 +51,9 @@ interface TaskStore {
     labelId: number | null,
     comment: string,
     confidence: number,
-    isAuthoritative?: boolean
+    isAuthoritative?: boolean,
+    flaggedForReview?: boolean,
+    flagComment?: string
   ) => Promise<void>;
   nextTask: () => void;
   previousTask: () => void;
@@ -55,6 +63,8 @@ interface TaskStore {
   setSelectedLabelId: (id: number | null) => void;
   setComment: (comment: string) => void;
   setConfidence: (confidence: number) => void;
+  setFlaggedForReview: (flagged: boolean) => void;
+  setFlagComment: (comment: string) => void;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -76,27 +86,53 @@ const applyTaskFilter = (
 
   return allTasks.filter((task) => {
     const assignments = task.assignments || [];
+    const annotations = task.annotations || [];
+
     if (filterByUser) {
       const userAssignments = assignments.filter((a) => filter.assignedTo.includes(a.user_id));
       if (userAssignments.length === 0) return false;
-      return userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus));
+      if (!userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus)))
+        return false;
+    } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {
+      return false;
     }
-    return filter.statuses.includes(task.task_status as TaskStatus);
+
+    if (filter.selectedConfidences.length > 0) {
+      const taskConfs = annotations.map((a) => a.confidence ?? 0);
+      if (taskConfs.length === 0) taskConfs.push(0);
+      if (!taskConfs.some((c) => filter.selectedConfidences.includes(c))) return false;
+    }
+
+    if (filter.flaggedOnly && !annotations.some((a) => a.flagged_for_review)) {
+      return false;
+    }
+
+    return true;
   });
 };
 
+const emptyFormState = {
+  selectedLabelId: null as number | null,
+  comment: '',
+  confidence: 5,
+  flaggedForReview: false,
+  flagComment: '',
+};
+
 const getFormStateForTask = (task: AnnotationTaskOut | null) => {
-  if (!task) return { selectedLabelId: null, comment: '', confidence: 5 };
+  if (!task) return emptyFormState;
   const currentUserId = useAccountStore.getState().account?.id;
-  if (!currentUserId) return { selectedLabelId: null, comment: '', confidence: 5 };
+  if (!currentUserId) return emptyFormState;
   const userAnn = task.annotations.find((a) => a.created_by_user_id === currentUserId);
   return userAnn
     ? {
         selectedLabelId: userAnn.label_id,
         comment: userAnn.comment || '',
         confidence: userAnn.confidence ?? 5,
+        flaggedForReview: userAnn.flagged_for_review ?? false,
+        flagComment: userAnn.flag_comment || '',
       }
-    : { selectedLabelId: null, comment: '', confidence: 5 };
+    : emptyFormState;
 };
 
 /** Resets map state relevant to task navigation. */
@@ -127,13 +163,20 @@ const initialState = {
   allTasks: [] as AnnotationTaskOut[],
   visibleTasks: [] as AnnotationTaskOut[],
   currentTaskIndex: 0,
-  taskFilter: { assignedTo: [] as string[], statuses: ['pending' as TaskStatus] },
+  taskFilter: {
+    assignedTo: [] as string[],
+    statuses: ['pending' as TaskStatus],
+    selectedConfidences: [] as number[],
+    flaggedOnly: false,
+  },
   isSubmitting: false,
   isNavigating: false,
   tasksLoaded: false,
   selectedLabelId: null as number | null,
   comment: '',
   confidence: 5,
+  flaggedForReview: false,
+  flagComment: '',
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
@@ -163,6 +206,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: [],
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
         const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
@@ -175,6 +220,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: showAll || !currentUserId ? [] : [currentUserId],
           statuses: ['pending'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
 
@@ -182,7 +229,12 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // exist, auto-widen to show everything so the user lands on a
         // task instead of an empty screen.
         if (visibleTasks.length === 0 && allTasks.length > 0 && !showAll) {
-          taskFilter = { assignedTo: [], statuses: ['pending'] };
+          taskFilter = {
+            assignedTo: [],
+            statuses: ['pending'],
+            selectedConfidences: [],
+            flaggedOnly: false,
+          };
           visibleTasks = applyTaskFilter(allTasks, taskFilter);
         }
       }
@@ -199,7 +251,14 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       });
     },
 
-    submitAnnotation: async (labelId, comment, confidence, isAuthoritative) => {
+    submitAnnotation: async (
+      labelId,
+      comment,
+      confidence,
+      isAuthoritative,
+      flaggedForReview,
+      flagComment
+    ) => {
       const { visibleTasks, allTasks, currentTaskIndex } = get();
       const task = visibleTasks[currentTaskIndex];
       const campaign = useCampaignStore.getState().campaign;
@@ -283,6 +342,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             comment: comment || null,
             confidence,
             is_authoritative: isAuthoritative ?? null,
+            flagged_for_review: flaggedForReview ?? false,
+            flag_comment: flaggedForReview ? flagComment || null : null,
           },
         });
 
@@ -317,10 +378,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           isSubmitting: false,
         });
         startNavigation({ currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
-
-        const successMessage =
-          labelId === null ? 'Task skipped successfully' : 'Annotation submitted successfully';
-        useLayoutStore.getState().showAlert(successMessage, 'success');
 
         // A labeled submission may change what the KNN validator has to work
         // with (total count and the submitted label's count); refresh async
@@ -373,6 +430,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         taskFilter = {
           assignedTo: [],
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+          selectedConfidences: [],
+          flaggedOnly: false,
         };
         visibleTasks = applyTaskFilter(allTasks, taskFilter);
       } else {
@@ -396,13 +455,26 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     setSelectedLabelId: (id) => set({ selectedLabelId: id }),
     setComment: (comment) => set({ comment }),
     setConfidence: (confidence) => set({ confidence }),
+    setFlaggedForReview: (flagged) =>
+      set((s) => ({
+        flaggedForReview: flagged,
+        flagComment: flagged ? s.flagComment : '',
+      })),
+    setFlagComment: (flagComment) => set({ flagComment }),
     toggleMagicWand: (labelId) =>
       set((s) => ({
         magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
       })),
     setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
     setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
-    resetAnnotationForm: () => set({ selectedLabelId: null, comment: '', confidence: 5 }),
+    resetAnnotationForm: () =>
+      set({
+        selectedLabelId: null,
+        comment: '',
+        confidence: 5,
+        flaggedForReview: false,
+        flagComment: '',
+      }),
 
     // Filter actions
     setTaskFilter: (filterUpdate) => {
@@ -423,7 +495,12 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     resetTaskFilter: () => {
       const currentUserId = useAccountStore.getState().account?.id;
       if (!currentUserId) return;
-      get().setTaskFilter({ assignedTo: [currentUserId], statuses: ['pending'] });
+      get().setTaskFilter({
+        assignedTo: [currentUserId],
+        statuses: ['pending'],
+        selectedConfidences: [],
+        flaggedOnly: false,
+      });
     },
 
     reset: () => set(initialState),

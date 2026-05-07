@@ -32,6 +32,7 @@ from src.annotation.schemas import (
 from src.auth.models import User
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.service import is_authoritative_reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def get_annotation_task_by_id(
         .options(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations),
+            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
         )
     )
 
@@ -125,7 +126,7 @@ def get_annotation_tasks_for_campaign(
         .options(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
-            joinedload(AnnotationTask.annotations),
+            joinedload(AnnotationTask.annotations).joinedload(Annotation.creator),
         )
         .order_by(AnnotationTask.annotation_number)
     )
@@ -474,6 +475,14 @@ def add_annotation_for_task(
         user_id: ID of user creating the annotation
     """
 
+    if annotation_create.is_authoritative and not is_authoritative_reviewer(
+        db, annotation_task.campaign_id, user_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
+        )
+
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
@@ -505,6 +514,10 @@ def add_annotation_for_task(
             existing_annotation.confidence = annotation_create.confidence
             if annotation_create.is_authoritative is not None:
                 existing_annotation.is_authoritative = annotation_create.is_authoritative
+            existing_annotation.flagged_for_review = annotation_create.flagged_for_review or False
+            existing_annotation.flag_comment = (
+                annotation_create.flag_comment if annotation_create.flagged_for_review else None
+            )
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
                 annotation = existing_annotation
@@ -520,6 +533,10 @@ def add_annotation_for_task(
                 created_by_user_id=user_id,
                 confidence=annotation_create.confidence,
                 is_authoritative=annotation_create.is_authoritative or False,
+                flagged_for_review=annotation_create.flagged_for_review or False,
+                flag_comment=(
+                    annotation_create.flag_comment if annotation_create.flagged_for_review else None
+                ),
             )
             db.add(annotation)
 
@@ -576,6 +593,10 @@ def create_annotation(
             created_by_user_id=user_id,
             confidence=annotation_create.confidence,
             annotation_task_id=None,  # Standalone annotation
+            flagged_for_review=annotation_create.flagged_for_review or False,
+            flag_comment=(
+                annotation_create.flag_comment if annotation_create.flagged_for_review else None
+            ),
         )
         db.add(annotation)
         db.commit()
@@ -659,6 +680,13 @@ def update_annotation(
         if annotation_update.confidence is not None:
             annotation.confidence = annotation_update.confidence
 
+        if annotation_update.flagged_for_review is not None:
+            annotation.flagged_for_review = annotation_update.flagged_for_review
+            if not annotation_update.flagged_for_review:
+                annotation.flag_comment = None
+        if annotation_update.flag_comment is not None and annotation.flagged_for_review:
+            annotation.flag_comment = annotation_update.flag_comment
+
         db.commit()
         db.refresh(annotation)
 
@@ -696,6 +724,7 @@ def get_annotations_for_campaign(
         .where(Annotation.campaign_id == campaign_id)
         .options(
             joinedload(Annotation.geometry),
+            joinedload(Annotation.creator),
         )
     )
     annotations = db.scalars(stmt).unique().all()
@@ -917,6 +946,8 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_comment",
     "stacnotator_confidence",
     "stacnotator_is_authoritative",
+    "stacnotator_flagged_for_review",
+    "stacnotator_flag_comment",
     "stacnotator_created_by_user_email",
     "stacnotator_created_at",
     "stacnotator_geometry_wkt",
@@ -997,12 +1028,19 @@ def _build_export_record_for_annotation(
     user_email_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
+    task_annotator_count: int = 1,
 ) -> dict:
     """Build one flat record for a single annotation (non-merged output).
 
     All stacnotator-generated keys are prefixed ``stacnotator_``. Keys from
     the task's ``raw_source_data`` (user-provided ingest columns) are kept
     un-prefixed so the downstream consumer can tell our IDs apart from theirs.
+
+    ``task_annotator_count`` is the number of labeled annotations on the
+    annotation's parent task (matches the merged-path definition). All rows
+    for the same task carry the same value so downstream agreement analyses
+    can be derived even when rows aren't collapsed. Standalone (open-mode)
+    annotations have no task grouping and default to 1.
     """
     record: dict = {}
 
@@ -1020,9 +1058,11 @@ def _build_export_record_for_annotation(
     record["stacnotator_comment"] = annotation.comment
     record["stacnotator_confidence"] = annotation.confidence
     record["stacnotator_is_authoritative"] = annotation.is_authoritative
+    record["stacnotator_flagged_for_review"] = annotation.flagged_for_review
+    record["stacnotator_flag_comment"] = annotation.flag_comment
     record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
-    record["stacnotator_annotator_count"] = 1
+    record["stacnotator_annotator_count"] = task_annotator_count
     if include_geometry_wkt:
         record["stacnotator_geometry_wkt"] = (
             _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
@@ -1080,6 +1120,13 @@ def _build_export_record_merged(
     record["stacnotator_comment"] = " | ".join(comments) if comments else None
     record["stacnotator_confidence"] = mean_confidence
     record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
+    record["stacnotator_flagged_for_review"] = any(a.flagged_for_review for a in labeled)
+    flag_comments = [
+        f"{user_email_map.get(a.created_by_user_id, 'unknown')}: {a.flag_comment}"
+        for a in labeled
+        if a.flag_comment and a.flag_comment.strip()
+    ]
+    record["stacnotator_flag_comment"] = " | ".join(flag_comments) if flag_comments else None
     record["stacnotator_created_by_user_email"] = ", ".join(emails) if emails else None
     record["stacnotator_created_at"] = latest_created_at
     record["stacnotator_annotator_count"] = len(labeled)
@@ -1127,11 +1174,19 @@ def _build_annotation_records(
             )
         else:
             # Nothing to merge (zero or one labeled annotation) or merging is
-            # off - emit one row per annotation exactly as in non-merged mode.
+            # off - emit one row per annotation. Every row for the same task
+            # carries the same labeled-annotator count so agreement analyses
+            # remain possible without re-grouping by task_id.
+            labeled_count = len(labeled)
             for ann in task_anns:
                 records.append(
                     _build_export_record_for_annotation(
-                        ann, campaign, user_email_map, task_status, include_geometry_wkt
+                        ann,
+                        campaign,
+                        user_email_map,
+                        task_status,
+                        include_geometry_wkt,
+                        task_annotator_count=labeled_count,
                     )
                 )
                 canonical_annotations.append(ann)

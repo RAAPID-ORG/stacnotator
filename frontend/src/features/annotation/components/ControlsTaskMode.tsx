@@ -4,6 +4,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { IconFlag } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 
 interface AnnotationControlsProps {
@@ -12,7 +13,9 @@ interface AnnotationControlsProps {
     labelId: number | null,
     comment: string,
     confidence: number,
-    isAuthoritative?: boolean
+    isAuthoritative?: boolean,
+    flaggedForReview?: boolean,
+    flagComment?: string
   ) => Promise<void>;
   onNext: () => void;
   onPrevious: () => void;
@@ -39,12 +42,16 @@ export const AnnotationControls = ({
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
   const confidence = useTaskStore((s) => s.confidence);
+  const flaggedForReview = useTaskStore((s) => s.flaggedForReview);
+  const flagComment = useTaskStore((s) => s.flagComment);
   const isNavigating = useTaskStore((s) => s.isNavigating);
   const knnValidationEnabled = useTaskStore((s) => s.knnValidationEnabled);
   const skipConfirmDisabled = useTaskStore((s) => s.skipConfirmDisabled);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const setComment = useTaskStore((s) => s.setComment);
   const setConfidence = useTaskStore((s) => s.setConfidence);
+  const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
+  const setFlagComment = useTaskStore((s) => s.setFlagComment);
   const setKnnValidationEnabled = useTaskStore((s) => s.setKnnValidationEnabled);
   const setSkipConfirmDisabled = useTaskStore((s) => s.setSkipConfirmDisabled);
 
@@ -97,7 +104,7 @@ export const AnnotationControls = ({
   }, [currentTask?.annotation_number]);
 
   const handleSubmit = async () => {
-    await onSubmit(selectedLabelId, comment, confidence);
+    await onSubmit(selectedLabelId, comment, confidence, undefined, flaggedForReview, flagComment);
   };
 
   const handleSkip = async () => {
@@ -114,19 +121,20 @@ export const AnnotationControls = ({
       if (!confirmed) return;
     }
 
-    await onSubmit(null, comment, confidence);
+    await onSubmit(null, comment, confidence, undefined, flaggedForReview, flagComment);
   };
 
   const handleSubmitAuthoritative = async () => {
     const confirmed = await useLayoutStore.getState().showConfirmDialog({
       title: 'Submit as authoritative?',
-      description: 'This will mark conflicting tasks as completed.',
+      description:
+        'Your label will be recorded as the canonical answer for this task and mark it completed, overriding any other annotators and skipping consensus from assignees.',
       confirmText: 'Submit Authoritative',
       cancelText: 'Cancel',
       isDangerous: true,
     });
     if (!confirmed) return;
-    await onSubmit(selectedLabelId, comment, confidence, true);
+    await onSubmit(selectedLabelId, comment, confidence, true, flaggedForReview, flagComment);
   };
 
   const handleGoToTask = (annotationNumber: number) => {
@@ -327,6 +335,25 @@ export const AnnotationControls = ({
                                 🗲
                               </span>
                             )}
+                            {ann.flagged_for_review && (
+                              <span
+                                className="ml-1 inline-flex items-center align-middle text-rose-600"
+                                title={ann.flag_comment || 'Flagged for review'}
+                              >
+                                <svg
+                                  width="11"
+                                  height="11"
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.75"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M4 17V3M4 3h10l-2 4 2 4H4" />
+                                </svg>
+                              </span>
+                            )}
                           </span>
                           <div className="flex items-center gap-1.5 text-neutral-500">
                             <span
@@ -353,6 +380,13 @@ export const AnnotationControls = ({
                             &ldquo;{ann.comment}&rdquo;
                           </div>
                         )}
+                        {ann.flagged_for_review &&
+                          ann.flag_comment &&
+                          ann.flag_comment.trim() !== '' && (
+                            <div className="mt-1 text-rose-700 italic whitespace-pre-wrap">
+                              Flag: &ldquo;{ann.flag_comment}&rdquo;
+                            </div>
+                          )}
                       </div>
                     );
                   });
@@ -432,14 +466,34 @@ export const AnnotationControls = ({
 
         <div className="flex flex-col gap-2 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
           <div className="flex flex-col gap-1">
-            <label className="flex justify-between items-center">
+            <div className="flex justify-between items-center">
               <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Confidence
               </span>
-              <span className="text-xs text-brand-700 font-semibold tabular-nums">
-                {confidence}/5
-              </span>
-            </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFlaggedForReview(!flaggedForReview)}
+                  disabled={isDisabled}
+                  aria-pressed={flaggedForReview}
+                  title={
+                    flaggedForReview
+                      ? 'Flagged for reviewer attention. Click or press F to unflag.'
+                      : "Flag this annotation for reviewer attention. Useful when you're unsure about the label and want a reviewer to take a second look. Press F to toggle."
+                  }
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    flaggedForReview
+                      ? 'text-rose-600 bg-rose-50 hover:bg-rose-100'
+                      : 'text-neutral-400 hover:text-rose-600 hover:bg-neutral-100'
+                  }`}
+                >
+                  <IconFlag className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-xs text-brand-700 font-semibold tabular-nums">
+                  {confidence}/5
+                </span>
+              </div>
+            </div>
             <input
               type="range"
               min="1"
@@ -458,6 +512,17 @@ export const AnnotationControls = ({
               <span>5</span>
             </div>
           </div>
+
+          {flaggedForReview && (
+            <textarea
+              value={flagComment}
+              onChange={(e) => setFlagComment(e.target.value)}
+              disabled={isDisabled}
+              placeholder="Why are you flagging this? (optional)"
+              rows={2}
+              className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors"
+            />
+          )}
 
           <div className="flex gap-1.5">
             <button
@@ -479,10 +544,15 @@ export const AnnotationControls = ({
             </button>
           </div>
 
-          {isReviewMode && isAuthoritativeReviewer && (
+          {isAuthoritativeReviewer && (
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmitAuthoritative}
+              title={
+                isAssignedToTask
+                  ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
+                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+              }
               className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               type="button"
             >

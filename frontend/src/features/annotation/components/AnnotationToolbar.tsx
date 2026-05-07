@@ -9,6 +9,7 @@ import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { Dropdown } from '~/shared/ui/motion';
+import { IconFlag } from '~/shared/ui/Icons';
 
 const KEYBOARD_SHORTCUTS = [
   { key: 'W / S', description: 'Previous / Next task' },
@@ -25,6 +26,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
+  { key: 'F', description: 'Toggle flag for review' },
   { key: 'C', description: 'Focus comment' },
   { key: 'Escape', description: 'Unfocus input' },
   { key: 'G', description: 'Toggle campaign guide' },
@@ -88,6 +90,22 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
         }
       }
     }
+  };
+
+  const handleConfidenceToggle = (value: number) => {
+    const isSelected = taskFilter.selectedConfidences.includes(value);
+    const next = isSelected
+      ? taskFilter.selectedConfidences.filter((c) => c !== value)
+      : [...taskFilter.selectedConfidences, value];
+    setTaskFilter({ selectedConfidences: next });
+  };
+
+  const handleFlaggedToggle = () => {
+    setTaskFilter({ flaggedOnly: !taskFilter.flaggedOnly });
+  };
+
+  const handleClearReviewFilters = () => {
+    setTaskFilter({ selectedConfidences: [], flaggedOnly: false });
   };
 
   const handleShowAll = () => {
@@ -198,6 +216,83 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
             ))}
           </div>
         </div>
+
+        {isReviewMode && (
+          <div className="border-t border-neutral-200 pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                Review filters
+              </div>
+              {(taskFilter.selectedConfidences.length > 0 || taskFilter.flaggedOnly) && (
+                <button
+                  type="button"
+                  onClick={handleClearReviewFilters}
+                  className="text-[10px] text-neutral-500 hover:text-neutral-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="mb-2">
+              <div className="text-[10px] font-medium text-neutral-500 mb-1">Confidence</div>
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTaskFilter({ selectedConfidences: [] })}
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${
+                    taskFilter.selectedConfidences.length === 0
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                  }`}
+                >
+                  Any
+                </button>
+                {[1, 2, 3, 4, 5].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleConfidenceToggle(c)}
+                    className={`w-7 py-0.5 text-[11px] rounded tabular-nums transition-colors ${
+                      taskFilter.selectedConfidences.includes(c)
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => handleConfidenceToggle(0)}
+                  title="Tasks whose annotations have no confidence rating, or no annotations"
+                  className={`px-2 py-0.5 text-[11px] rounded transition-colors ${
+                    taskFilter.selectedConfidences.includes(0)
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                  }`}
+                >
+                  None
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleFlaggedToggle}
+              aria-pressed={taskFilter.flaggedOnly}
+              title="Show only tasks with at least one flagged annotation"
+              className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded transition-colors border w-full ${
+                taskFilter.flaggedOnly
+                  ? 'bg-rose-100 text-rose-800 border-rose-300'
+                  : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+              }`}
+            >
+              <IconFlag className="w-3.5 h-3.5" />
+              <span>Flagged only</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -502,6 +597,13 @@ export const AnnotationToolbar = () => {
                     useTaskStore.getState().setTaskFilter({
                       assignedTo: [],
                       statuses: ['partial', 'done', 'skipped', 'conflicting'],
+                      selectedConfidences: [],
+                      flaggedOnly: false,
+                    });
+                  } else {
+                    useTaskStore.getState().setTaskFilter({
+                      selectedConfidences: [],
+                      flaggedOnly: false,
                     });
                   }
                 }}
@@ -871,6 +973,7 @@ export const AnnotationToolbar = () => {
                     { key: 'E', description: 'Edit tool' },
                     { key: 'T', description: 'Timeseries probe' },
                     { key: '1-9', description: 'Select label & annotate' },
+                    { key: 'F', description: 'Flag selected (edit tool)' },
                     { key: 'Space', description: 'Fit view to annotations' },
                     { key: 'Alt+drag', description: 'Move feature' },
                     { key: 'Escape', description: 'Cancel / deselect edit' },

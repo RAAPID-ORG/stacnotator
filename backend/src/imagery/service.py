@@ -595,6 +595,7 @@ def _register_all_stac_browser_collections(
                         geom=_bbox_to_wkt(
                             ref["bbox"][0], ref["bbox"][1], ref["bbox"][2], ref["bbox"][3]
                         ),
+                        stac_item=ref.get("stac_item"),
                     )
                 )
 
@@ -973,6 +974,7 @@ def refresh_collection_imagery(
                             geom=_bbox_to_wkt(
                                 ref["bbox"][0], ref["bbox"][1], ref["bbox"][2], ref["bbox"][3]
                             ),
+                            stac_item=ref.get("stac_item"),
                         )
                     )
 

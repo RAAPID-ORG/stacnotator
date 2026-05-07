@@ -17,6 +17,7 @@ import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
+import { IconFlag } from '~/shared/ui/Icons';
 import type { SortOption, UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
@@ -37,6 +38,8 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([]);
+  const [selectedConfidences, setSelectedConfidences] = useState<number[]>([]);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
@@ -57,7 +60,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           const usersRes = await getCampaignUsers({ path: { campaign_id: campaignId } });
           setCampaignUsers(usersRes.data?.users || []);
         } catch {
-          // Non-admin: user list will be derived from annotations
+          /* empty */
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load annotations';
@@ -71,29 +74,20 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
   }, [campaignId, showAlert]);
 
   const uniqueUsers = useMemo((): UserInfo[] => {
-    if (campaignUsers.length > 0) {
-      return campaignUsers
-        .map((cu) => ({
-          id: cu.user.id,
-          email: cu.user.email,
-          displayName: cu.user.display_name,
-        }))
-        .sort((a, b) =>
-          (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
-        );
-    }
     const m = new Map<string, UserInfo>();
     annotations.forEach((ann) => {
       if (!m.has(ann.created_by_user_id)) {
         m.set(ann.created_by_user_id, {
           id: ann.created_by_user_id,
-          email: null,
-          displayName: null,
+          email: ann.created_by_user_email ?? null,
+          displayName: ann.created_by_user_display_name ?? null,
         });
       }
     });
-    return Array.from(m.values());
-  }, [campaignUsers, annotations]);
+    return Array.from(m.values()).sort((a, b) =>
+      (a.displayName || a.email || a.id).localeCompare(b.displayName || b.email || b.id)
+    );
+  }, [annotations]);
 
   const labels = campaign.settings.labels;
 
@@ -106,6 +100,11 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
         (ann.label_id === null || !selectedLabelIds.includes(ann.label_id))
       )
         return false;
+      if (selectedConfidences.length > 0) {
+        const c = ann.confidence ?? 0;
+        if (!selectedConfidences.includes(c)) return false;
+      }
+      if (flaggedOnly && !ann.flagged_for_review) return false;
       if (searchQuery && !ann.id.toString().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
@@ -124,7 +123,15 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
       if (sortOption === 'id-desc') return b.id - a.id;
       return 0;
     });
-  }, [annotations, selectedUserIds, selectedLabelIds, searchQuery, sortOption]);
+  }, [
+    annotations,
+    selectedUserIds,
+    selectedLabelIds,
+    selectedConfidences,
+    flaggedOnly,
+    searchQuery,
+    sortOption,
+  ]);
 
   const stats = useMemo(() => {
     let withConfidence = 0;
@@ -232,11 +239,14 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
     }
   };
 
-  const getUserDisplayName = (userId: string): string => {
-    if (userId === currentUser?.id) return currentUser.display_name || currentUser.email || 'You';
-    const cu = campaignUsers.find((u) => u.user.id === userId);
-    if (cu) return cu.user.display_name || cu.user.email;
-    return userId.substring(0, 8);
+  const getUserDisplayName = (ann: AnnotationOut): string => {
+    if (ann.created_by_user_id === currentUser?.id)
+      return currentUser.display_name || currentUser.email || 'You';
+    return (
+      ann.created_by_user_display_name ||
+      ann.created_by_user_email ||
+      ann.created_by_user_id.substring(0, 8)
+    );
   };
 
   const getLabelName = (labelId: number | null): string => {
@@ -304,7 +314,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
         )}
 
         {/* Filters */}
-        <div className="surface mb-6">
+        <div className="surface surface-unclipped mb-6">
           <div className="px-5 py-4 space-y-3">
             <h3 className="section-heading">Filters & search</h3>
             <div className="flex flex-wrap items-center gap-4">
@@ -353,6 +363,73 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 setSelectedUserIds={setSelectedUserIds}
                 currentUserId={currentUser?.id}
               />
+
+              {/* Confidence Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-neutral-700">Confidence:</label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setSelectedConfidences([])}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.length === 0
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {[1, 2, 3, 4, 5].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(c)
+                            ? selectedConfidences.filter((x) => x !== c)
+                            : [...selectedConfidences, c]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(c)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() =>
+                      setSelectedConfidences(
+                        selectedConfidences.includes(0)
+                          ? selectedConfidences.filter((x) => x !== 0)
+                          : [...selectedConfidences, 0]
+                      )
+                    }
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      selectedConfidences.includes(0)
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                    }`}
+                    title="Annotations without a confidence rating"
+                  >
+                    No rating
+                  </button>
+                </div>
+              </div>
+
+              {/* Flagged Filter */}
+              <button
+                onClick={() => setFlaggedOnly((v) => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border ${
+                  flaggedOnly
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                }`}
+                title="Show only flagged annotations"
+              >
+                <IconFlag className="w-3.5 h-3.5" />
+                <span>Flagged only</span>
+              </button>
 
               {/* Sort By */}
               <div className="flex items-center gap-2">
@@ -484,6 +561,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                     Comment
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                    Flag
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -528,7 +608,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                       </td>
                       <td className="px-4 py-3 text-neutral-700 text-sm">
                         {isMine && <span className="text-brand-600 font-medium">(You) </span>}
-                        {getUserDisplayName(ann.created_by_user_id)}
+                        {getUserDisplayName(ann)}
                       </td>
                       <td className="px-4 py-3">
                         {ann.confidence != null ? (
@@ -566,6 +646,26 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
                               </div>
                             </div>
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {ann.flagged_for_review ? (
+                          <span
+                            className="relative group cursor-help inline-flex items-center text-rose-600"
+                            title={ann.flag_comment || 'Flagged for review'}
+                          >
+                            <IconFlag className="w-4 h-4" />
+                            {ann.flag_comment?.trim() && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
+                                <div className="bg-rose-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
+                                  <div className="whitespace-pre-wrap">{ann.flag_comment}</div>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-rose-900"></div>
+                                </div>
+                              </div>
+                            )}
                           </span>
                         ) : (
                           <span className="text-neutral-400">-</span>

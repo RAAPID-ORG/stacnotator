@@ -24,6 +24,14 @@ export type AnnotationCreate = {
      * Confidence
      */
     confidence: number | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**
@@ -46,6 +54,14 @@ export type AnnotationFromTaskCreate = {
      * Is Authoritative
      */
     is_authoritative?: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**
@@ -69,6 +85,14 @@ export type AnnotationFromTaskOut = {
      */
     created_by_user_id: string;
     /**
+     * Created By User Email
+     */
+    created_by_user_email?: string | null;
+    /**
+     * Created By User Display Name
+     */
+    created_by_user_display_name?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -84,6 +108,14 @@ export type AnnotationFromTaskOut = {
      * Is Authoritative
      */
     is_authoritative: boolean;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: boolean;
+    /**
+     * Flag Comment
+     */
+    flag_comment: string | null;
 };
 
 /**
@@ -107,6 +139,14 @@ export type AnnotationOut = {
      */
     created_by_user_id: string;
     /**
+     * Created By User Email
+     */
+    created_by_user_email?: string | null;
+    /**
+     * Created By User Display Name
+     */
+    created_by_user_display_name?: string | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -122,6 +162,14 @@ export type AnnotationOut = {
      * Is Authoritative
      */
     is_authoritative: boolean;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review: boolean;
+    /**
+     * Flag Comment
+     */
+    flag_comment: string | null;
     geometry: GeometryOut;
 };
 
@@ -233,6 +281,14 @@ export type AnnotationUpdate = {
      * Is Authoritative
      */
     is_authoritative: boolean | null;
+    /**
+     * Flagged For Review
+     */
+    flagged_for_review?: boolean | null;
+    /**
+     * Flag Comment
+     */
+    flag_comment?: string | null;
 };
 
 /**

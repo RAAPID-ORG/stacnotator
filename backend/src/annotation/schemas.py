@@ -35,10 +35,25 @@ class AnnotationFromTaskOut(BaseModel):
     label_id: int | None
     comment: str | None
     created_by_user_id: UUID
+    created_by_user_email: str | None = None
+    created_by_user_display_name: str | None = None
     created_at: datetime
     updated_at: datetime
     confidence: int | None
     is_authoritative: bool
+    flagged_for_review: bool
+    flag_comment: str | None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_creator_info(cls, data):
+        """Surface email / display_name from the creator relationship so the
+        review pages can render the annotator even when the user is no longer
+        a campaign member or task assignee."""
+        if hasattr(data, "__dict__") and getattr(data, "creator", None) is not None:
+            data.__dict__["created_by_user_email"] = data.creator.email
+            data.__dict__["created_by_user_display_name"] = data.creator.display_name
+        return data
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,7 +114,9 @@ class AnnotationTaskOut(BaseModel):
         - skipped:     ALL assigned users skipped
         - partial:     At least one label, but some assignees still haven't
                        labeled (they either skipped or haven't acted yet)
-        - done:        Every assignee labeled and all labels match
+        - done:        Every assignee labeled and all labels match, OR an
+                       authoritative reviewer has submitted a label that
+                       overrides the assignment-based aggregation.
         - conflicting: Every assignee labeled and labels disagree
         """
         # Handle both ORM objects and dicts
@@ -109,7 +126,11 @@ class AnnotationTaskOut(BaseModel):
             # Access ORM attributes
             assignment_list = [{"user_id": a.user_id, "status": a.status} for a in assignments]
             annotation_list = [
-                {"label_id": a.label_id, "created_by_user_id": a.created_by_user_id}
+                {
+                    "label_id": a.label_id,
+                    "created_by_user_id": a.created_by_user_id,
+                    "is_authoritative": a.is_authoritative,
+                }
                 for a in annotations
             ]
         elif isinstance(data, dict):
@@ -122,6 +143,7 @@ class AnnotationTaskOut(BaseModel):
                     {
                         "label_id": a.label_id,
                         "created_by_user_id": a.created_by_user_id,
+                        "is_authoritative": getattr(a, "is_authoritative", False),
                     }
                     if hasattr(a, "label_id")
                     else a
@@ -132,8 +154,13 @@ class AnnotationTaskOut(BaseModel):
             return data
 
         labeled = [a for a in annotation_list if a.get("label_id") is not None]
+        has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
 
-        if not assignment_list:
+        if has_authoritative_label:
+            # An authoritative reviewer's label resolves the task on its own,
+            # overriding assignment-based aggregation.
+            status = TASK_STATUS_DONE
+        elif not assignment_list:
             # No assignment table entries - treat any label as done.
             status = TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
         else:
@@ -187,6 +214,8 @@ class AnnotationFromTaskCreate(BaseModel):
     comment: str | None
     confidence: int | None
     is_authoritative: bool | None = None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class AnnotationTaskSubmitResponse(BaseModel):
@@ -204,6 +233,8 @@ class AnnotationCreate(BaseModel):
     comment: str | None
     geometry_wkt: str  # Geometry in WKT format
     confidence: int | None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class BatchDeleteAnnotationsRequest(BaseModel):
@@ -220,6 +251,8 @@ class AnnotationUpdate(BaseModel):
     geometry_wkt: str | None  # Geometry in WKT format
     confidence: int | None = None
     is_authoritative: bool | None
+    flagged_for_review: bool | None = None
+    flag_comment: str | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):

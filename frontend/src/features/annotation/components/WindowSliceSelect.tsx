@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useMapStore } from '../stores/map.store';
 import type { ImageryCollectionOut } from '~/api/client';
+import { formatSliceLabel } from '~/shared/utils/utility';
 import HeaderSelect from './Map/HeaderSelect';
 
 interface WindowSliceSelectProps {
@@ -27,13 +28,17 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
     () =>
       slices.map((slice, idx) => {
         const isEmpty = !!emptySlices[`${collection.id}-${idx}`];
+        const isCover = idx === collection.cover_slice_index;
+        const baseLabel = isCover
+          ? formatSliceLabel(slice.start_date, slice.end_date, 'days', idx)
+          : slice.name;
         return {
           value: idx,
-          label: `${slice.name}${isEmpty ? ' (no data)' : ''}`,
+          label: `${baseLabel}${isEmpty ? ' (no data)' : ''}`,
           dimmed: isEmpty,
         };
       }),
-    [slices, emptySlices, collection.id]
+    [slices, emptySlices, collection.id, collection.cover_slice_index]
   );
 
   if (slices.length <= 1) return null;

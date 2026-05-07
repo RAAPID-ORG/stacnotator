@@ -242,6 +242,9 @@ class MosaicItem(Base):
     datetime: Mapped[str] = mapped_column(String, nullable=False)
     cloud_cover: Mapped[float | None] = mapped_column(Float, nullable=True)
     geom = mapped_column(Geometry("POLYGON", srid=4326), nullable=True)
+    # Full STAC item JSON (assets included). When populated, the tiler can
+    # skip the HTTP fetch to the source catalog. Null on legacy rows.
+    stac_item: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     mosaic: Mapped["MosaicRegistration"] = relationship(back_populates="items")
 

@@ -40,15 +40,16 @@ export const useOpenModeKeyboard = () => {
     const extendedLabels = extendLabelsWithMetadata(labels);
     const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
 
-    // Pre-compute source → viz index ranges for I / Shift+I cycling
-    const _allVizEntries = campaign.imagery_sources.flatMap((src) =>
-      src.visualizations.map((v) => ({ sourceName: src.name, vizName: v.name }))
-    );
-    // Build unique source groups with their start/end indices into allVizEntries
-    const sourceGroups: { name: string; startIdx: number; count: number }[] = [];
+    const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
+    const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
+    const sourceGroups: { id: number; startIdx: number; count: number }[] = [];
     let offset = 0;
     for (const src of campaign.imagery_sources) {
-      sourceGroups.push({ name: src.name, startIdx: offset, count: src.visualizations.length });
+      if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
+        offset += src.visualizations.length;
+        continue;
+      }
+      sourceGroups.push({ id: src.id, startIdx: offset, count: src.visualizations.length });
       offset += src.visualizations.length;
     }
     const basemapIds = (campaign.basemaps ?? []).map((b) => `basemap-${b.id}`);
@@ -110,7 +111,7 @@ export const useOpenModeKeyboard = () => {
               s.collections.some((c) => c.id === activeColId)
             );
             if (!activeSrc) break;
-            const activeGroup = sourceGroups.find((g) => g.name === activeSrc.name);
+            const activeGroup = sourceGroups.find((g) => g.id === activeSrc.id);
             if (!activeGroup || activeGroup.count <= 1) break;
             const posInGroup = Math.min(
               Math.max(0, currentIdx - activeGroup.startIdx),
@@ -119,42 +120,65 @@ export const useOpenModeKeyboard = () => {
             const nextPos = (posInGroup + 1) % activeGroup.count;
             useMapStore.getState().setSelectedLayerIndex(activeGroup.startIdx + nextPos);
           } else {
-            // I: cycle through imagery sources + individual basemaps
-            const mapState2 = useMapStore.getState();
+            const map = useMapStore.getState();
             const totalEntries = sourceGroups.length + basemapIds.length;
             if (totalEntries <= 1) break;
 
+            const sources = campaign.imagery_sources;
+            const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId);
+            if (!selectedView) break;
+
+            const layerIdx = map.selectedLayerIndex;
+            const colId = map.activeCollectionId;
+            const onBasemap = map.showBasemap;
+
             let currentEntryIdx: number;
-            if (isBasemap) {
-              const bmIdx = basemapIds.indexOf(mapState2.selectedBasemapId ?? '');
-              currentEntryIdx = sourceGroups.length + (bmIdx >= 0 ? bmIdx : 0);
+            if (onBasemap) {
+              const bmIdx = basemapIds.indexOf(map.selectedBasemapId ?? '');
+              currentEntryIdx = sourceGroups.length + Math.max(0, bmIdx);
             } else {
-              currentEntryIdx = sourceGroups.findIndex(
-                (g) => currentIdx >= g.startIdx && currentIdx < g.startIdx + g.count
+              const srcByCollection = sources.find((s) =>
+                s.collections.some((c) => c.id === colId)
               );
+              currentEntryIdx = srcByCollection
+                ? sourceGroups.findIndex((g) => g.id === srcByCollection.id)
+                : sourceGroups.findIndex(
+                    (g) => layerIdx >= g.startIdx && layerIdx < g.startIdx + g.count
+                  );
               if (currentEntryIdx === -1) currentEntryIdx = 0;
+            }
+
+            if (!onBasemap && colId !== null) {
+              const currentSrc = sources.find((s) => s.collections.some((c) => c.id === colId));
+              if (currentSrc) map.recordSourceState(currentSrc.id, colId, layerIdx);
             }
 
             const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
 
-            if (nextEntryIdx < sourceGroups.length) {
-              // Switch to an imagery source (first viz) + switch collection
-              const group = sourceGroups[nextEntryIdx];
-              useMapStore.getState().setSelectedLayerIndex(group.startIdx);
-              const targetSource = campaign.imagery_sources.find((s) => s.name === group.name);
-              const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId);
-              if (targetSource && selectedView) {
-                const ref = selectedView.collection_refs.find(
-                  (r) => r.source_id === targetSource.id
-                );
-                if (ref) useMapStore.getState().setActiveCollectionId(ref.collection_id);
-              }
-            } else {
-              // Switch to a specific basemap
+            if (nextEntryIdx >= sourceGroups.length) {
               const bmIdx = nextEntryIdx - sourceGroups.length;
-              useMapStore.getState().setShowBasemap(true);
-              useMapStore.getState().setSelectedBasemapId(basemapIds[bmIdx]);
+              map.setShowBasemap(true);
+              map.setSelectedBasemapId(basemapIds[bmIdx]);
+              break;
             }
+
+            const group = sourceGroups[nextEntryIdx];
+            const targetSource = sources.find((s) => s.id === group.id);
+            if (!targetSource) break;
+
+            map.setSelectedLayerIndex(group.startIdx);
+
+            const remembered = map.lastSourceState[targetSource.id];
+            const canRestore =
+              remembered &&
+              targetSource.collections.some((c) => c.id === remembered.collectionId) &&
+              selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
+
+            const targetCollectionId = canRestore
+              ? remembered.collectionId
+              : selectedView.collection_refs.find((r) => r.source_id === targetSource.id)
+                  ?.collection_id;
+            if (targetCollectionId !== undefined) map.setActiveCollectionId(targetCollectionId);
           }
           break;
         }
@@ -176,6 +200,16 @@ export const useOpenModeKeyboard = () => {
           goToNextAnnotation();
           triggerFitAnnotations();
           break;
+        case 'f': {
+          e.preventDefault();
+          const annStore = useAnnotationStore.getState();
+          const id = annStore.selectedAnnotationId;
+          if (id == null) break;
+          const ann = annStore.annotations.find((a) => a.id === id);
+          if (!ann) break;
+          annStore.updateAnnotationFlags(id, !ann.flagged_for_review, ann.flag_comment);
+          break;
+        }
       }
     };
 
