@@ -155,9 +155,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       setSavingEmbeddingYear(false);
     }
   };
-  // Each section is just spacing + a top hairline. The parent
-  // CampaignSettingsPage already provides the white surface; nothing here
-  // adds another card.
+
   const sectionCls =
     'space-y-3 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
@@ -230,9 +228,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           <div>
             <h2 className="section-heading">Sample extent</h2>
             <p className="section-description">
-              Size of the area around each task centroid that should be annotated. This is shown as
-              a rectangle on the map during annotation. Leave empty if tasks were uploaded as
-              polygons or if no extent overlay is needed.
+              Defines the exact size of a sample point. If lat/lon is the exact coordinate, the
+              sample extent defines the dimensions around this centroid that constitute the actual
+              sample. This helps to have a shared understanding of which area / pixels belong to a
+              sample point. Leave empty if tasks were uploaded as polygons or if no extent should be
+              visualized.
             </p>
           </div>
           <div className="flex gap-3 items-end">
@@ -339,8 +339,6 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         </div>
       </section>
 
-      {/* Danger zone keeps a visual marker (red top hairline + red heading)
-          but no nested card - it sits as the last section of the surface. */}
       <section className="pt-6 mt-6 border-t border-red-200">
         <h2 className="text-sm font-semibold text-red-700 mb-4">Danger zone</h2>
         <div className="flex items-start justify-between gap-4 py-3 border-b border-red-100">
