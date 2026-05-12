@@ -1,6 +1,6 @@
 import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
-import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
+import { tileLoadWithAuth, isSelfHostedUrl } from '../../utils/tileLoading';
 
 export type LayerType = 'imagery' | 'basemap';
 

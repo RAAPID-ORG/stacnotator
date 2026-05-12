@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { TilePreloader } from './tilePreloader';
-import { buildTileUrl } from './tileUrlBuilder';
+import { buildTileUrl } from '../../utils/tileLoading';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';

@@ -3,7 +3,7 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
-import { buildTileUrl } from './tileUrlBuilder';
+import { buildTileUrl } from '../../utils/tileLoading';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 

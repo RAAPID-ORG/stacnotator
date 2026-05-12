@@ -24,7 +24,7 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { tileLoadWithAuth, isSelfHostedUrl } from './authTileLoader';
+import { tileLoadWithAuth, isSelfHostedUrl } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {

@@ -19,8 +19,7 @@
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
 import { getTilerToken } from '~/api/tilerToken';
-
-const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
+import { isSelfHostedUrl } from '../../utils/tileLoading';
 
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
@@ -279,7 +278,7 @@ export class TilePreloader {
     };
 
     // Self-hosted tiles need an auth token appended to the URL
-    if (TILER_BASE && tile.url.startsWith(TILER_BASE)) {
+    if (isSelfHostedUrl(tile.url)) {
       getTilerToken()
         .then((token) => {
           if (this.disposed || gen !== this.generation) {
