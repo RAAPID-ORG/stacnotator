@@ -1,138 +1,82 @@
 import { useLayoutStore } from '~/features/layout/layout.store';
 
-export interface ErrorHandlerOptions {
-  /**
-   * Whether to show the error message to the user via alert
-   * @default true
-   */
+export type AlertType = 'success' | 'error' | 'warning' | 'info';
+
+export interface HandleErrorOptions {
+  /** Show a user-facing toast. Defaults to true. */
   showUser?: boolean;
-
-  /**
-   * Custom user-friendly message to display instead of the error message
-   */
+  /** Toast type. Defaults to 'error'. */
+  alertType?: AlertType;
+  /** Override the user-facing message. By default we extract from the error and fall back to `context`. */
   userMessage?: string;
-
-  /**
-   * Whether to log the error to console for debugging
-   * @default true
-   */
-  logToConsole?: boolean;
-
-  /**
-   * Alert type to use when showing to user
-   * @default 'error'
-   */
-  alertType?: 'error' | 'warning' | 'info';
-
-  /**
-   * Whether to send to external error tracking service (future enhancement)
-   * @default false
-   */
-  logToService?: boolean;
 }
 
+const extractRequestId = (err: unknown): string | null => {
+  if (err && typeof err === 'object' && 'request_id' in err) {
+    const id = (err as { request_id: unknown }).request_id;
+    if (typeof id === 'string' && id.length > 0) return id;
+  }
+  return null;
+};
+
+const extractBaseMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object' && 'detail' in err) {
+    const detail = (err as { detail: unknown }).detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((d) =>
+          d &&
+          typeof d === 'object' &&
+          'msg' in d &&
+          typeof (d as { msg: unknown }).msg === 'string'
+            ? (d as { msg: string }).msg
+            : null
+        )
+        .filter((m): m is string => m !== null);
+      if (messages.length > 0) return messages.join('; ');
+    }
+  }
+  return fallback;
+};
+
 /**
- * Centralized error handling utility
- *
- * Provides consistent error handling across the application:
- * - Logs errors to console for debugging
- * - Shows user-friendly messages via UI alerts
- * - Future: Send to error tracking service
- *
- * @param error - The error object or message
- * @param context - Description of where/why the error occurred
- * @param options - Configuration for how to handle the error
- * @returns The error message that was processed
- *
- * @example
- * ```ts
- * try {
- *   await someApiCall();
- * } catch (error) {
- *   handleError(error, 'Failed to load campaign', {
- *     showUser: true,
- *     userMessage: 'Unable to load campaign. Please try again.'
- *   });
- * }
- * ```
+ * Pulls a human-readable message out of an unknown error. Handles native
+ * Errors, strings, FastAPI HTTPException bodies (`{detail: string}`), and
+ * FastAPI/pydantic validation bodies (`{detail: [{msg, loc, type, ...}]}`).
+ * If the backend includes a `request_id`, appends an 8-char prefix as a
+ * support reference. Falls back to `fallback` for anything else.
+ */
+export const extractErrorMessage = (err: unknown, fallback = 'Something went wrong'): string => {
+  const base = extractBaseMessage(err, fallback);
+  const requestId = extractRequestId(err);
+  return requestId ? `${base} (ref: ${requestId.slice(0, 8)})` : base;
+};
+
+/**
+ * Centralized error handling: logs a structured record and surfaces a toast.
+ * `context` is both the log label and the default user-facing message if the
+ * error itself carries no message.
  */
 export const handleError = (
-  error: unknown,
+  err: unknown,
   context: string,
-  options: ErrorHandlerOptions = {}
+  options: HandleErrorOptions = {}
 ): string => {
-  const {
-    showUser = true,
-    userMessage,
-    logToConsole = true,
-    alertType = 'error',
-    logToService = false,
-  } = options;
+  const { showUser = true, alertType = 'error', userMessage } = options;
+  const displayMessage = userMessage ?? extractErrorMessage(err, context);
 
-  // Extract error message
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const displayMessage = userMessage || errorMessage;
+  console.error(`[${context}]`, {
+    message: displayMessage,
+    error: err,
+    timestamp: new Date().toISOString(),
+  });
 
-  // Log to console for debugging (in all environments)
-  if (logToConsole) {
-    console.error(`[${context}]`, {
-      message: errorMessage,
-      error,
-      timestamp: new Date().toISOString(),
-    });
-  }
-
-  // Show to user via alert
   if (showUser) {
     useLayoutStore.getState().showAlert(displayMessage, alertType);
   }
 
-  // Future: Send to error tracking service in production
-  if (logToService && import.meta.env.PROD) {
-    // TODO: Implement error tracking service integration
-  }
-
   return displayMessage;
-};
-
-/**
- * Helper for handling API errors specifically
- * Extracts status codes and provides better error messages
- */
-export const handleApiError = (
-  error: unknown,
-  context: string,
-  options: Omit<ErrorHandlerOptions, 'userMessage'> & {
-    defaultMessage?: string;
-  } = {}
-): string => {
-  const { defaultMessage = 'An error occurred', ...restOptions } = options;
-
-  let userMessage = defaultMessage;
-
-  // Handle axios errors or fetch errors with status codes
-  if (error && typeof error === 'object' && 'response' in error) {
-    const axiosError = error as { response?: { status?: number; data?: { detail?: string } } };
-    const status = axiosError.response?.status;
-    const detail = axiosError.response?.data?.detail;
-
-    switch (status) {
-      case 401:
-        userMessage = 'Authentication required. Please log in again.';
-        break;
-      case 403:
-        userMessage = 'You do not have permission to perform this action.';
-        break;
-      case 404:
-        userMessage = 'The requested resource was not found.';
-        break;
-      case 500:
-        userMessage = 'Server error. Please try again later.';
-        break;
-      default:
-        userMessage = detail || defaultMessage;
-    }
-  }
-
-  return handleError(error, context, { ...restOptions, userMessage });
 };

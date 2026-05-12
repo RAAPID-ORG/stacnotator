@@ -39,6 +39,7 @@ import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelM
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
@@ -360,7 +361,7 @@ const DrawingLayer = ({
           await saveAnnotation(polygonGeometry, selectedLabelRef.current.id);
         }
       } catch (err) {
-        console.error('Magic wand segmentation failed:', err);
+        handleError(err, 'Magic wand segmentation failed');
       }
     };
 
@@ -569,7 +570,7 @@ const DrawingLayer = ({
         try {
           await updateAnnotationGeometry(annotationId, geoJSON);
         } catch (err) {
-          console.error('Failed to save geometry update:', err);
+          handleError(err, 'Failed to save geometry update');
         }
       }
     }

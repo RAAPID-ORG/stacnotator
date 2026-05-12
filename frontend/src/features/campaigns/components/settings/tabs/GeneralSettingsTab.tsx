@@ -9,6 +9,7 @@ import {
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 
 interface Props {
@@ -76,8 +77,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       }
       showAlert('Campaign guide updated', 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update guide';
-      showAlert(msg, 'error');
+      handleError(err, 'Failed to update guide');
     } finally {
       setSavingGuide(false);
     }
@@ -99,8 +99,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       }
       showAlert('Sample extent updated', 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to update sample extent';
-      showAlert(msg, 'error');
+      handleError(err, 'Failed to update sample extent');
     } finally {
       setSavingExtent(false);
     }
@@ -149,8 +148,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         });
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update embedding year';
-      showAlert(message, 'error');
+      handleError(err, 'Failed to update embedding year');
     } finally {
       setSavingEmbeddingYear(false);
     }
@@ -375,8 +373,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
                   'success'
                 );
               } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Failed to update visibility';
-                showAlert(msg, 'error');
+                handleError(err, 'Failed to update visibility');
               }
             }}
           >

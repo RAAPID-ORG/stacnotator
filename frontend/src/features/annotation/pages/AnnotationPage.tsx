@@ -13,6 +13,7 @@ import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
 
 /**
@@ -106,7 +107,7 @@ export const AnnotationPage = () => {
         );
       } catch (error) {
         if (!cancelled) {
-          console.error('Failed to load campaign:', error);
+          handleError(error, 'Failed to load campaign', { showUser: false });
         }
       }
     };

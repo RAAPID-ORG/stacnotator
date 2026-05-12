@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { UserOutDetailed } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export type PlatformUsersTableProps = {
   users: UserOutDetailed[];
@@ -71,7 +72,7 @@ export const PlatformUsersTable = ({
 
       setSelectedUsers(new Set());
     } catch (err) {
-      console.error('Bulk action failed', err);
+      handleError(err, 'Bulk action failed', { showUser: false });
     } finally {
       setProcessingAction(false);
     }
@@ -102,7 +103,7 @@ export const PlatformUsersTable = ({
           break;
       }
     } catch (err) {
-      console.error('Single action failed', err);
+      handleError(err, 'Single action failed', { showUser: false });
     } finally {
       setProcessingAction(false);
     }

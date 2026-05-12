@@ -18,6 +18,7 @@ import {
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
@@ -111,7 +112,7 @@ export const TimeSeriesChart = ({
         }
       })
       .catch((err) => {
-        console.error('Failed to load time series data:', err);
+        handleError(err, 'Failed to load time series data', { showUser: false });
         if (!cancelled) {
           setData(null);
           setError(err instanceof Error ? err : new Error('Unknown error'));
@@ -157,7 +158,7 @@ export const TimeSeriesChart = ({
         }
       })
       .catch((err) => {
-        console.error('Failed to load probe time series data:', err);
+        handleError(err, 'Failed to load probe time series data', { showUser: false });
         if (!cancelled) {
           setProbeData(null);
         }

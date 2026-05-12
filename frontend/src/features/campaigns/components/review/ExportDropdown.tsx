@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { exportAnnotations, exportAnnotationsGeojson, type CampaignOut } from '~/api/client';
 import { Dropdown } from '~/shared/ui/motion';
+import { handleError } from '~/shared/utils/errorHandler';
 
 interface ExportDropdownProps {
   campaignId: number;
@@ -88,9 +89,7 @@ export const ExportDropdown = ({
       document.body.removeChild(a);
       showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to export annotations';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to export annotations');
     } finally {
       setExporting(null);
     }

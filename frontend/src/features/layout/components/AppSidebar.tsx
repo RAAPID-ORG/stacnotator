@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from 'src/features/auth/hooks/useAuth';
+import { useAuth } from '~/app/providers/AuthProvider';
 import { useAccountStore } from 'src/features/account/account.store';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export const LogoutButton = () => {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export const LogoutButton = () => {
       await auth.logout();
       navigate('/');
     } catch (err) {
-      console.error('Logout failed', err);
+      handleError(err, 'Logout failed');
     }
   };
 

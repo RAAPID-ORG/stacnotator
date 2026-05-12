@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast } from 'sonner';
 
 export type AlertType = 'success' | 'error' | 'info' | 'warning';
 
@@ -18,10 +19,6 @@ export interface ConfirmDialogOptions {
 }
 
 interface LayoutStore {
-  // Alert state
-  alertMessage: string | null;
-  alertType: AlertType;
-
   // Loading overlay state
   loadingOverlayVisible: boolean;
   loadingOverlayText: string;
@@ -49,7 +46,6 @@ interface LayoutStore {
 
   // Actions
   showAlert: (message: string, type?: AlertType) => void;
-  hideAlert: () => void;
   showLoadingOverlay: (text?: string) => void;
   hideLoadingOverlay: () => void;
   setBreadcrumbs: (items: BreadcrumbItem[]) => void;
@@ -84,8 +80,6 @@ export const useLayoutStore = create<LayoutStore>((set) => {
 
   return {
     // Initial state
-    alertMessage: null,
-    alertType: 'info',
     loadingOverlayVisible: false,
     loadingOverlayText: 'Loading...',
     breadcrumbs: [],
@@ -96,10 +90,13 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     sidebarCollapsed: false,
     confirmDialog: null,
 
-    // Alert actions
-    showAlert: (message, type = 'info') => set({ alertMessage: message, alertType: type }),
-
-    hideAlert: () => set({ alertMessage: null }),
+    // Alert actions — delegated to sonner so multiple errors queue instead of clobbering.
+    showAlert: (message, type = 'info') => {
+      if (type === 'error') toast.error(message);
+      else if (type === 'success') toast.success(message);
+      else if (type === 'warning') toast.warning(message);
+      else toast.info(message);
+    },
 
     // Loading overlay actions
     showLoadingOverlay: (text = 'Loading...') =>
@@ -127,21 +124,13 @@ export const useLayoutStore = create<LayoutStore>((set) => {
         const newFullscreenState = !state.isFullscreen;
 
         if (newFullscreenState) {
-          // Enter fullscreen
-          document.documentElement.requestFullscreen?.().catch((err) => {
-            console.error('Error attempting to enable fullscreen:', err);
-            // Revert state if fullscreen request fails
+          document.documentElement.requestFullscreen?.().catch(() => {
             set({ isFullscreen: false });
           });
-        } else {
-          // Exit fullscreen
-          if (document.fullscreenElement) {
-            document.exitFullscreen?.().catch((err) => {
-              console.error('Error attempting to exit fullscreen:', err);
-              // Keep state as true if exit fails
-              set({ isFullscreen: true });
-            });
-          }
+        } else if (document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {
+            set({ isFullscreen: true });
+          });
         }
 
         return { isFullscreen: newFullscreenState };

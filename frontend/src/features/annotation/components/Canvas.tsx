@@ -16,12 +16,13 @@ import { useAnnotationStore } from '../stores/annotation.store';
 import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
+import { handleError } from '~/shared/utils/errorHandler';
 
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
   } catch (err) {
-    console.error('Failed to copy to clipboard:', err);
+    handleError(err, 'Failed to copy to clipboard', { showUser: false });
   }
 };
 

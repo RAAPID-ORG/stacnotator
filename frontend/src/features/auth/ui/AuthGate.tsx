@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '~/app/providers/AuthProvider';
 import { EmailVerificationScreen } from './EmailVerificationScreen';
 import { LoginScreen } from './LoginScreen';
 import { ApprovalPendingScreen } from './ApprovalPendingScreen';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { useAccountStore } from '~/features/account/account.store';
+import { handleError } from '~/shared/utils/errorHandler';
 
 /**
  * Gates the app behind authentication + backend approval.
@@ -32,7 +33,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
           clear();
         }
       } catch (e) {
-        console.error('AuthGate init error:', e);
+        handleError(e, 'AuthGate init error', { showUser: false });
       } finally {
         if (!cancelled) setInitializing(false);
       }

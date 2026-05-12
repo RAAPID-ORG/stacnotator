@@ -12,6 +12,7 @@ import {
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { OpenModeDistributionMap } from './OpenModeDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
@@ -63,15 +64,13 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           /* empty */
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load annotations';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load annotations');
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [campaignId, showAlert]);
+  }, [campaignId]);
 
   const uniqueUsers = useMemo((): UserInfo[] => {
     const m = new Map<string, UserInfo>();
@@ -220,9 +219,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
       setConfirmBatchDelete(false);
       showAlert(`Deleted ${data.deleted_count} annotation(s)`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete annotations';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to delete annotations');
     } finally {
       setIsBatchDeleting(false);
     }

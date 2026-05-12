@@ -8,6 +8,7 @@ import { FadeIn, motion, listContainerVariants, listItemVariants } from '~/share
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 
 /**
  * CampaignsOverviewPage shows every campaign the user can see as a single
@@ -26,7 +27,6 @@ export const CampaignsPage = () => {
   const [filter, setFilter] = useState<'all' | 'mine' | 'public'>('all');
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Campaigns' }]);
@@ -39,16 +39,14 @@ export const CampaignsPage = () => {
         const { data } = await listAllCampaigns();
         setCampaigns(data?.items ?? []);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load campaign';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load campaigns');
       } finally {
         setLoading(false);
       }
     };
 
     fetchCampaigns();
-  }, [showAlert]);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
+import { Toaster } from 'sonner';
 import { AppSidebar } from 'src/features/layout/components/AppSidebar';
-import { Alert } from 'src/shared/ui/Alert';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
@@ -19,9 +19,6 @@ export const AppLayout = () => {
 
   // All layout state from a single source of truth
   const {
-    alertMessage,
-    alertType,
-    hideAlert,
     loadingOverlayVisible,
     loadingOverlayText,
     breadcrumbs,
@@ -39,7 +36,21 @@ export const AppLayout = () => {
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Alert message={alertMessage} type={alertType} onDismiss={hideAlert} />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            classNames: {
+              toast:
+                'rounded-md border border-neutral-200 bg-white text-neutral-900 shadow-sm text-sm',
+              title: 'text-sm font-medium text-neutral-900',
+              description: 'text-xs text-neutral-600',
+              error: 'border-l-2 border-l-red-500',
+              success: 'border-l-2 border-l-brand-600',
+              warning: 'border-l-2 border-l-amber-500',
+              info: 'border-l-2 border-l-neutral-400',
+            },
+          }}
+        />
 
         <LoadingOverlay visible={loadingOverlayVisible} text={loadingOverlayText} />
 

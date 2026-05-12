@@ -16,6 +16,7 @@ import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/creation/steps/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
@@ -111,14 +112,6 @@ export const CreateCampaignPage = () => {
 
     try {
       showLoadingOverlay('Creating campaign...');
-      console.log('[Campaign Create] full payload:', {
-        form,
-        imagery_editor_state: {
-          sources: imageryState.sources,
-          views: imageryState.views,
-          basemaps: imageryState.basemaps,
-        },
-      });
       const { data: campaign } = await createCampaign({ body: form });
       const status = (campaign as Record<string, unknown>)?.registration_status;
       if (status === 'registering') {
@@ -132,9 +125,7 @@ export const CreateCampaignPage = () => {
         navigate('/campaigns');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create campaign';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to create campaign');
     } finally {
       hideLoadingOverlay();
     }

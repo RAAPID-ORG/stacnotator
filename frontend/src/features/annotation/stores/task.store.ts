@@ -8,6 +8,7 @@ import {
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { applyTaskFilter, type TaskFilter, type TaskStatus } from '../utils/taskFilter';
@@ -344,10 +345,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           useCampaignStore.getState().refreshKnnValidationStatus();
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to submit annotation';
-        useLayoutStore.getState().showAlert(message, 'error');
+        handleError(error, 'Failed to submit annotation');
         set({ isSubmitting: false });
-        console.error('Submit error:', error);
       }
     },
 

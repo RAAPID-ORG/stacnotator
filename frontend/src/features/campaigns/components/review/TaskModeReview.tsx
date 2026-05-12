@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getAllAnnotationTasks, type AnnotationTaskOut, type CampaignOut } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
 import { formatTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import Statistics from './Statistics';
 import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
@@ -24,7 +24,6 @@ interface TaskModeReviewProps {
 export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) => {
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [tasks, setTasks] = useState<AnnotationTaskOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,15 +42,13 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
         setTasks(tasksRes.data!.tasks);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load tasks';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load tasks');
       } finally {
         setLoading(false);
       }
     };
     loadTasks();
-  }, [campaignId, showAlert]);
+  }, [campaignId]);
 
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {

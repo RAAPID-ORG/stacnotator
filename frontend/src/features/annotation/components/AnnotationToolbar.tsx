@@ -8,6 +8,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
+import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconFlag } from '~/shared/ui/Icons';
 
@@ -495,9 +496,7 @@ export const AnnotationToolbar = () => {
       document.body.removeChild(a);
       showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
     } catch (err) {
-      console.error('Export failed:', err);
-      const message = err instanceof Error ? err.message : 'Failed to export annotations';
-      showAlert(message, 'error');
+      handleError(err, 'Failed to export annotations');
     } finally {
       setExporting(null);
     }
