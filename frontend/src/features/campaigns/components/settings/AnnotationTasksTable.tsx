@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import {
+  countTasksByStatus,
   getUserTaskStatuses,
   getTaskStatusColor,
   formatTaskStatus,
@@ -390,41 +391,32 @@ export const AnnotationTasksTable = ({
         </table>
       </div>
 
-      <div className="flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-neutral-500">
-        <span>
-          Total <strong className="text-neutral-900 tabular-nums">{tasks.length}</strong>
-        </span>
-        <span>
-          Complete{' '}
-          <strong className="text-neutral-900 tabular-nums">
-            {tasks.filter((t) => t.task_status === 'done').length}
-          </strong>
-        </span>
-        <span>
-          Partial{' '}
-          <strong className="text-neutral-900 tabular-nums">
-            {tasks.filter((t) => t.task_status === 'partial').length}
-          </strong>
-        </span>
-        <span>
-          Conflicting{' '}
-          <strong className="text-neutral-900 tabular-nums">
-            {tasks.filter((t) => t.task_status === 'conflicting').length}
-          </strong>
-        </span>
-        <span>
-          Pending{' '}
-          <strong className="text-neutral-900 tabular-nums">
-            {tasks.filter((t) => t.task_status === 'pending').length}
-          </strong>
-        </span>
-        <span>
-          Skipped{' '}
-          <strong className="text-neutral-900 tabular-nums">
-            {tasks.filter((t) => t.task_status === 'skipped').length}
-          </strong>
-        </span>
-      </div>
+      {(() => {
+        const counts = countTasksByStatus(tasks);
+        return (
+          <div className="flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-neutral-500">
+            <span>
+              Total <strong className="text-neutral-900 tabular-nums">{tasks.length}</strong>
+            </span>
+            <span>
+              Complete <strong className="text-neutral-900 tabular-nums">{counts.done}</strong>
+            </span>
+            <span>
+              Partial <strong className="text-neutral-900 tabular-nums">{counts.partial}</strong>
+            </span>
+            <span>
+              Conflicting{' '}
+              <strong className="text-neutral-900 tabular-nums">{counts.conflicting}</strong>
+            </span>
+            <span>
+              Pending <strong className="text-neutral-900 tabular-nums">{counts.pending}</strong>
+            </span>
+            <span>
+              Skipped <strong className="text-neutral-900 tabular-nums">{counts.skipped}</strong>
+            </span>
+          </div>
+        );
+      })()}
 
       <ConfirmDialog
         isOpen={confirmBatchUnassign}

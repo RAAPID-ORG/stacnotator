@@ -19,7 +19,24 @@ const extractRequestId = (err: unknown): string | null => {
   return null;
 };
 
+/**
+ * True when the browser couldn't even reach the server (offline, DNS failure,
+ * server crashed before responding, CORS preflight failed). Fetch throws a
+ * TypeError in this case; the exact message varies across browsers:
+ *   Chrome:  "Failed to fetch"
+ *   Firefox: "NetworkError when attempting to fetch resource."
+ *   Safari:  "Load failed"
+ */
+export const isNetworkError = (err: unknown): boolean => {
+  if (!(err instanceof TypeError)) return false;
+  const msg = err.message.toLowerCase();
+  return msg.includes('fetch') || msg.includes('network') || msg.includes('load failed');
+};
+
 const extractBaseMessage = (err: unknown, fallback: string): string => {
+  if (isNetworkError(err)) {
+    return "Can't reach the server. Try again in a moment.";
+  }
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   if (err && typeof err === 'object' && 'detail' in err) {

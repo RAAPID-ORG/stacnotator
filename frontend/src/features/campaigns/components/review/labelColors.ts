@@ -1,5 +1,6 @@
 import type { LabelBase } from '~/api/client';
 
+// Assigns each campaign label a visually distinct color for the distribution maps .
 export const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
   const colors: Record<number, string> = {};
   const hueStep = 360 / Math.max(labels.length, 1);

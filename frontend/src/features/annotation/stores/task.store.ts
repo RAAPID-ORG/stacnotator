@@ -9,9 +9,10 @@ import {
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
-import { applyTaskFilter, type TaskFilter, type TaskStatus } from '../utils/taskFilter';
+import { applyTaskFilter, type TaskFilter } from '../utils/taskFilter';
 
 export type { TaskFilter, TaskStatus };
 

@@ -61,6 +61,27 @@ export function formatTaskStatus(status: TaskStatus): string {
 }
 
 /**
+ * Count tasks by status. Returns a record keyed by every TaskStatus so
+ * consumers can read `counts.done` directly without falling back to 0.
+ */
+export function countTasksByStatus(
+  tasks: readonly AnnotationTaskOut[]
+): Record<TaskStatus, number> {
+  const counts: Record<TaskStatus, number> = {
+    pending: 0,
+    partial: 0,
+    conflicting: 0,
+    done: 0,
+    skipped: 0,
+  };
+  for (const t of tasks) {
+    const s = t.task_status as TaskStatus;
+    if (s in counts) counts[s]++;
+  }
+  return counts;
+}
+
+/**
  * Get user-specific completion status for a task.
  * Returns the status for each assigned user based on assignments and annotations.
  */

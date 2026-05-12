@@ -1,6 +1,5 @@
 import type { AnnotationTaskOut } from '~/api/client';
-
-export type TaskStatus = 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 
 export interface TaskFilter {
   assignedTo: string[];
