@@ -1,17 +1,27 @@
-import { type ReactNode } from 'react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion';
+import { useEffect, useState, type ReactNode } from 'react';
 
-// Shared motion vocabulary. Keep transitions in the 120-220ms window.
+const EXIT_DURATION_MS = 120;
 
-export const softSpring = { type: 'spring', stiffness: 380, damping: 30, mass: 0.6 } as const;
-
-export const softEase = [0.22, 1, 0.36, 1] as const;
-
-export const dropdownVariants: Variants = {
-  hidden: { opacity: 0, y: -4, scale: 0.98 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.14, ease: softEase } },
-  exit: { opacity: 0, y: -4, scale: 0.98, transition: { duration: 0.1, ease: softEase } },
+/**
+ * Keeps `children` mounted long enough to play an exit animation after
+ * `open` flips to false. Equivalent to <AnimatePresence> for a single child.
+ */
+const useDelayedUnmount = (open: boolean, exitMs = EXIT_DURATION_MS) => {
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    const t = setTimeout(() => setMounted(false), exitMs);
+    return () => clearTimeout(t);
+  }, [open, exitMs]);
+  return mounted;
 };
+
+export const FadeIn = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <div className={`motion-fade-in ${className ?? ''}`}>{children}</div>
+);
 
 export const Dropdown = ({
   open,
@@ -21,56 +31,62 @@ export const Dropdown = ({
   open: boolean;
   children: ReactNode;
   className?: string;
-}) => (
-  <AnimatePresence>
-    {open && (
-      <motion.div
-        variants={dropdownVariants}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        className={className}
-      >
+}) => {
+  const mounted = useDelayedUnmount(open);
+  if (!mounted) return null;
+  return (
+    <div className={`${open ? 'motion-dropdown-in' : 'motion-dropdown-out'} ${className ?? ''}`}>
+      {children}
+    </div>
+  );
+};
+
+/**
+ * Animated dialog wrapper. Renders nothing when `open` is false (after the
+ * exit animation completes). Pass the backdrop styling via `backdropClassName`
+ * and the panel styling via `panelClassName`.
+ */
+export const AnimatedDialog = ({
+  open,
+  children,
+  backdropClassName,
+  panelClassName,
+}: {
+  open: boolean;
+  children: ReactNode;
+  backdropClassName?: string;
+  panelClassName?: string;
+}) => {
+  const mounted = useDelayedUnmount(open);
+  if (!mounted) return null;
+  return (
+    <div
+      className={`${open ? 'motion-backdrop-in' : 'motion-backdrop-out'} ${backdropClassName ?? ''}`}
+    >
+      <div className={`${open ? 'motion-panel-in' : 'motion-panel-out'} ${panelClassName ?? ''}`}>
         {children}
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
-
-export const dialogBackdropVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.15 } },
-  exit: { opacity: 0, transition: { duration: 0.12 } },
+      </div>
+    </div>
+  );
 };
 
-export const dialogPanelVariants: Variants = {
-  hidden: { opacity: 0, y: 8, scale: 0.96 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: softSpring },
-  exit: { opacity: 0, y: 8, scale: 0.96, transition: { duration: 0.1 } },
-};
-
-export const pageFadeVariants: Variants = {
-  hidden: { opacity: 0, y: 4 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: softEase } },
-  exit: { opacity: 0, transition: { duration: 0.1 } },
-};
-
-export const FadeIn = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <motion.div variants={pageFadeVariants} initial="hidden" animate="visible" className={className}>
+/**
+ * Animate a list item with a staggered delay. Use the `index` and let CSS
+ * handle the timing.
+ */
+export const MotionListItem = ({
+  index,
+  children,
+  className,
+}: {
+  index: number;
+  children: ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={`motion-list-item ${className ?? ''}`}
+    style={{ animationDelay: `${40 + index * 30}ms` }}
+  >
     {children}
-  </motion.div>
+  </div>
 );
-
-export const listContainerVariants: Variants = {
-  hidden: {},
-  visible: {
-    transition: { staggerChildren: 0.03, delayChildren: 0.04 },
-  },
-};
-
-export const listItemVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: softEase } },
-};
-
-export { motion, AnimatePresence };

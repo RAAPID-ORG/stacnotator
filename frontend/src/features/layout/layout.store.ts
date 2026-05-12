@@ -90,7 +90,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     sidebarCollapsed: false,
     confirmDialog: null,
 
-    // Alert actions — delegated to sonner so multiple errors queue instead of clobbering.
+    // Alert actions - delegated to sonner so multiple errors queue instead of clobbering.
     showAlert: (message, type = 'info') => {
       if (type === 'error') toast.error(message);
       else if (type === 'success') toast.success(message);

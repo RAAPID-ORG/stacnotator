@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { IconPlus, IconDocument, IconGear, IconGlobe } from '~/shared/ui/Icons';
 import { Button, Input } from '~/shared/ui/forms';
-import { FadeIn, motion, listContainerVariants, listItemVariants } from '~/shared/ui/motion';
+import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -141,23 +141,18 @@ export const CampaignsPage = () => {
                   No campaigns match your filter.
                 </div>
               ) : (
-                <motion.ul
-                  className="divide-y divide-neutral-100"
-                  variants={listContainerVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {filtered.map((campaign) => (
-                    <motion.div key={campaign.id} variants={listItemVariants} layout>
+                <ul className="divide-y divide-neutral-100">
+                  {filtered.map((campaign, index) => (
+                    <MotionListItem key={campaign.id} index={index}>
                       <CampaignRow
                         campaign={campaign}
                         onAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
                         onReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
                         onSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
                       />
-                    </motion.div>
+                    </MotionListItem>
                   ))}
-                </motion.ul>
+                </ul>
               )}
             </div>
           </>

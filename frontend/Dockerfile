@@ -29,7 +29,6 @@ ENV VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID}
 
 RUN npm run build
 
-# Production stage with nginx
 FROM nginx:alpine
 
 # Install curl for health checks
