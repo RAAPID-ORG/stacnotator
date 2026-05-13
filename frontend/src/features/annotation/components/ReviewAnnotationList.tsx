@@ -176,7 +176,10 @@ export const ReviewAnnotationList = ({
   const isConflicting = currentTask.task_status === 'conflicting';
 
   return (
-    <div className="flex flex-col gap-1.5 p-3 border-b border-neutral-100 w-full">
+    <div
+      data-testid="review-list"
+      className="flex flex-col gap-1.5 p-3 border-b border-neutral-100 w-full"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
           All Annotations

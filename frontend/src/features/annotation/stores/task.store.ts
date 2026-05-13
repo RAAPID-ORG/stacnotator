@@ -464,3 +464,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     reset: () => set(initialState),
   };
 });
+
+if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+  (window as unknown as Record<string, unknown>).__TASK_STORE__ = useTaskStore;
+}
