@@ -449,6 +449,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     [confidence, setConfidence]
   );
 
+  const setConfidenceLevel = useCallback(
+    (level: number) => {
+      if (level >= 1 && level <= 5) setConfidence(level);
+    },
+    [setConfidence]
+  );
+
   // Main keydown handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -467,6 +474,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           (document.activeElement as HTMLElement)?.blur();
         }
         // Allow all other keys to work normally in inputs
+        return;
+      }
+
+      // Shift+1..5 sets confidence directly. Use e.code since shifted digit
+      // keys produce symbols (!@#$%) in e.key on most layouts.
+      if (e.shiftKey && /^Digit[1-5]$/.test(e.code)) {
+        e.preventDefault();
+        setConfidenceLevel(parseInt(e.code.slice(5), 10));
         return;
       }
 
@@ -672,6 +687,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     triggerPan,
     focusComment,
     adjustConfidence,
+    setConfidenceLevel,
     handleSubmit,
     handleSkip,
     toggleFlagForReview,

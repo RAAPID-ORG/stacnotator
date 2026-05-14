@@ -25,6 +25,8 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'I', description: 'Cycle imagery source' },
   { key: 'Shift+I', description: 'Cycle visualization' },
   { key: '1-9, 0', description: 'Select label by number' },
+  { key: 'Q / E', description: 'Decrease / Increase confidence' },
+  { key: 'Shift+1-5', description: 'Set confidence level' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
   { key: 'F', description: 'Toggle flag for review' },
