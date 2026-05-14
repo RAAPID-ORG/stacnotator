@@ -1007,7 +1007,12 @@ def _create_basemaps(
 ) -> list[Basemap]:
     created = []
     for bm in basemaps:
-        obj = Basemap(campaign_id=campaign_id, name=bm.name, url=bm.url)
+        obj = Basemap(
+            campaign_id=campaign_id,
+            name=bm.name,
+            url=bm.url,
+            max_native_zoom=bm.max_native_zoom,
+        )
         db.add(obj)
         created.append(obj)
     return created

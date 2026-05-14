@@ -234,6 +234,7 @@ export function useSliceLayers({
             layerType: 'basemap',
             urlTemplate: b.url,
             attribution: getBasemapAttribution(b.url),
+            maxZoom: b.max_native_zoom ?? undefined,
           })
       );
       for (const bm of basemaps) lm.registerLayer(bm);

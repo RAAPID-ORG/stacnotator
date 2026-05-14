@@ -262,6 +262,10 @@ class Basemap(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     url: Mapped[str] = mapped_column(Text, nullable=False)
+    # Max zoom at which the provider serves real tiles. Past this, the client
+    # upscales the deepest tile instead of requesting "no data" placeholders.
+    # Null = unlimited (no cap on tile requests).
+    max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
 
