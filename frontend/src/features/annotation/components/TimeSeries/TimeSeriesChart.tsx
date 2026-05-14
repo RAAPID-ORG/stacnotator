@@ -453,6 +453,36 @@ export const TimeSeriesChart = ({
     []
   );
 
+  // Inline plugin: muted horizontal reference lines at NDVI=0.25 and 0.75,
+  // styled to match the default y-axis gridline at 0.5.
+  const referenceLinePlugin = useMemo(
+    () => ({
+      id: 'ndviReferenceLines',
+      beforeDatasetsDraw(chart: ChartJS<'line'>) {
+        const yScale = chart.scales.y;
+        if (!yScale) return;
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+
+        ctx.save();
+        ctx.strokeStyle = '#e5e5e5';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        for (const value of [0.25, 0.75]) {
+          const y = yScale.getPixelForValue(value);
+          if (y < chartArea.top || y > chartArea.bottom) continue;
+          const snapped = Math.round(y) + 0.5;
+          ctx.moveTo(chartArea.left, snapped);
+          ctx.lineTo(chartArea.right, snapped);
+        }
+        ctx.stroke();
+        ctx.restore();
+      },
+    }),
+    []
+  );
+
   // Error state
   if (error) {
     return (
@@ -685,7 +715,7 @@ export const TimeSeriesChart = ({
         <Line
           ref={chartRef}
           data={chartData}
-          plugins={[sliceMarkerPlugin]}
+          plugins={[sliceMarkerPlugin, referenceLinePlugin]}
           options={{
             responsive: true,
             maintainAspectRatio: false,
