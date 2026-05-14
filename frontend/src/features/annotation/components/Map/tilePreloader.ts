@@ -249,6 +249,10 @@ export class TilePreloader {
     const startImg = (url: string) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
+      // Low priority so the browser/server scheduler keeps bandwidth and
+      // HTTP/2 stream priority free for user-initiated active-layer tiles
+      // (which set fetchPriority='high' in tileLoadImagery).
+      img.fetchPriority = 'low';
       let settled = false;
 
       const cancel = () => {

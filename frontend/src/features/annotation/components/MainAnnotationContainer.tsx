@@ -1,6 +1,13 @@
-import { useMemo, useState, useCallback, useRef, memo } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import TaskModeMap from './Map/TaskModeMap';
+import {
+  resolvePreloadTier,
+  resolvePreloadConcurrency,
+  getAutoPreloadTier,
+  PRELOAD_TIER_CONCURRENCY,
+} from './Map/useTilePreloading';
+import { usePreferencesStore, type PreloadMode } from '../stores/preferences.store';
 import OpenModeMap from './Map/OpenModeMap';
 import type { OpenModeMapHandle } from './Map/OpenModeMap';
 import TimelineSidebar from './TimelineSidebar';
@@ -68,8 +75,38 @@ export const MainAnnotationsContainer = ({
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
-  const preloadingEnabled = useMapStore((s) => s.preloadingEnabled);
-  const togglePreloading = useMapStore((s) => s.togglePreloading);
+
+  const preloadMode = usePreferencesStore((s) => s.preloadMode);
+  const setPreloadMode = usePreferencesStore((s) => s.setPreloadMode);
+  const autoTier = useMemo(() => getAutoPreloadTier(), []);
+  const effectiveTier = resolvePreloadTier(preloadMode);
+  const effectiveConcurrency = resolvePreloadConcurrency(preloadMode);
+  const preloadActive = effectiveConcurrency > 0;
+  const preloadTierMeta: Record<string, { label: string; dot: string }> = {
+    off: { label: 'Off', dot: 'bg-neutral-400' },
+    conservative: { label: 'Conservative', dot: 'bg-orange-500' },
+    balanced: { label: 'Balanced', dot: 'bg-yellow-500' },
+    heavy: { label: 'Heavy', dot: 'bg-green-500' },
+  };
+  const effectiveTierMeta = preloadTierMeta[effectiveTier];
+
+  const [preloadMenuOpen, setPreloadMenuOpen] = useState(false);
+  const preloadMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!preloadMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!preloadMenuRef.current?.contains(e.target as Node)) setPreloadMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreloadMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [preloadMenuOpen]);
 
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [_timelineDragging, setTimelineDragging] = useState(false);
@@ -416,31 +453,102 @@ export const MainAnnotationsContainer = ({
               )}
 
               {isTaskMode && (
-                <button
-                  onClick={togglePreloading}
-                  className={`w-6 h-6 rounded-md transition-colors flex items-center justify-center cursor-pointer ${preloadingEnabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'}`}
-                  title={
-                    preloadingEnabled
-                      ? 'Disable tile preloading (you might want to disable this if you have a slow/metered internet connection or are experiencing issues with tiles not loading). Preloading only applies to cover slices at the default zoom level. Ensure to set the default zoom level appropriately for your campaign to get the best experience.'
-                      : 'Enable tile preloading (prefetches tiles for faster navigation)'
-                  }
-                >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                <div ref={preloadMenuRef} className="relative">
+                  <button
+                    onClick={() => setPreloadMenuOpen((o) => !o)}
+                    className={`relative w-6 h-6 rounded-md transition-colors flex items-center justify-center cursor-pointer ${
+                      preloadActive
+                        ? 'bg-brand-600 text-white hover:bg-brand-700'
+                        : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'
+                    }`}
+                    title={`Tile preloading: ${effectiveTierMeta.label}${
+                      preloadMode === 'auto' ? ' (auto-tuned to your connection)' : ''
+                    }. Click to change.`}
+                    aria-haspopup="menu"
+                    aria-expanded={preloadMenuOpen}
                   >
-                    <path d="M10 2v4M10 14v4" />
-                    <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
-                    <path d="M2 10h4M14 10h4" />
-                    {!preloadingEnabled && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
-                  </svg>
-                </button>
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M10 2v4M10 14v4" />
+                      <path d="M4.93 4.93l2.83 2.83M12.24 12.24l2.83 2.83" />
+                      <path d="M2 10h4M14 10h4" />
+                      {!preloadActive && <line x1="3" y1="17" x2="17" y2="3" strokeWidth="2" />}
+                    </svg>
+                    <span
+                      className={`absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ring-1 ring-white ${effectiveTierMeta.dot}`}
+                      aria-hidden
+                    />
+                  </button>
+                  {preloadMenuOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full mt-1 z-50 min-w-[200px] rounded-md border border-neutral-200 bg-white shadow-lg py-1 text-xs"
+                    >
+                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-400">
+                        Tile preloading
+                      </div>
+                      {(
+                        [
+                          {
+                            mode: 'auto',
+                            label: 'Auto',
+                            hint: `tuned to your connection (currently ${preloadTierMeta[autoTier].label.toLowerCase()})`,
+                          },
+                          { mode: 'off', label: 'Off', hint: 'no preloading' },
+                          {
+                            mode: 'conservative',
+                            label: 'Conservative',
+                            hint: `${PRELOAD_TIER_CONCURRENCY.conservative} parallel — slow links`,
+                          },
+                          {
+                            mode: 'balanced',
+                            label: 'Balanced',
+                            hint: `${PRELOAD_TIER_CONCURRENCY.balanced} parallel — typical 4G/wifi`,
+                          },
+                          {
+                            mode: 'heavy',
+                            label: 'Heavy',
+                            hint: `${PRELOAD_TIER_CONCURRENCY.heavy} parallel — fast wired/wifi`,
+                          },
+                        ] as { mode: PreloadMode; label: string; hint: string }[]
+                      ).map((opt) => {
+                        const selected = preloadMode === opt.mode;
+                        return (
+                          <button
+                            key={opt.mode}
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            onClick={() => {
+                              setPreloadMode(opt.mode);
+                              setPreloadMenuOpen(false);
+                            }}
+                            className={`flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-neutral-100 ${
+                              selected ? 'bg-neutral-50' : ''
+                            }`}
+                          >
+                            <span className="mt-1 inline-block w-1.5 h-1.5 rounded-full flex-shrink-0">
+                              {selected && (
+                                <span className="block w-1.5 h-1.5 rounded-full bg-brand-600" />
+                              )}
+                            </span>
+                            <span className="flex-1">
+                              <span className="block text-neutral-800">{opt.label}</span>
+                              <span className="block text-[10px] text-neutral-400">{opt.hint}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {campaign.time_series.length > 0 && (

@@ -28,15 +28,25 @@ export function isSelfHostedUrl(url: string): boolean {
   return !!TILER_BASE && url.startsWith(TILER_BASE);
 }
 
-/** OL tile load function: appends the HMAC token as a query param and sets img.src. */
-export function tileLoadWithAuth(tile: ImageTile, src: string): void {
+/**
+ * OL tile load function for active-layer imagery. Hints the browser to fetch
+ * with high priority so user-initiated pan/zoom tiles aren't starved by
+ * background preloads (which set fetchPriority='low'). Appends the HMAC
+ * token for self-hosted tiles; for third-party tiles just sets src.
+ */
+export function tileLoadImagery(tile: ImageTile, src: string): void {
   const img = tile.getImage() as HTMLImageElement;
-  getTilerToken()
-    .then((token) => {
-      const sep = src.includes('?') ? '&' : '?';
-      img.src = `${src}${sep}token=${encodeURIComponent(token)}`;
-    })
-    .catch(() => {
-      img.src = '';
-    });
+  img.fetchPriority = 'high';
+  if (isSelfHostedUrl(src)) {
+    getTilerToken()
+      .then((token) => {
+        const sep = src.includes('?') ? '&' : '?';
+        img.src = `${src}${sep}token=${encodeURIComponent(token)}`;
+      })
+      .catch(() => {
+        img.src = '';
+      });
+  } else {
+    img.src = src;
+  }
 }

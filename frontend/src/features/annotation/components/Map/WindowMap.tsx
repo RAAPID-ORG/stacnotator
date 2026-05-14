@@ -24,7 +24,7 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { tileLoadWithAuth, isSelfHostedUrl } from '../../utils/tileLoading';
+import { tileLoadImagery } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -101,9 +101,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      ...(isSelfHostedUrl(tileUrl)
-        ? { tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void }
-        : {}),
+      tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
     });
 
     // Track consecutive tile-load errors vs. successes for empty-tile detection
@@ -212,9 +210,7 @@ const WindowMap = ({
       crossOrigin: 'anonymous',
       cacheSize: 256,
       transition: 0,
-      ...(isSelfHostedUrl(tileUrl)
-        ? { tileLoadFunction: tileLoadWithAuth as unknown as (tile: unknown, src: string) => void }
-        : {}),
+      tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
     });
 
     // Reset counters for the new URL
