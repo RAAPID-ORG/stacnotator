@@ -20,6 +20,7 @@ import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { usePreferencesStore, type PreloadMode } from '../../stores/preferences.store';
+import { isMobileNow } from '~/shared/utils/useIsMobile';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
 const PRIORITY_NEXT1_DEFAULT = 2;
@@ -46,10 +47,12 @@ export type PreloadTier = keyof typeof PRELOAD_TIER_CONCURRENCY;
 /**
  * Map detected network conditions to a tier. Chromium/Edge expose
  * `navigator.connection`; Safari/Firefox return undefined and we assume
- * a fast connection.
+ * a fast connection. Touch-only devices (phones/tablets) default to off
+ * so users on cellular don't burn data prefetching tiles they may never see.
  */
 export function getAutoPreloadTier(): PreloadTier {
   type NetConn = { effectiveType?: string; saveData?: boolean; downlink?: number };
+  if (isMobileNow()) return 'off';
   const conn = (navigator as Navigator & { connection?: NetConn }).connection;
   if (!conn) return 'heavy';
   if (conn.saveData) return 'off';

@@ -6,6 +6,7 @@ const SIDEBAR_TRANSITION_MS = 220;
 export const useContainerWidth = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -13,12 +14,14 @@ export const useContainerWidth = () => {
 
     let rafId: number | null = null;
     let latestWidth = 0;
+    let latestHeight = 0;
     let suspendedUntil = 0;
     let pendingSettle: ReturnType<typeof setTimeout> | null = null;
 
     const flush = () => {
       rafId = null;
       setContainerWidth(latestWidth);
+      setContainerHeight(latestHeight);
     };
 
     const scheduleFlush = () => {
@@ -28,6 +31,7 @@ export const useContainerWidth = () => {
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries[0]) return;
       latestWidth = entries[0].contentRect.width;
+      latestHeight = entries[0].contentRect.height;
       const now = performance.now();
       if (now >= suspendedUntil) {
         scheduleFlush();
@@ -60,5 +64,5 @@ export const useContainerWidth = () => {
     };
   }, []);
 
-  return { containerRef, containerWidth, isMounted };
+  return { containerRef, containerWidth, containerHeight, isMounted };
 };

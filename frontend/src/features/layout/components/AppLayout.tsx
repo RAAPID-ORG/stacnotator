@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster } from 'sonner';
@@ -29,10 +30,17 @@ export const AppLayout = () => {
     resolveConfirmDialog,
   } = useLayoutStore();
 
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   return (
-    <div className="flex h-screen w-full">
+    <div className="flex h-[100dvh] w-full">
       {!isFullscreen && (
-        <AppSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} />
+        <AppSidebar
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
+          mobileOpen={mobileSidebarOpen}
+          setMobileOpen={setMobileSidebarOpen}
+        />
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -71,7 +79,9 @@ export const AppLayout = () => {
           onCancel={() => resolveConfirmDialog(false)}
         />
 
-        {!isFullscreen && <Breadcrumbs items={breadcrumbs} />}
+        {!isFullscreen && (
+          <Breadcrumbs items={breadcrumbs} onMenuClick={() => setMobileSidebarOpen(true)} />
+        )}
 
         {/*Second ErrorBoundary to catch errors within page components*/}
         <ErrorBoundary FallbackComponent={ErrorFallback}>

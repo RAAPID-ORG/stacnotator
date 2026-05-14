@@ -14,6 +14,7 @@ import TimelineSidebar from './TimelineSidebar';
 import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
 import HeaderSelect from './Map/HeaderSelect';
+import { MobileSliceNav } from './MobileSliceNav';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
@@ -634,6 +635,8 @@ export const MainAnnotationsContainer = ({
             probePoint={timeseriesPoint}
           />
         )}
+
+        <MobileSliceNav />
       </div>
     </div>
   );
