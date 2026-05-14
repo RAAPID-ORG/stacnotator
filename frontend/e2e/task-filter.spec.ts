@@ -63,7 +63,7 @@ test.describe('Task Status Filtering', () => {
     await filterBtn.click();
     await waitForNavIdle(page);
 
-    // GoTo input accepts TASK_3's annotation_number now (#3) — it was hidden
+    // GoTo input accepts TASK_3's annotation_number now (#3) - it was hidden
     // under the default pending-only filter.
     await gotoInput(page).fill(TASK_3.annotation_number.toString());
     await gotoInput(page).press('Enter');

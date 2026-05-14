@@ -37,7 +37,7 @@ async function readGoToValue(page: Page): Promise<string> {
 }
 
 async function selectAndSubmit(page: Page, digit = '1') {
-  // Make sure the previous navigation cycle has finished — otherwise
+  // Make sure the previous navigation cycle has finished - otherwise
   // `isNavigating` swallows the Enter keypress and no submit fires.
   await waitForNavIdle(page);
   await page.keyboard.press(digit);
@@ -302,7 +302,7 @@ test.describe('Submit auto-advance', () => {
     assertTilesFetchedForTask(api.requests, 0, TASK_2.id, 'auto-advance tiles');
 
     // Wait for the auto-advance navigation debounce to clear before
-    // pressing keys — otherwise the keyboard hook drops Enter while
+    // pressing keys - otherwise the keyboard hook drops Enter while
     // isNavigating is true and no submit fires.
     await waitNavSettled(page);
 
@@ -590,7 +590,7 @@ test.describe('Chaos scenarios', () => {
     await waitNavSettled(page);
     await assertCrosshairAt(page, 400, 'review: after s');
 
-    // Toggle review off — the off-handler calls setTaskFilter({}) which
+    // Toggle review off - the off-handler calls setTaskFilter({}) which
     // reapplies the (preserved) review-mode filter via applyTaskFilter with
     // no preferTaskId, so suggestedIndex=0 → back to TASK_3.
     await page.locator('[data-tour="review-toggle"] button').first().click();

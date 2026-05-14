@@ -133,7 +133,7 @@ test.describe('Flag for review', () => {
       .locator('textarea[placeholder^="Why are you flagging"]')
       .fill('Will undo this');
 
-    // Toggle the flag off via the button. We can't press F again here —
+    // Toggle the flag off via the button. We can't press F again here -
     // focus is on the flag textarea, so F would just insert the letter.
     // The button's title varies with state; both forms include
     // "reviewer attention".

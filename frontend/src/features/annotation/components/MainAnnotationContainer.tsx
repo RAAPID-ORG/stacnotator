@@ -506,17 +506,17 @@ export const MainAnnotationsContainer = ({
                           {
                             mode: 'conservative',
                             label: 'Conservative',
-                            hint: `${PRELOAD_TIER_CONCURRENCY.conservative} parallel — slow links`,
+                            hint: `${PRELOAD_TIER_CONCURRENCY.conservative} parallel - slow links`,
                           },
                           {
                             mode: 'balanced',
                             label: 'Balanced',
-                            hint: `${PRELOAD_TIER_CONCURRENCY.balanced} parallel — typical 4G/wifi`,
+                            hint: `${PRELOAD_TIER_CONCURRENCY.balanced} parallel - typical 4G/wifi`,
                           },
                           {
                             mode: 'heavy',
                             label: 'Heavy',
-                            hint: `${PRELOAD_TIER_CONCURRENCY.heavy} parallel — fast wired/wifi`,
+                            hint: `${PRELOAD_TIER_CONCURRENCY.heavy} parallel - fast wired/wifi`,
                           },
                         ] as { mode: PreloadMode; label: string; hint: string }[]
                       ).map((opt) => {

@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -72,6 +73,9 @@ export const TimeSeriesChart = ({
   const [smoothOrder, setSmoothOrder] = useState(3);
   const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoBtnRef = useRef<HTMLButtonElement>(null);
+  const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
 
   const handleResetZoom = useCallback(() => {
     chartRef.current?.resetZoom();
@@ -520,11 +524,31 @@ export const TimeSeriesChart = ({
         </div>
       )}
 
-      {/* Header with Legend and Controls.
-          NOTE: `overflow-visible` (not hidden) so the info-button tooltip
-          below the controls can extend past the header without being clipped. */}
-      <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap overflow-visible">
+      {/* Header with Legend and Controls. */}
+      <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <button
+            ref={infoBtnRef}
+            type="button"
+            className="flex items-center justify-center w-4 h-4 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors flex-shrink-0"
+            aria-label="Time series legend explanation"
+            onMouseEnter={() => {
+              const r = infoBtnRef.current?.getBoundingClientRect();
+              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
+              setInfoOpen(true);
+            }}
+            onMouseLeave={() => setInfoOpen(false)}
+            onFocus={() => {
+              const r = infoBtnRef.current?.getBoundingClientRect();
+              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
+              setInfoOpen(true);
+            }}
+            onBlur={() => setInfoOpen(false)}
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM7.25 11V7h1.5v4h-1.5zm0-5.5V4h1.5v1.5h-1.5z" />
+            </svg>
+          </button>
           {timeseries.map((ts, index) => {
             const color = COLORS[index % COLORS.length];
             const isHidden = hiddenDatasets.has(index);
@@ -683,46 +707,6 @@ export const TimeSeriesChart = ({
               />
             </div>
           </label>
-
-          {/* Info affordance — visible on the right of the controls so users
-              know where to find an explanation of dot colors + each toggle. */}
-          <div className="relative group flex-shrink-0">
-            <button
-              type="button"
-              className="flex items-center justify-center w-4 h-4 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-help"
-              aria-label="Time series legend explanation"
-            >
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM7.25 11V7h1.5v4h-1.5zm0-5.5V4h1.5v1.5h-1.5z" />
-              </svg>
-            </button>
-            <div className="absolute top-full right-0 mt-1 w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 z-50 text-left space-y-1.5">
-              <p>
-                Each dot is one observation.{' '}
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-600 mx-0.5 align-middle" />
-                <strong>Colored dots</strong> are clear-day observations (one color per series).{' '}
-                <span
-                  className="inline-block w-1.5 h-1.5 rounded-full mx-0.5 align-middle"
-                  style={{ background: 'rgb(162, 159, 155)' }}
-                />
-                <strong>Gray dots</strong> are observations flagged as cloudy by Cloud Score+ (S2)
-                or SCL (others).
-              </p>
-              <p>
-                <strong>Remove cloudy</strong> drops the gray observations from both the raw series
-                and the smoothed line.
-              </p>
-              <p>
-                <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
-                the filter will pull the smoothed line toward them — usually you want Remove cloudy
-                + Smooth on together.
-              </p>
-              <p>
-                <strong>Dots</strong> toggles whether the per-observation markers are drawn.
-              </p>
-              <div className="absolute bottom-full right-1 border-4 border-transparent border-b-neutral-800" />
-            </div>
-          </div>
         </div>
       </div>
 
@@ -814,6 +798,43 @@ export const TimeSeriesChart = ({
           }}
         />
       </div>
+
+      {infoOpen &&
+        infoPos &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[10000] w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg space-y-1.5"
+            style={{
+              top: infoPos.top,
+              left: Math.min(infoPos.left, window.innerWidth - 296),
+            }}
+          >
+            <p>
+              Each dot is one observation.{' '}
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-600 mx-0.5 align-middle" />
+              <strong>Colored dots</strong> are clear-day observations (one color per series).{' '}
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full mx-0.5 align-middle"
+                style={{ background: CLOUDY_DOT_COLOR }}
+              />
+              <strong>Gray dots</strong> are observations flagged as cloudy by Cloud Score+ (S2) or
+              SCL (others).
+            </p>
+            <p>
+              <strong>Remove cloudy</strong> drops the gray observations from both the raw series
+              and the smoothed line.
+            </p>
+            <p>
+              <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
+              the filter will pull the smoothed line toward them — usually you want Remove cloudy +
+              Smooth on together.
+            </p>
+            <p>
+              <strong>Dots</strong> toggles whether the per-observation markers are drawn.
+            </p>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

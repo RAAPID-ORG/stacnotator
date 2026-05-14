@@ -22,7 +22,7 @@ const enterReviewMode = async (page: import('@playwright/test').Page) => {
  * Step through the visible task list with `s` until the GoTo input reads
  * the target annotation_number. Used instead of typing into the GoTo input
  * because that field is bounded by visibleTasks.length, not the highest
- * annotation_number — so e.g. GoTo 5 silently fails when the filter shows
+ * annotation_number - so e.g. GoTo 5 silently fails when the filter shows
  * only 3 tasks.
  */
 const navigateTo = async (page: import('@playwright/test').Page, annotationNumber: number) => {
@@ -120,7 +120,7 @@ test.describe('Review-mode list display', () => {
     await enterReviewMode(page);
     await expect(page.getByTestId('review-list')).toBeVisible();
 
-    // Toggle review off — the list disappears immediately even though the
+    // Toggle review off - the list disappears immediately even though the
     // task list itself is preserved (filter keeps its statuses/assignedTo).
     await page.locator('[data-tour="review-toggle"] button').first().click();
     await waitForNavIdle(page);

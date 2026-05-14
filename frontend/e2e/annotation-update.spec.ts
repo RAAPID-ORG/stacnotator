@@ -89,7 +89,7 @@ test.describe('Remove Label', () => {
     // First click on the already-selected forest button deselects it.
     await page.locator('button', { hasText: 'Forest' }).first().click();
 
-    // Clearing comment too — having a comment falls back to POST instead of DELETE.
+    // Clearing comment too - having a comment falls back to POST instead of DELETE.
     const commentArea = page.locator('textarea[placeholder^="Add a comment"]');
     await commentArea.fill('');
 

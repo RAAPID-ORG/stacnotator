@@ -28,7 +28,7 @@ const SettingsPage = lazy(() =>
   import('src/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
 
-// Inline, calm fallback — sits within the AppLayout outlet so the sidebar
+// Inline, calm fallback - sits within the AppLayout outlet so the sidebar
 // and breadcrumbs stay visible. A small spinner is less jarring than a
 // fullscreen takeover while a chunk fetches.
 const RouteFallback = () => (

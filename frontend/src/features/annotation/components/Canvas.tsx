@@ -197,11 +197,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       skipped: 'bg-violet-500',
     };
 
-    const progressPct =
-      totalTasksForCounter > 0
-        ? Math.round((completedTasksForCounter / totalTasksForCounter) * 100)
-        : 0;
-
     return (
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
@@ -246,7 +241,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               </span>{' '}
               of <span className="tabular-nums">{totalTasksForCounter}</span> done
             </span>
-            <span className="text-[11px] text-neutral-400 tabular-nums">· {progressPct}%</span>
           </div>
         ) : (
           !showBasemap &&
