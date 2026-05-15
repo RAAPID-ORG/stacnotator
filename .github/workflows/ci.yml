@@ -186,3 +186,38 @@ jobs:
 
       - name: Build frontend image
         run: docker build -t stacnotator-frontend:ci ./frontend
+
+  # Deploy to Azure production  (main only, push events only)
+  deploy-prod:
+    name: "Deploy: Azure Production"
+    needs: [backend-test, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, azure]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Azure Login via OIDC (prod identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_PROD }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Deploy to Azure
+        env:
+          CI: "true"
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP_PROD }}
+          EE_SERVICE_ACCOUNT: ${{ vars.EE_SERVICE_ACCOUNT_PROD }}
+          CUSTOM_DOMAINS: ${{ vars.CUSTOM_DOMAINS_PROD }}
+        run: ./azure_deploy/deploy-app.sh prod
