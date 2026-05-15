@@ -826,7 +826,7 @@ export const TimeSeriesChart = ({
             </p>
             <p>
               <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
-              the filter will pull the smoothed line toward them — usually you want Remove cloudy +
+              the filter will pull the smoothed line toward them - usually you want Remove cloudy +
               Smooth on together.
             </p>
             <p>

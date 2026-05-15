@@ -1,3 +1,4 @@
+import logging
 import re
 import unicodedata
 from datetime import datetime
@@ -8,6 +9,7 @@ from fastapi.routing import APIRoute
 from src.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -214,27 +216,35 @@ class FunctionNameOperationIdRoute(APIRoute):
 # ============================================================================
 
 
-def initialize_earth_engine():
+def initialize_earth_engine() -> bool:
     """
-    Initialize EarthEngine using a service Account
-    Supports both EE_PRIVATE_KEY_PATH (file path) and EE_PRIVATE_KEY (direct key content)
+    Initialize EarthEngine using a service account.
+
+    Returns True if initialized, False if EE is unconfigured or init failed.
+    Enables usage without EE creeedentials- only EE-dependent endpoints
+    (timeseries, embeddings) will fail at call time with a clearer error
+    than a startup crash.
     """
     service_account = settings.EE_SERVICE_ACCOUNT
     private_key_path = settings.EE_PRIVATE_KEY_PATH
     private_key = settings.EE_PRIVATE_KEY
 
-    if not service_account:
-        raise RuntimeError("Environment variable EE_SERVICE_ACCOUNT must be set")
-
-    if not private_key_path and not private_key:
-        raise RuntimeError(
-            "Either EE_PRIVATE_KEY_PATH or EE_PRIVATE_KEY environment variable must be set"
+    if not service_account or (not private_key_path and not private_key):
+        logger.warning(
+            "Earth Engine not configured (EE_SERVICE_ACCOUNT and "
+            "EE_PRIVATE_KEY[_PATH] required); EE-dependent features disabled"
         )
+        return False
 
-    # Use direct key content if available, otherwise use file path
-    if private_key:
-        credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
-    else:
-        credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
-
-    ee.Initialize(credentials)
+    try:
+        if private_key:
+            credentials = ee.ServiceAccountCredentials(service_account, key_data=private_key)
+        else:
+            credentials = ee.ServiceAccountCredentials(service_account, private_key_path)
+        ee.Initialize(credentials)
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Earth Engine initialization failed (%s); EE-dependent features disabled", exc
+        )
+        return False

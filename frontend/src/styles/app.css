@@ -2,7 +2,7 @@
 @import 'leaflet/dist/leaflet.css';
 @import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
-/* `mobile:` matches touch devices regardless of orientation — phones in
+/* `mobile:` matches touch devices regardless of orientation - phones in
    landscape still get the compact UI. `desktop:` is its inverse. Prefer these
    over width-based `sm:` for layout choices driven by input modality
    (e.g. hiding text next to icons because we have no hover affordance). */

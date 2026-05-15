@@ -26,6 +26,8 @@ nano .env
 ```
 
 The defaults in `.env.example` already use `AUTH_PROVIDER=local`. You might want to add the earth-engine credentials for timeseries functionality.
+You can find instructions on how to setup a earth-engine Service account [here](https://developers.google.com/earth-engine/guides/service_account).
+Please aware that if you create a campaign with embeddings-support activated or with timeseries, this might lead to errors, if no EE credentials are provided.
 
 **Step 2 - Initialize & Start**
 
@@ -76,6 +78,8 @@ For timeseries features, also set these in your `.env`:
 |---|---|
 | `EE_SERVICE_ACCOUNT` | Email address of your Google Earth Engine service account |
 | `EE_PRIVATE_KEY_PATH_HOST` | Path to the GEE service account private key file |
+
+You can find instructions on how to setup a GEE Service account [here](https://developers.google.com/earth-engine/guides/service_account).
 
 **Step 2 - Create a Firebase User**
 
@@ -141,7 +145,7 @@ stacnotator/
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
-- 4GB+ RAM (If using AI modules GPU required!)
+- 4GB+ RAM (If using segment anything module - a GPU will be required! - currently not maintained)
 - Firebase credentials file (only if using `AUTH_PROVIDER=firebase`)
 
 ## Architecture
