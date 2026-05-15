@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '~/app/providers/AuthProvider';
 import { useAccountStore } from '~/features/account/account.store';
 import { authManager, AUTH_PROVIDERS } from '~/features/auth/index';
 

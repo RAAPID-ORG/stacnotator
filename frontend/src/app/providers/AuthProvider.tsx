@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { authManager } from '~/features/auth';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 
@@ -10,11 +10,10 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Exposes { auth, loggedIn } via context.
- * Waits for Firebase to resolve any persisted session before rendering children,
- * so we don't briefly flash the login screen.
+ * Renders a spinner until the auth manager resolves any persisted session,
+ * so we don't briefly flash the login screen on reload.
  */
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loggedIn, setLoggedIn] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -29,13 +28,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return <LoadingSpinner fullScreen size="lg" />;
   }
 
-  return (
-    <AuthContext.Provider value={{ auth: authManager, loggedIn }}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext value={{ auth: authManager, loggedIn }}>{children}</AuthContext>;
 };
 
-export const useAuthContext = () => {
+export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuthContext must be used within <AuthProvider>');
+  if (!ctx) throw new Error('useAuth must be used within <AuthProvider>');
   return ctx;
 };

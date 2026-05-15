@@ -18,6 +18,7 @@ import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
@@ -112,16 +113,14 @@ export const CampaignSettingsPage = () => {
         setImagery(data!.imagery_sources);
         setTimeseries(data!.time_series);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load campaign';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load campaign');
       } finally {
         setLoading(false);
       }
     };
 
     loadCampaign();
-  }, [campaignId, numericCampaignId, showAlert]);
+  }, [campaignId, numericCampaignId]);
 
   // Poll while any background work is in progress
   const isAnyRegistering =
@@ -167,13 +166,12 @@ export const CampaignSettingsPage = () => {
         });
         setAnnotationTasks(data!.tasks);
       } catch (err) {
-        console.error('Failed to load annotation tasks', err);
-        showAlert('Failed to load annotation tasks', 'error');
+        handleError(err, 'Failed to load annotation tasks');
       }
     };
 
     loadTasks();
-  }, [activeTab, numericCampaignId, annotationTasks.length, showAlert]);
+  }, [activeTab, numericCampaignId, annotationTasks.length]);
 
   // Load campaign users when users or tasks tab is active.
   // Re-fetches every time the tab becomes active so changes made in the
@@ -188,13 +186,12 @@ export const CampaignSettingsPage = () => {
         });
         setCampaignUsers(data!.users);
       } catch (err) {
-        console.error('Failed to load campaign users', err);
-        showAlert('Failed to load campaign users', 'error');
+        handleError(err, 'Failed to load campaign users');
       }
     };
 
     loadUsers();
-  }, [activeTab, numericCampaignId, showAlert]);
+  }, [activeTab, numericCampaignId]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -210,9 +207,7 @@ export const CampaignSettingsPage = () => {
 
       showAlert('Campaign name updated successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save campaign name';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to save campaign name');
       setCampaignName(campaign.name);
     } finally {
       setSaving(false);
@@ -237,16 +232,14 @@ export const CampaignSettingsPage = () => {
 
       showAlert('Campaign settings updated successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to save settings';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to save settings');
 
       // Reload campaign to revert changes on error
       try {
         const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
         setCampaign(data!);
       } catch (reloadErr) {
-        console.error('Failed to reload campaign after error', reloadErr);
+        handleError(reloadErr, 'Failed to reload campaign after error', { showUser: false });
       }
     } finally {
       setSaving(false);
@@ -271,9 +264,7 @@ export const CampaignSettingsPage = () => {
       setDeleteConfirm(null);
       showAlert('Imagery source deleted successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete imagery source';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to delete imagery source');
     } finally {
       setSaving(false);
     }
@@ -297,9 +288,7 @@ export const CampaignSettingsPage = () => {
       setDeleteConfirm(null);
       showAlert('Timeseries deleted successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete timeseries';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to delete timeseries');
     } finally {
       setSaving(false);
     }
@@ -321,9 +310,7 @@ export const CampaignSettingsPage = () => {
       // Navigate to campaigns list after successful deletion
       navigate('/campaigns');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete campaign';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to delete campaign');
     } finally {
       setSaving(false);
     }
@@ -356,9 +343,7 @@ export const CampaignSettingsPage = () => {
       });
       setAnnotationTasks(tasksData!.tasks);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to upload annotation tasks';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to upload annotation tasks');
     } finally {
       setUploadingTasks(false);
     }
@@ -374,7 +359,7 @@ export const CampaignSettingsPage = () => {
       });
       setAnnotationTasks(tasksData!.tasks);
     } catch (err) {
-      console.error('Failed to reload annotation tasks', err);
+      handleError(err, 'Failed to reload annotation tasks', { showUser: false });
     }
   };
 
@@ -397,9 +382,7 @@ export const CampaignSettingsPage = () => {
       setNewTimeseries([]);
       showAlert(`${data!.new_items.length} timeseries added successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add timeseries';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to add timeseries');
     } finally {
       setSaving(false);
     }
@@ -420,9 +403,7 @@ export const CampaignSettingsPage = () => {
 
       showAlert('Task assigned successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign task';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to assign task');
       throw err;
     }
   };
@@ -445,9 +426,7 @@ export const CampaignSettingsPage = () => {
 
       showAlert('User unassigned successfully', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to unassign user';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to unassign user');
       throw err;
     }
   };
@@ -475,9 +454,7 @@ export const CampaignSettingsPage = () => {
       showAlert(`${Object.keys(assignments).length} task(s) assigned successfully`, 'success');
       setShowAssignmentModal(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign tasks';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to assign tasks');
       throw err;
     } finally {
       setSaving(false);
@@ -526,9 +503,7 @@ export const CampaignSettingsPage = () => {
 
       setShowReviewerModal(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to assign reviewers';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to assign reviewers');
       throw err;
     } finally {
       setSaving(false);
@@ -556,9 +531,7 @@ export const CampaignSettingsPage = () => {
 
       showAlert(`Unassigned all users from ${taskIds.length} task(s)`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to unassign tasks';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to unassign tasks');
       throw err;
     } finally {
       setSaving(false);
@@ -584,9 +557,7 @@ export const CampaignSettingsPage = () => {
 
       showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete tasks';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to delete tasks');
       throw err;
     } finally {
       setSaving(false);

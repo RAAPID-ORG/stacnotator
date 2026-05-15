@@ -2,6 +2,13 @@
 @import 'leaflet/dist/leaflet.css';
 @import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
+/* `mobile:` matches touch devices regardless of orientation - phones in
+   landscape still get the compact UI. `desktop:` is its inverse. Prefer these
+   over width-based `sm:` for layout choices driven by input modality
+   (e.g. hiding text next to icons because we have no hover affordance). */
+@custom-variant mobile (@media (hover: none) and (pointer: coarse));
+@custom-variant desktop (@media (hover: hover) and (pointer: fine));
+
 @theme {
   /* Canvas - the neutral page background that everything else sits on.
      Same value as --color-neutral-50 so plain `bg-neutral-50` code still
@@ -631,4 +638,121 @@ input[type='range'] {
 .markdown-body li:has(> input[type='checkbox']) {
   list-style-type: none;
   margin-left: -1.25rem;
+}
+
+@keyframes motion-page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes motion-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes motion-dropdown-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@keyframes motion-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes motion-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes motion-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes motion-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+@keyframes motion-list-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.motion-fade-in {
+  animation: motion-page-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.motion-dropdown-in {
+  animation: motion-dropdown-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+}
+.motion-dropdown-out {
+  animation: motion-dropdown-out 100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+}
+.motion-backdrop-in {
+  animation: motion-backdrop-in 150ms ease-out both;
+}
+.motion-backdrop-out {
+  animation: motion-backdrop-out 120ms ease-in both;
+}
+.motion-panel-in {
+  animation: motion-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.motion-panel-out {
+  animation: motion-panel-out 100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.motion-list-item {
+  animation: motion-list-item-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Per-item delay set via `style={{ animationDelay: ... }}`. */
+}
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade-in,
+  .motion-dropdown-in,
+  .motion-dropdown-out,
+  .motion-backdrop-in,
+  .motion-backdrop-out,
+  .motion-panel-in,
+  .motion-panel-out,
+  .motion-list-item {
+    animation: none;
+  }
 }

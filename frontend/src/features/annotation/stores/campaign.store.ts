@@ -10,7 +10,7 @@ import {
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import { handleApiError } from '~/shared/utils/errorHandler';
+import { handleError } from '~/shared/utils/errorHandler';
 import { useMapStore } from './map.store';
 import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
@@ -179,9 +179,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         await useAnnotationStore.getState().loadAnnotations(campaignId);
       }
     } catch (error) {
-      handleApiError(error, 'Campaign load error', {
-        defaultMessage: 'Failed to load campaign',
-      });
+      handleError(error, 'Failed to load campaign');
       set({ isLoadingCampaign: false });
     }
   },
@@ -225,7 +223,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const res = await getKnnValidationStatus({ path: { campaign_id: campaign.id } });
       if (res.data) set({ knnValidationStatus: res.data });
     } catch (error) {
-      console.warn('Failed to refresh KNN validation status', error);
+      handleError(error, 'Failed to refresh KNN validation status', {
+        showUser: false,
+        alertType: 'warning',
+      });
     }
   },
 
@@ -265,9 +266,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       useLayoutStore.getState().showAlert(`Layout saved successfully as ${layoutType}`, 'success');
       set({ savedLayout: currentLayout, isEditingLayout: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save layout';
-      useLayoutStore.getState().showAlert(message, 'error');
-      console.error('Save layout error:', error);
+      handleError(error, 'Failed to save layout');
     }
   },
 

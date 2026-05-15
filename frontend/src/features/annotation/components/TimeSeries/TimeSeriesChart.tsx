@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -18,6 +19,7 @@ import {
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
@@ -46,6 +48,11 @@ interface TimeSeriesChartProps {
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#22d3ee'];
 
+/** Neutral gray used for cloud-flagged observations, regardless of which
+ *  series the dot belongs to. Picked from the design's neutral-400 scale so
+ *  it reads as "lesser quality" without competing with any series color. */
+const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
+
 export const TimeSeriesChart = ({
   timeseries,
   latLon,
@@ -59,12 +66,16 @@ export const TimeSeriesChart = ({
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [removeCloudy, setRemoveCloudy] = useState(false);
+  const [showDots, setShowDots] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const [smoothEnabled, setSmoothEnabled] = useState(false);
   const [smoothWindow, setSmoothWindow] = useState(7);
   const [smoothOrder, setSmoothOrder] = useState(3);
   const [hiddenDatasets, setHiddenDatasets] = useState<Set<number>>(new Set());
   const [isZoomed, setIsZoomed] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoBtnRef = useRef<HTMLButtonElement>(null);
+  const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
 
   const handleResetZoom = useCallback(() => {
     chartRef.current?.resetZoom();
@@ -111,7 +122,7 @@ export const TimeSeriesChart = ({
         }
       })
       .catch((err) => {
-        console.error('Failed to load time series data:', err);
+        handleError(err, 'Failed to load time series data', { showUser: false });
         if (!cancelled) {
           setData(null);
           setError(err instanceof Error ? err : new Error('Unknown error'));
@@ -157,7 +168,7 @@ export const TimeSeriesChart = ({
         }
       })
       .catch((err) => {
-        console.error('Failed to load probe time series data:', err);
+        handleError(err, 'Failed to load probe time series data', { showUser: false });
         if (!cancelled) {
           setProbeData(null);
         }
@@ -237,7 +248,11 @@ export const TimeSeriesChart = ({
     // Get optimal month labels for x-axis
     const monthLabels = getOptimalMonthLabels(labels);
 
-    // Create datasets for main task point
+    // Every observation is a small filled dot. Clear-day dots use the series
+    // color; cloud-flagged dots use neutral gray so the difference reads at a
+    // glance without competing with the line colors. When `showDots` is off,
+    // dots are hidden entirely (the line still draws).
+    const dotRadius = showDots ? 1.5 : 0;
     const datasets: Array<{
       label: string;
       data: (number | null)[];
@@ -272,18 +287,18 @@ export const TimeSeriesChart = ({
         pointRadius: labels.map((time) => {
           const row = rowMap.get(time);
           if (!row) return 0;
-          if (!removeCloudy && row.cloud === 1) return 1.5;
-          return 0;
+          if (removeCloudy && row.cloud === 1) return 0;
+          return dotRadius;
         }),
         pointBackgroundColor: labels.map((time) => {
           const row = rowMap.get(time);
           if (!row) return color;
-          return row.cloud === 1 ? '#ef4444' : color;
+          return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
         }),
         pointBorderColor: labels.map((time) => {
           const row = rowMap.get(time);
           if (!row) return color;
-          return row.cloud === 1 ? '#ef4444' : color;
+          return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
         }),
         tension: 0.1,
         spanGaps: true,
@@ -318,18 +333,18 @@ export const TimeSeriesChart = ({
           pointRadius: labels.map((time) => {
             const row = rowMap.get(time);
             if (!row) return 0;
-            if (!removeCloudy && row.cloud === 1) return 1.5;
-            return 0;
+            if (removeCloudy && row.cloud === 1) return 0;
+            return dotRadius;
           }),
           pointBackgroundColor: labels.map((time) => {
             const row = rowMap.get(time);
             if (!row) return color;
-            return row.cloud === 1 ? '#ef4444' : color;
+            return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
           }),
           pointBorderColor: labels.map((time) => {
             const row = rowMap.get(time);
             if (!row) return color;
-            return row.cloud === 1 ? '#ef4444' : color;
+            return row.cloud === 1 ? CLOUDY_DOT_COLOR : color;
           }),
           tension: 0.1,
           spanGaps: true,
@@ -344,6 +359,7 @@ export const TimeSeriesChart = ({
     probeData,
     timeseries,
     removeCloudy,
+    showDots,
     smoothEnabled,
     smoothWindow,
     smoothOrder,
@@ -388,7 +404,7 @@ export const TimeSeriesChart = ({
       }
     }
     if (startIdx === -1) {
-      // No labels strictly inside the slice — snap to the nearest single label
+      // No labels strictly inside the slice - snap to the nearest single label
       let nearest = 0;
       let bestDist = Infinity;
       const center = (sliceStart + sliceEnd) / 2;
@@ -538,32 +554,31 @@ export const TimeSeriesChart = ({
         </div>
       )}
 
-      {/* Header with Legend and Controls */}
-      <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap overflow-hidden">
-        {/* Legend (click to toggle traces, hover for the cloud-dot +
-            savgol explanation). Tooltip is attached to the whole legend
-            block so every legend item triggers it. */}
-        <div className="relative group flex items-center gap-2 flex-wrap min-w-0">
-          {/* Explanatory tooltip - shown whenever the user lingers on the
-              legend, which is where they're already looking to read dataset
-              names. Explains the red dots + how the two filters interact. */}
-          <div className="absolute top-full left-0 mt-1 w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 text-left space-y-1.5">
-            <p>
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 align-middle" />
-              <strong>Red dots</strong> are days flagged as cloudy on this point by Cloud Score+
-              (S2) or SCL (others).
-            </p>
-            <p>
-              <strong>Remove cloudy</strong> drops those observations from both the raw series and
-              the smoothed line.
-            </p>
-            <p>
-              <strong>Smooth</strong> fits a Savitzky-Golay filter over whatever remains. If you
-              leave cloudy points in, the filter will pull the smoothed line toward them - usually
-              you want both toggles on together.
-            </p>
-            <div className="absolute bottom-full left-3 border-4 border-transparent border-b-neutral-800" />
-          </div>
+      {/* Header with Legend and Controls. */}
+      <div className="flex justify-between items-start mb-1 flex-shrink-0 gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <button
+            ref={infoBtnRef}
+            type="button"
+            className="flex items-center justify-center w-4 h-4 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors flex-shrink-0"
+            aria-label="Time series legend explanation"
+            onMouseEnter={() => {
+              const r = infoBtnRef.current?.getBoundingClientRect();
+              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
+              setInfoOpen(true);
+            }}
+            onMouseLeave={() => setInfoOpen(false)}
+            onFocus={() => {
+              const r = infoBtnRef.current?.getBoundingClientRect();
+              if (r) setInfoPos({ top: r.bottom + 4, left: r.left });
+              setInfoOpen(true);
+            }}
+            onBlur={() => setInfoOpen(false)}
+          >
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM7.25 11V7h1.5v4h-1.5zm0-5.5V4h1.5v1.5h-1.5z" />
+            </svg>
+          </button>
           {timeseries.map((ts, index) => {
             const color = COLORS[index % COLORS.length];
             const isHidden = hiddenDatasets.has(index);
@@ -626,14 +641,14 @@ export const TimeSeriesChart = ({
           <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
             <span
               className="text-[10px] text-neutral-600"
-              title="Removes days with clouds on the point (red dots)"
+              title="Removes cloud-flagged days (shown as gray dots) from the series"
             >
               Remove cloudy
             </span>
             <div
               className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-600' : 'bg-neutral-300'}`}
               onClick={() => setRemoveCloudy(!removeCloudy)}
-              title="Removes days with clouds on the point (red dots)"
+              title="Removes cloud-flagged days (shown as gray dots) from the series"
             >
               <div
                 className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
@@ -704,6 +719,24 @@ export const TimeSeriesChart = ({
               </div>
             )}
           </div>
+
+          <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
+            <span
+              className="text-[10px] text-neutral-600"
+              title="Show or hide the per-observation dots (line is always shown)"
+            >
+              Dots
+            </span>
+            <div
+              className={`relative w-6 h-3.5 rounded-full transition-colors ${showDots ? 'bg-brand-600' : 'bg-neutral-300'}`}
+              onClick={() => setShowDots(!showDots)}
+              title="Show or hide the per-observation dots (line is always shown)"
+            >
+              <div
+                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${showDots ? 'translate-x-3' : 'translate-x-0.5'}`}
+              />
+            </div>
+          </label>
         </div>
       </div>
 
@@ -795,6 +828,43 @@ export const TimeSeriesChart = ({
           }}
         />
       </div>
+
+      {infoOpen &&
+        infoPos &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[10000] w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg space-y-1.5"
+            style={{
+              top: infoPos.top,
+              left: Math.min(infoPos.left, window.innerWidth - 296),
+            }}
+          >
+            <p>
+              Each dot is one observation.{' '}
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-600 mx-0.5 align-middle" />
+              <strong>Colored dots</strong> are clear-day observations (one color per series).{' '}
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full mx-0.5 align-middle"
+                style={{ background: CLOUDY_DOT_COLOR }}
+              />
+              <strong>Gray dots</strong> are observations flagged as cloudy by Cloud Score+ (S2) or
+              SCL (others).
+            </p>
+            <p>
+              <strong>Remove cloudy</strong> drops the gray observations from both the raw series
+              and the smoothed line.
+            </p>
+            <p>
+              <strong>Smooth</strong> fits a Savitzky-Golay filter. If you leave cloudy points in,
+              the filter will pull the smoothed line toward them - usually you want Remove cloudy +
+              Smooth on together.
+            </p>
+            <p>
+              <strong>Dots</strong> toggles whether the per-observation markers are drawn.
+            </p>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

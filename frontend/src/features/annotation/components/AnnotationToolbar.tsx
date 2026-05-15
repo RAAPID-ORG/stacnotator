@@ -8,6 +8,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
+import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconFlag } from '~/shared/ui/Icons';
 
@@ -24,6 +25,8 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'I', description: 'Cycle imagery source' },
   { key: 'Shift+I', description: 'Cycle visualization' },
   { key: '1-9, 0', description: 'Select label by number' },
+  { key: 'Q / E', description: 'Decrease / Increase confidence' },
+  { key: 'Shift+1-5', description: 'Set confidence level' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
   { key: 'F', description: 'Toggle flag for review' },
@@ -495,9 +498,7 @@ export const AnnotationToolbar = () => {
       document.body.removeChild(a);
       showAlert(`Annotations exported as ${format.toUpperCase()}`, 'success');
     } catch (err) {
-      console.error('Export failed:', err);
-      const message = err instanceof Error ? err.message : 'Failed to export annotations';
-      showAlert(message, 'error');
+      handleError(err, 'Failed to export annotations');
     } finally {
       setExporting(null);
     }
@@ -506,22 +507,30 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0"
+      className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1 overflow-x-auto"
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5 desktop:gap-2">
         {/* Views Dropdown */}
         <div className="relative" ref={imageryDropdownRef} data-tour="imagery-selector">
           <button
             onClick={() => setShowImageryDropdown(!showImageryDropdown)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
+            className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
             type="button"
-            title="Switch View (v)"
+            title={selectedView ? `View: ${selectedView.name}` : 'Switch View (v)'}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M3.5 3C2.67157 3 2 3.67157 2 4.5V15.5C2 16.3284 2.67157 17 3.5 17H16.5C17.3284 17 18 16.3284 18 15.5V4.5C18 3.67157 17.3284 3 16.5 3H3.5ZM3 4.5C3 4.22386 3.22386 4 3.5 4H16.5C16.7761 4 17 4.22386 17 4.5V11.7929L14.8536 9.64645C14.6583 9.45118 14.3417 9.45118 14.1464 9.64645L11 12.7929L8.85355 10.6464C8.65829 10.4512 8.34171 10.4512 8.14645 10.6464L3 15.7929V4.5ZM3.20711 16L8 11.2071L10.1464 13.3536C10.3417 13.5488 10.6583 13.5488 10.8536 13.3536L14 10.2071L17 13.2071V15.5C17 15.7761 16.7761 16 16.5 16H3.5C3.39645 16 3.29871 15.9682 3.20711 16ZM13 7.5C13 8.32843 12.3284 9 11.5 9C10.6716 9 10 8.32843 10 7.5C10 6.67157 10.6716 6 11.5 6C12.3284 6 13 6.67157 13 7.5Z" />
             </svg>
-            <span>{selectedView ? selectedView.name : 'Select View'}</span>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <span className="hidden desktop:inline">
+              {selectedView ? selectedView.name : 'Select View'}
+            </span>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="hidden desktop:block"
+            >
               <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
             </svg>
           </button>
@@ -558,15 +567,21 @@ export const AnnotationToolbar = () => {
           <div className="relative" ref={taskFilterDropdownRef} data-tour="task-filter">
             <button
               onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
+              className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showTaskFilterDropdown ? 'bg-neutral-100' : ''}`}
               type="button"
               title="Filter visible tasks"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9A1.5 1.5 0 0 1 16 4.5v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 4 15.5v-11ZM5.5 4a.5.5 0 0 0-.5.5V6h10V4.5a.5.5 0 0 0-.5-.5h-9ZM15 7H5v8.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5V7Zm-8 2h6v1H7V9Zm0 2h6v1H7v-1Z" />
               </svg>
-              <span>Filter Tasks</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <span className="hidden desktop:inline">Filter Tasks</span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                className="hidden desktop:block"
+              >
                 <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
               </svg>
             </button>
@@ -607,7 +622,7 @@ export const AnnotationToolbar = () => {
                     });
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+                className={`flex items-center gap-1.5 px-2 desktop:px-3 py-1.5 text-sm transition-colors ${
                   isReviewMode
                     ? 'bg-amber-50 text-amber-700 font-medium'
                     : 'text-neutral-700 hover:bg-neutral-50'
@@ -629,7 +644,7 @@ export const AnnotationToolbar = () => {
                     d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
                   />
                 </svg>
-                <span>Review{isReviewMode ? ' ✓' : ''}</span>
+                <span className="hidden desktop:inline">Review{isReviewMode ? ' ✓' : ''}</span>
               </button>
               {/* Divider */}
               <div className="w-px h-5 bg-neutral-200" />
@@ -657,7 +672,7 @@ export const AnnotationToolbar = () => {
         {isCampaignAdmin && (
           <button
             onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
+            className="flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
             type="button"
             title="Campaign Settings"
           >
@@ -671,7 +686,7 @@ export const AnnotationToolbar = () => {
             >
               <path d="M10.75 2C10.75 1.58579 10.4142 1.25 10 1.25C9.58579 1.25 9.25 1.58579 9.25 2V3.01564C8.37896 3.10701 7.55761 3.36516 6.82036 3.75532L6.06066 2.99563C5.76777 2.70274 5.29289 2.70274 5 2.99563C4.70711 3.28853 4.70711 3.7634 5 4.0563L5.75968 4.81598C5.36953 5.55323 5.11138 6.37458 5.02001 7.24562H4C3.58579 7.24562 3.25 7.58141 3.25 7.99562C3.25 8.40984 3.58579 8.74562 4 8.74562H5.02001C5.11138 9.61667 5.36953 10.438 5.75968 11.1753L5 11.9349C4.70711 12.2278 4.70711 12.7027 5 12.9956C5.29289 13.2885 5.76777 13.2885 6.06066 12.9956L6.82036 12.2359C7.55761 12.6261 8.37896 12.8842 9.25 12.9756V14C9.25 14.4142 9.58579 14.75 10 14.75C10.4142 14.75 10.75 14.4142 10.75 14V12.9756C11.621 12.8842 12.4424 12.6261 13.1796 12.2359L13.9393 12.9956C14.2322 13.2885 14.7071 13.2885 15 12.9956C15.2929 12.7027 15.2929 12.2278 15 11.9349L14.2403 11.1753C14.6305 10.438 14.8886 9.61667 14.98 8.74562H16C16.4142 8.74562 16.75 8.40984 16.75 7.99562C16.75 7.58141 16.4142 7.24562 16 7.24562H14.98C14.8886 6.37458 14.6305 5.55323 14.2403 4.81598L15 4.0563C15.2929 3.7634 15.2929 3.28853 15 2.99563C14.7071 2.70274 14.2322 2.70274 13.9393 2.99563L13.1796 3.75532C12.4424 3.36516 11.621 3.10701 10.75 3.01564V2ZM10 11.4956C8.20507 11.4956 6.75 10.0406 6.75 8.24562C6.75 6.45069 8.20507 4.99562 10 4.99562C11.7949 4.99562 13.25 6.45069 13.25 8.24562C13.25 10.0406 11.7949 11.4956 10 11.4956ZM10 9.99562C11.1046 9.99562 12 9.10019 12 7.99562C12 6.89105 11.1046 5.99562 10 5.99562C8.89543 5.99562 8 6.89105 8 7.99562C8 9.10019 8.89543 9.99562 10 9.99562Z"></path>
             </svg>
-            <span>Settings</span>
+            <span className="hidden desktop:inline">Settings</span>
           </button>
         )}
 
@@ -680,7 +695,7 @@ export const AnnotationToolbar = () => {
           <button
             onClick={() => setShowExportDropdown(!showExportDropdown)}
             disabled={exporting !== null}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showExportDropdown ? 'bg-neutral-100' : ''} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 rounded transition-colors ${showExportDropdown ? 'bg-neutral-100' : ''} ${exporting ? 'opacity-50 cursor-not-allowed' : ''}`}
             type="button"
             title="Export annotations"
           >
@@ -688,8 +703,14 @@ export const AnnotationToolbar = () => {
               <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
               <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
             </svg>
-            <span>{exporting ? 'Exporting…' : 'Export'}</span>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <span className="hidden desktop:inline">{exporting ? 'Exporting…' : 'Export'}</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="hidden desktop:block"
+            >
               <path d="M4.29289 6.29289C4.68342 5.90237 5.31658 5.90237 5.70711 6.29289L8 8.58579L10.2929 6.29289C10.6834 5.90237 11.3166 5.90237 11.7071 6.29289C12.0976 6.68342 12.0976 7.31658 11.7071 7.70711L8.70711 10.7071C8.31658 11.0976 7.68342 11.0976 7.29289 10.7071L4.29289 7.70711C3.90237 7.31658 3.90237 6.68342 4.29289 6.29289Z" />
             </svg>
           </button>
@@ -748,12 +769,12 @@ export const AnnotationToolbar = () => {
       </div>
 
       {/* Right - Layout Controls */}
-      <div className="flex items-center gap-2" data-tour="layout-controls">
+      <div className="flex items-center gap-0.5 desktop:gap-2" data-tour="layout-controls">
         {!isEditingLayout ? (
           <button
             onClick={() => setIsEditingLayout(true)}
             title="Edit canvas layout and windows"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
+            className="hidden desktop:flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 rounded transition-all"
           >
             <svg
               width="14"

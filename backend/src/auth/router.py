@@ -158,10 +158,7 @@ def deny_user(
     Permanently removes users who have not been approved yet.
     Cannot be used on approved users or admins.
     """
-    try:
-        denied_user = service.deny_user(db, user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    denied_user = service.deny_user(db, user_id)
 
     if denied_user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -266,10 +263,7 @@ def revoke_admin_single(
     Removes admin role from the specified user.
     Prevents revoking admin from the last admin user.
     """
-    try:
-        user = service.revoke_admin(db, user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    user = service.revoke_admin(db, user_id)
 
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -309,10 +303,7 @@ def revoke_admin(
     Removes admin role from all specified users in a single transaction.
     Prevents revoking admin from all users if it would leave no admins.
     """
-    try:
-        result = service.revoke_admin_bulk(db, request.user_ids)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
+    result = service.revoke_admin_bulk(db, request.user_ids)
 
     return BulkUserActionResponse(
         success=result["revoked"],

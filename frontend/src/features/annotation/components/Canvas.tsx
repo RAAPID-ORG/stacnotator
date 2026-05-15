@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState, useEffect } from 'react';
-import ReactGridLayout, { getCompactor } from 'react-grid-layout';
+import { useMemo, useRef } from 'react';
+import ReactGridLayout, { getCompactor, type Layout, type LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import ImageryContainer from './ImageryContainer';
@@ -15,12 +15,15 @@ import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { useContainerWidth } from '../hooks/useContainerWidth';
+import { handleError } from '~/shared/utils/errorHandler';
+import { useIsMobile } from '~/shared/utils/useIsMobile';
 
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
   } catch (err) {
-    console.error('Failed to copy to clipboard:', err);
+    handleError(err, 'Failed to copy to clipboard', { showUser: false });
   }
 };
 
@@ -29,10 +32,9 @@ interface CanvasProps {
 }
 
 export const Canvas = ({ commentInputRef }: CanvasProps) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { containerRef, containerWidth, containerHeight, isMounted } = useContainerWidth();
   const headerControlsRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [isMounted, setIsMounted] = useState(false);
+  const isMobile = useIsMobile();
 
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
@@ -129,6 +131,35 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       .filter((r) => r.collection && r.source);
   }, [campaign, selectedView]);
 
+  // On mobile we ignore the saved desktop layout and stack everything in a
+  // single column. Main + controls share the visible viewport (same height);
+  // timeseries / minimap / windows follow below the fold.
+  const ROW_HEIGHT = 15;
+  const mobileLayout = useMemo<Layout>(() => {
+    if (!campaign) return [];
+    const halfRows = Math.max(20, Math.floor(containerHeight / ROW_HEIGHT / 2));
+    const restRows = 18;
+    const items: LayoutItem[] = [];
+    let y = 0;
+    items.push({ i: 'main', x: 0, y, w: 60, h: halfRows });
+    y += halfRows;
+    items.push({ i: 'controls', x: 0, y, w: 60, h: halfRows });
+    y += halfRows;
+    if (campaign.time_series.length > 0) {
+      items.push({ i: 'timeseries', x: 0, y, w: 60, h: restRows });
+      y += restRows;
+    }
+    items.push({ i: 'minimap', x: 0, y, w: 60, h: restRows });
+    y += restRows;
+    for (const wc of windowCollections) {
+      items.push({ i: String(wc.collection_id), x: 0, y, w: 60, h: restRows });
+      y += restRows;
+    }
+    return items;
+  }, [campaign, containerHeight, windowCollections]);
+
+  const effectiveLayout = isMobile ? mobileLayout : currentLayout;
+
   const activeSource = useMemo(() => {
     if (!campaign || !activeCollectionId) return null;
     return (
@@ -155,63 +186,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       null
     );
   })();
-
-  // Suspend ResizeObserver flushes while the sidebar transitions: otherwise
-  // every frame triggers a full grid re-layout + OpenLayers tile refetch,
-  // which stacks into a visible jerk. After the transition we apply the
-  // final width in one shot.
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    let rafId: number | null = null;
-    let latestWidth = 0;
-    let suspendedUntil = 0;
-    let pendingSettle: ReturnType<typeof setTimeout> | null = null;
-
-    const flush = () => {
-      rafId = null;
-      setContainerWidth(latestWidth);
-    };
-
-    const scheduleFlush = () => {
-      if (rafId === null) rafId = requestAnimationFrame(flush);
-    };
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (!entries[0]) return;
-      latestWidth = entries[0].contentRect.width;
-      const now = performance.now();
-      if (now >= suspendedUntil) {
-        scheduleFlush();
-      } else {
-        if (pendingSettle) clearTimeout(pendingSettle);
-        pendingSettle = setTimeout(
-          () => {
-            pendingSettle = null;
-            scheduleFlush();
-          },
-          suspendedUntil - now + 20
-        );
-      }
-    });
-
-    resizeObserver.observe(containerRef.current);
-    setIsMounted(true);
-
-    const unsubscribe = useLayoutStore.subscribe((state, prev) => {
-      if (state.sidebarCollapsed !== prev.sidebarCollapsed) {
-        // 180ms transition + small settle buffer.
-        suspendedUntil = performance.now() + 220;
-      }
-    });
-
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      if (pendingSettle) clearTimeout(pendingSettle);
-      resizeObserver.disconnect();
-      unsubscribe();
-    };
-  }, []);
 
   // Open mode: viewport center. Task mode: task geometry centroid.
   const latLon = useMemo<LatLon | null>(() => {
@@ -254,11 +228,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       skipped: 'bg-violet-500',
     };
 
-    const progressPct =
-      totalTasksForCounter > 0
-        ? Math.round((completedTasksForCounter / totalTasksForCounter) * 100)
-        : 0;
-
     return (
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
@@ -271,10 +240,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                   aria-hidden
                 />
               )}
-              <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+              <span className="hidden desktop:inline text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Point
               </span>
-              <span className="text-xs font-semibold text-neutral-900 tabular-nums">
+              <span className="hidden desktop:inline text-xs font-semibold text-neutral-900 tabular-nums">
                 {currentTask.annotation_number}
               </span>
             </>
@@ -303,7 +272,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               </span>{' '}
               of <span className="tabular-nums">{totalTasksForCounter}</span> done
             </span>
-            <span className="text-[11px] text-neutral-400 tabular-nums">· {progressPct}%</span>
           </div>
         ) : (
           !showBasemap &&
@@ -363,28 +331,28 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   return (
     <main
       ref={containerRef}
-      className={`flex-1 min-h-0 relative bg-base overflow-y-auto overflow-x-hidden ${isFullscreen! ? 'p-3' : 'p-1'} ${
+      className={`flex-1 min-h-0 relative bg-base overflow-y-auto overflow-x-hidden ${isMobile ? 'p-0' : isFullscreen! ? 'p-3' : 'p-1'} ${
         isEditingLayout ? 'is-editing' : ''
       }`}
     >
-      {isMounted && currentLayout && (
+      {isMounted && effectiveLayout && (
         <ReactGridLayout
           width={containerWidth}
-          layout={currentLayout}
+          layout={effectiveLayout}
           gridConfig={{
             cols: 60,
-            rowHeight: 15,
-            margin: [6, 6],
+            rowHeight: ROW_HEIGHT,
+            margin: isMobile ? [0, 0] : [6, 6],
           }}
           dragConfig={{
-            enabled: isEditingLayout,
+            enabled: isEditingLayout && !isMobile,
           }}
           resizeConfig={{
-            enabled: isEditingLayout,
+            enabled: isEditingLayout && !isMobile,
             handles: ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'],
           }}
           compactor={getCompactor(null, false, true)}
-          onLayoutChange={setCurrentLayout}
+          onLayoutChange={isMobile ? undefined : setCurrentLayout}
         >
           <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>

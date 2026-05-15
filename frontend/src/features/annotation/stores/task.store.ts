@@ -8,22 +8,13 @@ import {
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { handleError } from '~/shared/utils/errorHandler';
+import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
+import { applyTaskFilter, type TaskFilter } from '../utils/taskFilter';
 
-/**
- * Task status values for filtering.
- */
-export type TaskStatus = 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
-
-export interface TaskFilter {
-  assignedTo: string[];
-  statuses: TaskStatus[];
-  // 0 in selectedConfidences means "no rating" (annotation missing
-  // confidence, or task has no annotations).
-  selectedConfidences: number[];
-  flaggedOnly: boolean;
-}
+export type { TaskFilter, TaskStatus };
 
 interface TaskStore {
   // State
@@ -77,39 +68,6 @@ interface TaskStore {
 }
 
 // Helpers
-
-const applyTaskFilter = (
-  allTasks: AnnotationTaskOut[],
-  filter: TaskFilter
-): AnnotationTaskOut[] => {
-  const filterByUser = filter.assignedTo.length > 0;
-
-  return allTasks.filter((task) => {
-    const assignments = task.assignments || [];
-    const annotations = task.annotations || [];
-
-    if (filterByUser) {
-      const userAssignments = assignments.filter((a) => filter.assignedTo.includes(a.user_id));
-      if (userAssignments.length === 0) return false;
-      if (!userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus)))
-        return false;
-    } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {
-      return false;
-    }
-
-    if (filter.selectedConfidences.length > 0) {
-      const taskConfs = annotations.map((a) => a.confidence ?? 0);
-      if (taskConfs.length === 0) taskConfs.push(0);
-      if (!taskConfs.some((c) => filter.selectedConfidences.includes(c))) return false;
-    }
-
-    if (filter.flaggedOnly && !annotations.some((a) => a.flagged_for_review)) {
-      return false;
-    }
-
-    return true;
-  });
-};
 
 const emptyFormState = {
   selectedLabelId: null as number | null,
@@ -209,9 +167,11 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           selectedConfidences: [],
           flaggedOnly: false,
         };
-        visibleTasks = applyTaskFilter(allTasks, taskFilter);
-        const idx = visibleTasks.findIndex((t) => t.id === initialTaskId);
-        currentTaskIndex = idx !== -1 ? idx : 0;
+        ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
+          allTasks,
+          taskFilter,
+          initialTaskId
+        ));
       } else {
         // Public campaigns show all tasks by default since most users
         // won't have explicit assignments. Private campaigns default to
@@ -223,7 +183,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           selectedConfidences: [],
           flaggedOnly: false,
         };
-        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
 
         // If the user-scoped filter yields nothing but unfiltered tasks
         // exist, auto-widen to show everything so the user lands on a
@@ -235,7 +195,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             selectedConfidences: [],
             flaggedOnly: false,
           };
-          visibleTasks = applyTaskFilter(allTasks, taskFilter);
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
         }
       }
 
@@ -386,10 +346,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           useCampaignStore.getState().refreshKnnValidationStatus();
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to submit annotation';
-        useLayoutStore.getState().showAlert(message, 'error');
+        handleError(error, 'Failed to submit annotation');
         set({ isSubmitting: false });
-        console.error('Submit error:', error);
       }
     },
 
@@ -433,7 +391,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           selectedConfidences: [],
           flaggedOnly: false,
         };
-        visibleTasks = applyTaskFilter(allTasks, taskFilter);
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
       } else {
         taskFilter = currentFilter;
         visibleTasks = currentVisible;
@@ -480,14 +438,14 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     setTaskFilter: (filterUpdate) => {
       const { allTasks, taskFilter } = get();
       const newFilter: TaskFilter = { ...taskFilter, ...filterUpdate };
-      const visibleTasks = applyTaskFilter(allTasks, newFilter);
-      const firstTask = visibleTasks[0] || null;
+      const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, newFilter);
+      const firstTask = visibleTasks[suggestedIndex] || null;
 
       useMapStore.setState({ probeTimeseriesPoint: null });
       startNavigation({
         taskFilter: newFilter,
         visibleTasks,
-        currentTaskIndex: 0,
+        currentTaskIndex: suggestedIndex,
         ...getFormStateForTask(firstTask),
       });
     },
@@ -506,3 +464,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     reset: () => set(initialState),
   };
 });
+
+if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+  (window as unknown as Record<string, unknown>).__TASK_STORE__ = useTaskStore;
+}
