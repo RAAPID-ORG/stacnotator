@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
 
 interface TaskAssignmentModalProps {
   isOpen: boolean;
@@ -110,7 +111,7 @@ export const TaskAssignmentModal = ({
       setSelectedUsers([]);
       setTasksPerUser({});
     } catch (err) {
-      console.error('Assignment failed', err);
+      handleError(err, 'Assignment failed');
     } finally {
       setAssigning(false);
     }

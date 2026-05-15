@@ -1,11 +1,14 @@
 """Tests for campaign service layer (campaigns/service.py)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 
+from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
+from src.annotation.models import AnnotationTaskAssignment
+from src.campaigns.models import CampaignUser
 from src.campaigns.service import (
     _calculate_krippendorff_alpha,
     _calculate_pairwise_agreement,
@@ -249,6 +252,25 @@ class TestAddUsersToCampaignBulk:
             add_users_to_campaign_bulk(db, 1, [u1, u2])
         assert exc_info.value.status_code == 404
 
+    def test_all_found_creates_one_membership_per_user(self):
+        db = _mock_db()
+        u1, u2 = uuid4(), uuid4()
+        user_a, user_b = MagicMock(id=u1), MagicMock(id=u2)
+        db.scalars.return_value.all.return_value = [user_a, user_b]
+
+        add_users_to_campaign_bulk(db, campaign_id=42, user_ids=[u1, u2])
+
+        db.add_all.assert_called_once()
+        memberships = db.add_all.call_args[0][0]
+        assert len(memberships) == 2
+        assert all(isinstance(m, CampaignUser) for m in memberships)
+        for m in memberships:
+            assert m.campaign_id == 42
+            assert m.is_admin is False
+            assert m.is_authorative_reviewer is False
+        assert {m.user_id for m in memberships} == {u1, u2}
+        db.commit.assert_called_once()
+
 
 class TestDeleteCampaign:
     def test_not_found_raises_404(self):
@@ -258,6 +280,28 @@ class TestDeleteCampaign:
         with pytest.raises(HTTPException) as exc_info:
             delete_campaign(db, 999)
         assert exc_info.value.status_code == 404
+
+
+def _stub_scalars(db, results_in_order):
+    """Make db.scalars(...).all() return each list in order across calls."""
+    calls = {"i": 0}
+
+    def _scalars_side_effect(*_args, **_kwargs):
+        chain = MagicMock()
+        i = calls["i"]
+        calls["i"] += 1
+        chain.all.return_value = results_in_order[i] if i < len(results_in_order) else []
+        return chain
+
+    db.scalars.side_effect = _scalars_side_effect
+
+
+def _make_campaign_user_rows(campaign_id, user_ids):
+    return [MagicMock(spec=CampaignUser, user_id=uid, campaign_id=campaign_id) for uid in user_ids]
+
+
+def _make_tasks(task_ids):
+    return [MagicMock(id=tid) for tid in task_ids]
 
 
 class TestAssignReviewersPercentage:
@@ -279,6 +323,80 @@ class TestAssignReviewersPercentage:
             assign_reviewers_percentage(db, 1, 50, 0, [uuid4()])
         assert exc_info.value.status_code == 400
 
+    def test_no_tasks_in_campaign_raises_404(self):
+        db = _mock_db()
+        u1 = uuid4()
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [],
+            ],
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            assign_reviewers_percentage(db, 1, percentage=50, num_reviewers=1, reviewer_ids=[u1])
+        assert exc_info.value.status_code == 404
+
+    def test_reviewer_not_a_campaign_member_raises_400(self):
+        db = _mock_db()
+        u_in, u_out = uuid4(), uuid4()
+        _stub_scalars(
+            db,
+            [_make_campaign_user_rows(campaign_id=1, user_ids=[u_in])],
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            assign_reviewers_percentage(
+                db, 1, percentage=50, num_reviewers=1, reviewer_ids=[u_in, u_out]
+            )
+        assert exc_info.value.status_code == 400
+
+    def test_assigns_reviewer_to_at_least_one_task(self):
+        db = _mock_db()
+        u1 = uuid4()
+        tasks = _make_tasks([10, 20, 30])
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                tasks,
+                [],
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert {a.task_id for a in assignments} == {10, 20, 30}
+        assert all(a.user_id == u1 for a in assignments)
+        assert all(a.status == ANNOTATION_TASK_STATUS_PENDING for a in assignments)
+        db.commit.assert_called_once()
+
+    def test_existing_assignment_is_not_duplicated(self):
+        db = _mock_db()
+        u1 = uuid4()
+        tasks = _make_tasks([10])
+        existing = MagicMock(spec=AnnotationTaskAssignment, task_id=10, user_id=u1)
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                tasks,
+                [existing],
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert assignments == []
+        db.commit.assert_called_once()
+
 
 class TestAssignReviewersFixed:
     def test_zero_tasks_raises_400(self):
@@ -292,6 +410,44 @@ class TestAssignReviewersFixed:
         with pytest.raises(HTTPException) as exc_info:
             assign_reviewers_fixed(db, 1, 5, 3, [uuid4()])
         assert exc_info.value.status_code == 400
+
+    def test_more_tasks_requested_than_exist_raises_400(self):
+        db = _mock_db()
+        u1 = uuid4()
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                _make_tasks([10, 20]),
+            ],
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            assign_reviewers_fixed(db, 1, num_tasks=5, num_reviewers=1, reviewer_ids=[u1])
+        assert exc_info.value.status_code == 400
+
+    def test_assigns_exactly_num_tasks_with_one_reviewer_each(self):
+        db = _mock_db()
+        u1 = uuid4()
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                _make_tasks([10, 20, 30]),
+                [],
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert len(assignments) == 2
+        assert len({a.task_id for a in assignments}) == 2
+        assert all(a.task_id in {10, 20, 30} for a in assignments)
+        assert all(a.user_id == u1 for a in assignments)
+        db.commit.assert_called_once()
 
 
 class TestUpdateCampaignVisibility:

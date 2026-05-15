@@ -1,11 +1,12 @@
 import { authManager } from '../core/authManager';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export function ApprovalPendingScreen() {
   const handleLogout = async () => {
     try {
       await authManager.logout();
     } catch (error) {
-      console.error('Logout failed:', error);
+      handleError(error, 'Logout failed');
     }
   };
 

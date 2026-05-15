@@ -314,7 +314,12 @@ def _sanitize_stac_error(e: Exception) -> str:
     internal paths, credentials, or stack traces.
     """
     import httpx
+    from fastapi import HTTPException
 
+    if isinstance(e, HTTPException):
+        # register_mosaic_sync raises HTTPException with a curated detail
+        # (e.g. "No items found ..."); surface the detail alone.
+        return str(e.detail)
     if isinstance(e, httpx.HTTPStatusError):
         status = e.response.status_code
         # Try to extract a message from the response body
@@ -326,9 +331,6 @@ def _sanitize_stac_error(e: Exception) -> str:
         except Exception:
             logger.debug("Could not parse tile server error response", exc_info=True)
         return f"HTTP {status} from tile server"
-    if isinstance(e, ValueError):
-        # Our own "No items found" errors are safe to surface
-        return str(e)
     # Generic: only expose the exception type + first line
     msg = str(e).split("\n")[0]
     # Strip file paths
@@ -1005,7 +1007,12 @@ def _create_basemaps(
 ) -> list[Basemap]:
     created = []
     for bm in basemaps:
-        obj = Basemap(campaign_id=campaign_id, name=bm.name, url=bm.url)
+        obj = Basemap(
+            campaign_id=campaign_id,
+            name=bm.name,
+            url=bm.url,
+            max_native_zoom=bm.max_native_zoom,
+        )
         db.add(obj)
         created.append(obj)
     return created

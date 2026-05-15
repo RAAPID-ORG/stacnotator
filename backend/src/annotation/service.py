@@ -218,9 +218,11 @@ def create_annotation_tasks_from_csv(
     except pd.errors.EmptyDataError:
         logger.warning("CSV import failed for campaign %s: empty file", campaign_id)
         raise HTTPException(status_code=400, detail="CSV file is empty") from None
-    except Exception as e:
+    except Exception:
         logger.exception("CSV import failed for campaign %s: parse error", campaign_id)
-        raise HTTPException(status_code=400, detail=f"Invalid CSV format: {e}") from None
+        raise HTTPException(
+            status_code=400, detail="Invalid CSV format. Please verify the file structure."
+        ) from None
 
     # Validate required columns
     missing = REQUIRED_COLUMNS - set(df.columns)

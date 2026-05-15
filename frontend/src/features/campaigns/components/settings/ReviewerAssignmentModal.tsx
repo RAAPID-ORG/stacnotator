@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CampaignUserOut } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
 
 interface ReviewerAssignmentModalProps {
   show: boolean;
@@ -73,7 +74,7 @@ export function ReviewerAssignmentModal({
       }
       onClose();
     } catch (error) {
-      console.error('Failed to assign reviewers:', error);
+      handleError(error, 'Failed to assign reviewers');
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
-import { buildTileUrl } from './tileUrlBuilder';
+import { buildTileUrl } from '../../utils/tileLoading';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 
@@ -234,6 +234,7 @@ export function useSliceLayers({
             layerType: 'basemap',
             urlTemplate: b.url,
             attribution: getBasemapAttribution(b.url),
+            maxZoom: b.max_native_zoom ?? undefined,
           })
       );
       for (const bm of basemaps) lm.registerLayer(bm);
