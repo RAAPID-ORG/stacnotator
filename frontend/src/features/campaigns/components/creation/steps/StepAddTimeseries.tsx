@@ -5,8 +5,8 @@ import {
   type TimeSeriesCreate,
   type TimeSeriesOptionsOut,
 } from '~/api/client';
-import { useLayoutStore } from '~/features/layout/layout.store';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { MonthPicker } from './imagery/MonthPicker';
 
 const emptyTimeseries = (): TimeSeriesCreate => ({
@@ -27,7 +27,6 @@ export const StepAddTimeseries = ({
 }) => {
   const [tsOptions, setTsOptions] = useState<TimeSeriesOptionsOut | null>(null);
   const items = form.timeseries_configs ?? [];
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   const setItems = (next: TimeSeriesCreate[]) => {
     setForm({
@@ -57,13 +56,11 @@ export const StepAddTimeseries = ({
         const { data } = await getTimeseriesCreationOptions();
         setTsOptions(data!);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load timeseries options';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load timeseries options');
       }
     };
     fetchData();
-  }, [showAlert]);
+  }, []);
 
   return (
     <div className="space-y-6">

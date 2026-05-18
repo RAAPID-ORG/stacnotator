@@ -1,0 +1,19 @@
+{
+  "name": "STACNotator",
+  "short_name": "STACNotator",
+  "description": "Annotate satellite imagery for ML campaigns.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f6f5",
+  "theme_color": "#274d38",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

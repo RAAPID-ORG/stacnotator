@@ -126,6 +126,8 @@ export interface Basemap {
   id: string;
   name: string;
   url: string;
+  /** Deepest zoom the provider actually serves. Past this, OL upscales the deepest tile instead of fetching "no data". Undefined = no cap. */
+  maxNativeZoom?: number;
 }
 
 export interface ImageryStepState {
@@ -228,16 +230,22 @@ export const DEFAULT_BASEMAPS: Basemap[] = [
     id: 'carto-light',
     name: 'CartoDB Light',
     url: 'https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    maxNativeZoom: 20,
   },
   {
     id: 'esri-world-imagery',
     name: 'ESRI World Imagery',
     url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    // Rural AOIs (Ukraine, much of Africa) only have real imagery up to
+    // z18; z19+ returns Esri's "no data" placeholder. Urban AOIs can dial
+    // this higher per-campaign in the basemap editor.
+    maxNativeZoom: 18,
   },
   {
     id: 'opentopomap',
     name: 'OpenTopoMap',
     url: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    maxNativeZoom: 17,
   },
 ];
 

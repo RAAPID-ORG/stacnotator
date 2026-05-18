@@ -63,9 +63,12 @@ services:
       # Tests (mounted so pytest runs inside the container)
       - ./backend/tests:/app/tests:ro
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
-      # Mount credential files
-      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/firebase-credentials.json}:/app/config/firebase-credentials.json:ro
-      - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/ee-private-key.json}:/app/config/ee-private-key.json:ro
+      # Mount credential files. Default to the tracked .gitkeep placeholder so
+      # Docker doesn't auto-create root-owned directories when the host
+      # path is missing (which breaks backend startup). When the corresponding
+      # *_PATH_HOST env var is set, that real file is mounted instead.
+      - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/.gitkeep}:/app/config/firebase-credentials.json:ro
+      - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/.gitkeep}:/app/config/ee-private-key.json:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     networks:

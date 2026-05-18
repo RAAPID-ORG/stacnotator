@@ -19,6 +19,7 @@ import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPre
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
+import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
 type Step = 'catalog' | 'collection' | 'configure';
 
@@ -196,16 +197,9 @@ export const CatalogBrowser = ({
       };
       setSelectedCatalog(mpcCatalog);
       setLoading(true);
-      const t0 = performance.now();
-      // eslint-disable-next-line no-console
-      console.log(`[preset:${preset.stacCollectionId}] fetchCollections start`);
       // Fetch full collection list to get item_assets metadata
       fetchCollections(MPC_API_URL)
         .then((cols) => {
-          // eslint-disable-next-line no-console
-          console.log(
-            `[preset:${preset.stacCollectionId}] fetchCollections done in ${(performance.now() - t0).toFixed(0)}ms (${cols.length} cols)`
-          );
           const match = cols.find((c) => c.id === preset.stacCollectionId);
           const col = match || {
             id: preset.stacCollectionId,
@@ -235,9 +229,7 @@ export const CatalogBrowser = ({
           setStep('configure');
         })
         .catch((e: unknown) => {
-          const msg = e instanceof Error ? e.message : String(e);
-          // eslint-disable-next-line no-console
-          console.error(`[preset:${preset.stacCollectionId}] fetchCollections failed`, e);
+          const msg = handleError(e, `Failed to load ${preset.label} catalog`, { showUser: false });
           setError(`Could not load ${preset.label}: ${msg}`);
           setSelectedCollection({
             id: preset.stacCollectionId,
@@ -403,7 +395,7 @@ export const CatalogBrowser = ({
       });
       setItems(result.items);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(extractErrorMessage(e, 'Search failed'));
     } finally {
       setLoading(false);
     }

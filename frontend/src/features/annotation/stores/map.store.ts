@@ -47,8 +47,6 @@ interface MapStore {
 
   // View sync: link small windows' pan/zoom to the main map
   viewSyncEnabled: boolean;
-  // Tile preloading: prefetch tiles for other collections and next tasks
-  preloadingEnabled: boolean;
 
   // Active tool
   activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -90,7 +88,6 @@ interface MapStore {
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
   toggleViewSync: () => void;
-  togglePreloading: () => void;
 
   reset: () => void;
 }
@@ -136,7 +133,6 @@ const initialState = {
   probeTimeseriesPoint: null as { lat: number; lon: number } | null,
   probeMarkerHidden: false,
   viewSyncEnabled: true,
-  preloadingEnabled: true,
 };
 
 export const useMapStore = create<MapStore>((set) => ({
@@ -243,7 +239,6 @@ export const useMapStore = create<MapStore>((set) => ({
   setProbeMarkerHidden: (hidden) => set({ probeMarkerHidden: hidden }),
 
   toggleViewSync: () => set((s) => ({ viewSyncEnabled: !s.viewSyncEnabled })),
-  togglePreloading: () => set((s) => ({ preloadingEnabled: !s.preloadingEnabled })),
 
   reset: () => set(initialState),
 }));

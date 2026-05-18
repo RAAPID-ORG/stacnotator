@@ -330,7 +330,9 @@ def register_mosaic_sync(
     items = list(search.items())
 
     if not items:
-        raise ValueError(f"No items found for {collection_id} in {datetime_range}")
+        raise HTTPException(
+            status_code=400, detail=f"No items found for {collection_id} in {datetime_range}"
+        )
 
     item_refs = []
     for item in items:
@@ -351,7 +353,7 @@ def register_mosaic_sync(
             )
 
     if not item_refs:
-        raise ValueError("No items with valid self_href and bbox")
+        raise HTTPException(status_code=400, detail="No items with valid self_href and bbox")
 
     sample_item = items[0]
     assets_info = {}
@@ -384,14 +386,10 @@ def register_mosaic_sync(
 @router.post("/mosaic/register", response_model=MosaicRegisterResponse)
 def register_mosaic(request: MosaicRegisterRequest):
     """Create a mosaic from STAC search results for a single time window."""
-    try:
-        result = register_mosaic_sync(
-            catalog_url=request.catalog_url,
-            collection_id=request.collection_id,
-            bbox=request.bbox,
-            datetime_range=request.datetime_range,
-            max_items=request.max_items or 500,
-        )
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    return register_mosaic_sync(
+        catalog_url=request.catalog_url,
+        collection_id=request.collection_id,
+        bbox=request.bbox,
+        datetime_range=request.datetime_range,
+        max_items=request.max_items or 500,
+    )

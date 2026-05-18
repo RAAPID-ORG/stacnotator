@@ -7,6 +7,7 @@
 
 import { getTimeseriesData } from '~/api/client';
 import type { LatLon } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export interface TimeSeriesRow {
   time: string;
@@ -135,7 +136,10 @@ class TimeSeriesCache {
 
       // Start fetch in background
       this.get(timeseriesIds, coordinate).catch((err) => {
-        console.warn(`Prefetch failed for ${cacheKey}:`, err);
+        handleError(err, `Prefetch failed for ${cacheKey}`, {
+          showUser: false,
+          alertType: 'warning',
+        });
       });
     });
   }

@@ -203,7 +203,10 @@ export const TASK_4 = makeTask(400, 4, 50.10, 30.40, {
   assignments: [{ user_id: TEST_USER_ID, status: 'skipped', user_email: 'test@example.com', user_display_name: 'Test User' }],
 });
 
-// Task 5: conflicting (two annotators, different labels)
+// Task 5: conflicting (two annotators, different labels). Also exercises:
+//   - the current user's annotation is flagged_for_review with a flag_comment
+//   - the other annotator's annotation is is_authoritative
+// so the review-mode display can be asserted on a single task.
 export const TASK_5 = makeTask(500, 5, 50.55, 30.60, {
   status: 'conflicting',
   annotations: [
@@ -213,8 +216,10 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.60, {
       comment: null,
       created_by_user_id: TEST_USER_ID,
       created_at: '2024-06-16T10:00:00Z',
-      confidence: 7,
+      confidence: 4,
       is_authoritative: false,
+      flagged_for_review: true,
+      flag_comment: 'Unsure about this one',
       geometry: { id: 5010, geometry: 'POINT(30.60 50.55)' },
     },
     {
@@ -223,8 +228,8 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.60, {
       comment: null,
       created_by_user_id: 'other-user-xyz',
       created_at: '2024-06-16T11:00:00Z',
-      confidence: 6,
-      is_authoritative: false,
+      confidence: 5,
+      is_authoritative: true,
       geometry: { id: 5020, geometry: 'POINT(30.60 50.55)' },
     },
   ],
@@ -261,6 +266,23 @@ export const MOCK_CAMPAIGN_USERS = {
       user: { id: TEST_USER_ID, email: 'test@example.com', display_name: 'Test User', is_approved: true, is_admin: false, issuer: 'firebase' },
       is_admin: false,
       is_authorative_reviewer: false,
+    },
+    {
+      user: { id: 'other-user-xyz', email: 'other@example.com', display_name: 'Other User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      is_admin: false,
+      is_authorative_reviewer: false,
+    },
+  ],
+};
+
+/** Variant where the current user is an authoritative reviewer. */
+export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
+  campaign_id: 42,
+  users: [
+    {
+      user: { id: TEST_USER_ID, email: 'test@example.com', display_name: 'Test User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      is_admin: false,
+      is_authorative_reviewer: true,
     },
     {
       user: { id: 'other-user-xyz', email: 'other@example.com', display_name: 'Other User', is_approved: true, is_admin: false, issuer: 'firebase' },

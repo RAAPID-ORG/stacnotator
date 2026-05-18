@@ -8,7 +8,7 @@ import {
   convertWKTToGeoJSON,
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
-import { buildTileUrl } from './Map/tileUrlBuilder';
+import { buildTileUrl } from '../utils/tileLoading';
 import { getTilerToken } from '~/api/tilerToken';
 
 const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';

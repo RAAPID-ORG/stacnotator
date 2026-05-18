@@ -13,6 +13,9 @@
 #   - Secrets uploaded via upload-secrets.sh (first time only)
 #
 
+# TODO: Should deploy in better order, with replica switch, to prevent downtime on partial failure
+# i.e if new backend image deployed, but database migration failed.
+
 set -e
 
 # Environment argument
@@ -276,21 +279,45 @@ if [ -n "$REPLICA_NAME" ]; then
         fi
     fi
     if [ "$CI" = "true" ] || [[ "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
+
+    if [ "$ENV" = "prod" ]; then
+        DB_SERVER_NAME=$(az postgres flexible-server list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
+        if [ -z "$DB_SERVER_NAME" ]; then
+            echo -e "${RED}Error: No PostgreSQL flexible server found in $RESOURCE_GROUP. Aborting before migrations.${NC}"
+            exit 1
+        fi
+        BACKUP_NAME="pre-deploy-${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)"
+        echo -e "${YELLOW}Creating on-demand DB backup before migrations: $BACKUP_NAME${NC}"
+        if ! az postgres flexible-server backup create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$DB_SERVER_NAME" \
+            --backup-name "$BACKUP_NAME" \
+            --output none; then
+            echo -e "${RED}Error: DB backup failed. Aborting deploy without running migrations.${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✓ Backup created on $DB_SERVER_NAME: $BACKUP_NAME${NC}"
+    fi
+
     echo -e "${YELLOW}Running database migrations...${NC}"
-    # az containerapp exec doesn't reliably return the command's exit code,
-    # so we wrap alembic to echo a sentinel on success.
+    # az containerapp exec does not reliably propagate the inner command's exit code.
+    # Print a per-run sentinel only when alembic exits 0, then assert the sentinel
+    # is present in the captured output. Anything short of that fails the deploy.
+    MIGRATION_SENTINEL="__MIGRATION_OK_$$_$(date +%s)__"
     az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --replica "$REPLICA_NAME" \
-        --command "alembic upgrade head" \
+        --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
         2>&1 | tee /tmp/migration_output.log
-    # Check output for alembic success indicators or errors
-    if grep -qiE "(FAILED|error|Traceback)" /tmp/migration_output.log; then
-        echo -e "${RED}Warning: Migration output contains errors.${NC}"
-        echo -e "${YELLOW}Check /tmp/migration_output.log or run manually:${NC}"
-        echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
-    else
-        echo -e "${GREEN}✓ Migrations done${NC}"
+    if ! grep -q "$MIGRATION_SENTINEL" /tmp/migration_output.log; then
+        echo -e "${RED}Migration failed: success sentinel not found in alembic output.${NC}"
+        echo -e "${YELLOW}Full output: /tmp/migration_output.log${NC}"
+        if [ "$ENV" = "prod" ] && [ -n "$BACKUP_NAME" ]; then
+            echo -e "${YELLOW}Pre-deploy backup available: $BACKUP_NAME on $DB_SERVER_NAME${NC}"
+            echo -e "${YELLOW}List backups: az postgres flexible-server backup list -g $RESOURCE_GROUP -n $DB_SERVER_NAME${NC}"
+        fi
+        exit 1
     fi
+    echo -e "${GREEN}✓ Migrations done${NC}"
     fi
 else
     echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"

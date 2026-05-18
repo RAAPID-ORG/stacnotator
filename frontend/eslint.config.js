@@ -39,6 +39,16 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
+      "no-console": "error",
+    },
+  },
+
+  // errorHandler is the single approved console.error site; everywhere else
+  // must route through handleError so logs share one shape.
+  {
+    files: ["src/shared/utils/errorHandler.ts"],
+    rules: {
+      "no-console": "off",
     },
   },
 

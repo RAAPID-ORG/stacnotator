@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getAllAnnotationTasks, type AnnotationTaskOut, type CampaignOut } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
-import { formatTaskStatus, getTaskStatusColor } from '~/shared/utils/taskStatus';
+import {
+  countTasksByStatus,
+  formatTaskStatus,
+  getTaskStatusColor,
+} from '~/shared/utils/taskStatus';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
-import Statistics from '~/features/annotation/components/Statistics';
-import { AnnotationDistributionMap } from '~/features/annotation/components/AnnotationDistributionMap';
+import { handleError } from '~/shared/utils/errorHandler';
+import Statistics from './Statistics';
+import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
@@ -24,7 +28,6 @@ interface TaskModeReviewProps {
 export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) => {
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [tasks, setTasks] = useState<AnnotationTaskOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,15 +46,13 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
         setTasks(tasksRes.data!.tasks);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load tasks';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load tasks');
       } finally {
         setLoading(false);
       }
     };
     loadTasks();
-  }, [campaignId, showAlert]);
+  }, [campaignId]);
 
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
@@ -134,17 +135,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     );
   }, [tasks]);
 
-  const stats = useMemo(
-    () => ({
-      total: tasks.length,
-      completed: tasks.filter((t) => t.task_status === 'done').length,
-      partial: tasks.filter((t) => t.task_status === 'partial').length,
-      conflicting: tasks.filter((t) => t.task_status === 'conflicting').length,
-      pending: tasks.filter((t) => t.task_status === 'pending').length,
-      skipped: tasks.filter((t) => t.task_status === 'skipped').length,
-    }),
-    [tasks]
-  );
+  const stats = useMemo(() => ({ total: tasks.length, ...countTasksByStatus(tasks) }), [tasks]);
 
   const handleNavigateToTask = (taskId: number) => {
     navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
@@ -361,7 +352,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
               </span>
               <div className="flex items-center gap-4">
                 <span>
-                  Complete: <strong className="text-neutral-800">{stats.completed}</strong>
+                  Complete: <strong className="text-neutral-800">{stats.done}</strong>
                 </span>
                 <span>
                   Partial: <strong className="text-neutral-800">{stats.partial}</strong>
@@ -586,43 +577,32 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
           )}
 
           {/* Footer Stats */}
-          {filteredTasks.length > 0 && (
-            <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-              <span>
-                Filtered: <strong className="text-neutral-900">{filteredTasks.length}</strong>
-              </span>
-              <span>
-                Complete:{' '}
-                <strong className="text-neutral-900">
-                  {filteredTasks.filter((t) => t.task_status === 'done').length}
-                </strong>
-              </span>
-              <span>
-                Partial:{' '}
-                <strong className="text-neutral-900">
-                  {filteredTasks.filter((t) => t.task_status === 'partial').length}
-                </strong>
-              </span>
-              <span>
-                Conflicting:{' '}
-                <strong className="text-neutral-900">
-                  {filteredTasks.filter((t) => t.task_status === 'conflicting').length}
-                </strong>
-              </span>
-              <span>
-                Pending:{' '}
-                <strong className="text-neutral-900">
-                  {filteredTasks.filter((t) => t.task_status === 'pending').length}
-                </strong>
-              </span>
-              <span>
-                Skipped:{' '}
-                <strong className="text-neutral-900">
-                  {filteredTasks.filter((t) => t.task_status === 'skipped').length}
-                </strong>
-              </span>
-            </div>
-          )}
+          {filteredTasks.length > 0 &&
+            (() => {
+              const counts = countTasksByStatus(filteredTasks);
+              return (
+                <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
+                  <span>
+                    Filtered: <strong className="text-neutral-900">{filteredTasks.length}</strong>
+                  </span>
+                  <span>
+                    Complete: <strong className="text-neutral-900">{counts.done}</strong>
+                  </span>
+                  <span>
+                    Partial: <strong className="text-neutral-900">{counts.partial}</strong>
+                  </span>
+                  <span>
+                    Conflicting: <strong className="text-neutral-900">{counts.conflicting}</strong>
+                  </span>
+                  <span>
+                    Pending: <strong className="text-neutral-900">{counts.pending}</strong>
+                  </span>
+                  <span>
+                    Skipped: <strong className="text-neutral-900">{counts.skipped}</strong>
+                  </span>
+                </div>
+              );
+            })()}
         </div>
       </FadeIn>
     </div>

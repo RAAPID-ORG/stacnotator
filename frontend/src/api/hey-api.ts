@@ -8,14 +8,20 @@ interface RetryableRequest extends Request {
 }
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+type RefreshSubscriber = (token: string | null) => void;
+let refreshSubscribers: RefreshSubscriber[] = [];
 
-const subscribeTokenRefresh = (callback: (token: string) => void) => {
+const subscribeTokenRefresh = (callback: RefreshSubscriber) => {
   refreshSubscribers.push(callback);
 };
 
 const onTokenRefreshed = (token: string) => {
   refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
+
+const onTokenRefreshFailed = () => {
+  refreshSubscribers.forEach((callback) => callback(null));
   refreshSubscribers = [];
 };
 
@@ -119,17 +125,10 @@ export const setupClientInterceptors = (client: ClientWithInterceptors): void =>
           const _fetch = options.fetch || globalThis.fetch;
           return await _fetch(retryRequest);
         } catch (err) {
-          // Notify all waiting subscribers about the error
-          refreshSubscribers.forEach(() => {
-            // Subscribers will handle rejection in their own catch block
-          });
-          refreshSubscribers = [];
-
-          // If refresh fails, logout and redirect to login
+          onTokenRefreshFailed();
           useAccountStore.getState().clear();
           await authManager.logout();
-          window.location.href = '/';
-
+          window.location.href = '/?expired=1';
           throw err;
         } finally {
           // Always reset the flag in finally block to prevent deadlock
@@ -139,7 +138,11 @@ export const setupClientInterceptors = (client: ClientWithInterceptors): void =>
 
       // If already refreshing, wait for the token refresh to complete
       return new Promise<Response>((resolve, reject) => {
-        subscribeTokenRefresh(async (token: string) => {
+        subscribeTokenRefresh(async (token) => {
+          if (token === null) {
+            reject(new Error('Token refresh failed'));
+            return;
+          }
           try {
             const headers = new Headers(originalRequest.headers);
             headers.set('Authorization', `Bearer ${token}`);

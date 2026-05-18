@@ -4,6 +4,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { useSliceNavigation } from './useSliceNavigation';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -37,23 +38,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
-  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerZoomIn = useMapStore((s) => s.triggerZoomIn);
   const triggerZoomOut = useMapStore((s) => s.triggerZoomOut);
   const triggerPan = useMapStore((s) => s.triggerPan);
-  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
-  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
-  const setSliceNavIntent = useMapStore((s) => s.setSliceNavIntent);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const showBasemap = useMapStore((s) => s.showBasemap);
-  const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
-  const setShowBasemap = useMapStore((s) => s.setShowBasemap);
-  const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
-  const emptySlices = useMapStore((s) => s.emptySlices);
-  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
 
   const showAlert = useLayoutStore((s) => s.showAlert);
   const toggleKeyboardHelp = useLayoutStore((s) => s.toggleKeyboardHelp);
@@ -61,57 +53,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
 
-  // Derive the selected view and its ordered collections
+  // Derive the selected view (still needed for source cycling below)
   const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
 
-  // Derive active source from activeCollectionId
-  const activeSourceId = useMemo(() => {
-    if (!campaign || !activeCollectionId) return null;
-    return (
-      campaign.imagery_sources.find((s) => s.collections.some((c) => c.id === activeCollectionId))
-        ?.id ?? null
-    );
-  }, [campaign, activeCollectionId]);
-
-  // Scoped to the active source so hotkeys stay within one source
-  const viewCollections = useMemo(() => {
-    if (!selectedView || !campaign) return [];
-    return selectedView.collection_refs
-      .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) =>
-          s.collections.some((c) => c.id === ref.collection_id)
-        );
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        if (!source || !collection) return null;
-        return { ...ref, collection, source };
-      })
-      .filter(Boolean) as {
-      collection_id: number;
-      source_id: number;
-      show_as_window: boolean;
-      collection: { id: number; slices: { name: string }[] };
-      source: { id: number };
-    }[];
-  }, [selectedView, campaign, activeSourceId]);
-
-  // Current active collection and its position
-  const currentCollectionIndex = viewCollections.findIndex(
-    (c) => c.collection_id === activeCollectionId
-  );
-  const currentEntry = viewCollections[currentCollectionIndex];
-  const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
-
-  const firstNonEmptySlice = useCallback(
-    (collectionId: number, totalSlices: number, preferredIndex = 0): number => {
-      for (let offset = 0; offset < totalSlices; offset++) {
-        const i = (preferredIndex + offset) % totalSlices;
-        if (!emptySlices[`${collectionId}-${i}`]) return i;
-      }
-      return -1;
-    },
-    [emptySlices]
-  );
+  const { navigateSlice, navigateCollection } = useSliceNavigation();
 
   const selectLabelByIndex = useCallback(
     (index: number) => {
@@ -145,102 +90,6 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       }
     },
     [labels.length, processDigitBuffer]
-  );
-
-  // Navigate slices with collection wrap-around
-  const navigateSlice = useCallback(
-    (direction: 'next' | 'prev') => {
-      if (!currentEntry) return;
-      // Remember which direction the user travelled in, so that if the
-      // landed-on slice later turns out empty (detected async by the probe),
-      // we keep skipping in that same direction instead of jumping to cover.
-      setSliceNavIntent(direction);
-      const colId = currentEntry.collection_id;
-      const nonEmpty: number[] = [];
-      for (let i = 0; i < currentSliceCount; i++) {
-        if (!emptySlices[`${colId}-${i}`]) nonEmpty.push(i);
-      }
-
-      if (direction === 'next') {
-        const nextInCol = nonEmpty.find((i) => i > activeSliceIndex);
-        if (nextInCol !== undefined) {
-          setActiveSliceIndex(nextInCol);
-        } else if (currentCollectionIndex < viewCollections.length - 1) {
-          const next = viewCollections[currentCollectionIndex + 1];
-          const nextCount = next.collection.slices.length;
-          const landing = firstNonEmptySlice(next.collection_id, nextCount, 0);
-          setActiveCollectionId(next.collection_id);
-          if (landing > 0) setTimeout(() => setActiveSliceIndex(landing), 0);
-        }
-      } else {
-        const prevInCol = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
-        if (prevInCol !== undefined) {
-          setActiveSliceIndex(prevInCol);
-        } else if (currentCollectionIndex > 0) {
-          const prev = viewCollections[currentCollectionIndex - 1];
-          const prevCount = prev.collection.slices.length;
-          let landing = -1;
-          for (let i = prevCount - 1; i >= 0; i--) {
-            if (!emptySlices[`${prev.collection_id}-${i}`]) {
-              landing = i;
-              break;
-            }
-          }
-          if (landing < 0) return;
-          setActiveCollectionId(prev.collection_id);
-          setTimeout(() => setActiveSliceIndex(landing), 0);
-        }
-      }
-    },
-    [
-      activeSliceIndex,
-      currentSliceCount,
-      currentCollectionIndex,
-      currentEntry,
-      viewCollections,
-      emptySlices,
-      setActiveSliceIndex,
-      setActiveCollectionId,
-      setSliceNavIntent,
-      firstNonEmptySlice,
-    ]
-  );
-
-  // Navigate collections directly (Shift+A/D)
-  const navigateCollection = useCallback(
-    (direction: 'next' | 'prev') => {
-      if (viewCollections.length === 0) return;
-      // Fresh collection: treat like an initial load so any empty-slice
-      // probe lands on the cover slice rather than hotkey-direction-skipping.
-      setSliceNavIntent('initial');
-      const targetIdx =
-        direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
-      const target = viewCollections[targetIdx];
-      if (!target) return;
-
-      const storedSlice = collectionSliceIndices[target.collection_id] ?? 0;
-      const isStoredEmpty = emptySlices[`${target.collection_id}-${storedSlice}`];
-      setActiveCollectionId(target.collection_id);
-
-      if (isStoredEmpty) {
-        const fallback = firstNonEmptySlice(
-          target.collection_id,
-          target.collection.slices.length,
-          storedSlice
-        );
-        if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
-      }
-    },
-    [
-      currentCollectionIndex,
-      viewCollections,
-      setActiveCollectionId,
-      setActiveSliceIndex,
-      setSliceNavIntent,
-      firstNonEmptySlice,
-      collectionSliceIndices,
-      emptySlices,
-    ]
   );
 
   // Keep refs to the latest nav callbacks so the autoscroll interval reads
@@ -449,6 +298,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     [confidence, setConfidence]
   );
 
+  const setConfidenceLevel = useCallback(
+    (level: number) => {
+      if (level >= 1 && level <= 5) setConfidence(level);
+    },
+    [setConfidence]
+  );
+
   // Main keydown handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -467,6 +323,14 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           (document.activeElement as HTMLElement)?.blur();
         }
         // Allow all other keys to work normally in inputs
+        return;
+      }
+
+      // Shift+1..5 sets confidence directly. Use e.code since shifted digit
+      // keys produce symbols (!@#$%) in e.key on most layouts.
+      if (e.shiftKey && /^Digit[1-5]$/.test(e.code)) {
+        e.preventDefault();
+        setConfidenceLevel(parseInt(e.code.slice(5), 10));
         return;
       }
 
@@ -672,6 +536,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     triggerPan,
     focusComment,
     adjustConfidence,
+    setConfidenceLevel,
     handleSubmit,
     handleSkip,
     toggleFlagForReview,

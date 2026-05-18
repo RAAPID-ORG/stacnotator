@@ -1,3 +1,5 @@
+// TODO: should refactor at some point into semantically meaningfull files. Currently just a dump
+
 export interface LatLon {
   lat: number;
   lon: number;

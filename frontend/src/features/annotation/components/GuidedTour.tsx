@@ -18,6 +18,20 @@ interface TourStep {
   requiredKeys?: string[];
   /** Friendly label for the hotkey(s) the user must press */
   requiredKeyLabel?: string;
+  /**
+   * When true, the step is fulfilled by clicking the target element.
+   * Mutually exclusive with requiredKeys.
+   */
+  requiredClick?: boolean;
+  /** Friendly label for the action the user must take */
+  requiredClickLabel?: string;
+  /**
+   * Special side-effects triggered by this step.
+   * - 'auto-edit-layout': enables campaign edit-layout mode on enter,
+   *   fulfills when the user exits edit mode (Save or Cancel),
+   *   reverts edit mode on cleanup if still active.
+   */
+  effect?: 'auto-edit-layout';
   /** Number of times the user must press the required key (default 1) */
   /** Whether to scroll the target into view (default true) */
   scrollIntoView?: boolean;
@@ -333,6 +347,25 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'left',
   },
 
+  // Practice: Open in Google Earth
+  {
+    target: '[data-tour="open-in-google-earth"]',
+    title: 'Practice: Open in Google Earth',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Click the highlighted <strong>Open in Google Earth</strong> button to inspect the current
+          task location in Google Earth. A new tab will open with the coordinates pre-filled - handy
+          for high-resolution context when imagery alone isn&apos;t enough.
+        </p>
+        <p className="text-sm text-neutral-500 italic">Click the button now.</p>
+      </div>
+    ),
+    placement: 'left',
+    requiredClick: true,
+    requiredClickLabel: 'Open in Google Earth',
+  },
+
   // Controls panel
   {
     target: '[data-tour="controls"]',
@@ -492,6 +525,27 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
       </p>
     ),
     placement: 'bottom',
+  },
+
+  // Practice: Resize panels
+  {
+    target: '[data-tour="layout-controls"]',
+    title: 'Practice: Resize Panels',
+    content: (
+      <div className="space-y-2">
+        <p>
+          We&apos;ve enabled <strong>Edit Layout</strong> mode for you. Try{' '}
+          <strong>dragging a panel header</strong> to move it, or <strong>drag the edges</strong> of
+          a panel to resize it.
+        </p>
+        <p>
+          When you&apos;re done, click <strong>Save</strong> to keep the layout, or{' '}
+          <strong>Cancel</strong> to discard your changes.
+        </p>
+      </div>
+    ),
+    placement: 'bottom',
+    effect: 'auto-edit-layout',
   },
 
   // Campaign guide
@@ -907,6 +961,25 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     placement: 'left',
   },
 
+  // Practice: Open in Google Earth
+  {
+    target: '[data-tour="open-in-google-earth"]',
+    title: 'Practice: Open in Google Earth',
+    content: (
+      <div className="space-y-2">
+        <p>
+          Click the highlighted <strong>Open in Google Earth</strong> button to inspect the current
+          viewport center in Google Earth. A new tab will open with the coordinates pre-filled -
+          handy for high-resolution context when imagery alone isn&apos;t enough.
+        </p>
+        <p className="text-sm text-neutral-500 italic">Click the button now.</p>
+      </div>
+    ),
+    placement: 'left',
+    requiredClick: true,
+    requiredClickLabel: 'Open in Google Earth',
+  },
+
   // 14. Timeseries chart (only if configured)
   ...(hasTimeseries
     ? [
@@ -946,6 +1019,27 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
       </p>
     ),
     placement: 'bottom',
+  },
+
+  // 15b. Practice: Resize panels
+  {
+    target: '[data-tour="layout-controls"]',
+    title: 'Practice: Resize Panels',
+    content: (
+      <div className="space-y-2">
+        <p>
+          We&apos;ve enabled <strong>Edit Layout</strong> mode for you. Try{' '}
+          <strong>dragging a panel header</strong> to move it, or <strong>drag the edges</strong> of
+          a panel to resize it.
+        </p>
+        <p>
+          When you&apos;re done, click <strong>Save</strong> to keep the layout, or{' '}
+          <strong>Cancel</strong> to discard your changes.
+        </p>
+      </div>
+    ),
+    placement: 'bottom',
+    effect: 'auto-edit-layout',
   },
 
   // 16a. Campaign guide
@@ -1054,7 +1148,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const [currentStep, setCurrentStep] = useState(0);
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
-  const [keyFulfilled, setKeyFulfilled] = useState(false);
+  const [stepFulfilled, setStepFulfilled] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -1087,7 +1181,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   // Reset key tracking when step changes
   useEffect(() => {
     setPressedKeys(new Set());
-    setKeyFulfilled(false);
+    setStepFulfilled(false);
   }, [currentStep]);
 
   // Keep step data in a ref so the keydown handler is stable
@@ -1097,7 +1191,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   // Listen for required key presses - each unique key must be pressed at
   // least once before the step is fulfilled (not just N presses of any key).
   useEffect(() => {
-    if (!isOpen || !step?.requiredKeys || keyFulfilled) return;
+    if (!isOpen || !step?.requiredKeys || stepFulfilled) return;
 
     const handler = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -1127,7 +1221,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
           const next = new Set(prev);
           next.add(matchedKey.toLowerCase());
           if (currentStep.requiredKeys!.every((k) => next.has(k.toLowerCase()))) {
-            setKeyFulfilled(true);
+            setStepFulfilled(true);
           }
           return next;
         });
@@ -1137,7 +1231,51 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     window.addEventListener('keydown', handler, { capture: true });
     return () => window.removeEventListener('keydown', handler, { capture: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, currentStep, keyFulfilled]);
+  }, [isOpen, currentStep, stepFulfilled]);
+
+  // Listen for the required click on the target element
+  useEffect(() => {
+    if (!isOpen || !step?.requiredClick || stepFulfilled) return;
+
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(step.target)) {
+        setStepFulfilled(true);
+      }
+    };
+
+    window.addEventListener('click', handler, { capture: true });
+    return () => window.removeEventListener('click', handler, { capture: true });
+  }, [isOpen, step, stepFulfilled]);
+
+  // Side-effect: auto-edit-layout enables edit mode on enter,
+  // and fulfills the step when the user exits edit mode.
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const editLayoutActivatedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen || step?.effect !== 'auto-edit-layout') {
+      editLayoutActivatedRef.current = false;
+      return;
+    }
+    useCampaignStore.getState().setIsEditingLayout(true);
+    editLayoutActivatedRef.current = true;
+    return () => {
+      if (useCampaignStore.getState().isEditingLayout) {
+        useCampaignStore.getState().setIsEditingLayout(false);
+      }
+      editLayoutActivatedRef.current = false;
+    };
+  }, [isOpen, step?.effect, currentStep]);
+
+  useEffect(() => {
+    if (!isOpen || step?.effect !== 'auto-edit-layout' || stepFulfilled) return;
+    if (!editLayoutActivatedRef.current) return;
+    if (!useCampaignStore.getState().isEditingLayout) {
+      setStepFulfilled(true);
+    }
+  }, [isOpen, step?.effect, stepFulfilled, isEditingLayout]);
 
   // Position tooltip relative to the highlighted element
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
@@ -1223,7 +1361,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
       clearInterval(interval);
       window.removeEventListener('resize', handleResize);
     };
-  }, [isOpen, currentStep, positionTooltip, keyFulfilled]);
+  }, [isOpen, currentStep, positionTooltip, stepFulfilled]);
 
   // Scroll target into view
   useEffect(() => {
@@ -1250,10 +1388,10 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   // Auto-advance after all required keys are pressed so the user doesn't
   // have to move their mouse to the tooltip to click "Next".
   useEffect(() => {
-    if (!keyFulfilled) return;
+    if (!stepFulfilled) return;
     const timer = setTimeout(() => handleNext(), 800);
     return () => clearTimeout(timer);
-  }, [keyFulfilled, handleNext]);
+  }, [stepFulfilled, handleNext]);
 
   const handlePrev = useCallback(() => {
     setCurrentStep((s) => Math.max(0, s - 1));
@@ -1289,7 +1427,8 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
 
   if (!isOpen || !step) return null;
 
-  const needsKeyPress = !!step.requiredKeys && !keyFulfilled;
+  const needsAction =
+    (!!step.requiredKeys || !!step.requiredClick || !!step.effect) && !stepFulfilled;
   const progressPct = Math.round(((currentStep + 1) / steps.length) * 100);
 
   return (
@@ -1375,12 +1514,58 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
           {/* Content */}
           <div className="text-sm text-neutral-700 leading-relaxed">{step.content}</div>
 
+          {/* Auto edit-layout indicator */}
+          {step.effect === 'auto-edit-layout' && (
+            <div className="mt-3 p-2.5 rounded-lg bg-neutral-50 border border-neutral-200">
+              <span className="text-xs font-medium text-neutral-600">
+                {stepFulfilled ? (
+                  <span className="text-brand-600 flex items-center gap-1">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Done!
+                  </span>
+                ) : (
+                  <>Drag a panel edge to resize, then click Save or Cancel.</>
+                )}
+              </span>
+            </div>
+          )}
+
+          {/* Interactive click indicator */}
+          {step.requiredClick && (
+            <div className="mt-3 p-2.5 rounded-lg bg-neutral-50 border border-neutral-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-neutral-600">
+                  {stepFulfilled ? (
+                    <span className="text-brand-600 flex items-center gap-1">
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      Done!
+                    </span>
+                  ) : (
+                    <>Click {step.requiredClickLabel ?? 'the highlighted element'}</>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Interactive key press indicator */}
           {step.requiredKeys && (
             <div className="mt-3 p-2.5 rounded-lg bg-neutral-50 border border-neutral-200">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-neutral-600">
-                  {keyFulfilled ? (
+                  {stepFulfilled ? (
                     <span className="text-brand-600 flex items-center gap-1">
                       <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                         <path
@@ -1395,7 +1580,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
                     <>Press</>
                   )}
                 </span>
-                {!keyFulfilled && (
+                {!stepFulfilled && (
                   <div className="flex gap-1">
                     {step.requiredKeys.map((k) => (
                       <kbd
@@ -1433,7 +1618,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
               )}
               <button
                 onClick={handleNext}
-                disabled={needsKeyPress}
+                disabled={needsAction}
                 className="px-4 py-1.5 text-xs font-bold bg-brand-600 text-white rounded-md hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {isLastStep ? 'Finish' : 'Next →'}

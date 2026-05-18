@@ -146,7 +146,11 @@ export const StepImagery = ({
         .filter((r): r is NonNullable<typeof r> => r !== null),
     }));
 
-    const basemaps = s.basemaps.map((b) => ({ name: b.name, url: b.url }));
+    const basemaps = s.basemaps.map((b) => ({
+      name: b.name,
+      url: b.url,
+      max_native_zoom: b.maxNativeZoom ?? null,
+    }));
 
     setForm({
       ...form,
@@ -619,6 +623,21 @@ export const StepImagery = ({
                   onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                   placeholder="https://.../{z}/{x}/{y}.png"
                   className="flex-1 h-8 px-2.5 text-[11px] font-mono text-neutral-700 border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  value={bm.maxNativeZoom ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateBasemap(bm.id, {
+                      maxNativeZoom: v === '' ? undefined : Number(v),
+                    });
+                  }}
+                  placeholder="Max z"
+                  title="Deepest zoom the provider serves. Past this, the deepest tile is upscaled instead of fetched. Leave empty for unlimited."
+                  className="w-20 h-8 px-2.5 text-xs border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
                 />
                 <button
                   type="button"

@@ -4,6 +4,7 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { TaskModeReview } from '../components/review/TaskModeReview';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 
@@ -15,7 +16,6 @@ export const ReviewPage = () => {
   const [loading, setLoading] = useState(true);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
-  const showAlert = useLayoutStore((state) => state.showAlert);
 
   useEffect(() => {
     if (campaign) {
@@ -35,15 +35,13 @@ export const ReviewPage = () => {
         const campaignRes = await getCampaign({ path: { campaign_id: numericCampaignId } });
         setCampaign(campaignRes.data!);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load campaign';
-        showAlert(message, 'error');
-        console.error(err);
+        handleError(err, 'Failed to load campaign');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [campaignId, numericCampaignId, showAlert]);
+  }, [campaignId, numericCampaignId]);
 
   if (loading) {
     return (

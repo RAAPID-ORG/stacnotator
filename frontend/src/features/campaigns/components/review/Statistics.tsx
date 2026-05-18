@@ -5,6 +5,7 @@ import {
   type CampaignStatistics,
   type PairwiseAgreement,
 } from '~/api/client';
+import { handleError } from '~/shared/utils/errorHandler';
 
 interface StatisticsProps {
   campaignId: number;
@@ -28,7 +29,7 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
         }
         setError(null);
       } catch (err) {
-        console.error('Error fetching statistics:', err);
+        handleError(err, 'Failed to load statistics', { showUser: false });
         setError('Failed to load statistics');
       } finally {
         setLoading(false);

@@ -414,6 +414,10 @@ export type BasemapCreate = {
      * Url
      */
     url: string;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
 };
 
 /**
@@ -432,6 +436,10 @@ export type BasemapOut = {
      * Url
      */
     url: string;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
 };
 
 /**

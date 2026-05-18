@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Field, Select } from '~/shared/ui/forms';
+import { handleError } from '~/shared/utils/errorHandler';
 import {
   addUsersToCampaign,
   getCampaignUsers,
@@ -45,7 +46,7 @@ export const CampaignUsersSection = ({
       const { data } = await getCampaignUsers({ path: { campaign_id: campaignId } });
       setUsers(data!.users);
     } catch (err) {
-      console.error(err);
+      handleError(err, 'Failed to load campaign users', { showUser: false });
       setError('Failed to load campaign users');
     } finally {
       setLoading(false);
@@ -57,9 +58,10 @@ export const CampaignUsersSection = ({
       const { data } = await listUsers({});
       setAllUsers(data || []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load users available to add';
+      const message = handleError(err, 'Failed to load users available to add', {
+        showUser: false,
+      });
       onError?.(message);
-      console.error(err);
     }
   };
 
@@ -93,10 +95,11 @@ export const CampaignUsersSection = ({
       const msg = `${selectedUser.display_name} added to campaign`;
       onSuccess?.(msg);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to add user. Please try again.';
+      const message = handleError(err, 'Failed to add user. Please try again.', {
+        showUser: false,
+      });
       setError(message);
       onError?.(message);
-      console.error(err);
     } finally {
       setAddingUser(false);
     }
@@ -129,10 +132,9 @@ export const CampaignUsersSection = ({
       // Reload users to get updated state
       await loadUsers();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update user role';
+      const message = handleError(err, 'Failed to update user role', { showUser: false });
       setError(message);
       onError?.(message);
-      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -165,10 +167,9 @@ export const CampaignUsersSection = ({
       // Reload users to get updated state
       await loadUsers();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update reviewer status';
+      const message = handleError(err, 'Failed to update reviewer status', { showUser: false });
       setError(message);
       onError?.(message);
-      console.error(err);
     } finally {
       setSaving(false);
     }
@@ -193,10 +194,9 @@ export const CampaignUsersSection = ({
       const msg = `${user.user.display_name} removed from campaign`;
       onSuccess?.(msg);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to remove user';
+      const message = handleError(err, 'Failed to remove user', { showUser: false });
       setError(message);
       onError?.(message);
-      console.error(err);
     } finally {
       setSaving(false);
     }

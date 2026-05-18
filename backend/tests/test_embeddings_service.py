@@ -36,14 +36,6 @@ class TestKnnLabelAgrees:
         nearest = [(MagicMock(), 3, d) for d in [0.1, 0.2, 0.3, 0.4, 0.5]]
         assert knn_label_agrees(nearest, label_id=99) is False
 
-    def test_tie_resolved_by_first_max(self):
-        nearest = [
-            (MagicMock(), 1, 0.1),
-            (MagicMock(), 2, 0.2),
-        ]
-        result = knn_label_agrees(nearest, label_id=1)
-        assert isinstance(result, bool)
-
 
 class TestValidateLabelSubmission:
     @patch("src.annotation.embeddings_service.get_embedding_by_task")

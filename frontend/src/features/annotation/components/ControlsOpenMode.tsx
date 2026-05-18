@@ -1,50 +1,16 @@
 import { useEffect, useState } from 'react';
-import type { LabelBase } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import {
+  extendLabelsWithMetadata,
+  type ExtendedLabel,
+  type GeometryType,
+} from '../utils/labelMetadata';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
-export type GeometryType = 'point' | 'polygon' | 'line';
-
-/**
- * Extended label type with geometry type and color
- */
-export interface ExtendedLabel extends LabelBase {
-  geometry_type: GeometryType;
-  color: string;
-}
-
-/**
- * Color palette for remote sensing annotation
- * Using colors that work well on satellite imagery
- */
-const LABEL_COLORS = [
-  '#10b981', // emerald - vegetation/crops
-  '#f59e0b', // amber - urban/built-up
-  '#3b82f6', // blue - water
-  '#8b5cf6', // purple - forest
-  '#ef4444', // red - barren/soil
-  '#ec4899', // pink - special features
-  '#06b6d4', // cyan - ice/snow
-  '#a3883a', // ochre - mixed use
-  '#6366f1', // indigo - infrastructure
-  '#14b8a6', // teal - wetlands
-];
-
-/**
- * Assign colors to labels and use geometry types from backend
- * Falls back to 'polygon' if geometry_type is not set (legacy data)
- */
-export const extendLabelsWithMetadata = (labels: LabelBase[]): ExtendedLabel[] => {
-  return labels.map((label, index) => ({
-    ...label,
-    geometry_type: (label.geometry_type as GeometryType) || 'polygon',
-    color: LABEL_COLORS[index % LABEL_COLORS.length],
-  }));
-};
 
 /**
  * Tool definitions for open mode annotation

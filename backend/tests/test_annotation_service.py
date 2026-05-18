@@ -281,23 +281,43 @@ class TestAddAnnotationForTask:
 class TestCreateAnnotation:
     """Tests for creating standalone (non-task) annotations."""
 
-    def test_creates_geometry_and_annotation(self):
+    def test_creates_geometry_then_annotation_with_user_payload(self):
         db = _mock_db()
         user_id = uuid4()
         campaign = MagicMock()
         campaign.id = 42
 
+        # Have flush() populate the geometry id the way the real DB would,
+        # so the test can verify that id is wired into the Annotation.
+        def _flush_sets_geom_id():
+            added = [c.args[0] for c in db.add.call_args_list]
+            for obj in added:
+                if isinstance(obj, AnnotationGeometry) and obj.id is None:
+                    obj.id = 7777
+
+        db.flush.side_effect = _flush_sets_geom_id
+
         payload = AnnotationCreate(
             label_id=1, comment="standalone", geometry_wkt="POINT(10 20)", confidence=None
         )
-
         create_annotation(db, campaign, payload, user_id)
 
-        # Should have added geometry + annotation (2 add calls)
-        assert db.add.call_count == 2
-        assert db.flush.call_count == 1
-        assert db.commit.call_count == 1
-        assert db.refresh.call_count == 1
+        added = [c.args[0] for c in db.add.call_args_list]
+        geoms = [o for o in added if isinstance(o, AnnotationGeometry)]
+        anns = [o for o in added if isinstance(o, Annotation)]
+
+        assert len(geoms) == 1
+        assert len(anns) == 1
+
+        geom, ann = geoms[0], anns[0]
+
+        assert "POINT(10 20)" in str(geom.geometry)
+
+        assert ann.label_id == 1
+        assert ann.comment == "standalone"
+        assert ann.campaign_id == 42
+        assert ann.created_by_user_id == user_id
+        assert ann.geometry_id == geom.id
 
     def test_annotation_has_no_task_link(self):
         db = _mock_db()

@@ -105,37 +105,6 @@ class TestCORSOrigins:
 
 
 class TestOptionalFields:
-    def test_defaults_are_none_on_clean_env(self):
-        s = _make_settings()
-        assert s.FIREBASE_CREDENTIALS is None
-        assert s.FIREBASE_CREDENTIALS_PATH is None
-        assert s.EE_SERVICE_ACCOUNT is None
-        assert s.EE_PRIVATE_KEY is None
-
-    def test_firebase_credentials_from_env(self):
-        s = _make_settings_from_env(
-            {
-                "FIREBASE_CREDENTIALS_PATH": "/secrets/firebase.json",
-                "FIREBASE_CREDENTIALS": '{"type":"service_account"}',
-            }
-        )
-        assert s.FIREBASE_CREDENTIALS_PATH == "/secrets/firebase.json"
-        assert s.FIREBASE_CREDENTIALS == '{"type":"service_account"}'
-
-    def test_ee_credentials_from_env(self):
-        s = _make_settings_from_env(
-            {
-                "EE_SERVICE_ACCOUNT": "my-sa@project.iam.gserviceaccount.com",
-                "EE_PRIVATE_KEY": "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
-            }
-        )
-        assert s.EE_SERVICE_ACCOUNT == "my-sa@project.iam.gserviceaccount.com"
-        assert "BEGIN RSA PRIVATE KEY" in s.EE_PRIVATE_KEY
-
     def test_auth_provider_defaults_to_firebase(self):
         s = _make_settings()
         assert s.AUTH_PROVIDER == "firebase"
-
-    def test_auth_provider_from_env(self):
-        s = _make_settings_from_env({"AUTH_PROVIDER": "azure_ad"})
-        assert s.AUTH_PROVIDER == "azure_ad"

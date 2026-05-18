@@ -211,9 +211,12 @@ class TestRevokeAdmin:
 
         with (
             patch("src.auth.service._admin_count", return_value=1),
-            pytest.raises(ValueError, match="last admin"),
+            pytest.raises(HTTPException) as exc_info,
         ):
             revoke_admin(db, user_id)
+
+        assert exc_info.value.status_code == 409
+        assert "last admin" in exc_info.value.detail.lower()
 
     def test_revoke_nonexistent_returns_none(self):
         db = _mock_db()
@@ -248,10 +251,12 @@ class TestDenyUser:
 
         with (
             patch("src.auth.service.has_role", side_effect=mock_has_role),
-            pytest.raises(ValueError, match="approved"),
+            pytest.raises(HTTPException) as exc_info,
         ):
             deny_user(db, user_id)
 
+        assert exc_info.value.status_code == 409
+        assert "approved" in exc_info.value.detail.lower()
         db.delete.assert_not_called()
 
     def test_deny_admin_raises(self):
@@ -267,9 +272,12 @@ class TestDenyUser:
 
         with (
             patch("src.auth.service.has_role", side_effect=mock_has_role),
-            pytest.raises(ValueError, match="admin"),
+            pytest.raises(HTTPException) as exc_info,
         ):
             deny_user(db, user_id)
+
+        assert exc_info.value.status_code == 409
+        assert "admin" in exc_info.value.detail.lower()
 
     def test_deny_nonexistent_returns_none(self):
         db = _mock_db()

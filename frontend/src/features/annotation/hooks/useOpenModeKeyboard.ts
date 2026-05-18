@@ -4,7 +4,7 @@ import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import { extendLabelsWithMetadata } from '../components/ControlsOpenMode';
+import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 
 /**
  * Keyboard shortcuts for open mode annotation.

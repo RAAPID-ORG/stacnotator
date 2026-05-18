@@ -5,8 +5,8 @@
  * - Delete request goes to the correct annotation_id
  * - Skip (null label) sends the right payload
  */
-import { test, expect, type CapturedRequest } from './fixtures/annotator-fixture';
-import { TASK_1, TASK_3, LABELS, TEST_USER_ID } from './fixtures/mock-data';
+import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
+import { LABELS } from './fixtures/mock-data';
 
 /** Return the last POST to /annotate */
 function lastAnnotateRequest(requests: CapturedRequest[]): CapturedRequest | undefined {
@@ -28,7 +28,7 @@ test.describe('Annotation Submission', () => {
     const submitBtn = page.locator('button', { hasText: 'Submit' });
     await submitBtn.first().click();
     // Wait for submit + auto-advance navigation to settle
-    await expect(page.locator('button', { hasText: 'Loading...' })).toBeHidden({ timeout: 5000 });
+    await waitForNavIdle(page);
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
@@ -45,12 +45,12 @@ test.describe('Annotation Submission', () => {
     // Select a label
     await page.locator('button', { hasText: 'Cropland' }).first().click();
 
-    // Type a comment
-    const commentArea = page.locator('textarea[placeholder="Add a comment..."]');
+    // Type a comment (placeholder uses Unicode ellipsis "…", match by prefix)
+    const commentArea = page.locator('textarea[placeholder^="Add a comment"]');
     await commentArea.fill('Irrigated fields visible');
 
     await page.locator('button', { hasText: 'Submit' }).first().click();
-    await expect(page.locator('button', { hasText: 'Loading...' })).toBeHidden({ timeout: 5000 });
+    await waitForNavIdle(page);
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
@@ -69,7 +69,7 @@ test.describe('Annotation Submission', () => {
     await slider.fill('5');
 
     await page.locator('button', { hasText: 'Submit' }).first().click();
-    await expect(page.locator('button', { hasText: 'Loading...' })).toBeHidden({ timeout: 5000 });
+    await waitForNavIdle(page);
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
@@ -90,20 +90,24 @@ test.describe('Annotation Submission', () => {
     await dialog.waitFor({ state: 'visible', timeout: 3000 });
     const dialogSkipBtn = dialog.locator('button', { hasText: 'Skip' });
     await dialogSkipBtn.click();
-    await expect(page.locator('button', { hasText: 'Loading...' })).toBeHidden({ timeout: 5000 });
+    await waitForNavIdle(page);
 
     const req = lastAnnotateRequest(api.requests);
     expect(req).toBeDefined();
     expect(req!.body.label_id).toBeNull();
   });
 
-  test('submit button text changes to Update when task has existing annotation', async ({
-    annotationPage,
-  }) => {
+  test('submit is blocked until a label is selected', async ({ annotationPage, api }) => {
     const page = annotationPage;
 
-    // For now, verify Submit shows for a fresh task (task 1, no prior annotation)
+    // TASK_1 has no existing annotation, so no label means no submit.
     const submitBtn = page.locator('button', { hasText: 'Submit' }).first();
-    await expect(submitBtn).toBeVisible();
+    await expect(submitBtn).toBeDisabled();
+
+    // Pressing Enter without a label must not produce an annotate request.
+    api.clear();
+    await page.keyboard.press('Enter');
+    await waitForNavIdle(page);
+    expect(lastAnnotateRequest(api.requests)).toBeUndefined();
   });
 });

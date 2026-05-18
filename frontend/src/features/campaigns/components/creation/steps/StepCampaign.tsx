@@ -1,5 +1,6 @@
 import type { CampaignCreate } from '~/api/client';
 import { Input } from '~/shared/ui/forms';
+import { useLayoutStore } from '~/features/layout/layout.store';
 export const StepCampaign = ({
   form,
   setForm,
@@ -7,6 +8,24 @@ export const StepCampaign = ({
   form: CampaignCreate;
   setForm: (f: CampaignCreate) => void;
 }) => {
+  const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+
+  const handleVisibilityChange = async (checked: boolean) => {
+    if (!checked) {
+      setForm({ ...form, is_public: false });
+      return;
+    }
+    const confirmed = await showConfirmDialog({
+      title: 'Make Campaign Public?',
+      description:
+        'Any signed-in user will be able to view this campaign and add annotations to it. They can only edit or delete their own annotations, but their contributions will be visible to everyone. Task assignment remains restricted to campaign members.',
+      confirmText: 'Make Public',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
+    if (confirmed) setForm({ ...form, is_public: true });
+  };
+
   return (
     <div className="space-y-6">
       <div className="space-y-4">
@@ -66,7 +85,7 @@ export const StepCampaign = ({
           <input
             type="checkbox"
             checked={form.is_public ?? false}
-            onChange={(e) => setForm({ ...form, is_public: e.target.checked })}
+            onChange={(e) => handleVisibilityChange(e.target.checked)}
             className="mt-1 text-brand-700 focus:ring-brand-600"
           />
           <div className="flex-1">

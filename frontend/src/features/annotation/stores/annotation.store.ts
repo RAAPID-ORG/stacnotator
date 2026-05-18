@@ -7,7 +7,7 @@ import {
   type AnnotationOut,
 } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import { handleApiError } from '~/shared/utils/errorHandler';
+import { handleError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 import { useCampaignStore } from './campaign.store';
 
@@ -64,9 +64,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       });
       set({ annotations: response.data || [], isLoadingAnnotations: false });
     } catch (error) {
-      handleApiError(error, 'Load annotations error', {
-        defaultMessage: 'Failed to load annotations',
-      });
+      handleError(error, 'Failed to load annotations');
       set({ isLoadingAnnotations: false });
     }
   },
@@ -96,10 +94,8 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       useLayoutStore.getState().showAlert('Annotation saved successfully', 'success');
       return annotation;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save annotation';
-      useLayoutStore.getState().showAlert(message, 'error');
+      handleError(error, 'Failed to save annotation');
       set({ isSaving: false });
-      console.error('Save annotation error:', error);
       return null;
     }
   },
@@ -131,10 +127,8 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       }));
       useLayoutStore.getState().showAlert('Annotation updated successfully', 'success');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update annotation';
-      useLayoutStore.getState().showAlert(message, 'error');
+      handleError(error, 'Failed to update annotation');
       set({ isSaving: false });
-      console.error('Update annotation error:', error);
       throw error; // Re-throw for rollback handling
     }
   },
@@ -176,9 +170,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       set((s) => ({
         annotations: s.annotations.map((a) => (a.id === annotationId ? annotation : a)),
       }));
-      const message = error instanceof Error ? error.message : 'Failed to update flag';
-      useLayoutStore.getState().showAlert(message, 'error');
-      console.error('Update flag error:', error);
+      handleError(error, 'Failed to update flag');
     }
   },
 
@@ -198,10 +190,8 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       }));
       useLayoutStore.getState().showAlert('Annotation deleted successfully', 'success');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete annotation';
-      useLayoutStore.getState().showAlert(message, 'error');
+      handleError(error, 'Failed to delete annotation');
       set({ isSaving: false });
-      console.error('Delete annotation error:', error);
     }
   },
 

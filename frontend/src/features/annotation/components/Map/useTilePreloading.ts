@@ -13,18 +13,73 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { TilePreloader } from './tilePreloader';
-import { buildTileUrl } from './tileUrlBuilder';
+import { buildTileUrl } from '../../utils/tileLoading';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { usePreferencesStore, type PreloadMode } from '../../stores/preferences.store';
+import { isMobileNow } from '~/shared/utils/useIsMobile';
 
 const PRIORITY_OTHER_COLLECTIONS = 1;
 const PRIORITY_NEXT1_DEFAULT = 2;
 const PRIORITY_NEXT1_OTHER = 3;
 const PRIORITY_NEXT2_DEFAULT = 4;
 const PRIORITY_NEXT2_OTHER = 5;
+
+/**
+ * Concrete in-flight cap for each named tier. The heavy tier is sized for
+ * fast connections where the server (not the client pipe) is the bottleneck;
+ * the lower tiers are sized to leave bandwidth and HTTP/2 stream priority
+ * for interactive pan/zoom tiles on slower links - the user can't actually
+ * receive more preloads any faster anyway.
+ */
+export const PRELOAD_TIER_CONCURRENCY = {
+  off: 0,
+  conservative: 4,
+  balanced: 16,
+  heavy: 50,
+} as const;
+
+export type PreloadTier = keyof typeof PRELOAD_TIER_CONCURRENCY;
+
+/**
+ * Map detected network conditions to a tier. Chromium/Edge expose
+ * `navigator.connection`; Safari/Firefox return undefined and we assume
+ * a fast connection. Touch-only devices (phones/tablets) default to off
+ * so users on cellular don't burn data prefetching tiles they may never see.
+ */
+export function getAutoPreloadTier(): PreloadTier {
+  type NetConn = { effectiveType?: string; saveData?: boolean; downlink?: number };
+  if (isMobileNow()) return 'off';
+  const conn = (navigator as Navigator & { connection?: NetConn }).connection;
+  if (!conn) return 'heavy';
+  if (conn.saveData) return 'off';
+  switch (conn.effectiveType) {
+    case 'slow-2g':
+    case '2g':
+      return 'off';
+    case '3g':
+      return 'conservative';
+    case '4g':
+      // 4g spans ~10 Mbps to gigabit. Refine by downlink when available.
+      if (conn.downlink != null && conn.downlink < 10) return 'balanced';
+      return 'heavy';
+    default:
+      return 'heavy';
+  }
+}
+
+/** Resolve the user's preference into a concrete tier (auto follows network). */
+export function resolvePreloadTier(mode: PreloadMode): PreloadTier {
+  return mode === 'auto' ? getAutoPreloadTier() : mode;
+}
+
+/** Resolve the user's preference into a concrete in-flight concurrency. */
+export function resolvePreloadConcurrency(mode: PreloadMode): number {
+  return PRELOAD_TIER_CONCURRENCY[resolvePreloadTier(mode)];
+}
 
 const PREFIX_CURRENT = 'cur';
 const PREFIX_NEXT1 = 'nxt1';
@@ -111,7 +166,6 @@ interface UseTilePreloadingOptions {
   visibleTasks: AnnotationTaskOut[];
   currentTaskIndex: number;
   defaultZoom: number;
-  /** Current map zoom level - used for prefetching current task at the zoom the user is at */
   currentZoom?: number;
   enabled: boolean;
 }
@@ -126,10 +180,12 @@ export function useTilePreloading({
   currentZoom,
   enabled,
 }: UseTilePreloadingOptions) {
+  const preloadMode = usePreferencesStore((s) => s.preloadMode);
+  const concurrency = resolvePreloadConcurrency(preloadMode);
+
   const preloaderRef = useRef<TilePreloader | null>(null);
   const hasEnqueuedCurrentRef = useRef(false);
   const hasEnqueuedNextRef = useRef(false);
-  // Capture the map canvas pixel size once so we preload the right number of tiles
   const mapSizeRef = useRef<[number, number] | null>(null);
 
   const campaignRef = useRef(campaign);
@@ -220,8 +276,8 @@ export function useTilePreloading({
   }, []);
 
   useEffect(() => {
-    if (!enabled) return;
-    const p = new TilePreloader();
+    if (!enabled || concurrency === 0) return;
+    const p = new TilePreloader(concurrency);
     preloaderRef.current = p;
     p.onGroupEmpty = handleGroupEmpty;
 
@@ -229,7 +285,7 @@ export function useTilePreloading({
       p.dispose();
       preloaderRef.current = null;
     };
-  }, [enabled, handleGroupEmpty]);
+  }, [enabled, concurrency, handleGroupEmpty]);
 
   const enqueueCurrentOtherCollections = useCallback(() => {
     const p = preloaderRef.current;

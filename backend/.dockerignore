@@ -47,6 +47,11 @@ Thumbs.db
 .env
 config/.env
 
+# Credentials are mounted at runtime, never baked into the image.
+config/firebase-credentials.json
+config/ee-private-key.json
+config/*.json
+
 # Test files
 .pytest_cache/
 .coverage

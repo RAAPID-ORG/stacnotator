@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -247,7 +248,7 @@ def revoke_admin(db: Session, user_id: UUID) -> User | None:
         Updated user object, or None if user not found
 
     Raises:
-        ValueError: If attempting to revoke the last admin user
+        HTTPException 409: If attempting to revoke the last admin user
     """
     user = db.get(User, user_id)
     if not user:
@@ -264,7 +265,7 @@ def revoke_admin(db: Session, user_id: UUID) -> User | None:
 
     # Prevent removing the last admin
     if _admin_count(db) <= 1:
-        raise ValueError("Cannot revoke admin from the last admin user")
+        raise HTTPException(status_code=409, detail="Cannot revoke admin from the last admin user")
 
     db.delete(role)
     db.commit()
@@ -428,7 +429,7 @@ def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
         Dictionary with 'revoked', 'not_found', and 'not_admin' lists
 
     Raises:
-        ValueError: If attempting to revoke all remaining admin users
+        HTTPException 409: If attempting to revoke all remaining admin users
     """
     result = {
         "revoked": [],
@@ -460,9 +461,12 @@ def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
     # Prevent removing all admins
     admins_after_revoke = current_admin_count - len(admin_users_to_revoke)
     if admins_after_revoke < 1:
-        raise ValueError(
-            f"Cannot revoke admin from {len(admin_users_to_revoke)} user(s). "
-            f"This would leave no admin users in the system."
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Cannot revoke admin from {len(admin_users_to_revoke)} user(s). "
+                f"This would leave no admin users in the system."
+            ),
         )
 
     # Perform revocations
@@ -499,7 +503,7 @@ def deny_user(db: Session, user_id: UUID) -> User | None:
         The deleted user object, or None if user not found
 
     Raises:
-        ValueError: If user is already approved or is an admin
+        HTTPException 409: If user is already approved or is an admin
     """
     user = db.get(User, user_id)
     if not user:
@@ -507,10 +511,14 @@ def deny_user(db: Session, user_id: UUID) -> User | None:
 
     # Prevent deletion of approved or admin users
     if has_role(db, user_id, ROLE_APPROVED):
-        raise ValueError("Cannot deny an approved user. Use revoke approval instead.")
+        raise HTTPException(
+            status_code=409, detail="Cannot deny an approved user. Use revoke approval instead."
+        )
 
     if has_role(db, user_id, ROLE_ADMIN):
-        raise ValueError("Cannot deny an admin user. Revoke admin role first.")
+        raise HTTPException(
+            status_code=409, detail="Cannot deny an admin user. Revoke admin role first."
+        )
 
     # Delete the user (roles will be cascade deleted)
     db.delete(user)

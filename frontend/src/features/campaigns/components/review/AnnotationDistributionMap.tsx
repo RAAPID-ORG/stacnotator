@@ -3,55 +3,32 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { generateLabelColors } from './labelColors';
 
 interface AnnotationDistributionMapProps {
   tasks: AnnotationTaskOut[];
   labels: LabelBase[];
-  bbox: {
-    west: number;
-    south: number;
-    east: number;
-    north: number;
-  };
+  bbox: { west: number; south: number; east: number; north: number };
 }
 
-// Generate distinct colors for labels
-const generateLabelColors = (labels: LabelBase[]): Record<number, string> => {
-  const colors: Record<number, string> = {};
-  const hueStep = 360 / Math.max(labels.length, 1);
-
-  labels.forEach((label, index) => {
-    const hue = (index * hueStep) % 360;
-    // Use varying saturation and lightness for better distinction
-    const saturation = 70 + (index % 3) * 10;
-    const lightness = 45 + (index % 2) * 10;
-    colors[label.id] = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  });
-
-  return colors;
-};
-
-// Status colors for tasks without a labeled annotation
-const PENDING_COLOR = '#9CA3AF'; // gray
-const SKIPPED_COLOR = '#8B5CF6'; // violet
+const PENDING_COLOR = '#9CA3AF';
+const SKIPPED_COLOR = '#8B5CF6';
 
 export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps> = ({
   tasks,
   labels,
   bbox,
 }) => {
-  const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [labelColors, setLabelColors] = useState<Record<number, string>>({});
 
-  // Generate label colors
   useEffect(() => {
     setLabelColors(generateLabelColors(labels));
   }, [labels]);
 
-  // Initialize map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -62,7 +39,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       attributionControl: true,
     });
 
-    // Add CartoDB basemap
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
       attribution:
         '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
@@ -70,11 +46,9 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       maxZoom: 19,
     }).addTo(map);
 
-    // Fit to bbox
     const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
     map.fitBounds(bounds, { padding: [20, 20] });
 
-    // Add bbox rectangle
     L.rectangle(bounds, {
       color: '#326247',
       weight: 2,
@@ -82,29 +56,23 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
       dashArray: '5, 5',
     }).addTo(map);
 
-    // Create markers layer group
     markersLayerRef.current = L.layerGroup().addTo(map);
-
     mapRef.current = map;
     setMapReady(true);
 
     return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        setMapReady(false);
-      }
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markersLayerRef.current = null;
+      setMapReady(false);
     };
   }, [bbox.west, bbox.south, bbox.east, bbox.north]);
 
-  // Update markers when tasks or label colors change
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current || !mapReady) return;
 
-    // Clear existing markers
     markersLayerRef.current.clearLayers();
 
-    // Add markers for each task
     tasks.forEach((task) => {
       const centroid = extractCentroidFromWKT(task.geometry.geometry);
       if (!centroid) return;
@@ -112,12 +80,10 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
       const annotations = task.annotations || [];
 
-      // Determine marker color from task status and annotations
       let markerColor = PENDING_COLOR;
       let labelName = 'Pending';
 
       if (annotations.length > 0 && annotations.some((a) => a.label_id)) {
-        // Has at least one labeled annotation - color by first label
         const labeledAnn = annotations.find((a) => a.label_id);
         if (labeledAnn?.label_id) {
           markerColor = labelColors[labeledAnn.label_id] || PENDING_COLOR;
@@ -142,7 +108,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
       const marker = L.marker(coords, { icon });
 
-      // Add popup with task info
       const assignments = task.assignments || [];
       const assignedTo =
         assignments.length > 0
@@ -156,7 +121,11 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
                 const label = labels.find((l) => l.id === a.label_id);
                 const annotator = assignments.find((asgn) => asgn.user_id === a.created_by_user_id);
                 const annotatorName =
-                  annotator?.user_display_name || annotator?.user_email || a.created_by_user_id;
+                  annotator?.user_display_name ||
+                  annotator?.user_email ||
+                  a.created_by_user_display_name ||
+                  a.created_by_user_email ||
+                  a.created_by_user_id;
                 return `${label?.name || 'Skipped'} (by ${annotatorName})`;
               })
               .join('<br>')
@@ -177,7 +146,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
     });
   }, [tasks, mapReady, labelColors, labels]);
 
-  // Calculate statistics by label
   const labelStats = labels
     .map((label) => {
       const count = tasks.filter((t) => {
@@ -188,7 +156,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
     })
     .filter((stat) => stat.count > 0);
 
-  // Tasks with no annotations (or no label) that aren't skipped are pending
   const pendingCount = tasks.filter((t) => {
     const annotations = t.annotations || [];
     const hasLabel = annotations.some((a) => a.label_id);
@@ -203,7 +170,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
         Annotation Distribution ({tasks.length} total)
       </h2>
 
-      {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4 text-sm">
         {labelStats.map(({ label, count, color }) => (
           <div key={label.id} className="flex items-center gap-2">
@@ -236,7 +202,6 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
         )}
       </div>
 
-      {/* Map Container */}
       <div ref={containerRef} className="w-full h-96 rounded-lg border border-neutral-200" />
 
       <style>{`

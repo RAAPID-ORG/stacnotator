@@ -91,7 +91,8 @@ docs/_build/
 # =========================
 # Config Stuff
 # =========================
-config/
+config/*
 !config/.env_template
+!config/.gitkeep
 
 data/

@@ -6,6 +6,7 @@ import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { hasSeenTour, usePreferencesStore } from '../stores/preferences.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
@@ -13,33 +14,8 @@ import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
+import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
-
-/**
- * Key used to mark that a given (user, campaign) pair has already seen the
- * guided tour. localStorage-scoped: resets on new devices/browsers, which is
- * acceptable for an onboarding nudge.
- */
-const tourSeenKey = (userId: string, campaignId: number) =>
-  `stacnotator:tour-seen:${userId}:${campaignId}`;
-
-const hasSeenTour = (userId: string | undefined, campaignId: number): boolean => {
-  if (!userId) return true; // fail-safe: don't auto-open if we can't identify user
-  try {
-    return localStorage.getItem(tourSeenKey(userId, campaignId)) === '1';
-  } catch {
-    return true;
-  }
-};
-
-const markTourSeen = (userId: string | undefined, campaignId: number) => {
-  if (!userId) return;
-  try {
-    localStorage.setItem(tourSeenKey(userId, campaignId), '1');
-  } catch {
-    // localStorage unavailable (private browsing etc.) - ignore
-  }
-};
 
 export const AnnotationPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -106,7 +82,7 @@ export const AnnotationPage = () => {
         );
       } catch (error) {
         if (!cancelled) {
-          console.error('Failed to load campaign:', error);
+          handleError(error, 'Failed to load campaign', { showUser: false });
         }
       }
     };
@@ -148,6 +124,7 @@ export const AnnotationPage = () => {
     }
   }, [showContent, campaign, visibleTasks.length, accountId, autoTourChecked, setShowGuidedTour]);
 
+  const markTourSeen = usePreferencesStore((s) => s.markTourSeen);
   const handleTourClose = () => {
     setShowGuidedTour(false);
     if (campaign && accountId) markTourSeen(accountId, campaign.id);

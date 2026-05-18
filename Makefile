@@ -130,7 +130,7 @@ dev-restore-backup: ## Restore dev DB from a local SQL backup (use FILE="db/back
 
 dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
-	@if [ ! -f .env ]; then cp .env.dev .env; echo "Created .env file from .env.dev"; fi
+	@if [ ! -f .env ]; then cp .env.example .env; echo "Created .env file from .env.example"; fi
 	@echo "Building development images..."
 	@$(MAKE) dev-build
 	@echo "Starting development services..."

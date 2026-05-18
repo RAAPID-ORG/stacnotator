@@ -17,6 +17,7 @@ import {
   deleteView as apiDeleteView,
 } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { handleError } from '~/shared/utils/errorHandler';
 import { VizConfigPanel } from '~/features/campaigns/components/creation/steps/imagery/VizConfigPanel';
 import type { VizParams } from '~/features/campaigns/components/creation/steps/imagery/types';
 import { emptyVizParams } from '~/features/campaigns/components/creation/steps/imagery/types';
@@ -207,7 +208,7 @@ function SourceCard({
         body as { name?: string; crosshair_hex6?: string; default_zoom?: number }
       );
     } catch (e) {
-      console.error(e);
+      handleError(e, 'Failed to update imagery source');
     } finally {
       setSaving(false);
     }
@@ -222,7 +223,7 @@ function SourceCard({
       });
       onRefresh?.();
     } catch (e) {
-      console.error(e);
+      handleError(e, 'Failed to save visualizations');
     } finally {
       setVizSaving(false);
     }
@@ -488,7 +489,7 @@ function CollectionEditModal({
       onUpdated?.();
       setTimeout(() => setMetaSaved(false), 2000);
     } catch (e) {
-      console.error(e);
+      handleError(e, 'Failed to save collection metadata');
     } finally {
       setMetaSaving(false);
     }
@@ -710,7 +711,7 @@ function StacVizEditor({
       onUpdated?.();
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      console.error(e);
+      handleError(e, 'Failed to save visualization params');
     } finally {
       setSaving(false);
     }
@@ -872,7 +873,7 @@ function XyzUrlEditor({
       onUpdated?.();
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      console.error(e);
+      handleError(e, 'Failed to save tile URLs');
     } finally {
       setSaving(false);
     }
@@ -1250,8 +1251,7 @@ function ViewsEditor({
       showAlert('Views saved', 'success');
       onChanged?.();
     } catch (e) {
-      console.error(e);
-      showAlert('Failed to save views', 'error');
+      handleError(e, 'Failed to save views');
     } finally {
       setSaving(false);
     }

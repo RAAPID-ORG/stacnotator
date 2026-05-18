@@ -97,7 +97,6 @@ const TaskModeMap = ({
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const currentMapZoom = useMapStore((s) => s.currentMapZoom);
-  const preloadingEnabled = useMapStore((s) => s.preloadingEnabled);
   const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
   const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
   const panTrigger = useMapStore((s) => s.panTrigger);
@@ -116,7 +115,8 @@ const TaskModeMap = ({
     onLayersChange,
   });
 
-  // Tile preloading (task mode only) - temporarily disabled for debugging
+  // Tile preloading (task mode only) - tier is resolved inside the hook
+  // from `usePreferencesStore.preloadMode` (persisted in localStorage).
   useTilePreloading({
     layerManager,
     campaign,
@@ -125,7 +125,7 @@ const TaskModeMap = ({
     currentTaskIndex,
     defaultZoom: initialZoom ?? 10,
     currentZoom: currentMapZoom ?? undefined,
-    enabled: !!campaign && preloadingEnabled,
+    enabled: !!campaign,
   });
 
   // Pan to center + reset zoom on task navigation

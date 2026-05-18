@@ -21,6 +21,7 @@ import {
   passwordMeetsAllRequirements,
 } from 'src/features/auth/ui/PasswordRequirements';
 import { FadeIn } from '~/shared/ui/motion';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
@@ -73,9 +74,7 @@ export const SettingsPage = () => {
       const { data } = await listUsers();
       setUsers(data as UserOutDetailed[]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load users';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to load users');
     } finally {
       setIsPageLoading(false);
     }
@@ -98,9 +97,7 @@ export const SettingsPage = () => {
 
       showAlert(`${data?.success.length || 0} user(s) approved successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to approve users';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to approve users');
     } finally {
       setSaving(false);
     }
@@ -123,9 +120,7 @@ export const SettingsPage = () => {
 
       showAlert(`${data?.success.length || 0} user approval(s) revoked successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to revoke user approvals';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to revoke user approvals');
     } finally {
       setSaving(false);
     }
@@ -145,9 +140,7 @@ export const SettingsPage = () => {
 
       showAlert(`${data?.success.length || 0} user(s) denied successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to deny users';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to deny users');
     } finally {
       setSaving(false);
     }
@@ -170,9 +163,7 @@ export const SettingsPage = () => {
 
       showAlert(`${data?.success.length || 0} user(s) granted admin successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to grant admin';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to grant admin');
     } finally {
       setSaving(false);
     }
@@ -195,9 +186,7 @@ export const SettingsPage = () => {
 
       showAlert(`${data?.success.length || 0} admin role(s) revoked successfully`, 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to revoke admin';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to revoke admin');
     } finally {
       setSaving(false);
     }
@@ -219,9 +208,7 @@ export const SettingsPage = () => {
         showAlert('Display name updated successfully', 'success');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to update display name';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to update display name');
     } finally {
       setSaving(false);
     }

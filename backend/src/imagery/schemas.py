@@ -90,6 +90,7 @@ class BasemapOut(BaseModel):
     id: int
     name: str
     url: str
+    max_native_zoom: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -223,6 +224,7 @@ class ImagerySourceCreate(BaseModel):
 class BasemapCreate(BaseModel):
     name: str
     url: str
+    max_native_zoom: int | None = None
 
 
 class ViewCollectionRefCreate(BaseModel):

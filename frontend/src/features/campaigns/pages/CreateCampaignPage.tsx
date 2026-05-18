@@ -16,6 +16,7 @@ import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/creation/steps/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
+import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ export const CreateCampaignPage = () => {
 
   const [step, setStep] = useState(1);
   const [showValidation, setShowValidation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
@@ -106,19 +108,13 @@ export const CreateCampaignPage = () => {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     setShowValidation(true);
     if (!validation.isValid) return;
 
+    setIsSubmitting(true);
     try {
       showLoadingOverlay('Creating campaign...');
-      console.log('[Campaign Create] full payload:', {
-        form,
-        imagery_editor_state: {
-          sources: imageryState.sources,
-          views: imageryState.views,
-          basemaps: imageryState.basemaps,
-        },
-      });
       const { data: campaign } = await createCampaign({ body: form });
       const status = (campaign as Record<string, unknown>)?.registration_status;
       if (status === 'registering') {
@@ -132,11 +128,10 @@ export const CreateCampaignPage = () => {
         navigate('/campaigns');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create campaign';
-      showAlert(message, 'error');
-      console.error(err);
+      handleError(err, 'Failed to create campaign');
     } finally {
       hideLoadingOverlay();
+      setIsSubmitting(false);
     }
   };
 
@@ -163,6 +158,7 @@ export const CreateCampaignPage = () => {
         <div className="flex items-center justify-between mt-6 pb-8">
           <Button
             variant="secondary"
+            disabled={isSubmitting}
             onClick={step === 1 ? () => navigate('/campaigns') : () => setStep(step - 1)}
           >
             {step === 1 ? 'Cancel' : 'Back'}
@@ -172,10 +168,13 @@ export const CreateCampaignPage = () => {
             <Button onClick={() => setStep(step + 1)}>Continue</Button>
           ) : (
             <div className="relative group">
-              <Button onClick={handleSubmit} disabled={showValidation && !validation.isValid}>
-                Create campaign
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmitting || (showValidation && !validation.isValid)}
+              >
+                {isSubmitting ? 'Creating...' : 'Create campaign'}
               </Button>
-              {showValidation && !validation.isValid && (
+              {showValidation && !validation.isValid && !isSubmitting && (
                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
                 </span>

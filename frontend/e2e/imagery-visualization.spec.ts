@@ -7,43 +7,9 @@
  * - Visualization options belong to the correct campaign imagery configuration
  * - After task navigation, imagery state resets properly
  */
-import { test, expect } from './fixtures/annotator-fixture';
-import { SLICE_2024_01, SLICE_2024_06, COLLECTION_S2 } from './fixtures/mock-data';
+import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 
 test.describe('Imagery and Visualization', () => {
-  test('slice dates from mock data are available in the campaign', async ({
-    annotationPage,
-  }) => {
-    const page = annotationPage;
-
-    // The campaign has 2 slices: "Jan 2024" and "Jun 2024"
-    // These should appear somewhere in the UI - either as a select dropdown
-    // on the imagery containers or as text in the header.
-
-    // Check for slice selector dropdowns
-    const sliceSelectors = page.locator('select[title="Select time slice"]');
-    const count = await sliceSelectors.count();
-
-    if (count > 0) {
-      // The first selector should have options for both slices
-      const options = sliceSelectors.first().locator('option');
-      const optionTexts = await options.allTextContents();
-      expect(optionTexts.some((t) => t.includes('Jan 2024'))).toBe(true);
-      expect(optionTexts.some((t) => t.includes('Jun 2024'))).toBe(true);
-    }
-  });
-
-  test('header shows current slice name', async ({ annotationPage }) => {
-    const page = annotationPage;
-
-    // The Canvas header renders: "{vizName} · {sourceName} · {sliceName} (1/2)"
-    // Check that "Jan 2024" appears in the header (default slice index 0)
-    const headerText = await page.locator('[data-tour="main-map"]').textContent();
-    if (headerText) {
-      expect(headerText).toContain('Jan 2024');
-    }
-  });
-
   test('keyboard slice navigation (A/D) changes displayed slice name', async ({
     annotationPage,
   }) => {
@@ -70,38 +36,42 @@ test.describe('Imagery and Visualization', () => {
 
     // Navigate to next task
     await page.keyboard.press('s');
-    // Wait for the isNavigating debounce to clear
-    await expect(page.locator('button', { hasText: 'Loading...' })).toBeHidden({ timeout: 5000 });
+    await waitForNavIdle(page);
 
     // After task navigation, the slice should reset to 0 (Jan 2024)
     await expect(header).toContainText('Jan 2024', { timeout: 3000 });
   });
 
-  test('tasks counter shows correct numbers', async ({ annotationPage }) => {
+  test('tasks counter reflects completed-vs-total in the assignment scope', async ({
+    annotationPage,
+  }) => {
     const page = annotationPage;
 
-    // The header shows "{completed}/{total} tasks done"
-    // With default filter (pending only, our user), we have 2 pending tasks
-    // Tasks 3 (done), 4 (skipped), 5 (conflicting) are completed
-    // For the counter, it counts all tasks matching assignedTo filter regardless of status
-    const headerText = await page.locator('[data-tour="main-map"]').textContent();
-    if (headerText) {
-      // Should contain "tasks done" text
-      expect(headerText).toContain('tasks done');
-    }
+    // Header renders "<done> of <total> done" within data-tour="main-map".
+    // Scope is the assignedTo filter (default: current user). Our user is
+    // assigned to all 5 tasks, of which TASK_3/4/5 are done/skipped/conflicting
+    // (all counted as completed). So the counter must show 3 of 5.
+    const counter = page.locator('[data-tour="main-map"]').getByText(/\d+\s+of\s+\d+\s+done/i);
+    await expect(counter).toContainText('3');
+    await expect(counter).toContainText('5');
   });
 
-  test('collection windows render for each show_as_window ref', async ({ annotationPage }) => {
+  test('a grid card is rendered for each collection_ref with show_as_window=true', async ({
+    annotationPage,
+  }) => {
     const page = annotationPage;
 
-    // Our mock has 2 collections as windows: Sentinel-2 L2A and NDVI
-    // These should render as grid cards with collection names in headers
+    // Mock declares two windows (Sentinel-2 L2A and NDVI) plus three fixed
+    // cards (main, controls, minimap). time_series is empty so no
+    // timeseries card. Total must be exactly 5.
     const cards = page.locator('.grid-card');
-    const cardCount = await cards.count();
+    await expect(cards).toHaveCount(5);
 
-    // At minimum we expect: main, controls, minimap + 2 imagery windows = 5
-    // (timeseries is absent since time_series is empty)
-    expect(cardCount).toBeGreaterThanOrEqual(4);
+    // One of the window cards must surface each declared collection name.
+    // The names appear in multiple places (selectors, labels), so verify by
+    // scoping to grid cards and matching at least one occurrence per name.
+    await expect(cards.filter({ hasText: 'Sentinel-2 L2A' }).first()).toBeVisible();
+    await expect(cards.filter({ hasText: 'NDVI' }).first()).toBeVisible();
   });
 
   test('keyboard Shift+I cycles visualization layer', async ({ annotationPage }) => {
