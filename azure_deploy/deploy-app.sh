@@ -73,6 +73,8 @@ PROJECT_NAME="stacnotator-${ENV}"
 # on container startup are serialized by definition. To raise the cap,
 # also wrap context.run_migrations() with pg_advisory_lock in env.py;
 # concurrent startups will otherwise race on schema changes.
+# IMPORTANT: If we increase backend replicas, we will need to implement
+# a lock for database migrations that run on startup.
 if [ "$ENV" = "dev" ]; then
     BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
@@ -351,6 +353,8 @@ fi
 # Build frontend
 echo -e "${YELLOW}  Building frontend...${NC}"
 cd frontend
+echo -e "${YELLOW}  Installing frontend dependencies...${NC}"
+npm ci
 VITE_API_BASE_URL="https://$BACKEND_URL" \
 VITE_TILER_BASE_URL="https://$TILER_URL" \
 VITE_FIREBASE_API_KEY="$VITE_FIREBASE_API_KEY" \
