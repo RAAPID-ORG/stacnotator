@@ -29,6 +29,7 @@ from src.imagery.schemas import (
 )
 from src.imagery.stac_registration import register_collection_slices
 from src.tiling.router import build_viz_query_string, register_mosaic_sync
+from src.tiling.stac_client import _is_mpc
 
 
 def _bbox_to_wkt(west: float, south: float, east: float, north: float) -> str:
@@ -365,7 +366,7 @@ def _register_all_stac_browser_collections(
     tasks: list[dict] = []
     for collection, col_create, src_create in pending:
         stac = col_create.stac_config
-        is_mpc = "planetarycomputer.microsoft.com" in (stac.catalog_url or "")
+        is_mpc = _is_mpc(stac.catalog_url or "")
 
         # Validate viz name parity between source and stac_config
         source_names = [v.name for v in src_create.visualizations]
@@ -545,7 +546,7 @@ def _register_all_stac_browser_collections(
         task = task_by_slice[slice_id]
         viz_params_by_name: dict[str, dict] = task["viz_params_by_name"]
         stac = task["stac"]
-        is_mpc_catalog = "planetarycomputer.microsoft.com" in (stac.catalog_url or "")
+        is_mpc_catalog = _is_mpc(stac.catalog_url or "")
 
         # Persist local mosaic registration + items once per slice (shared across vizs)
         local_mosaic_id = None
