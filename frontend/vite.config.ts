@@ -13,6 +13,21 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // React runtime must be its own chunk. Otherwise Rollup hoists it
+          // into whichever feature chunk imports it first (e.g. `leaflet`
+          // via react-leaflet), and every other React-using chunk
+          // (`markdown`, `charts`, etc.) ends up with cross-chunk imports
+          // back to it - creating circular chunk graphs and the runtime
+          // "Cannot set properties of undefined (setting 'Activity')"
+          // error when React's exports aren't initialized in the order
+          // expected by the loader.
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/scheduler/")
+          )
+            return "react";
+
           // Heavy libs that change rarely - split so app-code changes don't
           // invalidate them in long-lived (1y immutable) caches.
           if (id.includes("/node_modules/ol/")) return "ol";
