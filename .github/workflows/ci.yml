@@ -193,6 +193,7 @@ jobs:
     needs: [backend-test, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, linux, x64, azure]
+    environment: production
     permissions:
       id-token: write
       contents: read
@@ -204,9 +205,9 @@ jobs:
       - name: Azure Login via OIDC (prod identity)
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID_PROD }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID_PROD }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - uses: actions/setup-node@v4
         with:
@@ -217,7 +218,7 @@ jobs:
       - name: Deploy to Azure
         env:
           CI: "true"
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP_PROD }}
-          EE_SERVICE_ACCOUNT: ${{ vars.EE_SERVICE_ACCOUNT_PROD }}
-          CUSTOM_DOMAINS: ${{ vars.CUSTOM_DOMAINS_PROD }}
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_PROD }}
+          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_PROD }}
+          CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS_PROD }}
         run: ./azure_deploy/deploy-app.sh prod

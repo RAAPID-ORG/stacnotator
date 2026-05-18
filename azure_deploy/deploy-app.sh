@@ -34,6 +34,22 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Register sensitive values with GitHub Actions so they are replaced with "***"
+# in workflow logs. Public repos have world-readable logs, so this is the last
+# line of defense in addition to not echoing secrets explicitly. No-op locally.
+ci_mask() {
+    [ "$CI" = "true" ] || return 0
+    local v
+    for v in "$@"; do
+        if [ -n "$v" ]; then
+            echo "::add-mask::$v"
+        fi
+    done
+}
+
+# Mask inputs that arrive via env/vars before any command can echo them.
+ci_mask "$RESOURCE_GROUP" "$EE_SERVICE_ACCOUNT" "$CUSTOM_DOMAINS"
+
 if ! az account show &>/dev/null; then
     echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
     exit 1
@@ -92,6 +108,8 @@ ACR_LOGIN_SERVER="$ACR_NAME.azurecr.io"
 ACR_ID=$(az acr show --name "$ACR_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
 KV_ID=$(az keyvault show --name "$KV_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
 
+ci_mask "$ACR_NAME" "$ACR_LOGIN_SERVER" "$ACR_ID" "$CAE_NAME" "$KV_NAME" "$KV_ID"
+
 echo -e "${GREEN}✓ ACR: $ACR_NAME | CAE: $CAE_NAME | KV: $KV_NAME${NC}"
 
 echo ""
@@ -122,6 +140,7 @@ if ! az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/n
     exit 1
 fi
 IDENTITY_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
+ci_mask "$APPS_IDENTITY_NAME" "$IDENTITY_ID"
 echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 
 # Build + push images
@@ -267,6 +286,7 @@ if [ -n "$REPLICA_NAME" ]; then
     # Resolve the target DB host so the operator knows which server will be migrated
     MIGRATION_DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" \
         --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || echo "unknown")
+    ci_mask "$MIGRATION_DB_HOST"
     echo -e "${YELLOW}Migrations will run against:${NC}"
     echo -e "  Host:     ${MIGRATION_DB_HOST}"
     echo -e "  Database: stacnotator"
@@ -287,6 +307,7 @@ if [ -n "$REPLICA_NAME" ]; then
             exit 1
         fi
         BACKUP_NAME="pre-deploy-${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)"
+        ci_mask "$DB_SERVER_NAME" "$BACKUP_NAME"
         echo -e "${YELLOW}Creating on-demand DB backup before migrations: $BACKUP_NAME${NC}"
         if ! az postgres flexible-server backup create \
             --resource-group "$RESOURCE_GROUP" \
@@ -304,16 +325,30 @@ if [ -n "$REPLICA_NAME" ]; then
     # Print a per-run sentinel only when alembic exits 0, then assert the sentinel
     # is present in the captured output. Anything short of that fails the deploy.
     MIGRATION_SENTINEL="__MIGRATION_OK_$$_$(date +%s)__"
-    az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-        --replica "$REPLICA_NAME" \
-        --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
-        2>&1 | tee /tmp/migration_output.log
+    if [ "$CI" = "true" ]; then
+        # Do NOT stream alembic output to public CI logs. SQLAlchemy stack traces
+        # on a failed migration can include DSN fragments, table contents, etc.
+        # that ::add-mask:: hasn't been told about. Capture to runner-local file only.
+        az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+            --replica "$REPLICA_NAME" \
+            --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
+            > /tmp/migration_output.log 2>&1 || true
+    else
+        az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+            --replica "$REPLICA_NAME" \
+            --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
+            2>&1 | tee /tmp/migration_output.log
+    fi
     if ! grep -q "$MIGRATION_SENTINEL" /tmp/migration_output.log; then
         echo -e "${RED}Migration failed: success sentinel not found in alembic output.${NC}"
-        echo -e "${YELLOW}Full output: /tmp/migration_output.log${NC}"
-        if [ "$ENV" = "prod" ] && [ -n "$BACKUP_NAME" ]; then
-            echo -e "${YELLOW}Pre-deploy backup available: $BACKUP_NAME on $DB_SERVER_NAME${NC}"
-            echo -e "${YELLOW}List backups: az postgres flexible-server backup list -g $RESOURCE_GROUP -n $DB_SERVER_NAME${NC}"
+        if [ "$CI" = "true" ]; then
+            echo -e "${YELLOW}Output captured on the runner; not streamed to logs. Inspect on the runner or restore from the pre-deploy DB backup.${NC}"
+        else
+            echo -e "${YELLOW}Full output: /tmp/migration_output.log${NC}"
+            if [ "$ENV" = "prod" ] && [ -n "$BACKUP_NAME" ]; then
+                echo -e "${YELLOW}Pre-deploy backup available: $BACKUP_NAME on $DB_SERVER_NAME${NC}"
+                echo -e "${YELLOW}List backups: az postgres flexible-server backup list -g $RESOURCE_GROUP -n $DB_SERVER_NAME${NC}"
+            fi
         fi
         exit 1
     fi
@@ -338,6 +373,7 @@ echo -e "${YELLOW}  Fetching Firebase config from Key Vault...${NC}"
 VITE_FIREBASE_API_KEY=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-api-key" --query "value" -o tsv 2>/dev/null)
 VITE_FIREBASE_AUTH_DOMAIN=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-auth-domain" --query "value" -o tsv 2>/dev/null)
 VITE_FIREBASE_PROJECT_ID=$(az keyvault secret show --vault-name "$KV_NAME" --name "firebase-project-id" --query "value" -o tsv 2>/dev/null)
+ci_mask "$VITE_FIREBASE_API_KEY" "$VITE_FIREBASE_AUTH_DOMAIN" "$VITE_FIREBASE_PROJECT_ID"
 
 if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
     echo -e "${RED}Error: Could not fetch Firebase config from Key Vault.${NC}"
@@ -367,13 +403,14 @@ npm run build
 # Deploy to SWA
 SWA_TOKEN=$(az staticwebapp secrets list --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
     --query "properties.apiKey" -o tsv)
+ci_mask "$SWA_TOKEN"
 
 npx @azure/static-web-apps-cli deploy ./dist \
     --deployment-token "$SWA_TOKEN" \
     --env production 2>/dev/null || \
 az staticwebapp deploy --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
     --app-location "./dist" --skip-app-build --output none 2>/dev/null || \
-echo -e "${YELLOW}  SWA deploy via CLI failed. Try: swa deploy ./dist --deployment-token $SWA_TOKEN${NC}"
+echo -e "${YELLOW}  SWA deploy via CLI failed. Re-fetch the deployment token from the Azure portal and re-run 'swa deploy ./dist'.${NC}"
 
 cd ..
 

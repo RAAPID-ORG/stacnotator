@@ -579,14 +579,13 @@ def update_embedding_year(
                 end_date,
             )
             recomputed = True
-        except Exception as exc:
-            logger.warning(
-                "Embedding recomputation failed for campaign %d year %d: %s",
+        except Exception:
+            logger.exception(
+                "Embedding recomputation failed for campaign %d year %d",
                 campaign_id,
                 embedding_year,
-                exc,
             )
-            summary = {"error": str(exc)}
+            summary = {"error": "Embedding recomputation failed. See server logs for details."}
 
     db.commit()
     db.refresh(campaign)

@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import planetary_computer as pc
 from rio_tiler.io import STACReader
@@ -21,7 +22,10 @@ _cache_lock = threading.Lock()
 
 
 def _is_mpc(url: str) -> bool:
-    return "planetarycomputer.microsoft.com" in url
+    host = (urlparse(url).hostname or "").lower()
+    return host == "planetarycomputer.microsoft.com" or host.endswith(
+        ".planetarycomputer.microsoft.com"
+    )
 
 
 def _get_cached_item(href: str) -> dict | None:

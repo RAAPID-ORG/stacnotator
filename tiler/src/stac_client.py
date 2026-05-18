@@ -1,6 +1,7 @@
 """pystac_client wrapper with MPC signing support."""
 
 import logging
+from urllib.parse import urlparse
 
 import planetary_computer as pc
 import pystac_client
@@ -9,7 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 def is_planetary_computer(url: str) -> bool:
-    return "planetarycomputer.microsoft.com" in url
+    host = (urlparse(url).hostname or "").lower()
+    return host == "planetarycomputer.microsoft.com" or host.endswith(
+        ".planetarycomputer.microsoft.com"
+    )
 
 
 def get_client(catalog_url: str) -> pystac_client.Client:

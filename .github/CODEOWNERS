@@ -1,0 +1,7 @@
+# Default owner for everything not matched below.
+* @rohansaw
+
+# CI/CD, workflow, and deploy logic - changes here affect what runs with
+# production credentials. Always require explicit owner review.
+/.github/ @rohansaw
+/azure_deploy/ @rohansaw
