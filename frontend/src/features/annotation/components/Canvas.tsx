@@ -314,6 +314,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
               title="Open in Google Earth"
               onClick={(e) => e.stopPropagation()}
+              data-tour="open-in-google-earth"
             >
               <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
