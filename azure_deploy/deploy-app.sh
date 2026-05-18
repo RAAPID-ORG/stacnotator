@@ -68,13 +68,17 @@ APP_SWA="stacnotator-${ENV}-frontend"
 # Project name as used in Terraform (matches KV secret naming)
 PROJECT_NAME="stacnotator-${ENV}"
 
-# Resource sizing per environment
+# Resource sizing per environment.
+# Backend is pinned to single replica (MIN=MAX=1) so alembic migrations
+# on container startup are serialized by definition. To raise the cap,
+# also wrap context.run_migrations() with pg_advisory_lock in env.py;
+# concurrent startups will otherwise race on schema changes.
 if [ "$ENV" = "dev" ]; then
     BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
     TILER_DEDICATED=false
 else
-    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=2  BACKEND_WORKERS=4
+    BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=4
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
     TILER_DEDICATED=false
 fi
@@ -267,125 +271,51 @@ else
 fi
 echo -e "${GREEN}✓ Tiler deployed${NC}"
 
-# Run migrations
+# Wait for the new backend revision to become healthy.
+# Migrations now run on container startup (alembic upgrade head in the
+# Dockerfile CMD, before gunicorn). A failed migration causes the container
+# to exit non-zero; the new revision stays unhealthy and the previous
+# revision continues serving 100% traffic - automatic rollback via
+# Container Apps' single-revision traffic gating.
+#
+# TODO: Re-introduce a pre-image-swap DB backup once stacnotator-prod is
+# upgraded from Burstable to General Purpose. Customer on-demand backups
+# are unsupported on Burstable SKUs, so a backup step here is a no-op
+# today. When upgraded, take the backup before the backend image swap
+# above so the restore point matches the pre-deploy schema.
 echo ""
-echo -e "${YELLOW}Waiting for backend replica to be ready...${NC}"
-MIGRATION_RETRIES=12
-REPLICA_NAME=""
-for i in $(seq 1 $MIGRATION_RETRIES); do
-    REPLICA_NAME=$(az containerapp replica list --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-        --query "[?properties.runningState=='Running'] | [0].name" -o tsv 2>/dev/null || echo "")
-    if [ -n "$REPLICA_NAME" ]; then
-        echo -e "${GREEN}  ✓ Replica ready: $REPLICA_NAME${NC}"
+echo -e "${YELLOW}Waiting for new backend revision to become healthy...${NC}"
+NEW_REVISION=$(az containerapp show -n "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+    --query "properties.latestRevisionName" -o tsv)
+ci_mask "$NEW_REVISION"
+
+REVISION_HEALTHY=
+for i in $(seq 1 60); do
+    HEALTH=$(az containerapp revision show \
+        -n "$APP_BACKEND" -g "$RESOURCE_GROUP" --revision "$NEW_REVISION" \
+        --query "properties.healthState" -o tsv 2>/dev/null || echo "Unknown")
+    if [ "$HEALTH" = "Healthy" ]; then
+        REVISION_HEALTHY=1
         break
     fi
-    echo -e "  Attempt $i/$MIGRATION_RETRIES - waiting 10s..."
-    sleep 10
-done
-
-if [ -n "$REPLICA_NAME" ]; then
-    # Resolve the target DB host so the operator knows which server will be migrated
-    MIGRATION_DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" \
-        --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || echo "unknown")
-    ci_mask "$MIGRATION_DB_HOST"
-    if [ "$CI" = "true" ]; then
-        echo -e "${YELLOW}Migrations will run against the configured Postgres host (details redacted in CI).${NC}"
-    else
-        echo -e "${YELLOW}Migrations will run against:${NC}"
-        echo -e "  Host:     ${MIGRATION_DB_HOST}"
-        echo -e "  Database: stacnotator"
-        echo -e "  User:     psqladmin"
-    fi
-    if [ "$CI" != "true" ]; then
-        read -p "Run migrations? (y/N): " CONFIRM_MIGRATE
-        if [[ ! "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
-            echo -e "${YELLOW}Skipping migrations. Run manually:${NC}"
-            echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
-        fi
-    fi
-    if [ "$CI" = "true" ] || [[ "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
-
-    if [ "$ENV" = "prod" ]; then
-        DB_SERVER_NAME=$(az postgres flexible-server list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv 2>/dev/null)
-        if [ -z "$DB_SERVER_NAME" ]; then
-            echo -e "${RED}Error: No PostgreSQL flexible server found in $RESOURCE_GROUP. Aborting before migrations.${NC}"
-            exit 1
-        fi
-        ci_mask "$DB_SERVER_NAME"
-
-        # Customer-on-demand backups are unsupported on Burstable SKUs. Detect
-        # the tier and skip the on-demand backup there.
-        DB_SKU=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$DB_SERVER_NAME" --query sku.name -o tsv 2>/dev/null || echo "")
-        if [[ "$DB_SKU" == Standard_B* || "$DB_SKU" == B_Standard_B* ]]; then
-            echo -e "${YELLOW}Burstable Postgres tier ($DB_SKU) detected - on-demand backups not supported by Azure.${NC}"
-            echo -e "${YELLOW}Skipping pre-migration backup. Relying on automated daily backups; consider upgrading to General Purpose.${NC}"
-            BACKUP_NAME=""
-        else
-            BACKUP_NAME="pre-deploy-${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)"
-            ci_mask "$BACKUP_NAME"
-            if [ "$CI" = "true" ]; then
-                echo -e "${YELLOW}Creating on-demand DB backup before migrations (name redacted in CI).${NC}"
-            else
-                echo -e "${YELLOW}Creating on-demand DB backup before migrations: $BACKUP_NAME${NC}"
-            fi
-            if ! az postgres flexible-server backup create \
-                --resource-group "$RESOURCE_GROUP" \
-                --name "$DB_SERVER_NAME" \
-                --backup-name "$BACKUP_NAME" \
-                --output none; then
-                echo -e "${RED}Error: DB backup failed. Aborting deploy without running migrations.${NC}"
-                exit 1
-            fi
-            if [ "$CI" = "true" ]; then
-                echo -e "${GREEN}✓ Backup created (details redacted in CI).${NC}"
-            else
-                echo -e "${GREEN}✓ Backup created on $DB_SERVER_NAME: $BACKUP_NAME${NC}"
-            fi
-        fi
-    fi
-
-    echo -e "${YELLOW}Running database migrations...${NC}"
-    # az containerapp exec does not reliably propagate the inner command's exit code.
-    # Print a per-run sentinel only when alembic exits 0, then assert the sentinel
-    # is present in the captured output. Anything short of that fails the deploy.
-    MIGRATION_SENTINEL="__MIGRATION_OK_$$_$(date +%s)__"
-    if [ "$CI" = "true" ]; then
-        # Do NOT stream alembic output to public CI logs. SQLAlchemy stack traces
-        # on a failed migration can include DSN fragments, table contents, etc.
-        # that ::add-mask:: hasn't been told about. Capture to runner-local file only.
-        az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-            --replica "$REPLICA_NAME" \
-            --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
-            > /tmp/migration_output.log 2>&1 || true
-    else
-        az containerapp exec --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-            --replica "$REPLICA_NAME" \
-            --command "sh -c 'alembic upgrade head && echo $MIGRATION_SENTINEL'" \
-            2>&1 | tee /tmp/migration_output.log
-    fi
-    if ! grep -q "$MIGRATION_SENTINEL" /tmp/migration_output.log; then
-        echo -e "${RED}Migration failed: success sentinel not found in alembic output.${NC}"
-        if [ "$CI" = "true" ]; then
-            if [ -n "$BACKUP_NAME" ]; then
-                echo -e "${YELLOW}Output captured on the runner; not streamed to logs. Restore from the pre-deploy DB backup or inspect on the runner.${NC}"
-            else
-                echo -e "${YELLOW}Output captured on the runner; not streamed to logs. No pre-deploy backup was taken (burstable tier). Use the latest automated daily snapshot if recovery is needed.${NC}"
-            fi
-        else
-            echo -e "${YELLOW}Full output: /tmp/migration_output.log${NC}"
-            if [ "$ENV" = "prod" ] && [ -n "$BACKUP_NAME" ]; then
-                echo -e "${YELLOW}Pre-deploy backup available: $BACKUP_NAME on $DB_SERVER_NAME${NC}"
-                echo -e "${YELLOW}List backups: az postgres flexible-server backup list -g $RESOURCE_GROUP -n $DB_SERVER_NAME${NC}"
-            fi
-        fi
+    if [ "$HEALTH" = "Unhealthy" ]; then
+        echo -e "${RED}New revision is Unhealthy. Likely a failed startup migration; previous revision still serving traffic.${NC}"
+        echo -e "${YELLOW}Inspect logs:${NC}"
+        echo -e "  az containerapp logs show -n $APP_BACKEND -g $RESOURCE_GROUP --revision <revision> --tail 200"
+        echo -e "${YELLOW}List revisions:${NC}"
+        echo -e "  az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table"
         exit 1
     fi
-    echo -e "${GREEN}✓ Migrations done${NC}"
-    fi
-else
-    echo -e "${YELLOW}Warning: No running replica found after ${MIGRATION_RETRIES} attempts. Run manually:${NC}"
-    echo -e "  az containerapp exec -n $APP_BACKEND -g $RESOURCE_GROUP --command 'alembic upgrade head'"
+    sleep 5
+done
+
+if [ -z "$REVISION_HEALTHY" ]; then
+    echo -e "${RED}Timed out waiting for revision health after 5 minutes. Previous revision still serving.${NC}"
+    echo -e "${YELLOW}Check status: az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table${NC}"
+    exit 1
 fi
+
+echo -e "${GREEN}✓ Backend revision healthy (migrations applied on startup).${NC}"
 
 # Deploy frontend
 echo ""

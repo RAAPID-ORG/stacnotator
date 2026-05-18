@@ -13,8 +13,11 @@ const MONTHS = [
   { value: '12', label: 'Dec' },
 ];
 
+// Covers the full satellite-imagery era. Earliest meaningful date for any
+// STAC catalog we consume is Landsat 1 (1972). Forward buffer for campaigns
+// scheduled slightly into the future.
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 30 }, (_, i) => currentYear - 15 + i); // 15 years back, 15 forward
+const YEARS = Array.from({ length: currentYear + 5 - 1972 + 1 }, (_, i) => 1972 + i);
 
 interface MonthPickerProps {
   /** Value in YYYY-MM format (e.g. "2024-06") */
