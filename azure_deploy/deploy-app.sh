@@ -133,6 +133,7 @@ fi
 
 # Look up the shared Container Apps identity (created by Terraform in raapid-infra)
 APPS_IDENTITY_NAME="id-${PROJECT_NAME}-apps"
+ci_mask "$APPS_IDENTITY_NAME"
 echo -e "${YELLOW}Looking up managed identity: $APPS_IDENTITY_NAME${NC}"
 if ! az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/null; then
     echo -e "${RED}Error: Managed identity '$APPS_IDENTITY_NAME' not found in $RESOURCE_GROUP.${NC}"
@@ -140,7 +141,7 @@ if ! az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" &>/dev/n
     exit 1
 fi
 IDENTITY_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" --query id -o tsv)
-ci_mask "$APPS_IDENTITY_NAME" "$IDENTITY_ID"
+ci_mask "$IDENTITY_ID"
 echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 
 # Build + push images
@@ -287,10 +288,14 @@ if [ -n "$REPLICA_NAME" ]; then
     MIGRATION_DB_HOST=$(az keyvault secret show --vault-name "$KV_NAME" \
         --name "${PROJECT_NAME}-postgres-host" --query "value" -o tsv 2>/dev/null || echo "unknown")
     ci_mask "$MIGRATION_DB_HOST"
-    echo -e "${YELLOW}Migrations will run against:${NC}"
-    echo -e "  Host:     ${MIGRATION_DB_HOST}"
-    echo -e "  Database: stacnotator"
-    echo -e "  User:     psqladmin"
+    if [ "$CI" = "true" ]; then
+        echo -e "${YELLOW}Migrations will run against the configured Postgres host (details redacted in CI).${NC}"
+    else
+        echo -e "${YELLOW}Migrations will run against:${NC}"
+        echo -e "  Host:     ${MIGRATION_DB_HOST}"
+        echo -e "  Database: stacnotator"
+        echo -e "  User:     psqladmin"
+    fi
     if [ "$CI" != "true" ]; then
         read -p "Run migrations? (y/N): " CONFIRM_MIGRATE
         if [[ ! "$CONFIRM_MIGRATE" =~ ^[Yy]$ ]]; then
@@ -306,18 +311,37 @@ if [ -n "$REPLICA_NAME" ]; then
             echo -e "${RED}Error: No PostgreSQL flexible server found in $RESOURCE_GROUP. Aborting before migrations.${NC}"
             exit 1
         fi
-        BACKUP_NAME="pre-deploy-${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)"
-        ci_mask "$DB_SERVER_NAME" "$BACKUP_NAME"
-        echo -e "${YELLOW}Creating on-demand DB backup before migrations: $BACKUP_NAME${NC}"
-        if ! az postgres flexible-server backup create \
-            --resource-group "$RESOURCE_GROUP" \
-            --name "$DB_SERVER_NAME" \
-            --backup-name "$BACKUP_NAME" \
-            --output none; then
-            echo -e "${RED}Error: DB backup failed. Aborting deploy without running migrations.${NC}"
-            exit 1
+        ci_mask "$DB_SERVER_NAME"
+
+        # Customer-on-demand backups are unsupported on Burstable SKUs. Detect
+        # the tier and skip the on-demand backup there.
+        DB_SKU=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$DB_SERVER_NAME" --query sku.name -o tsv 2>/dev/null || echo "")
+        if [[ "$DB_SKU" == Standard_B* || "$DB_SKU" == B_Standard_B* ]]; then
+            echo -e "${YELLOW}Burstable Postgres tier ($DB_SKU) detected - on-demand backups not supported by Azure.${NC}"
+            echo -e "${YELLOW}Skipping pre-migration backup. Relying on automated daily backups; consider upgrading to General Purpose.${NC}"
+            BACKUP_NAME=""
+        else
+            BACKUP_NAME="pre-deploy-${IMAGE_TAG}-$(date +%Y%m%d-%H%M%S)"
+            ci_mask "$BACKUP_NAME"
+            if [ "$CI" = "true" ]; then
+                echo -e "${YELLOW}Creating on-demand DB backup before migrations (name redacted in CI).${NC}"
+            else
+                echo -e "${YELLOW}Creating on-demand DB backup before migrations: $BACKUP_NAME${NC}"
+            fi
+            if ! az postgres flexible-server backup create \
+                --resource-group "$RESOURCE_GROUP" \
+                --name "$DB_SERVER_NAME" \
+                --backup-name "$BACKUP_NAME" \
+                --output none; then
+                echo -e "${RED}Error: DB backup failed. Aborting deploy without running migrations.${NC}"
+                exit 1
+            fi
+            if [ "$CI" = "true" ]; then
+                echo -e "${GREEN}✓ Backup created (details redacted in CI).${NC}"
+            else
+                echo -e "${GREEN}✓ Backup created on $DB_SERVER_NAME: $BACKUP_NAME${NC}"
+            fi
         fi
-        echo -e "${GREEN}✓ Backup created on $DB_SERVER_NAME: $BACKUP_NAME${NC}"
     fi
 
     echo -e "${YELLOW}Running database migrations...${NC}"
@@ -342,7 +366,11 @@ if [ -n "$REPLICA_NAME" ]; then
     if ! grep -q "$MIGRATION_SENTINEL" /tmp/migration_output.log; then
         echo -e "${RED}Migration failed: success sentinel not found in alembic output.${NC}"
         if [ "$CI" = "true" ]; then
-            echo -e "${YELLOW}Output captured on the runner; not streamed to logs. Inspect on the runner or restore from the pre-deploy DB backup.${NC}"
+            if [ -n "$BACKUP_NAME" ]; then
+                echo -e "${YELLOW}Output captured on the runner; not streamed to logs. Restore from the pre-deploy DB backup or inspect on the runner.${NC}"
+            else
+                echo -e "${YELLOW}Output captured on the runner; not streamed to logs. No pre-deploy backup was taken (burstable tier). Use the latest automated daily snapshot if recovery is needed.${NC}"
+            fi
         else
             echo -e "${YELLOW}Full output: /tmp/migration_output.log${NC}"
             if [ "$ENV" = "prod" ] && [ -n "$BACKUP_NAME" ]; then
