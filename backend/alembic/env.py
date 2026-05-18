@@ -7,6 +7,10 @@ from src.config import get_settings
 from src.database import Base
 from src.models import *  # noqa
 
+# NOTE: Backend runs migrations on container startup (see Dockerfile CMD).
+# If we ever switch to multiple replicas, we will need to ensure proper locking
+# mechanism
+
 settings = get_settings()
 
 config = context.config
