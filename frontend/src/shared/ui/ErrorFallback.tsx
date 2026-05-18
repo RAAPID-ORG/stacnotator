@@ -1,13 +1,11 @@
+import type { FallbackProps } from 'react-error-boundary';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './forms';
 
-interface ErrorFallbackProps {
-  error: Error;
-  resetErrorBoundary: () => void;
-}
-
-export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps) => {
+export const ErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   const navigate = useNavigate();
+  const message = error instanceof Error ? error.message : String(error);
+  const stack = error instanceof Error ? error.stack : undefined;
 
   const handleGoHome = () => {
     navigate('/');
@@ -50,10 +48,10 @@ export const ErrorFallback = ({ error, resetErrorBoundary }: ErrorFallbackProps)
             Technical details
           </summary>
           <div className="mt-3 space-y-2">
-            <p className="text-xs font-mono text-neutral-600 break-all">{error.message}</p>
-            {error.stack && (
+            <p className="text-xs font-mono text-neutral-600 break-all">{message}</p>
+            {stack && (
               <pre className="text-[10px] text-neutral-500 overflow-auto max-h-40 mt-2 p-2 bg-white rounded border border-neutral-100">
-                {error.stack}
+                {stack}
               </pre>
             )}
           </div>

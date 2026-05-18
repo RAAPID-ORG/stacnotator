@@ -1,17 +1,15 @@
+import type { FallbackProps } from 'react-error-boundary';
+
 /**
  * Root-level error fallback for errors that occur outside the Router context
  * This is a simple component that doesn't use routing hooks
  */
-interface RootErrorFallbackProps {
-  error: Error;
-  resetErrorBoundary: () => void;
-}
-
-export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallbackProps) => {
+export const RootErrorFallback = ({ error, resetErrorBoundary }: FallbackProps) => {
   const handleReload = () => {
     window.location.href = '/';
     resetErrorBoundary();
   };
+  const message = error instanceof Error ? error.message : String(error);
 
   // RootErrorFallback runs OUTSIDE the Router context, so it can't import
   // anything that uses router hooks. The Button primitive is router-agnostic
@@ -50,7 +48,7 @@ export const RootErrorFallback = ({ error, resetErrorBoundary }: RootErrorFallba
 
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
           <h2 className="text-xs font-semibold text-red-800 mb-1">Error details</h2>
-          <p className="text-xs text-red-700 font-mono break-words">{error.message}</p>
+          <p className="text-xs text-red-700 font-mono break-words">{message}</p>
         </div>
 
         <div className="flex gap-2">
