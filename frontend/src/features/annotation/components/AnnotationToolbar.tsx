@@ -507,7 +507,7 @@ export const AnnotationToolbar = () => {
   return (
     <header
       data-tour="toolbar"
-      className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1 overflow-x-auto"
+      className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
     >
       <div className="flex items-center gap-0.5 desktop:gap-2">
         {/* Views Dropdown */}
@@ -536,7 +536,7 @@ export const AnnotationToolbar = () => {
           </button>
           <Dropdown
             open={showImageryDropdown}
-            className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-10 min-w-[200px] max-h-[400px] overflow-y-auto origin-top-left"
+            className="absolute top-full left-0 mt-0.5 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[200px] max-h-[400px] overflow-y-auto origin-top-left"
           >
             {views.length === 0 ? (
               <div className="px-3 py-2 text-sm text-neutral-500">No views available</div>

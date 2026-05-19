@@ -6,17 +6,25 @@ Using CLI instead of Terraform to avoid VNet restrictions from GH runners for no
 
 ## Environments
 
-| Environment | Tiler Profile | Min Replicas |
-|-------------|---------------|---------------|--------------|
-| **prod** | D16 dedicated (16 CPU, 32Gi) | 1 |
-| **dev**  | Consumption (1 CPU, 2Gi) | 0 |
+| Environment | Backend (CPU/Mem · replicas) | Tiler (CPU/Mem · replicas · profile) |
+|---|---|---|
+| **prod** | 1 / 2Gi · 1-1 · Consumption | 4 / 8Gi · 0-2 · Consumption |
+| **dev**  | 0.5 / 1Gi · 1-1 · Consumption | 4 / 8Gi · 0-1 · Consumption |
+
+Backend is pinned to a single replica (MIN=MAX=1) so the alembic migration
+that runs on container startup is serialized by definition. To scale beyond
+1 replica, also add a `pg_advisory_lock` around `context.run_migrations()`
+in `backend/alembic/env.py` (see note in that file). The deploy script has
+a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
+profile for the tiler — currently disabled in both envs; flip the flag in
+`deploy-app.sh` if you need it for heavy tile load.
 
 ## Architecture
 
 | Component | Azure Service | Managed by |
 |-----------|--------------|------------|
 | Backend API | Container App (Consumption) | `deploy-app.sh` |
-| Tiler | Container App (D16 dedicated in prod, consumption in dev) | `deploy-app.sh` |
+| Tiler | Container App (Consumption) | `deploy-app.sh` |
 | Frontend | Azure Static Web App | `deploy-app.sh` |
 | Database | PostgreSQL Flexible Server | Terraform |
 | Container Apps Environment | Container Apps Environment | Terraform |
@@ -68,12 +76,20 @@ The script will:
 1. Discover infrastructure (ACR, KV, CAE) from the resource group
 2. Build and push Docker images (backend + tiler) to ACR
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
-4. For prod: add D16 dedicated workload profile for tiler (16 CPU, 32Gi, 32 workers)
-5. Run database migrations (`alembic upgrade head`)
+4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
+5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) — a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
 6. Build and deploy frontend to Azure Static Web App
 7. Update CORS on backend + tiler
 
 **Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
+
+**Migrations**: triggered by the new backend container starting, not by this script. To run alembic against a specific revision manually (e.g. for inspection), use:
+
+```bash
+az containerapp exec -n stacnotator-prod-backend -g <rg> --command "alembic current"
+```
+
+Note that `az containerapp exec` requires a TTY-capable shell — it fails inside non-interactive CI runners. Local interactive terminals are fine.
 
 ## Dev Environment with Production Data
 
@@ -87,7 +103,7 @@ This will:
 1. Dump the production database
 2. Drop and recreate the dev database
 3. Restore the dump into dev
-4. Run migrations via the dev backend container app
+4. Run migrations via the dev backend container app (typically a no-op now that the container also runs `alembic upgrade head` on startup, but kept as a safety net in case the dev replica wasn't restarted after the restore).
 
 ## Scripts
 
