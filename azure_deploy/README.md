@@ -112,10 +112,12 @@ The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) ru
 The CI workflow has no Azure access to prod: its OIDC identity is federated only to the **develop** branch and scoped to the dev resource group. To dump prod, the workflow reads prod DB credentials from the **dev** Key Vault, where they are mirrored once during setup.
 
 Safety relies on:
-- The OIDC identity having zero prod RBAC.
-- The workflow being **manual-only** (`workflow_dispatch`).
+- The OIDC identity having zero prod RBAC (it can authenticate into dev only).
+- The workflow being **manual-only** (`workflow_dispatch`), gated by the **`dev` GitHub Environment** with required reviewers matching prod. Every run requires explicit approval from one of the same people authorised to deploy to production - so any malicious change to the workflow or sync script must be approved by a trusted reviewer at deploy time, not just at merge time.
 - The sync script aborting if source and target hosts match, or if the target host doesn't look like the dev server.
-- The script only calling `pg_dump` against prod — no `psql` execution path writes to the source side.
+- The script only calling `pg_dump` against prod - no `psql` execution path writes to the source side.
+
+Note: the script-level guards are defence-in-depth against accidents (e.g. swapped env vars), not against a hostile editor of the script itself - they're code, and a compromised PR could remove them. The Environment reviewer is what actually protects prod against an insider-edit threat. Reviewers should read the workflow + sync-script diff every time before approving.
 
 #### One-time setup (do this before the first CI dev deploy)
 
@@ -142,7 +144,7 @@ Safety relies on:
 
    Re-run this if the prod admin password is rotated.
 
-2. **Configure GitHub repo secrets** (Settings → Secrets and variables → Actions):
+2. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). These mirror how the prod deploy reads its secrets from the `production` Environment — there are no repo-level secrets on this project.
 
    | Secret | Value |
    |---|---|
@@ -150,9 +152,17 @@ Safety relies on:
    | `AZURE_RESOURCE_GROUP_DEV` | `rg-stacnotator-dev-prod-westeurope` (or whatever the dev RG is named) |
    | `EE_SERVICE_ACCOUNT_DEV` | Same Earth Engine SA used in `.env.deploy.dev` |
 
-   `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow and should already exist.
+   `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow. Check where they live by opening Settings → Environments → `production` → Environment secrets:
+   - If they're listed there, copy them into the `dev` Environment too.
+   - If they're not listed there, they're Organization secrets (Settings → Organization → Secrets and variables → Actions). Make sure the `dev` Environment is allowed in their access policy.
 
-3. **Configure a `dev` GitHub Environment** (optional but recommended) under Settings → Environments. You can add reviewers here as an extra approval gate before the deploy job runs.
+3. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
+
+   - **Required reviewers**: set to the **same users/teams** configured on the `production` Environment. The threat the dev workflow defends against is identical (prod admin credentials are in scope), so the approval list should be identical too. Open Settings → Environments → `production` in another tab and mirror the reviewer list.
+   - **Deployment branches**: restrict to `develop` only (Selected branches → add `develop`). This is belt-and-suspenders alongside the `if: github.ref == 'refs/heads/develop'` check already in the workflow.
+   - **Wait timer**: leave at 0.
+
+   After this is set up, every click of "Run workflow" will pause for an explicit approval from a reviewer before the job starts. The reviewer should glance at recent commits on `develop` to `.github/workflows/deploy-dev.yml` and `azure_deploy/sync-prod-data-to-dev.sh` before approving - those are the files that can be edited to abuse the prod credentials.
 
 After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: pull prod DB creds from dev KV → `pg_dump` prod → drop+restore dev DB → deploy backend/tiler/frontend to dev. The sync step can be turned off via the `sync_prod_db` input on the run form.
 
