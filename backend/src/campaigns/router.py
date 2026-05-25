@@ -70,8 +70,9 @@ def list_all_campaigns(
 def get_campaign(
     campaign_id: int,
     campaign: Campaign = Depends(require_campaign_access),
+    db: Session = Depends(get_db),
 ):
-    return campaign
+    return service.get_campaign_full(db, campaign_id)
 
 
 @router.post(

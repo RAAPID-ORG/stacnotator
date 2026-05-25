@@ -16,7 +16,7 @@ that runs on container startup is serialized by definition. To scale beyond
 1 replica, also add a `pg_advisory_lock` around `context.run_migrations()`
 in `backend/alembic/env.py` (see note in that file). The deploy script has
 a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
-profile for the tiler — currently disabled in both envs; flip the flag in
+profile for the tiler - currently disabled in both envs; flip the flag in
 `deploy-app.sh` if you need it for heavy tile load.
 
 ## Architecture
@@ -38,7 +38,7 @@ profile for the tiler — currently disabled in both envs; flip the flag in
 - **Docker** installed for building images
 - **Node.js** installed for building the frontend
 
-## First-Time Setup (ONE TIME per environment)
+## First-Time Setup for local deployments (ONE TIME per environment)
 
 ```bash
 # 1. Create environment config
@@ -77,7 +77,7 @@ The script will:
 2. Build and push Docker images (backend + tiler) to ACR
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
 4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
-5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) — a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
+5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
 6. Build and deploy frontend to Azure Static Web App
 7. Update CORS on backend + tiler
 
@@ -89,21 +89,57 @@ The script will:
 az containerapp exec -n stacnotator-prod-backend -g <rg> --command "alembic current"
 ```
 
-Note that `az containerapp exec` requires a TTY-capable shell — it fails inside non-interactive CI runners. Local interactive terminals are fine.
+Note that `az containerapp exec` requires a TTY-capable shell - it fails inside non-interactive CI runners. Local interactive terminals are fine.
 
 ## Dev Environment with Production Data
 
-To sync prod data into the dev Azure Postgres and run migrations:
+Refreshing dev from prod is a **manual** step. Run it from a developer laptop on VPN.
 
 ```bash
 make az-sync-prod-to-dev
 ```
 
 This will:
-1. Dump the production database
+1. Dump the production database (`pg_dump` only, no writes to prod)
 2. Drop and recreate the dev database
 3. Restore the dump into dev
 4. Run migrations via the dev backend container app (typically a no-op now that the container also runs `alembic upgrade head` on startup, but kept as a safety net in case the dev replica wasn't restarted after the restore).
+
+The script reads prod creds from the prod Key Vault at runtime (using your interactive `az login`) and aborts if source and target hosts match or the target doesn't look like the dev server.
+
+### Deploy Dev workflow (code only, no DB sync)
+
+The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) builds and deploys backend, tiler, and frontend to the dev Azure environment. It does **not** touch any database - neither dev nor prod. To refresh dev data from prod, use the manual `make az-sync-prod-to-dev` flow above.
+
+Safety relies on:
+- The OIDC identity (`id-cicd-stacnotator-dev-westeurope`) being federated only to `refs/heads/develop` and scoped to the dev resource group. It has zero prod RBAC.
+- No prod credentials anywhere CI can read - prod KV is untouched by this workflow, and nothing is mirrored into the dev KV.
+- The workflow being **manual-only** (`workflow_dispatch`), gated by the **`dev` GitHub Environment** with required reviewers matching the `production` Environment. Every deploy waits on a human Approve click.
+- `if: github.ref == 'refs/heads/develop'` skipping the job for any other branch ref, plus the Environment's "Deployment branches" restriction set to `develop`.
+
+#### One-time setup (do this before the first CI dev deploy)
+
+1. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). These mirror how the prod deploy reads its secrets from the `production` Environment - there are no repo-level secrets on this project.
+
+   | Secret | Value |
+   |---|---|
+   | `AZURE_CLIENT_ID_DEV` | Client ID of `id-cicd-stacnotator-dev-westeurope` (from `az identity show -n id-cicd-stacnotator-dev-westeurope -g <main-platform-rg> --query clientId -o tsv`) |
+   | `AZURE_RESOURCE_GROUP_DEV` | `rg-stacnotator-dev-prod-westeurope` (or whatever the dev RG is named) |
+   | `EE_SERVICE_ACCOUNT_DEV` | Same Earth Engine SA used in `.env.deploy.dev` |
+
+   `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow. Check where they live by opening Settings → Environments → `production` → Environment secrets:
+   - If they're listed there, copy them into the `dev` Environment too.
+   - If they're not listed there, they're Organization secrets (Settings → Organization → Secrets and variables → Actions). Make sure the `dev` Environment is allowed in their access policy.
+
+2. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
+
+   - **Required reviewers**: mirror the list from the `production` Environment.
+   - **Deployment branches**: restrict to `develop` only (Selected branches → add `develop`).
+   - **Wait timer**: leave at 0.
+
+   After this is set up, every click of "Run workflow" will pause for an explicit approval from a reviewer before the job starts.
+
+After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: wait for reviewer approval → deploy backend/tiler/frontend to dev. If you want fresh prod data in dev afterwards, run `make az-sync-prod-to-dev` from your laptop on VPN.
 
 ## Scripts
 

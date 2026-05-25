@@ -36,7 +36,7 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
-from src.imagery.models import ImageryCollection, ImagerySource, ImageryView
+from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import _add_timeseries_entry_to_layout
@@ -142,42 +142,43 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
     return results
 
 
-def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
-    """
-    Get campaign with everything CampaignOutFull serializes eagerly loaded.
+# Eager-load options covering every relationship that CampaignOut(+Full) serializes.
+# Without these, Pydantic serialization lazy-loads each relationship one row at a
+# time - on large campaigns (thousands of slices/tile_urls) that turns a single
+# response into thousands of cross-region round-trips.
+_CAMPAIGN_FULL_LOAD_OPTIONS = (
+    joinedload(Campaign.settings),
+    selectinload(Campaign.canvas_layouts),
+    selectinload(Campaign.time_series),
+    selectinload(Campaign.basemaps),
+    selectinload(Campaign.imagery_sources).options(
+        selectinload(ImagerySource.visualizations),
+        selectinload(ImagerySource.collections).options(
+            selectinload(ImageryCollection.slices).selectinload(ImagerySlice.tile_urls),
+            joinedload(ImageryCollection.stac_config),
+        ),
+    ),
+    selectinload(Campaign.imagery_views).selectinload(ImageryView.canvas_layouts),
+)
 
-    Without the eager loads below, every relationship access during Pydantic
-    serialization triggers a separate round-trip to the DB. On a cross-region
-    deployment that adds up to hundreds of ms per annotator load.
-    """
 
+def get_campaign_full(db: Session, campaign_id: int) -> Campaign:
+    """Load a campaign with every relationship that CampaignOut serializes."""
     campaign = (
         db.execute(
-            select(Campaign)
-            .options(
-                joinedload(Campaign.settings),
-                selectinload(Campaign.canvas_layouts),
-                selectinload(Campaign.time_series),
-                selectinload(Campaign.basemaps),
-                selectinload(Campaign.imagery_sources).options(
-                    selectinload(ImagerySource.visualizations),
-                    selectinload(ImagerySource.collections).options(
-                        selectinload(ImageryCollection.slices),
-                        joinedload(ImageryCollection.stac_config),
-                    ),
-                ),
-                selectinload(Campaign.imagery_views).selectinload(ImageryView.canvas_layouts),
-            )
-            .where(Campaign.id == campaign_id)
+            select(Campaign).options(*_CAMPAIGN_FULL_LOAD_OPTIONS).where(Campaign.id == campaign_id)
         )
         .unique()
         .scalar_one_or_none()
     )
-
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
-
     return campaign
+
+
+def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
+    """Alias for get_campaign_full - used by the /detailed endpoint."""
+    return get_campaign_full(db, campaign_id)
 
 
 def create_campaign(
@@ -380,7 +381,7 @@ def create_campaign(
 
         threading.Thread(target=_background_register_embeddings, daemon=True).start()
 
-    return campaign
+    return get_campaign_full(db, campaign.id)
 
 
 def add_users_to_campaign_bulk(
@@ -464,7 +465,7 @@ def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campai
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.name = new_name
     db.commit()
-    return campaign
+    return get_campaign_full(db, campaign_id)
 
 
 def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
@@ -474,7 +475,7 @@ def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.is_public = is_public
     db.commit()
-    return campaign
+    return get_campaign_full(db, campaign_id)
 
 
 def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | None) -> Campaign:
@@ -485,7 +486,7 @@ def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | N
         raise HTTPException(status_code=404, detail="Campaign settings not found")
     campaign.settings.guide_markdown = guide_markdown
     db.commit()
-    return campaign
+    return get_campaign_full(db, campaign_id)
 
 
 def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
@@ -517,7 +518,7 @@ def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
         )
 
     db.commit()
-    return campaign
+    return get_campaign_full(db, campaign_id)
 
 
 def update_sample_extent(
@@ -530,7 +531,7 @@ def update_sample_extent(
         raise HTTPException(status_code=404, detail="Campaign settings not found")
     campaign.settings.sample_extent_meters = sample_extent_meters
     db.commit()
-    return campaign
+    return get_campaign_full(db, campaign_id)
 
 
 def update_embedding_year(

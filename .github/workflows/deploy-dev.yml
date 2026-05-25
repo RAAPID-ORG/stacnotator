@@ -1,0 +1,60 @@
+name: Deploy Dev
+
+# Manual-only deploy to the dev Azure environment.
+#
+# This workflow ONLY deploys code to dev (backend, tiler, frontend).
+# It does NOT touch any database - neither dev nor prod.
+#
+# Prod credentials are intentionally absent: the dev OIDC identity has zero
+# prod RBAC, and no prod secrets are mirrored into the dev Key Vault. The
+# only way to refresh dev data from prod is to run `make az-sync-prod-to-dev`
+# manually from a developer laptop on VPN. That path uses interactive Azure
+# CLI auth and pulls prod creds from the prod KV at runtime, so the prod
+# admin password never leaves the prod vault.
+#
+# Deploy gating:
+#   * Triggered by workflow_dispatch only (manual click).
+#   * `if: github.ref == 'refs/heads/develop'` skips runs on other branches.
+#   * `environment: dev` requires reviewer approval (mirror the production
+#     reviewer list - see azure_deploy/README.md).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-dev:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, linux, x64, azure]
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Azure Login via OIDC (dev identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_DEV }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Deploy to Azure (dev)
+        env:
+          CI: "true"
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_DEV }}
+          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_DEV }}
+        run: ./azure_deploy/deploy-app.sh dev
