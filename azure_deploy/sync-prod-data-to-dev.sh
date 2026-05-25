@@ -5,6 +5,16 @@
 # Dumps the production database and restores it into the dev Azure Postgres,
 # then runs migrations so the dev environment matches prod data with latest schema.
 #
+# Interactive only. CI never runs this - the Deploy Dev workflow is
+# code-deploy only, with no access to prod credentials. Use this from a
+# developer laptop on VPN when you want fresh prod data in dev.
+#
+# IMPORTANT - PROD DATA SAFETY:
+#   - The only command run against prod is pg_dump (no writes).
+#   - The script aborts if source (prod) host/RG equal target (dev) host/RG.
+#   - The target host must look like the dev server (contains "stacnotator-dev").
+#   - Dev (target) is ALWAYS the side that gets dropped/recreated, never prod.
+#
 # Prerequisites:
 #   - Logged into Azure CLI (az login)
 #   - Connected to your organization's VPN
@@ -25,50 +35,36 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+abort() { echo -e "${RED}Error: $*${NC}" >&2; exit 1; }
+
 if ! az account show &>/dev/null; then
-    echo -e "${RED}Error: Not logged in to Azure. Run 'az login' first.${NC}"
-    exit 1
+    abort "Not logged in to Azure. Run 'az login' first."
 fi
 
 # Load prod config
 
 [ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
 PROD_RG="$RESOURCE_GROUP"
+[ -z "$PROD_RG" ] && abort "RESOURCE_GROUP not set. Check .env.deploy.prod"
 
-if [ -z "$PROD_RG" ]; then
-    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.prod${NC}"
-    exit 1
-fi
-
-# Discover prod Postgres
 echo -e "${YELLOW}Looking up prod Postgres server...${NC}"
 PROD_PG_SERVER=$(az postgres flexible-server list \
-    --resource-group "$PROD_RG" \
-    --query "[0].name" -o tsv 2>/dev/null || true)
-
-if [ -z "$PROD_PG_SERVER" ]; then
-    echo -e "${RED}Error: No Postgres Flexible Server found in $PROD_RG${NC}"
-    exit 1
-fi
-
+    --resource-group "$PROD_RG" --query "[0].name" -o tsv 2>/dev/null || true)
+[ -z "$PROD_PG_SERVER" ] && abort "No Postgres Flexible Server found in $PROD_RG"
 PROD_PG_HOST="${PROD_PG_SERVER}.postgres.database.azure.com"
 
-# Get prod credentials from Key Vault
 PROD_KV_NAME=$(az keyvault list -g "$PROD_RG" --query "[0].name" -o tsv 2>/dev/null || true)
-[ -z "$PROD_KV_NAME" ] && echo -e "${RED}Error: No Key Vault found in $PROD_RG${NC}" && exit 1
+[ -z "$PROD_KV_NAME" ] && abort "No Key Vault found in $PROD_RG"
 
 PROD_PG_PASS=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
 PROD_PG_HOST_KV=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-postgres-host" --query "value" -o tsv 2>/dev/null || true)
 PROD_CONN_STR=$(az keyvault secret show --vault-name "$PROD_KV_NAME" --name "stacnotator-prod-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
-
 if [ -n "$PROD_CONN_STR" ]; then
     PROD_PG_USER=$(echo "$PROD_CONN_STR" | sed -n 's|.*://\([^:]*\):.*|\1|p')
     PROD_PG_DBNAME=$(echo "$PROD_CONN_STR" | sed -n 's|.*/\([^?]*\).*|\1|p')
 fi
-
 [ -n "$PROD_PG_HOST_KV" ] && PROD_PG_HOST="$PROD_PG_HOST_KV"
 
-# Fallback prompts for prod
 [ -z "$PROD_PG_USER" ] && read -p "Enter prod DB username: " PROD_PG_USER
 if [ -z "$PROD_PG_PASS" ]; then
     read -sp "Enter prod DB password: " PROD_PG_PASS
@@ -76,46 +72,30 @@ if [ -z "$PROD_PG_PASS" ]; then
 fi
 PROD_PG_DBNAME=${PROD_PG_DBNAME:-stacnotator}
 
-echo -e "${GREEN}✓ Prod: ${PROD_PG_USER}@${PROD_PG_HOST}/${PROD_PG_DBNAME}${NC}"
-
 # Load dev config
 
 [ -f "$SCRIPT_DIR/.env.deploy.dev" ] && set -a && source "$SCRIPT_DIR/.env.deploy.dev" && set +a
 DEV_RG="$RESOURCE_GROUP"
-
-if [ -z "$DEV_RG" ]; then
-    echo -e "${RED}Error: RESOURCE_GROUP not set. Check .env.deploy.dev${NC}"
-    exit 1
-fi
+[ -z "$DEV_RG" ] && abort "RESOURCE_GROUP not set. Check .env.deploy.dev"
 
 echo -e "${YELLOW}Looking up dev Postgres server...${NC}"
 DEV_PG_SERVER=$(az postgres flexible-server list \
-    --resource-group "$DEV_RG" \
-    --query "[0].name" -o tsv 2>/dev/null || true)
-
-if [ -z "$DEV_PG_SERVER" ]; then
-    echo -e "${RED}Error: No Postgres Flexible Server found in $DEV_RG${NC}"
-    exit 1
-fi
-
+    --resource-group "$DEV_RG" --query "[0].name" -o tsv 2>/dev/null || true)
+[ -z "$DEV_PG_SERVER" ] && abort "No Postgres Flexible Server found in $DEV_RG"
 DEV_PG_HOST="${DEV_PG_SERVER}.postgres.database.azure.com"
 
-# Get dev credentials from Key Vault
 DEV_KV_NAME=$(az keyvault list -g "$DEV_RG" --query "[0].name" -o tsv 2>/dev/null || true)
-[ -z "$DEV_KV_NAME" ] && echo -e "${RED}Error: No Key Vault found in $DEV_RG${NC}" && exit 1
+[ -z "$DEV_KV_NAME" ] && abort "No Key Vault found in $DEV_RG"
 
 DEV_PG_PASS=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-postgres-admin-password" --query "value" -o tsv 2>/dev/null || true)
 DEV_PG_HOST_KV=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-postgres-host" --query "value" -o tsv 2>/dev/null || true)
 DEV_CONN_STR=$(az keyvault secret show --vault-name "$DEV_KV_NAME" --name "stacnotator-dev-db-connection-string" --query "value" -o tsv 2>/dev/null || true)
-
 if [ -n "$DEV_CONN_STR" ]; then
     DEV_PG_USER=$(echo "$DEV_CONN_STR" | sed -n 's|.*://\([^:]*\):.*|\1|p')
     DEV_PG_DBNAME=$(echo "$DEV_CONN_STR" | sed -n 's|.*/\([^?]*\).*|\1|p')
 fi
-
 [ -n "$DEV_PG_HOST_KV" ] && DEV_PG_HOST="$DEV_PG_HOST_KV"
 
-# Fallback prompts for dev
 [ -z "$DEV_PG_USER" ] && DEV_PG_USER="${PROD_PG_USER}"
 if [ -z "$DEV_PG_PASS" ]; then
     read -sp "Enter dev DB password: " DEV_PG_PASS
@@ -123,11 +103,29 @@ if [ -z "$DEV_PG_PASS" ]; then
 fi
 DEV_PG_DBNAME=${DEV_PG_DBNAME:-stacnotator}
 
-echo -e "${GREEN}✓ Dev:  ${DEV_PG_USER}@${DEV_PG_HOST}/${DEV_PG_DBNAME}${NC}"
+# Safety guards - protect prod from any possible mishap
+
+if [ "$PROD_PG_HOST" = "$DEV_PG_HOST" ]; then
+    abort "PROD_PG_HOST == DEV_PG_HOST ($PROD_PG_HOST). Refusing to run."
+fi
+if [ -n "$PROD_RG" ] && [ -n "$DEV_RG" ] && [ "$PROD_RG" = "$DEV_RG" ]; then
+    abort "PROD and DEV resource groups are identical ($PROD_RG). Refusing to run."
+fi
+if [ "$PROD_PG_HOST/$PROD_PG_DBNAME" = "$DEV_PG_HOST/$DEV_PG_DBNAME" ]; then
+    abort "Source and target database identifiers are identical. Refusing to run."
+fi
+
+case "$DEV_PG_HOST" in
+    *stacnotator-dev*) ;;
+    *) abort "DEV_PG_HOST ($DEV_PG_HOST) does not look like a dev server. Refusing to run." ;;
+esac
+
+echo -e "${GREEN}✓ Source: ${PROD_PG_USER}@${PROD_PG_HOST}/${PROD_PG_DBNAME}${NC}"
+echo -e "${GREEN}✓ Target: ${DEV_PG_USER}@${DEV_PG_HOST}/${DEV_PG_DBNAME}${NC}"
 
 # Confirm
 
-DUMP_FILE="/tmp/stacnotator_prod_to_dev_dump.sql"
+DUMP_FILE="${TMPDIR:-/tmp}/stacnotator_prod_to_dev_dump.sql"
 
 echo ""
 echo -e "${BLUE}Sync Plan${NC}"
@@ -139,7 +137,7 @@ echo -e "${RED}⚠  This will DESTROY all data in the dev database!${NC}"
 read -p "Proceed? (y/N) " CONFIRM
 [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 
-# Dump prod
+# Dump prod (pg_dump is read-only by nature)
 
 echo ""
 echo -e "${YELLOW}Dumping production database...${NC}"
@@ -156,7 +154,7 @@ PGPASSWORD="$PROD_PG_PASS" pg_dump \
 DUMP_SIZE=$(du -h "$DUMP_FILE" | cut -f1)
 echo -e "${GREEN}✓ Dump complete (${DUMP_SIZE})${NC}"
 
-# Restore into dev
+# Restore into dev (target only - prod is untouched from here on)
 
 echo ""
 echo -e "${YELLOW}Dropping and recreating dev database...${NC}"
@@ -194,7 +192,7 @@ PGPASSWORD="$DEV_PG_PASS" psql \
 
 echo -e "${GREEN}✓ Restore complete${NC}"
 
-# Run migrations
+# Run migrations (safety net - container startup also runs alembic upgrade head)
 
 echo ""
 echo -e "${YELLOW}Running migrations on dev...${NC}"
