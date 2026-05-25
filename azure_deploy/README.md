@@ -38,7 +38,7 @@ profile for the tiler — currently disabled in both envs; flip the flag in
 - **Docker** installed for building images
 - **Node.js** installed for building the frontend
 
-## First-Time Setup (ONE TIME per environment)
+## First-Time Setup for local deployments (ONE TIME per environment)
 
 ```bash
 # 1. Create environment config
@@ -104,6 +104,50 @@ This will:
 2. Drop and recreate the dev database
 3. Restore the dump into dev
 4. Run migrations via the dev backend container app (typically a no-op now that the container also runs `alembic upgrade head` on startup, but kept as a safety net in case the dev replica wasn't restarted after the restore).
+
+### Running this from CI (Deploy Dev workflow)
+
+The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) runs the same sync + deploy on the self-hosted Azure runner when you click **Run workflow** in the Actions tab. It is manual-only: pushing to `develop` runs lint/tests but does NOT deploy or touch any database.
+
+The CI path uses a dedicated **read-only Postgres role on prod** so it is physically impossible for the workflow to alter prod data. The dev CI's OIDC identity has no access to prod resources; the prod-readonly credentials are mirrored into the **dev** Key Vault, where the dev identity can read them.
+
+#### One-time setup (do this before the first CI dev deploy)
+
+1. **Create the prod-readonly Postgres role.** Connect to prod over VPN (e.g. via `psql` with the admin password from the prod Key Vault) and run:
+
+   ```sql
+   CREATE USER ci_readonly WITH PASSWORD '<generate-a-strong-password>';
+   GRANT CONNECT ON DATABASE stacnotator TO ci_readonly;
+   GRANT USAGE ON SCHEMA public TO ci_readonly;
+   GRANT SELECT ON ALL TABLES IN SCHEMA public TO ci_readonly;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ci_readonly;
+   -- No INSERT/UPDATE/DELETE/TRUNCATE, no CREATE on the DB. The sync script
+   -- verifies this on every run and refuses to start if any write priv exists.
+   ```
+
+2. **Mirror the credentials into the dev Key Vault.** The dev RG / dev KV names come from `.env.deploy.dev`.
+
+   ```bash
+   DEV_KV=$(az keyvault list -g <dev-rg> --query "[0].name" -o tsv)
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-host     --value '<prod-server>.postgres.database.azure.com'
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-user     --value 'ci_readonly'
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-password --value '<password-from-step-1>'
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-name     --value 'stacnotator'
+   ```
+
+3. **Configure GitHub repo secrets** (Settings → Secrets and variables → Actions):
+
+   | Secret | Value |
+   |---|---|
+   | `AZURE_CLIENT_ID_DEV` | Client ID of `id-cicd-stacnotator-dev-westeurope` (from `az identity show -n id-cicd-stacnotator-dev-westeurope -g <main-platform-rg> --query clientId -o tsv`) |
+   | `AZURE_RESOURCE_GROUP_DEV` | `rg-stacnotator-dev-prod-westeurope` (or whatever the dev RG is named) |
+   | `EE_SERVICE_ACCOUNT_DEV` | Same Earth Engine SA used in `.env.deploy.dev` |
+
+   `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow and should already exist.
+
+4. **Configure a `dev` GitHub Environment** (optional but recommended) under Settings → Environments. You can add reviewers here as an extra approval gate before the deploy job runs.
+
+After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: pull prod-readonly creds from dev KV → dump prod → drop+restore dev DB → deploy backend/tiler/frontend to dev. The sync step can be turned off via the `sync_prod_db` input on the run form.
 
 ## Scripts
 

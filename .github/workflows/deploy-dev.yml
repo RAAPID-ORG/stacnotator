@@ -1,0 +1,107 @@
+name: Deploy Dev
+
+# Manual-only deploy to the dev Azure environment.
+#
+# This workflow is intentionally NOT triggered by push events. The lint /
+# type-check / test jobs in ci.yml run on every push to develop, but the
+# actual dev deployment (which includes destroying & re-seeding the dev
+# database from prod) only fires when a human clicks "Run workflow" here.
+#
+# Prod data safety:
+#   * The OIDC identity used here is `id-cicd-stacnotator-dev-westeurope`,
+#     federated only for `repo:RAAPID-ORG/stacnotator:ref:refs/heads/develop`
+#     and scoped to the dev resource group. It has zero access to prod.
+#   * Prod credentials used for the dump come from secrets that have been
+#     mirrored into the DEV Key Vault (one-time manual setup, see
+#     azure_deploy/README.md). They belong to a SELECT-only Postgres role
+#     on prod. The sync script aborts if that role has any write privilege.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_prod_db:
+        description: "Sync prod DB to dev before deploy (read-only on prod)"
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-dev:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, linux, x64, azure]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Azure Login via OIDC (dev identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_DEV }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install postgresql client (for sync)
+        if: ${{ inputs.sync_prod_db }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Discover dev Key Vault
+        id: kv
+        run: |
+          KV_NAME=$(az keyvault list -g "${{ secrets.AZURE_RESOURCE_GROUP_DEV }}" --query "[0].name" -o tsv)
+          [ -z "$KV_NAME" ] && { echo "::error::No Key Vault in dev RG"; exit 1; }
+          echo "::add-mask::$KV_NAME"
+          echo "kv_name=$KV_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Sync prod DB → dev (read-only on prod)
+        if: ${{ inputs.sync_prod_db }}
+        env:
+          CI: "true"
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_DEV }}
+        run: |
+          set -e
+          KV="${{ steps.kv.outputs.kv_name }}"
+
+          fetch_secret() {
+            local v
+            v=$(az keyvault secret show --vault-name "$KV" --name "$1" --query value -o tsv 2>/dev/null)
+            [ -n "$v" ] && printf '::add-mask::%s\n' "$v" >&2
+            printf '%s' "$v"
+          }
+
+          # Prod-readonly creds, mirrored from prod into the dev KV (one-time setup).
+          PROD_PG_HOST=$(fetch_secret prod-readonly-db-host);     export PROD_PG_HOST
+          PROD_PG_USER=$(fetch_secret prod-readonly-db-user);     export PROD_PG_USER
+          PROD_PG_PASS=$(fetch_secret prod-readonly-db-password); export PROD_PG_PASS
+          PROD_PG_DBNAME=$(fetch_secret prod-readonly-db-name);   export PROD_PG_DBNAME
+
+          # Dev admin creds for the drop/restore on the dev side.
+          DEV_PG_HOST=$(fetch_secret stacnotator-dev-postgres-host);           export DEV_PG_HOST
+          DEV_PG_PASS=$(fetch_secret stacnotator-dev-postgres-admin-password); export DEV_PG_PASS
+          export DEV_PG_USER=psqladmin
+          export DEV_PG_DBNAME=stacnotator
+
+          ./azure_deploy/sync-prod-data-to-dev.sh
+
+      - name: Deploy to Azure (dev)
+        env:
+          CI: "true"
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_DEV }}
+          EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_DEV }}
+        run: ./azure_deploy/deploy-app.sh dev
