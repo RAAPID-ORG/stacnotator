@@ -36,7 +36,7 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
-from src.imagery.models import ImageryCollection, ImagerySource, ImageryView
+from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import _add_timeseries_entry_to_layout
@@ -162,7 +162,7 @@ def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
                 selectinload(Campaign.imagery_sources).options(
                     selectinload(ImagerySource.visualizations),
                     selectinload(ImagerySource.collections).options(
-                        selectinload(ImageryCollection.slices),
+                        selectinload(ImageryCollection.slices).selectinload(ImagerySlice.tile_urls),
                         joinedload(ImageryCollection.stac_config),
                     ),
                 ),
