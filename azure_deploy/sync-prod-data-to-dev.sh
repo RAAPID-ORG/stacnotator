@@ -3,11 +3,8 @@
 # Sync Production Data to Dev Azure Environment
 #
 # Dumps the production database and restores it into the dev Azure Postgres,
-# then runs migrations so the dev environment matches prod data with latest schema.
-#
-# Interactive only. CI never runs this - the Deploy Dev workflow is
-# code-deploy only, with no access to prod credentials. Use this from a
-# developer laptop on VPN when you want fresh prod data in dev.
+# then runs migrations so the dev environment matches prod data with the
+# latest schema.
 #
 # IMPORTANT - PROD DATA SAFETY:
 #   - The only command run against prod is pg_dump (no writes).
@@ -17,12 +14,7 @@
 #
 # Prerequisites:
 #   - Logged into Azure CLI (az login)
-#   - Connected to your organization's VPN
-#   - Your IP whitelisted on BOTH prod and dev Azure Postgres Flexible Servers
-#   - Dev infrastructure deployed via Terraform (RG, DB, KV exist)
-#
-# Usage:
-#   ./azure_deploy/sync-prod-data-to-dev.sh
+#   - On VPN, IP whitelisted on BOTH prod and dev Postgres servers
 #
 
 set -e
@@ -41,7 +33,9 @@ if ! az account show &>/dev/null; then
     abort "Not logged in to Azure. Run 'az login' first."
 fi
 
-# Load prod config
+# =============================================================================
+# SAFETY GUARDS - protect prod from any possible mishap
+# =============================================================================
 
 [ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
 PROD_RG="$RESOURCE_GROUP"
@@ -100,8 +94,10 @@ fi
 if [ -z "$DEV_PG_PASS" ]; then
     read -sp "Enter dev DB password: " DEV_PG_PASS
     echo ""
+    echo -e "${RED}⚠  This will DESTROY all data in the dev database!${NC}"
+    read -p "Proceed? (y/N) " CONFIRM
+    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 fi
-DEV_PG_DBNAME=${DEV_PG_DBNAME:-stacnotator}
 
 # Safety guards - protect prod from any possible mishap
 
@@ -142,13 +138,9 @@ read -p "Proceed? (y/N) " CONFIRM
 echo ""
 echo -e "${YELLOW}Dumping production database...${NC}"
 PGPASSWORD="$PROD_PG_PASS" pg_dump \
-    --host="$PROD_PG_HOST" \
-    --port=5432 \
-    --username="$PROD_PG_USER" \
-    --dbname="$PROD_PG_DBNAME" \
-    --no-owner \
-    --no-privileges \
-    --format=plain \
+    --host="$PROD_PG_HOST" --port=5432 \
+    --username="$PROD_PG_USER" --dbname="$PROD_PG_DBNAME" \
+    --no-owner --no-privileges --format=plain \
     > "$DUMP_FILE"
 
 DUMP_SIZE=$(du -h "$DUMP_FILE" | cut -f1)
@@ -158,34 +150,25 @@ echo -e "${GREEN}✓ Dump complete (${DUMP_SIZE})${NC}"
 
 echo ""
 echo -e "${YELLOW}Dropping and recreating dev database...${NC}"
-
 PGPASSWORD="$DEV_PG_PASS" psql \
-    --host="$DEV_PG_HOST" \
-    --port=5432 \
-    --username="$DEV_PG_USER" \
-    --dbname=postgres \
+    --host="$DEV_PG_HOST" --port=5432 \
+    --username="$DEV_PG_USER" --dbname=postgres \
     -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DEV_PG_DBNAME' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
 PGPASSWORD="$DEV_PG_PASS" psql \
-    --host="$DEV_PG_HOST" \
-    --port=5432 \
-    --username="$DEV_PG_USER" \
-    --dbname=postgres \
+    --host="$DEV_PG_HOST" --port=5432 \
+    --username="$DEV_PG_USER" --dbname=postgres \
     -c "DROP DATABASE IF EXISTS \"$DEV_PG_DBNAME\";"
 
 PGPASSWORD="$DEV_PG_PASS" psql \
-    --host="$DEV_PG_HOST" \
-    --port=5432 \
-    --username="$DEV_PG_USER" \
-    --dbname=postgres \
+    --host="$DEV_PG_HOST" --port=5432 \
+    --username="$DEV_PG_USER" --dbname=postgres \
     -c "CREATE DATABASE \"$DEV_PG_DBNAME\";"
 
 echo -e "${YELLOW}Restoring dump into dev database...${NC}"
 PGPASSWORD="$DEV_PG_PASS" psql \
-    --host="$DEV_PG_HOST" \
-    --port=5432 \
-    --username="$DEV_PG_USER" \
-    --dbname="$DEV_PG_DBNAME" \
+    --host="$DEV_PG_HOST" --port=5432 \
+    --username="$DEV_PG_USER" --dbname="$DEV_PG_DBNAME" \
     --set ON_ERROR_STOP=off \
     -f "$DUMP_FILE" \
     2>&1 | grep -iE "error|fatal" | grep -v "already exists" | head -10 || true
@@ -211,10 +194,8 @@ if az containerapp show --name "$APP_BACKEND" -g "$DEV_RG" &>/dev/null; then
         echo -e "${YELLOW}⚠ No running replica found. Migrations will run on next deploy.${NC}"
     fi
 else
-    echo -e "${YELLOW}⚠ Dev backend not deployed yet. Run: ./azure_deploy/deploy-app.sh dev${NC}"
+    echo -e "${YELLOW}⚠ Dev backend not deployed yet. Migrations will run when deploy-app.sh dev runs.${NC}"
 fi
-
-# Cleanup
 
 rm -f "$DUMP_FILE"
 

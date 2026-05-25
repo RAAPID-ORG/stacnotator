@@ -38,7 +38,7 @@ profile for the tiler - currently disabled in both envs; flip the flag in
 - **Docker** installed for building images
 - **Node.js** installed for building the frontend
 
-## First-Time Setup (ONE TIME per environment)
+## First-Time Setup for local deployments (ONE TIME per environment)
 
 ```bash
 # 1. Create environment config
