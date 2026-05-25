@@ -16,7 +16,7 @@ that runs on container startup is serialized by definition. To scale beyond
 1 replica, also add a `pg_advisory_lock` around `context.run_migrations()`
 in `backend/alembic/env.py` (see note in that file). The deploy script has
 a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
-profile for the tiler — currently disabled in both envs; flip the flag in
+profile for the tiler - currently disabled in both envs; flip the flag in
 `deploy-app.sh` if you need it for heavy tile load.
 
 ## Architecture
@@ -77,7 +77,7 @@ The script will:
 2. Build and push Docker images (backend + tiler) to ACR
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
 4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
-5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) — a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
+5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
 6. Build and deploy frontend to Azure Static Web App
 7. Update CORS on backend + tiler
 
@@ -89,7 +89,7 @@ The script will:
 az containerapp exec -n stacnotator-prod-backend -g <rg> --command "alembic current"
 ```
 
-Note that `az containerapp exec` requires a TTY-capable shell — it fails inside non-interactive CI runners. Local interactive terminals are fine.
+Note that `az containerapp exec` requires a TTY-capable shell - it fails inside non-interactive CI runners. Local interactive terminals are fine.
 
 ## Dev Environment with Production Data
 
