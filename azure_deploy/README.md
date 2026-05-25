@@ -16,7 +16,7 @@ that runs on container startup is serialized by definition. To scale beyond
 1 replica, also add a `pg_advisory_lock` around `context.run_migrations()`
 in `backend/alembic/env.py` (see note in that file). The deploy script has
 a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
-profile for the tiler — currently disabled in both envs; flip the flag in
+profile for the tiler - currently disabled in both envs; flip the flag in
 `deploy-app.sh` if you need it for heavy tile load.
 
 ## Architecture
@@ -38,7 +38,7 @@ profile for the tiler — currently disabled in both envs; flip the flag in
 - **Docker** installed for building images
 - **Node.js** installed for building the frontend
 
-## First-Time Setup (ONE TIME per environment)
+## First-Time Setup for local deployments (ONE TIME per environment)
 
 ```bash
 # 1. Create environment config
@@ -77,7 +77,7 @@ The script will:
 2. Build and push Docker images (backend + tiler) to ACR
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
 4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
-5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) — a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
+5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
 6. Build and deploy frontend to Azure Static Web App
 7. Update CORS on backend + tiler
 
@@ -89,7 +89,7 @@ The script will:
 az containerapp exec -n stacnotator-prod-backend -g <rg> --command "alembic current"
 ```
 
-Note that `az containerapp exec` requires a TTY-capable shell — it fails inside non-interactive CI runners. Local interactive terminals are fine.
+Note that `az containerapp exec` requires a TTY-capable shell - it fails inside non-interactive CI runners. Local interactive terminals are fine.
 
 ## Dev Environment with Production Data
 
@@ -104,6 +104,57 @@ This will:
 2. Drop and recreate the dev database
 3. Restore the dump into dev
 4. Run migrations via the dev backend container app (typically a no-op now that the container also runs `alembic upgrade head` on startup, but kept as a safety net in case the dev replica wasn't restarted after the restore).
+
+### Running this from CI (Deploy Dev workflow)
+
+The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) runs the same sync + deploy on the self-hosted Azure runner when you click **Run workflow** in the Actions tab. It is manual-only: pushing to `develop` runs lint/tests but does NOT deploy or touch any database.
+
+The CI workflow has no Azure access to prod: its OIDC identity is federated only to the **develop** branch and scoped to the dev resource group. To dump prod, the workflow reads prod DB credentials from the **dev** Key Vault, where they are mirrored once during setup.
+
+Safety relies on:
+- The OIDC identity having zero prod RBAC.
+- The workflow being **manual-only** (`workflow_dispatch`).
+- The sync script aborting if source and target hosts match, or if the target host doesn't look like the dev server.
+- The script only calling `pg_dump` against prod — no `psql` execution path writes to the source side.
+
+#### One-time setup (do this before the first CI dev deploy)
+
+1. **Mirror prod DB credentials into the dev Key Vault.** Pull the values from the prod Key Vault (on VPN, with prod RG access) and write them into the dev Key Vault:
+
+   ```bash
+   set -a && source azure_deploy/.env.deploy.prod && set +a
+   PROD_RG="$RESOURCE_GROUP"
+   PROD_KV=$(az keyvault list -g "$PROD_RG" --query "[0].name" -o tsv)
+
+   PROD_HOST=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-postgres-host           --query value -o tsv)
+   PROD_PASS=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-postgres-admin-password --query value -o tsv)
+   PROD_CONN=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-db-connection-string    --query value -o tsv)
+   PROD_USER=$(echo "$PROD_CONN" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+
+   set -a && source azure_deploy/.env.deploy.dev && set +a
+   DEV_KV=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-host     --value "$PROD_HOST"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-user     --value "$PROD_USER"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-password --value "$PROD_PASS"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-name     --value 'stacnotator'
+   ```
+
+   Re-run this if the prod admin password is rotated.
+
+2. **Configure GitHub repo secrets** (Settings → Secrets and variables → Actions):
+
+   | Secret | Value |
+   |---|---|
+   | `AZURE_CLIENT_ID_DEV` | Client ID of `id-cicd-stacnotator-dev-westeurope` (from `az identity show -n id-cicd-stacnotator-dev-westeurope -g <main-platform-rg> --query clientId -o tsv`) |
+   | `AZURE_RESOURCE_GROUP_DEV` | `rg-stacnotator-dev-prod-westeurope` (or whatever the dev RG is named) |
+   | `EE_SERVICE_ACCOUNT_DEV` | Same Earth Engine SA used in `.env.deploy.dev` |
+
+   `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow and should already exist.
+
+3. **Configure a `dev` GitHub Environment** (optional but recommended) under Settings → Environments. You can add reviewers here as an extra approval gate before the deploy job runs.
+
+After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: pull prod DB creds from dev KV → `pg_dump` prod → drop+restore dev DB → deploy backend/tiler/frontend to dev. The sync step can be turned off via the `sync_prod_db` input on the run form.
 
 ## Scripts
 
