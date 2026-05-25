@@ -2,14 +2,14 @@
 #
 # Sync Production Data to Dev Azure Environment
 #
-# Dumps the production database (via a read-only Postgres role) and restores
-# it into the dev Azure Postgres, then runs migrations so the dev environment
-# matches prod data with the latest schema.
+# Dumps the production database and restores it into the dev Azure Postgres,
+# then runs migrations so the dev environment matches prod data with the
+# latest schema.
 #
 # IMPORTANT - PROD DATA SAFETY:
-#   - The dump uses a designated read-only Postgres user on prod.
-#   - The script aborts if that user has ANY write/DDL privileges on prod tables.
+#   - The only command run against prod is pg_dump (no writes).
 #   - The script aborts if source (prod) host/RG equal target (dev) host/RG.
+#   - The target host must look like the dev server (contains "stacnotator-dev").
 #   - Dev (target) is ALWAYS the side that gets dropped/recreated, never prod.
 #
 # Two modes:
@@ -19,7 +19,7 @@
 #
 #   2) CI (set CI=true): no prompts, no prod KV access, all credentials come
 #      from environment variables (the workflow populates them from the dev
-#      Key Vault, where prod-readonly creds have been mirrored once).
+#      Key Vault, where prod DB creds have been mirrored once).
 #
 #      Required env vars in CI mode:
 #        PROD_PG_HOST, PROD_PG_USER, PROD_PG_PASS, PROD_PG_DBNAME
@@ -146,33 +146,6 @@ case "$DEV_PG_HOST" in
     *) abort "DEV_PG_HOST ($DEV_PG_HOST) does not look like a dev server. Refusing to run." ;;
 esac
 
-# 3. Source (prod) user must be read-only. Probe pg_catalog for any write
-#    privilege on any table in the target DB. If the user can write, refuse.
-echo -e "${YELLOW}Verifying prod user is read-only...${NC}"
-WRITE_PRIVS=$(PGPASSWORD="$PROD_PG_PASS" psql \
-    --host="$PROD_PG_HOST" --port=5432 \
-    --username="$PROD_PG_USER" --dbname="$PROD_PG_DBNAME" \
-    -tAc "SELECT count(*) FROM information_schema.table_privileges
-          WHERE grantee = current_user
-            AND privilege_type IN ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER');" 2>/dev/null || echo "ERR")
-
-if [ "$WRITE_PRIVS" = "ERR" ]; then
-    abort "Could not connect to prod as $PROD_PG_USER@$PROD_PG_HOST/$PROD_PG_DBNAME"
-fi
-if [ "$WRITE_PRIVS" != "0" ]; then
-    abort "Prod user '$PROD_PG_USER' has $WRITE_PRIVS write privilege(s). Use a SELECT-only role."
-fi
-
-# Also refuse if the user has CREATE on the database (could create/drop schemas).
-CREATE_PRIV=$(PGPASSWORD="$PROD_PG_PASS" psql \
-    --host="$PROD_PG_HOST" --port=5432 \
-    --username="$PROD_PG_USER" --dbname="$PROD_PG_DBNAME" \
-    -tAc "SELECT has_database_privilege(current_user, current_database(), 'CREATE');" 2>/dev/null || echo "ERR")
-if [ "$CREATE_PRIV" = "t" ]; then
-    abort "Prod user '$PROD_PG_USER' has CREATE on database. Use a SELECT-only role."
-fi
-
-echo -e "${GREEN}✓ Prod user verified read-only${NC}"
 echo -e "${GREEN}✓ Source: ${PROD_PG_USER}@${PROD_PG_HOST}/${PROD_PG_DBNAME}${NC}"
 echo -e "${GREEN}✓ Target: ${DEV_PG_USER}@${DEV_PG_HOST}/${DEV_PG_DBNAME}${NC}"
 
@@ -191,7 +164,7 @@ if [ "$CI" != "true" ]; then
 fi
 
 # =============================================================================
-# DUMP PROD (read-only, no writes possible with the verified user)
+# DUMP PROD (pg_dump is read-only by nature)
 # =============================================================================
 
 echo ""

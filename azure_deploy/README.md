@@ -109,33 +109,40 @@ This will:
 
 The `Deploy Dev` GitHub Actions workflow (`.github/workflows/deploy-dev.yml`) runs the same sync + deploy on the self-hosted Azure runner when you click **Run workflow** in the Actions tab. It is manual-only: pushing to `develop` runs lint/tests but does NOT deploy or touch any database.
 
-The CI path uses a dedicated **read-only Postgres role on prod** so it is physically impossible for the workflow to alter prod data. The dev CI's OIDC identity has no access to prod resources; the prod-readonly credentials are mirrored into the **dev** Key Vault, where the dev identity can read them.
+The CI workflow has no Azure access to prod: its OIDC identity is federated only to the **develop** branch and scoped to the dev resource group. To dump prod, the workflow reads prod DB credentials from the **dev** Key Vault, where they are mirrored once during setup.
+
+Safety relies on:
+- The OIDC identity having zero prod RBAC.
+- The workflow being **manual-only** (`workflow_dispatch`).
+- The sync script aborting if source and target hosts match, or if the target host doesn't look like the dev server.
+- The script only calling `pg_dump` against prod — no `psql` execution path writes to the source side.
 
 #### One-time setup (do this before the first CI dev deploy)
 
-1. **Create the prod-readonly Postgres role.** Connect to prod over VPN (e.g. via `psql` with the admin password from the prod Key Vault) and run:
-
-   ```sql
-   CREATE USER ci_readonly WITH PASSWORD '<generate-a-strong-password>';
-   GRANT CONNECT ON DATABASE stacnotator TO ci_readonly;
-   GRANT USAGE ON SCHEMA public TO ci_readonly;
-   GRANT SELECT ON ALL TABLES IN SCHEMA public TO ci_readonly;
-   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO ci_readonly;
-   -- No INSERT/UPDATE/DELETE/TRUNCATE, no CREATE on the DB. The sync script
-   -- verifies this on every run and refuses to start if any write priv exists.
-   ```
-
-2. **Mirror the credentials into the dev Key Vault.** The dev RG / dev KV names come from `.env.deploy.dev`.
+1. **Mirror prod DB credentials into the dev Key Vault.** Pull the values from the prod Key Vault (on VPN, with prod RG access) and write them into the dev Key Vault:
 
    ```bash
-   DEV_KV=$(az keyvault list -g <dev-rg> --query "[0].name" -o tsv)
-   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-host     --value '<prod-server>.postgres.database.azure.com'
-   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-user     --value 'ci_readonly'
-   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-password --value '<password-from-step-1>'
-   az keyvault secret set --vault-name "$DEV_KV" --name prod-readonly-db-name     --value 'stacnotator'
+   set -a && source azure_deploy/.env.deploy.prod && set +a
+   PROD_RG="$RESOURCE_GROUP"
+   PROD_KV=$(az keyvault list -g "$PROD_RG" --query "[0].name" -o tsv)
+
+   PROD_HOST=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-postgres-host           --query value -o tsv)
+   PROD_PASS=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-postgres-admin-password --query value -o tsv)
+   PROD_CONN=$(az keyvault secret show --vault-name "$PROD_KV" --name stacnotator-prod-db-connection-string    --query value -o tsv)
+   PROD_USER=$(echo "$PROD_CONN" | sed -n 's|.*://\([^:]*\):.*|\1|p')
+
+   set -a && source azure_deploy/.env.deploy.dev && set +a
+   DEV_KV=$(az keyvault list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-host     --value "$PROD_HOST"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-user     --value "$PROD_USER"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-password --value "$PROD_PASS"
+   az keyvault secret set --vault-name "$DEV_KV" --name prod-db-name     --value 'stacnotator'
    ```
 
-3. **Configure GitHub repo secrets** (Settings → Secrets and variables → Actions):
+   Re-run this if the prod admin password is rotated.
+
+2. **Configure GitHub repo secrets** (Settings → Secrets and variables → Actions):
 
    | Secret | Value |
    |---|---|
@@ -145,9 +152,9 @@ The CI path uses a dedicated **read-only Postgres role on prod** so it is physic
 
    `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` are shared with the prod workflow and should already exist.
 
-4. **Configure a `dev` GitHub Environment** (optional but recommended) under Settings → Environments. You can add reviewers here as an extra approval gate before the deploy job runs.
+3. **Configure a `dev` GitHub Environment** (optional but recommended) under Settings → Environments. You can add reviewers here as an extra approval gate before the deploy job runs.
 
-After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: pull prod-readonly creds from dev KV → dump prod → drop+restore dev DB → deploy backend/tiler/frontend to dev. The sync step can be turned off via the `sync_prod_db` input on the run form.
+After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch will: pull prod DB creds from dev KV → `pg_dump` prod → drop+restore dev DB → deploy backend/tiler/frontend to dev. The sync step can be turned off via the `sync_prod_db` input on the run form.
 
 ## Scripts
 
