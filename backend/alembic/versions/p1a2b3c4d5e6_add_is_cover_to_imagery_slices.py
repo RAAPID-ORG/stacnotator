@@ -38,9 +38,29 @@ def upgrade() -> None:
         """
     )
     # Older wizard versions hard-coded the cover slice name to the literal
-    # string "Cover". That leaked into picker labels post-refactor. Reset
-    # those to empty so the UI falls back to the slice's date range.
-    op.execute("UPDATE data.imagery_slices SET name = '' WHERE is_cover = true AND name = 'Cover'")
+    # string "Cover". Rewrite those with the same start-end date format used
+    # for regular slices (mirrors the frontend's `formatSliceLabel` for the
+    # 'days' unit: end_date is exclusive, so subtract 1 to get the inclusive
+    # display end).
+    op.execute(
+        """
+        UPDATE data.imagery_slices
+           SET name = CASE
+               WHEN to_char(start_date::date, 'YYYY-MM') = to_char((end_date::date - 1), 'YYYY-MM') THEN
+                   CASE
+                       WHEN start_date::date = (end_date::date - 1) THEN
+                           trim(to_char(start_date::date, 'Mon FMDD'))
+                       ELSE
+                           trim(to_char(start_date::date, 'Mon FMDD'))
+                           || '-' || to_char((end_date::date - 1), 'FMDD')
+                   END
+               ELSE
+                   trim(to_char(start_date::date, 'Mon FMDD'))
+                   || ' - ' || trim(to_char((end_date::date - 1), 'Mon FMDD'))
+           END
+         WHERE is_cover = true AND name = 'Cover'
+        """
+    )
 
 
 def downgrade() -> None:
