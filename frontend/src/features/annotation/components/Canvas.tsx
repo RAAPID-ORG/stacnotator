@@ -18,6 +18,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
+import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -41,6 +42,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
   const currentLayout = useCampaignStore((s) => s.currentLayout);
   const setCurrentLayout = useCampaignStore((s) => s.setCurrentLayout);
+  const hideWindow = useCampaignStore((s) => s.hideWindow);
 
   const allTasks = useTaskStore((s) => s.allTasks);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -121,15 +123,21 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
+    // A collection appears in the grid only if it's eligible at the view level
+    // (`show_as_window=true`) AND present in the user's current layout. The
+    // layout membership is the per-user hide/show lever; the view flag is the
+    // admin-level eligibility gate.
+    const layoutKeys = new Set((currentLayout ?? []).map((it) => it.i));
     return selectedView.collection_refs
       .filter((ref) => ref.show_as_window)
+      .filter((ref) => layoutKeys.has(String(ref.collection_id)))
       .map((ref) => {
         const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         return { ...ref, collection, source };
       })
       .filter((r) => r.collection && r.source);
-  }, [campaign, selectedView]);
+  }, [campaign, selectedView, currentLayout]);
 
   // On mobile we ignore the saved desktop layout and stack everything in a
   // single column. Main + controls share the visible viewport (same height);
@@ -447,6 +455,40 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                     {collection.name}
                   </span>
                   <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
+                  {isEditingLayout && !isMobile && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hideWindow(collection.id);
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      title="Hide this window (add it back from the Hidden panel)"
+                      aria-label={`Hide ${collection.name}`}
+                      className={`shrink-0 inline-flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                        isActiveCol
+                          ? 'text-white/80 hover:text-white hover:bg-white/20'
+                          : 'text-neutral-500 hover:text-red-600 hover:bg-red-50'
+                      }`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                        <line x1="2" y1="2" x2="22" y2="22" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <ImageryContainer collectionId={collection.id} sourceId={source.id} />
               </div>
@@ -454,6 +496,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           })}
         </ReactGridLayout>
       )}
+
+      {!isMobile && <HiddenWindowsPanel />}
     </main>
   );
 };
