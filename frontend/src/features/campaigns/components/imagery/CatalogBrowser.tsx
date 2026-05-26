@@ -640,12 +640,15 @@ export const CatalogBrowser = ({
       let finalCoverIndex: number;
 
       if (coverMode === 'custom') {
-        // Insert a cover slice at index 0 spanning the full collection window
+        // Cover slice always reads as a "month/year"-style summary regardless
+        // of how the collection itself is sliced — a cover labelled "Jan 1-30"
+        // for a 1-month window adds no info and looks like a regular slice.
         const coverSlice: ImagerySlice = {
           id: createId(),
-          name: 'Cover',
+          name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), 'months'),
           startDate: toDateStr(colStart),
           endDate: toDateStr(colEndDate),
+          isCover: true,
         };
         finalSlices = [coverSlice, ...slices];
         finalCoverIndex = 0;

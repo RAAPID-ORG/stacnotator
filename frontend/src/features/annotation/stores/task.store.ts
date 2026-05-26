@@ -102,17 +102,17 @@ const resetMapForTaskNav = () => {
   const defaultCollectionId = firstWindowRef?.collection_id ?? null;
 
   useMapStore.setState({
-    activeCollectionId: defaultCollectionId,
-    activeSliceIndex: 0,
+    // Clear per-collection memory so the active slice resolves from the
+    // collection's cover_slice_index on the next setActiveCollectionId call.
+    activeCollectionId: null,
     collectionSliceIndices: {},
     emptySlices: {},
     viewSnapshots: {},
     currentMapZoom: null,
     probeTimeseriesPoint: null,
-    // Fresh task: any empty-probe should land on the cover slice, not
-    // carry over a leftover hotkey-direction intent from the previous task.
-    sliceNavIntent: 'initial',
   });
+  // Reducer resolves the cover_slice_index → activeSliceIndex.
+  useMapStore.getState().setActiveCollectionId(defaultCollectionId);
 };
 
 const NAVIGATION_DEBOUNCE_MS = 500;

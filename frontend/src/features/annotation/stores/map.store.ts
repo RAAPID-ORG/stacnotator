@@ -1,17 +1,17 @@
 import { create } from 'zustand';
+import { useCampaignStore } from './campaign.store';
 
-/**
- * Why the active slice last moved. Consumed by ImageryContainer's empty-slice
- * probe to decide whether (and in which direction) to auto-skip away from a
- * slice that turned out empty.
- *
- *   - 'pick'    : user explicit pick (dropdown / timeline). Do NOT auto-skip.
- *   - 'next'    : A/D hotkey moving forward. On empty, skip forward from here.
- *   - 'prev'    : A/D hotkey moving backward. On empty, skip backward from here.
- *   - 'initial' : task/collection/view change or app boot. Jump to first
- *                 non-empty slice anywhere in the collection ("land on cover").
- */
-export type SliceNavIntent = 'pick' | 'next' | 'prev' | 'initial';
+/** Resolve a collection's cover slice index from the campaign store. Falls
+ *  back to 0 if the collection isn't found (defensive). */
+const coverIndexFor = (collectionId: number | null): number => {
+  if (collectionId === null) return 0;
+  const campaign = useCampaignStore.getState().campaign;
+  for (const src of campaign?.imagery_sources ?? []) {
+    const col = src.collections.find((c) => c.id === collectionId);
+    if (col) return col.cover_slice_index ?? 0;
+  }
+  return 0;
+};
 
 interface MapStore {
   // Collection & slice navigation (was window & slice)
@@ -19,7 +19,6 @@ interface MapStore {
   activeSliceIndex: number;
   collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
-  sliceNavIntent: SliceNavIntent;
   viewSnapshots: Record<number, ViewSnapshot>;
 
   // Layer selection
@@ -60,7 +59,6 @@ interface MapStore {
   setActiveCollectionId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
-  setSliceNavIntent: (intent: SliceNavIntent) => void;
   markSliceEmpty: (sliceKey: string) => void;
   clearEmptySlices: () => void;
   saveViewSnapshot: (viewId: number | null) => void;
@@ -106,7 +104,6 @@ const initialState = {
   activeSliceIndex: 0,
   collectionSliceIndices: {} as Record<number, number>,
   emptySlices: {} as Record<string, true>,
-  sliceNavIntent: 'initial' as SliceNavIntent,
 
   /** Saved per-view state so switching views preserves position + empty info */
   viewSnapshots: {} as Record<number, ViewSnapshot>,
@@ -139,27 +136,28 @@ export const useMapStore = create<MapStore>((set) => ({
   ...initialState,
 
   setActiveCollectionId: (id) =>
-    set((s) => {
-      const newIndices = { ...s.collectionSliceIndices };
-      if (s.activeCollectionId !== null) {
-        newIndices[s.activeCollectionId] = s.activeSliceIndex;
-      }
-      return {
-        activeCollectionId: id,
-        activeSliceIndex: id !== null ? (newIndices[id] ?? 0) : 0,
-        collectionSliceIndices: newIndices,
-        showBasemap: false,
-      };
-    }),
+    set((s) => ({
+      activeCollectionId: id,
+      activeSliceIndex: id !== null ? (s.collectionSliceIndices[id] ?? coverIndexFor(id)) : 0,
+      showBasemap: false,
+    })),
 
-  setActiveSliceIndex: (index) => set({ activeSliceIndex: index }),
+  setActiveSliceIndex: (index) =>
+    set((s) => ({
+      activeSliceIndex: index,
+      collectionSliceIndices:
+        s.activeCollectionId !== null
+          ? { ...s.collectionSliceIndices, [s.activeCollectionId]: index }
+          : s.collectionSliceIndices,
+    })),
 
   setCollectionSliceIndex: (collectionId, index) =>
     set((s) => ({
       collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index },
+      // If this collection is the one in the main view, keep activeSliceIndex
+      // in sync — the small window and main view are the same surface for it.
+      ...(s.activeCollectionId === collectionId ? { activeSliceIndex: index } : {}),
     })),
-
-  setSliceNavIntent: (intent) => set({ sliceNavIntent: intent }),
 
   markSliceEmpty: (sliceKey) =>
     set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),
@@ -199,7 +197,7 @@ export const useMapStore = create<MapStore>((set) => ({
       }
       return {
         activeCollectionId: fallbackCollectionId,
-        activeSliceIndex: 0,
+        activeSliceIndex: coverIndexFor(fallbackCollectionId),
         collectionSliceIndices: {},
         emptySlices: {},
       };

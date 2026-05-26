@@ -28,7 +28,7 @@ export const StepIndicator = ({
 }) => {
   const STEPS = STEP_CONFIG[mode].map((s) => s.name);
   return (
-    <div className="flex items-center justify-center gap-2">
+    <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
       {STEPS.map((label, i) => {
         const index = i + 1;
         const active = step === index;
@@ -36,12 +36,12 @@ export const StepIndicator = ({
         const clickable = onStepClick && (done || active);
 
         return (
-          <div key={label} className="flex items-center gap-2">
+          <div key={label} className="flex items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={() => clickable && onStepClick(index)}
               disabled={!clickable}
-              className={`flex items-center gap-2.5 ${clickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} transition-opacity`}
+              className={`flex items-center gap-1.5 sm:gap-2.5 ${clickable ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} transition-opacity`}
             >
               <div
                 className={`
@@ -66,7 +66,7 @@ export const StepIndicator = ({
                 )}
               </div>
               <span
-                className={`text-sm whitespace-nowrap ${
+                className={`text-sm whitespace-nowrap hidden md:inline ${
                   active
                     ? 'text-brand-700 font-semibold'
                     : done
@@ -76,11 +76,17 @@ export const StepIndicator = ({
               >
                 {label}
               </span>
+              {/* On narrow screens only show the active step's label */}
+              {active && (
+                <span className="text-sm whitespace-nowrap md:hidden text-brand-700 font-semibold">
+                  {label}
+                </span>
+              )}
             </button>
 
             {i < STEPS.length - 1 && (
               <div
-                className={`h-px w-8 shrink-0 ${step > index ? 'bg-brand-400' : 'bg-neutral-200'}`}
+                className={`h-px w-3 sm:w-6 md:w-8 shrink-0 ${step > index ? 'bg-brand-400' : 'bg-neutral-200'}`}
               />
             )}
           </div>

@@ -9,6 +9,7 @@ import {
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
 import { buildTileUrl } from '../utils/tileLoading';
+import { sliceView, resolveSliceIndex } from '../utils/sliceView';
 import { getTilerToken } from '~/api/tilerToken';
 
 const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
@@ -63,7 +64,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
   const showCrosshair = useMapStore((s) => s.showCrosshair);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
-  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
   const emptySlices = useMapStore((s) => s.emptySlices);
 
@@ -85,10 +85,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   const slices = collection?.slices ?? [];
 
-  // Use global slice index for active collection, stored index for others
-  const currentSliceIndex = isActiveCollection
-    ? activeSliceIndex
-    : (collectionSliceIndices[collectionId] ?? 0);
+  const currentSliceIndex = resolveSliceIndex(collection, collectionSliceIndices[collectionId]);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
   // Resolve which viz to show in this window.
@@ -244,46 +241,21 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         markSliceEmpty(sliceKey);
         if (alreadyKnownEmpty) return;
 
-        // Decide whether (and in which direction) to auto-skip based on the
-        // most recent navigation intent. Read it fresh here rather than as a
-        // dep so we see the latest value even if the producer set it on the
-        // same tick as the slice change.
-        const intent = useMapStore.getState().sliceNavIntent;
-        if (intent === 'pick') {
-          // User explicitly picked this slice. Respect it - they get to see
-          // the empty tile. No auto-skip, no alert.
-          return;
-        }
-
+        // Find the nearest non-empty regular slice: forward first (matches
+        // the user's mental model of "stay within the time series"), then
+        // backward, then any non-empty slice (custom cover) as a last resort.
         const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
-        let nextIndex = -1;
-        if (intent === 'next') {
-          for (let i = currentSliceIndex + 1; i < slices.length; i++) {
-            if (!currentEmpty[`${collectionId}-${i}`]) {
-              nextIndex = i;
-              break;
-            }
-          }
-        } else if (intent === 'prev') {
-          for (let i = currentSliceIndex - 1; i >= 0; i--) {
-            if (!currentEmpty[`${collectionId}-${i}`]) {
-              nextIndex = i;
-              break;
-            }
-          }
-        } else {
-          // 'initial' - fresh load, land on first non-empty anywhere.
-          nextIndex = slices.findIndex(
-            (_, i) => i !== currentSliceIndex && !currentEmpty[`${collectionId}-${i}`]
-          );
+        const isEmpty = (i: number) => !!currentEmpty[`${collectionId}-${i}`];
+        const { navIndices } = sliceView(slices, collection?.cover_slice_index);
+        const forward = navIndices.filter((i) => i > currentSliceIndex);
+        const backward = [...navIndices].reverse().filter((i) => i < currentSliceIndex);
+        let nextIndex = forward.find((i) => !isEmpty(i)) ?? backward.find((i) => !isEmpty(i)) ?? -1;
+        if (nextIndex === -1) {
+          nextIndex = slices.findIndex((_, i) => i !== currentSliceIndex && !isEmpty(i));
         }
 
         if (nextIndex !== -1) {
-          if (isActiveCollection) {
-            setActiveSliceIndex(nextIndex);
-          } else {
-            useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
-          }
+          useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
         } else {
           const sliceLabel = activeSlice?.name ?? '';
           const colName = collection?.name ?? '';
@@ -332,21 +304,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       ) : (
         <>
           {emptyTileAlert && (
-            <div className="absolute top-1.5 left-1.5 right-1.5 z-[1001] flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5 text-[11px] text-amber-800 shadow-sm">
-              <span className="flex-1">
-                No imagery data for <strong>{emptyTileAlert}</strong>
-              </span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEmptyTileAlert(null);
-                }}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="ml-1 text-amber-600 hover:text-amber-900 font-bold leading-none"
-                title="Dismiss"
-              >
-                ×
-              </button>
+            <div className="absolute inset-0 z-[1001] grid place-items-center p-4 pointer-events-none">
+              <span className="text-xs text-neutral-500">no data</span>
             </div>
           )}
 
@@ -358,10 +317,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               zoom={zoom}
               tileUrl={tileUrl}
               crosshair={crosshair}
-              showCrosshair={!isOpenMode && showCrosshair}
+              showCrosshair={!isOpenMode && showCrosshair && !emptyTileAlert}
               refocusTrigger={refocusTrigger}
               detectionKey={currentTaskIndex}
-              sampleExtent={showCrosshair ? sampleExtent : null}
+              sampleExtent={!emptyTileAlert && showCrosshair ? sampleExtent : null}
             />
           ) : (
             !loading && <NoImageryOverlay />

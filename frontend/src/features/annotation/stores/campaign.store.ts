@@ -163,13 +163,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
       // Initialize sibling stores
       useMapStore.setState({
-        activeCollectionId,
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
-        // Campaign boot: any empty-probe should land on the cover slice.
-        sliceNavIntent: 'initial',
       });
+      // Use the action (not setState) so the reducer resolves the default
+      // collection's cover_slice_index into activeSliceIndex.
+      useMapStore.getState().setActiveCollectionId(activeCollectionId);
 
       // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
@@ -212,8 +212,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
     const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
-    // Switching view is effectively a fresh start for the slice probe.
-    useMapStore.getState().setSliceNavIntent('initial');
   },
 
   refreshKnnValidationStatus: async () => {

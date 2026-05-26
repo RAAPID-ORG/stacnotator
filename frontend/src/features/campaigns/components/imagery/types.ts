@@ -12,6 +12,9 @@ export interface ImagerySlice {
   name: string;
   startDate: string;
   endDate: string;
+  /** True for separately-generated custom cover slices (own viz/search overrides).
+   *  False for regular slices, even when designated as the cover via coverSliceIndex. */
+  isCover?: boolean;
   /** Per-slice visualization URLs (used by manual XYZ collections) */
   vizUrls?: VisualizationUrl[];
 }

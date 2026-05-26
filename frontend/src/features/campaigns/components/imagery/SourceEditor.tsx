@@ -28,9 +28,6 @@ type AddCollectionStep =
   | { kind: 'pick' }
   | { kind: 'catalog'; preset: CatalogBrowserPreset | null };
 
-const collectionTypeLabel = (c: CollectionItem) =>
-  c.data.type === 'stac' ? 'STAC' : c.data.type === 'stac_browser' ? 'Catalog' : 'XYZ';
-
 const collectionDisplayName = (c: CollectionItem) => {
   if (c.name) return c.name;
   if (c.slices.length === 0) return 'Untitled';
@@ -174,12 +171,24 @@ export const SourceEditor = ({
     ? source.collections.find((c) => c.id === editingCollectionId)
     : null;
   if (editingCollection) {
+    const closeCollection = () => setEditingCollectionId(null);
     return (
       <Modal
         title="Edit collection"
-        onClose={() => setEditingCollectionId(null)}
+        onClose={closeCollection}
         maxWidth="max-w-xl"
         scrollable
+        footer={
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={closeCollection}
+              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        }
       >
         <CollectionEditor
           collection={editingCollection}
@@ -189,7 +198,7 @@ export const SourceEditor = ({
           }
           onRemove={() => {
             void controller.removeCollection(source.id, editingCollection.id);
-            setEditingCollectionId(null);
+            closeCollection();
           }}
           inModal
         />
@@ -204,7 +213,7 @@ export const SourceEditor = ({
       maxWidth="max-w-xl"
       scrollable
       footer={
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => void handleRemoveSource()}
@@ -212,13 +221,15 @@ export const SourceEditor = ({
           >
             Delete source
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm text-neutral-600 hover:text-neutral-800 cursor-pointer"
-          >
-            Done
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
         </div>
       }
     >
@@ -361,14 +372,11 @@ export const SourceEditor = ({
                     setEditingCollectionId(c.id);
                   }
                 }}
-                className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-3 py-2.5 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/5"
+                className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-3 py-2.5 pr-7 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/5"
               >
                 <IconSettings className="w-3 h-3 mr-1.5 shrink-0 transition-opacity opacity-0 group-hover:opacity-100 text-brand-600" />
                 <span className="text-xs font-medium leading-tight truncate max-w-[120px]">
                   {collectionDisplayName(c)}
-                </span>
-                <span className="ml-1.5 text-[9px] px-1 py-0.5 rounded shrink-0 bg-neutral-100 text-neutral-500">
-                  {collectionTypeLabel(c)}
                 </span>
                 {c.slices.length > 1 && (
                   <span className="ml-1 text-[9px] shrink-0 flex items-center gap-0.5 text-neutral-400">
@@ -376,6 +384,18 @@ export const SourceEditor = ({
                     {c.slices.length}
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void controller.removeCollection(source.id, c.id);
+                  }}
+                  title={`Delete collection "${collectionDisplayName(c)}"`}
+                  aria-label={`Delete collection ${collectionDisplayName(c)}`}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                >
+                  <IconTrash className="w-3 h-3" />
+                </button>
               </div>
             ))}
           </div>

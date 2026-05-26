@@ -48,6 +48,7 @@ export const CollectionEditor = ({
 }: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
   const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+  const [showCoverOverrides, setShowCoverOverrides] = useState(false);
 
   // Fetch STAC asset metadata for stac_browser collections so VizConfigPanel
   // renders the band picker / colormap dropdown (instead of text fallbacks).
@@ -122,6 +123,42 @@ export const CollectionEditor = ({
         return { ...s, vizUrls: updated };
       }),
     });
+  };
+
+  const sliceManualXyzBlock = (slice: ImagerySlice) => {
+    if (collection.data.type !== 'manual' || vizNames.length === 0) return null;
+    return (
+      <div className="mt-2 space-y-1 border-t border-neutral-100 pt-1.5">
+        {vizNames.map((vizName) => {
+          const url = slice.vizUrls?.find((v) => v.vizName === vizName)?.url ?? '';
+          const missingParams = ['{z}', '{x}', '{y}'].filter((p) => !url.includes(p));
+          return (
+            <div key={vizName} className="space-y-0.5">
+              <label className="text-[11px] text-neutral-500">{vizName || '(unnamed)'} URL</label>
+              <input
+                type="text"
+                placeholder="https://.../tiles/{z}/{x}/{y}"
+                value={url}
+                onChange={(e) => updateSliceVizUrl(slice.id, vizName, e.target.value)}
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
+              />
+              {url && missingParams.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {missingParams.map((p) => (
+                    <span
+                      key={p}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
+                    >
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const updateVizUrl = (vizName: string, url: string) => {
@@ -240,145 +277,178 @@ export const CollectionEditor = ({
               </div>
             )}
 
-            {collection.slices.map((slice, i) => {
-              const isCover = i === collection.coverSliceIndex;
-              return (
-                <div
-                  key={slice.id}
-                  className={`p-2 rounded border ${isCover ? 'bg-brand-50/40 border-brand-200' : 'bg-neutral-50 border-neutral-100'}`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        placeholder={`Slice ${i + 1}`}
-                        value={slice.name}
-                        onChange={(e) => updateSlice(slice.id, { name: e.target.value })}
-                        className="border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs w-28"
-                      />
-                      {isCover ? (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-700 rounded shrink-0">
-                          Cover
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onChange({ coverSliceIndex: i })}
-                          className="text-[10px] px-1.5 py-0.5 text-neutral-400 hover:text-brand-700 hover:bg-brand-50 rounded transition-colors cursor-pointer shrink-0"
-                          title="Set as cover slice"
-                        >
-                          Set as cover
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeSlice(slice.id)}
-                      className="text-red-400 hover:text-red-600 transition-colors cursor-pointer p-0.5"
-                      title="Remove slice"
-                    >
-                      <IconTrash className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-0.5">
-                      <label className="text-[11px] text-neutral-500">Start</label>
-                      <input
-                        type="date"
-                        value={slice.startDate}
-                        onChange={(e) => updateSlice(slice.id, { startDate: e.target.value })}
-                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[11px] text-neutral-500">End</label>
-                      <input
-                        type="date"
-                        value={slice.endDate}
-                        onChange={(e) => updateSlice(slice.id, { endDate: e.target.value })}
-                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
-                      />
-                    </div>
-                  </div>
-                  {/* Cover slice visualization overrides */}
-                  {isCover &&
-                    collection.data.type === 'stac_browser' &&
-                    (collection.data as StacBrowserCollectionData).coverVisualizations &&
-                    (collection.data as StacBrowserCollectionData).coverVisualizations!.length >
-                      0 && (
-                      <div className="mt-2 space-y-1.5 border-t border-brand-100 pt-1.5">
-                        <label className="text-[11px] text-brand-700 font-medium">
-                          Cover Visualization Overrides
-                        </label>
-                        {(collection.data as StacBrowserCollectionData).coverVisualizations!.map(
-                          (cv, cvIdx) => (
-                            <div
-                              key={cvIdx}
-                              className="p-1.5 rounded border border-brand-100 bg-white space-y-1"
-                            >
-                              <span className="text-xs font-medium text-brand-700">{cv.name}</span>
-                              <VizConfigPanel
-                                collectionId={
-                                  (collection.data as StacBrowserCollectionData).stacCollectionId
-                                }
-                                availableAssets={availableAssets}
-                                vizParams={cv.vizParams}
-                                onChange={(params) => {
-                                  const sb = collection.data as StacBrowserCollectionData;
-                                  const newCoverVizs = sb.coverVisualizations!.map((v, i) =>
-                                    i === cvIdx ? { ...v, vizParams: params } : v
-                                  );
-                                  onChange({
-                                    data: { ...sb, coverVisualizations: newCoverVizs },
-                                  });
-                                }}
-                                showCompositing={
-                                  (collection.data as StacBrowserCollectionData).mode === 'mosaic'
-                                }
-                              />
-                            </div>
-                          )
+            {(() => {
+              const customCoverArrayIndex = collection.slices.findIndex((s) => s.isCover);
+              const customCover =
+                customCoverArrayIndex >= 0 ? collection.slices[customCoverArrayIndex] : null;
+              const regularSlices = collection.slices
+                .map((s, i) => ({ slice: s, originalIndex: i }))
+                .filter(({ slice }) => !slice.isCover);
+
+              const renderSliceCard = (
+                slice: ImagerySlice,
+                originalIndex: number,
+                variant: 'custom-cover' | 'regular'
+              ) => {
+                const isActiveCover = originalIndex === collection.coverSliceIndex;
+                const isCustomCover = variant === 'custom-cover';
+                return (
+                  <div
+                    key={slice.id}
+                    className={`p-2 rounded border ${
+                      isActiveCover
+                        ? 'bg-brand-50/40 border-brand-300'
+                        : 'bg-neutral-50 border-neutral-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          placeholder={`Slice ${originalIndex + 1}`}
+                          value={slice.name}
+                          onChange={(e) => updateSlice(slice.id, { name: e.target.value })}
+                          className="border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs w-28"
+                        />
+                        {isActiveCover ? (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-700 rounded shrink-0 font-medium">
+                            Cover
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => onChange({ coverSliceIndex: originalIndex })}
+                            className="text-[10px] px-1.5 py-0.5 text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-500 rounded transition-colors cursor-pointer shrink-0 font-medium"
+                            title="Set as cover slice"
+                          >
+                            Set as cover
+                          </button>
+                        )}
+                        {isCustomCover && !isActiveCover && (
+                          <span className="text-[10px] px-1.5 py-0.5 text-neutral-500 bg-neutral-100 rounded shrink-0">
+                            Has overrides
+                          </span>
                         )}
                       </div>
-                    )}
-                  {/* Per-slice visualization URLs for manual XYZ collections */}
-                  {collection.data.type === 'manual' && vizNames.length > 0 && (
-                    <div className="mt-2 space-y-1 border-t border-neutral-100 pt-1.5">
-                      {vizNames.map((vizName) => {
-                        const url = slice.vizUrls?.find((v) => v.vizName === vizName)?.url ?? '';
-                        const missingParams = ['{z}', '{x}', '{y}'].filter((p) => !url.includes(p));
-                        return (
-                          <div key={vizName} className="space-y-0.5">
-                            <label className="text-[11px] text-neutral-500">
-                              {vizName || '(unnamed)'} URL
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="https://.../tiles/{z}/{x}/{y}"
-                              value={url}
-                              onChange={(e) => updateSliceVizUrl(slice.id, vizName, e.target.value)}
-                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
-                            />
-                            {url && missingParams.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-0.5">
-                                {missingParams.map((p) => (
-                                  <span
-                                    key={p}
-                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
-                                  >
-                                    {p}
-                                  </span>
-                                ))}
-                              </div>
+                      <button
+                        type="button"
+                        onClick={() => removeSlice(slice.id)}
+                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer p-0.5"
+                        title="Remove slice"
+                      >
+                        <IconTrash className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-0.5">
+                        <label className="text-[11px] text-neutral-500">Start</label>
+                        <input
+                          type="date"
+                          value={slice.startDate}
+                          onChange={(e) => updateSlice(slice.id, { startDate: e.target.value })}
+                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <label className="text-[11px] text-neutral-500">End</label>
+                        <input
+                          type="date"
+                          value={slice.endDate}
+                          onChange={(e) => updateSlice(slice.id, { endDate: e.target.value })}
+                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* Custom cover viz overrides — only on the dedicated custom cover slice. */}
+                    {isCustomCover &&
+                      collection.data.type === 'stac_browser' &&
+                      (collection.data as StacBrowserCollectionData).coverVisualizations &&
+                      (collection.data as StacBrowserCollectionData).coverVisualizations!.length >
+                        0 && (
+                        <div className="mt-2 border-t border-brand-100 pt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setShowCoverOverrides((v) => !v)}
+                            className="flex items-center gap-1 text-[11px] text-brand-700 hover:text-brand-900 font-medium cursor-pointer"
+                          >
+                            {showCoverOverrides ? (
+                              <IconChevronUp className="w-3 h-3" />
+                            ) : (
+                              <IconChevronDown className="w-3 h-3" />
                             )}
-                          </div>
-                        );
-                      })}
+                            Specify visualization overrides for cover slice
+                          </button>
+                          {showCoverOverrides && (
+                            <div className="mt-1.5 space-y-1.5">
+                              {(
+                                collection.data as StacBrowserCollectionData
+                              ).coverVisualizations!.map((cv, cvIdx) => (
+                                <div
+                                  key={cvIdx}
+                                  className="p-1.5 rounded border border-brand-100 bg-white space-y-1"
+                                >
+                                  <span className="text-xs font-medium text-brand-700">
+                                    {cv.name}
+                                  </span>
+                                  <VizConfigPanel
+                                    collectionId={
+                                      (collection.data as StacBrowserCollectionData)
+                                        .stacCollectionId
+                                    }
+                                    availableAssets={availableAssets}
+                                    vizParams={cv.vizParams}
+                                    onChange={(params) => {
+                                      const sb = collection.data as StacBrowserCollectionData;
+                                      const newCoverVizs = sb.coverVisualizations!.map((v, i) =>
+                                        i === cvIdx ? { ...v, vizParams: params } : v
+                                      );
+                                      onChange({
+                                        data: { ...sb, coverVisualizations: newCoverVizs },
+                                      });
+                                    }}
+                                    showCompositing={
+                                      (collection.data as StacBrowserCollectionData).mode ===
+                                      'mosaic'
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    {sliceManualXyzBlock(slice)}
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {customCover && (
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
+                        Cover slice
+                      </label>
+                      {renderSliceCard(customCover, customCoverArrayIndex, 'custom-cover')}
                     </div>
                   )}
-                </div>
+                  {regularSlices.length > 0 && (
+                    <div className="space-y-1.5">
+                      {customCover && (
+                        <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
+                          Regular slices
+                        </label>
+                      )}
+                      <div className="space-y-2">
+                        {regularSlices.map(({ slice, originalIndex }) =>
+                          renderSliceCard(slice, originalIndex, 'regular')
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
 
           {/* STAC-specific fields */}
