@@ -136,34 +136,6 @@ export interface ImageryStepState {
   basemaps: Basemap[];
 }
 
-export interface StacConfig {
-  registrationUrl: string;
-  searchBody: string;
-  /** How often to create a new collection (outer grouping) */
-  collectionPeriodInterval: number;
-  collectionPeriodUnit: 'weeks' | 'months' | 'years';
-  /** How to slice each collection into temporal slices (inner) */
-  slicePeriodInterval: number;
-  slicePeriodUnit: 'days' | 'weeks' | 'months' | 'years';
-  startDate: string;
-  endDate: string;
-  vizUrls: VisualizationUrl[];
-  /** Whether to generate a cover slice per collection (e.g. a median mosaic spanning the full collection period) */
-  generateCoverSlice: boolean;
-  /** How the cover slice is determined: 'nth' picks the Nth regular slice, 'custom' adds a separate cover slice with its own layer config */
-  coverSliceMode: 'nth' | 'custom';
-  /** When coverSliceMode='nth', which slice index (1-based) to use as the cover */
-  coverSliceNth: number;
-  /** Optional name for the cover slice */
-  coverSliceName: string;
-  /** Maximum cloud cover percentage (0-100). Used in the search body eo:cloud_cover filter. */
-  cloudCover: number;
-  /** Optional separate registration URL for the cover slice (falls back to registrationUrl if empty) */
-  coverRegistrationUrl: string;
-  /** Optional separate search body JSON for the cover slice (falls back to searchBody if empty) */
-  coverSearchBody: string;
-}
-
 export const createId = (): string => crypto.randomUUID().slice(0, 8);
 
 export const emptyVizParams = (): VizParams => ({
@@ -195,19 +167,6 @@ export const emptyManualCollection = (vizNames: string[]): CollectionItem => ({
   coverSliceIndex: 0,
   data: {
     type: 'manual',
-    vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
-  },
-});
-
-export const emptyStacCollection = (vizNames: string[]): CollectionItem => ({
-  id: createId(),
-  name: 'Untitled',
-  slices: [],
-  coverSliceIndex: 0,
-  data: {
-    type: 'stac',
-    registrationUrl: '',
-    searchBody: '',
     vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
   },
 });
@@ -247,159 +206,12 @@ export const DEFAULT_BASEMAPS: Basemap[] = [
     url: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
     maxNativeZoom: 17,
   },
-];
-
-export const emptyStacConfig = (vizNames: string[]): StacConfig => {
-  const year = new Date().getFullYear();
-  return {
-    registrationUrl: 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register',
-    searchBody: '',
-    collectionPeriodInterval: 1,
-    collectionPeriodUnit: 'months',
-    slicePeriodInterval: 1,
-    slicePeriodUnit: 'weeks',
-    startDate: `${year}-01`,
-    endDate: `${year}-12`,
-    vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),
-    generateCoverSlice: false,
-    coverSliceMode: 'nth',
-    coverSliceNth: 1,
-    coverSliceName: 'Median Mosaic',
-    cloudCover: 90,
-    coverRegistrationUrl: '',
-    coverSearchBody: '',
-  };
-};
-
-export type StacPreset = {
-  id: string;
-  label: string;
-  config: Omit<StacConfig, 'startDate' | 'endDate'>;
-};
-
-const PC_REGISTER_URL = 'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register';
-const PC_TILES_BASE =
-  'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}';
-
-const BASE_PRESET_CONFIG: Omit<
-  StacConfig,
-  'startDate' | 'endDate' | 'vizUrls' | 'searchBody' | 'cloudCover'
-> = {
-  registrationUrl: PC_REGISTER_URL,
-  collectionPeriodInterval: 1,
-  collectionPeriodUnit: 'months',
-  slicePeriodInterval: 1,
-  slicePeriodUnit: 'weeks',
-  generateCoverSlice: false,
-  coverSliceMode: 'nth',
-  coverSliceNth: 1,
-  coverSliceName: 'Median Mosaic',
-  coverRegistrationUrl: '',
-  coverSearchBody: '',
-};
-
-function makeSearchBody(
-  collections: string[],
-  cloudCover: number | null,
-  extraFilters: object[] = []
-): string {
-  const args: object[] = [
-    {
-      op: 'anyinteracts',
-      args: [
-        { property: 'datetime' },
-        { interval: ['{startDatetimePlaceholder}', '{endDatetimePlaceholder}'] },
-      ],
-    },
-  ];
-  if (cloudCover !== null) {
-    args.push({ op: '<=', args: [{ property: 'eo:cloud_cover' }, cloudCover] });
-  }
-  args.push(...extraFilters);
-
-  return JSON.stringify(
-    {
-      bbox: '{campaignBBoxPlaceholder}',
-      filter: { op: 'and', args },
-      metadata: { type: 'mosaic', maxzoom: 24, minzoom: 0, pixel_selection: 'first' },
-      filterLang: 'cql2-json',
-      collections,
-    },
-    null,
-    2
-  );
-}
-
-export const STAC_PRESETS: StacPreset[] = [
   {
-    id: 'sentinel2',
-    label: 'Sentinel-2 L2A',
-    config: {
-      ...BASE_PRESET_CONFIG,
-      cloudCover: 90,
-      searchBody: makeSearchBody(['sentinel-2-l2a'], 90, [
-        { op: '=', args: [{ property: 'collection' }, 'sentinel-2-l2a'] },
-      ]),
-      vizUrls: [
-        {
-          vizName: 'True Color',
-          url: `${PC_TILES_BASE}?assets=B04&assets=B03&assets=B02&nodata=0&color_formula=Gamma+RGB+3.2+Saturation+0.8+Sigmoidal+RGB+25+0.35&collection=sentinel-2-l2a&pixel_selection=first`,
-        },
-        {
-          vizName: 'False Color',
-          url: `${PC_TILES_BASE}?assets=B08&assets=B04&assets=B03&nodata=0&color_formula=Gamma+RGB+3.7+Saturation+1.5+Sigmoidal+RGB+15+0.35&collection=sentinel-2-l2a&pixel_selection=first`,
-        },
-      ],
-    },
-  },
-  {
-    id: 'landsat',
-    label: 'Landsat C2 L2',
-    config: {
-      ...BASE_PRESET_CONFIG,
-      cloudCover: 70,
-      searchBody: makeSearchBody(['landsat-c2-l2'], 70, [
-        { op: '=', args: [{ property: 'collection' }, 'landsat-c2-l2'] },
-      ]),
-      vizUrls: [
-        {
-          vizName: 'True Color',
-          url: `${PC_TILES_BASE}?collection=landsat-c2-l2&assets=red&assets=green&assets=blue&color_formula=gamma+RGB+1.7+saturation+1.7+sigmoidal+RGB+15+0.35&nodata=0&pixel_selection=first&rescale=7500,40000`,
-        },
-      ],
-    },
-  },
-  {
-    id: 'hls',
-    label: 'Harmonized Landsat Sentinel (HLS)',
-    config: {
-      ...BASE_PRESET_CONFIG,
-      cloudCover: 70,
-      searchBody: makeSearchBody(['hls2-l30', 'hls2-s30'], 70),
-      vizUrls: [
-        {
-          vizName: 'True Color',
-          url: `${PC_TILES_BASE}?collection=hls2-s30&collection=hls2-l30&assets=B04&assets=B03&assets=B02&color_formula=gamma+RGB+2.7,+saturation+1.5,+sigmoidal+RGB+15+0.55&nodata=0&pixel_selection=first&rescale=0,3000`,
-        },
-      ],
-    },
-  },
-  {
-    id: 'naip',
-    label: 'National Agriculture Imagery Program (NAIP)',
-    config: {
-      ...BASE_PRESET_CONFIG,
-      cloudCover: 90,
-      searchBody: makeSearchBody(['naip'], null, [
-        { op: '=', args: [{ property: 'collection' }, 'naip'] },
-      ]),
-      vizUrls: [
-        {
-          vizName: 'True Color',
-          url: `${PC_TILES_BASE}?asset_bidx=image%7C1%2C2%2C3&assets=image&collection=naip&format=png`,
-        },
-      ],
-    },
+    id: 'bing-aerial',
+    name: 'Bing Aerial',
+    // Bing uses quadkeys; the {q} placeholder is converted at tile-load time.
+    url: 'http://ecn.t3.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1',
+    maxNativeZoom: 19,
   },
 ];
 

@@ -157,55 +157,77 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Band picker */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-neutral-700 font-medium">
-          Bands{' '}
-          <span className="font-normal text-neutral-500">Select 1 (colorized) or 3 (RGB)</span>
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {rasterAssets.map(([key, info]) => {
-            const idx = vizParams.assets.indexOf(key);
-            const selected = idx >= 0;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => toggleBand(key)}
-                title={info.title || key}
-                className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
-                  selected
-                    ? bandColorClass(idx)
-                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                }`}
-              >
-                {selected && (
-                  <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
-                    {bandLabel(idx)}
-                  </span>
-                )}
-                {info.title || key}
-              </button>
-            );
-          })}
+      {/* Band picker (with asset metadata) — falls back to a text input when
+          the collection's STAC metadata isn't loaded (e.g. editing a saved
+          collection without re-fetching). */}
+      {rasterAssets.length > 0 ? (
+        <div className="space-y-1.5">
+          <label className="text-xs text-neutral-700 font-medium">
+            Bands{' '}
+            <span className="font-normal text-neutral-500">Select 1 (colorized) or 3 (RGB)</span>
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {rasterAssets.map(([key, info]) => {
+              const idx = vizParams.assets.indexOf(key);
+              const selected = idx >= 0;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleBand(key)}
+                  title={info.title || key}
+                  className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
+                    selected
+                      ? bandColorClass(idx)
+                      : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
+                      {bandLabel(idx)}
+                    </span>
+                  )}
+                  {info.title || key}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-neutral-500">
+            {vizParams.assets.length === 0 && 'No bands selected'}
+            {vizParams.assets.length === 1 &&
+              (isRgbAsset
+                ? `Pre-rendered RGB: ${vizParams.assets[0]}`
+                : `Single band: ${vizParams.assets[0]} (colorized)`)}
+            {vizParams.assets.length === 2 && 'Select a 3rd band for RGB, or remove one'}
+            {vizParams.assets.length === 3 && (
+              <>
+                RGB: <span className="text-red-600">{vizParams.assets[0]}</span> /{' '}
+                <span className="text-green-600">{vizParams.assets[1]}</span> /{' '}
+                <span className="text-blue-600">{vizParams.assets[2]}</span>
+              </>
+            )}
+          </div>
         </div>
-        {/* Selection summary */}
-        <div className="text-[11px] text-neutral-500">
-          {vizParams.assets.length === 0 && 'No bands selected'}
-          {vizParams.assets.length === 1 &&
-            (isRgbAsset
-              ? `Pre-rendered RGB: ${vizParams.assets[0]}`
-              : `Single band: ${vizParams.assets[0]} (colorized)`)}
-          {vizParams.assets.length === 2 && 'Select a 3rd band for RGB, or remove one'}
-          {vizParams.assets.length === 3 && (
-            <>
-              RGB: <span className="text-red-600">{vizParams.assets[0]}</span> /{' '}
-              <span className="text-green-600">{vizParams.assets[1]}</span> /{' '}
-              <span className="text-blue-600">{vizParams.assets[2]}</span>
-            </>
-          )}
+      ) : (
+        <div className="space-y-1">
+          <label className="text-xs text-neutral-700 font-medium">Assets</label>
+          <input
+            type="text"
+            value={vizParams.assets.join(', ')}
+            onChange={(e) =>
+              onChange({
+                ...vizParams,
+                assets: e.target.value
+                  .split(',')
+                  .map((a) => a.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="e.g. B04, B03, B02"
+            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
+          />
         </div>
-      </div>
+      )}
 
       {/* Colormap */}
       {showColormap && (

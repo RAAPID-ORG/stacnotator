@@ -4,6 +4,16 @@ import { tileLoadImagery } from '../../utils/tileLoading';
 
 export type LayerType = 'imagery' | 'basemap';
 
+/** Bing-style quadkey: interleave x/y bits per zoom level into a base-4 string. */
+function tileXYZToQuadkey(x: number, y: number, z: number): string {
+  let q = '';
+  for (let i = z; i > 0; i--) {
+    const mask = 1 << (i - 1);
+    q += String((x & mask ? 1 : 0) + (y & mask ? 2 : 0));
+  }
+  return q;
+}
+
 export abstract class Layer {
   readonly id: string;
   readonly name: string;
@@ -45,22 +55,29 @@ export class XYZLayer extends Layer {
   }
 
   asOLLayer() {
+    const template = this.urlTemplate;
+    const baseOpts = {
+      attributions: this.attribution,
+      minZoom: this.minZoom,
+      maxZoom: this.maxZoom,
+      crossOrigin: 'anonymous' as const,
+      cacheSize: 512,
+      transition: 150,
+      ...(this.layerType === 'imagery'
+        ? {
+            tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
+          }
+        : {}),
+    };
+    const source = template.includes('{q}')
+      ? new XYZ({
+          ...baseOpts,
+          tileUrlFunction: ([z, x, y]) => template.replace('{q}', tileXYZToQuadkey(x, y, z)),
+        })
+      : new XYZ({ ...baseOpts, url: template });
     return new TileLayer({
       preload: this.preload ?? (this.layerType === 'imagery' ? 0 : 4),
-      source: new XYZ({
-        url: this.urlTemplate,
-        attributions: this.attribution,
-        minZoom: this.minZoom,
-        maxZoom: this.maxZoom,
-        crossOrigin: 'anonymous',
-        cacheSize: 512,
-        transition: 150,
-        ...(this.layerType === 'imagery'
-          ? {
-              tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
-            }
-          : {}),
-      }),
+      source,
     });
   }
 }

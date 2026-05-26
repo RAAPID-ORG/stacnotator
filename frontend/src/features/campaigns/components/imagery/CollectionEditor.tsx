@@ -9,8 +9,8 @@ import type {
 import { emptySlice, sliceDateRange } from './types';
 import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
 import { AutoSizeTextarea } from '~/shared/ui/AutoSizeTextarea';
-import { Tooltip } from './Tooltip';
-import { VizParamsInlineEditor } from './VizParamsInlineEditor';
+import { Tooltip } from '~/shared/ui/Tooltip';
+import { VizConfigPanel } from './VizConfigPanel';
 import { StacQueryEditor } from './StacQueryEditor';
 
 interface CollectionEditorProps {
@@ -292,14 +292,16 @@ export const CollectionEditor = ({
                               className="p-1.5 rounded border border-brand-100 bg-white space-y-1"
                             >
                               <span className="text-xs font-medium text-brand-700">{cv.name}</span>
-                              <VizParamsInlineEditor
+                              <VizConfigPanel
+                                collectionId={
+                                  (collection.data as StacBrowserCollectionData).stacCollectionId
+                                }
+                                availableAssets={{}}
                                 vizParams={cv.vizParams}
-                                onChange={(key, value) => {
+                                onChange={(params) => {
                                   const sb = collection.data as StacBrowserCollectionData;
                                   const newCoverVizs = sb.coverVisualizations!.map((v, i) =>
-                                    i === cvIdx
-                                      ? { ...v, vizParams: { ...v.vizParams, [key]: value } }
-                                      : v
+                                    i === cvIdx ? { ...v, vizParams: params } : v
                                   );
                                   onChange({
                                     data: { ...sb, coverVisualizations: newCoverVizs },
@@ -462,12 +464,6 @@ export const CollectionEditor = ({
               const sb = collection.data as StacBrowserCollectionData;
               const updateSb = (updates: Partial<StacBrowserCollectionData>) =>
                 onChange({ data: { ...sb, ...updates } });
-              const updateVizParam = (vizIdx: number, key: string, value: unknown) => {
-                const newVizs = sb.visualizations.map((v, i) =>
-                  i === vizIdx ? { ...v, vizParams: { ...v.vizParams, [key]: value } } : v
-                );
-                updateSb({ visualizations: newVizs });
-              };
 
               return (
                 <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
@@ -581,9 +577,16 @@ export const CollectionEditor = ({
                               {name || '(unnamed)'}
                             </span>
                             {viz ? (
-                              <VizParamsInlineEditor
+                              <VizConfigPanel
+                                collectionId={sb.stacCollectionId}
+                                availableAssets={{}}
                                 vizParams={viz.vizParams}
-                                onChange={(key, value) => updateVizParam(vizIdx, key, value)}
+                                onChange={(params) => {
+                                  const newVizs = sb.visualizations.map((v, i) =>
+                                    i === vizIdx ? { ...v, vizParams: params } : v
+                                  );
+                                  updateSb({ visualizations: newVizs });
+                                }}
                                 showCompositing={sb.mode === 'mosaic'}
                               />
                             ) : (

@@ -753,14 +753,19 @@ export const CampaignSettingsPage = () => {
                 <ImageryTab
                   imagery={imagery}
                   views={campaign?.imagery_views ?? []}
+                  basemaps={campaign?.basemaps ?? []}
                   campaignId={numericCampaignId}
-                  setDeleteConfirm={setDeleteConfirm}
-                  onSourceUpdated={(sourceId, updates) => {
-                    setImagery((prev) =>
-                      prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
-                    );
-                  }}
-                  onCollectionVizUpdated={async () => {
+                  campaignBbox={
+                    campaign?.settings
+                      ? [
+                          campaign.settings.bbox_west,
+                          campaign.settings.bbox_south,
+                          campaign.settings.bbox_east,
+                          campaign.settings.bbox_north,
+                        ]
+                      : null
+                  }
+                  onChanged={async () => {
                     try {
                       const { data } = await getCampaign({
                         path: { campaign_id: numericCampaignId },
