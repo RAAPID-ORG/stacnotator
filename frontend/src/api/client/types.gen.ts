@@ -1782,6 +1782,19 @@ export type UpdateCampaignGuideRequest = {
 };
 
 /**
+ * UpdateCampaignLabelsRequest
+ *
+ * Replace the campaign's label set. Existing label IDs are preserved (so
+ * annotations referencing them continue to resolve); new labels get appended.
+ */
+export type UpdateCampaignLabelsRequest = {
+    /**
+     * Labels
+     */
+    labels: Array<LabelBase>;
+};
+
+/**
  * UpdateCampaignNameRequest
  */
 export type UpdateCampaignNameRequest = {
@@ -2935,6 +2948,36 @@ export type UpdateCampaignBboxResponses = {
 };
 
 export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
+
+export type UpdateCampaignLabelsData = {
+    body: UpdateCampaignLabelsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/labels';
+};
+
+export type UpdateCampaignLabelsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignLabelsError = UpdateCampaignLabelsErrors[keyof UpdateCampaignLabelsErrors];
+
+export type UpdateCampaignLabelsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignLabelsResponse = UpdateCampaignLabelsResponses[keyof UpdateCampaignLabelsResponses];
 
 export type UpdateSampleExtentData = {
     body: UpdateSampleExtentRequest;

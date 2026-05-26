@@ -489,6 +489,46 @@ def update_campaign_guide(db: Session, campaign_id: int, guide_markdown: str | N
     return get_campaign_full(db, campaign_id)
 
 
+def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campaign:
+    """Replace the campaign's labels JSONB. Caller is expected to keep existing
+    label IDs stable so annotations referencing them continue to resolve;
+    rename = same id + new name, add = new id. Delete is not supported here."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    existing_ids = set((campaign.settings.labels or {}).keys())
+    incoming_ids = {str(label.id) for label in labels}
+    removed = existing_ids - incoming_ids
+    if removed:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Removing labels is not supported (would orphan annotations). "
+                f"Missing label id(s): {sorted(removed)}"
+            ),
+        )
+
+    labels_dict: dict = {}
+    for label in labels:
+        entry: dict = {"name": label.name}
+        if label.geometry_type is not None:
+            entry["geometry_type"] = label.geometry_type
+        labels_dict[str(label.id)] = entry
+    campaign.settings.labels = labels_dict
+
+    # JSONB column needs an explicit flag so SQLAlchemy emits an UPDATE for
+    # in-place dict mutations (assignment above already creates a new dict,
+    # but flag_modified is defensive against future refactors).
+    from sqlalchemy.orm.attributes import flag_modified
+
+    flag_modified(campaign.settings, "labels")
+    db.commit()
+    return get_campaign_full(db, campaign_id)
+
+
 def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
