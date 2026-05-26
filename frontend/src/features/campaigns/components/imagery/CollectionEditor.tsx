@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   CollectionItem,
   ImagerySlice,
@@ -12,6 +12,8 @@ import { AutoSizeTextarea } from '~/shared/ui/AutoSizeTextarea';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizConfigPanel } from './VizConfigPanel';
 import { StacQueryEditor } from './StacQueryEditor';
+import { fetchCollections } from '~/api/stacBrowser';
+import type { StacAssetInfo } from '~/api/stacBrowser';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -45,6 +47,29 @@ export const CollectionEditor = ({
   inModal,
 }: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
+  const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+
+  // Fetch STAC asset metadata for stac_browser collections so VizConfigPanel
+  // renders the band picker / colormap dropdown (instead of text fallbacks).
+  useEffect(() => {
+    if (collection.data.type !== 'stac_browser') return;
+    const sb = collection.data;
+    if (!sb.catalogUrl || !sb.stacCollectionId) return;
+    let cancelled = false;
+    fetchCollections(sb.catalogUrl)
+      .then((cols) => {
+        if (cancelled) return;
+        const match = cols.find((c) => c.id === sb.stacCollectionId);
+        if (match?.item_assets) setAvailableAssets(match.item_assets);
+      })
+      .catch(() => {
+        // Network/metadata failure is non-fatal — VizConfigPanel just shows
+        // text inputs as it does without metadata.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [collection.data]);
 
   const typeLabel =
     collection.data.type === 'stac'
@@ -296,7 +321,7 @@ export const CollectionEditor = ({
                                 collectionId={
                                   (collection.data as StacBrowserCollectionData).stacCollectionId
                                 }
-                                availableAssets={{}}
+                                availableAssets={availableAssets}
                                 vizParams={cv.vizParams}
                                 onChange={(params) => {
                                   const sb = collection.data as StacBrowserCollectionData;
@@ -579,7 +604,7 @@ export const CollectionEditor = ({
                             {viz ? (
                               <VizConfigPanel
                                 collectionId={sb.stacCollectionId}
-                                availableAssets={{}}
+                                availableAssets={availableAssets}
                                 vizParams={viz.vizParams}
                                 onChange={(params) => {
                                   const newVizs = sb.visualizations.map((v, i) =>

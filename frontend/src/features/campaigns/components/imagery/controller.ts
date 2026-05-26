@@ -37,11 +37,6 @@ export interface ImageryController {
   readonly campaignBbox: number[] | null;
   readonly mode: ControllerMode;
   readonly pending: boolean;
-  readonly capabilities: {
-    canAddSource: boolean;
-    canAddCollection: boolean;
-    canEditBasemaps: boolean;
-  };
 
   addSource(source: ImagerySource): Promise<void>;
   updateSource(id: string, patch: Partial<ImagerySource>): Promise<void>;
@@ -170,7 +165,6 @@ export function useDraftController({
       campaignBbox,
       mode: 'draft',
       pending: false,
-      capabilities: { canAddSource: true, canAddCollection: true, canEditBasemaps: true },
 
       addSource: async (source) => {
         update({ ...stateRef.current, sources: [...stateRef.current.sources, source] });
@@ -391,12 +385,19 @@ export function usePersistedController({
       campaignBbox,
       mode: 'persisted',
       pending: pendingCount > 0,
-      // Backend currently has no per-source / per-collection / per-basemap
-      // create endpoints on an existing campaign — gate those affordances.
-      capabilities: { canAddSource: false, canAddCollection: false, canEditBasemaps: false },
 
-      addSource: async () => {
-        throw new Error('Adding a source to an existing campaign is not yet supported.');
+      addSource: async (source) => {
+        await runMutation(
+          'Cannot add source',
+          async () => {
+            // Backend gap — no per-source POST endpoint yet. Optimistic update
+            // is rolled back by runMutation when this throws.
+            throw new Error(
+              'Adding a new imagery source to an existing campaign needs a backend endpoint that is not implemented yet.'
+            );
+          },
+          () => setState((s) => ({ ...s, sources: [...s.sources, source] }))
+        );
       },
 
       updateSource: async (id, patch) => {
@@ -443,8 +444,24 @@ export function usePersistedController({
         );
       },
 
-      addCollection: async () => {
-        throw new Error('Adding a collection to an existing source is not yet supported.');
+      addCollection: async (sourceId, collection) => {
+        await runMutation(
+          'Cannot add collection',
+          async () => {
+            throw new Error(
+              'Adding a new collection to a saved source needs a backend endpoint that is not implemented yet.'
+            );
+          },
+          () =>
+            setState((s) => ({
+              ...s,
+              sources: s.sources.map((src) =>
+                src.id === sourceId
+                  ? { ...src, collections: [...src.collections, collection] }
+                  : src
+              ),
+            }))
+        );
       },
 
       updateCollection: async (sourceId, collectionId, patch) => {
@@ -522,8 +539,24 @@ export function usePersistedController({
         );
       },
 
-      removeCollection: async () => {
-        throw new Error('Removing a collection from a persisted source is not yet supported.');
+      removeCollection: async (sourceId, collectionId) => {
+        await runMutation(
+          'Cannot remove collection',
+          async () => {
+            throw new Error(
+              'Removing a collection from a saved source needs a backend endpoint that is not implemented yet.'
+            );
+          },
+          () =>
+            setState((s) => ({
+              ...s,
+              sources: s.sources.map((src) =>
+                src.id === sourceId
+                  ? { ...src, collections: src.collections.filter((c) => c.id !== collectionId) }
+                  : src
+              ),
+            }))
+        );
       },
 
       refreshCollection: async (_sourceId, collectionId) => {
@@ -605,8 +638,16 @@ export function usePersistedController({
         );
       },
 
-      setBasemaps: async () => {
-        throw new Error('Editing basemaps after campaign creation is not yet supported.');
+      setBasemaps: async (basemaps) => {
+        await runMutation(
+          'Cannot save basemaps',
+          async () => {
+            throw new Error(
+              'Editing basemaps after campaign creation needs a backend endpoint that is not implemented yet.'
+            );
+          },
+          () => setState((s) => ({ ...s, basemaps }))
+        );
       },
     }),
     [state, campaignBbox, pendingCount, runMutation, campaignId]

@@ -341,22 +341,13 @@ export const SourceEditor = ({
             <Tooltip text="A collection is a time window of imagery. Each collection contains slices annotators can switch between." />
           </h4>
           <div className="flex flex-wrap gap-2">
-            {controller.capabilities.canAddCollection ? (
-              <button
-                type="button"
-                onClick={() => setAddStep({ kind: 'pick' })}
-                className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-2.5 shrink-0"
-              >
-                <IconPlus className="w-4 h-4 text-neutral-400" />
-              </button>
-            ) : (
-              <span
-                title="Adding a collection to a saved source is not yet supported."
-                className="inline-flex items-center justify-center rounded-lg border border-dashed border-neutral-200 text-neutral-300 px-4 py-2.5"
-              >
-                <IconPlus className="w-4 h-4" />
-              </span>
-            )}
+            <button
+              type="button"
+              onClick={() => setAddStep({ kind: 'pick' })}
+              className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-2.5 shrink-0"
+            >
+              <IconPlus className="w-4 h-4 text-neutral-400" />
+            </button>
 
             {source.collections.map((c) => (
               <div

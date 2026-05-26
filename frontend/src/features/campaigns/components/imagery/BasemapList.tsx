@@ -12,7 +12,6 @@ const inputClass =
 
 export const BasemapList = ({ controller }: BasemapListProps) => {
   const basemaps = controller.state.basemaps;
-  const readOnly = !controller.capabilities.canEditBasemaps;
 
   const update = (next: Basemap[]) => void controller.setBasemaps(next);
   const addBasemap = () => update([...basemaps, emptyBasemap()]);
@@ -27,22 +26,15 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
           <h3 className="text-sm font-semibold text-neutral-900">Basemaps</h3>
           <p className="text-xs text-neutral-500 mt-0.5">
             Background reference layers shown beneath imagery in every view.
-            {readOnly && (
-              <span className="block text-amber-600 mt-0.5">
-                Basemap editing on an existing campaign is not yet supported.
-              </span>
-            )}
           </p>
         </div>
-        {!readOnly && (
-          <button
-            type="button"
-            onClick={addBasemap}
-            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
-          >
-            + Add basemap
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={addBasemap}
+          className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
+        >
+          + Add basemap
+        </button>
       </div>
 
       {basemaps.length === 0 ? (
@@ -54,7 +46,6 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
               <input
                 type="text"
                 value={bm.name}
-                disabled={readOnly}
                 onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
                 placeholder="Name"
                 className={`${inputClass} w-40 text-xs`}
@@ -62,7 +53,6 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
               <input
                 type="text"
                 value={bm.url}
-                disabled={readOnly}
                 onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                 placeholder="https://.../{z}/{x}/{y}.png"
                 className={`${inputClass} flex-1 text-[11px] font-mono text-neutral-700`}
@@ -72,7 +62,6 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                 min={0}
                 max={24}
                 value={bm.maxNativeZoom ?? ''}
-                disabled={readOnly}
                 onChange={(e) => {
                   const v = e.target.value;
                   updateBasemap(bm.id, { maxNativeZoom: v === '' ? undefined : Number(v) });
@@ -81,17 +70,15 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                 title="Deepest zoom the provider serves. Past this, the deepest tile is upscaled instead of fetched. Leave empty for unlimited."
                 className={`${inputClass} w-20 text-xs`}
               />
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => removeBasemap(bm.id)}
-                  className="text-neutral-400 hover:text-red-600 transition-colors cursor-pointer p-1 shrink-0"
-                  aria-label="Remove basemap"
-                  title="Remove basemap"
-                >
-                  <IconTrash className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => removeBasemap(bm.id)}
+                className="text-neutral-400 hover:text-red-600 transition-colors cursor-pointer p-1 shrink-0"
+                aria-label="Remove basemap"
+                title="Remove basemap"
+              >
+                <IconTrash className="w-3.5 h-3.5" />
+              </button>
             </li>
           ))}
         </ul>

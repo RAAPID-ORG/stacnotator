@@ -19,8 +19,6 @@ export const SourcesTab = ({ controller, campaignBbox = null }: SourcesTabProps)
     ? sources.find((s) => s.id === editingId)
     : undefined;
 
-  const canAdd = controller.capabilities.canAddSource;
-
   return (
     <div className="space-y-3">
       <div>
@@ -46,24 +44,14 @@ export const SourcesTab = ({ controller, campaignBbox = null }: SourcesTabProps)
           </button>
         ))}
 
-        {canAdd ? (
-          <button
-            type="button"
-            onClick={() => setWizardOpen(true)}
-            className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
-          >
-            <IconPlus className="w-4 h-4 text-neutral-400" />
-            <span className="text-[11px] text-neutral-500 ml-1">Create source</span>
-          </button>
-        ) : (
-          <span
-            title="Adding a new source to an existing campaign is not yet supported."
-            className="inline-flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-200 text-neutral-300 px-4 py-3 shrink-0"
-          >
-            <IconPlus className="w-4 h-4" />
-            <span className="text-[11px] ml-1">Create source</span>
-          </span>
-        )}
+        <button
+          type="button"
+          onClick={() => setWizardOpen(true)}
+          className="flex items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 hover:border-brand-400 hover:bg-brand-50/30 transition-all cursor-pointer px-4 py-3 shrink-0"
+        >
+          <IconPlus className="w-4 h-4 text-neutral-400" />
+          <span className="text-[11px] text-neutral-500 ml-1">Create source</span>
+        </button>
       </div>
 
       {wizardOpen && (
