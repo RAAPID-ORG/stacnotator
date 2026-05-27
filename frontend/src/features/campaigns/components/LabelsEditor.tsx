@@ -14,6 +14,9 @@ interface LabelsEditorProps {
   readOnly?: boolean;
   /** When true (open mode), show geometry type selector per label */
   showGeometryType?: boolean;
+  /** Hide the per-row delete button. Used post-creation where removing a label
+   *  would orphan existing annotations referencing it. */
+  disableDelete?: boolean;
 }
 
 export const LabelsEditor = ({
@@ -21,6 +24,7 @@ export const LabelsEditor = ({
   onChange,
   readOnly = false,
   showGeometryType = false,
+  disableDelete = false,
 }: LabelsEditorProps) => {
   const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
@@ -94,7 +98,7 @@ export const LabelsEditor = ({
             </div>
           )}
 
-          {!readOnly && (
+          {!readOnly && !disableDelete && (
             <button
               onClick={() => removeLabel(label.id)}
               className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"

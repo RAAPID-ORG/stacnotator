@@ -16,6 +16,7 @@ import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
 import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
 import type { ImageryViewOut } from '~/api/client';
+import { nextWindowSlot } from '../utils/layoutDefaults';
 
 /** Generate default window layout items for collections in a view that have show_as_window.
  *  Only used as a fallback when the backend didn't store a view layout (legacy campaigns). */
@@ -83,6 +84,12 @@ interface CampaignStore {
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
   setIsEditingLayout: (isEditing: boolean) => void;
+  /** Remove a collection's window from the current layout. The grid stops
+   *  rendering that window immediately; Save persists it as a personal hide. */
+  hideWindow: (collectionId: number) => void;
+  /** Add a previously-hidden (or never-shown) collection window back into the
+   *  current layout, placed below the existing items. */
+  addWindow: (collectionId: number) => void;
   saveLayout: (shouldBeDefault?: boolean) => Promise<void>;
   cancelLayoutEdit: () => void;
   resetLayout: (defaultLayout: Layout) => void;
@@ -163,13 +170,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
       // Initialize sibling stores
       useMapStore.setState({
-        activeCollectionId,
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
-        // Campaign boot: any empty-probe should land on the cover slice.
-        sliceNavIntent: 'initial',
       });
+      // Use the action (not setState) so the reducer resolves the default
+      // collection's cover_slice_index into activeSliceIndex.
+      useMapStore.getState().setActiveCollectionId(activeCollectionId);
 
       // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
@@ -212,8 +219,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
     const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
-    // Switching view is effectively a fresh start for the slice probe.
-    useMapStore.getState().setSliceNavIntent('initial');
   },
 
   refreshKnnValidationStatus: async () => {
@@ -233,6 +238,20 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   setCurrentLayout: (layout) => set({ currentLayout: layout }),
   setSavedLayout: (layout) => set({ savedLayout: layout }),
   setIsEditingLayout: (isEditing) => set({ isEditingLayout: isEditing }),
+
+  hideWindow: (collectionId) =>
+    set((s) => ({
+      currentLayout: (s.currentLayout ?? []).filter((it) => it.i !== String(collectionId)),
+    })),
+
+  addWindow: (collectionId) =>
+    set((s) => {
+      const key = String(collectionId);
+      const cur = s.currentLayout ?? [];
+      if (cur.some((it) => it.i === key)) return {}; // already present
+      const slot = nextWindowSlot(cur);
+      return { currentLayout: [...cur, { ...slot, i: key }] };
+    }),
 
   saveLayout: async (shouldBeDefault = false) => {
     const { campaign, currentLayout, selectedViewId } = get();

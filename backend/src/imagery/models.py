@@ -1,5 +1,6 @@
 from geoalchemy2 import Geometry
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -43,10 +44,12 @@ class ImagerySource(Base):
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
+        order_by="VisualizationTemplate.display_order",
     )
     collections: Mapped[list["ImageryCollection"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
+        order_by="ImageryCollection.display_order",
     )
 
 
@@ -89,6 +92,7 @@ class ImageryCollection(Base):
     slices: Mapped[list["ImagerySlice"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
+        order_by="ImagerySlice.display_order",
     )
     stac_config: Mapped["CollectionStacConfig | None"] = relationship(
         back_populates="collection",
@@ -149,6 +153,9 @@ class ImagerySlice(Base):
     start_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     end_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    # True only for separately-generated cover slices (custom cover mode). A
+    # regular slice designated as the cover via cover_slice_index keeps is_cover=False.
+    is_cover: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="slices")
     tile_urls: Mapped[list["SliceTileUrl"]] = relationship(

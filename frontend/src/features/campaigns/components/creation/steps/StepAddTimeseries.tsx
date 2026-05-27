@@ -7,7 +7,7 @@ import {
 } from '~/api/client';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
-import { MonthPicker } from './imagery/MonthPicker';
+import { MonthPicker } from '~/shared/ui/MonthPicker';
 
 const emptyTimeseries = (): TimeSeriesCreate => ({
   name: '',

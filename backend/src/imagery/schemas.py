@@ -36,6 +36,7 @@ class ImagerySliceOut(BaseModel):
     start_date: str
     end_date: str
     display_order: int
+    is_cover: bool = False
     tile_urls: list[SliceTileUrlOut]
 
     model_config = ConfigDict(from_attributes=True)
@@ -159,9 +160,11 @@ class SliceTileUrlCreate(BaseModel):
 
 
 class ImagerySliceCreate(BaseModel):
+    id: int | None = None
     name: str = ""
     start_date: str
     end_date: str
+    is_cover: bool = False
     tile_urls: list[SliceTileUrlCreate] = []
 
 
@@ -203,6 +206,7 @@ class CollectionStacConfigCreate(BaseModel):
 
 
 class ImageryCollectionCreate(BaseModel):
+    id: int | None = None
     name: str
     cover_slice_index: int = 0
     slices: list[ImagerySliceCreate]
@@ -214,6 +218,7 @@ class VisualizationTemplateCreate(BaseModel):
 
 
 class ImagerySourceCreate(BaseModel):
+    id: int | None = None
     name: str
     crosshair_hex6: str = "ff0000"
     default_zoom: int = 14
@@ -222,6 +227,7 @@ class ImagerySourceCreate(BaseModel):
 
 
 class BasemapCreate(BaseModel):
+    id: int | None = None
     name: str
     url: str
     max_native_zoom: int | None = None
@@ -234,6 +240,7 @@ class ViewCollectionRefCreate(BaseModel):
 
 
 class ImageryViewCreate(BaseModel):
+    id: int | None = None
     name: str = ""
     collection_refs: list[ViewCollectionRefCreate] = []
 

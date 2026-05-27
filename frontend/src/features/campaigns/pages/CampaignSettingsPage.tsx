@@ -22,7 +22,6 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';
 
 import {
-  deleteSource,
   createTimeseriesForCampaign,
   getAllAnnotationTasks,
   getCampaign,
@@ -82,7 +81,6 @@ export const CampaignSettingsPage = () => {
 
   // Confirm dialog states
   const [deleteConfirm, setDeleteConfirm] = useState<{
-    imageryId?: number;
     timeseriesId?: number;
   } | null>(null);
   const [showDeleteCampaignDialog, setShowDeleteCampaignDialog] = useState(false);
@@ -241,30 +239,6 @@ export const CampaignSettingsPage = () => {
       } catch (reloadErr) {
         handleError(reloadErr, 'Failed to reload campaign after error', { showUser: false });
       }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteImagery = async () => {
-    if (!deleteConfirm?.imageryId) return;
-
-    try {
-      setSaving(true);
-
-      await deleteSource({
-        path: {
-          campaign_id: numericCampaignId,
-          source_id: deleteConfirm.imageryId,
-        },
-      });
-
-      // Update local state immediately
-      setImagery(imagery.filter((img) => img.id !== deleteConfirm.imageryId));
-      setDeleteConfirm(null);
-      showAlert('Imagery source deleted successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to delete imagery source');
     } finally {
       setSaving(false);
     }
@@ -751,16 +725,22 @@ export const CampaignSettingsPage = () => {
 
               {activeTab === 'imagery' && (
                 <ImageryTab
+                  key={numericCampaignId}
                   imagery={imagery}
                   views={campaign?.imagery_views ?? []}
+                  basemaps={campaign?.basemaps ?? []}
                   campaignId={numericCampaignId}
-                  setDeleteConfirm={setDeleteConfirm}
-                  onSourceUpdated={(sourceId, updates) => {
-                    setImagery((prev) =>
-                      prev.map((src) => (src.id === sourceId ? { ...src, ...updates } : src))
-                    );
-                  }}
-                  onCollectionVizUpdated={async () => {
+                  campaignBbox={
+                    campaign?.settings
+                      ? [
+                          campaign.settings.bbox_west,
+                          campaign.settings.bbox_south,
+                          campaign.settings.bbox_east,
+                          campaign.settings.bbox_north,
+                        ]
+                      : null
+                  }
+                  onChanged={async () => {
                     try {
                       const { data } = await getCampaign({
                         path: { campaign_id: numericCampaignId },
@@ -839,17 +819,13 @@ export const CampaignSettingsPage = () => {
 
       <ConfirmDialog
         isOpen={!!deleteConfirm}
-        title={deleteConfirm?.imageryId ? 'Delete Imagery Source?' : 'Delete Timeseries?'}
-        description={
-          deleteConfirm?.imageryId
-            ? 'This action cannot be undone. The imagery source will be permanently removed from the campaign.'
-            : 'This action cannot be undone. The timeseries will be permanently removed from the campaign.'
-        }
+        title="Delete Timeseries?"
+        description="This action cannot be undone. The timeseries will be permanently removed from the campaign."
         confirmText="Delete"
         cancelText="Cancel"
         isDangerous={true}
         isLoading={saving}
-        onConfirm={deleteConfirm?.imageryId ? handleDeleteImagery : handleDeleteTimeseries}
+        onConfirm={handleDeleteTimeseries}
         onCancel={() => setDeleteConfirm(null)}
       />
 

@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import type { CampaignOutFull } from '~/api/client';
+import { sliceView } from '../utils/sliceView';
 
 interface TimelineSidebarProps {
   campaign: CampaignOutFull;
@@ -9,9 +10,7 @@ interface TimelineSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onCollectionChange?: (collectionId: number) => void;
-  onSliceChange?: (sliceIndex: number) => void;
   onDraggingChange?: (dragging: boolean) => void;
-  emptySlices?: Record<string, true>;
 }
 
 interface TimelineStep {
@@ -31,31 +30,23 @@ const TimelineSidebar = ({
   collapsed,
   onToggleCollapse,
   onCollectionChange,
-  onSliceChange,
   onDraggingChange,
-  emptySlices = {},
 }: TimelineSidebarProps) => {
   const trackRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
   const onCollectionChangeRef = useRef(onCollectionChange);
-  const onSliceChangeRef = useRef(onSliceChange);
   const onDraggingChangeRef = useRef(onDraggingChange);
   useEffect(() => {
     onCollectionChangeRef.current = onCollectionChange;
   }, [onCollectionChange]);
-  useEffect(() => {
-    onSliceChangeRef.current = onSliceChange;
-  }, [onSliceChange]);
   useEffect(() => {
     onDraggingChangeRef.current = onDraggingChange;
   }, [onDraggingChange]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragCollectionIdRef = useRef<number | null>(null);
-  const dragSliceIndexRef = useRef<number>(0);
   const [dragCollectionId, setDragCollectionId] = useState<number | null>(null);
-  const [dragSliceIndex, setDragSliceIndex] = useState<number>(0);
   const [tooltip, setTooltip] = useState<{ y: number; text: string } | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -89,7 +80,9 @@ const TimelineSidebar = ({
     let latest: string | null = null;
     for (const { collection } of viewCollections) {
       if (!collection) continue;
-      for (const slice of collection.slices) {
+      const { navIndices } = sliceView(collection.slices, collection.cover_slice_index);
+      for (const i of navIndices) {
+        const slice = collection.slices[i];
         if (!earliest || slice.start_date < earliest) earliest = slice.start_date;
         if (!latest || slice.end_date > latest) latest = slice.end_date;
       }
@@ -100,12 +93,14 @@ const TimelineSidebar = ({
   const allSteps = useMemo<TimelineStep[]>(() => {
     return viewCollections.map((r, ci) => {
       const col = r.collection!;
+      const { navIndices } = sliceView(col.slices, col.cover_slice_index);
+      const firstReal = col.slices[navIndices[0]] ?? col.slices[0];
       return {
         collectionId: col.id,
         collectionIndex: ci,
         sliceIndex: 0,
         collectionLabel: col.name,
-        sliceLabel: col.slices[0]?.name ?? '',
+        sliceLabel: firstReal?.name ?? '',
         sliceCount: col.slices.length,
       };
     });
@@ -126,7 +121,6 @@ const TimelineSidebar = ({
   const liveCollectionId = isDragging
     ? (dragCollectionId ?? activeCollectionId)
     : activeCollectionId;
-  const _liveSliceIndex = isDragging ? dragSliceIndex : activeSliceIndex;
 
   const pointerMoveHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
   const pointerUpHandlerRef = useRef<(e: PointerEvent) => void>(() => {});
@@ -136,27 +130,17 @@ const TimelineSidebar = ({
     const step = yToStepRef.current(e.clientY);
     if (!step) return;
 
-    const landingSlice = (() => {
-      for (let i = 0; i < step.sliceCount; i++) {
-        if (!emptySlices[`${step.collectionId}-${i}`]) return i;
-      }
-      return 0;
-    })();
-
     dragCollectionIdRef.current = step.collectionId;
-    dragSliceIndexRef.current = landingSlice;
-
+    // Defer to setActiveCollectionId — it restores the per-collection stored
+    // slice (or the cover_slice_index on first visit), same as shift+a/d.
     onCollectionChangeRef.current?.(step.collectionId);
-    onSliceChangeRef.current?.(landingSlice);
 
     if (rafRef.current === null) {
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
         const track = trackRef.current;
         const cId = dragCollectionIdRef.current;
-        const sIdx = dragSliceIndexRef.current;
         setDragCollectionId(cId);
-        setDragSliceIndex(sIdx);
         if (track && cId !== null) {
           const allS = allStepsRef.current;
           const step = allS.find((s) => s.collectionId === cId);
@@ -192,14 +176,7 @@ const TimelineSidebar = ({
 
     const step = yToStepRef.current(e.clientY);
     if (step) {
-      const landingSlice = (() => {
-        for (let i = 0; i < step.sliceCount; i++) {
-          if (!emptySlices[`${step.collectionId}-${i}`]) return i;
-        }
-        return 0;
-      })();
       onCollectionChangeRef.current?.(step.collectionId);
-      onSliceChangeRef.current?.(landingSlice);
     }
   };
 
