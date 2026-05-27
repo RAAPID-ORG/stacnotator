@@ -367,17 +367,17 @@ SWA_TOKEN=$(az staticwebapp secrets list --name "$SWA_NAME" -g "$RESOURCE_GROUP"
     --query "properties.apiKey" -o tsv)
 ci_mask "$SWA_TOKEN"
 
-npx @azure/static-web-apps-cli deploy ./dist \
+# --env names the SWA deployment slot, not our environment. Wipe + @latest
+# avoids "StaticSitesClient is outdated" hash mismatch on rotation.
+rm -rf "$HOME/.swa"
+npx --yes @azure/static-web-apps-cli@latest deploy ./dist \
     --deployment-token "$SWA_TOKEN" \
-    --env production 2>/dev/null || \
-az staticwebapp deploy --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
-    --app-location "./dist" --skip-app-build --output none 2>/dev/null || \
-echo -e "${YELLOW}  SWA deploy via CLI failed. Re-fetch the deployment token from the Azure portal and re-run 'swa deploy ./dist'.${NC}"
+    --env production
 
 cd ..
 
 FRONTEND_URL=$(az staticwebapp show --name "$SWA_NAME" -g "$RESOURCE_GROUP" \
-    --query "defaultHostname" -o tsv 2>/dev/null || echo "")
+    --query "defaultHostname" -o tsv)
 echo -e "${GREEN}✓ Frontend deployed${NC}"
 
 # Update CORS

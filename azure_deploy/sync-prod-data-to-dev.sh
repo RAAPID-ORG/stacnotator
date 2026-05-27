@@ -108,7 +108,7 @@ if [ "$PROD_PG_HOST/$PROD_PG_DBNAME" = "$DEV_PG_HOST/$DEV_PG_DBNAME" ]; then
 fi
 
 case "$DEV_PG_HOST" in
-    *stacnotator-dev*) ;;
+    *stacnotator-dev*|*stacnotatordev*) ;;
     *) abort "DEV_PG_HOST ($DEV_PG_HOST) does not look like a dev server. Refusing to run." ;;
 esac
 
