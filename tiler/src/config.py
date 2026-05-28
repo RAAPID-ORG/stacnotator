@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Shared secret for verifying tiler access tokens (HMAC)
     TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
 
+    # Storage for user-uploaded custom maps. Mirrors backend config.
+    STORAGE_BACKEND: str = "local"
+    STORAGE_LOCAL_INTERNAL_BASE: str = "http://backend:8000"
+    AZURE_STORAGE_ACCOUNT_NAME: str | None = None
+    AZURE_STORAGE_CONTAINER: str = "rasters"
+
     @computed_field
     @property
     def DATABASE_URL(self) -> str:

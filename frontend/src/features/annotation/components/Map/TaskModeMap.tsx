@@ -32,6 +32,7 @@ import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
+import { useOverlayLayers } from './useOverlayLayers';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
 import { useMapStore } from '../../stores/map.store';
@@ -127,6 +128,10 @@ const TaskModeMap = ({
     currentZoom: currentMapZoom ?? undefined,
     enabled: !!campaign,
   });
+
+  // Map source comes from layerManager (state) rather than mapRef.current so
+  // the hook re-runs once the map exists.
+  useOverlayLayers(layerManager?.getMap() ?? null, campaign?.id ?? null);
 
   // Pan to center + reset zoom on task navigation
   useEffect(() => {

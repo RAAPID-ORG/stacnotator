@@ -33,9 +33,11 @@ import { PAN_DISTANCE_PIXELS, ZOOM_ANIMATION_MS, PAN_ANIMATION_MS } from './mapU
 import type { CampaignOutFull } from '~/api/client';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { useAnnotationStore } from '../../stores/annotation.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
+import { useOverlayLayers } from './useOverlayLayers';
 
 interface OpenModeMapProps {
   campaign: CampaignOutFull;
@@ -95,6 +97,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
     const onViewChangeRef = useRef(onViewChange);
     onViewChangeRef.current = onViewChange;
     const lastRefocusTriggerRef = useRef(refocusTrigger);
+    const isVisualizerMode = useLayoutStore((s) => s.isVisualizerMode);
 
     const {
       layers: _layers,
@@ -109,6 +112,26 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       onLayersChange,
       preloadDepth: Infinity,
     });
+
+    useOverlayLayers(olMap, campaign?.id ?? null);
+
+    // Timeseries probe handler. Normally DrawingLayer captures these clicks;
+    // we register a fallback in visualizer mode where DrawingLayer is disabled.
+    const onTimeseriesClickRef = useRef(onTimeseriesClick);
+    onTimeseriesClickRef.current = onTimeseriesClick;
+    useEffect(() => {
+      if (!olMap || !isVisualizerMode || activeTool !== 'timeseries') return;
+      const handler = (e: { coordinate: number[] }) => {
+        const [lon, lat] = toLonLat(e.coordinate);
+        onTimeseriesClickRef.current?.(lat, lon);
+      };
+      olMap.on('singleclick', handler as () => void);
+      olMap.getTargetElement().style.cursor = 'crosshair';
+      return () => {
+        olMap.un('singleclick', handler as () => void);
+        olMap.getTargetElement().style.cursor = '';
+      };
+    }, [olMap, isVisualizerMode, activeTool]);
 
     // Imperative handle: fitAnnotations
 
@@ -341,8 +364,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
           }}
         />
 
-        {/* Drawing / editing layer */}
-        {olMap && (
+        {olMap && !isVisualizerMode && (
           <DrawingLayer
             map={olMap}
             selectedLabel={selectedLabel}

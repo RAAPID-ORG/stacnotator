@@ -3,6 +3,7 @@ import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import {
   extractCentroidFromWKT,
   convertWKTToGeoJSON,
@@ -71,7 +72,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const source = campaign?.imagery_sources.find((s) => s.id === sourceId) ?? null;
   const collection = source?.collections.find((c) => c.id === collectionId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] || null;
-  const isOpenMode = campaign?.mode === 'open';
+  const isVisualizerMode = useLayoutStore((s) => s.isVisualizerMode);
+  const isOpenMode = campaign?.mode === 'open' || isVisualizerMode;
   const campaignBbox = campaign
     ? ([
         campaign.settings.bbox_west,

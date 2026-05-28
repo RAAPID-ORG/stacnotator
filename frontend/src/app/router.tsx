@@ -27,6 +27,9 @@ const ReviewPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('src/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const VisualizerPage = lazy(() =>
+  import('src/features/visualizer/pages/VisualizerPage').then((m) => ({ default: m.default }))
+);
 
 // Inline, calm fallback - sits within the AppLayout outlet so the sidebar
 // and breadcrumbs stay visible. A small spinner is less jarring than a
@@ -72,6 +75,14 @@ export const Router = () => (
           element={
             <Suspense fallback={<RouteFallback />}>
               <ReviewPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="campaigns/:campaignId/visualize"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <VisualizerPage />
             </Suspense>
           }
         />

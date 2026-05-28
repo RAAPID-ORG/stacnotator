@@ -32,9 +32,11 @@ export const useOpenModeKeyboard = () => {
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
   const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
+  const isVisualizerMode = useLayoutStore((s) => s.isVisualizerMode);
 
   useEffect(() => {
-    if (!campaign || campaign.mode !== 'open') return;
+    if (!campaign) return;
+    if (campaign.mode !== 'open' && !isVisualizerMode) return;
 
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
@@ -63,6 +65,7 @@ export const useOpenModeKeyboard = () => {
 
       // Number keys 1-9: select label and switch to annotate
       if (e.key >= '1' && e.key <= '9') {
+        if (isVisualizerMode) return;
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
@@ -74,16 +77,19 @@ export const useOpenModeKeyboard = () => {
 
       switch (e.key.toLowerCase()) {
         case 'v':
+          if (isVisualizerMode) break;
           e.preventDefault();
           setActiveTool('pan');
           setTimeseriesPoint(null);
           break;
         case 'r':
+          if (isVisualizerMode) break;
           e.preventDefault();
           setActiveTool('annotate');
           setTimeseriesPoint(null);
           break;
         case 'e':
+          if (isVisualizerMode) break;
           e.preventDefault();
           setActiveTool('edit');
           setTimeseriesPoint(null);
@@ -183,6 +189,7 @@ export const useOpenModeKeyboard = () => {
           break;
         }
         case ' ':
+          if (isVisualizerMode) break;
           e.preventDefault();
           triggerFitAnnotations();
           break;
@@ -191,16 +198,19 @@ export const useOpenModeKeyboard = () => {
           toggleGuide();
           break;
         case 'w':
+          if (isVisualizerMode) break;
           e.preventDefault();
           goToPreviousAnnotation();
           triggerFitAnnotations();
           break;
         case 's':
+          if (isVisualizerMode) break;
           e.preventDefault();
           goToNextAnnotation();
           triggerFitAnnotations();
           break;
         case 'f': {
+          if (isVisualizerMode) break;
           e.preventDefault();
           const annStore = useAnnotationStore.getState();
           const id = annStore.selectedAnnotationId;
@@ -216,6 +226,7 @@ export const useOpenModeKeyboard = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    isVisualizerMode,
     campaign,
     selectedViewId,
     setSelectedLabelId,

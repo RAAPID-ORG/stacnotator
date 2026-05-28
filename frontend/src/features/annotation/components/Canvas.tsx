@@ -67,6 +67,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
 
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
+  const isVisualizerMode = useLayoutStore((state) => state.isVisualizerMode);
 
   const currentTask = visibleTasks[currentTaskIndex] || null;
 
@@ -87,7 +88,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }).length;
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
-  const isOpenMode = campaign?.mode === 'open';
+  // Visualizer uses open-mode semantics regardless of underlying campaign mode.
+  const isOpenMode = campaign?.mode === 'open' || isVisualizerMode;
   const campaignBbox = campaign
     ? ([
         campaign.settings.bbox_west,
@@ -149,10 +151,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     const restRows = 18;
     const items: LayoutItem[] = [];
     let y = 0;
-    items.push({ i: 'main', x: 0, y, w: 60, h: halfRows });
-    y += halfRows;
-    items.push({ i: 'controls', x: 0, y, w: 60, h: halfRows });
-    y += halfRows;
+    const mainRows = isVisualizerMode ? halfRows * 2 : halfRows;
+    items.push({ i: 'main', x: 0, y, w: 60, h: mainRows });
+    y += mainRows;
+    if (!isVisualizerMode) {
+      items.push({ i: 'controls', x: 0, y, w: 60, h: halfRows });
+      y += halfRows;
+    }
     if (campaign.time_series.length > 0) {
       items.push({ i: 'timeseries', x: 0, y, w: 60, h: restRows });
       y += restRows;
@@ -164,9 +169,16 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       y += restRows;
     }
     return items;
-  }, [campaign, containerHeight, windowCollections]);
+  }, [campaign, containerHeight, windowCollections, isVisualizerMode]);
 
-  const effectiveLayout = isMobile ? mobileLayout : currentLayout;
+  // Drop the controls cell so react-grid-layout doesn't expect a child for it.
+  const desktopLayout = useMemo<Layout | null>(() => {
+    if (!currentLayout) return currentLayout;
+    if (!isVisualizerMode) return currentLayout;
+    return currentLayout.filter((it) => it.i !== 'controls');
+  }, [currentLayout, isVisualizerMode]);
+
+  const effectiveLayout = isMobile ? mobileLayout : desktopLayout;
 
   const activeSource = useMemo(() => {
     if (!campaign || !activeCollectionId) return null;
@@ -195,15 +207,26 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     );
   })();
 
-  // Open mode: viewport center. Task mode: task geometry centroid.
   const latLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) {
       if (currentMapCenter) return { lat: currentMapCenter[0], lon: currentMapCenter[1] };
+      if (campaignBbox) {
+        return {
+          lat: (campaignBbox[1] + campaignBbox[3]) / 2,
+          lon: (campaignBbox[0] + campaignBbox[2]) / 2,
+        };
+      }
       return null;
     }
     return currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
+  }, [
+    isOpenMode,
+    currentMapCenter?.[0],
+    currentMapCenter?.[1],
+    currentTask?.geometry.geometry,
+    campaignBbox,
+  ]);
 
   // Open mode only sends a timeseries point when explicitly clicked with the
   // timeseries tool; task mode always uses the task centroid.
@@ -401,34 +424,34 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <MiniMap
               center={center}
               bbox={campaignBbox || [0, 0, 0, 0]}
-              visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
-              onViewportDrag={
-                campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
-              }
-              fitBbox={campaign?.mode === 'tasks'}
+              visibleBounds={isOpenMode ? currentMapBounds : null}
+              onViewportDrag={isOpenMode ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined}
+              fitBbox={!isOpenMode}
               annotationDots={annotationDots}
             />
           </div>
 
-          <div key="controls" className="grid-card" data-tour="controls">
-            <div className="h-full overflow-y-auto overflow-x-hidden">
-              {campaign.mode === 'tasks' ? (
-                <ControlsTaskMode
-                  labels={campaign.settings.labels}
-                  onSubmit={submitAnnotation}
-                  onNext={nextTask}
-                  onPrevious={previousTask}
-                  onGoToTask={goToTask}
-                  isSubmitting={isSubmitting}
-                  totalTasksCount={visibleTasks.length}
-                  currentTask={currentTask}
-                  commentInputRef={commentInputRef}
-                />
-              ) : (
-                <ControlsOpenMode />
-              )}
+          {!isVisualizerMode && (
+            <div key="controls" className="grid-card" data-tour="controls">
+              <div className="h-full overflow-y-auto overflow-x-hidden">
+                {campaign.mode === 'tasks' ? (
+                  <ControlsTaskMode
+                    labels={campaign.settings.labels}
+                    onSubmit={submitAnnotation}
+                    onNext={nextTask}
+                    onPrevious={previousTask}
+                    onGoToTask={goToTask}
+                    isSubmitting={isSubmitting}
+                    totalTasksCount={visibleTasks.length}
+                    currentTask={currentTask}
+                    commentInputRef={commentInputRef}
+                  />
+                ) : (
+                  <ControlsOpenMode />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {windowCollections.map(({ collection, source }, idx) => {
             if (!collection || !source) return null;

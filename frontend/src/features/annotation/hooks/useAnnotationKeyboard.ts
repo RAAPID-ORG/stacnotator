@@ -4,6 +4,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { useOverlayStore } from '../stores/overlay.store';
 import { useSliceNavigation } from './useSliceNavigation';
 
 interface UseAnnotationKeyboardOptions {
@@ -16,6 +17,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const digitBuffer = useRef<string>('');
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sliceAutoNavRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Suppresses labeling shortcuts (digits, Enter, Q/E, etc.); navigation stays.
+  const isVisualizerMode = useLayoutStore((s) => s.isVisualizerMode);
 
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
@@ -305,7 +309,6 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     [setConfidence]
   );
 
-  // Main keydown handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Skip if submitting
@@ -329,6 +332,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       // Shift+1..5 sets confidence directly. Use e.code since shifted digit
       // keys produce symbols (!@#$%) in e.key on most layouts.
       if (e.shiftKey && /^Digit[1-5]$/.test(e.code)) {
+        if (isVisualizerMode) return;
         e.preventDefault();
         setConfidenceLevel(parseInt(e.code.slice(5), 10));
         return;
@@ -336,20 +340,22 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
       // Number keys for label selection
       if (/^[0-9]$/.test(e.key)) {
+        if (isVisualizerMode) return;
         e.preventDefault();
         handleDigitInput(e.key);
         return;
       }
 
       switch (e.key) {
-        // Task navigation
         case 'w':
         case 'W':
+          if (isVisualizerMode) break;
           e.preventDefault();
           if (!isNavigating) previousTask();
           break;
         case 's':
         case 'S':
+          if (isVisualizerMode) break;
           e.preventDefault();
           if (!isNavigating) nextTask();
           break;
@@ -423,6 +429,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Comment focus
         case 'c':
         case 'C':
+          if (isVisualizerMode) break;
           e.preventDefault();
           focusComment();
           break;
@@ -430,17 +437,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Confidence adjustment
         case 'q':
         case 'Q':
+          if (isVisualizerMode) break;
           e.preventDefault();
           adjustConfidence(-1); // Decrease confidence
           break;
         case 'e':
         case 'E':
+          if (isVisualizerMode) break;
           e.preventDefault();
           adjustConfidence(1); // Increase confidence
           break;
 
         // Submit
         case 'Enter':
+          if (isVisualizerMode) break;
           e.preventDefault();
           handleSubmit();
           break;
@@ -448,6 +458,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Skip
         case 'b':
         case 'B':
+          if (isVisualizerMode) break;
           e.preventDefault();
           handleSkip();
           break;
@@ -455,6 +466,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Flag for review
         case 'f':
         case 'F':
+          if (isVisualizerMode) break;
           e.preventDefault();
           toggleFlagForReview();
           break;
@@ -490,6 +502,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
             cycleSource();
           }
           break;
+
+        // Cycle custom map overlays: none → first → … → last → none.
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          useOverlayStore.getState().cycleActive();
+          break;
       }
     };
 
@@ -519,6 +538,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       digitBuffer.current = '';
     };
   }, [
+    isVisualizerMode,
     isSubmitting,
     isNavigating,
     commentInputRef,

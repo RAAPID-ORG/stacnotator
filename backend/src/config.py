@@ -33,6 +33,15 @@ class Settings(BaseSettings):
     # Shared secret for signing tiler access tokens (HMAC)
     TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
 
+    STORAGE_BACKEND: str = "local"
+    STORAGE_LOCAL_ROOT: str = "./local-storage"
+    # Server-reachable base used by the tiler container to fetch local blobs.
+    STORAGE_LOCAL_INTERNAL_BASE: str = "http://backend:8000"
+    # Azure auth is managed-identity only; the deployed container app must have
+    # the "Storage Blob Data Contributor" role on this storage account.
+    AZURE_STORAGE_ACCOUNT_NAME: str | None = None
+    AZURE_STORAGE_CONTAINER: str = "rasters"
+
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
     EE_PRIVATE_KEY: str | None = None  # Direct key content (alternative to path)

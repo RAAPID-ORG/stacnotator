@@ -52,6 +52,9 @@ services:
       ENVIRONMENT: development
       LOG_LEVEL: debug
       TILER_BASE_URL: ${TILER_BASE_URL:-http://tiler:8001}
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_ROOT: /app/local-storage
+      STORAGE_LOCAL_INTERNAL_BASE: http://backend:8000
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
@@ -63,6 +66,7 @@ services:
       # Tests (mounted so pytest runs inside the container)
       - ./backend/tests:/app/tests:ro
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
+      - raster_storage_dev:/app/local-storage
       # Mount credential files. Default to the tracked .gitkeep placeholder so
       # Docker doesn't auto-create root-owned directories when the host
       # path is missing (which breaks backend startup). When the corresponding
@@ -107,6 +111,8 @@ services:
       VSI_CACHE_SIZE: "536870912"
       CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff"
       CPL_VSIL_CURL_CACHE_SIZE: "128000000"
+      STORAGE_BACKEND: local
+      STORAGE_LOCAL_INTERNAL_BASE: http://backend:8000
     volumes:
       - ./tiler/src:/app/src:ro
       - ./tiler/pyproject.toml:/app/pyproject.toml:ro
@@ -162,6 +168,8 @@ volumes:
   postgres_data_dev:
     driver: local
   frontend_node_modules_dev:
+    driver: local
+  raster_storage_dev:
     driver: local
 
 networks:

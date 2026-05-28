@@ -24,6 +24,7 @@ const KEYBOARD_SHORTCUTS = [
   { key: 'L', description: 'Toggle view link (sync windows)' },
   { key: 'I', description: 'Cycle imagery source' },
   { key: 'Shift+I', description: 'Cycle visualization' },
+  { key: 'M', description: 'Cycle custom map overlay' },
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Q / E', description: 'Decrease / Increase confidence' },
   { key: 'Shift+1-5', description: 'Set confidence level' },

@@ -175,12 +175,25 @@ FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credential
 EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
 TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
 
+# Custom map storage. One-time setup required: Azure Storage Account +
+# container with CORS for browser direct uploads, AND the shared apps
+# managed identity granted "Storage Blob Data Contributor" on the account.
+# Auth is managed-identity only; no account keys.
+AZURE_STORAGE_ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME:-stacnotator${ENV}rasters}"
+AZURE_STORAGE_CONTAINER="${AZURE_STORAGE_CONTAINER:-rasters}"
+IDENTITY_CLIENT_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP" --query clientId -o tsv)
+ci_mask "$IDENTITY_CLIENT_ID"
+
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
         --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
         --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                        "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+                       "STORAGE_BACKEND=azure" \
+                       "AZURE_STORAGE_ACCOUNT_NAME=$AZURE_STORAGE_ACCOUNT_NAME" \
+                       "AZURE_STORAGE_CONTAINER=$AZURE_STORAGE_CONTAINER" \
+                       "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
         --output none
 else
     az containerapp create --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -207,6 +220,10 @@ else
                    "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                    "ENVIRONMENT=production" \
                    "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+                   "STORAGE_BACKEND=azure" \
+                   "AZURE_STORAGE_ACCOUNT_NAME=$AZURE_STORAGE_ACCOUNT_NAME" \
+                   "AZURE_STORAGE_CONTAINER=$AZURE_STORAGE_CONTAINER" \
+                   "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
         --output none
 fi
 echo -e "${GREEN}✓ Backend deployed${NC}"
@@ -235,6 +252,10 @@ fi
 if az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
+        --set-env-vars "STORAGE_BACKEND=azure" \
+                       "AZURE_STORAGE_ACCOUNT_NAME=$AZURE_STORAGE_ACCOUNT_NAME" \
+                       "AZURE_STORAGE_CONTAINER=$AZURE_STORAGE_CONTAINER" \
+                       "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
         --output none
 else
     az containerapp create --name "$APP_TILER" -g "$RESOURCE_GROUP" \
@@ -269,6 +290,10 @@ else
                    "GDAL_CACHEMAX=256" \
                    "CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff" \
                    "CORS_ORIGINS=__PENDING__" \
+                   "STORAGE_BACKEND=azure" \
+                   "AZURE_STORAGE_ACCOUNT_NAME=$AZURE_STORAGE_ACCOUNT_NAME" \
+                   "AZURE_STORAGE_CONTAINER=$AZURE_STORAGE_CONTAINER" \
+                   "AZURE_CLIENT_ID=$IDENTITY_CLIENT_ID" \
         --output none
 fi
 echo -e "${GREEN}✓ Tiler deployed${NC}"

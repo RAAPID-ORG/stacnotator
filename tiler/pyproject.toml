@@ -21,4 +21,7 @@ dependencies = [
     "pystac-client>=0.8.0",
     # MPC signing
     "planetary-computer>=1.0.0",
+    # Reading user-uploaded COGs from blob storage (managed identity)
+    "azure-storage-blob>=12.20.0",
+    "azure-identity>=1.17.0",
 ]

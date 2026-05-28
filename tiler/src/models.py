@@ -1,7 +1,10 @@
-"""Read-only models for mosaic data. Matches backend schema exactly."""
+"""Read-only models. Schema must match backend/src/models."""
 
-from sqlalchemy import Float, Integer, String, Text
+from uuid import UUID
+
+from sqlalchemy import Boolean, Float, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -36,3 +39,38 @@ class MosaicItem(Base):
     datetime: Mapped[str] = mapped_column(String, nullable=False)
     cloud_cover: Mapped[float | None] = mapped_column(Float, nullable=True)
     stac_item: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class CustomMap(Base):
+    __tablename__ = "custom_maps"
+    __table_args__ = {"schema": "data"}
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    cog_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+    __table_args__ = {"schema": "data"}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class CampaignUser(Base):
+    __tablename__ = "campaign_users"
+    __table_args__ = {"schema": "data"}
+
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    __table_args__ = {"schema": "auth"}
+
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    role: Mapped[str] = mapped_column(Text, primary_key=True)

@@ -22,6 +22,7 @@ import {
 
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { tileLoadImagery } from '../../utils/tileLoading';
@@ -89,6 +90,7 @@ const WindowMap = ({
   // Annotation vector layer
   const annotations = useAnnotationStore((state) => state.annotations);
   const campaign = useCampaignStore((state) => state.campaign);
+  const isVisualizerMode = useLayoutStore((state) => state.isVisualizerMode);
   const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
   const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
 
@@ -256,6 +258,11 @@ const WindowMap = ({
     const source = annotationSourceRef.current;
     if (!source) return;
 
+    if (isVisualizerMode) {
+      source.clear();
+      return;
+    }
+
     const extendedLabels = campaign ? extendLabelsWithMetadata(campaign.settings.labels) : [];
 
     const existing = new Map<number, OLFeature<Geometry>>();
@@ -311,7 +318,7 @@ const WindowMap = ({
     for (const [id, feat] of existing) {
       if (!incomingIds.has(id)) source.removeFeature(feat);
     }
-  }, [annotations, campaign]);
+  }, [annotations, campaign, isVisualizerMode]);
 
   // Refocus to task center + initial zoom
   useEffect(() => {

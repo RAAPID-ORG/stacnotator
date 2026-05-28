@@ -41,6 +41,9 @@ interface LayoutStore {
   // Sidebar state
   sidebarCollapsed: boolean;
 
+  // Set by VisualizerPage; hides annotation UI in the shared map components.
+  isVisualizerMode: boolean;
+
   // Confirm dialog state
   confirmDialog: (ConfirmDialogOptions & { resolve: (value: boolean) => void }) | null;
 
@@ -58,6 +61,7 @@ interface LayoutStore {
   setIsFullscreen: (isFullscreen: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
+  setVisualizerMode: (visualizerMode: boolean) => void;
   showConfirmDialog: (options: ConfirmDialogOptions) => Promise<boolean>;
   resolveConfirmDialog: (value: boolean) => void;
 }
@@ -88,6 +92,7 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     showGuidedTour: false,
     isFullscreen: false,
     sidebarCollapsed: false,
+    isVisualizerMode: false,
     confirmDialog: null,
 
     // Alert actions - delegated to sonner so multiple errors queue instead of clobbering.
@@ -143,6 +148,8 @@ export const useLayoutStore = create<LayoutStore>((set) => {
     setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+    setVisualizerMode: (isVisualizerMode) => set({ isVisualizerMode }),
 
     // Confirm dialog actions
     showConfirmDialog: (options) =>

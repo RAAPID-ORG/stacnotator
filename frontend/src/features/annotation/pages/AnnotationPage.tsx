@@ -38,6 +38,7 @@ export const AnnotationPage = () => {
   const showAlert = useLayoutStore((state) => state.showAlert);
   const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
+  const isVisualizerMode = useLayoutStore((state) => state.isVisualizerMode);
 
   const [hasBeenReady, setHasBeenReady] = useState(false);
   const isRegistering =
@@ -104,10 +105,14 @@ export const AnnotationPage = () => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name) },
+        {
+          label: capitalizeFirst(campaign.name),
+          path: isVisualizerMode ? `/campaigns/${campaign.id}/annotate` : undefined,
+        },
+        ...(isVisualizerMode ? [{ label: 'Visualize' }] : []),
       ]);
     }
-  }, [campaign, setBreadcrumbs]);
+  }, [campaign, setBreadcrumbs, isVisualizerMode]);
 
   // Auto-show the guided tour the first time this user opens this campaign.
   // For task-mode we wait until visibleTasks > 0 so the tour can actually
@@ -194,9 +199,11 @@ export const AnnotationPage = () => {
   // Render
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <AnnotationToolbar />
+      {!isVisualizerMode && <AnnotationToolbar />}
       {campaign &&
-      ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
+      (isVisualizerMode ||
+        (campaign.mode == 'tasks' && visibleTasks.length > 0) ||
+        campaign.mode == 'open') ? (
         <Canvas commentInputRef={commentInputRef} />
       ) : campaign?.mode === 'tasks' && !tasksLoaded ? (
         <div className="flex-1 flex items-center justify-center">

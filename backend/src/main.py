@@ -14,6 +14,7 @@ from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
+from src.custom_maps.router import router as custom_maps_router
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
 from src.tiling.router import router as tiling_router
@@ -145,4 +146,13 @@ app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
 app.include_router(tiling_router, prefix="/api")
+app.include_router(custom_maps_router, prefix="/api")
+
+# Local storage HTTP backend (only mounted when STORAGE_BACKEND=local). In
+# production this is replaced by direct-to-blob Azure SAS uploads.
+if settings.STORAGE_BACKEND.lower() == "local":
+    from src.storage.router import router as storage_local_router
+
+    app.include_router(storage_local_router, prefix="/api")
+
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

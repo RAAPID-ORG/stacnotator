@@ -3,10 +3,12 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies required for building Python packages
+# Install system dependencies required for building Python packages.
+# libgdal-dev needed to build rasterio for the custom-map preprocessing worker.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    libgdal-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -23,9 +25,10 @@ WORKDIR /app
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Install runtime dependencies only
+# Runtime dependencies (libgdal32 pairs with libgdal-dev above for rasterio).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    libgdal32 \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 

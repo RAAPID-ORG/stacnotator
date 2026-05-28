@@ -14,8 +14,8 @@ from titiler.core.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from titiler.core.factory import MultiBaseTilerFactory, TilerFactory
 
 from src.config import get_settings
+from src.custom_map import router as custom_map_router
 from src.reader import PCSignedSTACReader
-from src.stats import router as stats_router
 from src.tiles import router as tiles_router
 
 logging.basicConfig(level=logging.INFO)
@@ -95,11 +95,12 @@ async def verify_tiler_token(request: Request, call_next):
     if not hmac.compare_digest(signature, expected):
         return JSONResponse(status_code=401, content={"detail": "Invalid token"})
 
+    request.state.user_id = uid
     return await call_next(request)
 
 
 app.include_router(tiles_router)
-app.include_router(stats_router)
+app.include_router(custom_map_router)
 
 stac_tiler = MultiBaseTilerFactory(reader=PCSignedSTACReader, router_prefix="/stac")
 cog_tiler = TilerFactory(router_prefix="/cog")

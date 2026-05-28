@@ -13,11 +13,13 @@ import type { OpenModeMapHandle } from './Map/OpenModeMap';
 import TimelineSidebar from './TimelineSidebar';
 import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
+import CustomMapPicker from './Map/CustomMapPicker';
 import HeaderSelect from './Map/HeaderSelect';
 import { MobileSliceNav } from './MobileSliceNav';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import {
   extractCentroidFromWKT,
   computeExtentGeoJSON,
@@ -161,6 +163,10 @@ export const MainAnnotationsContainer = ({
 
   const openModeMapRef = useRef<OpenModeMapHandle>(null);
 
+  // Visualizer always uses open-mode rendering, regardless of campaign mode.
+  const isVisualizerMode = useLayoutStore((s) => s.isVisualizerMode);
+  const isTaskMode = campaign?.mode === 'tasks' && !isVisualizerMode;
+
   // Slices from the active collection
   const slices = activeCollection?.slices ?? [];
 
@@ -280,19 +286,18 @@ export const MainAnnotationsContainer = ({
 
   const handleTimeseriesClick = useCallback(
     (lat: number, lon: number) => {
-      if (campaign?.mode === 'tasks') {
+      if (isTaskMode) {
         setProbeTimeseriesPoint({ lat, lon });
       } else {
         setTimeseriesPoint({ lat, lon });
       }
     },
-    [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
+    [isTaskMode, setTimeseriesPoint, setProbeTimeseriesPoint]
   );
 
   if (!campaign || !activeSource) return null;
 
-  const isTaskMode = campaign.mode === 'tasks';
-  const isOpenMode = campaign.mode === 'open';
+  const isOpenMode = !isTaskMode;
 
   // Number of collections that are shown as windows
   const windowCollections = viewCollections.filter((r) => r.show_as_window);
@@ -367,6 +372,8 @@ export const MainAnnotationsContainer = ({
                     />
                   );
                 })()}
+
+              <CustomMapPicker />
 
               {/* Divider */}
               <div className="w-px h-3 bg-neutral-200 mx-0.5" />
