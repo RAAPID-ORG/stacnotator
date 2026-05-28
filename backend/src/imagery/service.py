@@ -49,6 +49,10 @@ def _bbox_to_wkt(west: float, south: float, east: float, north: float) -> str:
 logger = logging.getLogger(__name__)
 
 
+def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
+    return bool(col_create.has_dedicated_cover)
+
+
 # ============================================================================
 # Imagery Creation (new model)
 # ============================================================================
@@ -427,9 +431,11 @@ def _update_collection_in_place(
     pending-registration tuple if mosaic re-search is required."""
     db_col.name = col_create.name
     db_col.cover_slice_index = col_create.cover_slice_index
+    db_col.has_dedicated_cover = col_create.has_dedicated_cover
     db_col.display_order = col_idx
 
     needs_reregistration = False
+    has_cover = _payload_has_dedicated_cover(col_create)
 
     if col_create.stac_config:
         if db_col.stac_config is None:
@@ -451,12 +457,14 @@ def _update_collection_in_place(
                     ),
                     cover_viz_params=(
                         first_viz.cover_viz_params.model_dump(exclude_none=True)
-                        if first_viz and first_viz.cover_viz_params
+                        if has_cover and first_viz and first_viz.cover_viz_params
                         else None
                     ),
                     max_cloud_cover=col_create.stac_config.max_cloud_cover,
                     search_query=col_create.stac_config.search_query,
-                    cover_search_query=col_create.stac_config.cover_search_query,
+                    cover_search_query=(
+                        col_create.stac_config.cover_search_query if has_cover else None
+                    ),
                 )
             )
             needs_reregistration = True
@@ -473,12 +481,14 @@ def _update_collection_in_place(
             )
             db_col.stac_config.cover_viz_params = (
                 first_viz.cover_viz_params.model_dump(exclude_none=True)
-                if first_viz and first_viz.cover_viz_params
+                if has_cover and first_viz and first_viz.cover_viz_params
                 else None
             )
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
             db_col.stac_config.search_query = col_create.stac_config.search_query
-            db_col.stac_config.cover_search_query = col_create.stac_config.cover_search_query
+            db_col.stac_config.cover_search_query = (
+                col_create.stac_config.cover_search_query if has_cover else None
+            )
             flag_modified(db_col.stac_config, "search_query")
             flag_modified(db_col.stac_config, "cover_search_query")
 
@@ -499,7 +509,6 @@ def _update_collection_in_place(
             db_sl.start_date = sl_create.start_date
             db_sl.end_date = sl_create.end_date
             db_sl.display_order = sl_idx
-            db_sl.is_cover = sl_create.is_cover
             # Replace tile_urls only for manual collections; STAC ones get
             # rebuilt by the re-registration / viz-params rebake below.
             if col_create.stac_config is None:
@@ -520,7 +529,6 @@ def _update_collection_in_place(
                 start_date=sl_create.start_date,
                 end_date=sl_create.end_date,
                 display_order=sl_idx,
-                is_cover=sl_create.is_cover,
             )
             db.add(new_sl)
             db.flush()
@@ -621,10 +629,13 @@ def _create_collection_record(
         source_id=source.id,
         name=col_create.name,
         cover_slice_index=col_create.cover_slice_index,
+        has_dedicated_cover=col_create.has_dedicated_cover,
         display_order=col_idx,
     )
     db.add(collection)
     db.flush()
+
+    has_cover = _payload_has_dedicated_cover(col_create)
 
     if col_create.stac_config:
         # {searchId} URL templates from the frontend get persisted so we can
@@ -658,12 +669,14 @@ def _create_collection_record(
                 ),
                 cover_viz_params=(
                     first_viz.cover_viz_params.model_dump(exclude_none=True)
-                    if first_viz and first_viz.cover_viz_params
+                    if has_cover and first_viz and first_viz.cover_viz_params
                     else None
                 ),
                 max_cloud_cover=col_create.stac_config.max_cloud_cover,
                 search_query=col_create.stac_config.search_query,
-                cover_search_query=col_create.stac_config.cover_search_query,
+                cover_search_query=(
+                    col_create.stac_config.cover_search_query if has_cover else None
+                ),
             )
         )
 
@@ -674,7 +687,6 @@ def _create_collection_record(
             start_date=sl_create.start_date,
             end_date=sl_create.end_date,
             display_order=sl_idx,
-            is_cover=sl_create.is_cover,
         )
         db.add(slice_obj)
         db.flush()
@@ -869,7 +881,7 @@ def _register_all_stac_browser_collections(
         )
 
         for sl_idx, db_slice in enumerate(db_slices):
-            is_cover = sl_idx == col_create.cover_slice_index
+            is_cover = col_create.has_dedicated_cover and sl_idx == col_create.cover_slice_index
 
             # Effective per-viz params for this slice (cover override if present)
             slice_viz_by_name: dict[str, dict] = {
@@ -897,7 +909,6 @@ def _register_all_stac_browser_collections(
                     "any_uses_mpc": any_uses_mpc,
                     "any_needs_local": any_needs_local,
                     "collection_name": collection.name,
-                    "is_cover": is_cover,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
                     else search_query,
@@ -1268,7 +1279,7 @@ def update_collection_viz_params(
     first_cover = (
         next(iter((cover_viz_by_name or {}).values()), None) if cover_viz_by_name else None
     )
-    stac.cover_viz_params = first_cover
+    stac.cover_viz_params = first_cover if collection.has_dedicated_cover else None
 
     slices = (
         db.execute(
@@ -1281,7 +1292,7 @@ def update_collection_viz_params(
     )
 
     for sl_idx, sl in enumerate(slices):
-        is_cover = sl_idx == collection.cover_slice_index
+        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
 
         for tu in sl.tile_urls:
             # Pick params for this specific visualization
@@ -1344,7 +1355,7 @@ def refresh_collection_imagery(
 
     refreshed_count = 0
     for sl_idx, sl in enumerate(slices):
-        is_cover = sl_idx == collection.cover_slice_index
+        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
         custom_query = (
             stac.cover_search_query if (is_cover and stac.cover_search_query) else stac.search_query
         )

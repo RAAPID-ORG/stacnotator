@@ -86,6 +86,12 @@ class ImageryCollection(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     cover_slice_index: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    # True when the slice at cover_slice_index is an out-of-band cover with
+    # override viz params / search query. False for a regular slice promoted
+    # to cover (which renders with the normal viz_params).
+    has_dedicated_cover: Mapped[bool] = mapped_column(
+        Boolean, server_default="false", nullable=False
+    )
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
     source: Mapped["ImagerySource"] = relationship(back_populates="collections")
@@ -153,9 +159,6 @@ class ImagerySlice(Base):
     start_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     end_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
-    # True only for separately-generated cover slices (custom cover mode). A
-    # regular slice designated as the cover via cover_slice_index keeps is_cover=False.
-    is_cover: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="slices")
     tile_urls: Mapped[list["SliceTileUrl"]] = relationship(

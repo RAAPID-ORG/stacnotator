@@ -37,7 +37,8 @@ export const useSliceNavigation = () => {
     collection: {
       id: number;
       cover_slice_index: number;
-      slices: { name: string; is_cover?: boolean }[];
+      has_dedicated_cover?: boolean;
+      slices: { name: string }[];
     };
   };
 
@@ -66,7 +67,11 @@ export const useSliceNavigation = () => {
    *  known to be empty. (Custom cover slices are excluded by sliceView.) */
   const sliceNavIndices = useCallback(
     (col: ViewCollection['collection'], colId: number): number[] => {
-      const { navIndices } = sliceView(col.slices, col.cover_slice_index);
+      const { navIndices } = sliceView(
+        col.slices.length,
+        col.cover_slice_index,
+        col.has_dedicated_cover
+      );
       return navIndices.filter((i) => !emptySlices[`${colId}-${i}`]);
     },
     [emptySlices]

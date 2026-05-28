@@ -300,12 +300,12 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
     id: String(col.id),
     name: col.name,
     coverSliceIndex: col.cover_slice_index ?? 0,
+    hasDedicatedCover: col.has_dedicated_cover ?? false,
     slices: col.slices.map((sl) => ({
       id: String(sl.id),
       name: sl.name,
       startDate: sl.start_date,
       endDate: sl.end_date,
-      isCover: sl.is_cover,
       vizUrls: sl.tile_urls.map((tu) => ({ vizName: tu.visualization_name, url: tu.tile_url })),
     })),
     data,

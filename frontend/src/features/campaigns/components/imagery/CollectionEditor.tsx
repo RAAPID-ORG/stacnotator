@@ -88,16 +88,26 @@ export const CollectionEditor = ({
   const removeSlice = (sliceId: string) => {
     const newSlices = collection.slices.filter((s) => s.id !== sliceId);
     const removedIndex = collection.slices.findIndex((s) => s.id === sliceId);
+    const removedDedicatedCover =
+      collection.hasDedicatedCover && removedIndex === collection.coverSliceIndex;
     let newCoverIndex = collection.coverSliceIndex;
     if (removedIndex < newCoverIndex) {
       newCoverIndex = Math.max(0, newCoverIndex - 1);
     } else if (removedIndex === newCoverIndex) {
       newCoverIndex = 0;
     }
-    onChange({
+    const updates: Partial<CollectionItem> = {
       slices: newSlices,
       coverSliceIndex: Math.min(newCoverIndex, Math.max(0, newSlices.length - 1)),
-    });
+    };
+    if (removedDedicatedCover) {
+      updates.hasDedicatedCover = false;
+      if (collection.data.type === 'stac_browser') {
+        const sb = collection.data as StacBrowserCollectionData;
+        updates.data = { ...sb, coverVisualizations: [], coverSearchQuery: undefined };
+      }
+    }
+    onChange(updates);
   };
 
   const addSlice = () => {
@@ -278,12 +288,14 @@ export const CollectionEditor = ({
             )}
 
             {(() => {
-              const customCoverArrayIndex = collection.slices.findIndex((s) => s.isCover);
+              const customCoverArrayIndex = collection.hasDedicatedCover
+                ? collection.coverSliceIndex
+                : -1;
               const customCover =
                 customCoverArrayIndex >= 0 ? collection.slices[customCoverArrayIndex] : null;
               const regularSlices = collection.slices
                 .map((s, i) => ({ slice: s, originalIndex: i }))
-                .filter(({ slice }) => !slice.isCover);
+                .filter(({ originalIndex }) => originalIndex !== customCoverArrayIndex);
 
               const renderSliceCard = (
                 slice: ImagerySlice,
@@ -317,7 +329,12 @@ export const CollectionEditor = ({
                         ) : (
                           <button
                             type="button"
-                            onClick={() => onChange({ coverSliceIndex: originalIndex })}
+                            onClick={() =>
+                              onChange({
+                                coverSliceIndex: originalIndex,
+                                hasDedicatedCover: false,
+                              })
+                            }
                             className="text-[10px] px-1.5 py-0.5 text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-500 rounded transition-colors cursor-pointer shrink-0 font-medium"
                             title="Set as cover slice"
                           >

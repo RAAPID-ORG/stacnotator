@@ -339,7 +339,11 @@ export const MainAnnotationsContainer = ({
 
               {slices.length > 1 &&
                 (() => {
-                  const { pickerIndices } = sliceView(slices, activeCollection?.cover_slice_index);
+                  const { pickerIndices } = sliceView(
+                    slices.length,
+                    activeCollection?.cover_slice_index,
+                    activeCollection?.has_dedicated_cover
+                  );
                   const options = pickerIndices.map((idx) => {
                     const slice = slices[idx];
                     const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];

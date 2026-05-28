@@ -246,7 +246,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         // backward, then any non-empty slice (custom cover) as a last resort.
         const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
         const isEmpty = (i: number) => !!currentEmpty[`${collectionId}-${i}`];
-        const { navIndices } = sliceView(slices, collection?.cover_slice_index);
+        const { navIndices } = sliceView(
+          slices.length,
+          collection?.cover_slice_index,
+          collection?.has_dedicated_cover
+        );
         const forward = navIndices.filter((i) => i > currentSliceIndex);
         const backward = [...navIndices].reverse().filter((i) => i < currentSliceIndex);
         let nextIndex = forward.find((i) => !isEmpty(i)) ?? backward.find((i) => !isEmpty(i)) ?? -1;

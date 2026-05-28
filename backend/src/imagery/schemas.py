@@ -36,7 +36,6 @@ class ImagerySliceOut(BaseModel):
     start_date: str
     end_date: str
     display_order: int
-    is_cover: bool = False
     tile_urls: list[SliceTileUrlOut]
 
     model_config = ConfigDict(from_attributes=True)
@@ -60,6 +59,7 @@ class ImageryCollectionOut(BaseModel):
     id: int
     name: str
     cover_slice_index: int
+    has_dedicated_cover: bool = False
     display_order: int
     slices: list[ImagerySliceOut]
     stac_config: CollectionStacConfigOut | None = None
@@ -164,7 +164,6 @@ class ImagerySliceCreate(BaseModel):
     name: str = ""
     start_date: str
     end_date: str
-    is_cover: bool = False
     tile_urls: list[SliceTileUrlCreate] = []
 
 
@@ -209,6 +208,7 @@ class ImageryCollectionCreate(BaseModel):
     id: int | None = None
     name: str
     cover_slice_index: int = 0
+    has_dedicated_cover: bool = False
     slices: list[ImagerySliceCreate]
     stac_config: CollectionStacConfigCreate | None = None
 
@@ -276,6 +276,7 @@ class ImageryCollectionUpdate(BaseModel):
 
     name: str | None = None
     cover_slice_index: int | None = None
+    has_dedicated_cover: bool | None = None
 
 
 class ImageryViewUpdate(BaseModel):

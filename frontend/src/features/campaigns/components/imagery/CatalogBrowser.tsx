@@ -645,7 +645,6 @@ export const CatalogBrowser = ({
           name: formatSliceLabel(toDateStr(colStart), toDateStr(colEndDate), slicePeriodUnit, 0),
           startDate: toDateStr(colStart),
           endDate: toDateStr(colEndDate),
-          isCover: true,
         };
         finalSlices = [coverSlice, ...slices];
         finalCoverIndex = 0;
@@ -658,6 +657,7 @@ export const CatalogBrowser = ({
         name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), collectionPeriodUnit),
         slices: finalSlices,
         coverSliceIndex: finalCoverIndex,
+        hasDedicatedCover: coverMode === 'custom',
         windowInterval: collectionPeriodInterval,
         windowUnit: collectionPeriodUnit,
         slicingInterval: slicePeriodInterval,
@@ -699,6 +699,7 @@ export const CatalogBrowser = ({
         },
       ],
       coverSliceIndex: 0,
+      hasDedicatedCover: false,
       data: {
         type: 'stac_browser' as const,
         catalogUrl: selectedCatalog.url,
@@ -1546,7 +1547,7 @@ export const CatalogBrowser = ({
                           name: s.name,
                           startDate: s.startDate,
                           endDate: s.endDate,
-                          isCover: i === c.coverSliceIndex,
+                          isPreviewCover: i === c.coverSliceIndex,
                         })),
                       }));
                     })()}
@@ -1619,7 +1620,7 @@ interface CoverExampleSlice {
   name: string;
   startDate: string;
   endDate: string;
-  isCover: boolean;
+  isPreviewCover: boolean;
 }
 interface CoverExample {
   name: string;
@@ -1675,13 +1676,13 @@ const CoverSliceSection = ({
                       <span
                         key={si}
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono border ${
-                          sl.isCover
+                          sl.isPreviewCover
                             ? 'bg-brand-50 text-brand-700 border-brand-300'
                             : 'bg-neutral-50 text-neutral-500 border-neutral-200'
                         }`}
                         title={`${sl.startDate} → ${sl.endDate}`}
                       >
-                        {sl.isCover && (
+                        {sl.isPreviewCover && (
                           <svg
                             className="w-2.5 h-2.5"
                             viewBox="0 0 12 12"

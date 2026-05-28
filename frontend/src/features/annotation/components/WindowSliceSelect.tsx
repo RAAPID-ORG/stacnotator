@@ -19,7 +19,11 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
   const slices = collection.slices;
 
   const options = useMemo(() => {
-    const { pickerIndices } = sliceView(slices, collection.cover_slice_index);
+    const { pickerIndices } = sliceView(
+      slices.length,
+      collection.cover_slice_index,
+      collection.has_dedicated_cover
+    );
     return pickerIndices.map((idx) => {
       const slice = slices[idx];
       const isEmpty = !!emptySlices[`${collection.id}-${idx}`];
@@ -34,7 +38,13 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
         dimmed: isEmpty,
       };
     });
-  }, [slices, emptySlices, collection.id, collection.cover_slice_index]);
+  }, [
+    slices,
+    emptySlices,
+    collection.id,
+    collection.cover_slice_index,
+    collection.has_dedicated_cover,
+  ]);
 
   if (slices.length <= 1) return null;
 

@@ -40,12 +40,12 @@ export function collectionToBackend(col: CollectionItem): ImageryCollectionCreat
     id: toIdField(col.id),
     name: col.name,
     cover_slice_index: col.coverSliceIndex,
+    has_dedicated_cover: col.hasDedicatedCover,
     slices: col.slices.map((sl) => ({
       id: toIdField(sl.id),
       name: sl.name || undefined,
       start_date: sl.startDate,
       end_date: sl.endDate,
-      is_cover: sl.isCover ?? false,
       tile_urls:
         col.data.type === 'stac_browser'
           ? []

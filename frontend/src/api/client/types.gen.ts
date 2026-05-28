@@ -1108,6 +1108,10 @@ export type ImageryCollectionCreate = {
      */
     cover_slice_index?: number;
     /**
+     * Has Dedicated Cover
+     */
+    has_dedicated_cover?: boolean;
+    /**
      * Slices
      */
     slices: Array<ImagerySliceCreate>;
@@ -1130,6 +1134,10 @@ export type ImageryCollectionOut = {
      * Cover Slice Index
      */
     cover_slice_index: number;
+    /**
+     * Has Dedicated Cover
+     */
+    has_dedicated_cover?: boolean;
     /**
      * Display Order
      */
@@ -1182,10 +1190,6 @@ export type ImagerySliceCreate = {
      */
     end_date: string;
     /**
-     * Is Cover
-     */
-    is_cover?: boolean;
-    /**
      * Tile Urls
      */
     tile_urls?: Array<SliceTileUrlCreate>;
@@ -1215,10 +1219,6 @@ export type ImagerySliceOut = {
      * Display Order
      */
     display_order: number;
-    /**
-     * Is Cover
-     */
-    is_cover?: boolean;
     /**
      * Tile Urls
      */

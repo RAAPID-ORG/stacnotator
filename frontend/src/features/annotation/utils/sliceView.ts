@@ -1,48 +1,42 @@
 /**
  * One place to ask "what slice should I show, and which ones are real".
  *
- * The data model has two cover concepts that callers used to disambiguate at
- * every site: `cover_slice_index` (which slice is the representative one) and
- * `is_cover` (a separately-generated custom cover slice that doesn't belong
- * in the time series). Centralising the resolution avoids the inline
- * `!s.is_cover` / `idx === cover_slice_index` checks scattered around the
- * annotation feature.
+ * The data model has two related fields: `cover_slice_index` (which slice is
+ * shown first) and `has_dedicated_cover` (true iff that slice is an
+ * out-of-band cover with override viz params — exclude it from regular
+ * navigation). Centralising the resolution avoids inline checks scattered
+ * around the annotation feature.
  */
-
-interface SliceLike {
-  is_cover?: boolean | null;
-}
 
 interface CollectionLike {
   cover_slice_index?: number | null;
-  slices: SliceLike[];
+  has_dedicated_cover?: boolean | null;
 }
 
 export interface SliceView {
   /** Index of the slice to show first (the collection's representative). */
   coverIndex: number;
   /** Slice indices that participate in a/d navigation — regular slices only,
-   *  no custom-generated cover. */
+   *  no out-of-band dedicated cover. */
   navIndices: number[];
   /** Slice indices visible in the time-picker dropdown: all regular slices
-   *  plus the active cover. A custom cover slice is hidden when a regular
-   *  slice has been designated as the cover (it would just duplicate the
-   *  time series). */
+   *  plus the active cover. */
   pickerIndices: number[];
 }
 
 export function sliceView(
-  slices: readonly SliceLike[] | undefined,
-  coverSliceIndex: number | null | undefined
+  sliceCount: number | undefined,
+  coverSliceIndex: number | null | undefined,
+  hasDedicatedCover: boolean | null | undefined
 ): SliceView {
   const coverIndex = coverSliceIndex ?? 0;
-  if (!slices) return { coverIndex, navIndices: [], pickerIndices: [] };
+  if (!sliceCount) return { coverIndex, navIndices: [], pickerIndices: [] };
   const navIndices: number[] = [];
   const pickerIndices: number[] = [];
-  for (let i = 0; i < slices.length; i++) {
-    const isCustomCover = slices[i]?.is_cover === true;
-    if (!isCustomCover) navIndices.push(i);
-    if (!isCustomCover || i === coverIndex) pickerIndices.push(i);
+  for (let i = 0; i < sliceCount; i++) {
+    const isDedicatedCover = !!hasDedicatedCover && i === coverIndex;
+    if (!isDedicatedCover) navIndices.push(i);
+    pickerIndices.push(i);
   }
   return { coverIndex, navIndices, pickerIndices };
 }

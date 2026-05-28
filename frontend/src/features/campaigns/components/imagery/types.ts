@@ -12,9 +12,6 @@ export interface ImagerySlice {
   name: string;
   startDate: string;
   endDate: string;
-  /** True for separately-generated custom cover slices (own viz/search overrides).
-   *  False for regular slices, even when designated as the cover via coverSliceIndex. */
-  isCover?: boolean;
   /** Per-slice visualization URLs (used by manual XYZ collections) */
   vizUrls?: VisualizationUrl[];
 }
@@ -91,8 +88,10 @@ export interface CollectionItem {
   id: string;
   name: string;
   slices: ImagerySlice[];
-  /** Index into slices[] that serves as the "cover" / representative image (e.g. a median mosaic). Defaults to 0. */
+  /** Index into slices[] of the slice shown first. Defaults to 0. Meaningful in both cover modes. */
   coverSliceIndex: number;
+  /** True when the slice at coverSliceIndex is an out-of-band dedicated cover with override viz params / search query. */
+  hasDedicatedCover: boolean;
   data: StacCollectionData | ManualCollectionData | StacBrowserCollectionData;
   /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
   windowInterval?: number | null;
@@ -168,6 +167,7 @@ export const emptyManualCollection = (vizNames: string[]): CollectionItem => ({
   name: 'Untitled',
   slices: [emptySlice()],
   coverSliceIndex: 0,
+  hasDedicatedCover: false,
   data: {
     type: 'manual',
     vizUrls: vizNames.map((name) => ({ vizName: name, url: '' })),

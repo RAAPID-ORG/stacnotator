@@ -80,7 +80,11 @@ const TimelineSidebar = ({
     let latest: string | null = null;
     for (const { collection } of viewCollections) {
       if (!collection) continue;
-      const { navIndices } = sliceView(collection.slices, collection.cover_slice_index);
+      const { navIndices } = sliceView(
+        collection.slices.length,
+        collection.cover_slice_index,
+        collection.has_dedicated_cover
+      );
       for (const i of navIndices) {
         const slice = collection.slices[i];
         if (!earliest || slice.start_date < earliest) earliest = slice.start_date;
@@ -93,7 +97,11 @@ const TimelineSidebar = ({
   const allSteps = useMemo<TimelineStep[]>(() => {
     return viewCollections.map((r, ci) => {
       const col = r.collection!;
-      const { navIndices } = sliceView(col.slices, col.cover_slice_index);
+      const { navIndices } = sliceView(
+        col.slices.length,
+        col.cover_slice_index,
+        col.has_dedicated_cover
+      );
       const firstReal = col.slices[navIndices[0]] ?? col.slices[0];
       return {
         collectionId: col.id,
