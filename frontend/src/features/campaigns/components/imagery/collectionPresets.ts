@@ -10,6 +10,8 @@ export interface BandPreset {
   rescale?: string;
   expression?: string;
   colorFormula?: string;
+  /** Fill value to render transparent (e.g. 0 for Landsat C2 L2 / Sentinel-2 L2A). */
+  nodata?: number;
   /** Extra query parameters passed through to the tiler (e.g. asset_bidx=image|1,2,3) */
   extraParams?: Record<string, string>;
 }
@@ -19,27 +21,32 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color (RGB)',
       assets: ['B04', 'B03', 'B02'],
-      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
+      nodata: 0,
     },
     {
       label: 'False Color (Vegetation)',
       assets: ['B08', 'B04', 'B03'],
-      colorFormula: 'Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.7, saturation 1.5, sigmoidal RGB 15 0.35',
+      nodata: 0,
     },
     {
       label: 'Agriculture',
       assets: ['B11', 'B08', 'B02'],
-      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
+      nodata: 0,
     },
     {
       label: 'SWIR',
       assets: ['B12', 'B8A', 'B04'],
-      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
+      nodata: 0,
     },
     {
       label: 'Geology',
       assets: ['B12', 'B11', 'B02'],
-      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
+      nodata: 0,
     },
     { label: 'NDVI (B08)', assets: ['B08'], colormap: 'rdylgn', rescale: '-1,1' },
     { label: 'Visual (rendered)', assets: ['visual'] },
@@ -48,12 +55,12 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color (RGB)',
       assets: ['B04', 'B03', 'B02'],
-      colorFormula: 'Gamma RGB 3.2 Saturation 0.8 Sigmoidal RGB 25 0.35',
+      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
     },
     {
       label: 'False Color (Vegetation)',
       assets: ['B08', 'B04', 'B03'],
-      colorFormula: 'Gamma RGB 3.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.7, saturation 1.5, sigmoidal RGB 15 0.35',
     },
     { label: 'Visual (rendered)', assets: ['visual'] },
   ],
@@ -61,40 +68,40 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color',
       assets: ['red', 'green', 'blue'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
     {
       label: 'False Color',
       assets: ['nir08', 'red', 'green'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
     {
       label: 'SWIR',
       assets: ['swir16', 'nir08', 'red'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
     {
       label: 'Agriculture',
       assets: ['swir16', 'nir08', 'blue'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.5 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
   ],
   'landsat-c2-l1': [
     {
       label: 'True Color',
       assets: ['red', 'green', 'blue'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
     {
       label: 'False Color',
       assets: ['nir08', 'red', 'green'],
-      rescale: '7500,40000',
-      colorFormula: 'Gamma RGB 1.7 Saturation 1.7 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
     },
   ],
   'cop-dem-glo-30': [{ label: 'Elevation', assets: ['data'], colormap: 'terrain' }],
@@ -110,17 +117,17 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color (RGB)',
       assets: ['B04', 'B03', 'B02'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
     {
       label: 'False Color (Vegetation)',
       assets: ['B8A', 'B04', 'B03'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
     {
       label: 'Agriculture',
       assets: ['B11', 'B8A', 'B02'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
     { label: 'NDVI (B8A)', assets: ['B8A'], colormap: 'rdylgn', rescale: '0,1' },
   ],
@@ -128,12 +135,12 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     {
       label: 'True Color (RGB)',
       assets: ['B04', 'B03', 'B02'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
     {
       label: 'False Color (Vegetation)',
       assets: ['B05', 'B04', 'B03'],
-      colorFormula: 'Gamma RGB 3.5 Saturation 1.2 Sigmoidal RGB 15 0.35',
+      colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
     { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
   ],

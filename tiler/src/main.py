@@ -15,7 +15,6 @@ from titiler.core.factory import MultiBaseTilerFactory, TilerFactory
 
 from src.config import get_settings
 from src.reader import PCSignedSTACReader
-from src.stats import router as stats_router
 from src.tiles import router as tiles_router
 
 logging.basicConfig(level=logging.INFO)
@@ -99,7 +98,6 @@ async def verify_tiler_token(request: Request, call_next):
 
 
 app.include_router(tiles_router)
-app.include_router(stats_router)
 
 stac_tiler = MultiBaseTilerFactory(reader=PCSignedSTACReader, router_prefix="/stac")
 cog_tiler = TilerFactory(router_prefix="/cog")

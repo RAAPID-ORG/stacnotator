@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   COLLECTION_PRESETS,
   KNOWN_RESCALE,
@@ -9,6 +9,7 @@ import {
 } from './collectionPresets';
 import type { BandPreset, AssetInfo } from './collectionPresets';
 import type { VizParams } from './types';
+import { normalizeColorFormula, validateColorFormula } from './vizValidation';
 import { IconChevronDown, IconChevronUp } from '~/shared/ui/Icons';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 
@@ -50,39 +51,44 @@ const ColorFormulaInfo = () => (
   <div className="space-y-2">
     <p className="font-semibold text-neutral-800">Color Formula</p>
     <p>
-      Simple commands that apply color corrections to images — useful for reducing atmospheric haze,
-      dark shadows, or muted colors. TiTiler supports formulae from Mapbox's rio-color plugin.
+      Comma-separated tone-mapping operations applied in order. Each op is{' '}
+      <code className="font-mono text-[10px]">&lt;name&gt; &lt;bands&gt; &lt;args&gt;</code>. Bands
+      are any combination of R/G/B (e.g. <code className="font-mono text-[10px]">RGB</code>,{' '}
+      <code className="font-mono text-[10px]">RG</code>,{' '}
+      <code className="font-mono text-[10px]">B</code>).
     </p>
-    <p>Operations:</p>
+    <p>Supported ops:</p>
     <ul className="list-disc pl-4 space-y-1">
       <li>
-        <strong>Gamma</strong>: power-law adjustment of RGB values; brightens/darkens midtones.
-        Effective for reducing atmospheric haze in blue/green bands.
+        <strong>gamma &lt;bands&gt; &lt;value&gt;</strong> — power-law correction. Values &gt; 1
+        brighten midtones (darker → lighter); &lt; 1 darken. Typical: 1.5–3.5.
       </li>
       <li>
-        <strong>Sigmoidal contrast</strong>: alters contrast/brightness in a way that matches human
-        visual perception. Increases contrast without blowing out shadows or highlights.
+        <strong>saturation &lt;value&gt;</strong> — colour intensity. 1.0 = unchanged, &gt; 1 more
+        vivid, &lt; 1 muted toward grayscale. Typical: 0.8–1.5. No bands arg.
       </li>
       <li>
-        <strong>Saturation</strong>: the "colorfulness" of a pixel. High = vivid/cartoon-like; low =
-        muted, closer to black-and-white.
+        <strong>sigmoidal &lt;bands&gt; &lt;contrast&gt; &lt;bias&gt;</strong> — perceptual contrast
+        curve. <em>contrast</em> 5–25 (higher = punchier); <em>bias</em> 0–1 (pivot point, 0.5 =
+        center, &gt; 0.5 lifts shadows).
       </li>
     </ul>
     <p>
       Example:{' '}
       <code className="font-mono text-[10px]">
-        gamma rg 1.3, sigmoidal rgb 22 0.1, saturation 1.5
-      </code>
+        gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55
+      </code>{' '}
+      (MPC's Landsat C2 L2 default).
     </p>
     <p className="text-neutral-500 italic">
-      Adapted from{' '}
+      Commas between ops are required; the panel auto-inserts them on blur.{' '}
       <a
         href={TITILER_DOCS_URL + '#color-formula'}
         target="_blank"
         rel="noopener noreferrer"
         className="text-brand-600 hover:underline"
       >
-        TiTiler documentation
+        TiTiler docs
       </a>
       .
     </p>
@@ -106,9 +112,8 @@ export const VizConfigPanel = ({
 }: VizConfigPanelProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isRgbAsset, setIsRgbAsset] = useState(false);
-  /** 'manual' = editable input (pre-filled from preset), 'auto' = tiler derives from data stats, 'none' = raw values */
-  const [rescaleMode, setRescaleMode] = useState<'manual' | 'auto' | 'none'>(() => {
-    // If viz already has a color formula but no rescale, default to 'none'
+  /** 'manual' = explicit min,max from preset or user; 'none' = no rescale, raw values served as-is */
+  const [rescaleMode, setRescaleMode] = useState<'manual' | 'none'>(() => {
     if (vizParams.colorFormula && !vizParams.rescale) return 'none';
     return 'manual';
   });
@@ -132,6 +137,11 @@ export const VizConfigPanel = ({
   const update = <K extends keyof VizParams>(key: K, value: VizParams[K]) => {
     onChange({ ...vizParams, [key]: value });
   };
+
+  const colorFormulaError = useMemo(
+    () => validateColorFormula(vizParams.colorFormula ?? ''),
+    [vizParams.colorFormula]
+  );
 
   const toggleBand = (band: string) => {
     const prev = vizParams.assets;
@@ -173,6 +183,7 @@ export const VizConfigPanel = ({
     } else {
       updates.colorFormula = undefined;
     }
+    updates.nodata = preset.nodata;
     if (preset.extraParams) updates.extraParams = { ...preset.extraParams };
 
     if (
@@ -334,7 +345,7 @@ export const VizConfigPanel = ({
           </InfoPopover>
         </label>
         <div className="flex gap-1.5">
-          {(['manual', 'auto', 'none'] as const).map((mode) => (
+          {(['manual', 'none'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
@@ -342,7 +353,7 @@ export const VizConfigPanel = ({
                 setRescaleMode(mode);
                 if (mode === 'manual' && !vizParams.rescale && defaultRescale) {
                   update('rescale', defaultRescale);
-                } else if (mode !== 'manual') {
+                } else if (mode === 'none') {
                   update('rescale', '');
                 }
               }}
@@ -352,7 +363,7 @@ export const VizConfigPanel = ({
                   : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
               }`}
             >
-              {mode === 'manual' ? 'Manual' : mode === 'auto' ? 'Auto-derive' : 'None'}
+              {mode === 'manual' ? 'Manual' : 'None'}
             </button>
           ))}
         </div>
@@ -370,12 +381,6 @@ export const VizConfigPanel = ({
               {defaultRescale ? ` Pre-filled from known defaults for this collection.` : ''}
             </p>
           </>
-        )}
-        {rescaleMode === 'auto' && (
-          <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
-            The tiler will sample the data to derive rescale values automatically. This adds a small
-            overhead per tile request.
-          </p>
         )}
         {rescaleMode === 'none' && (
           <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
@@ -444,6 +449,22 @@ export const VizConfigPanel = ({
               </p>
             </div>
             <div className="space-y-1">
+              <label className="text-xs text-neutral-700">Nodata value</label>
+              <input
+                type="number"
+                value={vizParams.nodata ?? ''}
+                onChange={(e) =>
+                  update('nodata', e.target.value === '' ? undefined : Number(e.target.value))
+                }
+                placeholder="e.g. 0"
+                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+              />
+              <p className="text-[11px] text-neutral-400">
+                Pixel value to render transparent. Common: 0 for Landsat C2 L2 and Sentinel-2 L2A
+                (fill / no-data).
+              </p>
+            </div>
+            <div className="space-y-1">
               <label className="text-xs text-neutral-700 flex items-center gap-1">
                 Color Formula
                 <InfoPopover>
@@ -454,9 +475,18 @@ export const VizConfigPanel = ({
                 type="text"
                 value={vizParams.colorFormula || ''}
                 onChange={(e) => update('colorFormula', e.target.value || undefined)}
-                placeholder="e.g. gamma RGB 3.5 saturation 1.7"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                onBlur={(e) => {
+                  const fixed = normalizeColorFormula(e.target.value);
+                  if (fixed !== e.target.value) update('colorFormula', fixed || undefined);
+                }}
+                placeholder="e.g. gamma RGB 3.5, saturation 1.7"
+                className={`w-full border rounded px-2 py-1.5 text-xs font-mono focus:ring-1 outline-none ${
+                  colorFormulaError
+                    ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                    : 'border-neutral-200 focus:border-brand-600 focus:ring-brand-600'
+                }`}
               />
+              {colorFormulaError && <p className="text-[11px] text-red-600">{colorFormulaError}</p>}
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Resampling</label>
