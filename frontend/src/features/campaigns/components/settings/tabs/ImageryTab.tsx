@@ -33,7 +33,7 @@ const ImageryTab = ({ imagery, views, basemaps, campaignId, campaignBbox, onChan
           <div className="flex items-center gap-2 text-sm">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
             <span className="text-neutral-700 font-medium">Unsaved imagery changes</span>
-            <span className="text-neutral-500">— your edits are local until you save.</span>
+            <span className="text-neutral-500">- your edits are local until you save.</span>
           </div>
           <div className="flex items-center gap-2">
             <button

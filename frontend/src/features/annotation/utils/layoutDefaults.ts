@@ -1,6 +1,6 @@
 import type { Layout, LayoutItem } from 'react-grid-layout';
 
-/** Mirror of backend src/campaigns/constants.py — keep in sync if either side
+/** Mirror of backend src/campaigns/constants.py - keep in sync if either side
  *  changes. Used when the user adds a previously-hidden window back to the
  *  canvas: pick a sensible size and slot it at the bottom of the grid. */
 export const VIEW_LAYOUT_COLS_PER_ROW = 6;

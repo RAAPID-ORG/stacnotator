@@ -211,7 +211,7 @@ def save_imagery_editor_state(
             pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
             pending_registrations.extend(pending)
             source_id_map[str(src_idx)] = db_src.id
-            # Pair every collection by index — order of db_src.collections matches
+            # Pair every collection by index - order of db_src.collections matches
             # the payload after _update_source_in_place runs.
             for col_idx, col in enumerate(db_src.collections):
                 collection_id_map[f"{src_idx}:{col_idx}"] = col.id
@@ -316,7 +316,7 @@ def _resolve_view_refs(
 
     Accepts either real numeric IDs (existing entities) or positional keys
     ("<src_idx>" / "<src_idx>:<col_idx>") for newly-created entities. Drops
-    refs that don't resolve — defensive against stale payloads.
+    refs that don't resolve - defensive against stale payloads.
     """
     out: list[dict] = []
     for ref in refs:
@@ -553,7 +553,7 @@ def _update_collection_in_place(
         db.flush()
         return (db_col, col_create, src_create)
 
-    # No search/slice changes — just rebake viz params into existing URLs.
+    # No search/slice changes - just rebake viz params into existing URLs.
     viz_by_name = {
         v.name: v.viz_params.model_dump(exclude_none=True)
         for v in col_create.stac_config.visualizations
@@ -1457,7 +1457,7 @@ def _sync_view_layouts(
 ) -> None:
     """Apply a collection-set delta to every canvas_layout for a view.
 
-    Removed collections drop out of the grid (other items keep their positions —
+    Removed collections drop out of the grid (other items keep their positions -
     react-grid-layout tolerates gaps). Added collections append at the bottom in
     a new row, so user customizations remain visually intact.
     """

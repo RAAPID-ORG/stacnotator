@@ -1664,7 +1664,7 @@ const CoverSliceSection = ({
         {examples.length > 0 && (
           <div className="space-y-2">
             <div className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">
-              Preview — your first{' '}
+              Preview - your first{' '}
               {examples.length === 1 ? 'collection' : `${examples.length} collections`}
             </div>
             <div className="space-y-2">
@@ -1700,7 +1700,7 @@ const CoverSliceSection = ({
               ))}
             </div>
             <p className="text-[11px] text-neutral-500 leading-snug">
-              The highlighted slice is the cover — what annotators see first.
+              The highlighted slice is the cover - what annotators see first.
             </p>
           </div>
         )}
@@ -1717,7 +1717,7 @@ const CoverSliceSection = ({
             <span>
               <span className="font-medium">Pick an existing slice as the cover</span>
               <span className="block text-[11px] text-neutral-500 mt-0.5">
-                Typically the first slice — fast and no extra work for the backend.
+                Typically the first slice - fast and no extra work for the backend.
               </span>
             </span>
           </label>

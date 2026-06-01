@@ -38,7 +38,7 @@ export const HiddenWindowsPanel = () => {
 
   if (!isEditingLayout) return null;
 
-  // Collapsed chip — always rendered so the count stays visible. Auto-collapse
+  // Collapsed chip - always rendered so the count stays visible. Auto-collapse
   // when there's nothing hidden so the user isn't nagged by an empty panel.
   if (!expanded) {
     return (

@@ -71,7 +71,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       const ok = await showConfirmDialog({
         title: 'Rename existing labels?',
         description:
-          `Renaming labels affects how existing annotations display — the underlying ` +
+          `Renaming labels affects how existing annotations display - the underlying ` +
           `label IDs stay the same, so no data is lost, but every annotation tagged ` +
           `with ${renamedLabels.length === 1 ? 'this label' : 'these labels'} will ` +
           `now show the new name everywhere (review, exports, statistics).`,

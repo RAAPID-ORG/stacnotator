@@ -872,7 +872,7 @@ export const createImagery = <ThrowOnError extends boolean = false>(options: Opt
  * Save Imagery
  *
  * Upsert the campaign's full imagery editor state. Used by the settings
- * edit flow's Save button — reconciles adds/updates/deletes across sources,
+ * edit flow's Save button - reconciles adds/updates/deletes across sources,
  * collections, slices, views, and basemaps in a single transaction.
  */
 export const saveImagery = <ThrowOnError extends boolean = false>(options: Options<SaveImageryData, ThrowOnError>) => (options.client ?? client).put<SaveImageryResponses, SaveImageryErrors, ThrowOnError>({

@@ -3,7 +3,7 @@
  *
  * The data model has two related fields: `cover_slice_index` (which slice is
  * shown first) and `has_dedicated_cover` (true iff that slice is an
- * out-of-band cover with override viz params — exclude it from regular
+ * out-of-band cover with override viz params - exclude it from regular
  * navigation). Centralising the resolution avoids inline checks scattered
  * around the annotation feature.
  */
@@ -16,7 +16,7 @@ interface CollectionLike {
 export interface SliceView {
   /** Index of the slice to show first (the collection's representative). */
   coverIndex: number;
-  /** Slice indices that participate in a/d navigation — regular slices only,
+  /** Slice indices that participate in a/d navigation - regular slices only,
    *  no out-of-band dedicated cover. */
   navIndices: number[];
   /** Slice indices visible in the time-picker dropdown: all regular slices

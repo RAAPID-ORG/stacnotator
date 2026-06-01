@@ -63,7 +63,7 @@ export const CollectionEditor = ({
         if (match?.item_assets) setAvailableAssets(match.item_assets);
       })
       .catch(() => {
-        // Network/metadata failure is non-fatal — VizConfigPanel just shows
+        // Network/metadata failure is non-fatal - VizConfigPanel just shows
         // text inputs as it does without metadata.
       });
     return () => {
@@ -357,7 +357,7 @@ export const CollectionEditor = ({
                         />
                       </div>
                     </div>
-                    {/* Custom cover viz overrides — only on the dedicated custom cover slice. */}
+                    {/* Custom cover viz overrides - only on the dedicated custom cover slice. */}
                     {isCustomCover &&
                       collection.data.type === 'stac_browser' &&
                       (collection.data as StacBrowserCollectionData).coverVisualizations &&

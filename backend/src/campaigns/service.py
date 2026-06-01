@@ -976,14 +976,17 @@ def assign_reviewers_percentage(
             existing_assignments_map[assignment.task_id] = set()
         existing_assignments_map[assignment.task_id].add(assignment.user_id)
 
-    # Decide which (task, reviewer) pairs are new before instantiating
+    # Decide which (task, reviewer) pairs are new before instantiating.
+    # Exclude users already assigned to a task before sampling so that
+    # num_reviewers reviewers are always added (not fewer due to post-sample
+    # filtering).
     new_pairs: list[tuple[int, UUID]] = []
     for task in tasks_to_review:
         existing_user_ids = existing_assignments_map.get(task.id, set())
-        selected_reviewers = random.sample(reviewer_ids, min(num_reviewers, len(reviewer_ids)))
+        eligible = [uid for uid in reviewer_ids if uid not in existing_user_ids]
+        selected_reviewers = random.sample(eligible, min(num_reviewers, len(eligible)))
         for user_id in selected_reviewers:
-            if user_id not in existing_user_ids:
-                new_pairs.append((task.id, user_id))
+            new_pairs.append((task.id, user_id))
 
     seeded_status = _seed_assignment_status(db, new_pairs)
 
@@ -1069,14 +1072,16 @@ def assign_reviewers_fixed(
             existing_assignments_map[assignment.task_id] = set()
         existing_assignments_map[assignment.task_id].add(assignment.user_id)
 
-    # Decide which (task, reviewer) pairs are new before instantiating
+    # Decide which (task, reviewer) pairs are new before instantiating.
+    # Exclude users already assigned to a task before sampling so that
+    # num_reviewers reviewers are always added.
     new_pairs: list[tuple[int, UUID]] = []
     for task in tasks_to_review:
         existing_user_ids = existing_assignments_map.get(task.id, set())
-        selected_reviewers = random.sample(reviewer_ids, min(num_reviewers, len(reviewer_ids)))
+        eligible = [uid for uid in reviewer_ids if uid not in existing_user_ids]
+        selected_reviewers = random.sample(eligible, min(num_reviewers, len(eligible)))
         for user_id in selected_reviewers:
-            if user_id not in existing_user_ids:
-                new_pairs.append((task.id, user_id))
+            new_pairs.append((task.id, user_id))
 
     seeded_status = _seed_assignment_status(db, new_pairs)
 

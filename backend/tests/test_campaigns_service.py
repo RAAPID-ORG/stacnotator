@@ -384,6 +384,76 @@ class TestAssignReviewersPercentage:
         assert assignments == []
         db.commit.assert_called_once()
 
+    def test_original_assignee_never_reviews_own_task(self):
+        """Assignee in the pool must not be picked as reviewer for their own tasks."""
+        db = _mock_db()
+        annotator, r1, r2 = uuid4(), uuid4(), uuid4()
+        tasks = _make_tasks([10, 20, 30])
+        existing = [
+            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            for tid in [10, 20, 30]
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                tasks,
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(
+                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert all(a.user_id != annotator for a in assignments), (
+            "Original annotator was assigned as a reviewer for their own task"
+        )
+
+    def test_pool_with_assignee_still_fills_num_reviewers(self):
+        """
+        3-person pool (original annotator + 2 others), num_reviewers=2.
+        Every task must receive exactly 2 new reviewers - not 1 - because the
+        assignee is excluded from the eligible pool *before* sampling.
+        """
+        db = _mock_db()
+        annotator, r1, r2 = uuid4(), uuid4(), uuid4()
+        tasks = _make_tasks([10, 20, 30])
+        existing = [
+            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            for tid in [10, 20, 30]
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                tasks,
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(
+                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+
+        # Each task should get exactly 2 new reviewers (r1 and r2)
+        from collections import Counter
+
+        per_task = Counter(a.task_id for a in new_assignments)
+        assert set(per_task.keys()) == {10, 20, 30}
+        assert all(count == 2 for count in per_task.values()), (
+            f"Expected 2 new reviewers per task, got: {dict(per_task)}"
+        )
+        # Total assignments per task = 1 original + 2 reviewers = 3
+        assert len(new_assignments) == 6  # 3 tasks × 2 reviewers
+
 
 class TestAssignReviewersFixed:
     def test_zero_tasks_raises_400(self):
@@ -435,6 +505,73 @@ class TestAssignReviewersFixed:
         assert all(a.task_id in {10, 20, 30} for a in assignments)
         assert all(a.user_id == u1 for a in assignments)
         db.commit.assert_called_once()
+
+    def test_original_assignee_never_reviews_own_task(self):
+        """Assignee in the pool must not be picked as reviewer for their own tasks."""
+        db = _mock_db()
+        annotator, r1, r2 = uuid4(), uuid4(), uuid4()
+        tasks = _make_tasks([10, 20, 30])
+        existing = [
+            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            for tid in [10, 20, 30]
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                tasks,
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_fixed(
+                db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert all(a.user_id != annotator for a in assignments), (
+            "Original annotator was assigned as a reviewer for their own task"
+        )
+
+    def test_pool_with_assignee_still_fills_num_reviewers(self):
+        """
+        3-person pool (original annotator + 2 others), num_reviewers=2.
+        Every selected task must receive exactly 2 new reviewers, not 1.
+        """
+        db = _mock_db()
+        annotator, r1, r2 = uuid4(), uuid4(), uuid4()
+        tasks = _make_tasks([10, 20, 30])
+        existing = [
+            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            for tid in [10, 20, 30]
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                tasks,
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_fixed(
+                db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+
+        from collections import Counter
+
+        per_task = Counter(a.task_id for a in new_assignments)
+        assert set(per_task.keys()) == {10, 20, 30}
+        assert all(count == 2 for count in per_task.values()), (
+            f"Expected 2 new reviewers per task, got: {dict(per_task)}"
+        )
+        assert len(new_assignments) == 6  # 3 tasks × 2 reviewers
 
 
 class TestUpdateCampaignVisibility:

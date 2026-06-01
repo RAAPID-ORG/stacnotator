@@ -92,7 +92,7 @@ export const useSliceNavigation = () => {
         return;
       }
 
-      // End of current collection — step into the neighbour collection and
+      // End of current collection - step into the neighbour collection and
       // land on its first/last non-empty regular slice. Set the slice first
       // so setActiveCollectionId picks it up via collectionSliceIndices.
       const targetIdx =
@@ -119,7 +119,7 @@ export const useSliceNavigation = () => {
     ]
   );
 
-  /** Shift+a/d — switch collection. The reducer restores the per-collection
+  /** Shift+a/d - switch collection. The reducer restores the per-collection
    *  remembered slice (or the cover_slice_index on first visit). */
   const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {

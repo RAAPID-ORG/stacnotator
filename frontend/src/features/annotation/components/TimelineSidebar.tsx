@@ -139,7 +139,7 @@ const TimelineSidebar = ({
     if (!step) return;
 
     dragCollectionIdRef.current = step.collectionId;
-    // Defer to setActiveCollectionId — it restores the per-collection stored
+    // Defer to setActiveCollectionId - it restores the per-collection stored
     // slice (or the cover_slice_index on first visit), same as shift+a/d.
     onCollectionChangeRef.current?.(step.collectionId);
 

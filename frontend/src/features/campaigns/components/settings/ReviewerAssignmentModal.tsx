@@ -87,10 +87,7 @@ export function ReviewerAssignmentModal({
     <div className="fixed inset-0 bg-neutral-900/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-neutral-300">
-          <h2 className="text-xl font-semibold text-neutral-900">Assign Reviewers to Tasks</h2>
-          <p className="text-sm text-neutral-500 mt-1">
-            Quality assurance: Assign multiple reviewers to tasks
-          </p>
+          <h2 className="text-xl font-semibold text-neutral-900">Set Up Task Reviews</h2>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -125,7 +122,9 @@ export function ReviewerAssignmentModal({
           {activeTab === 'percentage' && (
             <div className="mb-4 p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-3">
-                Assign reviewers to a percentage of tasks. Tasks will be randomly selected.
+                A random subset of tasks will be selected for review. For each selected task,{' '}
+                <strong>{reviewersPerTask}</strong> user(s) from your pool will be assigned to
+                review it.
               </p>
 
               <div className="mb-3">
@@ -164,7 +163,8 @@ export function ReviewerAssignmentModal({
           {activeTab === 'fixed' && (
             <div className="mb-4 p-4 bg-neutral-50 rounded-lg">
               <p className="text-sm text-neutral-600 mb-3">
-                Assign reviewers to a fixed number of tasks. Tasks will be randomly selected.
+                An exact number of randomly selected tasks will each be reviewed by{' '}
+                <strong>{reviewersPerTask}</strong> user(s) from your pool.
               </p>
 
               <div className="mb-3">
@@ -201,9 +201,12 @@ export function ReviewerAssignmentModal({
           )}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Select Reviewers (need at least {reviewersPerTask}):
-            </label>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Reviewer Pool</label>
+            <p className="text-xs text-neutral-500 mb-2">
+              The system randomly picks <strong>{reviewersPerTask}</strong> of these users per task.
+              Users are never assigned to review a task they originally annotated. Select at least{' '}
+              {reviewersPerTask}.
+            </p>
             <button
               onClick={handleSelectAllReviewers}
               className="text-sm text-brand-700 hover:text-brand-600 mb-3"
@@ -246,8 +249,10 @@ export function ReviewerAssignmentModal({
           {selectedReviewers.length > 0 && canSubmit && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Preview:</strong> Will assign {reviewersPerTask} reviewers to{' '}
-                {activeTab === 'percentage' ? tasksAffectedPercentage : numTasks} tasks
+                <strong>Preview:</strong> Randomly assign {reviewersPerTask} reviewer(s) from your{' '}
+                {selectedReviewers.length}-person pool to each of the{' '}
+                {activeTab === 'percentage' ? tasksAffectedPercentage : numTasks} selected tasks.
+                Users won't review tasks they annotated.
               </p>
             </div>
           )}

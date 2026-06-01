@@ -29,7 +29,7 @@ const RescaleInfo = () => (
     </p>
     <p>
       By default TiTiler rescales using the input datatype's min/max (e.g. 0–255 for 8-bit PNGs,
-      0–65535 for 16-bit). For DEMs and similar this can wash the image out — set explicit rescale
+      0–65535 for 16-bit). For DEMs and similar this can wash the image out - set explicit rescale
       values that make sense for your data.
     </p>
     <p className="text-neutral-500 italic">
@@ -60,15 +60,15 @@ const ColorFormulaInfo = () => (
     <p>Supported ops:</p>
     <ul className="list-disc pl-4 space-y-1">
       <li>
-        <strong>gamma &lt;bands&gt; &lt;value&gt;</strong> — power-law correction. Values &gt; 1
+        <strong>gamma &lt;bands&gt; &lt;value&gt;</strong> - power-law correction. Values &gt; 1
         brighten midtones (darker → lighter); &lt; 1 darken. Typical: 1.5–3.5.
       </li>
       <li>
-        <strong>saturation &lt;value&gt;</strong> — colour intensity. 1.0 = unchanged, &gt; 1 more
+        <strong>saturation &lt;value&gt;</strong> - colour intensity. 1.0 = unchanged, &gt; 1 more
         vivid, &lt; 1 muted toward grayscale. Typical: 0.8–1.5. No bands arg.
       </li>
       <li>
-        <strong>sigmoidal &lt;bands&gt; &lt;contrast&gt; &lt;bias&gt;</strong> — perceptual contrast
+        <strong>sigmoidal &lt;bands&gt; &lt;contrast&gt; &lt;bias&gt;</strong> - perceptual contrast
         curve. <em>contrast</em> 5–25 (higher = punchier); <em>bias</em> 0–1 (pivot point, 0.5 =
         center, &gt; 0.5 lifts shadows).
       </li>
@@ -246,7 +246,7 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Band picker (with asset metadata) — falls back to a text input when
+      {/* Band picker (with asset metadata) - falls back to a text input when
           the collection's STAC metadata isn't loaded (e.g. editing a saved
           collection without re-fetching). */}
       {rasterAssets.length > 0 ? (

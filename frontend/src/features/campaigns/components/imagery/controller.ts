@@ -112,7 +112,7 @@ export function useDraftController({
   setState,
   campaignBbox = null,
 }: DraftControllerOptions): ImageryController {
-  // Read freshest state on writes — without this, queued setState calls
+  // Read freshest state on writes - without this, queued setState calls
   // would clobber each other via stale closures.
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -212,7 +212,7 @@ export function useDraftController({
       },
 
       refreshCollection: async () => {
-        // No-op in draft — collections resolve at campaign-create time.
+        // No-op in draft - collections resolve at campaign-create time.
       },
 
       addView: async (view) => {
@@ -408,7 +408,7 @@ export function usePersistedController({
   initialStateRef.current = initialState;
 
   // Set by save() right before it triggers refetch(). The useEffect below uses
-  // it to know that the incoming props update is the post-save refresh — at
+  // it to know that the incoming props update is the post-save refresh - at
   // that point we adopt server truth unconditionally and clear dirty/pending.
   const awaitingPostSaveRefetch = useRef(false);
 
@@ -419,7 +419,7 @@ export function usePersistedController({
       setIsDirty(false);
       setPending(false);
     } else if (!isDirty) {
-      // Routine prop refresh while user has no pending edits — adopt server
+      // Routine prop refresh while user has no pending edits - adopt server
       // truth. If the user is mid-edit (isDirty=true), preserve their work.
       setState(initialState);
     }
@@ -503,7 +503,7 @@ export function usePersistedController({
             src.id === sourceId ? { ...src, collections: [...src.collections, collection] } : src
           ),
           // Auto-attach the new collection to any view that already shows this
-          // source — otherwise the View Layout tab wouldn't list the new
+          // source - otherwise the View Layout tab wouldn't list the new
           // collection until the user manually toggled it in.
           views: s.views.map((v) =>
             v.collectionRefs.some((r) => r.sourceId === sourceId)
@@ -553,7 +553,7 @@ export function usePersistedController({
       refreshCollection: async (_sourceId, collectionId) => {
         // Refresh is a server-side side-effect (re-fetch STAC items, re-register
         // mosaic) and operates against persisted state. Block when dirty so it
-        // doesn't run against a stale config — user must Save first.
+        // doesn't run against a stale config - user must Save first.
         if (isDirty) {
           handleError(
             new Error('Save your changes before refreshing this collection.'),

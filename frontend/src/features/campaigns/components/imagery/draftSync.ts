@@ -9,7 +9,7 @@ import type { Basemap, CollectionItem, ImagerySource, ImageryStepState, VizParam
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
  *  server), freshly-added entities are random UUID slices. Only emit `id`
- *  when it's a real DB ID — backend treats missing IDs as "create this
+ *  when it's a real DB ID - backend treats missing IDs as "create this
  *  entity". Strict regex avoids `Number()` quirks (scientific notation, hex,
  *  whitespace) silently coercing a UUID slice into a giant fake ID. */
 const toIdField = (id: string): number | undefined => {

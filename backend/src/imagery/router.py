@@ -55,7 +55,7 @@ def save_imagery(
     db: Session = Depends(get_db),
 ):
     """Upsert the campaign's full imagery editor state. Used by the settings
-    edit flow's Save button — reconciles adds/updates/deletes across sources,
+    edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, views, and basemaps in a single transaction."""
     result = service.save_imagery_editor_state(
         db,

@@ -106,7 +106,7 @@ export const SourceEditor = ({
 
   const addCollectionsFromCatalog = async (collections: CollectionItem[]) => {
     for (const c of collections) {
-      await controller.addCollection(source.id, c); // sequential — persisted mode hits the API per call
+      await controller.addCollection(source.id, c); // sequential - persisted mode hits the API per call
     }
     setAddStep(null);
   };

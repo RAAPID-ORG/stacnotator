@@ -180,7 +180,7 @@ export const AddSourceWizard = ({
             >
               <span className="text-sm font-medium text-neutral-900 flex items-center gap-1.5">
                 <IconStac className="w-3.5 h-3.5 text-brand-600" />
-                Yes — my imagery is in a STAC catalog
+                Yes - my imagery is in a STAC catalog
               </span>
               <p className="text-xs text-neutral-500 mt-1 leading-snug">
                 <strong>STAC</strong> (SpatioTemporal Asset Catalog) is a standard for organizing
@@ -195,7 +195,7 @@ export const AddSourceWizard = ({
               className="w-full text-left px-4 py-3.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
             >
               <span className="text-sm font-medium text-neutral-900">
-                No — I have raw XYZ tile URLs
+                No - I have raw XYZ tile URLs
               </span>
               <p className="text-xs text-neutral-500 mt-1 leading-snug">
                 Use this if you have a tile server URL with{' '}
@@ -306,7 +306,7 @@ const CustomXyzStep = ({ onBack, onConfirm }: CustomXyzStepProps) => {
           <div className="flex items-center justify-between">
             <p className="text-[11px] text-neutral-500 leading-snug">
               A source can hold one or more <strong>collections</strong>, each covering its own time
-              window. Most XYZ setups need just one — but you can add more (e.g. one per year).
+              window. Most XYZ setups need just one - but you can add more (e.g. one per year).
             </p>
             <button
               type="button"

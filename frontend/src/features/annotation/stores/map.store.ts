@@ -155,7 +155,7 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({
       collectionSliceIndices: { ...s.collectionSliceIndices, [collectionId]: index },
       // If this collection is the one in the main view, keep activeSliceIndex
-      // in sync — the small window and main view are the same surface for it.
+      // in sync - the small window and main view are the same surface for it.
       ...(s.activeCollectionId === collectionId ? { activeSliceIndex: index } : {}),
     })),
 
