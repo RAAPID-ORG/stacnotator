@@ -205,8 +205,9 @@ def update_campaign_bbox(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    bbox = req.model_dump() if hasattr(req, "model_dump") else req.dict()
-    return service.update_campaign_bbox(db, campaign_id, bbox)
+    return service.update_campaign_bbox(
+        db, campaign_id, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
+    )
 
 
 @router.patch("/{campaign_id}/labels", response_model=CampaignOut)

@@ -42,8 +42,6 @@ class ImagerySliceOut(BaseModel):
 
 
 class CollectionStacConfigOut(BaseModel):
-    registration_url: str
-    search_body: str
     catalog_url: str | None = None
     stac_collection_id: str | None = None
     viz_params: dict | None = None
@@ -194,8 +192,6 @@ class NamedVizParamsCreate(BaseModel):
 
 
 class CollectionStacConfigCreate(BaseModel):
-    registration_url: str = ""
-    search_body: str = ""
     catalog_url: str | None = None
     stac_collection_id: str | None = None
     visualizations: list[NamedVizParamsCreate] = []

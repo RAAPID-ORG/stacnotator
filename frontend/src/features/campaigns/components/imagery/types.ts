@@ -16,13 +16,6 @@ export interface ImagerySlice {
   vizUrls?: VisualizationUrl[];
 }
 
-export interface StacCollectionData {
-  type: 'stac';
-  registrationUrl: string;
-  searchBody: string;
-  vizUrls: VisualizationUrl[];
-}
-
 export interface ManualCollectionData {
   type: 'manual';
   vizUrls: VisualizationUrl[];
@@ -92,7 +85,7 @@ export interface CollectionItem {
   coverSliceIndex: number;
   /** True when the slice at coverSliceIndex is an out-of-band dedicated cover with override viz params / search query. */
   hasDedicatedCover: boolean;
-  data: StacCollectionData | ManualCollectionData | StacBrowserCollectionData;
+  data: ManualCollectionData | StacBrowserCollectionData;
   /** Temporal window grouping interval (maps to ImageryCreate.window_interval) */
   windowInterval?: number | null;
   /** Temporal window grouping unit (maps to ImageryCreate.window_unit) */

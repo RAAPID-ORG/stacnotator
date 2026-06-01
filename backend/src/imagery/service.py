@@ -33,7 +33,6 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
     ImageryViewCreate,
 )
-from src.imagery.stac_registration import register_collection_slices
 from src.tiling.router import build_viz_query_string, register_mosaic_sync
 from src.tiling.stac_client import _is_mpc
 
@@ -448,8 +447,6 @@ def _update_collection_in_place(
             db.add(
                 CollectionStacConfig(
                     collection_id=db_col.id,
-                    registration_url=col_create.stac_config.registration_url,
-                    search_body=col_create.stac_config.search_body,
                     catalog_url=col_create.stac_config.catalog_url,
                     stac_collection_id=col_create.stac_config.stac_collection_id,
                     viz_params=(
@@ -638,19 +635,6 @@ def _create_collection_record(
     has_cover = _payload_has_dedicated_cover(col_create)
 
     if col_create.stac_config:
-        # {searchId} URL templates from the frontend get persisted so we can
-        # re-register later when the campaign bbox changes.
-        viz_url_templates = (
-            [
-                {"viz_name": vu.visualization_name, "url_template": vu.tile_url}
-                for vu in col_create.slices[0].tile_urls
-            ]
-            if col_create.slices and col_create.slices[0].tile_urls
-            else None
-        )
-        # The DB column stores the first viz's params as a representative
-        # (used by legacy update/refresh paths). Per-viz tile URLs live on
-        # SliceTileUrl rows further down.
         first_viz = (
             col_create.stac_config.visualizations[0]
             if col_create.stac_config.visualizations
@@ -659,9 +643,6 @@ def _create_collection_record(
         db.add(
             CollectionStacConfig(
                 collection_id=collection.id,
-                registration_url=col_create.stac_config.registration_url,
-                search_body=col_create.stac_config.search_body,
-                viz_url_templates=viz_url_templates,
                 catalog_url=col_create.stac_config.catalog_url,
                 stac_collection_id=col_create.stac_config.stac_collection_id,
                 viz_params=(
@@ -699,9 +680,6 @@ def _create_collection_record(
                 )
             )
 
-    if col_create.stac_config and col_create.slices and col_create.stac_config.registration_url:
-        _register_stac_collection(db, collection, col_create, src_create, bbox)
-
     pending_entry: tuple | None = None
     if (
         col_create.stac_config
@@ -711,78 +689,6 @@ def _create_collection_record(
     ):
         pending_entry = (collection, col_create, src_create)
     return collection, pending_entry
-
-
-def _register_stac_collection(
-    db: Session,
-    collection: ImageryCollection,
-    col_create,
-    src_create: ImagerySourceCreate,
-    bbox: list[float],
-) -> None:
-    """Register STAC mosaics for a collection's slices and persist resolved tile URLs."""
-    stac = col_create.stac_config
-    if not stac:
-        return
-
-    # Build viz URL templates from the collection data
-    viz_templates = (
-        [
-            {"viz_name": vu.visualization_name, "url_template": vu.tile_url}
-            for vu in col_create.slices[0].tile_urls
-        ]
-        if col_create.slices and col_create.slices[0].tile_urls
-        else []
-    )
-
-    # If no tile_urls on slices, try to use viz URLs from the stac config's first slice
-    # (the frontend sends viz URL templates as tile_urls with {searchId} placeholders)
-    if not viz_templates:
-        return
-
-    slice_descriptors = [
-        {"index": i, "start_date": s.start_date, "end_date": s.end_date}
-        for i, s in enumerate(col_create.slices)
-    ]
-
-    try:
-        results = register_collection_slices(
-            registration_url=stac.registration_url,
-            search_body=stac.search_body,
-            bbox=bbox,
-            slices=slice_descriptors,
-            viz_url_templates=viz_templates,
-        )
-
-        # Persist resolved URLs
-        db_slices = (
-            db.execute(
-                select(ImagerySlice)
-                .where(ImagerySlice.collection_id == collection.id)
-                .order_by(ImagerySlice.display_order)
-            )
-            .scalars()
-            .all()
-        )
-
-        for result in results:
-            idx = result["slice_index"]
-            if idx < len(db_slices):
-                db.execute(delete(SliceTileUrl).where(SliceTileUrl.slice_id == db_slices[idx].id))
-                for tile in result["tile_urls"]:
-                    db.add(
-                        SliceTileUrl(
-                            slice_id=db_slices[idx].id,
-                            visualization_name=tile["viz_name"],
-                            tile_url=tile["url"],
-                        )
-                    )
-    except Exception:
-        logger.warning(
-            "STAC registration failed for collection %s - tile URLs left as templates",
-            collection.name,
-            exc_info=True,
-        )
 
 
 def _sanitize_stac_error(e: Exception) -> str:
@@ -1175,13 +1081,12 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 
 
 def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
-    """
-    Re-register STAC mosaics for every STAC-based collection in a campaign
-    using a new bounding box.  Returns the number of collections updated.
+    """Re-register every stac_browser collection in a campaign with a new bbox.
 
-    Requires that ``viz_url_templates`` was previously persisted on each
-    ``CollectionStacConfig``.  Collections without stored templates are skipped.
+    Returns the number of collections updated.
     """
+    from datetime import datetime as dt
+
     sources = (
         db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
         .scalars()
@@ -1192,7 +1097,7 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
     for source in sources:
         for collection in source.collections:
             stac = collection.stac_config
-            if not stac or not stac.viz_url_templates:
+            if not stac or not stac.catalog_url:
                 continue
 
             slices = (
@@ -1207,42 +1112,111 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
             if not slices:
                 continue
 
-            slice_descriptors = [
-                {"index": i, "start_date": s.start_date, "end_date": s.end_date}
-                for i, s in enumerate(slices)
-            ]
-
-            try:
-                results = register_collection_slices(
-                    registration_url=stac.registration_url,
-                    search_body=stac.search_body,
-                    bbox=bbox,
-                    slices=slice_descriptors,
-                    viz_url_templates=stac.viz_url_templates,
+            collection_updated = False
+            for sl_idx, sl in enumerate(slices):
+                is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
+                custom_query = (
+                    stac.cover_search_query
+                    if (is_cover and stac.cover_search_query)
+                    else stac.search_query
                 )
+                viz_params = (
+                    stac.cover_viz_params
+                    if (is_cover and stac.cover_viz_params)
+                    else stac.viz_params
+                )
+                dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
 
-                for result in results:
-                    idx = result["slice_index"]
-                    if idx < len(slices):
-                        db.execute(
-                            delete(SliceTileUrl).where(SliceTileUrl.slice_id == slices[idx].id)
-                        )
-                        for tile in result["tile_urls"]:
-                            db.add(
-                                SliceTileUrl(
-                                    slice_id=slices[idx].id,
-                                    visualization_name=tile["viz_name"],
-                                    tile_url=tile["url"],
-                                )
+                for tu in sl.tile_urls:
+                    try:
+                        if tu.tile_provider == "self_hosted":
+                            result = register_mosaic_sync(
+                                catalog_url=stac.catalog_url,
+                                collection_id=stac.stac_collection_id,
+                                bbox=bbox,
+                                datetime_range=dt_range,
+                                search_query=custom_query,
                             )
+                            mosaic_id = result["mosaic_id"]
+                            item_refs = result["item_refs"]
+
+                            reg = db.execute(
+                                select(MosaicRegistration).where(
+                                    MosaicRegistration.mosaic_id == mosaic_id
+                                )
+                            ).scalar_one_or_none()
+                            if reg:
+                                reg.item_count = len(item_refs)
+                                reg.assets_info = result.get("assets")
+                                reg.status = "ready" if item_refs else "empty"
+                                reg.registered_at = dt.utcnow()
+                                reg.error_message = None
+                                db.execute(
+                                    delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id)
+                                )
+                            else:
+                                db.add(
+                                    MosaicRegistration(
+                                        mosaic_id=mosaic_id,
+                                        catalog_url=stac.catalog_url,
+                                        stac_collection_id=stac.stac_collection_id,
+                                        bbox=bbox,
+                                        datetime_range=dt_range,
+                                        max_cloud_cover=stac.max_cloud_cover,
+                                        item_count=len(item_refs),
+                                        assets_info=result.get("assets"),
+                                        status="ready" if item_refs else "empty",
+                                        registered_at=dt.utcnow(),
+                                    )
+                                )
+                            db.flush()
+                            for ref in item_refs:
+                                db.add(
+                                    MosaicItem(
+                                        mosaic_id=mosaic_id,
+                                        item_id=ref["id"],
+                                        href=ref["href"],
+                                        bbox_west=ref["bbox"][0],
+                                        bbox_south=ref["bbox"][1],
+                                        bbox_east=ref["bbox"][2],
+                                        bbox_north=ref["bbox"][3],
+                                        datetime=ref.get("datetime", ""),
+                                        cloud_cover=ref.get("cloud_cover"),
+                                        geom=_bbox_to_wkt(
+                                            ref["bbox"][0],
+                                            ref["bbox"][1],
+                                            ref["bbox"][2],
+                                            ref["bbox"][3],
+                                        ),
+                                        stac_item=ref.get("stac_item"),
+                                    )
+                                )
+                            base_url = f"/api/stac/mosaic/{mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+                            viz_qs = build_viz_query_string(viz_params)
+                            tu.tile_url = f"{base_url}?{viz_qs}" if viz_qs else base_url
+                            tu.mosaic_id = mosaic_id
+                            collection_updated = True
+
+                        elif tu.tile_provider == "mpc":
+                            mpc_search_id = _register_mpc_slice(stac, sl, bbox, custom_query)
+                            base_url = (
+                                MPC_TILES_BASE.replace("{searchId}", mpc_search_id)
+                                + f"?collection={stac.stac_collection_id}&pixel_selection=first"
+                            )
+                            viz_qs = build_viz_query_string(viz_params, for_mpc=True)
+                            tu.tile_url = f"{base_url}&{viz_qs}" if viz_qs else base_url
+                            collection_updated = True
+
+                    except Exception:
+                        logger.warning(
+                            "STAC re-registration failed for collection %s slice %s",
+                            collection.name,
+                            sl.name,
+                            exc_info=True,
+                        )
+
+            if collection_updated:
                 updated += 1
-            except Exception:
-                logger.warning(
-                    "STAC re-registration failed for collection %s (id=%s)",
-                    collection.name,
-                    collection.id,
-                    exc_info=True,
-                )
 
     return updated
 

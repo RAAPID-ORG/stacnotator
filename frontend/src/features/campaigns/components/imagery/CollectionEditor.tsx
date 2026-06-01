@@ -3,7 +3,6 @@ import type {
   CollectionItem,
   ImagerySlice,
   VisualizationUrl,
-  StacCollectionData,
   StacBrowserCollectionData,
 } from './types';
 import { emptySlice, sliceDateRange } from './types';
@@ -72,12 +71,7 @@ export const CollectionEditor = ({
     };
   }, [collection.data]);
 
-  const typeLabel =
-    collection.data.type === 'stac'
-      ? 'STAC'
-      : collection.data.type === 'stac_browser'
-        ? 'Catalog'
-        : 'XYZ';
+  const typeLabel = collection.data.type === 'stac_browser' ? 'Catalog' : 'XYZ';
 
   const updateSlice = (sliceId: string, updates: Partial<ImagerySlice>) => {
     onChange({
@@ -170,19 +164,6 @@ export const CollectionEditor = ({
       </div>
     );
   };
-
-  const updateVizUrl = (vizName: string, url: string) => {
-    const existing = collection.data.vizUrls;
-    const idx = existing.findIndex((v) => v.vizName === vizName);
-    const updated: VisualizationUrl[] =
-      idx >= 0
-        ? existing.map((v, i) => (i === idx ? { ...v, url } : v))
-        : [...existing, { vizName, url }];
-    onChange({ data: { ...collection.data, vizUrls: updated } });
-  };
-
-  const getVizUrl = (vizName: string): string =>
-    collection.data.vizUrls.find((v) => v.vizName === vizName)?.url ?? '';
 
   return (
     <div className={inModal ? '' : 'rounded-md border border-neutral-200 bg-white'}>
@@ -468,108 +449,6 @@ export const CollectionEditor = ({
             })()}
           </div>
 
-          {/* STAC-specific fields */}
-          {collection.data.type === 'stac' &&
-            (() => {
-              const stac = collection.data as StacCollectionData;
-
-              /* Check which required placeholders are present in the search body */
-              const hasStart = stac.searchBody.includes('{startDatetimePlaceholder}');
-              const hasEnd = stac.searchBody.includes('{endDatetimePlaceholder}');
-              const hasBbox = stac.searchBody.includes('{campaignBBoxPlaceholder}');
-
-              /* Extract cloud_cover value from search body if present */
-              const cloudMatch = stac.searchBody.match(/"eo:cloud_cover"\s*\}\s*,\s*(\d+)/);
-              const cloudCoverValue = cloudMatch ? cloudMatch[1] : '';
-
-              const updateCloudCover = (val: string) => {
-                const num = parseInt(val, 10);
-                if (isNaN(num) && val !== '') return;
-                try {
-                  const body = JSON.parse(stac.searchBody);
-                  const args = body?.filter?.args;
-                  if (Array.isArray(args)) {
-                    const ccIdx = args.findIndex(
-                      (a: { args?: { property?: string }[] }) =>
-                        a?.args?.[0]?.property === 'eo:cloud_cover'
-                    );
-                    if (ccIdx >= 0 && val !== '') {
-                      args[ccIdx].args[1] = num;
-                    } else if (ccIdx >= 0 && val === '') {
-                      args.splice(ccIdx, 1);
-                    } else if (val !== '') {
-                      args.push({ op: '<=', args: [{ property: 'eo:cloud_cover' }, num] });
-                    }
-                    onChange({ data: { ...stac, searchBody: JSON.stringify(body, null, 2) } });
-                  }
-                } catch {
-                  /* non-JSON body, ignore */
-                }
-              };
-
-              return (
-                <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Registration URL
-                      <Tooltip text="STAC TiTiler mosaic registration endpoint for this collection." />
-                    </label>
-                    <input
-                      type="url"
-                      value={stac.registrationUrl}
-                      onChange={(e) =>
-                        onChange({
-                          data: { ...stac, registrationUrl: e.target.value },
-                        })
-                      }
-                      placeholder="https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-                      className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
-                    />
-                  </div>
-
-                  {/* Cloud Cover */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Max Cloud Cover (%)
-                      <Tooltip text="Maximum cloud cover percentage for filtering scenes. Leave empty to disable." />
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={cloudCoverValue}
-                      onChange={(e) => updateCloudCover(e.target.value)}
-                      placeholder="e.g. 90"
-                      className="w-24 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
-                    />
-                  </div>
-
-                  {/* Search Body */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-neutral-700 flex items-center gap-1">
-                      Search Body
-                      <Tooltip text="JSON payload for mosaic registration. Required placeholders: {startDatetimePlaceholder}, {endDatetimePlaceholder}, {campaignBBoxPlaceholder}." />
-                    </label>
-                    <AutoSizeTextarea
-                      value={stac.searchBody}
-                      onChange={(val) =>
-                        onChange({
-                          data: { ...stac, searchBody: val },
-                        })
-                      }
-                      className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none resize-none"
-                    />
-                    {/* Required placeholder indicators */}
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      <PlaceholderBadge label="{startDatetimePlaceholder}" present={hasStart} />
-                      <PlaceholderBadge label="{endDatetimePlaceholder}" present={hasEnd} />
-                      <PlaceholderBadge label="{campaignBBoxPlaceholder}" present={hasBbox} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
           {/* STAC Browser parameters */}
           {collection.data.type === 'stac_browser' &&
             (() => {
@@ -715,46 +594,6 @@ export const CollectionEditor = ({
                 </div>
               );
             })()}
-
-          {/* Visualization URLs - only for old STAC flow */}
-          {collection.data.type === 'stac' && (
-            <div className="space-y-2">
-              <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-                Visualization URLs
-                <Tooltip text="Tile URL templates. Must include {searchId}, {z}, {x}, {y} placeholders." />
-              </label>
-              {vizNames.map((vizName) => {
-                const url = getVizUrl(vizName);
-                const missingParams = ['{searchId}', '{z}', '{x}', '{y}'].filter(
-                  (p) => !url.includes(p)
-                );
-                return (
-                  <div key={vizName} className="space-y-0.5">
-                    <label className="text-[11px] text-neutral-500">{vizName || '(unnamed)'}</label>
-                    <input
-                      type="text"
-                      placeholder="https://.../mosaic/{searchId}/tiles/{z}/{x}/{y}?..."
-                      value={url}
-                      onChange={(e) => updateVizUrl(vizName, e.target.value)}
-                      className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
-                    />
-                    {url && missingParams.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {missingParams.map((p) => (
-                          <span
-                            key={p}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none bg-red-50 text-red-600 border border-red-200"
-                          >
-                            {p}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>

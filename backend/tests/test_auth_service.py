@@ -62,7 +62,10 @@ class TestRegisterUser:
     def test_new_user_created(self):
         db = _mock_db()
 
-        with patch("src.auth.service._get_user_by_external_id", return_value=None):
+        with (
+            patch("src.auth.service._get_user_by_external_id", return_value=None),
+            patch("src.auth.service._get_user_by_email", return_value=None),
+        ):
             register_user(db, {"uid": "new-1", "email": "new@test.com"}, "firebase")
 
         db.add.assert_called_once()
@@ -75,7 +78,10 @@ class TestRegisterUser:
     def test_display_name_from_token(self):
         db = _mock_db()
 
-        with patch("src.auth.service._get_user_by_external_id", return_value=None):
+        with (
+            patch("src.auth.service._get_user_by_external_id", return_value=None),
+            patch("src.auth.service._get_user_by_email", return_value=None),
+        ):
             register_user(db, {"uid": "new-1", "email": "a@b.com", "name": "Alice"}, "firebase")
 
         created = db.add.call_args[0][0]
@@ -84,7 +90,10 @@ class TestRegisterUser:
     def test_display_name_fallback_to_email_prefix(self):
         db = _mock_db()
 
-        with patch("src.auth.service._get_user_by_external_id", return_value=None):
+        with (
+            patch("src.auth.service._get_user_by_external_id", return_value=None),
+            patch("src.auth.service._get_user_by_email", return_value=None),
+        ):
             register_user(db, {"uid": "new-1", "email": "bob@example.com"}, "firebase")
 
         created = db.add.call_args[0][0]
@@ -98,6 +107,20 @@ class TestRegisterUser:
             pytest.raises(ValueError, match="email"),
         ):
             register_user(db, {"uid": "new-1"}, "firebase")
+
+    def test_duplicate_email_different_uid_raises_409(self):
+        db = _mock_db()
+        existing = _make_user(email="taken@test.com")
+
+        with (
+            patch("src.auth.service._get_user_by_external_id", return_value=None),
+            patch("src.auth.service._get_user_by_email", return_value=existing),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            register_user(db, {"uid": "new-uid", "email": "taken@test.com"}, "firebase")
+
+        assert exc_info.value.status_code == 409
+        db.add.assert_not_called()
 
 
 class TestApproveUser:

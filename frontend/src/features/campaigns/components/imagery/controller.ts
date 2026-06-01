@@ -19,7 +19,6 @@ import type {
   ImageryView,
   ManualCollectionData,
   StacBrowserCollectionData,
-  StacCollectionData,
   VizParams,
 } from './types';
 
@@ -250,13 +249,12 @@ export function useDraftController({
 function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[]): CollectionItem {
   const sc = col.stac_config;
   const isStacBrowser = !!sc?.catalog_url;
-  const isStac = !!sc && !isStacBrowser;
 
   const vizUrls = col.slices.flatMap((sl) =>
     sl.tile_urls.map((tu) => ({ vizName: tu.visualization_name, url: tu.tile_url }))
   );
 
-  let data: StacBrowserCollectionData | StacCollectionData | ManualCollectionData;
+  let data: StacBrowserCollectionData | ManualCollectionData;
   if (isStacBrowser && sc) {
     // Backend only stores one viz_params blob per collection (the per-viz tile
     // URLs are on slice rows). Reconstruct one named entry per source viz so
@@ -283,13 +281,6 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
         : undefined,
       searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
       coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
-      vizUrls,
-    };
-  } else if (isStac && sc) {
-    data = {
-      type: 'stac',
-      registrationUrl: sc.registration_url,
-      searchBody: sc.search_body,
       vizUrls,
     };
   } else {

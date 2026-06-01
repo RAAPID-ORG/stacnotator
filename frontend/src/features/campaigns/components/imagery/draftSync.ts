@@ -52,43 +52,35 @@ export function collectionToBackend(col: CollectionItem): ImageryCollectionCreat
       tile_urls:
         col.data.type === 'stac_browser'
           ? []
-          : col.data.type === 'manual' && sl.vizUrls
-            ? sl.vizUrls
-                .filter((v) => v.url)
-                .map((v) => ({ visualization_name: v.vizName, tile_url: v.url }))
-            : col.data.vizUrls
-                .filter((v) => v.url)
-                .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
+          : (sl.vizUrls ?? [])
+              .filter((v) => v.url)
+              .map((v) => ({ visualization_name: v.vizName, tile_url: v.url })),
     })),
     stac_config:
-      col.data.type === 'stac' && col.data.registrationUrl
-        ? { registration_url: col.data.registrationUrl, search_body: col.data.searchBody }
-        : col.data.type === 'stac_browser'
-          ? (() => {
-              const data = col.data;
-              return {
-                registration_url: '',
-                search_body: '',
-                catalog_url: data.catalogUrl,
-                stac_collection_id: data.stacCollectionId,
-                visualizations: (data.visualizations ?? [])
-                  .filter((v) => v.vizParams)
-                  .map((v) => {
-                    const cover = data.coverVisualizations?.find((c) => c.name === v.name);
-                    return {
-                      name: v.name,
-                      viz_params: toVizParamsPayload(v.vizParams),
-                      cover_viz_params: cover?.vizParams
-                        ? toVizParamsPayload(cover.vizParams)
-                        : undefined,
-                    };
-                  }),
-                max_cloud_cover: data.maxCloudCover,
-                search_query: data.searchQuery ?? null,
-                cover_search_query: data.coverSearchQuery ?? null,
-              };
-            })()
-          : null,
+      col.data.type === 'stac_browser'
+        ? (() => {
+            const data = col.data;
+            return {
+              catalog_url: data.catalogUrl,
+              stac_collection_id: data.stacCollectionId,
+              visualizations: (data.visualizations ?? [])
+                .filter((v) => v.vizParams)
+                .map((v) => {
+                  const cover = data.coverVisualizations?.find((c) => c.name === v.name);
+                  return {
+                    name: v.name,
+                    viz_params: toVizParamsPayload(v.vizParams),
+                    cover_viz_params: cover?.vizParams
+                      ? toVizParamsPayload(cover.vizParams)
+                      : undefined,
+                  };
+                }),
+              max_cloud_cover: data.maxCloudCover,
+              search_query: data.searchQuery ?? null,
+              cover_search_query: data.coverSearchQuery ?? null,
+            };
+          })()
+        : null,
   };
 }
 

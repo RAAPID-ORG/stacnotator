@@ -172,24 +172,13 @@ class TestUpdateCampaignBbox:
         campaign.settings = settings
         db.get.return_value = campaign
 
-        bbox = {"bbox_west": -10, "bbox_south": -20, "bbox_east": 10, "bbox_north": 20}
-        update_campaign_bbox(db, 1, bbox)
+        update_campaign_bbox(db, 1, -10, -20, 10, 20)
 
         assert settings.bbox_west == -10
         assert settings.bbox_south == -20
         assert settings.bbox_east == 10
         assert settings.bbox_north == 20
         db.commit.assert_called_once()
-
-    def test_missing_key_raises_422(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.settings = MagicMock()
-        db.get.return_value = campaign
-
-        with pytest.raises(HTTPException) as exc_info:
-            update_campaign_bbox(db, 1, {"bbox_west": -10})
-        assert exc_info.value.status_code == 422
 
     def test_no_settings_raises_404(self):
         db = _mock_db()
@@ -198,9 +187,7 @@ class TestUpdateCampaignBbox:
         db.get.return_value = campaign
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_bbox(
-                db, 1, {"bbox_west": -10, "bbox_south": -20, "bbox_east": 10, "bbox_north": 20}
-            )
+            update_campaign_bbox(db, 1, -10, -20, 10, 20)
         assert exc_info.value.status_code == 404
 
 
