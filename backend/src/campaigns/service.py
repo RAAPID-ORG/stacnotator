@@ -529,19 +529,25 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
     return get_campaign_full(db, campaign_id)
 
 
-def update_campaign_bbox(db: Session, campaign_id: int, bbox: dict) -> Campaign:
+def update_campaign_bbox(
+    db: Session,
+    campaign_id: int,
+    bbox_west: float,
+    bbox_south: float,
+    bbox_east: float,
+    bbox_north: float,
+) -> Campaign:
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
-    for key in ["bbox_west", "bbox_south", "bbox_east", "bbox_north"]:
-        if key not in bbox:
-            raise HTTPException(status_code=422, detail=f"Missing {key} in bbox")
-        setattr(campaign.settings, key, bbox[key])
+    campaign.settings.bbox_west = bbox_west
+    campaign.settings.bbox_south = bbox_south
+    campaign.settings.bbox_east = bbox_east
+    campaign.settings.bbox_north = bbox_north
 
-    # Re-register STAC mosaics with the new extent
-    new_bbox = [bbox["bbox_west"], bbox["bbox_south"], bbox["bbox_east"], bbox["bbox_north"]]
+    new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
     try:
         count = re_register_stac_collections(db, campaign_id, new_bbox)
         if count:

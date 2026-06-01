@@ -34,11 +34,15 @@ def _get_user_by_external_id(
     issuer: str,
     external_uid: str,
 ) -> User | None:
-    """Find user by external identity provider credentials."""
     stmt = select(User).where(
         User.issuer == issuer,
         User.external_uid == external_uid,
     )
+    return db.scalar(stmt)
+
+
+def _get_user_by_email(db: Session, email: str) -> User | None:
+    stmt = select(User).where(User.email == email)
     return db.scalar(stmt)
 
 
@@ -73,6 +77,12 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
 
     if not token.get("email"):
         raise ValueError("Cannot register user without email from authentication provider")
+
+    if _get_user_by_email(db, token["email"]):
+        raise HTTPException(
+            status_code=409,
+            detail="An account with this email already exists under a different login method.",
+        )
 
     display_name = token.get("name") or token["email"].split("@")[0]
 

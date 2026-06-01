@@ -34,7 +34,28 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy.dialects.postgresql import JSONB
 
 from alembic import op
-from src.imagery.stac_registration import register_single_slice, resolve_tile_url
+import httpx as _httpx
+import json as _json
+
+
+def register_single_slice(registration_url, search_body, bbox, start_date, end_date):
+    raw = _json.dumps({**_json.loads(search_body), "bbox": bbox})
+    filled = (
+        raw.replace("{startDatetimePlaceholder}", start_date)
+           .replace("{endDatetimePlaceholder}", end_date)
+           .replace('"{campaignBBoxPlaceholder}"', _json.dumps(bbox))
+    )
+    resp = _httpx.post(registration_url, json=_json.loads(filled), timeout=30.0)
+    resp.raise_for_status()
+    data = resp.json()
+    search_id = data.get("searchId") or data.get("searchid") or data.get("search_id")
+    if not search_id:
+        raise ValueError(f"No searchId returned from {registration_url}")
+    return search_id
+
+
+def resolve_tile_url(url_template, search_id):
+    return url_template.replace("{searchId}", search_id)
 
 logger = logging.getLogger(__name__)
 
