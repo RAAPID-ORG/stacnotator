@@ -36,6 +36,7 @@ from src.campaigns.schemas import (
     CampaignStatistics,
     PairwiseAgreement,
 )
+from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
 from src.timeseries.models import TimeSeries
@@ -291,7 +292,6 @@ def create_campaign(
     db.refresh(campaign)
 
     campaign_id = campaign.id
-    from src.database import SessionLocal
 
     # Background thread: mosaic registration
     if pending_registrations:
@@ -547,23 +547,31 @@ def update_campaign_bbox(
     campaign.settings.bbox_east = bbox_east
     campaign.settings.bbox_north = bbox_north
 
-    new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
-    try:
-        count = re_register_stac_collections(db, campaign_id, new_bbox)
-        if count:
-            logger.info(
-                "Re-registered STAC mosaics for %d collection(s) in campaign %d",
-                count,
-                campaign_id,
-            )
-    except Exception:
-        logger.warning(
-            "STAC re-registration failed during bbox update for campaign %d",
-            campaign_id,
-            exc_info=True,
-        )
-
     db.commit()
+
+    new_bbox = [bbox_west, bbox_south, bbox_east, bbox_north]
+
+    def _bg_reregister():
+        bg_db = SessionLocal()
+        try:
+            count = re_register_stac_collections(bg_db, campaign_id, new_bbox)
+            if count:
+                logger.info(
+                    "Re-registered STAC mosaics for %d collection(s) in campaign %d",
+                    count,
+                    campaign_id,
+                )
+        except Exception:
+            logger.warning(
+                "STAC re-registration failed for campaign %d",
+                campaign_id,
+                exc_info=True,
+            )
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_bg_reregister, daemon=True).start()
+
     return get_campaign_full(db, campaign_id)
 
 
@@ -602,45 +610,50 @@ def update_embedding_year(
     db.flush()
 
     recomputed = False
-    summary = None
 
     if embedding_year is not None and embedding_year != old_year:
-        # Delete all existing embeddings for this campaign
         task_ids_subq = (
             select(AnnotationTask.id)
             .where(AnnotationTask.campaign_id == campaign_id)
             .scalar_subquery()
         )
         db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids_subq)))
-        db.flush()
-
-        # Re-populate embeddings for the new year
-        start_date = datetime(embedding_year, 1, 1)
-        end_date = datetime(embedding_year, 12, 31)
-
-        try:
-            summary = embeddings_service.populate_campaign_embeddings(
-                db,
-                campaign_id,
-                start_date,
-                end_date,
-            )
-            recomputed = True
-        except Exception:
-            logger.exception(
-                "Embedding recomputation failed for campaign %d year %d",
-                campaign_id,
-                embedding_year,
-            )
-            summary = {"error": "Embedding recomputation failed. See server logs for details."}
+        recomputed = True
 
     db.commit()
     db.refresh(campaign)
 
+    if recomputed and embedding_year is not None:
+        start_date = datetime(embedding_year, 1, 1)
+        end_date = datetime(embedding_year, 12, 31)
+
+        def _bg_embeddings():
+            bg_db = SessionLocal()
+            try:
+                embeddings_service.populate_campaign_embeddings(
+                    bg_db, campaign_id, start_date, end_date
+                )
+                bg_campaign = bg_db.get(Campaign, campaign_id)
+                if bg_campaign:
+                    bg_campaign.embedding_status = "ready"
+                    bg_db.commit()
+                logger.info(
+                    "Embeddings completed for campaign %d year %d", campaign_id, embedding_year
+                )
+            except Exception:
+                logger.exception(
+                    "Embedding recomputation failed for campaign %d year %d",
+                    campaign_id,
+                    embedding_year,
+                )
+            finally:
+                bg_db.close()
+
+        threading.Thread(target=_bg_embeddings, daemon=True).start()
+
     return {
         "embedding_year": campaign.settings.embedding_year,
         "embeddings_recomputed": recomputed,
-        "summary": summary,
     }
 
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import tempfile
+import threading
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.annotation import embeddings_service
 from src.annotation.models import AnnotationGeometry, AnnotationTask
 from src.campaigns.models import Campaign
+from src.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -363,21 +365,32 @@ def create_tasks_from_sampling_strategy(
         db.execute(insert(AnnotationTask), task_records)
         db.flush()
 
-        # Populate embeddings using the campaign's embedding year (if set)
         campaign = db.get(Campaign, campaign_id)
         embedding_year = (
             campaign.settings.embedding_year if campaign and campaign.settings else None
         )
 
+        db.commit()
+
         if embedding_year is not None:
             start_date = datetime(embedding_year, 1, 1)
             end_date = datetime(embedding_year, 12, 31)
-            logger.info("Populating embeddings for year %d", embedding_year)
-            embeddings_service.populate_campaign_embeddings(db, campaign_id, start_date, end_date)
-        else:
-            logger.info("No embedding year set for campaign %d - skipping embeddings.", campaign_id)
 
-        db.commit()
+            def _bg_embeddings():
+                bg_db = SessionLocal()
+                try:
+                    logger.info(
+                        "Populating embeddings for campaign %d year %d", campaign_id, embedding_year
+                    )
+                    embeddings_service.populate_campaign_embeddings(
+                        bg_db, campaign_id, start_date, end_date
+                    )
+                except Exception:
+                    logger.exception("Embeddings failed for campaign %d", campaign_id)
+                finally:
+                    bg_db.close()
+
+            threading.Thread(target=_bg_embeddings, daemon=True).start()
 
         return len(task_records)
 
