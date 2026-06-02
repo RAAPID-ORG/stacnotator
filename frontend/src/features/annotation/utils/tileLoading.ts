@@ -7,6 +7,20 @@
 import type ImageTile from 'ol/ImageTile';
 import { getTilerToken } from '~/api/tilerToken';
 
+// OL-native placeholders that must not be replaced by substituteApiKeys.
+const OL_PLACEHOLDERS = new Set(['z', 'x', 'y', 'a-c', 'a-d', 'q', 's', '-1', '0', '1', '2', '3']);
+
+/**
+ * Substitute non-OL `{name}` placeholders in a URL template with values from
+ * the provided key map. OL's own placeholders ({z}, {x}, {y}, etc.) are left
+ * untouched so OL can resolve them per-tile as normal.
+ */
+export function substituteApiKeys(url: string, keys: Record<string, string>): string {
+  return url.replace(/\{([^{}]+)\}/g, (match, name: string) =>
+    OL_PLACEHOLDERS.has(name) ? match : (keys[name] ?? match)
+  );
+}
+
 export const TILER_BASE =
   import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
 

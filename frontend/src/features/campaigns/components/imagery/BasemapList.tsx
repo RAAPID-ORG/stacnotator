@@ -1,4 +1,5 @@
 import { IconTrash } from '~/shared/ui/Icons';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import type { Basemap } from './types';
 import { emptyBasemap } from './types';
 import type { ImageryController } from './controller';
@@ -23,9 +24,14 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
     <section>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Basemaps</h3>
+          <h3 className="text-sm font-semibold text-neutral-900 flex items-center gap-1">
+            Basemaps
+            <Tooltip text="If a provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}. Users are prompted to enter their key value the first time they open the campaign." />
+          </h3>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Background reference layers shown beneath imagery in every view.
+            Background reference layers shown beneath imagery in every view. Use{' '}
+            <code className="font-mono bg-neutral-100 px-0.5 rounded">{'{api_key}'}</code> in the
+            URL for providers that require authentication.
           </p>
         </div>
         <button

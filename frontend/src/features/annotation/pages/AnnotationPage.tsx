@@ -4,6 +4,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
+import { useApiKeyStore } from '../stores/apiKey.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { hasSeenTour, usePreferencesStore } from '../stores/preferences.store';
@@ -12,6 +13,7 @@ import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
+import { ApiKeyPromptModal } from '../components/ApiKeyPromptModal';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -48,6 +50,31 @@ export const AnnotationPage = () => {
   }, [isReady, hasBeenReady]);
 
   const showContent = hasBeenReady;
+
+  // API key prompt: shown once per campaign load for each entry whose {api_key}
+  // placeholder has no locally-stored value yet.
+  const storedApiKeys = useApiKeyStore((s) => s.keys);
+  const [apiKeyPromptDismissed, setApiKeyPromptDismissed] = useState(false);
+  const missingApiKeys = (() => {
+    if (!campaign || !isReady || apiKeyPromptDismissed) return [];
+    const missing: { scopedKey: string; label: string }[] = [];
+    for (const bm of campaign.basemaps) {
+      if (bm.url.includes('{api_key}') && !storedApiKeys[`basemap:${bm.id}`]) {
+        missing.push({ scopedKey: `basemap:${bm.id}`, label: bm.name });
+      }
+    }
+    for (const src of campaign.imagery_sources) {
+      for (const col of src.collections) {
+        const needsKey = col.slices.some((sl) =>
+          sl.tile_urls.some((tu) => tu.tile_url.includes('{api_key}'))
+        );
+        if (needsKey && !storedApiKeys[`collection:${col.id}`]) {
+          missing.push({ scopedKey: `collection:${col.id}`, label: col.name });
+        }
+      }
+    }
+    return missing;
+  })();
 
   const campaignIdNumber = Number(campaignId);
 
@@ -249,6 +276,12 @@ export const AnnotationPage = () => {
         </div>
       )}
       <GuidedTour isOpen={showGuidedTour} onClose={handleTourClose} />
+      {missingApiKeys.length > 0 && (
+        <ApiKeyPromptModal
+          missingKeys={missingApiKeys}
+          onDone={() => setApiKeyPromptDismissed(true)}
+        />
+      )}
     </div>
   );
 };
