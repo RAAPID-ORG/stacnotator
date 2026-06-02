@@ -4157,3 +4157,117 @@ export type RegisterMosaicResponses = {
 };
 
 export type RegisterMosaicResponse = RegisterMosaicResponses[keyof RegisterMosaicResponses];
+
+export type CustomMapOut = {
+    id: string;
+    name: string;
+    status: string;
+    band_count: number | null;
+    nodata: number | null;
+    bounds: { minx: number; miny: number; maxx: number; maxy: number } | null;
+    viz_params: Record<string, unknown> | null;
+    error: string | null;
+};
+
+export type CustomMapCreate = {
+    name: string;
+    key: string;
+    viz_params: Record<string, unknown> | null;
+};
+
+export type CustomMapVizParamsUpdate = {
+    viz_params: Record<string, unknown>;
+};
+
+export type PresignUploadResponse = {
+    key: string;
+    upload_url: string;
+    method: string;
+};
+
+export type RequestCustomMapUploadData = {
+    body?: never;
+    path: { campaign_id: number };
+    query?: never;
+    url: '/api/{campaign_id}/custom-maps/request-upload';
+};
+
+export type RequestCustomMapUploadResponses = {
+    200: PresignUploadResponse;
+};
+
+export type RequestCustomMapUploadResponse = RequestCustomMapUploadResponses[keyof RequestCustomMapUploadResponses];
+
+export type CreateCustomMapData = {
+    body: CustomMapCreate;
+    path: { campaign_id: number };
+    query?: never;
+    url: '/api/{campaign_id}/custom-maps';
+};
+
+export type CreateCustomMapErrors = {
+    422: HttpValidationError;
+};
+
+export type CreateCustomMapError = CreateCustomMapErrors[keyof CreateCustomMapErrors];
+
+export type CreateCustomMapResponses = {
+    201: CustomMapOut;
+};
+
+export type CreateCustomMapResponse = CreateCustomMapResponses[keyof CreateCustomMapResponses];
+
+export type ListCustomMapsData = {
+    body?: never;
+    path: { campaign_id: number };
+    query?: never;
+    url: '/api/{campaign_id}/custom-maps';
+};
+
+export type ListCustomMapsErrors = {
+    422: HttpValidationError;
+};
+
+export type ListCustomMapsError = ListCustomMapsErrors[keyof ListCustomMapsErrors];
+
+export type ListCustomMapsResponses = {
+    200: Array<CustomMapOut>;
+};
+
+export type ListCustomMapsResponse = ListCustomMapsResponses[keyof ListCustomMapsResponses];
+
+export type UpdateCustomMapVizParamsData = {
+    body: CustomMapVizParamsUpdate;
+    path: { campaign_id: number; map_id: string };
+    query?: never;
+    url: '/api/{campaign_id}/custom-maps/{map_id}/viz-params';
+};
+
+export type UpdateCustomMapVizParamsErrors = {
+    422: HttpValidationError;
+};
+
+export type UpdateCustomMapVizParamsError = UpdateCustomMapVizParamsErrors[keyof UpdateCustomMapVizParamsErrors];
+
+export type UpdateCustomMapVizParamsResponses = {
+    200: CustomMapOut;
+};
+
+export type UpdateCustomMapVizParamsResponse = UpdateCustomMapVizParamsResponses[keyof UpdateCustomMapVizParamsResponses];
+
+export type DeleteCustomMapData = {
+    body?: never;
+    path: { campaign_id: number; map_id: string };
+    query?: never;
+    url: '/api/{campaign_id}/custom-maps/{map_id}';
+};
+
+export type DeleteCustomMapErrors = {
+    422: HttpValidationError;
+};
+
+export type DeleteCustomMapError = DeleteCustomMapErrors[keyof DeleteCustomMapErrors];
+
+export type DeleteCustomMapResponses = {
+    204: void;
+};

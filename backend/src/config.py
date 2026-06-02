@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     EE_PRIVATE_KEY_PATH: str | None = None
     EE_PRIVATE_KEY: str | None = None  # Direct key content (alternative to path)
 
+    # Custom map storage ("local" or "azure")
+    STORAGE_PROVIDER: str = "local"
+    STORAGE_LOCAL_PATH: str = "/app/uploads"
+    # e.g. https://myaccount.blob.core.windows.net
+    AZURE_STORAGE_ACCOUNT_URL: str | None = None
+    AZURE_STORAGE_CONTAINER: str = "custom-maps"
+
     @property
     def CORS_ORIGINS(self) -> list[str]:
         """Parse CORS origins from various formats."""

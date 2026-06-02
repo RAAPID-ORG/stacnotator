@@ -64,7 +64,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Comments/remarks field
 
 ### Navigation
-- Keyboard-driven workflow: submit, skip, next/previous task
+- Keyboard-driven workflow (hotkeys): submit, skip, next/previous task
 - Collection cycling (J/K), slice cycling, visualization switching (I/Shift+I), view switching (V)
 - Crosshair for task location with configurable color per source
 - Sample extent polygon display
@@ -87,6 +87,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Chart with Savitzky-Golay smoothing
 - Configurable per campaign
 - Will be extended to any form of TS from GEE
+- prefetching of next 5 points for instant transition
 
 ## Embeddings & Similarity
 
@@ -129,6 +130,20 @@ Post-creation editing via settings page:
 - Users: add/remove members, grant/revoke admin
 - Time Series: add/remove configurations
 
+## Custom Maps
+
+User-uploaded raster overlays rendered on top of campaign imagery.
+
+- Upload GeoTIFF files via campaign settings → **Custom Maps** tab
+- Band count auto-detected from TIFF header in browser (via geotiff.js)
+- Visualization configured at upload time using the same VizConfigPanel as STAC layers (band selection, rescale, colormap, color formula)
+- Worker converts uploads to COG (Cloud Optimized GeoTIFF): reproject to EPSG:4326 → build overviews → LZW compressed tiles
+- Rendered as overlays (on top of base imagery, not replacing it)
+- Toggle visibility via **Maps** dropdown in map header or hotkeys: `m` (toggle active), `shift+m` (cycle)
+- Opacity control per map
+- Upload stored directly in object storage (Azure Blob in prod, local volume in dev) - backend never proxies file bytes
+- Post-upload viz editing from settings tab
+
 ## Background Processing
 
 Campaign creation kicks off async background threads for:
@@ -137,10 +152,10 @@ Campaign creation kicks off async background threads for:
 
 Both run independently with status tracking (`registering` → `ready`/`failed`). Annotation access is blocked until completion. Errors are stored and displayed in settings.
 
-## Deployment
+## Deployment on Azure
 
 - Azure Container Apps (backend, tiler) + Static Web App (frontend)
 - Self-managed via `deploy-app.sh` - creates apps, identities, RBAC, secrets
-- PostgreSQL with private endpoint for security
+- Managed PostgreSQL with private endpoint for security
 - Infrastructure shell (RG, KV, ACR, CAE) managed by Terraform
 - Per-project resource group isolation with Contributor RBAC

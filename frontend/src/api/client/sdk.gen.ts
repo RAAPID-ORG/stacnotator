@@ -964,3 +964,37 @@ export const registerMosaic = <ThrowOnError extends boolean = false>(options: Op
         ...options.headers
     }
 });
+
+import type { CreateCustomMapData, CreateCustomMapErrors, CreateCustomMapResponses, DeleteCustomMapData, DeleteCustomMapErrors, DeleteCustomMapResponses, ListCustomMapsData, ListCustomMapsErrors, ListCustomMapsResponses, RequestCustomMapUploadData, RequestCustomMapUploadResponses, UpdateCustomMapVizParamsData, UpdateCustomMapVizParamsErrors, UpdateCustomMapVizParamsResponses } from './types.gen';
+
+export const requestCustomMapUpload = <ThrowOnError extends boolean = false>(options: Options<RequestCustomMapUploadData, ThrowOnError>) => (options.client ?? client).post<RequestCustomMapUploadResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/custom-maps/request-upload',
+    ...options,
+});
+
+export const createCustomMap = <ThrowOnError extends boolean = false>(options: Options<CreateCustomMapData, ThrowOnError>) => (options.client ?? client).post<CreateCustomMapResponses, CreateCustomMapErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/custom-maps',
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+});
+
+export const listCustomMaps = <ThrowOnError extends boolean = false>(options: Options<ListCustomMapsData, ThrowOnError>) => (options.client ?? client).get<ListCustomMapsResponses, ListCustomMapsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/custom-maps',
+    ...options,
+});
+
+export const updateCustomMapVizParams = <ThrowOnError extends boolean = false>(options: Options<UpdateCustomMapVizParamsData, ThrowOnError>) => (options.client ?? client).patch<UpdateCustomMapVizParamsResponses, UpdateCustomMapVizParamsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/custom-maps/{map_id}/viz-params',
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+});
+
+export const deleteCustomMap = <ThrowOnError extends boolean = false>(options: Options<DeleteCustomMapData, ThrowOnError>) => (options.client ?? client).delete<DeleteCustomMapResponses, DeleteCustomMapErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/{campaign_id}/custom-maps/{map_id}',
+    ...options,
+});

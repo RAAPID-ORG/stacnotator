@@ -57,6 +57,7 @@ interface OpenModeMapProps {
   probePoint?: { lat: number; lon: number } | null;
   showCrosshair?: boolean;
   crosshairColor?: string;
+  onOLMapReady?: (map: OLMap) => void;
 }
 
 /** Imperative handle exposed to parents via ref */
@@ -84,6 +85,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       probePoint,
       showCrosshair = true,
       crosshairColor,
+      onOLMapReady,
     },
     ref
   ) => {
@@ -303,6 +305,8 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
             const lm = new LayerManager(map);
             layerManagerRef.current = lm;
             mapReadyRef.current = true;
+
+            onOLMapReady?.(map);
 
             initLayers(lm);
 

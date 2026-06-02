@@ -56,6 +56,7 @@ interface TaskModeMapProps {
   activeTool?: 'pan' | 'annotate' | 'edit' | 'timeseries';
   onTimeseriesClick?: (lat: number, lon: number) => void;
   probePoint?: { lat: number; lon: number } | null;
+  onOLMapReady?: (map: OLMap) => void;
 }
 
 // Component
@@ -76,6 +77,7 @@ const TaskModeMap = ({
   activeTool = 'pan',
   onTimeseriesClick,
   probePoint,
+  onOLMapReady,
 }: TaskModeMapProps) => {
   const mapRef = useRef<OLMap | null>(null);
   const layerManagerRef = useRef<LayerManager | null>(null);
@@ -277,6 +279,8 @@ const TaskModeMap = ({
           if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
             (window as unknown as Record<string, unknown>).__OL_MAP__ = map;
           }
+
+          onOLMapReady?.(map);
 
           // Expose to state so hooks (e.g. useTilePreloading) can subscribe
           setLayerManager(lm);

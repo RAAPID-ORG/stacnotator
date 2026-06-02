@@ -69,6 +69,7 @@ services:
       # *_PATH_HOST env var is set, that real file is mounted instead.
       - ${FIREBASE_CREDENTIALS_PATH_HOST:-./backend/config/.gitkeep}:/app/config/firebase-credentials.json:ro
       - ${EE_PRIVATE_KEY_PATH_HOST:-./backend/config/.gitkeep}:/app/config/ee-private-key.json:ro
+      - uploads_dev:/app/uploads
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     networks:
@@ -110,6 +111,7 @@ services:
     volumes:
       - ./tiler/src:/app/src:ro
       - ./tiler/pyproject.toml:/app/pyproject.toml:ro
+      - uploads_dev:/app/uploads
     ports:
       - "${TILER_PORT:-8001}:8001"
     networks:
@@ -158,10 +160,35 @@ services:
     networks:
       - stacnotator-dev-network
 
+  # Worker for COG conversion of custom map uploads
+  worker:
+    build:
+      context: ./worker
+    container_name: worker-dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DBNAME: ${POSTGRES_DB:-stacnotator}
+      DBUSER: ${POSTGRES_USER:-stacnotator}
+      DBPASS: ${POSTGRES_PASSWORD:-devpassword}
+      DBHOST: db
+      DBPORT: 5432
+      STORAGE_PROVIDER: local
+      STORAGE_LOCAL_PATH: /app/uploads
+      POLL_INTERVAL_S: 10
+    volumes:
+      - uploads_dev:/app/uploads
+    networks:
+      - stacnotator-dev-network
+
 volumes:
   postgres_data_dev:
     driver: local
   frontend_node_modules_dev:
+    driver: local
+  uploads_dev:
     driver: local
 
 networks:

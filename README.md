@@ -120,25 +120,22 @@ make dev-down
 
 ```
 stacnotator/
-├── docker-compose.dev.yml       # Development configuration (standalone)
+├── docker-compose.dev.yml       # Development configuration
 ├── docker-compose.prod.yml      # Production-like local configuration
 ├── .env.example                 # Configuration template
-├── .env.dev                     # Development configuration template
 ├── Makefile                     # Common commands (dev-* for development)
 ├── azure_deploy/                # Azure deployment scripts
 ├── backend/                     # FastAPI application
-│   ├── Dockerfile               # Production build
-│   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
 │   └── alembic/                 # Database migrations
-├── tiler/                       # TiTiler tile serving service
-│   ├── Dockerfile               # Production build (GDAL + COG)
-│   ├── Dockerfile.dev           # Development (with reload)
+├── tiler/                       # TiTiler tile-serving service
 │   └── src/                     # Tile server code
-└── frontend/                    # React + Vite application
-    ├── Dockerfile               # Production build (nginx)
-    ├── Dockerfile.dev           # Development server (HMR)
-    └── src/                     # Application code
+├── worker/                      # Background COG-conversion worker
+│   └── src/                     # Worker code
+├── db/                          # PostgreSQL + PostGIS + pgvector image
+├── frontend/                    # React + Vite application
+│   └── src/                     # Application code
+└── docs/                        # Architecture & feature docs
 ```
 
 ## Prerequisites
@@ -151,10 +148,13 @@ stacnotator/
 ## Architecture
 
 **Services:**
-- **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
-- **Backend**: FastAPI application with Gunicorn workers. Handles auth, campaigns, annotations, STAC catalog browsing, and mosaic registration.
-- **Tiler**: Self-hosted tile server (TiTiler + GDAL). Reads COGs from STAC catalogs, composites mosaics, serves PNG tiles. Uses PostGIS spatial index for fast per-tile item lookups.
-- **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
+- **Frontend**: React + OpenLayers. API client generated with `openapi-ts`. Deployed as Azure Static Web App.
+- **Backend**: FastAPI + Gunicorn. Auth, campaigns, annotations, STAC catalog browsing, mosaic registration.
+- **Tiler**: TiTiler + GDAL. Reads COGs from STAC catalogs and user-uploaded custom maps, composites mosaics, serves PNG tiles. PostGIS spatial index for per-tile item lookups.
+- **Worker**: Lightweight polling service. Converts user-uploaded rasters to COG format (reproject → overviews → LZW COG). Reads/writes from shared object storage (local volume in dev, Azure Blob in prod).
+- **Database**: PostgreSQL 16 + PostGIS (spatial queries) + pgvector (embeddings)
+
+See [docs/architecture.md](docs/architecture.md) for a fuller description.
 
 ## Development
 
@@ -185,14 +185,22 @@ make pre-commit-install
 
 ## Production Deployment
 
-STACNotator supports multiple deployment options (or maybe only one at the moment):
+Primary target is **Azure**. See [azure_deploy/README.md](azure_deploy/README.md) for the full workflow.
 
-- **Azure** (recommended) - Backend + Tiler on Container Apps, Frontend on Static Web App. Self-managed via `deploy-app.sh`. See `azure_deploy/README.md`.
-   - Staging: `make staging-up` copies the production DB locally for safe migration testing before deployment.
-   - Deployment: Currently only through a CLI script to be run locally from within VPN. Will migrate this to CI in the future, once the platform networking has been finalized. Reccommended command for deploying the in the dev-environment: `az-deploy-dev`, followed by `az-sync-prod-to-dev` to fill the dev db with the current data from prod. We also provide a script to grant admin access to a firebaser user by ID for the initial user after deployment (See `azure_deploy/grant-admin.sh`).
+- Backend + Tiler + Worker on **Azure Container Apps** (Managed Identity, no keys)
+- Frontend on **Azure Static Web App**
+- Database on **Azure Database for PostgreSQL** with private endpoint
+- Custom map uploads stored in **Azure Blob Storage** (user-delegation SAS, no account keys)
+- Infrastructure (networking, Key Vault, ACR, Container Apps Environment) managed by Terraform
+- Application resources (Container Apps, identities, RBAC) managed via `deploy-app.sh`
 
-- **Docker Compose** - For local VPS or bare metal. See `Makefile` for `make build`, `make up`, `make migrate`. May need updates as primary deployment target is Azure and we do not maintain any secure configs for bare metal deployments.
+Quick reference:
+```bash
+make staging-up        # Copy prod DB locally for safe migration testing
+az-deploy-dev          # Deploy to dev environment
+az-sync-prod-to-dev    # Sync prod data to dev
+```
 
 ## Contributing
 This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
-To familiarize yourself with the project please referr to the [docs](docs/architcture.md).
+To familiarize yourself with the project please referr to the [docs](docs/architecture.md).

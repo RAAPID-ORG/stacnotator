@@ -1,15 +1,12 @@
 """Mosaic tile serving - reads item refs from DB, composites via rio-tiler."""
 
 import logging
-import struct
 import time
-import zlib
 
 import morecantile
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from rio_tiler.colormap import cmap as rio_cmap
 from rio_tiler.mosaic import mosaic_reader
 from rio_tiler.mosaic.methods import defaults as mosaic_defaults
 from rio_tiler.mosaic.methods.base import MosaicMethodBase
@@ -19,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import MosaicItem
 from src.reader import PCSignedSTACReader
+from src.render import empty_tile, render_png
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/stac", tags=["Tiles"])
@@ -160,7 +158,7 @@ def mosaic_tile(
             "TILE %s z=%d x=%d y=%d | db=%.0fms items=0 | empty (no items)",
             mosaic_id[:8], z, x, y, (t_db_done - t_db) * 1000,
         )
-        return Response(content=_empty_tile(), media_type="image/png")
+        return Response(content=empty_tile(), media_type="image/png")
 
     # Prepare reader kwargs
     is_ndvi_best = compositing == "ndvi_best"
@@ -249,28 +247,11 @@ def mosaic_tile(
             (t_db_done - t_db) * 1000, len(matching_items), len(item_timings),
             (t_cog_done - t_cog) * 1000,
         )
-        return Response(content=_empty_tile(), media_type="image/png")
+        return Response(content=empty_tile(), media_type="image/png")
 
     # Post-process (rescale, colormap, render)
     t_render = time.perf_counter()
-
-    if rescale:
-        in_range = []
-        for r in rescale:
-            parts = r.split(",")
-            if len(parts) == 2:
-                in_range.append((float(parts[0]), float(parts[1])))
-        if in_range:
-            img.rescale(in_range=in_range)
-
-    if color_formula:
-        img.apply_color_formula(color_formula)
-
-    render_kwargs: dict = {}
-    if colormap_name:
-        render_kwargs["colormap"] = rio_cmap.get(colormap_name)
-
-    content = img.render(img_format="PNG", **render_kwargs)
+    content = render_png(img, rescale, color_formula, colormap_name)
     t_render_done = time.perf_counter()
 
     t_total = (t_render_done - t_start) * 1000
@@ -291,30 +272,3 @@ def mosaic_tile(
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )
-
-
-_EMPTY_TILE_BYTES: bytes | None = None
-
-
-def _empty_tile() -> bytes:
-    global _EMPTY_TILE_BYTES
-    if _EMPTY_TILE_BYTES is not None:
-        return _EMPTY_TILE_BYTES
-
-    width, height = 256, 256
-    raw_data = b"\x00" + b"\x00\x00\x00\x00" * width
-    raw_rows = raw_data * height
-    compressed = zlib.compress(raw_rows)
-
-    def _chunk(chunk_type: bytes, data: bytes) -> bytes:
-        c = chunk_type + data
-        crc = struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
-        return struct.pack(">I", len(data)) + c + crc
-
-    png = b"\x89PNG\r\n\x1a\n"
-    png += _chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
-    png += _chunk(b"IDAT", compressed)
-    png += _chunk(b"IEND", b"")
-
-    _EMPTY_TILE_BYTES = png
-    return _EMPTY_TILE_BYTES

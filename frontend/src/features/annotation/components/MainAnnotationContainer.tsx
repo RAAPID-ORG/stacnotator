@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
+import type OLMap from 'ol/Map';
 import TaskModeMap from './Map/TaskModeMap';
 import {
   resolvePreloadTier,
@@ -26,6 +27,8 @@ import {
 } from '~/shared/utils/utility';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { sliceView } from '../utils/sliceView';
+import { useCustomMaps } from '../hooks/useCustomMaps';
+import CustomMapsDropdown from './Map/CustomMapsDropdown';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -106,6 +109,14 @@ export const MainAnnotationsContainer = ({
   const [_timelineDragging, setTimelineDragging] = useState(false);
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
+  const olMapRef = useRef<OLMap | null>(null);
+  const [olMapReady, setOlMapReady] = useState(false);
+
+  const {
+    maps: customMaps,
+    toggle: toggleCustomMap,
+    setOpacity: setCustomMapOpacity,
+  } = useCustomMaps({ campaignId: campaign?.id ?? null, olMapRef, mapReady: olMapReady });
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
@@ -289,6 +300,39 @@ export const MainAnnotationsContainer = ({
     [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
   );
 
+  // m: toggle active custom map on/off (or activate first if none active)
+  // shift+m: cycle to next custom map
+  useEffect(() => {
+    const readyIds = customMaps.filter((s) => s.map.status === 'ready').map((s) => s.map.id);
+    if (readyIds.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'm' && e.key !== 'M') return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      const activeIdx = readyIds.findIndex(
+        (id) => customMaps.find((s) => s.map.id === id)?.visible
+      );
+      if (e.shiftKey) {
+        // cycle: none→first→second→…→none
+        const nextIdx = (activeIdx + 1) % (readyIds.length + 1);
+        if (nextIdx < readyIds.length) {
+          toggleCustomMap(readyIds[nextIdx]);
+        } else if (activeIdx >= 0) {
+          toggleCustomMap(readyIds[activeIdx]); // deactivate
+        }
+      } else {
+        // toggle: activate first if none active, otherwise deactivate active
+        if (activeIdx >= 0) {
+          toggleCustomMap(readyIds[activeIdx]);
+        } else {
+          toggleCustomMap(readyIds[0]);
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [customMaps, toggleCustomMap]);
+
   if (!campaign || !activeSource) return null;
 
   const isTaskMode = campaign.mode === 'tasks';
@@ -324,7 +368,6 @@ export const MainAnnotationsContainer = ({
                   />
                 </div>
               )}
-
               {viewCollections.length > 1 && (
                 <HeaderSelect
                   value={activeCollectionId ?? ''}
@@ -367,6 +410,14 @@ export const MainAnnotationsContainer = ({
                     />
                   );
                 })()}
+
+              {customMaps.length > 0 && (
+                <CustomMapsDropdown
+                  maps={customMaps}
+                  onSelect={toggleCustomMap}
+                  onOpacityChange={setCustomMapOpacity}
+                />
+              )}
 
               {/* Divider */}
               <div className="w-px h-3 bg-neutral-200 mx-0.5" />
@@ -614,6 +665,10 @@ export const MainAnnotationsContainer = ({
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
+            onOLMapReady={(map) => {
+              olMapRef.current = map;
+              setOlMapReady(true);
+            }}
           />
         ) : (
           <OpenModeMap
@@ -639,6 +694,10 @@ export const MainAnnotationsContainer = ({
             magicWandActive={magicWandActive}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={timeseriesPoint}
+            onOLMapReady={(map) => {
+              olMapRef.current = map;
+              setOlMapReady(true);
+            }}
           />
         )}
 

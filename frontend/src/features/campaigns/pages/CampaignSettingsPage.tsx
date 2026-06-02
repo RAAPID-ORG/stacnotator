@@ -16,6 +16,7 @@ import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
+import CustomMapsTab from '~/features/campaigns/components/settings/tabs/CustomMapsTab';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -59,12 +60,19 @@ export const CampaignSettingsPage = () => {
   const [searchParams] = useSearchParams();
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    if (t === 'general' || t === 'imagery' || t === 'tasks' || t === 'users' || t === 'timeseries')
+    if (
+      t === 'general' ||
+      t === 'imagery' ||
+      t === 'tasks' ||
+      t === 'users' ||
+      t === 'timeseries' ||
+      t === 'custom-maps'
+    )
       return t;
     return 'general';
   })();
   const [activeTab, setActiveTab] = useState<
-    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries'
+    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries' | 'custom-maps'
   >(initialTab);
 
   // Form states
@@ -696,6 +704,7 @@ export const CampaignSettingsPage = () => {
               items={[
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
+                { id: 'custom-maps', label: 'Custom Maps' },
                 { id: 'timeseries', label: 'Timeseries' },
                 ...(campaign?.mode !== 'open' ? [{ id: 'tasks', label: 'Annotation Tasks' }] : []),
                 { id: 'users', label: 'Users' },
@@ -809,6 +818,8 @@ export const CampaignSettingsPage = () => {
                   campaignUsers={campaignUsers}
                 />
               )}
+
+              {activeTab === 'custom-maps' && <CustomMapsTab campaignId={numericCampaignId} />}
             </div>
           </div>
         </FadeIn>

@@ -14,6 +14,7 @@ from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
+from src.imagery.custom_map_router import router as custom_map_router
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
 from src.tiling.router import router as tiling_router
@@ -144,5 +145,6 @@ app.include_router(annotations_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
+app.include_router(custom_map_router, prefix="/api")
 app.include_router(tiling_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

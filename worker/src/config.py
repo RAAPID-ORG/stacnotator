@@ -16,16 +16,12 @@ class Settings(BaseSettings):
     DBSCHEME: str = "postgresql"
     DBDRIVER: str = "psycopg2"
 
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
-
-    # Shared secret for verifying tiler access tokens (HMAC)
-    TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
-
-    # Custom map storage (local path or resolved via Azure SAS)
     STORAGE_PROVIDER: str = "local"
     STORAGE_LOCAL_PATH: str = "/app/uploads"
     AZURE_STORAGE_ACCOUNT_URL: str | None = None
     AZURE_STORAGE_CONTAINER: str = "custom-maps"
+
+    POLL_INTERVAL_S: int = 30
 
     @computed_field
     @property

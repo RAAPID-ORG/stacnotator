@@ -1,3 +1,5 @@
+import uuid as _uuid
+
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     Boolean,
@@ -10,9 +12,10 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
@@ -272,6 +275,44 @@ class Basemap(Base):
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
+
+
+class CustomMap(Base):
+    """User-uploaded raster rendered as an overlay on the annotation map."""
+
+    __tablename__ = "custom_maps"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "name", name="uq_custom_maps_campaign_name"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[_uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=_uuid.uuid4
+    )
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"), nullable=False
+    )
+    uploaded_by: Mapped[_uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    # pending_processing | processing | ready | failed
+    status: Mapped[str] = mapped_column(
+        String(30), nullable=False, server_default="pending_processing"
+    )
+    original_key: Mapped[str] = mapped_column(Text, nullable=False)
+    cog_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    band_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nodata: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bounds: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str | None] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[str | None] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class ImageryView(Base):

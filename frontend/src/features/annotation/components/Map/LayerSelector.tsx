@@ -18,7 +18,6 @@ interface LayerSelectorProps {
   onLayerSelect: (layerId: string) => void;
 }
 
-/** Parse "SourceName - VizName" into { source, viz }. Falls back to full name for both. */
 function parseLayerName(name: string): { source: string; viz: string } {
   const idx = name.indexOf(' - ');
   if (idx === -1) return { source: name, viz: name };
@@ -30,8 +29,8 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const baseMapLayers: Layer[] = layers.filter((layer) => layer.layerType === 'basemap');
-  const imageryLayers: Layer[] = layers.filter((layer) => layer.layerType === 'imagery');
+  const baseMapLayers = layers.filter((l) => l.layerType === 'basemap');
+  const imageryLayers = layers.filter((l) => l.layerType === 'imagery');
 
   const imageryGroups: LayerGroup[] = useMemo(() => {
     const groupMap = new Map<string, Layer[]>();
@@ -56,11 +55,6 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
     return `${source} › ${viz}`;
   }, [selectedLayer, showHierarchy]);
 
-  const handleLayerSelect = (layerId: string) => {
-    onLayerSelect(layerId);
-    setShowLayerDropdown(false);
-  };
-
   const closeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const scheduleClose = useCallback(() => {
@@ -76,8 +70,6 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
     setShowLayerDropdown((o) => !o);
   }, [cancelClose]);
 
-  // Position the dropdown directly under the button via the DOM,
-  // avoiding issues with CSS transforms breaking fixed positioning.
   useEffect(() => {
     if (!showLayerDropdown || !buttonRef.current || !dropdownRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
@@ -142,15 +134,18 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
                       <label
                         key={layer.id}
                         className={`flex items-center px-3 py-2 text-xs text-neutral-800 cursor-pointer transition-colors hover:bg-neutral-50
-                          ${showHierarchy ? 'pl-5' : ''}
-                          ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
-                        `}
+                        ${showHierarchy ? 'pl-5' : ''}
+                        ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
+                      `}
                       >
                         <input
                           type="radio"
                           name="layer"
                           checked={selectedLayer?.id === layer.id}
-                          onChange={() => handleLayerSelect(layer.id)}
+                          onChange={() => {
+                            onLayerSelect(layer.id);
+                            setShowLayerDropdown(false);
+                          }}
                           className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
                         />
                         <span>{displayName}</span>
@@ -158,25 +153,28 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
                     );
                   })}
                   {showHierarchy && gi < imageryGroups.length - 1 && (
-                    <div className="border-t border-neutral-200"></div>
+                    <div className="border-t border-neutral-200" />
                   )}
                 </div>
               ))}
 
-              <div className="border-t border-neutral-300 my-1"></div>
+              <div className="border-t border-neutral-300 my-1" />
 
               {baseMapLayers.map((layer) => (
                 <label
                   key={layer.id}
                   className={`flex items-center px-3 py-2 text-xs text-neutral-800 cursor-pointer transition-colors hover:bg-neutral-50
-                    ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
-                  `}
+                  ${selectedLayer?.id === layer.id ? 'bg-brand-50 text-brand-700' : ''}
+                `}
                 >
                   <input
                     type="radio"
                     name="layer"
                     checked={selectedLayer?.id === layer.id}
-                    onChange={() => handleLayerSelect(layer.id)}
+                    onChange={() => {
+                      onLayerSelect(layer.id);
+                      setShowLayerDropdown(false);
+                    }}
                     className={`mr-2 accent-brand-500${selectedLayer?.id === layer.id ? '' : ' hover:accent-brand-500'}`}
                   />
                   <span>{layer.name}</span>

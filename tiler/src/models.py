@@ -1,7 +1,9 @@
 """Read-only models for mosaic data. Matches backend schema exactly."""
 
+import uuid as _uuid
+
 from sqlalchemy import Float, Integer, String, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -19,6 +21,19 @@ class MosaicRegistration(Base):
     item_count: Mapped[int] = mapped_column(Integer, nullable=False)
     assets_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+
+
+class CustomMap(Base):
+    __tablename__ = "custom_maps"
+    __table_args__ = {"schema": "data"}
+
+    id: Mapped[_uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    cog_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    band_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nodata: Mapped[float | None] = mapped_column(Float, nullable=True)
+    viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class MosaicItem(Base):
