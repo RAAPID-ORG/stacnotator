@@ -3,9 +3,7 @@ import { Modal } from '~/shared/ui/Modal';
 import { useApiKeyStore } from '../stores/apiKey.store';
 
 export interface MissingApiKey {
-  /** Storage key scoped to the entry, e.g. 'basemap:99' or 'collection:10'. */
   scopedKey: string;
-  /** Human-readable name shown as the input label, e.g. 'Planet Basemap'. */
   label: string;
 }
 

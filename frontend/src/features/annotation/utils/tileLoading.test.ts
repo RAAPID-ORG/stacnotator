@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { substituteApiKeys } from './tileLoading';
 
-// ─── substituteApiKeys ───────────────────────────────────────────────────────
-
 describe('substituteApiKeys', () => {
   it('substitutes {api_key} with the stored value', () => {
     const url =
@@ -58,11 +56,8 @@ describe('substituteApiKeys', () => {
   });
 });
 
-// ─── buildTileUrl + isSelfHostedUrl (require a non-empty TILER_BASE) ─────────
-//
-// TILER_BASE is a module-level constant evaluated at import time, so we must
-// stub the env var, reset the module registry, and re-import dynamically to
-// get a fresh evaluation.
+// TILER_BASE is a module-level constant so we stub the env var and reset the
+// module registry before each describe block to get a fresh evaluation.
 
 describe('buildTileUrl', () => {
   let mod: typeof import('./tileLoading');
