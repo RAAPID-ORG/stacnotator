@@ -197,3 +197,10 @@ export const IconFlag = ({ className = 'w-4 h-4' }: IconProps) => (
     <path d="M4 17V3M4 3h10l-2 4 2 4H4" />
   </svg>
 );
+
+export const IconKey = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <circle cx="6.5" cy="10" r="3.5" />
+    <path d="M10 10h7M14 10v2.5M17 10v1.5" />
+  </svg>
+);

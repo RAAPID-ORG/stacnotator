@@ -138,7 +138,10 @@ export const CollectionEditor = ({
           const missingParams = ['{z}', '{x}', '{y}'].filter((p) => !url.includes(p));
           return (
             <div key={vizName} className="space-y-0.5">
-              <label className="text-[11px] text-neutral-500">{vizName || '(unnamed)'} URL</label>
+              <label className="text-[11px] text-neutral-500 flex items-center gap-1">
+                {vizName || '(unnamed)'} URL
+                <Tooltip text="If this provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}. Users enter their key value once when they first open the campaign." />
+              </label>
               <input
                 type="text"
                 placeholder="https://.../tiles/{z}/{x}/{y}"
