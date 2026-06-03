@@ -5,6 +5,11 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useSliceNavigation } from './useSliceNavigation';
+import {
+  buildSourceGroups,
+  computeCycleSource,
+  computeCycleVisualization,
+} from '../utils/imagerySourceCycling';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -123,17 +128,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const sourceGroups = useMemo(() => {
     const sources = campaign?.imagery_sources ?? [];
     const viewSourceIds = new Set((selectedView?.collection_refs ?? []).map((r) => r.source_id));
-    const groups: { id: number; startIdx: number; count: number }[] = [];
-    let offset = 0;
-    for (const src of sources) {
-      if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
-        offset += src.visualizations.length;
-        continue;
-      }
-      groups.push({ id: src.id, startIdx: offset, count: src.visualizations.length });
-      offset += src.visualizations.length;
-    }
-    return groups;
+    return buildSourceGroups(sources, viewSourceIds);
   }, [campaign?.imagery_sources, selectedView?.collection_refs]);
 
   const basemaps = useMemo(() => campaign?.basemaps ?? [], [campaign?.basemaps]);
@@ -143,72 +138,44 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     const sources = campaign?.imagery_sources ?? [];
     if (!selectedView) return;
 
-    const totalEntries = sourceGroups.length + basemapIds.length;
-    if (totalEntries <= 1) return;
-
     const map = useMapStore.getState();
-    const { selectedLayerIndex: layerIdx, showBasemap: onBasemap } = map;
-    const colId = map.activeCollectionId;
+    const result = computeCycleSource(sourceGroups, basemapIds, sources, selectedView, {
+      selectedLayerIndex: map.selectedLayerIndex,
+      showBasemap: map.showBasemap,
+      activeCollectionId: map.activeCollectionId,
+      selectedBasemapId: map.selectedBasemapId,
+      lastSourceState: map.lastSourceState,
+    });
 
-    let currentEntryIdx: number;
-    if (onBasemap) {
-      const bmIdx = basemapIds.indexOf(map.selectedBasemapId ?? '');
-      currentEntryIdx = sourceGroups.length + Math.max(0, bmIdx);
-    } else {
-      const srcByCollection = sources.find((s) => s.collections.some((c) => c.id === colId));
-      currentEntryIdx = srcByCollection
-        ? sourceGroups.findIndex((g) => g.id === srcByCollection.id)
-        : sourceGroups.findIndex((g) => layerIdx >= g.startIdx && layerIdx < g.startIdx + g.count);
-      if (currentEntryIdx === -1) currentEntryIdx = 0;
+    if (result.action === 'noop') return;
+    if (result.recordState) {
+      map.recordSourceState(
+        result.recordState.sourceId,
+        result.recordState.collectionId,
+        result.recordState.layerIndex
+      );
     }
-
-    if (!onBasemap && colId !== null) {
-      const currentSrc = sources.find((s) => s.collections.some((c) => c.id === colId));
-      if (currentSrc) map.recordSourceState(currentSrc.id, colId, layerIdx);
-    }
-
-    const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
-
-    if (nextEntryIdx >= sourceGroups.length) {
-      const bmIdx = nextEntryIdx - sourceGroups.length;
+    if (result.action === 'switch-to-basemap') {
       map.setShowBasemap(true);
-      map.setSelectedBasemapId(basemapIds[bmIdx]);
-      return;
+      map.setSelectedBasemapId(result.basemapId);
+    } else {
+      map.setSelectedLayerIndex(result.layerIndex);
+      if (result.collectionId !== undefined) map.setActiveCollectionId(result.collectionId);
     }
-
-    const nextGroup = sourceGroups[nextEntryIdx];
-    const targetSource = sources.find((s) => s.id === nextGroup.id);
-    if (!targetSource) return;
-
-    map.setSelectedLayerIndex(nextGroup.startIdx);
-
-    const remembered = map.lastSourceState[targetSource.id];
-    const canRestore =
-      remembered &&
-      targetSource.collections.some((c) => c.id === remembered.collectionId) &&
-      selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
-
-    const targetCollectionId = canRestore
-      ? remembered.collectionId
-      : selectedView.collection_refs.find((r) => r.source_id === targetSource.id)?.collection_id;
-    if (targetCollectionId !== undefined) map.setActiveCollectionId(targetCollectionId);
   }, [sourceGroups, basemapIds, campaign, selectedView]);
 
   /** Shift+I: cycle visualizations within the active source (the source owning activeCollectionId) */
   const cycleVisualization = useCallback(() => {
-    if (showBasemap || sourceGroups.length === 0 || !campaign) return;
-    // Find the source group that owns the active collection
-    const activeSrc = campaign.imagery_sources.find((s) =>
-      s.collections.some((c) => c.id === activeCollectionId)
+    if (!campaign) return;
+    const sources = campaign.imagery_sources;
+    const nextIndex = computeCycleVisualization(
+      sourceGroups,
+      sources,
+      selectedLayerIndex,
+      activeCollectionId,
+      showBasemap
     );
-    if (!activeSrc) return;
-    const activeGroup = sourceGroups.find((g) => g.id === activeSrc.id);
-    if (!activeGroup || activeGroup.count <= 1) return;
-    // Compute current position within the active source
-    const posInGroup = Math.max(0, selectedLayerIndex - activeGroup.startIdx);
-    const clampedPos = Math.min(posInGroup, activeGroup.count - 1);
-    const nextPos = (clampedPos + 1) % activeGroup.count;
-    setSelectedLayerIndex(activeGroup.startIdx + nextPos);
+    if (nextIndex !== null) setSelectedLayerIndex(nextIndex);
   }, [
     sourceGroups,
     selectedLayerIndex,

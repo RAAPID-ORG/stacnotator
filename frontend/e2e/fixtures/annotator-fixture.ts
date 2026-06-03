@@ -16,6 +16,9 @@ import {
   ALL_TASKS,
   makeSubmitResponse,
   makeDeleteResponse,
+  MOCK_OPEN_ANNOTATIONS,
+  makeCreateAnnotationResponse,
+  makeUpdateAnnotationResponse,
 } from './mock-data';
 
 /** Captured API request for assertions. */
@@ -62,8 +65,20 @@ function extractPathParams(pathname: string): Record<string, string> {
       ['campaign_id'],
     ],
     [
+      /^\/api\/campaigns\/(\d+)\/annotations\/(\d+)\/update$/,
+      ['campaign_id', 'annotation_id'],
+    ],
+    [
       /^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/,
       ['campaign_id', 'annotation_id'],
+    ],
+    [
+      /^\/api\/campaigns\/(\d+)\/create-annotation$/,
+      ['campaign_id'],
+    ],
+    [
+      /^\/api\/campaigns\/(\d+)\/annotations$/,
+      ['campaign_id'],
     ],
     [
       /^\/api\/campaigns\/(\d+)\/detailed$/,
@@ -161,6 +176,11 @@ export const test = base.extend<AnnotatorFixtures>({
   annotationPage: async ({ page, api }, use) => {
     // Track ongoing task list data (mutable so tests can change it mid-flight)
     let taskListData = { ...MOCK_TASK_LIST };
+
+    // Open-mode annotation list (mutable so create/delete reflect within a test).
+    // Reset per page setup so each test starts from the same baseline.
+    let openAnnotations: any[] = MOCK_OPEN_ANNOTATIONS.map((a) => ({ ...a }));
+    let nextOpenAnnotationId = 9100;
 
     // Mock API routes
     // IMPORTANT: Playwright checks routes in LIFO order (last registered = highest priority).
@@ -263,6 +283,56 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: resp });
     });
 
+    // GET /api/campaigns/:id/annotations  (open mode: load all annotations)
+    await page.route('**/api/campaigns/*/annotations', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const pathname = new URL(route.request().url()).pathname;
+      api.requests.push({
+        method: 'GET',
+        url: route.request().url(),
+        pathname,
+        body: null,
+        pathParams: extractPathParams(pathname),
+      });
+      await route.fulfill({ json: openAnnotations });
+    });
+
+    // POST /api/campaigns/:id/create-annotation  (open mode: draw)
+    await page.route('**/api/campaigns/*/create-annotation', async (route) => {
+      const body = await parseBody(route);
+      const pathname = new URL(route.request().url()).pathname;
+      api.requests.push({
+        method: 'POST',
+        url: route.request().url(),
+        pathname,
+        body,
+        pathParams: extractPathParams(pathname),
+      });
+      const created = makeCreateAnnotationResponse(body, nextOpenAnnotationId++);
+      openAnnotations.push(created);
+      await route.fulfill({ json: created });
+    });
+
+    // PUT /api/campaigns/:id/annotations/:annId/update  (open mode: edit geometry / flag)
+    await page.route('**/api/campaigns/*/annotations/*/update', async (route) => {
+      if (route.request().method() !== 'PUT') return route.fallback();
+      const body = await parseBody(route);
+      const pathname = new URL(route.request().url()).pathname;
+      api.requests.push({
+        method: 'PUT',
+        url: route.request().url(),
+        pathname,
+        body,
+        pathParams: extractPathParams(pathname),
+      });
+      const annId = Number(extractPathParams(pathname).annotation_id);
+      const idx = openAnnotations.findIndex((a) => a.id === annId);
+      const existing = idx >= 0 ? openAnnotations[idx] : { id: annId, geometry: {} };
+      const updated = makeUpdateAnnotationResponse(existing, body);
+      if (idx >= 0) openAnnotations[idx] = updated;
+      await route.fulfill({ json: updated });
+    });
+
     // DELETE /api/campaigns/:id/annotations/:annId
     await page.route('**/api/campaigns/*/annotations/*', async (route) => {
       if (route.request().method() !== 'DELETE') return route.fallback();
@@ -274,6 +344,8 @@ export const test = base.extend<AnnotatorFixtures>({
         body: null,
         pathParams: extractPathParams(pathname),
       });
+      const annId = Number(extractPathParams(pathname).annotation_id);
+      openAnnotations = openAnnotations.filter((a) => a.id !== annId);
       await route.fulfill({ json: makeDeleteResponse() });
     });
 

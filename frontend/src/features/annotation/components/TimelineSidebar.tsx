@@ -295,6 +295,7 @@ const TimelineSidebar = ({
                 return (
                   <div
                     key={collection.id}
+                    data-collection-id={collection.id}
                     className="relative flex items-center justify-center"
                     style={{ height: segH, minHeight: segH }}
                   >

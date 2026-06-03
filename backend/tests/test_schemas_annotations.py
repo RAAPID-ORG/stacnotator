@@ -11,8 +11,12 @@ def _make_assignment(user_id, status="pending"):
     return {"user_id": user_id, "status": status}
 
 
-def _make_annotation(user_id, label_id):
-    return {"label_id": label_id, "created_by_user_id": user_id}
+def _make_annotation(user_id, label_id, is_authoritative=False):
+    return {
+        "label_id": label_id,
+        "created_by_user_id": user_id,
+        "is_authoritative": is_authoritative,
+    }
 
 
 def _make_task(assignments, annotations, task_id=1):
@@ -24,7 +28,6 @@ def _make_task(assignments, annotations, task_id=1):
         assignments=assignments,
         annotations=[
             {
-                **a,
                 "id": i,
                 "comment": None,
                 "created_at": "2025-01-01T00:00:00",
@@ -33,6 +36,8 @@ def _make_task(assignments, annotations, task_id=1):
                 "is_authoritative": False,
                 "flagged_for_review": False,
                 "flag_comment": None,
+                # Spread last so caller-provided values (e.g. is_authoritative) win.
+                **a,
             }
             for i, a in enumerate(annotations, start=1)
         ],
@@ -139,3 +144,73 @@ class TestTaskStatusComputation:
             ],
         )
         assert task.task_status == "partial"
+
+
+class TestAuthoritativeOverride:
+    """An authoritative reviewer's label resolves a task on its own,
+    overriding the assignment-based aggregation."""
+
+    def test_authoritative_resolves_a_conflict_to_done(self):
+        """Two assignees disagree, then an authoritative reviewer labels it:
+        the task is done (not conflicting)."""
+        u1, u2, reviewer = uuid4(), uuid4(), uuid4()
+        task = _make_task(
+            assignments=[
+                _make_assignment(u1, "done"),
+                _make_assignment(u2, "done"),
+            ],
+            annotations=[
+                _make_annotation(u1, label_id=1),
+                _make_annotation(u2, label_id=2),
+                _make_annotation(reviewer, label_id=3, is_authoritative=True),
+            ],
+        )
+        assert task.task_status == "done"
+
+    def test_authoritative_resolves_partial_to_done(self):
+        """One assignee labeled, one still pending, plus an authoritative
+        label -> done (the authoritative label short-circuits aggregation)."""
+        u1, u2, reviewer = uuid4(), uuid4(), uuid4()
+        task = _make_task(
+            assignments=[
+                _make_assignment(u1, "done"),
+                _make_assignment(u2, "pending"),
+            ],
+            annotations=[
+                _make_annotation(u1, label_id=1),
+                _make_annotation(reviewer, label_id=1, is_authoritative=True),
+            ],
+        )
+        assert task.task_status == "done"
+
+    def test_authoritative_alone_is_done_even_with_pending_assignees(self):
+        """Only the authoritative reviewer has acted; assignees untouched."""
+        u1, u2, reviewer = uuid4(), uuid4(), uuid4()
+        task = _make_task(
+            assignments=[
+                _make_assignment(u1, "pending"),
+                _make_assignment(u2, "pending"),
+            ],
+            annotations=[
+                _make_annotation(reviewer, label_id=2, is_authoritative=True),
+            ],
+        )
+        assert task.task_status == "done"
+
+    def test_without_authoritative_the_same_disagreement_is_conflicting(self):
+        """Control: drop the authoritative flag and the task is conflicting,
+        confirming it is the flag (not the extra annotation) doing the work."""
+        u1, u2, u3 = uuid4(), uuid4(), uuid4()
+        task = _make_task(
+            assignments=[
+                _make_assignment(u1, "done"),
+                _make_assignment(u2, "done"),
+                _make_assignment(u3, "done"),
+            ],
+            annotations=[
+                _make_annotation(u1, label_id=1),
+                _make_annotation(u2, label_id=2),
+                _make_annotation(u3, label_id=3),
+            ],
+        )
+        assert task.task_status == "conflicting"

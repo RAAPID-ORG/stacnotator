@@ -166,13 +166,13 @@ export const useOpenModeKeyboard = () => {
             const targetSource = sources.find((s) => s.id === group.id);
             if (!targetSource) break;
 
-            map.setSelectedLayerIndex(group.startIdx);
-
             const remembered = map.lastSourceState[targetSource.id];
             const canRestore =
               remembered &&
               targetSource.collections.some((c) => c.id === remembered.collectionId) &&
               selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
+
+            map.setSelectedLayerIndex(canRestore ? remembered.layerIndex : group.startIdx);
 
             const targetCollectionId = canRestore
               ? remembered.collectionId

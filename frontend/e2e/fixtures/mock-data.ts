@@ -118,8 +118,10 @@ const DEFAULT_LAYOUT = {
   id: 1,
   user_id: null,
   layout_data: [
-    { i: 'main', x: 0, y: 0, w: 6, h: 4 },
-    { i: 'controls', x: 0, y: 4, w: 6, h: 2 },
+    { i: 'main', x: 0, y: 0, w: 44, h: 26 },
+    { i: 'controls', x: 44, y: 0, w: 16, h: 26 },
+    // timeseries card below main - must be present so Chart.js gets a real size
+    { i: 'timeseries', x: 0, y: 26, w: 44, h: 14 },
   ],
 };
 
@@ -320,6 +322,277 @@ export function makeSubmitResponse(
 // Delete annotation response
 export function makeDeleteResponse() {
   return { task_status: 'pending', assignment_status: 'pending' };
+}
+
+// ---------------------------------------------------------------------------
+// Multi-source campaign fixtures
+// ---------------------------------------------------------------------------
+
+export const COLLECTION_VHR = {
+  id: 30,
+  name: 'VHR Image',
+  cover_slice_index: 0,
+  display_order: 0,
+  stac_config: null,
+  slices: [
+    {
+      id: 301,
+      name: 'VHR 2023',
+      start_date: '2023-01-01',
+      end_date: '2023-12-31',
+      display_order: 0,
+      tile_urls: [
+        {
+          visualization_name: 'True Color',
+          tile_url:
+            'https://tiles.example.com/mosaic/vhr-2023/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+        },
+      ],
+    },
+  ],
+};
+
+export const SOURCE_VHR = {
+  id: 2,
+  name: 'VHR',
+  crosshair_hex6: '#0000ff',
+  default_zoom: 16,
+  visualizations: [{ id: 3, name: 'True Color' }],
+  collections: [COLLECTION_VHR],
+};
+
+/**
+ * Campaign with two imagery sources: Sentinel-2 (True Color + False Color) and VHR
+ * (True Color only). The view references one collection from each source so the I key
+ * can cycle between them.
+ */
+export const MOCK_CAMPAIGN_MULTI_SOURCE = {
+  ...MOCK_CAMPAIGN,
+  imagery_sources: [SOURCE, SOURCE_VHR],
+  imagery_views: [
+    {
+      id: 1,
+      name: 'Default View',
+      display_order: 0,
+      collection_refs: [
+        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
+        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 1 },
+      ],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Timeseries fixtures
+// ---------------------------------------------------------------------------
+
+export const MOCK_TIMESERIES_ENTRY = {
+  id: 1,
+  campaign_id: 42,
+  name: 'NDVI',
+  start_ym: '202401',
+  end_ym: '202406',
+  data_source: 'Sentinel-2',
+  provider: 'planetary',
+  ts_type: 'ndvi',
+};
+
+// Bi-weekly NDVI observations over a growing season with some cloud-flagged entries.
+// Format: { time: YYYYMMDD, values: ndvi (0-1), cloud: 0=clear 1=cloudy }
+export const MOCK_TIMESERIES_DATA = [
+  { time: '20240101', values: 0.12, cloud: 0 },
+  { time: '20240115', values: 0.14, cloud: 0 },
+  { time: '20240129', values: 0.11, cloud: 1 }, // cloudy
+  { time: '20240212', values: 0.17, cloud: 0 },
+  { time: '20240226', values: 0.22, cloud: 0 },
+  { time: '20240311', values: 0.28, cloud: 0 },
+  { time: '20240325', values: 0.35, cloud: 1 }, // cloudy
+  { time: '20240408', values: 0.45, cloud: 0 },
+  { time: '20240422', values: 0.55, cloud: 0 },
+  { time: '20240506', values: 0.63, cloud: 0 },
+  { time: '20240520', values: 0.68, cloud: 0 },
+  { time: '20240603', values: 0.71, cloud: 0 },
+  { time: '20240617', values: 0.73, cloud: 1 }, // cloudy
+  { time: '20240701', values: 0.72, cloud: 0 },
+  { time: '20240715', values: 0.70, cloud: 0 },
+  { time: '20240729', values: 0.66, cloud: 0 },
+  { time: '20240812', values: 0.60, cloud: 0 },
+  { time: '20240826', values: 0.53, cloud: 0 },
+  { time: '20240909', values: 0.45, cloud: 1 }, // cloudy
+  { time: '20240923', values: 0.37, cloud: 0 },
+];
+
+export const MOCK_CAMPAIGN_WITH_TIMESERIES = {
+  ...MOCK_CAMPAIGN,
+  time_series: [MOCK_TIMESERIES_ENTRY],
+};
+
+// ---------------------------------------------------------------------------
+// Multi-view campaign fixtures
+// ---------------------------------------------------------------------------
+
+export const MOCK_CAMPAIGN_MULTI_VIEW = {
+  ...MOCK_CAMPAIGN,
+  imagery_sources: [SOURCE, SOURCE_VHR],
+  imagery_views: [
+    {
+      id: 1,
+      name: 'Sentinel-2 View',
+      display_order: 0,
+      collection_refs: [
+        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
+        { collection_id: 20, source_id: 1, show_as_window: true, display_order: 1 },
+      ],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    },
+    {
+      id: 2,
+      name: 'VHR View',
+      display_order: 1,
+      collection_refs: [
+        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 0 },
+      ],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    },
+  ],
+};
+
+// ---------------------------------------------------------------------------
+// Open mode campaign fixtures
+// ---------------------------------------------------------------------------
+
+// Open-mode labels carry an explicit geometry_type so the drawing tool picks the
+// right OL interaction (point = single-click, polygon/line = multi-click).
+export const OPEN_LABELS = [
+  { id: 1, name: 'tree', geometry_type: 'point' },
+  { id: 2, name: 'field', geometry_type: 'polygon' },
+  { id: 3, name: 'road', geometry_type: 'line' },
+];
+
+// Center of the campaign bbox (30..31 lon, 50..51 lat) - the initial map center
+// in open mode. A canvas-center click lands here, so position assertions compare
+// the POSTed WKT against this.
+export const OPEN_MODE_CENTER = { lat: 50.5, lon: 30.5 };
+
+export const MOCK_CAMPAIGN_OPEN_MODE = {
+  ...MOCK_CAMPAIGN,
+  name: 'Test Campaign (Open Mode)',
+  mode: 'open',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  time_series: [MOCK_TIMESERIES_ENTRY],
+};
+
+/** Same campaign without timeseries, so the T tool is unavailable. */
+export const MOCK_CAMPAIGN_OPEN_MODE_NO_TS = {
+  ...MOCK_CAMPAIGN_OPEN_MODE,
+  time_series: [],
+};
+
+/**
+ * Open-mode campaign with two imagery sources (Sentinel-2 + VHR) so the I key
+ * can cycle sources, plus timeseries for the probe tool.
+ */
+export const MOCK_CAMPAIGN_OPEN_MODE_MULTI = {
+  ...MOCK_CAMPAIGN_MULTI_SOURCE,
+  mode: 'open',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS },
+  time_series: [MOCK_TIMESERIES_ENTRY],
+  // Layout that gives the minimap a real on-screen size so it is clickable.
+  default_main_canvas_layout: {
+    id: 2,
+    user_id: null,
+    layout_data: [
+      { i: 'main', x: 0, y: 0, w: 38, h: 24 },
+      { i: 'controls', x: 38, y: 0, w: 22, h: 12 },
+      { i: 'minimap', x: 38, y: 12, w: 22, h: 12 },
+      { i: 'timeseries', x: 0, y: 24, w: 38, h: 14 },
+    ],
+  },
+};
+
+function makeOpenAnnotation(
+  id: number,
+  labelId: number,
+  wkt: string,
+  updatedAt: string,
+  opts: { flagged?: boolean; flagComment?: string | null; comment?: string | null } = {}
+) {
+  return {
+    id,
+    label_id: labelId,
+    comment: opts.comment ?? null,
+    created_by_user_id: TEST_USER_ID,
+    created_by_user_email: 'test@example.com',
+    created_by_user_display_name: 'Test User',
+    created_at: updatedAt,
+    updated_at: updatedAt,
+    confidence: null,
+    is_authoritative: false,
+    flagged_for_review: opts.flagged ?? false,
+    flag_comment: opts.flagged ? (opts.flagComment ?? null) : null,
+    geometry: { id: id * 10, geometry: wkt },
+  };
+}
+
+// Three pre-existing annotations. Sorted newest-first the order is [B, A, C]:
+//   B (newest) is off-centre (NE) - pressing S navigates here and re-centres the map.
+//   A is exactly at the view centre - a canvas-centre click selects it (edit/delete/flag).
+//   C (oldest) is a polygon to the SW.
+export const OPEN_ANN_CENTER = makeOpenAnnotation(9001, 1, 'POINT(30.5 50.5)', '2024-06-10T10:00:00Z');
+export const OPEN_ANN_NE_FLAGGED = makeOpenAnnotation(
+  9002,
+  1,
+  'POINT(30.8 50.8)',
+  '2024-06-20T10:00:00Z',
+  { flagged: true, flagComment: 'please double-check' }
+);
+export const OPEN_ANN_SW_POLYGON = makeOpenAnnotation(
+  9003,
+  2,
+  'POLYGON((30.18 50.18, 30.22 50.18, 30.22 50.22, 30.18 50.22, 30.18 50.18))',
+  '2024-06-01T10:00:00Z'
+);
+
+export const MOCK_OPEN_ANNOTATIONS = [OPEN_ANN_CENTER, OPEN_ANN_NE_FLAGGED, OPEN_ANN_SW_POLYGON];
+
+/** Build an AnnotationOut echoing back a create-annotation POST body. */
+export function makeCreateAnnotationResponse(body: any, id: number) {
+  return {
+    id,
+    label_id: body?.label_id ?? null,
+    comment: body?.comment ?? null,
+    created_by_user_id: TEST_USER_ID,
+    created_by_user_email: 'test@example.com',
+    created_by_user_display_name: 'Test User',
+    created_at: '2024-07-01T10:00:00Z',
+    updated_at: '2024-07-01T10:00:00Z',
+    confidence: body?.confidence ?? null,
+    is_authoritative: false,
+    flagged_for_review: body?.flagged_for_review ?? false,
+    flag_comment: body?.flag_comment ?? null,
+    geometry: { id: id * 10, geometry: body?.geometry_wkt ?? 'POINT(0 0)' },
+  };
+}
+
+/** Merge an annotation-update PUT body onto the existing annotation. */
+export function makeUpdateAnnotationResponse(existing: any, body: any) {
+  return {
+    ...existing,
+    label_id: body?.label_id ?? existing.label_id,
+    comment: body?.comment ?? existing.comment,
+    flagged_for_review:
+      body?.flagged_for_review ?? existing.flagged_for_review,
+    flag_comment:
+      body?.flagged_for_review === false ? null : (body?.flag_comment ?? existing.flag_comment),
+    updated_at: '2024-07-02T10:00:00Z',
+    geometry: body?.geometry_wkt
+      ? { ...existing.geometry, geometry: body.geometry_wkt }
+      : existing.geometry,
+  };
 }
 
 // Re-export individual slices / collections for direct assertions in tests

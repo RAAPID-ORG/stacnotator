@@ -18,9 +18,14 @@ import {
   TASK_1,
   TASK_2,
   TASK_3,
+  TASK_4,
+  TASK_5,
   ALL_TASKS,
-  TASK_LOCATIONS,
 } from './fixtures/mock-data';
+import {
+  assertCrosshairAt,
+  assertTilesFetchedForTask,
+} from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
@@ -55,107 +60,6 @@ async function waitAutoAdvanceTo(page: Page, annotationNumber: string) {
   const gotoInput = page.locator('input[type="number"][title="Press Enter to go"]');
   await expect(gotoInput).toHaveValue(annotationNumber, { timeout: 5000 });
   await waitForNavIdle(page);
-}
-
-// Crosshair position verification
-async function getCrosshairPosition(page: Page): Promise<{ lat: number; lon: number }> {
-  // Poll until the crosshair overlay has a position set (the OL overlay
-  // position is set asynchronously via a React useEffect after task data
-  // propagates through the store).
-  const result = await page.waitForFunction(() => {
-    const overlay = (window as any).__OL_CROSSHAIR__;
-    if (!overlay) return null;
-    const pos = overlay.getPosition();
-    if (!pos) return null;
-    const lon = (pos[0] * 180) / 20037508.342789244;
-    const lat =
-      (Math.atan(Math.exp((pos[1] * Math.PI) / 20037508.342789244)) * 360) / Math.PI - 90;
-    return { lat, lon };
-  }, undefined, { timeout: 5000 });
-  const value = await result.jsonValue();
-  if (!value) throw new Error('Crosshair position not available after timeout');
-  return value as { lat: number; lon: number };
-}
-
-const COORD_TOLERANCE = 0.01;
-
-function assertCoordsMatch(
-  actual: { lat: number; lon: number },
-  expected: { lat: number; lon: number },
-  label: string,
-) {
-  const dLat = Math.abs(actual.lat - expected.lat);
-  const dLon = Math.abs(actual.lon - expected.lon);
-  expect(
-    dLat < COORD_TOLERANCE && dLon < COORD_TOLERANCE,
-    `[${label}] Crosshair at (${actual.lat.toFixed(4)}, ${actual.lon.toFixed(4)}) ` +
-      `but expected (${expected.lat}, ${expected.lon}) - ` +
-      `dlat=${dLat.toFixed(5)}, dlon=${dLon.toFixed(5)}`,
-  ).toBe(true);
-}
-
-async function assertCrosshairAt(page: Page, taskId: number, label: string) {
-  const expected = TASK_LOCATIONS[taskId];
-  if (!expected) throw new Error(`No location for task ${taskId}`);
-  const actual = await getCrosshairPosition(page);
-  assertCoordsMatch(actual, expected, label);
-}
-
-// Tile imagery verification
-function latLonToTile(lat: number, lon: number, z: number): { x: number; y: number } {
-  const n = 2 ** z;
-  const x = Math.floor(((lon + 180) / 360) * n);
-  const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n,
-  );
-  return { x, y };
-}
-
-function extractTileCoords(requests: CapturedRequest[]): Array<{ z: number; x: number; y: number }> {
-  const pattern = /\/(\d+)\/(\d+)\/(\d+)\?/;
-  const results: Array<{ z: number; x: number; y: number }> = [];
-  for (const r of requests) {
-    if (!r.url.includes('tiles.example.com')) continue;
-    const m = r.url.match(pattern);
-    if (m) results.push({ z: Number(m[1]), x: Number(m[2]), y: Number(m[3]) });
-  }
-  return results;
-}
-
-function assertTilesFetchedForTask(
-  requests: CapturedRequest[],
-  sinceIndex: number,
-  taskId: number,
-  label: string,
-) {
-  const expected = TASK_LOCATIONS[taskId];
-  if (!expected) throw new Error(`No location for task ${taskId}`);
-
-  const recentRequests = requests.slice(sinceIndex);
-  const tiles = extractTileCoords(recentRequests);
-
-  if (tiles.length === 0) {
-    // No new tiles loaded - OL may have them cached. The crosshair check
-    // already guarantees the map is pointed at the right place.
-    return;
-  }
-
-  const TILE_TOLERANCE = 2;
-  const hasTileNearTask = tiles.some((t) => {
-    const center = latLonToTile(expected.lat, expected.lon, t.z);
-    return (
-      Math.abs(t.x - center.x) <= TILE_TOLERANCE &&
-      Math.abs(t.y - center.y) <= TILE_TOLERANCE
-    );
-  });
-
-  expect(
-    hasTileNearTask,
-    `[${label}] Tiles loaded but none near task ${taskId} ` +
-      `(${expected.lat}, ${expected.lon}). ` +
-      `Got: ${tiles.map((t) => `${t.z}/${t.x}/${t.y}`).join(', ')}`,
-  ).toBe(true);
 }
 
 async function assertFullSync(
@@ -423,6 +327,34 @@ test.describe('Review mode', () => {
     await selectAndSubmit(page, '1');
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
   });
+
+  test('navigate through all review tasks: crosshair + tiles correct at TASK_4 and TASK_5', async ({
+    annotationPage,
+    api,
+  }) => {
+    const page = annotationPage;
+
+    // Enter review mode - lands on TASK_3 (first review-status task).
+    await page.locator('[data-tour="review-toggle"] button').first().click();
+    await waitNavSettled(page);
+    await assertCrosshairAt(page, TASK_3.id, 'review start TASK_3');
+
+    // Advance to TASK_4 (skipped).
+    let snap = api.requests.length;
+    await page.keyboard.press('s');
+    await waitNavSettled(page);
+    await assertCrosshairAt(page, TASK_4.id, 'TASK_4 crosshair');
+    assertTilesFetchedForTask(api.requests, snap, TASK_4.id, 'TASK_4 tiles');
+    expect(await readGoToValue(page)).toBe(TASK_4.annotation_number.toString());
+
+    // Advance to TASK_5 (conflicting).
+    snap = api.requests.length;
+    await page.keyboard.press('s');
+    await waitNavSettled(page);
+    await assertCrosshairAt(page, TASK_5.id, 'TASK_5 crosshair');
+    assertTilesFetchedForTask(api.requests, snap, TASK_5.id, 'TASK_5 tiles');
+    expect(await readGoToValue(page)).toBe(TASK_5.annotation_number.toString());
+  });
 });
 
 
@@ -586,9 +518,11 @@ test.describe('Chaos scenarios', () => {
     await assertCrosshairAt(page, TASK_3.id, 'review on');
 
     // Advance once → TASK_4 (skipped, second in the review-mode list).
+    const snapTask4 = api.requests.length;
     await page.keyboard.press('s');
     await waitNavSettled(page);
-    await assertCrosshairAt(page, 400, 'review: after s');
+    await assertCrosshairAt(page, TASK_4.id, 'review: after s');
+    assertTilesFetchedForTask(api.requests, snapTask4, TASK_4.id, 'review TASK_4 tiles');
 
     // Toggle review off - the off-handler calls setTaskFilter({}) which
     // reapplies the (preserved) review-mode filter via applyTaskFilter with

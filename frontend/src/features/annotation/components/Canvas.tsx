@@ -394,7 +394,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             </div>
           )}
 
-          <div key="minimap" className="grid-card" data-tour="minimap">
+          <div
+            key="minimap"
+            className="grid-card"
+            data-tour="minimap"
+            data-center-lat={center[0]}
+            data-center-lon={center[1]}
+          >
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
@@ -437,6 +443,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             return (
               <div
                 key={collection.id}
+                data-window-collection-id={collection.id}
                 className={`grid-card grid-card-hoverable ${isActiveCol ? 'active-window' : ''}`}
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >

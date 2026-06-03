@@ -1008,6 +1008,11 @@ def _conflicting_task_numbers(
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
         labeled = [a for a in task_anns if a.label_id is not None]
+        # An authoritative reviewer's label resolves the task on its own
+        # (same rule as compute_task_status, which marks it 'done'), so it is
+        # not a merge conflict even if the assignees disagreed.
+        if any(a.is_authoritative for a in labeled):
+            continue
         if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
             task = task_anns[0].annotation_task
             conflicts.append(task.annotation_number if task else task_id)

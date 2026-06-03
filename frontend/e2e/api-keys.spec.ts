@@ -1,6 +1,11 @@
-import { test, expect } from './fixtures/annotator-fixture';
+import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import type { Page } from '@playwright/test';
 import { MOCK_CAMPAIGN, COLLECTION_S2, COLLECTION_NDVI, SOURCE } from './fixtures/mock-data';
+
+/** Locate the API keys modal by scoping to the fixed overlay that contains its heading. */
+function apiKeysModal(page: Page) {
+  return page.locator('.fixed').filter({ hasText: 'API Keys Required' });
+}
 
 const KEYED_BASEMAP_ID = 99;
 const KEYED_COLLECTION_ID = COLLECTION_S2.id;
@@ -77,7 +82,7 @@ test.describe('API key prompt', () => {
     await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
 
     await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await annotationPage.getByRole('button', { name: 'Skip' }).click();
+    await apiKeysModal(annotationPage).getByRole('button', { name: 'Skip' }).click();
     await expect(annotationPage.getByText('API Keys Required')).not.toBeVisible();
     await expect(annotationPage.locator('[data-tour="controls"]')).toBeVisible();
   });
@@ -114,10 +119,11 @@ test.describe('multiple API keys', () => {
       imagery_sources: [KEYED_SOURCE],
     });
 
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await expect(annotationPage.getByPlaceholder('Paste your API key here')).toHaveCount(2);
-    await expect(annotationPage.getByText('Planet Basemap')).toBeVisible();
-    await expect(annotationPage.getByText(COLLECTION_S2.name)).toBeVisible();
+    const modal = apiKeysModal(annotationPage);
+    await expect(modal).toBeVisible({ timeout: 5_000 });
+    await expect(modal.getByPlaceholder('Paste your API key here')).toHaveCount(2);
+    await expect(modal.getByText('Planet Basemap')).toBeVisible();
+    await expect(modal.getByText(COLLECTION_S2.name)).toBeVisible();
   });
 
   test('prompt shows only the entry whose key is missing when one is already stored', async ({
@@ -134,10 +140,11 @@ test.describe('multiple API keys', () => {
       imagery_sources: [KEYED_SOURCE],
     });
 
-    await expect(annotationPage.getByText('API Keys Required')).toBeVisible({ timeout: 5_000 });
-    await expect(annotationPage.getByPlaceholder('Paste your API key here')).toHaveCount(1);
-    await expect(annotationPage.getByText(COLLECTION_S2.name)).toBeVisible();
-    await expect(annotationPage.getByText('Planet Basemap')).not.toBeVisible();
+    const modal = apiKeysModal(annotationPage);
+    await expect(modal).toBeVisible({ timeout: 5_000 });
+    await expect(modal.getByPlaceholder('Paste your API key here')).toHaveCount(1);
+    await expect(modal.getByText(COLLECTION_S2.name)).toBeVisible();
+    await expect(modal.getByText('Planet Basemap')).not.toBeVisible();
   });
 
   test('no prompt when all keys are stored', async ({ annotationPage }) => {
@@ -171,12 +178,16 @@ test.describe('API key tile substitution', () => {
       { key: 'stacnotator:api-keys', value: storedApiKeys({ 'basemap:99': 'PLtest123' }) }
     );
 
+    // Listener must be created before the action that triggers the request.
     const keyedTileRequest = annotationPage.waitForRequest(
       (req) => req.url().includes('api_key=PLtest123'),
       { timeout: 15_000 }
     );
 
     await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
+    await waitForNavIdle(annotationPage);
+    // Basemap is not active by default - cycle to it so OL requests its tiles.
+    await annotationPage.keyboard.press('i');
 
     const req = await keyedTileRequest;
     expect(req.url()).toContain('/planet/');
@@ -211,6 +222,10 @@ test.describe('API key tile substitution', () => {
       basemaps: [KEYED_BASEMAP],
       imagery_sources: [KEYED_SOURCE],
     });
+    await waitForNavIdle(annotationPage);
+    // Imagery tiles (IMAGERY_KEY) are requested automatically when the app loads.
+    // Basemap tiles (PLANET_KEY) require activating the basemap layer.
+    await annotationPage.keyboard.press('i');
 
     const [planet, imagery] = await Promise.all([planetRequest, imageryRequest]);
     expect(planet.url()).toContain('/planet/');

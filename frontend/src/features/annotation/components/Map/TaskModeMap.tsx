@@ -204,9 +204,17 @@ const TaskModeMap = ({
     if (crosshair && showCrosshair) {
       if (el) {
         updateCrosshairColor(el, crosshair.color ?? 'ff0000');
+        // Expose WGS84 coords as DOM attributes so E2E tests can observe position
+        // without projecting from Web Mercator.
+        el.dataset.lat = String(crosshair.lat);
+        el.dataset.lon = String(crosshair.lon);
       }
       overlay.setPosition(fromLonLat([crosshair.lon, crosshair.lat]));
     } else {
+      if (el) {
+        delete el.dataset.lat;
+        delete el.dataset.lon;
+      }
       overlay.setPosition(undefined);
     }
   }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);

@@ -5,8 +5,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import numpy as np
 import pytest
 from fastapi import HTTPException
+from geoalchemy2.elements import WKTElement
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
@@ -18,6 +20,8 @@ from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, A
 from src.annotation.service import (
     _build_annotation_records,
     add_annotation_for_task,
+    build_annotations_export,
+    build_annotations_geojson_export,
     create_annotation,
     create_annotation_tasks_from_csv,
     delete_annotation,
@@ -828,3 +832,318 @@ class TestExportAnnotatorCount:
             )
         assert by_task[task_a.id] == [2, 2]
         assert by_task[task_b.id] == [1]
+
+
+class TestExportMergeCorrectness:
+    """Correctness of label export and merge-on-agreement, including edge cases.
+
+    Exercises the real ``build_annotations_export`` / ``build_annotations_geojson_export``
+    (so the conflict guard, column ordering and DataFrame/GeoJSON assembly are
+    covered) with the DB access (``_fetch_annotations_with_context``) and the
+    pydantic-backed status helper patched out. Annotations/tasks/campaign are
+    light ``SimpleNamespace`` stand-ins matching the attributes the export code
+    actually reads.
+    """
+
+    LABELS = {
+        "1": {"name": "Forest"},
+        "2": {"name": "Water"},
+        "3": {"name": "Urban"},
+    }
+
+    # ---- builders -------------------------------------------------------
+
+    @classmethod
+    def _campaign(cls, labels=None):
+        return SimpleNamespace(
+            id=1, settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels)
+        )
+
+    @staticmethod
+    def _task(task_id=1, annotation_number=42, raw_source_data=None):
+        return SimpleNamespace(
+            id=task_id, annotation_number=annotation_number, raw_source_data=raw_source_data
+        )
+
+    @staticmethod
+    def _geom(wkt):
+        # Mirrors the ORM shape: annotation.geometry.geometry is the geo element.
+        return SimpleNamespace(geometry=WKTElement(wkt, srid=4326))
+
+    @staticmethod
+    def _ann(*, ann_id, label_id, user_id=None, task=None, geometry=None, **overrides):
+        ann = SimpleNamespace(
+            id=ann_id,
+            label_id=label_id,
+            comment=None,
+            confidence=None,
+            is_authoritative=False,
+            flagged_for_review=False,
+            flag_comment=None,
+            created_by_user_id=user_id or uuid4(),
+            created_at=datetime(2026, 5, 6, tzinfo=UTC),
+            annotation_task_id=task.id if task else None,
+            campaign_id=1,
+            annotation_task=task,
+            geometry=geometry,
+        )
+        for k, v in overrides.items():
+            setattr(ann, k, v)
+        return ann
+
+    def _csv(self, annotations, *, merge=False, campaign=None, email_map=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.service._fetch_annotations_with_context",
+                return_value=(annotations, email_map or {}),
+            ),
+            patch(
+                "src.annotation.service._compute_task_status_for_export",
+                return_value="done",
+            ),
+        ):
+            return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    def _geojson(self, annotations, *, merge=False, campaign=None, email_map=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.service._fetch_annotations_with_context",
+                return_value=(annotations, email_map or {}),
+            ),
+            patch(
+                "src.annotation.service._compute_task_status_for_export",
+                return_value="done",
+            ),
+        ):
+            return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    # ---- merge: agreement collapse -------------------------------------
+
+    def test_merge_collapses_agreeing_task_to_single_row(self):
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=task)
+        df = self._csv([a1, a2], merge=True)
+
+        assert len(df) == 1
+        row = df.iloc[0]
+        assert row["stacnotator_label_id"] == 1
+        assert row["stacnotator_label_name"] == "Forest"
+        assert row["stacnotator_annotator_count"] == 2
+        assert row["stacnotator_task_id"] == task.id
+        # Merged rows drop the single-annotation id; task_id is the join key.
+        assert "stacnotator_annotation_id" not in df.columns
+
+    def test_non_merged_keeps_one_row_per_annotation_with_ids(self):
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=task)
+        df = self._csv([a1, a2], merge=False)
+
+        assert len(df) == 2
+        assert set(df["stacnotator_annotation_id"]) == {1, 2}
+        assert set(df["stacnotator_label_name"]) == {"Forest"}
+
+    def test_merge_aggregates_comment_confidence_email_and_latest_time(self):
+        u1, u2 = uuid4(), uuid4()
+        email_map = {u1: "alice@example.com", u2: "bob@example.com"}
+        task = self._task()
+        a1 = self._ann(
+            ann_id=1,
+            label_id=1,
+            user_id=u1,
+            task=task,
+            comment="looks like forest",
+            confidence=6,
+            created_at=datetime(2026, 5, 6, tzinfo=UTC),
+        )
+        a2 = self._ann(
+            ann_id=2,
+            label_id=1,
+            user_id=u2,
+            task=task,
+            comment="agree",
+            confidence=8,
+            created_at=datetime(2026, 5, 9, tzinfo=UTC),
+        )
+        row = self._csv([a1, a2], merge=True, email_map=email_map).iloc[0]
+
+        assert row["stacnotator_confidence"] == 7.0  # mean of 6 and 8
+        assert row["stacnotator_comment"] == (
+            "alice@example.com: looks like forest | bob@example.com: agree"
+        )
+        assert row["stacnotator_created_by_user_email"] == "alice@example.com, bob@example.com"
+        assert row["stacnotator_created_at"] == datetime(2026, 5, 9, tzinfo=UTC)  # latest
+
+    def test_merge_is_authoritative_and_flag_are_ored(self):
+        u1, u2 = uuid4(), uuid4()
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=u1, task=task)
+        a2 = self._ann(
+            ann_id=2,
+            label_id=1,
+            user_id=u2,
+            task=task,
+            is_authoritative=True,
+            flagged_for_review=True,
+            flag_comment="verify",
+        )
+        row = self._csv([a1, a2], merge=True, email_map={u2: "rev@x.com"}).iloc[0]
+
+        assert bool(row["stacnotator_is_authoritative"]) is True
+        assert bool(row["stacnotator_flagged_for_review"]) is True
+        assert row["stacnotator_flag_comment"] == "rev@x.com: verify"
+
+    # ---- merge: conflict handling --------------------------------------
+
+    def test_merge_on_conflict_raises_400_listing_task(self):
+        task = self._task(annotation_number=42)
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=2, user_id=uuid4(), task=task)
+        with pytest.raises(HTTPException) as exc:
+            self._csv([a1, a2], merge=True)
+        assert exc.value.status_code == 400
+        assert "conflicting" in exc.value.detail
+        assert "#42" in exc.value.detail
+
+    def test_conflict_is_allowed_when_merge_is_off(self):
+        task = self._task()
+        a1 = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        a2 = self._ann(ann_id=2, label_id=2, user_id=uuid4(), task=task)
+        df = self._csv([a1, a2], merge=False)  # no raise
+        assert len(df) == 2
+        assert set(df["stacnotator_label_name"]) == {"Forest", "Water"}
+
+    def test_authoritative_label_resolves_conflict_for_merge(self):
+        """A task the app shows as 'done' via an authoritative reviewer must be
+        mergeable: the authoritative label wins and there is no 400.
+
+        (Consistent with task-status: see TestAuthoritativeOverride.)
+        """
+        u1, u2, reviewer = uuid4(), uuid4(), uuid4()
+        task = self._task(annotation_number=7)
+        a1 = self._ann(ann_id=1, label_id=1, user_id=u1, task=task)
+        a2 = self._ann(ann_id=2, label_id=2, user_id=u2, task=task)
+        auth = self._ann(ann_id=3, label_id=3, user_id=reviewer, task=task, is_authoritative=True)
+        df = self._csv([a1, a2, auth], merge=True)
+        assert len(df) == 1
+        assert df.iloc[0]["stacnotator_label_id"] == 3  # authoritative wins
+        assert df.iloc[0]["stacnotator_label_name"] == "Urban"
+
+    def test_single_labeled_annotator_is_not_merged_even_with_merge_on(self):
+        """One label + one comment-only annotation: nothing to merge, so the
+        non-merged path runs and annotation ids are preserved."""
+        task = self._task()
+        labeled = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        commenter = self._ann(ann_id=2, label_id=None, user_id=uuid4(), task=task, comment="unsure")
+        df = self._csv([labeled, commenter], merge=True)
+        assert len(df) == 2
+        assert set(df["stacnotator_annotation_id"]) == {1, 2}
+
+    def test_conflict_message_truncates_after_ten_tasks(self):
+        anns = []
+        for n in range(1, 13):  # 12 conflicting tasks
+            task = self._task(task_id=n, annotation_number=n)
+            anns.append(self._ann(ann_id=n * 10, label_id=1, user_id=uuid4(), task=task))
+            anns.append(self._ann(ann_id=n * 10 + 1, label_id=2, user_id=uuid4(), task=task))
+        with pytest.raises(HTTPException) as exc:
+            self._csv(anns, merge=True)
+        assert "and 2 more" in exc.value.detail
+
+    # ---- label resolution / standalone / columns -----------------------
+
+    def test_unknown_label_id_resolves_to_none(self):
+        a = self._ann(ann_id=1, label_id=99, user_id=uuid4(), task=None)
+        row = self._csv([a]).iloc[0]
+        assert row["stacnotator_label_id"] == 99
+        assert row["stacnotator_label_name"] is None
+
+    def test_comment_only_row_has_null_label(self):
+        a = self._ann(ann_id=1, label_id=None, user_id=uuid4(), task=None, comment="note")
+        row = self._csv([a]).iloc[0]
+        assert row["stacnotator_label_id"] is None
+        assert row["stacnotator_label_name"] is None
+        assert row["stacnotator_comment"] == "note"
+        assert row["stacnotator_annotator_count"] == 1
+
+    def test_standalone_open_mode_has_no_task_columns(self):
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None)
+        df = self._csv([a])
+        assert len(df) == 1
+        assert "stacnotator_task_id" not in df.columns
+        assert df.iloc[0]["stacnotator_annotation_id"] == 1
+
+    def test_column_order_annotation_number_first_then_raw_source_data(self):
+        task = self._task(raw_source_data={"plot": "A7", "source_ndvi": 0.42})
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=task)
+        cols = list(self._csv([a]).columns)
+        assert cols[0] == "stacnotator_annotation_number"
+        # Raw ingest columns come after all stacnotator-generated columns.
+        assert cols.index("plot") > cols.index("stacnotator_annotation_id")
+        assert "source_ndvi" in cols
+
+    # ---- geometry / GeoJSON --------------------------------------------
+
+    def test_geometry_wkt_included_when_present(self):
+        a = self._ann(
+            ann_id=1,
+            label_id=1,
+            user_id=uuid4(),
+            task=None,
+            geometry=self._geom("POINT(30.5 50.5)"),
+        )
+        wkt = self._csv([a]).iloc[0]["stacnotator_geometry_wkt"]
+        assert "POINT" in wkt and "30.5" in wkt and "50.5" in wkt
+
+    def test_geometry_wkt_is_none_when_absent(self):
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None, geometry=None)
+        val = self._csv([a]).iloc[0]["stacnotator_geometry_wkt"]
+        assert val is None or (isinstance(val, float) and np.isnan(val))
+
+    def test_geojson_feature_collection_shape_and_geometry(self):
+        a = self._ann(
+            ann_id=1,
+            label_id=1,
+            user_id=uuid4(),
+            task=None,
+            geometry=self._geom("POINT(30.5 50.5)"),
+        )
+        fc = self._geojson([a])
+        assert fc["type"] == "FeatureCollection"
+        assert len(fc["features"]) == 1
+        feat = fc["features"][0]
+        assert feat["geometry"]["type"] == "Point"
+        assert list(feat["geometry"]["coordinates"]) == [30.5, 50.5]
+        assert feat["properties"]["stacnotator_label_name"] == "Forest"
+        # datetimes are coerced to ISO strings for JSON-safety.
+        assert isinstance(feat["properties"]["stacnotator_created_at"], str)
+
+    def test_geojson_merged_uses_authoritative_geometry(self):
+        u1, reviewer = uuid4(), uuid4()
+        task = self._task()
+        a1 = self._ann(
+            ann_id=1,
+            label_id=1,
+            user_id=u1,
+            task=task,
+            geometry=self._geom("POINT(10 10)"),
+        )
+        auth = self._ann(
+            ann_id=2,
+            label_id=1,
+            user_id=reviewer,
+            task=task,
+            is_authoritative=True,
+            geometry=self._geom("POINT(20 20)"),
+        )
+        fc = self._geojson([a1, auth], merge=True)
+        assert len(fc["features"]) == 1
+        # Canonical (authoritative) annotation's geometry is used.
+        assert list(fc["features"][0]["geometry"]["coordinates"]) == [20.0, 20.0]
+
+    def test_geojson_geometry_none_when_absent(self):
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None, geometry=None)
+        fc = self._geojson([a])
+        assert fc["features"][0]["geometry"] is None

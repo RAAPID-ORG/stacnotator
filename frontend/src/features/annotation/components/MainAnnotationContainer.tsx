@@ -59,9 +59,11 @@ export const MainAnnotationsContainer = ({
   const setMapCenter = useMapStore((s) => s.setMapCenter);
   const setMapZoom = useMapStore((s) => s.setMapZoom);
   const setMapBounds = useMapStore((s) => s.setMapBounds);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
   const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
+  const recordSourceState = useMapStore((s) => s.recordSourceState);
   const emptySlices = useMapStore((s) => s.emptySlices);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const setProbeTimeseriesPoint = useMapStore((s) => s.setProbeTimeseriesPoint);
@@ -255,8 +257,14 @@ export const MainAnnotationsContainer = ({
         const vIdx = layerId.indexOf('-v');
         if (vIdx !== -1) {
           const vizName = layerId.slice(vIdx + 2);
-          // Switch to the collection if it belongs to a different source
+          // Record current source's viz so cycling back with I restores it.
           if (collectionId != null && collectionId !== activeCollectionId) {
+            const currentSrc = campaign?.imagery_sources.find((s) =>
+              s.collections.some((c) => c.id === activeCollectionId)
+            );
+            if (currentSrc && activeCollectionId !== null) {
+              recordSourceState(currentSrc.id, activeCollectionId, selectedLayerIndex);
+            }
             setActiveCollectionId(collectionId);
           }
           const entryIdx = allVizEntries.findIndex((e) => e.vizName === vizName);
@@ -270,11 +278,14 @@ export const MainAnnotationsContainer = ({
       mapLayers,
       allVizEntries,
       activeCollectionId,
+      selectedLayerIndex,
+      campaign,
       setActiveLayerId,
       setActiveCollectionId,
       setSelectedBasemapId,
       setShowBasemap,
       setSelectedLayerIndex,
+      recordSourceState,
     ]
   );
 
