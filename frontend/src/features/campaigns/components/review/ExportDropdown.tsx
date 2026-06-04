@@ -145,7 +145,7 @@ export const ExportDropdown = ({
       </button>
       <Dropdown
         open={showDropdown}
-        className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[260px] origin-top-right"
+        className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-[1000] min-w-[260px] origin-top-right"
       >
         <div>
           {showMergeToggle && (
