@@ -430,6 +430,119 @@ export const MOCK_CAMPAIGN_WITH_TIMESERIES = {
 };
 
 // ---------------------------------------------------------------------------
+// Multi-collection source fixture (mirrors real-world imagery shape).
+//
+// One source whose collections each cover a single month; every collection
+// holds a month-spanning "Cover" slice plus weekly slices. The timeseries
+// spans the whole year, so a click on the chart usually resolves to a slice
+// in a SIBLING collection - exercising collection-switching on chart click,
+// which the single-collection fixtures above cannot.
+// ---------------------------------------------------------------------------
+
+const monthSlices = (collId: number, marker: string, ym: string, lastDay: string) => [
+  {
+    id: collId * 100 + 0,
+    name: 'Cover',
+    start_date: `${ym}-01`,
+    end_date: `${ym}-${lastDay}`,
+    display_order: 0,
+    tile_urls: [
+      {
+        visualization_name: 'True Color',
+        tile_url: `https://tiles.example.com/mosaic/${marker}-cover/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+      },
+    ],
+  },
+  ...[
+    ['Wk1', '01', '07'],
+    ['Wk2', '08', '14'],
+    ['Wk3', '15', '21'],
+    ['Wk4', '22', lastDay],
+  ].map(([wk, s, e], idx) => ({
+    id: collId * 100 + idx + 1,
+    name: wk,
+    start_date: `${ym}-${s}`,
+    end_date: `${ym}-${e}`,
+    display_order: idx + 1,
+    tile_urls: [
+      {
+        visualization_name: 'True Color',
+        tile_url: `https://tiles.example.com/mosaic/${marker}-${wk.toLowerCase()}/tiles/WebMercatorQuad/{z}/{x}/{y}`,
+      },
+    ],
+  })),
+];
+
+export const COLLECTION_MAR_2022 = {
+  id: 7001,
+  name: 'Mar 2022',
+  cover_slice_index: 0,
+  has_dedicated_cover: true,
+  display_order: 0,
+  slices: monthSlices(7001, 'mar2022', '2022-03', '31'),
+  stac_config: null,
+};
+
+export const COLLECTION_SEP_2022 = {
+  id: 7002,
+  name: 'Sep 2022',
+  cover_slice_index: 0,
+  has_dedicated_cover: true,
+  display_order: 1,
+  slices: monthSlices(7002, 'sep2022', '2022-09', '30'),
+  stac_config: null,
+};
+
+const SOURCE_MONTHS = {
+  id: 700,
+  name: 'Imagery',
+  crosshair_hex6: '#00aa55',
+  default_zoom: 14,
+  visualizations: [{ id: 1, name: 'True Color' }],
+  collections: [COLLECTION_MAR_2022, COLLECTION_SEP_2022],
+};
+
+// One NDVI observation on the 15th of each month, Jan -> Sep 2022. Two things
+// matter for the tests: the series ends in Sep (so a far-right click resolves
+// to the Sep collection), and every point sits mid-month - exactly on a
+// dedicated cover's date-range midpoint - so a naive nearest-midpoint search
+// would pick the cover. The handler must skip it and choose a weekly slice.
+export const MONTHS_TIMESERIES_DATA = Array.from({ length: 9 }, (_, i) => {
+  const month = String(i + 1).padStart(2, '0');
+  return { time: `2022-${month}-15`, values: 0.3 + (i % 5) * 0.1, cloud: 0 };
+});
+
+export const MONTHS_TIMESERIES_ENTRY = {
+  id: 70,
+  campaign_id: 42,
+  name: 'NDVI',
+  start_ym: '202201',
+  end_ym: '202212',
+  data_source: 'Imagery',
+  provider: 'planetary',
+  ts_type: 'ndvi',
+};
+
+export const MOCK_CAMPAIGN_MONTHS = {
+  ...MOCK_CAMPAIGN,
+  imagery_sources: [SOURCE_MONTHS],
+  imagery_views: [
+    {
+      id: 1,
+      name: 'Months View',
+      display_order: 0,
+      collection_refs: [
+        { collection_id: 7001, source_id: 700, show_as_window: true, display_order: 0 },
+        { collection_id: 7002, source_id: 700, show_as_window: true, display_order: 1 },
+      ],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    },
+  ],
+  time_series: [MONTHS_TIMESERIES_ENTRY],
+};
+
+// ---------------------------------------------------------------------------
 // Multi-view campaign fixtures
 // ---------------------------------------------------------------------------
 

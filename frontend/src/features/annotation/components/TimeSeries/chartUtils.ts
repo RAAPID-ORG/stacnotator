@@ -74,6 +74,20 @@ export const formatDateForTooltip = (dateStr: string): string => {
   return dateStr;
 };
 
+/** Parse a series date label to epoch ms. `new Date()` rejects the YYYYMMDD
+ *  format the timeseries API returns, so handle it explicitly; both branches
+ *  resolve to UTC midnight so labels and ISO slice dates share one clock. */
+export const parseSeriesDate = (dateStr: string): number => {
+  if (/^\d{8}$/.test(dateStr)) {
+    return Date.UTC(
+      Number(dateStr.slice(0, 4)),
+      Number(dateStr.slice(4, 6)) - 1,
+      Number(dateStr.slice(6, 8))
+    );
+  }
+  return new Date(dateStr).getTime();
+};
+
 /**
  * Extract month key from date string for grouping
  */

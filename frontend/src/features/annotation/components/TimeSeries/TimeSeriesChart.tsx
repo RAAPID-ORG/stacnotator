@@ -16,12 +16,14 @@ import {
   Tooltip,
   Legend,
   CategoryScale,
+  type ChartEvent,
+  type ActiveElement,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
-import { formatDateForTooltip, getOptimalMonthLabels } from './chartUtils';
+import { formatDateForTooltip, getOptimalMonthLabels, parseSeriesDate } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
@@ -371,15 +373,29 @@ export const TimeSeriesChart = ({
   // site (Canvas) untouched.
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
+  const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
+  const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
   const campaign = useCampaignStore((s) => s.campaign);
-  const activeSlice = useMemo(() => {
+  // The active source owns every collection the click can land on: each
+  // collection usually covers one period (a month), so the clicked date
+  // often belongs to a sibling collection, not the active one.
+  const activeSource = useMemo(() => {
     if (!campaign || activeCollectionId === null) return null;
-    for (const src of campaign.imagery_sources) {
-      const col = src.collections.find((c) => c.id === activeCollectionId);
-      if (col) return col.slices[activeSliceIndex] ?? null;
-    }
-    return null;
-  }, [campaign, activeCollectionId, activeSliceIndex]);
+    return (
+      campaign.imagery_sources.find((src) =>
+        src.collections.some((c) => c.id === activeCollectionId)
+      ) ?? null
+    );
+  }, [campaign, activeCollectionId]);
+  const activeCollection = useMemo(
+    () => activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null,
+    [activeSource, activeCollectionId]
+  );
+  const activeSlice = useMemo(
+    () => activeCollection?.slices[activeSliceIndex] ?? null,
+    [activeCollection, activeSliceIndex]
+  );
 
   // Map slice start/end dates → label indices (categorical x-axis).
   // Use the closest label inside the slice range; if no label falls inside
@@ -397,7 +413,7 @@ export const TimeSeriesChart = ({
     let startIdx = -1;
     let endIdx = -1;
     for (let i = 0; i < labels.length; i++) {
-      const t = new Date(labels[i]).getTime();
+      const t = parseSeriesDate(labels[i]);
       if (t >= sliceStart && t <= sliceEnd) {
         if (startIdx === -1) startIdx = i;
         endIdx = i;
@@ -409,7 +425,7 @@ export const TimeSeriesChart = ({
       let bestDist = Infinity;
       const center = (sliceStart + sliceEnd) / 2;
       for (let i = 0; i < labels.length; i++) {
-        const t = new Date(labels[i]).getTime();
+        const t = parseSeriesDate(labels[i]);
         const d = Math.abs(t - center);
         if (d < bestDist) {
           bestDist = d;
@@ -467,6 +483,63 @@ export const TimeSeriesChart = ({
       },
     }),
     []
+  );
+
+  // Jump the main view to the slice
+  // nearest the clicked date across ALL collections of the active source,
+  // switching collection when the date lives in a sibling collection.
+  const handleChartClick = useCallback(
+    (event: ChartEvent, _elements: ActiveElement[], chart: ChartJS<'line'>) => {
+      const labels = chartData?.labels;
+      if (!activeSource || !labels?.length) return;
+      const xScale = chart.scales.x;
+      if (!xScale || event.x == null) return;
+
+      const rawIdx = xScale.getValueForPixel(event.x);
+      if (rawIdx == null) return;
+      const labelIdx = Math.max(0, Math.min(labels.length - 1, Math.round(rawIdx)));
+      const clickedTime = parseSeriesDate(labels[labelIdx]);
+      if (Number.isNaN(clickedTime)) return;
+
+      // Pick the slice whose date-range midpoint is closest to the click. The
+      // midpoint naturally favours the most specific slice when several ranges
+      // overlap (e.g. a weekly slice over its month-spanning "Cover").
+      let best: { collectionId: number; sliceIndex: number; dist: number } | null = null;
+      for (const col of activeSource.collections) {
+        // A dedicated cover spans the whole period rather than a point in time,
+        // so it must never win the nearest-date search. A normal slice that
+        // merely sits at the cover index stays eligible.
+        const dedicatedCoverIdx = col.has_dedicated_cover ? col.cover_slice_index : -1;
+        col.slices.forEach((slice, i) => {
+          if (i === dedicatedCoverIdx) return;
+          const start = new Date(slice.start_date).getTime();
+          const end = new Date(slice.end_date).getTime();
+          const dist = Math.abs((start + end) / 2 - clickedTime);
+          if (Number.isNaN(dist)) return;
+          if (!best || dist < best.dist) best = { collectionId: col.id, sliceIndex: i, dist };
+        });
+      }
+      if (!best) return;
+      const target: { collectionId: number; sliceIndex: number } = best;
+
+      if (target.collectionId !== activeCollectionId) {
+        // Seed the slice index first so setActiveCollectionId resolves to it
+        // instead of the collection's cover slice.
+        setCollectionSliceIndex(target.collectionId, target.sliceIndex);
+        setActiveCollectionId(target.collectionId);
+      } else if (target.sliceIndex !== activeSliceIndex) {
+        setActiveSliceIndex(target.sliceIndex);
+      }
+    },
+    [
+      chartData?.labels,
+      activeSource,
+      activeCollectionId,
+      activeSliceIndex,
+      setActiveSliceIndex,
+      setActiveCollectionId,
+      setCollectionSliceIndex,
+    ]
   );
 
   // Inline plugin: muted horizontal reference lines at NDVI=0.25 and 0.75,
@@ -752,6 +825,11 @@ export const TimeSeriesChart = ({
           options={{
             responsive: true,
             maintainAspectRatio: false,
+            onClick: handleChartClick,
+            onHover: (event) => {
+              const target = event.native?.target as HTMLElement | undefined;
+              if (target) target.style.cursor = activeSource ? 'pointer' : 'default';
+            },
             animation: {
               duration: 400,
               easing: 'easeInOutQuart',
@@ -780,6 +858,10 @@ export const TimeSeriesChart = ({
                   pinch: { enabled: true },
                   drag: {
                     enabled: true,
+                    // Below this drag distance the gesture is a click, not a
+                    // zoom. The default of 0 makes any real-pointer jitter a
+                    // micro-zoom and swallows the click that selects a slice.
+                    threshold: 10,
                     backgroundColor: 'rgba(37,99,235,0.1)',
                     borderColor: '#2563eb',
                     borderWidth: 1,
