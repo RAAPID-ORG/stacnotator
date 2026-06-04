@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from geoalchemy2.elements import WKTElement
 
-from src.annotation.schemas import AnnotationTaskOut
+from src.annotation.schemas import AnnotationTaskOut, compute_task_status_value
 
 
 def _make_assignment(user_id, status="pending"):
@@ -214,3 +214,61 @@ class TestAuthoritativeOverride:
             ],
         )
         assert task.task_status == "conflicting"
+
+
+class TestComputeTaskStatusValue:
+    """The pure helper used by the CSV/GeoJSON export must match the schema path.
+
+    The export computes status from in-memory data via ``compute_task_status_value``
+    instead of ``AnnotationTaskOut.model_validate`` (which lazy-loads relationships
+    per task/annotation). These assert the helper produces identical statuses.
+    """
+
+    def test_no_assignments_with_annotation_is_done(self):
+        u1 = uuid4()
+        assert compute_task_status_value([], [_make_annotation(u1, label_id=1)]) == "done"
+
+    def test_no_assignments_no_annotations_is_pending(self):
+        assert compute_task_status_value([], []) == "pending"
+
+    def test_all_skipped_is_skipped(self):
+        u1, u2 = uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "skipped"), _make_assignment(u2, "skipped")]
+        assert compute_task_status_value(assignments, []) == "skipped"
+
+    def test_partial_when_some_completed(self):
+        u1, u2 = uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "pending")]
+        annotations = [_make_annotation(u1, label_id=1)]
+        assert compute_task_status_value(assignments, annotations) == "partial"
+
+    def test_done_when_all_agree(self):
+        u1, u2 = uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        annotations = [_make_annotation(u1, label_id=1), _make_annotation(u2, label_id=1)]
+        assert compute_task_status_value(assignments, annotations) == "done"
+
+    def test_conflicting_when_different_labels(self):
+        u1, u2 = uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        annotations = [_make_annotation(u1, label_id=1), _make_annotation(u2, label_id=2)]
+        assert compute_task_status_value(assignments, annotations) == "conflicting"
+
+    def test_authoritative_overrides_conflict_to_done(self):
+        u1, u2, u3 = uuid4(), uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "done")]
+        annotations = [
+            _make_annotation(u1, label_id=1),
+            _make_annotation(u2, label_id=2),
+            _make_annotation(u3, label_id=3, is_authoritative=True),
+        ]
+        assert compute_task_status_value(assignments, annotations) == "done"
+
+    def test_matches_schema_path_for_partial(self):
+        """Helper and full model_validate path agree on the same inputs."""
+        u1, u2 = uuid4(), uuid4()
+        assignments = [_make_assignment(u1, "done"), _make_assignment(u2, "pending")]
+        annotations = [_make_annotation(u1, label_id=1)]
+        via_schema = _make_task(assignments, annotations).task_status
+        via_helper = compute_task_status_value(assignments, annotations)
+        assert via_helper == via_schema == "partial"
