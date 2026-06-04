@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLayoutStore } from 'src/features/layout/layout.store';
+import { useCanCreateCampaigns } from '~/features/account/account.store';
 import { IconPlay } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 
 export const HomePage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
+  const canCreateCampaigns = useCanCreateCampaigns();
 
   useEffect(() => {
     setBreadcrumbs([]);
@@ -31,13 +33,15 @@ export const HomePage = () => {
           >
             Browse campaigns
           </button>
-          <button
-            onClick={() => navigate('/campaigns/new')}
-            type="button"
-            className="text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
-          >
-            New campaign
-          </button>
+          {canCreateCampaigns && (
+            <button
+              onClick={() => navigate('/campaigns/new')}
+              type="button"
+              className="text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
+            >
+              New campaign
+            </button>
+          )}
           <a
             href="https://github.com/RAAPID-ORG/stacnotator"
             target="_blank"

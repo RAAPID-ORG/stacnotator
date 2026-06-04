@@ -12,7 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER, ROLE_VISITOR
 from src.database import Base
 
 
@@ -68,6 +68,11 @@ class User(Base):
         return any(r.role == ROLE_APPROVED for r in self.roles)
 
     @property
+    def is_visitor(self) -> bool:
+        """Check if user has the visitor role (approved but cannot create campaigns)."""
+        return any(r.role == ROLE_VISITOR for r in self.roles)
+
+    @property
     def is_admin(self) -> bool:
         """Check if user has the admin role."""
         return any(r.role == ROLE_ADMIN for r in self.roles)
@@ -82,7 +87,7 @@ class UserRole(Base):
     __tablename__ = "user_roles"
     __table_args__ = (
         CheckConstraint(
-            f"role IN ('{ROLE_USER}', '{ROLE_APPROVED}', '{ROLE_ADMIN}')",
+            f"role IN ('{ROLE_USER}', '{ROLE_APPROVED}', '{ROLE_VISITOR}', '{ROLE_ADMIN}')",
             name="user_roles_role_check",
         ),
         Index("user_roles_user_id_idx", "user_id"),

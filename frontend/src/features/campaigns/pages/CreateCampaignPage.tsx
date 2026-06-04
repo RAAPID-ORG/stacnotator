@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate } from '~/api/client';
 import { createCampaign } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { useCanCreateCampaigns } from '~/features/account/account.store';
 import {
   validateFullForm,
   type FullValidationResult,
@@ -21,6 +22,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
+  const canCreateCampaigns = useCanCreateCampaigns();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showLoadingOverlay = useLayoutStore((s) => s.showLoadingOverlay);
@@ -146,6 +148,10 @@ export const CreateCampaignPage = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (!canCreateCampaigns) {
+    return <Navigate to="/campaigns" replace />;
+  }
 
   return (
     <div className="flex-1 overflow-auto">

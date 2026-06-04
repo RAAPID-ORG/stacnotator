@@ -77,6 +77,34 @@ async def require_approved_user(
     return user
 
 
+def require_campaign_creation_permission(
+    user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Verify user is allowed to create new campaigns.
+
+    Approved users may create campaigns, except visitors. Admins always retain
+    this permission.
+
+    Args:
+        user: Authenticated and approved user
+        db: Database session
+
+    Returns:
+        User permitted to create campaigns
+
+    Raises:
+        HTTPException: 403 if user is a visitor
+    """
+    if user.is_visitor and not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Visitors cannot create campaigns",
+        )
+    return user
+
+
 def require_admin(
     user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),

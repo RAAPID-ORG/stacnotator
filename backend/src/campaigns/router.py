@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
 from src.auth.models import User
 from src.campaigns import service
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -84,7 +84,7 @@ def get_campaign(
 def create_campaign(
     campaign: CampaignCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_campaign_creation_permission),
 ):
     result = service.create_campaign(
         db,

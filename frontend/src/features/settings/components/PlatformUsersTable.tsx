@@ -10,8 +10,19 @@ export type PlatformUsersTableProps = {
   onDeny: (userIds: string[]) => Promise<void>;
   onGrantAdmin: (userIds: string[]) => Promise<void>;
   onRevokeAdmin: (userIds: string[]) => Promise<void>;
+  onGrantVisitor: (userIds: string[]) => Promise<void>;
+  onRevokeVisitor: (userIds: string[]) => Promise<void>;
   loading?: boolean;
 };
+
+type UserAction =
+  | 'approve'
+  | 'revoke'
+  | 'deny'
+  | 'grant-admin'
+  | 'revoke-admin'
+  | 'grant-visitor'
+  | 'revoke-visitor';
 
 export const PlatformUsersTable = ({
   users,
@@ -20,6 +31,8 @@ export const PlatformUsersTable = ({
   onDeny,
   onGrantAdmin,
   onRevokeAdmin,
+  onGrantVisitor,
+  onRevokeVisitor,
   loading = false,
 }: PlatformUsersTableProps) => {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -43,33 +56,31 @@ export const PlatformUsersTable = ({
     }
   };
 
-  const handleBulkAction = async (
-    action: 'approve' | 'revoke' | 'deny' | 'grant-admin' | 'revoke-admin'
-  ) => {
+  const runAction = async (action: UserAction, userIds: string[]) => {
+    switch (action) {
+      case 'approve':
+        return onApprove(userIds);
+      case 'revoke':
+        return onRevoke(userIds);
+      case 'deny':
+        return onDeny(userIds);
+      case 'grant-admin':
+        return onGrantAdmin(userIds);
+      case 'revoke-admin':
+        return onRevokeAdmin(userIds);
+      case 'grant-visitor':
+        return onGrantVisitor(userIds);
+      case 'revoke-visitor':
+        return onRevokeVisitor(userIds);
+    }
+  };
+
+  const handleBulkAction = async (action: UserAction) => {
     if (selectedUsers.size === 0) return;
 
     try {
       setProcessingAction(true);
-      const userIds = Array.from(selectedUsers);
-
-      switch (action) {
-        case 'approve':
-          await onApprove(userIds);
-          break;
-        case 'revoke':
-          await onRevoke(userIds);
-          break;
-        case 'deny':
-          await onDeny(userIds);
-          break;
-        case 'grant-admin':
-          await onGrantAdmin(userIds);
-          break;
-        case 'revoke-admin':
-          await onRevokeAdmin(userIds);
-          break;
-      }
-
+      await runAction(action, Array.from(selectedUsers));
       setSelectedUsers(new Set());
     } catch (err) {
       handleError(err, 'Bulk action failed', { showUser: false });
@@ -78,30 +89,10 @@ export const PlatformUsersTable = ({
     }
   };
 
-  const handleSingleAction = async (
-    userId: string,
-    action: 'approve' | 'revoke' | 'deny' | 'grant-admin' | 'revoke-admin'
-  ) => {
+  const handleSingleAction = async (userId: string, action: UserAction) => {
     try {
       setProcessingAction(true);
-
-      switch (action) {
-        case 'approve':
-          await onApprove([userId]);
-          break;
-        case 'revoke':
-          await onRevoke([userId]);
-          break;
-        case 'deny':
-          await onDeny([userId]);
-          break;
-        case 'grant-admin':
-          await onGrantAdmin([userId]);
-          break;
-        case 'revoke-admin':
-          await onRevokeAdmin([userId]);
-          break;
-      }
+      await runAction(action, [userId]);
     } catch (err) {
       handleError(err, 'Single action failed', { showUser: false });
     } finally {
@@ -146,6 +137,20 @@ export const PlatformUsersTable = ({
               disabled={processingAction}
             >
               Deny
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleBulkAction('grant-visitor')}
+              disabled={processingAction}
+            >
+              Make visitor
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleBulkAction('revoke-visitor')}
+              disabled={processingAction}
+            >
+              Make standard
             </Button>
             <Button onClick={() => handleBulkAction('grant-admin')} disabled={processingAction}>
               Make admin
@@ -240,13 +245,30 @@ export const PlatformUsersTable = ({
                   </td>
                   <td className="px-4 py-3">
                     <span
+                      data-user-role={
+                        user.is_admin
+                          ? 'admin'
+                          : user.is_visitor
+                            ? 'visitor'
+                            : user.is_approved
+                              ? 'standard'
+                              : 'user'
+                      }
                       className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
                         user.is_admin
                           ? 'bg-accent-50 text-accent-800 border-accent-200'
-                          : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+                          : user.is_visitor
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
-                      {user.is_admin ? 'Admin' : 'User'}
+                      {user.is_admin
+                        ? 'Admin'
+                        : user.is_visitor
+                          ? 'Visitor'
+                          : user.is_approved
+                            ? 'Standard'
+                            : 'User'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -260,6 +282,14 @@ export const PlatformUsersTable = ({
                             type="button"
                           >
                             Approve
+                          </button>
+                          <button
+                            onClick={() => handleSingleAction(user.id, 'grant-visitor')}
+                            disabled={processingAction}
+                            className={`${rowActionCls} text-neutral-700 hover:bg-neutral-50`}
+                            type="button"
+                          >
+                            Approve as visitor
                           </button>
                           <button
                             onClick={() => handleSingleAction(user.id, 'deny')}
@@ -280,6 +310,27 @@ export const PlatformUsersTable = ({
                           Revoke approval
                         </button>
                       )}
+                      {user.is_approved &&
+                        !user.is_admin &&
+                        (user.is_visitor ? (
+                          <button
+                            onClick={() => handleSingleAction(user.id, 'revoke-visitor')}
+                            disabled={processingAction}
+                            className={`${rowActionCls} text-neutral-700 hover:bg-neutral-50`}
+                            type="button"
+                          >
+                            Make standard
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSingleAction(user.id, 'grant-visitor')}
+                            disabled={processingAction}
+                            className={`${rowActionCls} text-amber-700 hover:bg-amber-50`}
+                            type="button"
+                          >
+                            Make visitor
+                          </button>
+                        ))}
                       {!user.is_admin ? (
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}

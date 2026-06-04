@@ -1,3 +1,4 @@
 ROLE_USER = "user"
 ROLE_APPROVED = "approved"
+ROLE_VISITOR = "visitor"
 ROLE_ADMIN = "admin"

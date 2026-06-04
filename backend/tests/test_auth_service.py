@@ -7,16 +7,28 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED
-from src.auth.dependencies import require_admin, require_approved_user
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_VISITOR
+from src.auth.dependencies import (
+    require_admin,
+    require_approved_user,
+    require_authenticated_user,
+    require_campaign_creation_permission,
+)
+from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.models import User, UserRole
+from src.auth.router import edit_user_info as router_edit_user_info
+from src.auth.router import list_users
 from src.auth.service import (
     approve_user,
     deny_user,
     grant_admin,
+    grant_admin_bulk,
+    grant_visitor,
     register_user,
     revoke_admin,
+    revoke_admin_bulk,
     revoke_approval,
+    revoke_visitor,
 )
 
 
@@ -43,6 +55,7 @@ def _make_user(user_id=None, email="test@example.com", roles=None):
 
     # Wire up the property logic since MagicMock won't run the real @property
     type(user).is_approved = property(lambda self: any(r.role == ROLE_APPROVED for r in self.roles))
+    type(user).is_visitor = property(lambda self: any(r.role == ROLE_VISITOR for r in self.roles))
     type(user).is_admin = property(lambda self: any(r.role == ROLE_ADMIN for r in self.roles))
 
     return user
@@ -130,7 +143,7 @@ class TestApproveUser:
         user = _make_user(user_id=user_id)
         db.get.return_value = user
 
-        with patch("src.auth.service.has_role", return_value=False):
+        with patch("src.auth.service._get_roles", return_value=set()):
             result = approve_user(db, user_id)
 
         assert result is user
@@ -145,7 +158,7 @@ class TestApproveUser:
         user = _make_user(user_id=user_id, roles=[ROLE_APPROVED])
         db.get.return_value = user
 
-        with patch("src.auth.service.has_role", return_value=True):
+        with patch("src.auth.service._get_roles", return_value={ROLE_APPROVED}):
             result = approve_user(db, user_id)
 
         assert result is user
@@ -209,6 +222,88 @@ class TestGrantAdmin:
         # Should only add ADMIN
         assert db.add.call_count == 1
         assert db.add.call_args[0][0].role == ROLE_ADMIN
+
+    def test_grant_admin_clears_visitor(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_APPROVED, ROLE_VISITOR])
+        db.get.return_value = user
+        visitor_role = MagicMock()
+        db.scalar.return_value = visitor_role  # _delete_role finds the visitor row
+
+        with patch("src.auth.service._get_roles", return_value={ROLE_APPROVED, ROLE_VISITOR}):
+            grant_admin(db, user_id)
+
+        # Admins cannot be visitors: the visitor role must be deleted
+        db.delete.assert_called_once_with(visitor_role)
+
+
+class TestGrantVisitor:
+    def test_grants_visitor_and_approved(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id)
+        db.get.return_value = user
+
+        with patch("src.auth.service._get_roles", return_value=set()):
+            grant_visitor(db, user_id)
+
+        # Should add both APPROVED and VISITOR roles
+        assert db.add.call_count == 2
+        added_roles = {db.add.call_args_list[i][0][0].role for i in range(2)}
+        assert ROLE_APPROVED in added_roles
+        assert ROLE_VISITOR in added_roles
+
+    def test_grants_visitor_already_approved(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_APPROVED])
+        db.get.return_value = user
+
+        with patch("src.auth.service._get_roles", return_value={ROLE_APPROVED}):
+            grant_visitor(db, user_id)
+
+        # Should only add VISITOR
+        assert db.add.call_count == 1
+        assert db.add.call_args[0][0].role == ROLE_VISITOR
+
+    def test_grant_visitor_already_visitor_is_noop(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_APPROVED, ROLE_VISITOR])
+        db.get.return_value = user
+
+        with patch("src.auth.service._get_roles", return_value={ROLE_APPROVED, ROLE_VISITOR}):
+            grant_visitor(db, user_id)
+
+        db.add.assert_not_called()
+
+
+class TestRevokeVisitor:
+    def test_revoke_removes_visitor_role(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_APPROVED, ROLE_VISITOR])
+        role_record = MagicMock()
+        db.get.return_value = user
+        db.scalar.return_value = role_record
+
+        revoke_visitor(db, user_id)
+
+        db.delete.assert_called_once_with(role_record)
+        db.commit.assert_called_once()
+
+    def test_revoke_when_not_visitor_is_noop(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_APPROVED])
+        db.get.return_value = user
+        db.scalar.return_value = None
+
+        revoke_visitor(db, user_id)
+
+        db.delete.assert_not_called()
+        db.commit.assert_not_called()
 
 
 class TestRevokeAdmin:
@@ -353,3 +448,183 @@ class TestRequireAdmin:
             require_admin(user=user, db=db)
 
         assert exc_info.value.status_code == 403
+
+
+class TestBulkRoleOperations:
+    """The bulk helpers share one code path; cover the branches unique to it."""
+
+    def test_revoke_admin_bulk_refuses_to_remove_last_admin(self):
+        db = _mock_db()
+        user_id = uuid4()
+        user = _make_user(user_id=user_id, roles=[ROLE_ADMIN])
+        db.get.return_value = user
+        db.scalar.return_value = MagicMock()  # admin role row exists
+
+        with (
+            patch("src.auth.service._admin_count", return_value=1),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            revoke_admin_bulk(db, [user_id])
+
+        assert exc_info.value.status_code == 409
+        db.delete.assert_not_called()  # guard aborts before any deletion
+
+    def test_grant_admin_bulk_clears_visitor_and_skips_existing_admin(self):
+        db = _mock_db()
+        u1, u2 = uuid4(), uuid4()
+        user1 = _make_user(user_id=u1, roles=[ROLE_APPROVED, ROLE_VISITOR])
+        user2 = _make_user(user_id=u2, roles=[ROLE_APPROVED, ROLE_ADMIN])
+        users = {u1: user1, u2: user2}
+        db.get.side_effect = lambda _model, uid: users[uid]
+        visitor_row = MagicMock()
+        db.scalar.return_value = visitor_row  # _delete_role finds the visitor row
+
+        roles = {u1: {ROLE_APPROVED, ROLE_VISITOR}, u2: {ROLE_APPROVED, ROLE_ADMIN}}
+        with patch("src.auth.service._get_roles", side_effect=lambda _db, uid: roles[uid]):
+            result = grant_admin_bulk(db, [u1, u2])
+
+        assert result["success"] == [user1]
+        assert result["skipped"] == [user2]  # already admin
+        db.delete.assert_called_once_with(visitor_row)  # visitor cleared on promotion
+
+
+class TestRequireCampaignCreationPermission:
+    def test_standard_approved_user_passes(self):
+        user = _make_user(roles=[ROLE_APPROVED])
+        db = _mock_db()
+
+        result = require_campaign_creation_permission(user=user, db=db)
+        assert result is user
+
+    def test_visitor_raises_403(self):
+        user = _make_user(roles=[ROLE_APPROVED, ROLE_VISITOR])
+        db = _mock_db()
+
+        with pytest.raises(HTTPException) as exc_info:
+            require_campaign_creation_permission(user=user, db=db)
+
+        assert exc_info.value.status_code == 403
+        assert "visitor" in exc_info.value.detail.lower()
+
+    def test_admin_visitor_still_passes(self):
+        user = _make_user(roles=[ROLE_APPROVED, ROLE_VISITOR, ROLE_ADMIN])
+        db = _mock_db()
+
+        result = require_campaign_creation_permission(user=user, db=db)
+        assert result is user
+
+
+class TestRequireAuthenticatedUser:
+    """The authentication entry point every request passes through."""
+
+    @staticmethod
+    def _provider(*, returns=None, raises=None):
+        provider = MagicMock()
+        provider.name = "firebase"
+
+        async def authenticate(_request):
+            if raises is not None:
+                raise raises
+            return returns
+
+        provider.authenticate = authenticate
+        return provider
+
+    def test_email_not_verified_raises_403(self):
+        provider = self._provider(raises=ExternalAuthEmailNotVerified())
+
+        with (
+            patch("src.auth.dependencies.get_auth_provider", return_value=provider),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            asyncio.run(require_authenticated_user(request=MagicMock(), db=_mock_db()))
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "email_not_verified"
+
+    def test_no_authenticated_user_raises_401(self):
+        provider = self._provider(returns=None)
+
+        with (
+            patch("src.auth.dependencies.get_auth_provider", return_value=provider),
+            pytest.raises(HTTPException) as exc_info,
+        ):
+            asyncio.run(require_authenticated_user(request=MagicMock(), db=_mock_db()))
+
+        assert exc_info.value.status_code == 401
+
+    def test_authenticated_user_is_registered_and_returned(self):
+        provider = self._provider(returns={"uid": "x", "email": "a@b.com"})
+        user = _make_user()
+
+        with (
+            patch("src.auth.dependencies.get_auth_provider", return_value=provider),
+            patch("src.auth.dependencies.service.register_user", return_value=user) as register,
+        ):
+            result = asyncio.run(require_authenticated_user(request=MagicMock(), db=_mock_db()))
+
+        assert result is user
+        register.assert_called_once()
+
+
+class TestListUsersVisibility:
+    """Non-admins must not see pending/denied users via the user list."""
+
+    def test_admin_sees_all_users(self):
+        admin = _make_user(roles=[ROLE_APPROVED, ROLE_ADMIN])
+        approved = _make_user(roles=[ROLE_APPROVED])
+        pending = _make_user(roles=[])
+        everyone = [admin, approved, pending]
+
+        with patch("src.auth.router.service.get_all_users", return_value=everyone):
+            result = list_users(user=admin, db=_mock_db())
+
+        assert result == everyone
+
+    def test_non_admin_sees_only_approved(self):
+        viewer = _make_user(roles=[ROLE_APPROVED])
+        approved = _make_user(roles=[ROLE_APPROVED])
+        pending = _make_user(roles=[])
+
+        with patch(
+            "src.auth.router.service.get_all_users",
+            return_value=[approved, pending],
+        ):
+            result = list_users(user=viewer, db=_mock_db())
+
+        assert approved in result
+        assert pending not in result
+
+
+class TestEditUserInfoAuthorization:
+    def test_non_admin_editing_another_user_raises_403(self):
+        actor = _make_user(roles=[ROLE_APPROVED])
+
+        with pytest.raises(HTTPException) as exc_info:
+            router_edit_user_info(user_id=uuid4(), new_display_name="X", user=actor, db=_mock_db())
+
+        assert exc_info.value.status_code == 403
+
+    def test_user_can_edit_own_info(self):
+        actor = _make_user(roles=[ROLE_APPROVED])
+        updated = _make_user(user_id=actor.id)
+
+        with patch("src.auth.router.service.edit_user_info", return_value=updated) as edit:
+            result = router_edit_user_info(
+                user_id=actor.id, new_display_name="New", user=actor, db=_mock_db()
+            )
+
+        assert result is updated
+        edit.assert_called_once()
+
+    def test_admin_can_edit_another_user(self):
+        admin = _make_user(roles=[ROLE_APPROVED, ROLE_ADMIN])
+        other_id = uuid4()
+        updated = _make_user(user_id=other_id)
+
+        with patch("src.auth.router.service.edit_user_info", return_value=updated):
+            result = router_edit_user_info(
+                user_id=other_id, new_display_name="New", user=admin, db=_mock_db()
+            )
+
+        assert result is updated

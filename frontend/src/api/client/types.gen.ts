@@ -1863,6 +1863,10 @@ export type UserOutDetailed = {
      */
     is_approved: boolean;
     /**
+     * Is Visitor
+     */
+    is_visitor: boolean;
+    /**
      * Is Admin
      */
     is_admin: boolean;
@@ -2557,6 +2561,116 @@ export type RevokeAdminResponses = {
 };
 
 export type RevokeAdminResponse = RevokeAdminResponses[keyof RevokeAdminResponses];
+
+export type GrantVisitorSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/grant-visitor';
+};
+
+export type GrantVisitorSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantVisitorSingleError = GrantVisitorSingleErrors[keyof GrantVisitorSingleErrors];
+
+export type GrantVisitorSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type GrantVisitorSingleResponse = GrantVisitorSingleResponses[keyof GrantVisitorSingleResponses];
+
+export type RevokeVisitorSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/revoke-visitor';
+};
+
+export type RevokeVisitorSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeVisitorSingleError = RevokeVisitorSingleErrors[keyof RevokeVisitorSingleErrors];
+
+export type RevokeVisitorSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type RevokeVisitorSingleResponse = RevokeVisitorSingleResponses[keyof RevokeVisitorSingleResponses];
+
+export type GrantVisitorData = {
+    body: BulkUserActionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/users/grant-visitor';
+};
+
+export type GrantVisitorErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantVisitorError = GrantVisitorErrors[keyof GrantVisitorErrors];
+
+export type GrantVisitorResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkUserActionResponse;
+};
+
+export type GrantVisitorResponse = GrantVisitorResponses[keyof GrantVisitorResponses];
+
+export type RevokeVisitorData = {
+    body: BulkUserActionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/users/revoke-visitor';
+};
+
+export type RevokeVisitorErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeVisitorError = RevokeVisitorErrors[keyof RevokeVisitorErrors];
+
+export type RevokeVisitorResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkUserActionResponse;
+};
+
+export type RevokeVisitorResponse = RevokeVisitorResponses[keyof RevokeVisitorResponses];
 
 export type ListAllCampaignsData = {
     body?: never;

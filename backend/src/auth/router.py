@@ -28,6 +28,15 @@ router = APIRouter(
 )
 
 
+def _bulk_response(result: dict) -> BulkUserActionResponse:
+    """Map a bulk service result ({success, not_found, skipped}) to the response."""
+    return BulkUserActionResponse(
+        success=result["success"],
+        not_found=result["not_found"],
+        already_in_state=result["skipped"],
+    )
+
+
 # ============================================================================
 # User Info & Listing & Edit Info
 # ============================================================================
@@ -177,13 +186,7 @@ def approve_users_bulk(
 
     Grants approval role to all specified users in a single transaction.
     """
-    result = service.approve_users_bulk(db, request.user_ids)
-
-    return BulkUserActionResponse(
-        success=result["approved"],
-        not_found=result["not_found"],
-        already_in_state=result["already_approved"],
-    )
+    return _bulk_response(service.approve_users_bulk(db, request.user_ids))
 
 
 @router.post("/users/revoke", response_model=BulkUserActionResponse)
@@ -197,13 +200,7 @@ def revoke_users_bulk(
 
     Removes approval role from all specified users in a single transaction.
     """
-    result = service.revoke_approval_bulk(db, request.user_ids)
-
-    return BulkUserActionResponse(
-        success=result["revoked"],
-        not_found=result["not_found"],
-        already_in_state=result["not_approved"],
-    )
+    return _bulk_response(service.revoke_approval_bulk(db, request.user_ids))
 
 
 @router.post("/users/deny", response_model=BulkUserActionResponse)
@@ -218,13 +215,7 @@ def deny_users_bulk(
     Permanently removes users who have not been approved yet.
     Users who are already approved or are admins will not be deleted.
     """
-    result = service.deny_users_bulk(db, request.user_ids)
-
-    return BulkUserActionResponse(
-        success=result["denied"],
-        not_found=result["not_found"],
-        already_in_state=result["cannot_deny"],
-    )
+    return _bulk_response(service.deny_users_bulk(db, request.user_ids))
 
 
 # ============================================================================
@@ -282,13 +273,7 @@ def grant_admin(
 
     Grants admin and approval roles to all specified users in a single transaction.
     """
-    result = service.grant_admin_bulk(db, request.user_ids)
-
-    return BulkUserActionResponse(
-        success=result["granted"],
-        not_found=result["not_found"],
-        already_in_state=result["already_admin"],
-    )
+    return _bulk_response(service.grant_admin_bulk(db, request.user_ids))
 
 
 @router.post("/users/revoke-admin", response_model=BulkUserActionResponse)
@@ -303,10 +288,77 @@ def revoke_admin(
     Removes admin role from all specified users in a single transaction.
     Prevents revoking admin from all users if it would leave no admins.
     """
-    result = service.revoke_admin_bulk(db, request.user_ids)
+    return _bulk_response(service.revoke_admin_bulk(db, request.user_ids))
 
-    return BulkUserActionResponse(
-        success=result["revoked"],
-        not_found=result["not_found"],
-        already_in_state=result["not_admin"],
-    )
+
+# ============================================================================
+# Visitor Role Operations
+# ============================================================================
+
+
+@router.post("/users/{user_id}/grant-visitor", response_model=UserOutDetailed)
+def grant_visitor_single(
+    user_id: UUID,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Grant visitor role to a single user (admin only).
+
+    Grants the visitor and approval roles. Visitors cannot create campaigns.
+    """
+    user = service.grant_visitor(db, user_id)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
+
+@router.post("/users/{user_id}/revoke-visitor", response_model=UserOutDetailed)
+def revoke_visitor_single(
+    user_id: UUID,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Revoke visitor role from a single user (admin only).
+
+    The user remains approved (standard) and regains campaign-creation access.
+    """
+    user = service.revoke_visitor(db, user_id)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
+
+@router.post("/users/grant-visitor", response_model=BulkUserActionResponse)
+def grant_visitor(
+    request: BulkUserActionRequest,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Grant visitor role to multiple users (admin only).
+
+    Grants the visitor and approval roles to all specified users in a single
+    transaction.
+    """
+    return _bulk_response(service.grant_visitor_bulk(db, request.user_ids))
+
+
+@router.post("/users/revoke-visitor", response_model=BulkUserActionResponse)
+def revoke_visitor(
+    request: BulkUserActionRequest,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Revoke visitor role from multiple users (admin only).
+
+    Each user remains approved (standard). Processes all users in a single
+    transaction.
+    """
+    return _bulk_response(service.revoke_visitor_bulk(db, request.user_ids))

@@ -17,6 +17,7 @@ class UserOutDetailed(UserOut):
     """Detailed user information."""
 
     is_approved: bool
+    is_visitor: bool
     is_admin: bool
     issuer: str
     external_uid: str
