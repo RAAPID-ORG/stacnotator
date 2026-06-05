@@ -315,8 +315,8 @@ const TimelineSidebar = ({
                   readable minimum height even when segments are tiny. */}
               {activeIndex >= 0 && activeCollection && (
                 <div
-                  className="absolute inset-x-0 z-20 flex flex-col items-center justify-center bg-white border border-brand-500 rounded-md shadow-sm px-0.5 pointer-events-none"
-                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)', minHeight: 24 }}
+                  className="absolute inset-x-0 z-20 flex flex-col items-center justify-center bg-brand-50 border border-brand-500 rounded-md shadow-sm px-0.5 py-1 pointer-events-none"
+                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)', minHeight: 34 }}
                 >
                   <span className="text-[9px] font-semibold text-brand-800 leading-tight text-center break-words w-full">
                     {activeLabelText}
