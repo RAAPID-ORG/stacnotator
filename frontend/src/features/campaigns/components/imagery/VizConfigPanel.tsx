@@ -164,7 +164,7 @@ export const VizConfigPanel = ({
   const applyPreset = (preset: BandPreset) => {
     const updates: Partial<VizParams> = {
       assets: preset.assets,
-      assetAsBand: preset.assets.length === 3,
+      assetAsBand: preset.assets.length === 3 || !!preset.expression,
     };
     if (preset.colormap) updates.colormapName = preset.colormap;
     if (preset.rescale) {
@@ -215,7 +215,9 @@ export const VizConfigPanel = ({
     );
   };
 
-  const showColormap = vizParams.assets.length === 1 && !isRgbAsset && !vizParams.expression;
+  const showColormap =
+    !isRgbAsset &&
+    (vizParams.assets.length === 1 || (vizParams.assets.length === 0 && !!vizParams.expression));
 
   return (
     <div className="space-y-4">
@@ -338,60 +340,6 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Rescale */}
-      <div className="space-y-1.5">
-        <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-          Rescale
-          <InfoPopover>
-            <RescaleInfo />
-          </InfoPopover>
-        </label>
-        <div className="flex gap-1.5">
-          {(['manual', 'none'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => {
-                setRescaleMode(mode);
-                if (mode === 'manual' && !vizParams.rescale && defaultRescale) {
-                  update('rescale', defaultRescale);
-                } else if (mode === 'none') {
-                  update('rescale', '');
-                }
-              }}
-              className={`flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors cursor-pointer ${
-                rescaleMode === mode
-                  ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
-                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-              }`}
-            >
-              {mode === 'manual' ? 'Manual' : 'None'}
-            </button>
-          ))}
-        </div>
-        {rescaleMode === 'manual' && (
-          <>
-            <Input
-              size="sm"
-              type="text"
-              value={vizParams.rescale || ''}
-              onChange={(e) => update('rescale', e.target.value)}
-              placeholder={defaultRescale || 'e.g. 0,3000'}
-            />
-            <p className="text-[11px] text-neutral-400">
-              Fixed min,max applied to each band.
-              {defaultRescale ? ` Pre-filled from known defaults for this collection.` : ''}
-            </p>
-          </>
-        )}
-        {rescaleMode === 'none' && (
-          <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
-            No rescaling - raw pixel values are served as-is. Use a color formula or ensure your
-            data range maps to 0-255 for display.
-          </p>
-        )}
-      </div>
-
       {/* Compositing (mosaic mode only) */}
       {showCompositing && (
         <div className="space-y-1">
@@ -450,6 +398,60 @@ export const VizConfigPanel = ({
               <p className="text-[11px] text-neutral-400">
                 Math on asset bands. Overrides band selection for rendering.
               </p>
+            </div>
+
+            {/* Rescale */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-neutral-700 flex items-center gap-1">
+                Rescale
+                <InfoPopover>
+                  <RescaleInfo />
+                </InfoPopover>
+              </label>
+              <div className="flex gap-1.5">
+                {(['manual', 'none'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setRescaleMode(mode);
+                      if (mode === 'manual' && !vizParams.rescale && defaultRescale) {
+                        update('rescale', defaultRescale);
+                      } else if (mode === 'none') {
+                        update('rescale', '');
+                      }
+                    }}
+                    className={`flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                      rescaleMode === mode
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                        : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                    }`}
+                  >
+                    {mode === 'manual' ? 'Manual' : 'None'}
+                  </button>
+                ))}
+              </div>
+              {rescaleMode === 'manual' && (
+                <>
+                  <Input
+                    size="sm"
+                    type="text"
+                    value={vizParams.rescale || ''}
+                    onChange={(e) => update('rescale', e.target.value)}
+                    placeholder={defaultRescale || 'e.g. 0,3000'}
+                  />
+                  <p className="text-[11px] text-neutral-400">
+                    Fixed min,max applied to each band.
+                    {defaultRescale ? ` Pre-filled from known defaults for this collection.` : ''}
+                  </p>
+                </>
+              )}
+              {rescaleMode === 'none' && (
+                <p className="text-[11px] text-neutral-500 bg-neutral-50 rounded-md px-3 py-1.5 border border-neutral-200">
+                  No rescaling - raw pixel values are served as-is. Use a color formula or ensure
+                  your data range maps to 0-255 for display.
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Nodata value</label>

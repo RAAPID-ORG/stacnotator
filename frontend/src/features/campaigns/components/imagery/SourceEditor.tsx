@@ -15,6 +15,8 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { CollectionEditor } from './CollectionEditor';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
 import type { CatalogBrowserPreset } from './CatalogBrowser';
+import { BulkApplyModal } from './BulkApplyModal';
+import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
 
 interface SourceEditorProps {
@@ -67,8 +69,10 @@ export const SourceEditor = ({
 }: SourceEditorProps) => {
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [addStep, setAddStep] = useState<AddCollectionStep>(null);
+  const [bulkFocus, setBulkFocus] = useState<BulkFocus | null>(null);
 
   const vizNames = source.visualizations.map((v) => v.name);
+  const hasStac = source.collections.some((c) => c.data.type === 'stac_browser');
   const updateSource = (patch: Partial<ImagerySource>) => controller.updateSource(source.id, patch);
 
   const handleRemoveSource = async () => {
@@ -111,6 +115,17 @@ export const SourceEditor = ({
     }
     setAddStep(null);
   };
+
+  if (bulkFocus) {
+    return (
+      <BulkApplyModal
+        source={source}
+        controller={controller}
+        focus={bulkFocus}
+        onClose={() => setBulkFocus(null)}
+      />
+    );
+  }
 
   if (addStep?.kind === 'catalog') {
     return (
@@ -306,6 +321,16 @@ export const SourceEditor = ({
                 onChange={(e) => renameVisualization(i, e.target.value)}
                 className="flex-1"
               />
+              {hasStac && viz.name && (
+                <IconButton
+                  tone="brand"
+                  onClick={() => setBulkFocus({ kind: 'viz', name: viz.name })}
+                  title="Edit this visualization's params for all collections"
+                  aria-label={`Edit ${viz.name} params for all collections`}
+                >
+                  <IconSettings className="w-3.5 h-3.5" />
+                </IconButton>
+              )}
               <button
                 type="button"
                 onClick={() =>
@@ -342,10 +367,21 @@ export const SourceEditor = ({
         </div>
 
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
-            Collections
-            <Tooltip text="A collection is a time window of imagery. Each collection contains slices annotators can switch between." />
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-medium text-neutral-700 flex items-center gap-1">
+              Collections
+              <Tooltip text="A collection is a time window of imagery. Each collection contains slices annotators can switch between." />
+            </h4>
+            {hasStac && (
+              <button
+                type="button"
+                onClick={() => setBulkFocus({ kind: 'search' })}
+                className="text-xs text-brand-700 hover:text-brand-800 transition-colors cursor-pointer"
+              >
+                Search settings · all collections
+              </button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"

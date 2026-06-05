@@ -12,6 +12,7 @@ interface CoverSearchParamsProps {
   searchQuery: Record<string, unknown> | null;
   onSearchQueryChange: (q: Record<string, unknown> | null) => void;
   autoQuery: Record<string, unknown> | null;
+  queryLabel?: string;
 }
 
 export const CoverSearchParams = ({
@@ -23,6 +24,7 @@ export const CoverSearchParams = ({
   searchQuery,
   onSearchQueryChange,
   autoQuery,
+  queryLabel = 'Cover slice search query',
 }: CoverSearchParamsProps) => {
   return (
     <div className="space-y-2">
@@ -65,7 +67,7 @@ export const CoverSearchParams = ({
           value={searchQuery}
           onChange={onSearchQueryChange}
           autoQuery={autoQuery}
-          label="Cover slice search query"
+          label={queryLabel}
         />
       )}
     </div>

@@ -399,7 +399,7 @@ export const CatalogBrowser = ({
       const vp: VizParams = {
         ...emptyVizParams(),
         assets: preset.assets,
-        assetAsBand: preset.assets.length === 3,
+        assetAsBand: preset.assets.length === 3 || !!preset.expression,
         ...(preset.colorFormula ? { colorFormula: preset.colorFormula } : {}),
         ...(preset.colormap ? { colormapName: preset.colormap } : {}),
         ...(preset.expression ? { expression: preset.expression } : {}),

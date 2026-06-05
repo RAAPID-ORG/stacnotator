@@ -48,7 +48,14 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
       nodata: 0,
     },
-    { label: 'NDVI (B08)', assets: ['B08'], colormap: 'rdylgn', rescale: '-1,1' },
+    {
+      label: 'NDVI',
+      assets: [],
+      expression: '(B08-B04)/(B08+B04)',
+      colormap: 'rdylgn',
+      rescale: '-1,1',
+      nodata: 0,
+    },
     { label: 'Visual (rendered)', assets: ['visual'] },
   ],
   'sentinel-2-l1c': [
@@ -89,6 +96,14 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
       nodata: 0,
     },
+    {
+      label: 'NDVI',
+      assets: [],
+      expression: '(nir08-red)/(nir08+red)',
+      colormap: 'rdylgn',
+      rescale: '-1,1',
+      nodata: 0,
+    },
   ],
   'landsat-c2-l1': [
     {
@@ -101,6 +116,14 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       label: 'False Color',
       assets: ['nir08', 'red', 'green'],
       colorFormula: 'gamma RGB 2.7, saturation 1.5, sigmoidal RGB 15 0.55',
+      nodata: 0,
+    },
+    {
+      label: 'NDVI',
+      assets: [],
+      expression: '(nir08-red)/(nir08+red)',
+      colormap: 'rdylgn',
+      rescale: '-1,1',
       nodata: 0,
     },
   ],
@@ -129,7 +152,13 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       assets: ['B11', 'B8A', 'B02'],
       colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
-    { label: 'NDVI (B8A)', assets: ['B8A'], colormap: 'rdylgn', rescale: '0,1' },
+    {
+      label: 'NDVI',
+      assets: [],
+      expression: '(B8A-B04)/(B8A+B04)',
+      colormap: 'rdylgn',
+      rescale: '-1,1',
+    },
   ],
   'hls2-l30': [
     {
@@ -142,7 +171,13 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       assets: ['B05', 'B04', 'B03'],
       colorFormula: 'gamma RGB 3.5, saturation 1.2, sigmoidal RGB 15 0.35',
     },
-    { label: 'NDVI (B05)', assets: ['B05'], colormap: 'rdylgn', rescale: '0,1' },
+    {
+      label: 'NDVI',
+      assets: [],
+      expression: '(B05-B04)/(B05+B04)',
+      colormap: 'rdylgn',
+      rescale: '-1,1',
+    },
   ],
   'sentinel-1-grd': [
     // MPC stores VV/VH as uint16 amplitude DNs; single-band grayscale uses 0..250
