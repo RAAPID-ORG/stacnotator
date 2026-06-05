@@ -6,7 +6,6 @@ import type { Layout, LayoutItem } from 'react-grid-layout';
 export const VIEW_LAYOUT_COLS_PER_ROW = 6;
 export const VIEW_LAYOUT_WINDOW_W = 10;
 export const VIEW_LAYOUT_WINDOW_H = 9;
-export const VIEW_LAYOUT_START_Y = 25;
 
 /** Total columns of the annotation grid (mirror of `cols: 60` in Canvas.tsx). */
 export const GRID_COLS = 60;
@@ -20,7 +19,12 @@ export const DEFAULT_NEW_WINDOW_SIZE = { w: VIEW_LAYOUT_WINDOW_W, h: VIEW_LAYOUT
 export function nextWindowSlot(layout: Layout, size: { w: number; h: number }): LayoutItem {
   const existing = layout.filter((it) => !MAIN_LAYOUT_KEYS.has(it.i));
   if (existing.length === 0) {
-    return { i: '', x: 0, y: VIEW_LAYOUT_START_Y, ...size };
+    // First window after a full hide: sit flush below the page chrome rather
+    // than at a fixed offset, so there's no empty band above the new row.
+    const chromeBottom = layout
+      .filter((it) => MAIN_LAYOUT_KEYS.has(it.i))
+      .reduce((m, it) => Math.max(m, (it.y ?? 0) + (it.h ?? 0)), 0);
+    return { i: '', x: 0, y: chromeBottom, ...size };
   }
 
   const lastRowY = existing.reduce((max, it) => Math.max(max, it.y ?? 0), 0);
