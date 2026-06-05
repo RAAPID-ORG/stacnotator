@@ -6,6 +6,7 @@ Tests both clean-slate defaults (as if fresh deploy) and explicit overrides
 
 import os
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 from src.config import Settings
 
@@ -67,8 +68,11 @@ class TestDatabaseURL:
                 "DBPORT": "5432",
             }
         )
-        assert "my-db.postgres.database.azure.com" in s.DATABASE_URL
-        assert "myapp_prod" in s.DATABASE_URL
+        # Parse and assert on the URL components rather than substring checks so
+        # the host/db name are matched exactly (not merely present somewhere).
+        parts = urlsplit(s.DATABASE_URL)
+        assert parts.hostname == "my-db.postgres.database.azure.com"
+        assert parts.path == "/myapp_prod"
 
 
 class TestCORSOrigins:
