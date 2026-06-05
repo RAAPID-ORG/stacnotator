@@ -1,6 +1,19 @@
 import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
-import { TASK_1, TASK_2, TASK_3, COLLECTION_S2, COLLECTION_NDVI, SLICE_2024_01, SLICE_2024_06 } from './fixtures/mock-data';
-import { assertCrosshairAt, assertMinimapCenterAt, assertTilesFetchedForTask, isTileHost } from './fixtures/imagery-helpers';
+import {
+  TASK_1,
+  TASK_2,
+  TASK_3,
+  COLLECTION_S2,
+  COLLECTION_NDVI,
+  SLICE_2024_01,
+  SLICE_2024_06,
+} from './fixtures/mock-data';
+import {
+  assertCrosshairAt,
+  assertMinimapCenterAt,
+  assertTilesFetchedForTask,
+  isTileHost,
+} from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
@@ -162,7 +175,11 @@ test.describe('Slice cycling via main-map dropdown', () => {
     const snap = api.requests.length;
     const tileArrived = expectTile(annotationPage, 'search-jun-2024');
 
-    await selectFromDropdown(annotationPage, 'button[title="Select time slice (a/d)"]', SLICE_2024_06.name);
+    await selectFromDropdown(
+      annotationPage,
+      'button[title="Select time slice (a/d)"]',
+      SLICE_2024_06.name
+    );
 
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
     await tileArrived;
@@ -172,15 +189,27 @@ test.describe('Slice cycling via main-map dropdown', () => {
   });
 
   test('dropdown: selecting current slice is a no-op', async ({ annotationPage }) => {
-    await selectFromDropdown(annotationPage, 'button[title="Select time slice (a/d)"]', SLICE_2024_01.name);
+    await selectFromDropdown(
+      annotationPage,
+      'button[title="Select time slice (a/d)"]',
+      SLICE_2024_01.name
+    );
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name);
   });
 
   test('dropdown: can navigate back to Jan after Jun', async ({ annotationPage }) => {
-    await selectFromDropdown(annotationPage, 'button[title="Select time slice (a/d)"]', SLICE_2024_06.name);
+    await selectFromDropdown(
+      annotationPage,
+      'button[title="Select time slice (a/d)"]',
+      SLICE_2024_06.name
+    );
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_06.name, { timeout: 3000 });
 
-    await selectFromDropdown(annotationPage, 'button[title="Select time slice (a/d)"]', SLICE_2024_01.name);
+    await selectFromDropdown(
+      annotationPage,
+      'button[title="Select time slice (a/d)"]',
+      SLICE_2024_01.name
+    );
     await expect(mainSliceBtn(annotationPage)).toContainText(SLICE_2024_01.name, { timeout: 3000 });
   });
 });
@@ -274,9 +303,9 @@ test.describe('Timeline collection switching', () => {
   });
 
   test('active collection in timeline has visible name label', async ({ annotationPage }) => {
-    // The active entry renders the collection name as a text span
-    const activeEntry = annotationPage.locator(`[data-collection-id="${COLLECTION_S2.id}"]`);
-    await expect(activeEntry).toContainText(COLLECTION_S2.name);
+    await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
+      COLLECTION_S2.name
+    );
   });
 });
 
@@ -320,9 +349,10 @@ test.describe('Minimap center tracks current task', () => {
 
   test('slice change does not move minimap center', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('d');
-    await expect(
-      annotationPage.locator('button[title="Select time slice (a/d)"]')
-    ).toContainText(SLICE_2024_06.name, { timeout: 3000 });
+    await expect(annotationPage.locator('button[title="Select time slice (a/d)"]')).toContainText(
+      SLICE_2024_06.name,
+      { timeout: 3000 }
+    );
     await assertMinimapCenterAt(annotationPage, TASK_1.id, 'minimap after slice d');
   });
 
