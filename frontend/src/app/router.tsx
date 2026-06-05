@@ -1,5 +1,10 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Route,
+  RouterProvider,
+} from 'react-router-dom';
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AppLayout } from '~/features/layout/components/AppLayout';
@@ -37,53 +42,55 @@ const RouteFallback = () => (
   </div>
 );
 
-export const Router = () => (
-  <BrowserRouter>
-    <Routes>
-      <Route path="/" element={<AppLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="campaigns" element={<CampaignsPage />} />
-        <Route
-          path="campaigns/new"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <CreateCampaignPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="campaigns/:campaignId/annotate"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <AnnotationPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="campaigns/:campaignId/settings"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <CampaignSettingsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="campaigns/:campaignId/annotations"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <ReviewPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="settings"
-          element={
-            <Suspense fallback={<RouteFallback />}>
-              <SettingsPage />
-            </Suspense>
-          }
-        />
-      </Route>
-    </Routes>
-  </BrowserRouter>
+// A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
+// can be intercepted via useBlocker — see useUnsavedChangesGuard.
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route path="/" element={<AppLayout />}>
+      <Route index element={<HomePage />} />
+      <Route path="campaigns" element={<CampaignsPage />} />
+      <Route
+        path="campaigns/new"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <CreateCampaignPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="campaigns/:campaignId/annotate"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <AnnotationPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="campaigns/:campaignId/settings"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <CampaignSettingsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="campaigns/:campaignId/annotations"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <ReviewPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="settings"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <SettingsPage />
+          </Suspense>
+        }
+      />
+    </Route>
+  )
 );
+
+export const Router = () => <RouterProvider router={router} />;
