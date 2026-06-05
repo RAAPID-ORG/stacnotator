@@ -9,7 +9,7 @@ Especially we welcome:
 
 ## How to contribute a feature
 
-Make sure to familiarize yourself with the codebase by checking out the [docs](docs/architcture.md).
+Make sure to familiarize yourself with the codebase by checking out the [docs](docs/architcture.md). See [docs/development.md](docs/development.md) for our branching, review, and CI workflow.
 
 We reccomend only implementing a completely new feature after opening a issue first, to ensure it align with the core teams long term vision that benefits the community. We strive to add functionality that provides core functionality without bloating the project for specific use cases.
 

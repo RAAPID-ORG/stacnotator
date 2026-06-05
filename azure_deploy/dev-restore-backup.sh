@@ -3,8 +3,8 @@
 # Restore a local SQL backup into the dev database
 #
 # Wipes the dev database, restores the dump, runs alembic migrations,
-# and restarts the backend. Same flow as the staging script but runs
-# against the dev containers with a local backup file.
+# and restarts the backend, running against the dev containers with a
+# local backup file.
 #
 # Usage:
 #   ./scripts/dev-restore-backup.sh <path-to-sql-dump>
