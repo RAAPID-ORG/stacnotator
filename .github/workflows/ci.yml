@@ -147,7 +147,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Build frontend
-        run: npm run build
+        # --mode test exposes the e2e test hooks (window.__TASK_STORE__ etc.);
+        # the default production build deliberately omits them.
+        run: npm run build -- --mode test
 
       - name: Start preview server
         run: npx vite preview --port 5173 &
