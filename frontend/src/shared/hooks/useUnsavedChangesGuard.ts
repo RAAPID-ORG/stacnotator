@@ -7,10 +7,7 @@ interface GuardOptions {
   description?: string;
 }
 
-/** Warn before leaving while `when` is true (e.g. a form has unsaved edits).
- *  In-app route changes are intercepted with the app confirm dialog; refreshes
- *  and tab-closes fall back to the browser's native prompt. Requires the data
- *  router (see app/router.tsx) for useBlocker to function. */
+// Warn before leaving while `when` is true (e.g. a form has unsaved edits).
 export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const blocker = useBlocker(when);
@@ -22,8 +19,6 @@ export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
     let active = true;
-    // "Stay" is the primary (right, emphasised) action so the safe choice is the
-    // obvious one; "Leave" is the muted secondary button.
     showConfirmDialog({
       title,
       description,
@@ -43,7 +38,6 @@ export function useUnsavedChangesGuard(when: boolean, options?: GuardOptions) {
     if (!when) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = '';
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
