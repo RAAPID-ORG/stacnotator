@@ -242,6 +242,15 @@ const TimelineSidebar = ({
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
+  const activeIndex = viewCollections.findIndex(
+    ({ collection }) => collection?.id === liveCollectionId
+  );
+  const activeCollection = activeIndex >= 0 ? viewCollections[activeIndex].collection : null;
+  const activeLabel = activeCollection
+    ? `${activeIndex + 1}/${totalCollections} · ${activeCollection.name || formatDateLabel(activeCollection.slices[0]?.start_date ?? null)}`
+    : '';
+  const activeTopPct = totalCollections > 0 ? ((activeIndex + 0.5) / totalCollections) * 100 : 0;
+
   return (
     <div className="relative h-full" data-tour="timeline-sidebar">
       <button
@@ -287,38 +296,41 @@ const TimelineSidebar = ({
             >
               <div className="absolute left-1/2 -translate-x-px top-0 bottom-0 w-px bg-neutral-200 pointer-events-none" />
 
-              {viewCollections.map(({ collection }, _index) => {
+              {viewCollections.map(({ collection }) => {
                 if (!collection) return null;
-                const isActive = collection.id === liveCollectionId;
                 const segH = `${100 / totalCollections}%`;
-
                 return (
                   <div
                     key={collection.id}
                     data-collection-id={collection.id}
                     className="relative flex items-center justify-center"
                     style={{ height: segH, minHeight: segH }}
+                    title={collection.name}
                   >
-                    {isActive ? (
-                      <div className="absolute inset-x-0 inset-y-0.5 flex flex-col items-center justify-center bg-brand-50 border border-brand-500 rounded-md shadow-sm z-10 px-0.5">
-                        <span className="text-[9px] font-semibold text-brand-800 leading-tight text-center break-words w-full">
-                          {collection.name}
-                        </span>
-                      </div>
-                    ) : (
-                      <div
-                        className="absolute inset-x-0 inset-y-0 flex items-center justify-center z-10"
-                        title={collection.name}
-                      >
-                        <div className="relative flex items-center justify-center w-full h-full">
-                          <div className="h-px w-3 bg-neutral-300 group-hover/track:bg-neutral-400 transition-colors" />
-                          <div className="absolute inset-x-1 inset-y-0 rounded hover:bg-neutral-100/70 transition-colors" />
-                        </div>
-                      </div>
-                    )}
+                    <div className="h-px w-3 bg-neutral-200" />
                   </div>
                 );
               })}
+
+              {/* Active marker: a solid full-width bar that stays visible at any count */}
+              {activeIndex >= 0 && (
+                <div
+                  className="absolute inset-x-0 h-0.5 bg-brand-600 z-20 pointer-events-none"
+                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)' }}
+                />
+              )}
+
+              {/* Active label: floated to the side so the date is always legible */}
+              {activeIndex >= 0 && !isDragging && (
+                <div
+                  className="absolute left-full ml-2 z-50 pointer-events-none"
+                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)' }}
+                >
+                  <div className="bg-neutral-800 text-white text-[10px] rounded-md px-2.5 py-1.5 shadow-lg whitespace-nowrap leading-snug">
+                    {activeLabel}
+                  </div>
+                </div>
+              )}
 
               {isDragging && tooltip && (
                 <div
