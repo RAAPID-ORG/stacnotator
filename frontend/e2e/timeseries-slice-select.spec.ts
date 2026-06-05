@@ -11,6 +11,7 @@ import {
   COLLECTION_MAR_2022,
   COLLECTION_SEP_2022,
 } from './fixtures/mock-data';
+import { isTileHost } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 type ApiCapture = import('./fixtures/annotator-fixture').ApiCapture;
@@ -59,7 +60,7 @@ async function clickChartAtFraction(page: Page, fraction: number): Promise<void>
 function expectTile(page: Page, urlPart: string): Promise<void> {
   return page
     .waitForResponse(
-      (r) => r.url().includes('tiles.example.com') && r.url().includes(urlPart),
+      (r) => isTileHost(r.url()) && r.url().includes(urlPart),
       { timeout: 3000 }
     )
     .then(() => undefined)

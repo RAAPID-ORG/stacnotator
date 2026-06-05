@@ -1,19 +1,19 @@
 import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
 import { TASK_1, TASK_2, TASK_3, COLLECTION_S2, COLLECTION_NDVI, SLICE_2024_01, SLICE_2024_06 } from './fixtures/mock-data';
-import { assertCrosshairAt, assertMinimapCenterAt, assertTilesFetchedForTask } from './fixtures/imagery-helpers';
+import { assertCrosshairAt, assertMinimapCenterAt, assertTilesFetchedForTask, isTileHost } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
 function tilesAfter(requests: CapturedRequest[], snap: number): string[] {
   return requests
     .slice(snap)
-    .filter((r) => r.url.includes('tiles.example.com'))
+    .filter((r) => isTileHost(r.url))
     .map((r) => r.url);
 }
 
 function expectTile(page: Page, urlPart: string): Promise<void> {
   return page
-    .waitForResponse((r) => r.url().includes('tiles.example.com') && r.url().includes(urlPart), {
+    .waitForResponse((r) => isTileHost(r.url()) && r.url().includes(urlPart), {
       timeout: 3000,
     })
     .then(() => undefined)

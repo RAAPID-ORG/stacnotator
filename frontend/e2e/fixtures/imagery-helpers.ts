@@ -5,6 +5,17 @@ import type { CapturedRequest } from './annotator-fixture';
 
 export const COORD_TOLERANCE = 0.01;
 
+/** True when `url`'s host is exactly the mock tile server. Matching the parsed
+ *  hostname (rather than a substring) avoids false positives like
+ *  `https://evil.com/tiles.example.com` and satisfies CodeQL's URL check. */
+export function isTileHost(url: string): boolean {
+  try {
+    return new URL(url).hostname === 'tiles.example.com';
+  } catch {
+    return false;
+  }
+}
+
 export async function getCrosshairPosition(page: Page): Promise<{ lat: number; lon: number }> {
   // Reads data-lat / data-lon set directly on the crosshair DOM element in WGS84.
   // No projection math required in test code.
@@ -59,7 +70,7 @@ export function extractTileCoords(
   const pattern = /\/(\d+)\/(\d+)\/(\d+)\?/;
   const results: Array<{ z: number; x: number; y: number }> = [];
   for (const r of requests) {
-    if (!r.url.includes('tiles.example.com')) continue;
+    if (!isTileHost(r.url)) continue;
     const m = r.url.match(pattern);
     if (m) results.push({ z: Number(m[1]), x: Number(m[2]), y: Number(m[3]) });
   }

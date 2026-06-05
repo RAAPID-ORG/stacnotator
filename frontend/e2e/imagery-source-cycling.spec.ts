@@ -1,5 +1,6 @@
 import { test, expect, waitForNavIdle } from './fixtures/annotator-fixture';
 import { MOCK_CAMPAIGN_MULTI_SOURCE } from './fixtures/mock-data';
+import { isTileHost } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 type ApiCapture = import('./fixtures/annotator-fixture').ApiCapture;
@@ -62,7 +63,7 @@ test.describe('Visualization cycling within one source', () => {
     // fire a request (no cache to serve it). This makes the network assertion
     // deterministic, unlike the cache-served "switch back" direction.
     const falseColorTile = annotationPage.waitForResponse(
-      (r) => r.url().includes('tiles.example.com') && r.url().includes('viz=falsecolor'),
+      (r) => isTileHost(r.url()) && r.url().includes('viz=falsecolor'),
       { timeout: 5000 }
     );
 
