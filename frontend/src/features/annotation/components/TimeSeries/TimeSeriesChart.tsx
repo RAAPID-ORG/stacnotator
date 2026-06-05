@@ -22,6 +22,7 @@ import {
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
+import { Spinner } from '~/shared/ui/Spinner';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels, parseSeriesDate } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
@@ -602,7 +603,7 @@ export const TimeSeriesChart = ({
       <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-neutral-300 border-t-brand-600"></div>
+            <Spinner size="md" />
             <span className="text-[10px] text-neutral-600">Loading time series...</span>
           </div>
         </div>

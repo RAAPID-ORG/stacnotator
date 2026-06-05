@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '~/shared/ui/Modal';
+import { Input, Button } from '~/shared/ui/forms';
 import { IconStac, IconChevronRight } from '~/shared/ui/Icons';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
 import type { CatalogBrowserPreset } from './CatalogBrowser';
@@ -272,8 +273,9 @@ const CustomXyzStep = ({ onBack, onConfirm }: CustomXyzStepProps) => {
           >
             ← Back
           </button>
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={async () => {
               setSubmitting(true);
               try {
@@ -283,22 +285,21 @@ const CustomXyzStep = ({ onBack, onConfirm }: CustomXyzStepProps) => {
               }
             }}
             disabled={!ready || submitting}
-            className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
           >
             {submitting ? 'Adding…' : 'Add source'}
-          </button>
+          </Button>
         </div>
       }
     >
       <div className="p-4 space-y-3">
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Source name</label>
-          <input
+          <Input
+            size="sm"
             type="text"
             value={source.name}
             onChange={(e) => setSource({ ...source, name: e.target.value })}
             placeholder="e.g. Internal MapTiler basemap"
-            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           />
         </div>
 

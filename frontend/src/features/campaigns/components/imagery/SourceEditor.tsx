@@ -10,6 +10,7 @@ import {
 } from '~/shared/ui/Icons';
 import type { CollectionItem, ImagerySource } from './types';
 import { emptyManualCollection, swap } from './types';
+import { IconButton, Input, Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { CollectionEditor } from './CollectionEditor';
 import { CatalogBrowser, MPC_PRESETS } from './CatalogBrowser';
@@ -180,13 +181,9 @@ export const SourceEditor = ({
         scrollable
         footer={
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={closeCollection}
-              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer"
-            >
+            <Button variant="primary" size="sm" onClick={closeCollection}>
               Done
-            </button>
+            </Button>
           </div>
         }
       >
@@ -222,13 +219,9 @@ export const SourceEditor = ({
             Delete source
           </button>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer"
-            >
+            <Button variant="primary" size="sm" onClick={onClose}>
               Done
-            </button>
+            </Button>
           </div>
         </div>
       }
@@ -236,12 +229,12 @@ export const SourceEditor = ({
       <div className="p-4 space-y-4">
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Name</label>
-          <input
+          <Input
+            size="sm"
             type="text"
             value={source.name}
             onChange={(e) => void updateSource({ name: e.target.value })}
             placeholder="Source name…"
-            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           />
         </div>
 
@@ -251,13 +244,14 @@ export const SourceEditor = ({
               Default zoom
               <Tooltip text="Default zoom level for map windows using this source." />
             </label>
-            <input
+            <Input
+              size="sm"
               type="number"
               min="1"
               max="22"
               value={source.defaultZoom}
               onChange={(e) => void updateSource({ defaultZoom: Number(e.target.value) })}
-              className="w-14 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs text-center"
+              className="!w-14 text-center"
             />
             {source.defaultZoom < 10 && (
               <span className="text-[10px] text-amber-600">
@@ -304,12 +298,13 @@ export const SourceEditor = ({
           </div>
           {source.visualizations.map((viz, i) => (
             <div key={i} className="flex items-center gap-2">
-              <input
+              <Input
+                size="sm"
                 type="text"
                 placeholder="e.g. True Color"
                 value={viz.name}
                 onChange={(e) => renameVisualization(i, e.target.value)}
-                className="flex-1 border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
+                className="flex-1"
               />
               <button
                 type="button"
@@ -334,13 +329,13 @@ export const SourceEditor = ({
                 <IconChevronDown className="w-3 h-3" />
               </button>
               {source.visualizations.length > 1 && (
-                <button
-                  type="button"
+                <IconButton
+                  tone="danger"
                   onClick={() => removeVisualization(i)}
-                  className="text-red-400 hover:text-red-600 transition-colors cursor-pointer text-xs"
+                  aria-label="Remove visualization"
                 >
                   <IconTrash className="w-3 h-3" />
-                </button>
+                </IconButton>
               )}
             </div>
           ))}

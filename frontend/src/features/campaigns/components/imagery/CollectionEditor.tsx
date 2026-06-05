@@ -7,6 +7,7 @@ import type {
 } from './types';
 import { emptySlice, sliceDateRange } from './types';
 import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
+import { IconButton, Input } from '~/shared/ui/forms';
 import { AutoSizeTextarea } from '~/shared/ui/AutoSizeTextarea';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizConfigPanel } from './VizConfigPanel';
@@ -142,12 +143,13 @@ export const CollectionEditor = ({
                 {vizName || '(unnamed)'} URL
                 <Tooltip text="If this provider requires an API key, put {api_key} in the URL where the value goes - e.g. https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}. Users enter their key value once when they first open the campaign." />
               </label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 placeholder="https://.../tiles/{z}/{x}/{y}"
                 value={url}
                 onChange={(e) => updateSliceVizUrl(slice.id, vizName, e.target.value)}
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs font-mono focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
+                className="font-mono"
               />
               {url && missingParams.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-0.5">
@@ -205,16 +207,16 @@ export const CollectionEditor = ({
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
+            <IconButton
+              tone="danger"
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();
               }}
-              className="text-red-400 hover:text-red-600 transition-colors cursor-pointer p-0.5"
+              aria-label="Remove collection"
             >
               <IconTrash className="w-3.5 h-3.5" />
-            </button>
+            </IconButton>
             {expanded ? (
               <IconChevronUp className="w-3.5 h-3.5 text-neutral-400" />
             ) : (
@@ -232,7 +234,8 @@ export const CollectionEditor = ({
           {inModal && (
             <div className="space-y-1">
               <label className="text-xs text-neutral-700 font-medium">Name</label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={collection.name}
                 onChange={(e) => onChange({ name: e.target.value })}
@@ -241,7 +244,6 @@ export const CollectionEditor = ({
                     ? `${sliceDateRange(collection.slices)} (auto-generated from dates)`
                     : 'Auto-generated from dates'
                 }
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm"
               />
             </div>
           )}
@@ -299,12 +301,13 @@ export const CollectionEditor = ({
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
-                        <input
+                        <Input
+                          size="sm"
                           type="text"
                           placeholder={`Slice ${originalIndex + 1}`}
                           value={slice.name}
                           onChange={(e) => updateSlice(slice.id, { name: e.target.value })}
-                          className="border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs w-28"
+                          className="!w-28"
                         />
                         {isActiveCover ? (
                           <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 text-brand-700 rounded shrink-0 font-medium">
@@ -331,32 +334,32 @@ export const CollectionEditor = ({
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
+                      <IconButton
+                        tone="danger"
                         onClick={() => removeSlice(slice.id)}
-                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer p-0.5"
                         title="Remove slice"
+                        aria-label="Remove slice"
                       >
                         <IconTrash className="w-3 h-3" />
-                      </button>
+                      </IconButton>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-0.5">
                         <label className="text-[11px] text-neutral-500">Start</label>
-                        <input
+                        <Input
+                          size="sm"
                           type="date"
                           value={slice.startDate}
                           onChange={(e) => updateSlice(slice.id, { startDate: e.target.value })}
-                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                         />
                       </div>
                       <div className="space-y-0.5">
                         <label className="text-[11px] text-neutral-500">End</label>
-                        <input
+                        <Input
+                          size="sm"
                           type="date"
                           value={slice.endDate}
                           onChange={(e) => updateSlice(slice.id, { endDate: e.target.value })}
-                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                         />
                       </div>
                     </div>
@@ -478,20 +481,20 @@ export const CollectionEditor = ({
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <label className="text-xs text-neutral-700">Catalog URL</label>
-                      <input
+                      <Input
+                        size="sm"
                         type="url"
                         value={sb.catalogUrl}
                         onChange={(e) => updateSb({ catalogUrl: e.target.value })}
-                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="text-xs text-neutral-700">STAC Collection ID</label>
-                      <input
+                      <Input
+                        size="sm"
                         type="text"
                         value={sb.stacCollectionId}
                         onChange={(e) => updateSb({ stacCollectionId: e.target.value })}
-                        className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs"
                       />
                     </div>
                   </div>

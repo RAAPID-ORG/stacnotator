@@ -18,6 +18,7 @@ import { VizConfigPanel } from './VizConfigPanel';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
+import { Button, Input, Select } from '~/shared/ui/forms';
 import { formatSliceLabel, formatWindowLabel } from '~/shared/utils/utility';
 import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
@@ -847,16 +848,11 @@ export const CatalogBrowser = ({
         >
           Cancel
         </button>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={!isValid}
-          className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 transition-colors cursor-pointer disabled:bg-neutral-300 disabled:text-neutral-500 disabled:cursor-not-allowed"
-        >
+        <Button variant="primary" onClick={handleGenerate} disabled={!isValid}>
           {singleCollection
             ? 'Add Collection'
             : `Generate ${preview ? `${preview.collections} Collection${preview.collections !== 1 ? 's' : ''}` : 'Collections'}`}
-        </button>
+        </Button>
       </div>
     ) : undefined;
 
@@ -904,13 +900,13 @@ export const CatalogBrowser = ({
 
             {/* Search bar */}
             {(step === 'catalog' || step === 'collection') && (
-              <input
+              <Input
                 type="text"
+                size="sm"
                 placeholder={step === 'catalog' ? 'Search catalogs...' : 'Search collections...'}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
-                className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               />
             )}
 
@@ -943,21 +939,22 @@ export const CatalogBrowser = ({
                   </button>
                   {showCustomUrl && (
                     <div className="px-3 pb-3 flex gap-2 border-t border-neutral-100 pt-2">
-                      <input
+                      <Input
                         type="url"
+                        size="sm"
+                        className="!flex-1"
                         value={customCatalogUrl}
                         onChange={(e) => setCustomCatalogUrl(e.target.value)}
                         placeholder="https://earth-search.aws.element84.com/v1"
-                        className="flex-1 border border-neutral-300 rounded px-2 py-1.5 text-xs focus:border-brand-600 outline-none"
                       />
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={loadCustomCatalog}
                         disabled={!customCatalogUrl.trim()}
-                        className="px-3 py-1.5 text-xs bg-brand-600 text-white rounded hover:bg-brand-700 disabled:bg-neutral-300 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Load
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1222,17 +1219,17 @@ export const CatalogBrowser = ({
                           Item Sort Order
                           <Tooltip text="Controls the order in which STAC items are returned. For first-valid compositing, the first matching item wins - sorting by cloud cover puts the clearest images first." />
                         </label>
-                        <select
+                        <Select
+                          size="sm"
                           value={itemSort}
                           onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
-                          className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                         >
                           <option value="date_desc">Date (newest first)</option>
                           <option value="date_asc">Date (oldest first)</option>
                           {selectedCollection?.has_cloud_cover && (
                             <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
                           )}
-                        </select>
+                        </Select>
                       </div>
                     )}
 
@@ -1273,12 +1270,12 @@ export const CatalogBrowser = ({
                             Pattern
                             <Tooltip text="How the date range is divided into collections and slices. Pick a preset or switch to Advanced for custom intervals." />
                           </label>
-                          <select
+                          <Select
+                            size="sm"
                             value={matchingPattern}
                             onChange={(e) =>
                               applyTemporalPattern(e.target.value as TemporalPattern)
                             }
-                            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                           >
                             {TEMPORAL_PATTERNS.map((p) => (
                               <option key={p.id} value={p.id}>
@@ -1286,7 +1283,7 @@ export const CatalogBrowser = ({
                               </option>
                             ))}
                             <option value="custom">Custom…</option>
-                          </select>
+                          </Select>
                         </div>
                       )}
 
@@ -1298,31 +1295,31 @@ export const CatalogBrowser = ({
                               Collection Period
                               <Tooltip text="How often to create a new collection. E.g. 1 month = each month becomes its own collection." />
                             </label>
-                            <input
+                            <Input
                               type="number"
+                              size="sm"
                               min="1"
                               value={collectionPeriodInterval}
                               onChange={(e) =>
                                 setCollectionPeriodInterval(Math.max(1, Number(e.target.value)))
                               }
-                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700">Collection Unit</label>
-                            <select
+                            <Select
+                              size="sm"
                               value={collectionPeriodUnit}
                               onChange={(e) =>
                                 setCollectionPeriodUnit(
                                   e.target.value as 'weeks' | 'months' | 'years'
                                 )
                               }
-                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             >
                               <option value="weeks">Weeks</option>
                               <option value="months">Months</option>
                               <option value="years">Years</option>
-                            </select>
+                            </Select>
                           </div>
                         </div>
                       )}
@@ -1334,32 +1331,32 @@ export const CatalogBrowser = ({
                               Slice Period
                               <Tooltip text="How to divide each collection into slices. Annotators switch between slices to find cloud-free imagery." />
                             </label>
-                            <input
+                            <Input
                               type="number"
+                              size="sm"
                               min="1"
                               value={slicePeriodInterval}
                               onChange={(e) =>
                                 setSlicePeriodInterval(Math.max(1, Number(e.target.value)))
                               }
-                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs text-neutral-700">Slice Unit</label>
-                            <select
+                            <Select
+                              size="sm"
                               value={slicePeriodUnit}
                               onChange={(e) =>
                                 setSlicePeriodUnit(
                                   e.target.value as 'days' | 'weeks' | 'months' | 'years'
                                 )
                               }
-                              className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
                             >
                               <option value="days">Days</option>
                               <option value="weeks">Weeks</option>
                               <option value="months">Months</option>
                               <option value="years">Years</option>
-                            </select>
+                            </Select>
                           </div>
                         </div>
                       )}
@@ -1504,12 +1501,12 @@ export const CatalogBrowser = ({
                     <div className="p-3 space-y-3 bg-white">
                       <div className="space-y-1">
                         <label className="text-xs text-neutral-700">Visualization Name</label>
-                        <input
+                        <Input
                           type="text"
+                          size="sm"
                           value={visualizations[activeVizIndex]?.name || ''}
                           onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
                           placeholder="e.g. True Color"
-                          className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
                         />
                       </div>
                       <VizConfigPanel
@@ -1724,12 +1721,13 @@ const CoverSliceSection = ({
           {coverMode === 'nth' && (
             <div className="ml-5 flex items-center gap-2">
               <label className="text-[11px] text-neutral-700">Slice index (1-based)</label>
-              <input
+              <Input
                 type="number"
+                size="sm"
+                className="!w-16"
                 min="1"
                 value={coverSliceNth}
                 onChange={(e) => setCoverSliceNth(Math.max(1, Number(e.target.value)))}
-                className="w-16 border border-neutral-300 rounded-md px-2 py-1 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs bg-white"
               />
             </div>
           )}
@@ -1823,17 +1821,17 @@ const CoverSliceAdvancedPanel = ({
             Item sort order
             <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
           </label>
-          <select
+          <Select
+            size="sm"
             value={coverItemSort}
             onChange={(e) => setCoverItemSort(e.target.value as ItemSortOption)}
-            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-sm bg-transparent"
           >
             <option value="date_desc">Date (newest first)</option>
             <option value="date_asc">Date (oldest first)</option>
             {selectedCollection.has_cloud_cover && (
               <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
             )}
-          </select>
+          </Select>
         </div>
         {buildCoverAutoQuery() && (
           <StacQueryEditor

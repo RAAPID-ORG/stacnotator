@@ -1,5 +1,6 @@
 import { IconTrash } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
+import { Input } from '~/shared/ui/forms';
 import type { Basemap } from './types';
 import { emptyBasemap } from './types';
 import type { ImageryController } from './controller';
@@ -7,9 +8,6 @@ import type { ImageryController } from './controller';
 interface BasemapListProps {
   controller: ImageryController;
 }
-
-const inputClass =
-  'h-8 px-2.5 border border-neutral-300 rounded-md bg-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors disabled:bg-neutral-50 disabled:text-neutral-500';
 
 export const BasemapList = ({ controller }: BasemapListProps) => {
   const basemaps = controller.state.basemaps;
@@ -49,21 +47,24 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {basemaps.map((bm) => (
             <li key={bm.id} className="flex items-center gap-3 py-2">
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={bm.name}
                 onChange={(e) => updateBasemap(bm.id, { name: e.target.value })}
                 placeholder="Name"
-                className={`${inputClass} w-40 text-xs`}
+                className="!w-40"
               />
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={bm.url}
                 onChange={(e) => updateBasemap(bm.id, { url: e.target.value })}
                 placeholder="https://.../{z}/{x}/{y}.png"
-                className={`${inputClass} flex-1 text-[11px] font-mono text-neutral-700`}
+                className="flex-1 text-[11px] font-mono text-neutral-700"
               />
-              <input
+              <Input
+                size="sm"
                 type="number"
                 min={0}
                 max={24}
@@ -74,7 +75,7 @@ export const BasemapList = ({ controller }: BasemapListProps) => {
                 }}
                 placeholder="Max z"
                 title="Deepest zoom the provider serves. Past this, the deepest tile is upscaled instead of fetched. Leave empty for unlimited."
-                className={`${inputClass} w-20 text-xs`}
+                className="!w-20"
               />
               <button
                 type="button"

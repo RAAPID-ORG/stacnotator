@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { UserOutDetailed } from '~/api/client';
+import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -231,15 +232,9 @@ export const PlatformUsersTable = ({
                   <td className="px-4 py-3 text-sm text-neutral-900">{user.email}</td>
                   <td className="px-4 py-3 text-sm text-neutral-600">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
-                        user.is_approved
-                          ? 'bg-brand-50 text-brand-800 border-brand-200'
-                          : 'bg-yellow-50 text-yellow-800 border-yellow-200'
-                      }`}
-                    >
+                    <Badge tone={user.is_approved ? 'brand' : 'yellow'}>
                       {user.is_approved ? 'Approved' : 'Pending'}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3">
                     <span

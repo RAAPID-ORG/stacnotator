@@ -12,6 +12,7 @@ import type { VizParams } from './types';
 import { normalizeColorFormula, validateColorFormula } from './vizValidation';
 import { IconChevronDown, IconChevronUp } from '~/shared/ui/Icons';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
+import { Input, Select } from '~/shared/ui/forms';
 
 const TITILER_DOCS_URL = 'https://developmentseed.org/titiler/user_guide/rendering/';
 
@@ -300,7 +301,8 @@ export const VizConfigPanel = ({
       ) : (
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Assets</label>
-          <input
+          <Input
+            size="sm"
             type="text"
             value={vizParams.assets.join(', ')}
             onChange={(e) =>
@@ -313,7 +315,7 @@ export const VizConfigPanel = ({
               })
             }
             placeholder="e.g. B04, B03, B02"
-            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors text-xs font-mono"
+            className="font-mono"
           />
         </div>
       )}
@@ -322,17 +324,17 @@ export const VizConfigPanel = ({
       {showColormap && (
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Colormap</label>
-          <select
+          <Select
+            size="sm"
             value={vizParams.colormapName || 'viridis'}
             onChange={(e) => update('colormapName', e.target.value)}
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           >
             {COLORMAPS.map((cm) => (
               <option key={cm.value} value={cm.value}>
                 {cm.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
 
@@ -369,12 +371,12 @@ export const VizConfigPanel = ({
         </div>
         {rescaleMode === 'manual' && (
           <>
-            <input
+            <Input
+              size="sm"
               type="text"
               value={vizParams.rescale || ''}
               onChange={(e) => update('rescale', e.target.value)}
               placeholder={defaultRescale || 'e.g. 0,3000'}
-              className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
             />
             <p className="text-[11px] text-neutral-400">
               Fixed min,max applied to each band.
@@ -394,10 +396,10 @@ export const VizConfigPanel = ({
       {showCompositing && (
         <div className="space-y-1">
           <label className="text-xs text-neutral-700 font-medium">Compositing Method</label>
-          <select
+          <Select
+            size="sm"
             value={vizParams.compositing || 'first'}
             onChange={(e) => update('compositing', e.target.value)}
-            className="w-full border border-neutral-300 rounded-md px-3 py-1.5 text-sm focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
           >
             <option value="first">First valid pixel</option>
             <option value="mean">Mean</option>
@@ -407,7 +409,7 @@ export const VizConfigPanel = ({
             {collectionId.includes('sentinel-2') && (
               <option value="ndvi_best">Best NDVI pixel</option>
             )}
-          </select>
+          </Select>
           {vizParams.compositing && vizParams.compositing !== 'first' && (
             <p className="text-[10px] text-amber-600 mt-1">
               Non-first-valid compositing reads multiple scenes per tile - expect ~10x slower data
@@ -437,12 +439,13 @@ export const VizConfigPanel = ({
           <div className="px-3 pb-3 space-y-3 border-t border-neutral-100">
             <div className="space-y-1 pt-2">
               <label className="text-xs text-neutral-700">Band Expression</label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={vizParams.expression || ''}
                 onChange={(e) => update('expression', e.target.value || undefined)}
                 placeholder="e.g. (B08-B04)/(B08+B04)"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                className="font-mono"
               />
               <p className="text-[11px] text-neutral-400">
                 Math on asset bands. Overrides band selection for rendering.
@@ -450,14 +453,15 @@ export const VizConfigPanel = ({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Nodata value</label>
-              <input
+              <Input
+                size="sm"
                 type="number"
                 value={vizParams.nodata ?? ''}
                 onChange={(e) =>
                   update('nodata', e.target.value === '' ? undefined : Number(e.target.value))
                 }
                 placeholder="e.g. 0"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                className="font-mono"
               />
               <p className="text-[11px] text-neutral-400">
                 Pixel value to render transparent. Common: 0 for Landsat C2 L2 and Sentinel-2 L2A
@@ -471,8 +475,10 @@ export const VizConfigPanel = ({
                   <ColorFormulaInfo />
                 </InfoPopover>
               </label>
-              <input
+              <Input
+                size="sm"
                 type="text"
+                invalid={!!colorFormulaError}
                 value={vizParams.colorFormula || ''}
                 onChange={(e) => update('colorFormula', e.target.value || undefined)}
                 onBlur={(e) => {
@@ -480,36 +486,33 @@ export const VizConfigPanel = ({
                   if (fixed !== e.target.value) update('colorFormula', fixed || undefined);
                 }}
                 placeholder="e.g. gamma RGB 3.5, saturation 1.7"
-                className={`w-full border rounded px-2 py-1.5 text-xs font-mono focus:ring-1 outline-none ${
-                  colorFormulaError
-                    ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
-                    : 'border-neutral-200 focus:border-brand-600 focus:ring-brand-600'
-                }`}
+                className="font-mono"
               />
               {colorFormulaError && <p className="text-[11px] text-red-600">{colorFormulaError}</p>}
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Resampling</label>
-              <select
+              <Select
+                size="sm"
                 value={vizParams.resampling || ''}
                 onChange={(e) => update('resampling', e.target.value || undefined)}
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
               >
                 <option value="">Default (nearest)</option>
                 <option value="bilinear">Bilinear</option>
                 <option value="cubic">Cubic</option>
                 <option value="lanczos">Lanczos</option>
                 <option value="average">Average</option>
-              </select>
+              </Select>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Mask Layer</label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={vizParams.maskLayer ?? ''}
                 onChange={(e) => update('maskLayer', e.target.value || undefined)}
                 placeholder="e.g. SCL"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                className="font-mono"
               />
               <p className="text-[10px] text-neutral-400">
                 Asset name used as pixel mask (e.g. SCL for Sentinel-2 Scene Classification)
@@ -517,7 +520,8 @@ export const VizConfigPanel = ({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Mask Values (exclude)</label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={vizParams.maskValues?.join(', ') ?? ''}
                 onChange={(e) =>
@@ -532,7 +536,7 @@ export const VizConfigPanel = ({
                   )
                 }
                 placeholder="e.g. 0, 1, 8, 9, 10"
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                className="font-mono"
               />
               <p className="text-[10px] text-neutral-400">
                 Pixel values in the mask layer to exclude (clouds, nodata, shadows, etc.)
@@ -540,7 +544,8 @@ export const VizConfigPanel = ({
             </div>
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Extra Tile Parameters</label>
-              <input
+              <Input
+                size="sm"
                 type="text"
                 value={
                   vizParams.extraParams
@@ -563,7 +568,7 @@ export const VizConfigPanel = ({
                   update('extraParams', Object.keys(params).length > 0 ? params : undefined);
                 }}
                 placeholder="e.g. asset_bidx=image|1,2,3&post_process=..."
-                className="w-full border border-neutral-200 rounded px-2 py-1.5 text-xs font-mono focus:border-brand-600 focus:ring-1 focus:ring-brand-600 outline-none"
+                className="font-mono"
               />
               <p className="text-[10px] text-neutral-400">
                 Additional query parameters passed directly to the tiler. Format:
