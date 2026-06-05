@@ -78,6 +78,66 @@ test.describe('Imagery in open mode', () => {
     );
   });
 
+  // A window map must NOT swallow a plain wheel event (otherwise the page can't
+  // scroll when the cursor is over it). It SHOULD swallow Ctrl/Cmd+wheel (zoom).
+  // We observe this via the real wheel event: a document-level listener reads
+  // `defaultPrevented` after OpenLayers' viewport handler has run.
+  test('plain wheel over a window is not consumed, but Ctrl+wheel is (zoom)', async ({
+    annotationPage,
+  }) => {
+    const win = annotationPage.locator('[data-window-collection-id]').first();
+    await win.waitFor({ state: 'visible' });
+    await win.scrollIntoViewIfNeeded();
+    const box = await win.boundingBox();
+    if (!box) throw new Error('window has no bounding box');
+
+    await annotationPage.evaluate(() => {
+      (window as unknown as { __prevented: boolean[] }).__prevented = [];
+      document.addEventListener(
+        'wheel',
+        (e) => (window as unknown as { __prevented: boolean[] }).__prevented.push(e.defaultPrevented),
+        { passive: true },
+      );
+    });
+
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await annotationPage.mouse.move(cx, cy);
+    await annotationPage.mouse.wheel(0, 300);
+
+    await annotationPage.keyboard.down('Control');
+    await annotationPage.mouse.wheel(0, 300);
+    await annotationPage.keyboard.up('Control');
+
+    const prevented = await annotationPage.evaluate(
+      () => (window as unknown as { __prevented: boolean[] }).__prevented,
+    );
+
+    expect(prevented.length).toBeGreaterThanOrEqual(2);
+    expect(prevented[0]).toBe(false);
+    expect(prevented[prevented.length - 1]).toBe(true);
+  });
+
+  // Discoverability: scrolling a window without the modifier (the moment the
+  // user expects zoom) flashes a hint telling them to hold Ctrl/Cmd.
+  test('plain scroll over a window flashes a "scroll to zoom" hint', async ({ annotationPage }) => {
+    const win = annotationPage.locator('[data-window-collection-id]').first();
+    await win.waitFor({ state: 'visible' });
+    await win.scrollIntoViewIfNeeded();
+    const hint = win.locator('[data-zoom-hint]');
+
+    await expect(hint).toHaveCSS('opacity', '0');
+    await expect(hint).toContainText('scroll to zoom');
+
+    const box = await win.boundingBox();
+    if (!box) throw new Error('window has no bounding box');
+    await annotationPage.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await annotationPage.mouse.wheel(0, 200);
+
+    await expect(hint).toHaveCSS('opacity', '1');
+  });
+
   test('selecting a different slice from the dropdown loads that slice', async ({
     annotationPage,
   }) => {
