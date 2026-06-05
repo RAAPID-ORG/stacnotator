@@ -246,9 +246,8 @@ const TimelineSidebar = ({
     ({ collection }) => collection?.id === liveCollectionId
   );
   const activeCollection = activeIndex >= 0 ? viewCollections[activeIndex].collection : null;
-  const activeLabel = activeCollection
-    ? `${activeIndex + 1}/${totalCollections} · ${activeCollection.name || formatDateLabel(activeCollection.slices[0]?.start_date ?? null)}`
-    : '';
+  const activeLabelText =
+    activeCollection?.name || formatDateLabel(activeCollection?.slices[0]?.start_date ?? null);
   const activeTopPct = totalCollections > 0 ? ((activeIndex + 0.5) / totalCollections) * 100 : 0;
 
   return (
@@ -312,23 +311,16 @@ const TimelineSidebar = ({
                 );
               })}
 
-              {/* Active marker: a solid full-width bar that stays visible at any count */}
-              {activeIndex >= 0 && (
+              {/* Active collection: highlighted box with its label, kept at a
+                  readable minimum height even when segments are tiny. */}
+              {activeIndex >= 0 && activeCollection && (
                 <div
-                  className="absolute inset-x-0 h-0.5 bg-brand-600 z-20 pointer-events-none"
-                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)' }}
-                />
-              )}
-
-              {/* Active label: floated to the side so the date is always legible */}
-              {activeIndex >= 0 && !isDragging && (
-                <div
-                  className="absolute left-full ml-2 z-50 pointer-events-none"
-                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)' }}
+                  className="absolute inset-x-0 z-20 flex flex-col items-center justify-center bg-white border border-brand-500 rounded-md shadow-sm px-0.5 pointer-events-none"
+                  style={{ top: `${activeTopPct}%`, transform: 'translateY(-50%)', minHeight: 24 }}
                 >
-                  <div className="bg-neutral-800 text-white text-[10px] rounded-md px-2.5 py-1.5 shadow-lg whitespace-nowrap leading-snug">
-                    {activeLabel}
-                  </div>
+                  <span className="text-[9px] font-semibold text-brand-800 leading-tight text-center break-words w-full">
+                    {activeLabelText}
+                  </span>
                 </div>
               )}
 
