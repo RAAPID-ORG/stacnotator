@@ -14,7 +14,8 @@ import { GRID_COLS } from '../utils/layoutDefaults';
 import { useWindowDragStore } from '../stores/windowDrag.store';
 
 // Panel resize bounds (px). The panel is anchored bottom-right and grows
-// up/left from the top-left handle.
+// up/left from the top-left handle. Height is content-driven and capped by
+// `panelSize.height` (a max), so the panel grows as windows are added.
 const MIN_PANEL_W = 240;
 const MIN_PANEL_H = 200;
 const MAX_PANEL_W = 560;
@@ -46,7 +47,7 @@ function loadPanelSize(): { width: number; height: number } {
   } catch {
     // ignore malformed/absent value
   }
-  return { width: 288, height: 320 };
+  return { width: 288, height: 520 };
 }
 
 /** Edit-mode-only panel listing collections eligible for the active view
@@ -166,7 +167,7 @@ export const HiddenWindowsPanel = () => {
   return (
     <div
       className="fixed bottom-3 right-3 z-[1002] flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur"
-      style={{ width: panelSize.width, height: panelSize.height }}
+      style={{ width: panelSize.width, maxHeight: panelSize.height }}
       data-testid="hidden-windows-panel"
     >
       {/* Resize handle (top-left) - grows the panel up/left into the viewport. */}

@@ -246,6 +246,19 @@ export function useDraftController({
   );
 }
 
+function isMpcCatalogUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return (
+      host === 'planetarycomputer.microsoft.com' ||
+      host.endsWith('.planetarycomputer.microsoft.com')
+    );
+  } catch {
+    return false;
+  }
+}
+
 function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[]): CollectionItem {
   const sc = col.stac_config;
   const isStacBrowser = !!sc?.catalog_url;
@@ -264,7 +277,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       type: 'stac_browser',
       catalogUrl: sc.catalog_url ?? '',
       stacCollectionId: sc.stac_collection_id ?? '',
-      isMpc: (sc.catalog_url ?? '').includes('planetarycomputer.microsoft.com'),
+      isMpc: isMpcCatalogUrl(sc.catalog_url),
       mode: 'mosaic',
       maxCloudCover: sc.max_cloud_cover ?? undefined,
       visualizations: sc.viz_params

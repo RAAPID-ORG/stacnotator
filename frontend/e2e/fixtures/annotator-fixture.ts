@@ -19,6 +19,7 @@ import {
   MOCK_OPEN_ANNOTATIONS,
   makeCreateAnnotationResponse,
   makeUpdateAnnotationResponse,
+  MOCK_TIMESERIES_DATA,
 } from './mock-data';
 
 /** Captured API request for assertions. */
@@ -230,6 +231,22 @@ export const test = base.extend<AnnotatorFixtures>({
     // GET /api/auth/me
     await page.route('**/api/auth/me', async (route) => {
       await route.fulfill({ json: MOCK_USER });
+    });
+
+    // GET /api/timeseries/:id/:lat/:lon/data
+    // Default so any campaign with a timeseries widget gets real data instead
+    // of hitting the catch-all. Timeseries-specific specs register their own
+    // route (LIFO -> higher priority) to serve tailored datasets.
+    await page.route('**/api/timeseries/**', async (route) => {
+      const url = route.request().url();
+      api.requests.push({
+        method: route.request().method(),
+        url,
+        pathname: new URL(url).pathname,
+        body: null,
+        pathParams: {},
+      });
+      await route.fulfill({ json: { data: MOCK_TIMESERIES_DATA } });
     });
 
     // GET /api/campaigns/:id/detailed  (getCampaignWithImageryWindows)
