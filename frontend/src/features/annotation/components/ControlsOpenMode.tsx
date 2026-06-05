@@ -9,6 +9,8 @@ import {
   type ExtendedLabel,
   type GeometryType,
 } from '../utils/labelMetadata';
+import { usePreferencesStore } from '../stores/preferences.store';
+import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
 
@@ -19,7 +21,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'pan',
     label: 'Pan',
-    shortcut: 'V',
+    shortcut: 'P',
     icon: (
       <svg
         width="16"
@@ -104,6 +106,13 @@ const OpenModeControls = () => {
   const activeTool = useMapStore((s) => s.activeTool);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
+  const showAnnotations = useMapStore((s) => s.showAnnotations);
+  const toggleAnnotations = useMapStore((s) => s.toggleAnnotations);
+  const styleOverrides = usePreferencesStore((s) => s.annotationStyles);
+  const setLabelStyle = usePreferencesStore((s) => s.setLabelStyle);
+  const resetLabelStyle = usePreferencesStore((s) => s.resetLabelStyle);
+  // Which label's inline style editor is currently expanded (null = none)
+  const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
   const annotations = useAnnotationStore((s) => s.annotations);
   const currentAnnotationIndex = useAnnotationStore((s) => s.currentAnnotationIndex);
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
@@ -193,6 +202,44 @@ const OpenModeControls = () => {
                 <span className="truncate">{tool.label}</span>
               </button>
             ))}
+            <button
+              onClick={toggleAnnotations}
+              title={`${showAnnotations ? 'Hide' : 'Show'} drawn objects (X)`}
+              className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                showAnnotations
+                  ? 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
+                  : 'bg-amber-50 text-amber-700 border border-amber-600'
+              }`}
+            >
+              {showAnnotations ? (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              ) : (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
+                </svg>
+              )}
+              <span className="truncate">{showAnnotations ? 'Hide' : 'Show'}</span>
+            </button>
           </div>
         </div>
 
@@ -202,66 +249,192 @@ const OpenModeControls = () => {
             <div className="flex flex-col gap-1.5 w-full">
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
               <div className="flex flex-col gap-1">
-                {extendedLabels.map((label, index) => (
-                  <div key={label.id} className="relative">
-                    <button
-                      className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
-                        selectedLabelId === label.id
-                          ? 'bg-brand-50 text-brand-700 border border-brand-600 font-semibold'
-                          : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
-                      } cursor-pointer`}
-                      onClick={() => handleLabelSelect(label)}
-                    >
-                      {/* Color indicator */}
-                      <span
-                        className="w-3.5 h-3.5 rounded-sm flex-shrink-0"
-                        style={{ backgroundColor: label.color }}
-                      />
-                      <span className="flex-1 min-w-0 truncate">
-                        {selectedLabelId === label.id ? '✓ ' : ''}
-                        {capitalizeFirst(label.name)}
-                      </span>
-                      <span className="text-neutral-400 text-[10px] flex items-center gap-0.5 flex-shrink-0 tabular-nums">
-                        <span>{getGeometryIcon(label.geometry_type)}</span>
-                        <span>{index + 1}</span>
-                      </span>
-                    </button>
-                    {/* Magic Wand Icon - only for polygon labels.
-                        Currently disabled: the click-to-segment backend (SAM3)
-                        requires GPU inference which we don't have provisioned. */}
-                    {label.geometry_type === 'polygon' && (
-                      <button
-                        type="button"
-                        disabled
-                        title="Disabled - no GPUs available to run SAM3 click image segmentation"
-                        aria-disabled="true"
-                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-neutral-200 text-neutral-400 cursor-not-allowed opacity-60"
-                        style={{ zIndex: 10 }}
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                {extendedLabels.map((label, index) => {
+                  const resolved = resolveLabelStyle(
+                    label.color,
+                    label.geometry_type,
+                    campaign ? styleOverrides[styleKey(campaign.id, label.id)] : undefined
+                  );
+                  const editorOpen = styleEditorLabelId === label.id;
+                  const patchStyle = (patch: Partial<typeof resolved>) => {
+                    if (campaign) setLabelStyle(campaign.id, label.id, patch);
+                  };
+                  return (
+                    <div key={label.id} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1">
+                        <div className="relative flex-1 min-w-0">
+                          <button
+                            className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
+                              selectedLabelId === label.id
+                                ? 'bg-brand-50 text-brand-700 border border-brand-600 font-semibold'
+                                : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
+                            } cursor-pointer`}
+                            onClick={() => handleLabelSelect(label)}
+                          >
+                            {/* Color indicator - reflects the user's resolved style */}
+                            <span
+                              className="w-3.5 h-3.5 rounded-sm flex-shrink-0 border"
+                              style={{
+                                backgroundColor: resolved.fillColor,
+                                borderColor: resolved.strokeColor,
+                              }}
+                            />
+                            <span className="flex-1 min-w-0 truncate">
+                              {selectedLabelId === label.id ? '✓ ' : ''}
+                              {capitalizeFirst(label.name)}
+                            </span>
+                            <span className="text-neutral-400 text-[10px] flex items-center gap-0.5 flex-shrink-0 tabular-nums">
+                              <span>{getGeometryIcon(label.geometry_type)}</span>
+                              <span>{index + 1}</span>
+                            </span>
+                          </button>
+                          {/* Magic Wand Icon - only for polygon labels.
+                              Currently disabled: the click-to-segment backend (SAM3)
+                              requires GPU inference which we don't have provisioned. */}
+                          {label.geometry_type === 'polygon' && (
+                            <button
+                              type="button"
+                              disabled
+                              title="Disabled - no GPUs available to run SAM3 click image segmentation"
+                              aria-disabled="true"
+                              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-neutral-200 text-neutral-400 cursor-not-allowed opacity-60"
+                              style={{ zIndex: 10 }}
+                            >
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M15 4V2" />
+                                <path d="M15 16v-2" />
+                                <path d="M8 9h2" />
+                                <path d="M20 9h2" />
+                                <path d="M17.8 11.8 19 13" />
+                                <path d="M15 9h0" />
+                                <path d="M17.8 6.2 19 5" />
+                                <path d="m3 21 9-9" />
+                                <path d="M12.2 6.2 11 5" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        {/* Style editor toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setStyleEditorLabelId(editorOpen ? null : label.id)}
+                          title="Customize this label's style"
+                          aria-expanded={editorOpen}
+                          className={`flex-shrink-0 p-1.5 rounded border transition-colors cursor-pointer ${
+                            editorOpen
+                              ? 'bg-brand-50 text-brand-700 border-brand-600'
+                              : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700'
+                          }`}
                         >
-                          <path d="M15 4V2" />
-                          <path d="M15 16v-2" />
-                          <path d="M8 9h2" />
-                          <path d="M20 9h2" />
-                          <path d="M17.8 11.8 19 13" />
-                          <path d="M15 9h0" />
-                          <path d="M17.8 6.2 19 5" />
-                          <path d="m3 21 9-9" />
-                          <path d="M12.2 6.2 11 5" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                            <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                            <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                            <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {editorOpen && (
+                        <div className="flex flex-col gap-2 p-2.5 bg-neutral-50 border border-neutral-200 rounded text-[11px] text-neutral-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>Fill</span>
+                            <input
+                              type="color"
+                              value={resolved.fillColor}
+                              onChange={(e) => patchStyle({ fillColor: e.target.value })}
+                              className="w-7 h-6 rounded cursor-pointer border border-neutral-300 bg-white"
+                              title="Fill color"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-20 flex-shrink-0">Fill opacity</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={Math.round(resolved.fillOpacity * 100)}
+                              onChange={(e) =>
+                                patchStyle({ fillOpacity: Number(e.target.value) / 100 })
+                              }
+                              className="flex-1"
+                            />
+                            <span className="w-9 text-right tabular-nums">
+                              {Math.round(resolved.fillOpacity * 100)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-neutral-200">
+                            <span>Border</span>
+                            <input
+                              type="color"
+                              value={resolved.strokeColor}
+                              onChange={(e) => patchStyle({ strokeColor: e.target.value })}
+                              className="w-7 h-6 rounded cursor-pointer border border-neutral-300 bg-white"
+                              title="Border color"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-20 flex-shrink-0">Border opacity</span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={Math.round(resolved.strokeOpacity * 100)}
+                              onChange={(e) =>
+                                patchStyle({ strokeOpacity: Number(e.target.value) / 100 })
+                              }
+                              className="flex-1"
+                            />
+                            <span className="w-9 text-right tabular-nums">
+                              {Math.round(resolved.strokeOpacity * 100)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-20 flex-shrink-0">Border width</span>
+                            <input
+                              type="range"
+                              min={1}
+                              max={6}
+                              step={0.5}
+                              value={resolved.strokeWidth}
+                              onChange={(e) => patchStyle({ strokeWidth: Number(e.target.value) })}
+                              className="flex-1"
+                            />
+                            <span className="w-9 text-right tabular-nums">
+                              {resolved.strokeWidth}px
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => campaign && resetLabelStyle(campaign.id, label.id)}
+                            className="self-start mt-0.5 text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
+                          >
+                            Reset to default
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               {extendedLabels.length === 0 && (
                 <p className="text-xs text-neutral-500 italic">No labels defined</p>
@@ -469,6 +642,12 @@ const OpenModeControls = () => {
               <span>Select label</span>
               <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
                 1-9
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Toggle drawn objects</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                X
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">

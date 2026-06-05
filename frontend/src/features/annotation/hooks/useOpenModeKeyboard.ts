@@ -10,7 +10,7 @@ import { extendLabelsWithMetadata } from '../utils/labelMetadata';
  * Keyboard shortcuts for open mode annotation.
  *
  * Tool switching:
- *   V - Pan
+ *   P - Pan
  *   R - Annotate (draw)
  *   E - Edit
  *   T - Timeseries (only when campaign has time series)
@@ -19,6 +19,7 @@ import { extendLabelsWithMetadata } from '../utils/labelMetadata';
  *   1-9 - Select label by index and switch to Annotate
  *
  * Misc:
+ *   X - Toggle visibility of drawn objects
  *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
@@ -73,7 +74,7 @@ export const useOpenModeKeyboard = () => {
       }
 
       switch (e.key.toLowerCase()) {
-        case 'v':
+        case 'p':
           e.preventDefault();
           setActiveTool('pan');
           setTimeseriesPoint(null);
@@ -92,6 +93,10 @@ export const useOpenModeKeyboard = () => {
           if (!hasTimeseries) break;
           e.preventDefault();
           setActiveTool('timeseries');
+          break;
+        case 'x':
+          e.preventDefault();
+          useMapStore.getState().toggleAnnotations();
           break;
         case 'l':
           e.preventDefault();

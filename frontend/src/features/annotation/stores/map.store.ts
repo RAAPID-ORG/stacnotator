@@ -43,6 +43,7 @@ interface MapStore {
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
   panToCenterTrigger: number;
   showCrosshair: boolean;
+  showAnnotations: boolean;
 
   // View sync: link small windows' pan/zoom to the main map
   viewSyncEnabled: boolean;
@@ -80,6 +81,7 @@ interface MapStore {
   triggerPan: (direction: 'up' | 'down' | 'left' | 'right') => void;
   triggerPanToCenter: (center: [number, number]) => void;
   toggleCrosshair: () => void;
+  toggleAnnotations: () => void;
 
   setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
@@ -124,6 +126,7 @@ const initialState = {
   panTrigger: { direction: 'up' as const, count: 0 },
   panToCenterTrigger: 0,
   showCrosshair: true,
+  showAnnotations: true,
 
   activeTool: 'pan' as const,
   timeseriesPoint: null as { lat: number; lon: number } | null,
@@ -229,6 +232,7 @@ export const useMapStore = create<MapStore>((set) => ({
   triggerPanToCenter: (center) =>
     set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
+  toggleAnnotations: () => set((s) => ({ showAnnotations: !s.showAnnotations })),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 

@@ -20,7 +20,7 @@ async function loadOpenModeMulti(page: Page, api: ApiCapture): Promise<void> {
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.locator('[title="Pan (V)"]').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   await page.waitForFunction(
     () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
     undefined,
@@ -178,7 +178,7 @@ test.describe('Timeseries probe in open mode', () => {
     annotationPage.on('request', (req) => {
       if (/\/timeseries\/\d+\/[-\d.]+\/[-\d.]+\/data/.test(req.url())) after.push(req.url());
     });
-    await annotationPage.keyboard.press('v'); // pan; clears probe
+    await annotationPage.keyboard.press('p'); // pan; clears probe
     await clickMapAt(annotationPage, 60, 60);
     // Give any erroneous fetch a chance to fire, then assert none did.
     await annotationPage.waitForTimeout(800);

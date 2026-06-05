@@ -89,7 +89,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -112,7 +111,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -135,7 +133,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Remove denied users from local state
       setUsers((prevUsers) =>
         prevUsers.filter((user) => !data?.success.some((u) => u.id === user.id))
       );
@@ -155,7 +152,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -178,7 +174,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -597,7 +592,6 @@ export const SettingsPage = () => {
         </FadeIn>
       </div>
 
-      {/* Loading Overlay */}
       <LoadingOverlay visible={saving} text="Processing..." />
     </>
   );

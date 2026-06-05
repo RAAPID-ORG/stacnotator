@@ -38,7 +38,7 @@ async function loadOpenMode(
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
-  await page.locator('[title="Pan (V)"]').waitFor({ state: 'visible', timeout: 10_000 });
+  await page.locator('[title="Pan (P)"]').waitFor({ state: 'visible', timeout: 10_000 });
   // Map laid out -> minimap reports a centre.
   await page.waitForFunction(
     () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
@@ -63,7 +63,7 @@ test.describe('Open mode renders', () => {
   });
 
   test('renders ControlsOpenMode tools and no Submit/Update button', async ({ annotationPage }) => {
-    await expect(tool(annotationPage, 'Pan (V)')).toBeVisible();
+    await expect(tool(annotationPage, 'Pan (P)')).toBeVisible();
     await expect(tool(annotationPage, 'Annotate (R)')).toBeVisible();
     await expect(tool(annotationPage, 'Edit (E)')).toBeVisible();
     await expect(tool(annotationPage, 'Timeseries (T)')).toBeVisible();
@@ -92,7 +92,7 @@ test.describe('Open mode renders', () => {
   });
 
   test('default active tool is Pan', async ({ annotationPage }) => {
-    await expect(tool(annotationPage, 'Pan (V)')).toHaveClass(ACTIVE);
+    await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
   });
 });
 
@@ -105,15 +105,15 @@ test.describe('Tools and label selection', () => {
     await loadOpenMode(annotationPage, api);
   });
 
-  test('V / R / E / T activate the matching tool', async ({ annotationPage }) => {
+  test('P / R / E / T activate the matching tool', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('r');
     await expect(tool(annotationPage, 'Annotate (R)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('e');
     await expect(tool(annotationPage, 'Edit (E)')).toHaveClass(ACTIVE);
     await annotationPage.keyboard.press('t');
     await expect(tool(annotationPage, 'Timeseries (T)')).toHaveClass(ACTIVE);
-    await annotationPage.keyboard.press('v');
-    await expect(tool(annotationPage, 'Pan (V)')).toHaveClass(ACTIVE);
+    await annotationPage.keyboard.press('p');
+    await expect(tool(annotationPage, 'Pan (P)')).toHaveClass(ACTIVE);
   });
 
   test('clicking a tool button activates it', async ({ annotationPage }) => {

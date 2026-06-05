@@ -103,8 +103,6 @@ export const PlatformUsersTable = ({
   const allSelected = selectedUsers.size === users.length && users.length > 0;
   const someSelected = selectedUsers.size > 0 && selectedUsers.size < users.length;
 
-  // Compact inline action button. Consistent height + radius with everything
-  // else, just scaled down for a dense table row.
   const rowActionCls =
     'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 

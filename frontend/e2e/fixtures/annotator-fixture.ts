@@ -380,10 +380,24 @@ export const test = base.extend<AnnotatorFixtures>({
 
     await page.addInitScript(() => {
       // Suppress the first-visit guided tour: tests need the annotation
-      // toolbar reachable without an overlay on top. Key format must match
-      // tourSeenKey() in AnnotationPage.tsx.
+      // toolbar reachable without an overlay on top. Seeds the persisted
+      // preferences store (`usePreferencesStore`) so hasSeenTour() returns
+      // true. Key is `${accountId}:${campaignId}` for the test user/campaign.
+      // This init script re-runs on every reload, so MERGE rather than
+      // overwrite - otherwise other persisted preferences a test wrote (e.g.
+      // annotation styles) would be wiped on reload.
       try {
-        localStorage.setItem('stacnotator:tour-seen:test-user-abc-123:42', '1');
+        const key = 'stacnotator:preferences';
+        const existing = JSON.parse(localStorage.getItem(key) || '{}');
+        const state = existing.state || {};
+        state.tourSeenByCampaign = {
+          ...(state.tourSeenByCampaign || {}),
+          'test-user-abc-123:42': true,
+        };
+        localStorage.setItem(
+          key,
+          JSON.stringify({ ...existing, state, version: existing.version ?? 1 })
+        );
       } catch {
         // localStorage unavailable - ignore
       }

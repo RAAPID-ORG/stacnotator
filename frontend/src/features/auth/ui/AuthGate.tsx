@@ -27,7 +27,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
     const init = async () => {
       try {
         if (loggedIn) {
-          await auth.getIdToken(); // warm Firebase session
+          await auth.getIdToken(); // warm session
           await fetchAccount();
         } else {
           clear();
