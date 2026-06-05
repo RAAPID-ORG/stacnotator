@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '~/shared/ui/Modal';
-import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from '~/shared/ui/Icons';
+import { IconChevronDown, IconChevronUp, IconPlus } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { MonthPicker } from '~/shared/ui/MonthPicker';
@@ -14,7 +14,8 @@ import type {
   ItemSortOption,
 } from './types';
 import { createId, emptyVizParams } from './types';
-import { VizConfigPanel } from './VizConfigPanel';
+import { VizTabs } from './VizTabs';
+import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
@@ -1459,62 +1460,18 @@ export const CatalogBrowser = ({
                         , or expand advanced options to edit compositing.
                       </p>
                     </div>
-                    {/* Tab bar - always visible with + Add */}
-                    <div className="flex items-center bg-neutral-50 border-b border-neutral-200 px-2 pt-2 gap-1">
-                      {visualizations.map((viz, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setActiveVizIndex(i)}
-                          className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer flex items-center gap-1.5 ${
-                            i === activeVizIndex
-                              ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
-                              : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
-                          }`}
-                        >
-                          {viz.name || `Viz ${i + 1}`}
-                          {visualizations.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeVisualization(i);
-                              }}
-                              className="text-neutral-400 hover:text-red-500"
-                            >
-                              <IconTrash className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addVisualization}
-                        className="text-xs text-neutral-400 hover:text-brand-700 transition-colors cursor-pointer px-2 py-1.5 flex items-center gap-0.5"
-                        title="Add visualization"
-                      >
-                        <IconPlus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Tab content - basic shows VizConfigPanel without compositing; advanced reveals compositing */}
                     <div className="p-3 space-y-3 bg-white">
-                      <div className="space-y-1">
-                        <label className="text-xs text-neutral-700">Visualization Name</label>
-                        <Input
-                          type="text"
-                          size="sm"
-                          value={visualizations[activeVizIndex]?.name || ''}
-                          onChange={(e) => updateVizName(activeVizIndex, e.target.value)}
-                          placeholder="e.g. True Color"
-                        />
-                      </div>
-                      <VizConfigPanel
+                      <VizTabs
+                        visualizations={visualizations}
+                        activeIndex={activeVizIndex}
+                        onActiveIndexChange={setActiveVizIndex}
                         collectionId={selectedCollection.id}
                         availableAssets={availableAssets}
-                        vizParams={visualizations[activeVizIndex]?.vizParams || emptyVizParams()}
-                        onChange={updateVizParams}
                         showCompositing={mode === 'mosaic' && showAdvanced}
+                        onParamsChange={(_, params) => updateVizParams(params)}
+                        onNameChange={updateVizName}
+                        onAdd={addVisualization}
+                        onRemove={removeVisualization}
                       />
                       <AdvancedToggle
                         expanded={showAdvanced}
@@ -1796,91 +1753,35 @@ const CoverSliceAdvancedPanel = ({
         Configure the separate cover-slice search and rendering. By default it inherits from the
         main visualization params.
       </p>
-      <div className="space-y-2">
-        <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
-          Search parameters
-        </h5>
-        {selectedCollection.has_cloud_cover && (
-          <div className="space-y-1">
-            <label className="text-xs text-neutral-700 font-medium">Max cloud cover (%)</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={coverMaxCloudCover}
-                onChange={(e) => setCoverMaxCloudCover(Number(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-xs text-neutral-600 w-8 text-right">{coverMaxCloudCover}%</span>
-            </div>
-          </div>
-        )}
-        <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
-            Item sort order
-            <Tooltip text="Controls the order in which STAC items are returned for the cover slice." />
-          </label>
-          <Select
-            size="sm"
-            value={coverItemSort}
-            onChange={(e) => setCoverItemSort(e.target.value as ItemSortOption)}
-          >
-            <option value="date_desc">Date (newest first)</option>
-            <option value="date_asc">Date (oldest first)</option>
-            {selectedCollection.has_cloud_cover && (
-              <option value="cloud_cover_asc">Cloud cover (lowest first)</option>
-            )}
-          </Select>
-        </div>
-        {buildCoverAutoQuery() && (
-          <StacQueryEditor
-            value={coverSearchQuery}
-            onChange={setCoverSearchQuery}
-            autoQuery={buildCoverAutoQuery()!}
-            label="Cover slice search query"
-          />
-        )}
-      </div>
+      <CoverSearchParams
+        hasCloudCover={selectedCollection.has_cloud_cover ?? false}
+        maxCloudCover={coverMaxCloudCover}
+        onMaxCloudCoverChange={setCoverMaxCloudCover}
+        itemSort={coverItemSort}
+        onItemSortChange={setCoverItemSort}
+        searchQuery={coverSearchQuery}
+        onSearchQueryChange={setCoverSearchQuery}
+        autoQuery={buildCoverAutoQuery()}
+      />
 
       {Object.keys(availableAssets).length > 0 && (
         <div className="space-y-2">
           <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
             Cover visualizations
           </h5>
-          <div className="rounded-lg border border-neutral-200 overflow-hidden">
-            <div className="flex items-center bg-white border-b border-neutral-200 px-2 pt-2 gap-1">
-              {coverVisualizations.map((cv, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setActiveCoverVizIndex(i)}
-                  className={`text-xs px-3 py-1.5 rounded-t-md transition-colors cursor-pointer ${
-                    i === activeCoverVizIndex
-                      ? 'bg-white border border-neutral-200 border-b-white -mb-px text-brand-700 font-medium'
-                      : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'
-                  }`}
-                >
-                  {cv.name || `Viz ${i + 1}`}
-                </button>
-              ))}
-            </div>
-            <div className="p-3 space-y-3 bg-white">
-              <VizConfigPanel
-                collectionId={selectedCollection.id}
-                availableAssets={availableAssets}
-                vizParams={coverVisualizations[activeCoverVizIndex]?.vizParams || emptyVizParams()}
-                onChange={(params) => {
-                  setCoverVisualizations((prev) =>
-                    prev.map((v, i) =>
-                      i === activeCoverVizIndex ? { ...v, vizParams: params } : v
-                    )
-                  );
-                }}
-                showCompositing
-              />
-            </div>
-          </div>
+          <VizTabs
+            visualizations={coverVisualizations}
+            activeIndex={activeCoverVizIndex}
+            onActiveIndexChange={setActiveCoverVizIndex}
+            collectionId={selectedCollection.id}
+            availableAssets={availableAssets}
+            showCompositing
+            onParamsChange={(i, params) =>
+              setCoverVisualizations((prev) =>
+                prev.map((v, idx) => (idx === i ? { ...v, vizParams: params } : v))
+              )
+            }
+          />
         </div>
       )}
     </div>

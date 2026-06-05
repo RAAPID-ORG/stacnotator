@@ -545,6 +545,14 @@ def _update_collection_in_place(
     if not col_create.stac_config:
         return None
 
+    # A newly added (or removed) visualization name has no tile URLs yet, and the
+    # cheap viz-params compare above only inspects the first viz - so reconcile the
+    # full set here to force a rebuild when the visualization names change.
+    incoming_viz_names = {v.name for v in col_create.stac_config.visualizations}
+    existing_viz_names = {tu.visualization_name for sl in db_col.slices for tu in sl.tile_urls}
+    if incoming_viz_names != existing_viz_names:
+        needs_reregistration = True
+
     if needs_reregistration and col_create.stac_config.catalog_url:
         # Drop existing tile URLs so the registration step rebuilds them fresh.
         for sl in db_col.slices:

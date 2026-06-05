@@ -6,6 +6,7 @@ import type {
   VizParamsCreate,
 } from '~/api/client';
 import type { Basemap, CollectionItem, ImagerySource, ImageryStepState, VizParams } from './types';
+import { emptyVizParams } from './types';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
  *  server), freshly-added entities are random UUID slices. Only emit `id`
@@ -38,7 +39,10 @@ const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
   max_items: v.maxItems,
 });
 
-export function collectionToBackend(col: CollectionItem): ImageryCollectionCreate {
+export function collectionToBackend(
+  col: CollectionItem,
+  sourceVizNames: string[] = []
+): ImageryCollectionCreate {
   return {
     id: toIdField(col.id),
     name: col.name,
@@ -60,21 +64,23 @@ export function collectionToBackend(col: CollectionItem): ImageryCollectionCreat
       col.data.type === 'stac_browser'
         ? (() => {
             const data = col.data;
+            const configured = (data.visualizations ?? []).filter((v) => v.vizParams);
+            const paramsByName = new Map(configured.map((v) => [v.name, v.vizParams]));
+            const fallbackParams = configured[0]?.vizParams ?? emptyVizParams();
+            const names = sourceVizNames.length ? sourceVizNames : configured.map((v) => v.name);
             return {
               catalog_url: data.catalogUrl,
               stac_collection_id: data.stacCollectionId,
-              visualizations: (data.visualizations ?? [])
-                .filter((v) => v.vizParams)
-                .map((v) => {
-                  const cover = data.coverVisualizations?.find((c) => c.name === v.name);
-                  return {
-                    name: v.name,
-                    viz_params: toVizParamsPayload(v.vizParams),
-                    cover_viz_params: cover?.vizParams
-                      ? toVizParamsPayload(cover.vizParams)
-                      : undefined,
-                  };
-                }),
+              visualizations: names.map((name) => {
+                const cover = data.coverVisualizations?.find((c) => c.name === name);
+                return {
+                  name,
+                  viz_params: toVizParamsPayload(paramsByName.get(name) ?? fallbackParams),
+                  cover_viz_params: cover?.vizParams
+                    ? toVizParamsPayload(cover.vizParams)
+                    : undefined,
+                };
+              }),
               max_cloud_cover: data.maxCloudCover,
               search_query: data.searchQuery ?? null,
               cover_search_query: data.coverSearchQuery ?? null,
@@ -91,7 +97,12 @@ export function sourceToBackend(src: ImagerySource): ImagerySourceCreate {
     crosshair_hex6: src.crosshairHex6,
     default_zoom: src.defaultZoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
-    collections: src.collections.map(collectionToBackend),
+    collections: src.collections.map((c) =>
+      collectionToBackend(
+        c,
+        src.visualizations.map((v) => v.name)
+      )
+    ),
   };
 }
 

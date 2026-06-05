@@ -4,13 +4,15 @@ import type {
   ImagerySlice,
   VisualizationUrl,
   StacBrowserCollectionData,
+  NamedVizParams,
+  VizParams,
 } from './types';
-import { emptySlice, sliceDateRange } from './types';
+import { emptySlice, emptyVizParams, sliceDateRange } from './types';
 import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
 import { IconButton, Input } from '~/shared/ui/forms';
-import { AutoSizeTextarea } from '~/shared/ui/AutoSizeTextarea';
 import { Tooltip } from '~/shared/ui/Tooltip';
-import { VizConfigPanel } from './VizConfigPanel';
+import { VizTabs } from './VizTabs';
+import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
 import { fetchCollections } from '~/api/stacBrowser';
 import type { StacAssetInfo } from '~/api/stacBrowser';
@@ -24,21 +26,6 @@ interface CollectionEditorProps {
   inModal?: boolean;
 }
 
-function PlaceholderBadge({ label, present }: { label: string; present: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none ${
-        present
-          ? 'bg-green-50 text-green-700 border border-green-200'
-          : 'bg-red-50 text-red-600 border border-red-200'
-      }`}
-      title={present ? 'Found in search body' : 'Missing -required'}
-    >
-      {present ? '✓' : '✗'} {label}
-    </span>
-  );
-}
-
 export const CollectionEditor = ({
   collection,
   vizNames,
@@ -48,7 +35,101 @@ export const CollectionEditor = ({
 }: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
   const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
-  const [showCoverOverrides, setShowCoverOverrides] = useState(false);
+  const [hasCloudCover, setHasCloudCover] = useState(false);
+  const [activeVizIndex, setActiveVizIndex] = useState(0);
+  const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
+  const [showCoverOptions, setShowCoverOptions] = useState(false);
+
+  const sb = collection.data.type === 'stac_browser' ? collection.data : null;
+  const updateSb = (updates: Partial<StacBrowserCollectionData>) => {
+    if (!sb) return;
+    onChange({ data: { ...sb, ...updates } });
+  };
+
+  const buildAutoQuery = (cloudCover: number | undefined): Record<string, unknown> => {
+    const cc = cloudCover ?? 100;
+    return {
+      collections: sb ? [sb.stacCollectionId] : [],
+      filter: {
+        op: 'and',
+        args: [
+          {
+            op: 'anyinteracts',
+            args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
+          },
+          ...(cc < 100 ? [{ op: '<=', args: [{ property: 'eo:cloud_cover' }, cc] }] : []),
+        ],
+      },
+      filterLang: 'cql2-json',
+    };
+  };
+
+  const orderedVizs: NamedVizParams[] = sb
+    ? vizNames.map(
+        (name) =>
+          sb.visualizations.find((v) => v.name === name) ?? { name, vizParams: emptyVizParams() }
+      )
+    : [];
+  const writeVizParams = (index: number, params: VizParams) => {
+    if (!sb) return;
+    const name = vizNames[index];
+    const existingIdx = sb.visualizations.findIndex((v) => v.name === name);
+    const newVizs =
+      existingIdx >= 0
+        ? sb.visualizations.map((v, i) => (i === existingIdx ? { ...v, vizParams: params } : v))
+        : [...sb.visualizations, { name, vizParams: params }];
+    updateSb({ visualizations: newVizs });
+  };
+
+  const coverVizs: NamedVizParams[] =
+    sb && collection.hasDedicatedCover
+      ? vizNames.map(
+          (name) =>
+            sb.coverVisualizations?.find((v) => v.name === name) ?? {
+              name,
+              vizParams: { ...emptyVizParams(), compositing: 'first' },
+            }
+        )
+      : [];
+  const writeCoverVizParams = (index: number, params: VizParams) => {
+    if (!sb) return;
+    const name = vizNames[index];
+    const existing = sb.coverVisualizations ?? [];
+    const existingIdx = existing.findIndex((v) => v.name === name);
+    const newVizs =
+      existingIdx >= 0
+        ? existing.map((v, i) => (i === existingIdx ? { ...v, vizParams: params } : v))
+        : [...existing, { name, vizParams: params }];
+    updateSb({ coverVisualizations: newVizs });
+  };
+
+  const enableDedicatedCover = () => {
+    if (!sb) return;
+    onChange({
+      hasDedicatedCover: true,
+      data: {
+        ...sb,
+        coverVisualizations: vizNames.map((name) => {
+          const base =
+            sb.visualizations.find((v) => v.name === name)?.vizParams ?? emptyVizParams();
+          return { name, vizParams: { ...base, compositing: 'first' } };
+        }),
+      },
+    });
+  };
+  const disableDedicatedCover = () => {
+    if (!sb) return;
+    onChange({
+      hasDedicatedCover: false,
+      data: {
+        ...sb,
+        coverVisualizations: [],
+        coverSearchQuery: undefined,
+        coverMaxCloudCover: undefined,
+        coverItemSort: undefined,
+      },
+    });
+  };
 
   // Fetch STAC asset metadata for stac_browser collections so VizConfigPanel
   // renders the band picker / colormap dropdown (instead of text fallbacks).
@@ -62,6 +143,7 @@ export const CollectionEditor = ({
         if (cancelled) return;
         const match = cols.find((c) => c.id === sb.stacCollectionId);
         if (match?.item_assets) setAvailableAssets(match.item_assets);
+        setHasCloudCover(match?.has_cloud_cover ?? false);
       })
       .catch(() => {
         // Network/metadata failure is non-fatal - VizConfigPanel just shows
@@ -363,64 +445,78 @@ export const CollectionEditor = ({
                         />
                       </div>
                     </div>
-                    {/* Custom cover viz overrides - only on the dedicated custom cover slice. */}
-                    {isCustomCover &&
-                      collection.data.type === 'stac_browser' &&
-                      (collection.data as StacBrowserCollectionData).coverVisualizations &&
-                      (collection.data as StacBrowserCollectionData).coverVisualizations!.length >
-                        0 && (
-                        <div className="mt-2 border-t border-brand-100 pt-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setShowCoverOverrides((v) => !v)}
-                            className="flex items-center gap-1 text-[11px] text-brand-700 hover:text-brand-900 font-medium cursor-pointer"
-                          >
-                            {showCoverOverrides ? (
-                              <IconChevronUp className="w-3 h-3" />
-                            ) : (
-                              <IconChevronDown className="w-3 h-3" />
-                            )}
-                            Specify visualization overrides for cover slice
-                          </button>
-                          {showCoverOverrides && (
-                            <div className="mt-1.5 space-y-1.5">
-                              {(
-                                collection.data as StacBrowserCollectionData
-                              ).coverVisualizations!.map((cv, cvIdx) => (
-                                <div
-                                  key={cvIdx}
-                                  className="p-1.5 rounded border border-brand-100 bg-white space-y-1"
-                                >
-                                  <span className="text-xs font-medium text-brand-700">
-                                    {cv.name}
-                                  </span>
-                                  <VizConfigPanel
-                                    collectionId={
-                                      (collection.data as StacBrowserCollectionData)
-                                        .stacCollectionId
-                                    }
+                    {sb && sb.mode === 'mosaic' && isActiveCover && (
+                      <div className="mt-2 border-t border-brand-100 pt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowCoverOptions((v) => !v)}
+                          className="flex items-center gap-1 text-[11px] text-brand-700 hover:text-brand-900 font-medium cursor-pointer"
+                        >
+                          {showCoverOptions ? (
+                            <IconChevronUp className="w-3 h-3" />
+                          ) : (
+                            <IconChevronDown className="w-3 h-3" />
+                          )}
+                          Cover overrides (search &amp; visualization)
+                        </button>
+                        {showCoverOptions &&
+                          (collection.hasDedicatedCover ? (
+                            <div className="mt-1.5 space-y-3">
+                              <CoverSearchParams
+                                hasCloudCover={hasCloudCover}
+                                maxCloudCover={sb.coverMaxCloudCover ?? sb.maxCloudCover ?? 90}
+                                onMaxCloudCoverChange={(v) => updateSb({ coverMaxCloudCover: v })}
+                                itemSort={sb.coverItemSort ?? sb.itemSort ?? 'date_desc'}
+                                onItemSortChange={(v) => updateSb({ coverItemSort: v })}
+                                searchQuery={sb.coverSearchQuery ?? null}
+                                onSearchQueryChange={(q) =>
+                                  updateSb({ coverSearchQuery: q ?? undefined })
+                                }
+                                autoQuery={buildAutoQuery(
+                                  sb.coverMaxCloudCover ?? sb.maxCloudCover
+                                )}
+                              />
+                              {coverVizs.length > 0 && (
+                                <div className="space-y-2">
+                                  <label className="text-xs text-neutral-700 font-medium">
+                                    Cover visualizations
+                                  </label>
+                                  <VizTabs
+                                    visualizations={coverVizs}
+                                    activeIndex={activeCoverVizIndex}
+                                    onActiveIndexChange={setActiveCoverVizIndex}
+                                    collectionId={sb.stacCollectionId}
                                     availableAssets={availableAssets}
-                                    vizParams={cv.vizParams}
-                                    onChange={(params) => {
-                                      const sb = collection.data as StacBrowserCollectionData;
-                                      const newCoverVizs = sb.coverVisualizations!.map((v, i) =>
-                                        i === cvIdx ? { ...v, vizParams: params } : v
-                                      );
-                                      onChange({
-                                        data: { ...sb, coverVisualizations: newCoverVizs },
-                                      });
-                                    }}
-                                    showCompositing={
-                                      (collection.data as StacBrowserCollectionData).mode ===
-                                      'mosaic'
-                                    }
+                                    showCompositing
+                                    onParamsChange={writeCoverVizParams}
                                   />
                                 </div>
-                              ))}
+                              )}
+                              <button
+                                type="button"
+                                onClick={disableDedicatedCover}
+                                className="text-[11px] text-neutral-500 hover:text-red-600 cursor-pointer"
+                              >
+                                Reset to use the regular search &amp; visualization
+                              </button>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          ) : (
+                            <div className="mt-1.5 space-y-1.5">
+                              <p className="text-[11px] text-neutral-500 leading-snug">
+                                The cover currently uses the same search and visualization as the
+                                regular slices.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={enableDedicatedCover}
+                                className="text-[11px] px-2 py-1 text-brand-700 border border-brand-300 hover:bg-brand-50 hover:border-brand-500 rounded transition-colors cursor-pointer font-medium"
+                              >
+                                Customize cover separately
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                     {sliceManualXyzBlock(slice)}
                   </div>
                 );
@@ -458,9 +554,7 @@ export const CollectionEditor = ({
           {/* STAC Browser parameters */}
           {collection.data.type === 'stac_browser' &&
             (() => {
-              const sb = collection.data as StacBrowserCollectionData;
-              const updateSb = (updates: Partial<StacBrowserCollectionData>) =>
-                onChange({ data: { ...sb, ...updates } });
+              if (!sb) return null;
 
               return (
                 <div className="space-y-2 p-2 rounded bg-neutral-50 border border-neutral-100">
@@ -528,30 +622,7 @@ export const CollectionEditor = ({
                       <StacQueryEditor
                         value={sb.searchQuery ?? null}
                         onChange={(query) => updateSb({ searchQuery: query ?? undefined })}
-                        autoQuery={{
-                          collections: [sb.stacCollectionId],
-                          filter: {
-                            op: 'and',
-                            args: [
-                              {
-                                op: 'anyinteracts',
-                                args: [
-                                  { property: 'datetime' },
-                                  { interval: ['{sliceStart}', '{sliceEnd}'] },
-                                ],
-                              },
-                              ...((sb.maxCloudCover ?? 100) < 100
-                                ? [
-                                    {
-                                      op: '<=',
-                                      args: [{ property: 'eo:cloud_cover' }, sb.maxCloudCover],
-                                    },
-                                  ]
-                                : []),
-                            ],
-                          },
-                          filterLang: 'cql2-json',
-                        }}
+                        autoQuery={buildAutoQuery(sb.maxCloudCover)}
                       />
                     </div>
                   )}
@@ -562,39 +633,15 @@ export const CollectionEditor = ({
                       <label className="text-xs text-neutral-700 font-medium">
                         Visualization Parameters
                       </label>
-                      {vizNames.map((name) => {
-                        const vizIdx = sb.visualizations.findIndex((v) => v.name === name);
-                        const viz = vizIdx !== -1 ? sb.visualizations[vizIdx] : null;
-                        return (
-                          <div
-                            key={name}
-                            className="p-2 rounded border border-neutral-200 bg-white space-y-1.5"
-                          >
-                            <span className="text-xs font-medium text-neutral-800">
-                              {name || '(unnamed)'}
-                            </span>
-                            {viz ? (
-                              <VizConfigPanel
-                                collectionId={sb.stacCollectionId}
-                                availableAssets={availableAssets}
-                                vizParams={viz.vizParams}
-                                onChange={(params) => {
-                                  const newVizs = sb.visualizations.map((v, i) =>
-                                    i === vizIdx ? { ...v, vizParams: params } : v
-                                  );
-                                  updateSb({ visualizations: newVizs });
-                                }}
-                                showCompositing={sb.mode === 'mosaic'}
-                              />
-                            ) : (
-                              <p className="text-[10px] text-neutral-400 italic">
-                                No parameters configured. Re-add this collection from the catalog to
-                                set up viz params.
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
+                      <VizTabs
+                        visualizations={orderedVizs}
+                        activeIndex={activeVizIndex}
+                        onActiveIndexChange={setActiveVizIndex}
+                        collectionId={sb.stacCollectionId}
+                        availableAssets={availableAssets}
+                        showCompositing={sb.mode === 'mosaic'}
+                        onParamsChange={writeVizParams}
+                      />
                     </div>
                   )}
                 </div>
