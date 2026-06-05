@@ -266,6 +266,18 @@ input[type='range'] {
   transition: none !important;
 }
 
+/* Drop target shown while dragging/resizing a window. Matches the dashed
+   orange placeholder used when dragging a window in from the Hidden panel,
+   so both interactions read the same. */
+.react-grid-placeholder {
+  background: rgb(255 237 213 / 0.5) !important; /* orange-100 @ 50% */
+  border: 2px dashed #fb923c !important; /* orange-400 */
+  border-radius: 6px !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+  transition-duration: 80ms !important;
+}
+
 .grid-card {
   background: white;
   border: 1px solid var(--color-neutral-200);

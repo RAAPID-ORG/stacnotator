@@ -19,6 +19,13 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
+import { WindowDropController } from './WindowDropController';
+import { IconEyeSlash } from '~/shared/ui/Icons';
+
+// A single stable compactor instance — recreating it per render would
+// invalidate react-grid-layout's internal memos that key on its identity.
+const CANVAS_COMPACTOR = getCompactor(null, false, true);
+const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -35,6 +42,10 @@ interface CanvasProps {
 export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const { containerRef, containerWidth, containerHeight, isMounted } = useContainerWidth();
   const headerControlsRef = useRef<HTMLDivElement>(null);
+  const gridInnerRef = useRef<HTMLDivElement>(null);
+  // Pointer-down position on a window's hide button, so a drag-to-move (which
+  // also starts on the body) isn't mistaken for a hide click on release.
+  const hideDownRef = useRef<{ x: number; y: number } | null>(null);
   const isMobile = useIsMobile();
 
   const campaign = useCampaignStore((s) => s.campaign);
@@ -167,6 +178,23 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }, [campaign, containerHeight, windowCollections]);
 
   const effectiveLayout = isMobile ? mobileLayout : currentLayout;
+
+  // react-grid-layout memoizes against the *identity* of these config props, so
+  // keep them stable across renders to avoid needlessly re-firing its effects.
+  const editing = isEditingLayout && !isMobile;
+  const gridConfig = useMemo(
+    () => ({
+      cols: 60,
+      rowHeight: ROW_HEIGHT,
+      margin: (isMobile ? [0, 0] : [6, 6]) as [number, number],
+    }),
+    [isMobile]
+  );
+  const dragConfig = useMemo(() => ({ enabled: editing }), [editing]);
+  const resizeConfig = useMemo(
+    () => ({ enabled: editing, handles: [...RESIZE_HANDLES] }),
+    [editing]
+  );
 
   const activeSource = useMemo(() => {
     if (!campaign || !activeCollectionId) return null;
@@ -347,20 +375,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       {isMounted && effectiveLayout && (
         <ReactGridLayout
           width={containerWidth}
+          innerRef={gridInnerRef}
           layout={effectiveLayout}
-          gridConfig={{
-            cols: 60,
-            rowHeight: ROW_HEIGHT,
-            margin: isMobile ? [0, 0] : [6, 6],
-          }}
-          dragConfig={{
-            enabled: isEditingLayout && !isMobile,
-          }}
-          resizeConfig={{
-            enabled: isEditingLayout && !isMobile,
-            handles: ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'],
-          }}
-          compactor={getCompactor(null, false, true)}
+          gridConfig={gridConfig}
+          dragConfig={dragConfig}
+          resizeConfig={resizeConfig}
+          compactor={CANVAS_COMPACTOR}
           onLayoutChange={isMobile ? undefined : setCurrentLayout}
         >
           <div key="main" className="grid-card" data-tour="main-map">
@@ -462,48 +482,50 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                     {collection.name}
                   </span>
                   <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
-                  {isEditingLayout && !isMobile && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        hideWindow(collection.id);
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      title="Hide this window (add it back from the Hidden panel)"
-                      aria-label={`Hide ${collection.name}`}
-                      className={`shrink-0 inline-flex items-center justify-center w-6 h-6 rounded transition-colors ${
-                        isActiveCol
-                          ? 'text-white/80 hover:text-white hover:bg-white/20'
-                          : 'text-neutral-500 hover:text-red-600 hover:bg-red-50'
-                      }`}
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                        <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                        <line x1="2" y1="2" x2="22" y2="22" />
-                      </svg>
-                    </button>
-                  )}
                 </div>
-                <ImageryContainer collectionId={collection.id} sourceId={source.id} />
+                {isEditingLayout && !isMobile ? (
+                  // While editing we skip the (expensive) map and turn the whole
+                  // window body into a large hide target, so rearranging stays
+                  // smooth and hiding is a single easy click.
+                  <button
+                    type="button"
+                    onPointerDown={(e) => {
+                      hideDownRef.current = { x: e.clientX, y: e.clientY };
+                    }}
+                    onClick={(e) => {
+                      // Only hide on a genuine click; if the pointer moved, it
+                      // was a drag-to-reposition, so leave the window in place.
+                      const down = hideDownRef.current;
+                      hideDownRef.current = null;
+                      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+                      hideWindow(collection.id);
+                    }}
+                    title={`Hide ${collection.name} (re-add it from the Hidden panel)`}
+                    aria-label={`Hide ${collection.name}`}
+                    className="group/hide flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2 text-neutral-400 transition-colors hover:bg-red-50/60 hover:text-red-600"
+                  >
+                    <span className="grid h-12 w-12 place-items-center rounded-full bg-neutral-100 transition-colors group-hover/hide:bg-red-100">
+                      <IconEyeSlash className="h-6 w-6" />
+                    </span>
+                    <span className="text-xs font-medium">Hide window</span>
+                  </button>
+                ) : (
+                  <ImageryContainer collectionId={collection.id} sourceId={source.id} />
+                )}
               </div>
             );
           })}
         </ReactGridLayout>
       )}
 
+      {editing && (
+        <WindowDropController
+          gridRef={gridInnerRef}
+          scrollRef={containerRef}
+          containerWidth={containerWidth}
+          rowHeight={ROW_HEIGHT}
+        />
+      )}
       {!isMobile && <HiddenWindowsPanel />}
     </main>
   );

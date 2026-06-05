@@ -16,7 +16,12 @@ import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
 import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
 import type { ImageryViewOut } from '~/api/client';
-import { nextWindowSlot } from '../utils/layoutDefaults';
+import {
+  nextWindowSlot,
+  resolveDropCell,
+  MAIN_LAYOUT_KEYS,
+  DEFAULT_NEW_WINDOW_SIZE,
+} from '../utils/layoutDefaults';
 
 /** Generate default window layout items for collections in a view that have show_as_window.
  *  Only used as a fallback when the backend didn't store a view layout (legacy campaigns). */
@@ -72,6 +77,9 @@ interface CampaignStore {
   currentLayout: Layout | null;
   savedLayout: Layout | null;
   isEditingLayout: boolean;
+  /** Size (in grid units) applied to the next window added from the Hidden
+   *  panel. Lets the user re-add many windows at a consistent, chosen size. */
+  newWindowSize: { w: number; h: number };
 
   // Actions
   loadCampaign: (
@@ -84,12 +92,20 @@ interface CampaignStore {
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
   setIsEditingLayout: (isEditing: boolean) => void;
+  setNewWindowSize: (size: { w: number; h: number }) => void;
   /** Remove a collection's window from the current layout. The grid stops
    *  rendering that window immediately; Save persists it as a personal hide. */
   hideWindow: (collectionId: number) => void;
+  /** Remove every imagery window from the current layout at once, leaving the
+   *  fixed page chrome in place. Lets the user re-add windows in a desired
+   *  order to rebuild the layout from scratch. */
+  hideAllWindows: () => void;
   /** Add a previously-hidden (or never-shown) collection window back into the
-   *  current layout, placed below the existing items. */
+   *  current layout, packed into the next free grid slot at `newWindowSize`. */
   addWindow: (collectionId: number) => void;
+  /** Add a window at an explicit grid cell (drag-and-drop placement), nudged
+   *  down to the nearest collision-free row. Sized to `newWindowSize`. */
+  addWindowAt: (collectionId: number, x: number, y: number) => void;
   saveLayout: (shouldBeDefault?: boolean) => Promise<void>;
   cancelLayoutEdit: () => void;
   resetLayout: (defaultLayout: Layout) => void;
@@ -107,6 +123,7 @@ const initialState = {
   currentLayout: null as Layout | null,
   savedLayout: null as Layout | null,
   isEditingLayout: false,
+  newWindowSize: { ...DEFAULT_NEW_WINDOW_SIZE },
 };
 
 export const useCampaignStore = create<CampaignStore>((set, get) => ({
@@ -238,10 +255,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   setCurrentLayout: (layout) => set({ currentLayout: layout }),
   setSavedLayout: (layout) => set({ savedLayout: layout }),
   setIsEditingLayout: (isEditing) => set({ isEditingLayout: isEditing }),
+  setNewWindowSize: (size) => set({ newWindowSize: size }),
 
   hideWindow: (collectionId) =>
     set((s) => ({
       currentLayout: (s.currentLayout ?? []).filter((it) => it.i !== String(collectionId)),
+    })),
+
+  hideAllWindows: () =>
+    set((s) => ({
+      currentLayout: (s.currentLayout ?? []).filter((it) => MAIN_LAYOUT_KEYS.has(it.i)),
     })),
 
   addWindow: (collectionId) =>
@@ -249,8 +272,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const key = String(collectionId);
       const cur = s.currentLayout ?? [];
       if (cur.some((it) => it.i === key)) return {}; // already present
-      const slot = nextWindowSlot(cur);
+      const slot = nextWindowSlot(cur, s.newWindowSize);
       return { currentLayout: [...cur, { ...slot, i: key }] };
+    }),
+
+  addWindowAt: (collectionId, x, y) =>
+    set((s) => {
+      const key = String(collectionId);
+      const without = (s.currentLayout ?? []).filter((it) => it.i !== key);
+      const cell = resolveDropCell(without, x, y, s.newWindowSize);
+      return { currentLayout: [...without, { i: key, ...cell, ...s.newWindowSize }] };
     }),
 
   saveLayout: async (shouldBeDefault = false) => {

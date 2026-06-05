@@ -8,25 +8,59 @@ export const VIEW_LAYOUT_WINDOW_W = 10;
 export const VIEW_LAYOUT_WINDOW_H = 9;
 export const VIEW_LAYOUT_START_Y = 25;
 
-/** Compute where to drop a freshly-added window: below all existing items, in
- *  the next free slot of a 6-column row. Matches the backend's
- *  `_sync_view_layouts` placement for added collections. */
-export function nextWindowSlot(layout: Layout): LayoutItem {
+/** Total columns of the annotation grid (mirror of `cols: 60` in Canvas.tsx). */
+export const GRID_COLS = 60;
+
+/** Default size for a newly-added window, used until the user picks another. */
+export const DEFAULT_NEW_WINDOW_SIZE = { w: VIEW_LAYOUT_WINDOW_W, h: VIEW_LAYOUT_WINDOW_H };
+
+/** Compute where to drop a freshly-added window so that adding windows one after
+ *  another packs them into a tidy left-to-right, top-to-bottom grid: continue
+ *  the bottom-most row while it has horizontal room, otherwise start a new row. */
+export function nextWindowSlot(layout: Layout, size: { w: number; h: number }): LayoutItem {
   const existing = layout.filter((it) => !MAIN_LAYOUT_KEYS.has(it.i));
-  const bottom = existing.reduce(
-    (max, it) => Math.max(max, (it.y ?? 0) + (it.h ?? 0)),
-    VIEW_LAYOUT_START_Y
-  );
-  // Place at the leftmost column of the new row.
-  return {
-    i: '',
-    x: 0,
-    y: bottom,
-    w: VIEW_LAYOUT_WINDOW_W,
-    h: VIEW_LAYOUT_WINDOW_H,
-  };
+  if (existing.length === 0) {
+    return { i: '', x: 0, y: VIEW_LAYOUT_START_Y, ...size };
+  }
+
+  const lastRowY = existing.reduce((max, it) => Math.max(max, it.y ?? 0), 0);
+  const rightEdge = existing
+    .filter((it) => (it.y ?? 0) === lastRowY)
+    .reduce((max, it) => Math.max(max, (it.x ?? 0) + (it.w ?? 0)), 0);
+
+  if (rightEdge + size.w <= GRID_COLS) {
+    return { i: '', x: rightEdge, y: lastRowY, ...size };
+  }
+
+  const bottom = existing.reduce((max, it) => Math.max(max, (it.y ?? 0) + (it.h ?? 0)), 0);
+  return { i: '', x: 0, y: bottom, ...size };
 }
 
 /** Keys reserved for the fixed page chrome (main map, time series chart, etc.).
  *  Items with these keys are never hidden by per-window affordances. */
 export const MAIN_LAYOUT_KEYS = new Set(['main', 'timeseries', 'minimap', 'controls']);
+
+const rectsOverlap = (
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number }
+) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** Resolve a free grid cell for a window dropped at (x, y): clamp x within the
+ *  grid, then push y downward until the footprint clears every existing item
+ *  (page chrome included). Keeps drag-and-drop placement collision-free without
+ *  changing the grid's free-form compaction. */
+export function resolveDropCell(
+  layout: Layout,
+  x: number,
+  y: number,
+  size: { w: number; h: number },
+  ignoreKey?: string
+): { x: number; y: number } {
+  const cx = Math.max(0, Math.min(x, GRID_COLS - size.w));
+  const obstacles = layout.filter((it) => it.i !== ignoreKey);
+  let cy = Math.max(0, y);
+  while (obstacles.some((it) => rectsOverlap({ x: cx, y: cy, w: size.w, h: size.h }, it))) {
+    cy += 1;
+  }
+  return { x: cx, y: cy };
+}

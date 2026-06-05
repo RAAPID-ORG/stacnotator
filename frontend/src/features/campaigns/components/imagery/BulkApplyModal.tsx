@@ -192,7 +192,7 @@ const AspectSection = ({ title, uniform, count, children }: AspectSectionProps) 
     <h5 className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">{title}</h5>
     {!uniform && (
       <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-        Differs across {count} collections — applying overwrites all of them with these values.
+        Differs across {count} collections - applying overwrites all of them with these values.
       </p>
     )}
     {children}
