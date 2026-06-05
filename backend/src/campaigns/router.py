@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
 from src.auth.models import User
 from src.campaigns import service
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -24,6 +24,7 @@ from src.campaigns.schemas import (
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignGuideRequest,
+    UpdateCampaignLabelsRequest,
     UpdateCampaignNameRequest,
     UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
@@ -83,7 +84,7 @@ def get_campaign(
 def create_campaign(
     campaign: CampaignCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_campaign_creation_permission),
 ):
     result = service.create_campaign(
         db,
@@ -204,8 +205,22 @@ def update_campaign_bbox(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    bbox = req.model_dump() if hasattr(req, "model_dump") else req.dict()
-    return service.update_campaign_bbox(db, campaign_id, bbox)
+    return service.update_campaign_bbox(
+        db, campaign_id, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
+    )
+
+
+@router.patch("/{campaign_id}/labels", response_model=CampaignOut)
+def update_campaign_labels(
+    campaign_id: int,
+    req: UpdateCampaignLabelsRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Replace the campaign's label set. Renames (same id, new name) and adds
+    (new id) are accepted; removing an existing label is rejected since it
+    would orphan annotations that reference it."""
+    return service.update_campaign_labels(db, campaign_id, req.labels)
 
 
 @router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)

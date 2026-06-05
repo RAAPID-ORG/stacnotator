@@ -36,7 +36,7 @@ export const Modal = ({
             <IconClose />
           </button>
         </div>
-        <div className={scrollable ? 'overflow-y-auto' : ''}>{children}</div>
+        <div className={scrollable ? 'flex-1 min-h-0 overflow-y-auto' : ''}>{children}</div>
         {footer && <div className="px-5 py-3 border-t border-neutral-200 shrink-0">{footer}</div>}
       </div>
     </div>,

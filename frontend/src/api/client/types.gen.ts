@@ -407,6 +407,10 @@ export type AssignUsersToCampaignRequest = {
  */
 export type BasemapCreate = {
     /**
+     * Id
+     */
+    id?: number | null;
+    /**
      * Name
      */
     name: string;
@@ -921,14 +925,6 @@ export type CanvasLayoutOut = {
  */
 export type CollectionStacConfigCreate = {
     /**
-     * Registration Url
-     */
-    registration_url?: string;
-    /**
-     * Search Body
-     */
-    search_body?: string;
-    /**
      * Catalog Url
      */
     catalog_url?: string | null;
@@ -962,14 +958,6 @@ export type CollectionStacConfigCreate = {
  * CollectionStacConfigOut
  */
 export type CollectionStacConfigOut = {
-    /**
-     * Registration Url
-     */
-    registration_url: string;
-    /**
-     * Search Body
-     */
-    search_body: string;
     /**
      * Catalog Url
      */
@@ -1092,6 +1080,10 @@ export type HttpValidationError = {
  */
 export type ImageryCollectionCreate = {
     /**
+     * Id
+     */
+    id?: number | null;
+    /**
      * Name
      */
     name: string;
@@ -1099,6 +1091,10 @@ export type ImageryCollectionCreate = {
      * Cover Slice Index
      */
     cover_slice_index?: number;
+    /**
+     * Has Dedicated Cover
+     */
+    has_dedicated_cover?: boolean;
     /**
      * Slices
      */
@@ -1123,6 +1119,10 @@ export type ImageryCollectionOut = {
      */
     cover_slice_index: number;
     /**
+     * Has Dedicated Cover
+     */
+    has_dedicated_cover?: boolean;
+    /**
      * Display Order
      */
     display_order: number;
@@ -1131,22 +1131,6 @@ export type ImageryCollectionOut = {
      */
     slices: Array<ImagerySliceOut>;
     stac_config?: CollectionStacConfigOut | null;
-};
-
-/**
- * ImageryCollectionUpdate
- *
- * Partial update for an imagery collection.
- */
-export type ImageryCollectionUpdate = {
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Cover Slice Index
-     */
-    cover_slice_index?: number | null;
 };
 
 /**
@@ -1173,6 +1157,10 @@ export type ImageryEditorStateCreate = {
  * ImagerySliceCreate
  */
 export type ImagerySliceCreate = {
+    /**
+     * Id
+     */
+    id?: number | null;
     /**
      * Name
      */
@@ -1225,6 +1213,10 @@ export type ImagerySliceOut = {
  * ImagerySourceCreate
  */
 export type ImagerySourceCreate = {
+    /**
+     * Id
+     */
+    id?: number | null;
     /**
      * Name
      */
@@ -1282,49 +1274,13 @@ export type ImagerySourceOut = {
 };
 
 /**
- * ImagerySourceUpdate
- *
- * Partial update for an imagery source's display settings.
- */
-export type ImagerySourceUpdate = {
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Crosshair Hex6
-     */
-    crosshair_hex6?: string | null;
-    /**
-     * Default Zoom
-     */
-    default_zoom?: number | null;
-    /**
-     * Visualizations
-     */
-    visualizations?: Array<VisualizationUpdate> | null;
-};
-
-/**
- * ImageryViewAddRequest
- *
- * Create a new view on an existing campaign.
- */
-export type ImageryViewAddRequest = {
-    /**
-     * Name
-     */
-    name?: string;
-    /**
-     * Collection Refs
-     */
-    collection_refs?: Array<ViewCollectionRefItem>;
-};
-
-/**
  * ImageryViewCreate
  */
 export type ImageryViewCreate = {
+    /**
+     * Id
+     */
+    id?: number | null;
     /**
      * Name
      */
@@ -1357,26 +1313,6 @@ export type ImageryViewOut = {
     collection_refs: Array<ViewCollectionRefItem>;
     readonly default_canvas_layout: CanvasLayoutOut | null;
     readonly personal_canvas_layout: CanvasLayoutOut | null;
-};
-
-/**
- * ImageryViewUpdate
- *
- * Partial update for an imagery view.
- */
-export type ImageryViewUpdate = {
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Display Order
-     */
-    display_order?: number | null;
-    /**
-     * Collection Refs
-     */
-    collection_refs?: Array<ViewCollectionRefItem> | null;
 };
 
 /**
@@ -1830,6 +1766,19 @@ export type UpdateCampaignGuideRequest = {
 };
 
 /**
+ * UpdateCampaignLabelsRequest
+ *
+ * Replace the campaign's label set. Existing label IDs are preserved (so
+ * annotations referencing them continue to resolve); new labels get appended.
+ */
+export type UpdateCampaignLabelsRequest = {
+    /**
+     * Labels
+     */
+    labels: Array<LabelBase>;
+};
+
+/**
  * UpdateCampaignNameRequest
  */
 export type UpdateCampaignNameRequest = {
@@ -1913,6 +1862,10 @@ export type UserOutDetailed = {
      * Is Approved
      */
     is_approved: boolean;
+    /**
+     * Is Visitor
+     */
+    is_visitor: boolean;
     /**
      * Is Admin
      */
@@ -2041,16 +1994,6 @@ export type VisualizationTemplateOut = {
      * Display Order
      */
     display_order: number;
-};
-
-/**
- * VisualizationUpdate
- */
-export type VisualizationUpdate = {
-    /**
-     * Name
-     */
-    name: string;
 };
 
 /**
@@ -2619,6 +2562,116 @@ export type RevokeAdminResponses = {
 
 export type RevokeAdminResponse = RevokeAdminResponses[keyof RevokeAdminResponses];
 
+export type GrantVisitorSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/grant-visitor';
+};
+
+export type GrantVisitorSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantVisitorSingleError = GrantVisitorSingleErrors[keyof GrantVisitorSingleErrors];
+
+export type GrantVisitorSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type GrantVisitorSingleResponse = GrantVisitorSingleResponses[keyof GrantVisitorSingleResponses];
+
+export type RevokeVisitorSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/revoke-visitor';
+};
+
+export type RevokeVisitorSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeVisitorSingleError = RevokeVisitorSingleErrors[keyof RevokeVisitorSingleErrors];
+
+export type RevokeVisitorSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type RevokeVisitorSingleResponse = RevokeVisitorSingleResponses[keyof RevokeVisitorSingleResponses];
+
+export type GrantVisitorData = {
+    body: BulkUserActionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/users/grant-visitor';
+};
+
+export type GrantVisitorErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantVisitorError = GrantVisitorErrors[keyof GrantVisitorErrors];
+
+export type GrantVisitorResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkUserActionResponse;
+};
+
+export type GrantVisitorResponse = GrantVisitorResponses[keyof GrantVisitorResponses];
+
+export type RevokeVisitorData = {
+    body: BulkUserActionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/users/revoke-visitor';
+};
+
+export type RevokeVisitorErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeVisitorError = RevokeVisitorErrors[keyof RevokeVisitorErrors];
+
+export type RevokeVisitorResponses = {
+    /**
+     * Successful Response
+     */
+    200: BulkUserActionResponse;
+};
+
+export type RevokeVisitorResponse = RevokeVisitorResponses[keyof RevokeVisitorResponses];
+
 export type ListAllCampaignsData = {
     body?: never;
     path?: never;
@@ -2993,6 +3046,36 @@ export type UpdateCampaignBboxResponses = {
 };
 
 export type UpdateCampaignBboxResponse = UpdateCampaignBboxResponses[keyof UpdateCampaignBboxResponses];
+
+export type UpdateCampaignLabelsData = {
+    body: UpdateCampaignLabelsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/labels';
+};
+
+export type UpdateCampaignLabelsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignLabelsError = UpdateCampaignLabelsErrors[keyof UpdateCampaignLabelsErrors];
+
+export type UpdateCampaignLabelsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignLabelsResponse = UpdateCampaignLabelsResponses[keyof UpdateCampaignLabelsResponses];
 
 export type UpdateSampleExtentData = {
     body: UpdateSampleExtentRequest;
@@ -3991,6 +4074,34 @@ export type CreateImageryResponses = {
     201: unknown;
 };
 
+export type SaveImageryData = {
+    body: ImageryEditorStateCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery';
+};
+
+export type SaveImageryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveImageryError = SaveImageryErrors[keyof SaveImageryErrors];
+
+export type SaveImageryResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type CreateNewCanvasLayoutData = {
     body: CanvasLayoutCreateRequest;
     path: {
@@ -4019,104 +4130,6 @@ export type CreateNewCanvasLayoutResponses = {
     201: unknown;
 };
 
-export type DeleteSourceData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Source Id
-         */
-        source_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}';
-};
-
-export type DeleteSourceErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteSourceError = DeleteSourceErrors[keyof DeleteSourceErrors];
-
-export type DeleteSourceResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteSourceResponse = DeleteSourceResponses[keyof DeleteSourceResponses];
-
-export type UpdateSourceData = {
-    body: ImagerySourceUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Source Id
-         */
-        source_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/sources/{source_id}';
-};
-
-export type UpdateSourceErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateSourceError = UpdateSourceErrors[keyof UpdateSourceErrors];
-
-export type UpdateSourceResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type UpdateCollectionData = {
-    body: ImageryCollectionUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Collection Id
-         */
-        collection_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/collections/{collection_id}';
-};
-
-export type UpdateCollectionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCollectionError = UpdateCollectionErrors[keyof UpdateCollectionErrors];
-
-export type UpdateCollectionResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
 export type RefreshCollectionImageryData = {
     body?: never;
     path: {
@@ -4143,207 +4156,6 @@ export type RefreshCollectionImageryErrors = {
 export type RefreshCollectionImageryError = RefreshCollectionImageryErrors[keyof RefreshCollectionImageryErrors];
 
 export type RefreshCollectionImageryResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type UpdateVizParamsData = {
-    /**
-     * Body
-     */
-    body: {
-        [key: string]: unknown;
-    };
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Collection Id
-         */
-        collection_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/collections/{collection_id}/viz-params';
-};
-
-export type UpdateVizParamsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateVizParamsError = UpdateVizParamsErrors[keyof UpdateVizParamsErrors];
-
-export type UpdateVizParamsResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type UpdateTileUrlsData = {
-    /**
-     * Body
-     */
-    body: {
-        [key: string]: unknown;
-    };
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Collection Id
-         */
-        collection_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/collections/{collection_id}/tile-urls';
-};
-
-export type UpdateTileUrlsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateTileUrlsError = UpdateTileUrlsErrors[keyof UpdateTileUrlsErrors];
-
-export type UpdateTileUrlsResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type AddViewData = {
-    body: ImageryViewAddRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/views';
-};
-
-export type AddViewErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AddViewError = AddViewErrors[keyof AddViewErrors];
-
-export type AddViewResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type DeleteViewData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * View Id
-         */
-        view_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
-};
-
-export type DeleteViewErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DeleteViewError = DeleteViewErrors[keyof DeleteViewErrors];
-
-export type DeleteViewResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type DeleteViewResponse = DeleteViewResponses[keyof DeleteViewResponses];
-
-export type UpdateViewData = {
-    body: ImageryViewUpdate;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * View Id
-         */
-        view_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/views/{view_id}';
-};
-
-export type UpdateViewErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateViewError = UpdateViewErrors[keyof UpdateViewErrors];
-
-export type UpdateViewResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type ReorderViewsData = {
-    /**
-     * Body
-     */
-    body: {
-        [key: string]: unknown;
-    };
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/{campaign_id}/imagery/views/reorder';
-};
-
-export type ReorderViewsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ReorderViewsError = ReorderViewsErrors[keyof ReorderViewsErrors];
-
-export type ReorderViewsResponses = {
     /**
      * Successful Response
      */

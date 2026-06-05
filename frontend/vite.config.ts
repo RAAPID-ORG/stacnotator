@@ -1,9 +1,13 @@
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { compression } from "vite-plugin-compression2";
 
 export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+  },
   plugins: [
     tailwindcss(),
     tsconfigPaths(),

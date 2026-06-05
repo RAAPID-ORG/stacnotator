@@ -18,7 +18,6 @@ jobs:
   # Secret scanning  (all branches)
   secrets:
     name: Secret Scanning
-    if: github.event_name != 'pull_request' || (github.head_ref != 'develop' && github.head_ref != 'main')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +31,6 @@ jobs:
   # Backend: lint + type-check  (all branches)
   backend-lint:
     name: "Backend: Lint & Type Check"
-    if: github.event_name != 'pull_request' || (github.head_ref != 'develop' && github.head_ref != 'main')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -59,7 +57,6 @@ jobs:
   # Frontend: lint + type-check  (all branches)
   frontend-lint:
     name: "Frontend: Lint & Type Check"
-    if: github.event_name != 'pull_request' || (github.head_ref != 'develop' && github.head_ref != 'main')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -90,11 +87,10 @@ jobs:
     name: "Backend: Tests (Docker)"
     needs: [backend-lint]
     if: >-
-      (github.event_name != 'pull_request' || (github.head_ref != 'develop' && github.head_ref != 'main')) &&
-      (github.ref == 'refs/heads/develop' ||
-       github.ref == 'refs/heads/main' ||
-       github.base_ref == 'develop' ||
-       github.base_ref == 'main')
+      github.ref == 'refs/heads/develop' ||
+      github.ref == 'refs/heads/main' ||
+      github.base_ref == 'develop' ||
+      github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -125,61 +121,69 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.dev.yml down -v
 
-  # Frontend: Playwright E2E in Docker  (develop + main)
-  # frontend-e2e:
-  #   name: "Frontend: Playwright E2E (Docker)"
-  #   needs: [frontend-lint]
-  #   if: >-
-  #     github.ref == 'refs/heads/develop' ||
-  #     github.ref == 'refs/heads/main' ||
-  #     github.base_ref == 'develop' ||
-  #     github.base_ref == 'main'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  # Frontend: Playwright E2E  (PRs targeting main, and pushes to main)
+  # All API calls are mocked - no backend required.
+  frontend-e2e:
+    name: "Frontend: Playwright E2E"
+    needs: [frontend-lint]
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build and start frontend
-  #       run: docker compose -f docker-compose.dev.yml up -d frontend
-  #       env:
-  #         VITE_API_BASE_URL: http://localhost:8000
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-  #     - name: Wait for Vite dev server
-  #       run: |
-  #         for i in $(seq 1 30); do
-  #           if curl -s http://localhost:5173 > /dev/null 2>&1; then
-  #             echo "Frontend is ready"
-  #             break
-  #           fi
-  #           echo "Waiting for frontend... ($i/30)"
-  #           sleep 2
-  #         done
+      - name: Install dependencies
+        run: npm ci
 
-  #     - name: Run Playwright tests
-  #       run: docker compose -f docker-compose.dev.yml exec -T -e CI=true frontend npx playwright test
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
-  #     - name: Copy test results from container
-  #       if: ${{ !cancelled() }}
-  #       run: docker cp frontend-dev:/app/test-results ./frontend/test-results 2>/dev/null || true
+      - name: Build frontend
+        # --mode test exposes the e2e test hooks (window.__TASK_STORE__ etc.);
+        # the default production build deliberately omits them.
+        run: npm run build -- --mode test
 
-  #     - name: Upload test results
-  #       if: ${{ !cancelled() }}
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: playwright-report
-  #         path: frontend/test-results/
-  #         retention-days: 7
+      - name: Start preview server
+        run: npx vite preview --port 5173 &
+        env:
+          CI: "true"
 
-  #     - name: Tear down
-  #       if: always()
-  #       run: docker compose -f docker-compose.dev.yml down -v
+      - name: Wait for preview server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:5173 > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=github
+        env:
+          CI: "true"
+          BASE_URL: "http://localhost:5173"
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7
 
   # Docker build verification production images  (main only) - Will want to do staging tests here later
   docker-build:
     name: "Docker: Production Build"
     needs: [backend-lint, frontend-lint]
-    if: >-
-      (github.event_name != 'pull_request' || (github.head_ref != 'develop' && github.head_ref != 'main')) &&
-      (github.ref == 'refs/heads/main' || github.base_ref == 'main')
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

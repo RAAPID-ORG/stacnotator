@@ -2,7 +2,7 @@
 
 Scripts for deploying STACNotator to Azure. The deploy script self-manages all application resources (Container Apps, Static Web App, identities, RBAC) within the project's resource group.
 
-Using CLI instead of Terraform to avoid VNet restrictions from GH runners for now. Once we move to a production-ready version, we should migrate this to a runner in our Azure VNet.
+The same `deploy-app.sh` script runs both from CI (on a self-hosted runner inside our Azure VNet) and manually from a developer laptop on VPN. Application resources are managed by this script rather than Terraform, so app deploys stay independent of the platform-managed (Terraform) infrastructure.
 
 ## Environments
 
@@ -13,7 +13,7 @@ Using CLI instead of Terraform to avoid VNet restrictions from GH runners for no
 
 Backend is pinned to a single replica (MIN=MAX=1) so the alembic migration
 that runs on container startup is serialized by definition. To scale beyond
-1 replica, also add a `pg_advisory_lock` around `context.run_migrations()`
+1 replica, we'd also need to add a `pg_advisory_lock` around `context.run_migrations()`
 in `backend/alembic/env.py` (see note in that file). The deploy script has
 a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
 profile for the tiler - currently disabled in both envs; flip the flag in
@@ -30,6 +30,19 @@ profile for the tiler - currently disabled in both envs; flip the flag in
 | Container Apps Environment | Container Apps Environment | Terraform |
 | Networking, Key Vault, ACR | Various | Terraform |
 
+## Automated deployments (CI)
+
+`deploy-app.sh` runs from GitHub Actions on a self-hosted runner inside the Azure VNet, authenticating via OIDC (no stored credentials). Both environments are gated by a GitHub Environment with required reviewers, so every deploy waits on a human Approve click.
+
+| Environment | Trigger | Workflow | Gate |
+|---|---|---|---|
+| **prod** | push to `main` | `deploy-prod` job in `.github/workflows/ci.yml` (runs after tests + image build pass) | `production` Environment approval |
+| **dev** | manual `Run workflow` on `develop` | `.github/workflows/deploy-dev.yml` | `dev` Environment approval |
+
+The dev workflow deploys code only and never touches a database. To refresh dev data, run `make az-sync-prod-to-dev` separately (see below). One-time Environment setup for dev is documented under [Deploy Dev workflow](#deploy-dev-workflow-code-only-no-db-sync).
+
+The manual CLI path below is the fallback for local deploys and first-time environment bootstrapping.
+
 ## Prerequisites
 
 - **Infrastructure** deployed by Platform Engineers via Terraform (RG, ACR, KV, DB, CAE) for both prod and dev
@@ -39,6 +52,8 @@ profile for the tiler - currently disabled in both envs; flip the flag in
 - **Node.js** installed for building the frontend
 
 ## First-Time Setup for local deployments (ONE TIME per environment)
+
+Ensure you have deployed the infrastructure on Azure.
 
 ```bash
 # 1. Create environment config
@@ -59,7 +74,9 @@ make az-deploy-prod           # or az-deploy-dev
 # https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains
 ```
 
-## Regular Deployments
+## Manual deployment (local CLI)
+
+Prod and dev normally deploy from CI (see [Automated deployments](#automated-deployments-ci)). Use this path for local/manual deploys from a developer laptop on VPN, or for first-time bootstrapping.
 
 ```bash
 # Commit changes first (deploy prevents uncommitted changes)
@@ -148,8 +165,9 @@ After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch w
 | `deploy-app.sh` | Every deployment | Build, push, create/update apps, migrate, deploy SWA |
 | `upload-secrets.sh` | First time only | Upload Firebase + EE credentials + generate tiler auth secret to Key Vault |
 | `download-prod-db.sh` | As needed | Pull production DB to local development |
-| `make-staging-env.sh` | Before risky deploys | Test migrations against production DB copy (local) |
 | `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment |
+| `dev-restore-backup.sh` | As needed | Restore a local SQL dump into the dev stack (wipe, restore, migrate, restart) |
+| `grant-admin.sh` | After first deploy | Grant `approved` + `admin` roles to a user by Firebase UID |
 | `view-logs.sh` | Debugging | Stream real-time logs from Container Apps |
 
 ## Makefile Targets

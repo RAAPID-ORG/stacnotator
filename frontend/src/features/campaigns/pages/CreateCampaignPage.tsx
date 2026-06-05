@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate } from '~/api/client';
 import { createCampaign } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { useCanCreateCampaigns } from '~/features/account/account.store';
 import {
   validateFullForm,
   type FullValidationResult,
@@ -10,16 +11,18 @@ import {
 import { StepCampaign } from '../components/creation/steps/StepCampaign';
 import { StepSettings } from '../components/creation/steps/StepSettings';
 import { StepImagery, createInitialImageryState } from '../components/creation/steps/StepImagery';
+import { StepViewLayout } from '../components/creation/steps/StepViewLayout';
 import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeseries';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '../components/creation/StepIndicator';
-import type { ImageryStepState } from '../components/creation/steps/imagery/types';
+import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
+  const canCreateCampaigns = useCanCreateCampaigns();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showLoadingOverlay = useLayoutStore((s) => s.showLoadingOverlay);
@@ -69,6 +72,7 @@ export const CreateCampaignPage = () => {
           { name: 'Campaign', component: 'StepCampaign' },
           { name: 'Settings', component: 'StepSettings' },
           { name: 'Imagery', component: 'StepImagery' },
+          { name: 'Annotation Views', component: 'StepViewLayout' },
           { name: 'Time Series', component: 'StepAddTimeseries' },
           { name: 'Create', component: 'StepReview' },
         ] as const)
@@ -76,6 +80,7 @@ export const CreateCampaignPage = () => {
           { name: 'Campaign', component: 'StepCampaign' },
           { name: 'Settings', component: 'StepSettings' },
           { name: 'Imagery', component: 'StepImagery' },
+          { name: 'Annotation Views', component: 'StepViewLayout' },
           { name: 'Time Series', component: 'StepAddTimeseries' },
           { name: 'Create', component: 'StepReview' },
         ] as const);
@@ -92,6 +97,15 @@ export const CreateCampaignPage = () => {
       case 'StepImagery':
         return (
           <StepImagery
+            form={form}
+            setForm={setForm}
+            imageryState={imageryState}
+            setImageryState={setImageryState}
+          />
+        );
+      case 'StepViewLayout':
+        return (
+          <StepViewLayout
             form={form}
             setForm={setForm}
             imageryState={imageryState}
@@ -134,6 +148,10 @@ export const CreateCampaignPage = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (!canCreateCampaigns) {
+    return <Navigate to="/campaigns" replace />;
+  }
 
   return (
     <div className="flex-1 overflow-auto">

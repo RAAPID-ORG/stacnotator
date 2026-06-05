@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import {
+  setStyleOverride,
+  clearStyleOverride,
+  type LabelStyle,
+  type StyleOverrides,
+} from '../utils/annotationStyle';
 
 /**
  * Per-device user preferences. Persisted to localStorage via zustand's
@@ -31,6 +37,16 @@ interface PreferencesStore {
    */
   tourSeenByCampaign: Record<string, true>;
   markTourSeen: (accountId: string, campaignId: number) => void;
+
+  /**
+   * Per-user styling for drawn objects in open mode, keyed by
+   * `${campaignId}:${labelId}`. Only fields the user changed are stored; the
+   * rest fall back to the label default via `resolveLabelStyle`. Merge/keying
+   * logic lives in `utils/annotationStyle.ts` (pure, unit-tested).
+   */
+  annotationStyles: StyleOverrides;
+  setLabelStyle: (campaignId: number, labelId: number, patch: Partial<LabelStyle>) => void;
+  resetLabelStyle: (campaignId: number, labelId: number) => void;
 }
 
 const tourKey = (accountId: string, campaignId: number) => `${accountId}:${campaignId}`;
@@ -49,6 +65,16 @@ export const usePreferencesStore = create<PreferencesStore>()(
             [tourKey(accountId, campaignId)]: true,
           },
         })),
+
+      annotationStyles: {},
+      setLabelStyle: (campaignId, labelId, patch) =>
+        set((s) => ({
+          annotationStyles: setStyleOverride(s.annotationStyles, campaignId, labelId, patch),
+        })),
+      resetLabelStyle: (campaignId, labelId) =>
+        set((s) => ({
+          annotationStyles: clearStyleOverride(s.annotationStyles, campaignId, labelId),
+        })),
     }),
     {
       name: 'stacnotator:preferences',
@@ -62,24 +88,9 @@ export const usePreferencesStore = create<PreferencesStore>()(
  * Has the user already dismissed the guided tour for this campaign?
  *
  * Returns true when the account is unknown (fail-safe: don't auto-open the
- * tour if we can't identify the user). On a miss, also probes the legacy
- * `stacnotator:tour-seen:<accountId>:<campaignId>` key written by earlier
- * versions and folds it into the store, so upgrading users don't see the
- * tour again. The legacy key is removed once migrated.
+ * tour if we can't identify the user).
  */
 export function hasSeenTour(accountId: string | undefined, campaignId: number): boolean {
   if (!accountId) return true;
-  const key = tourKey(accountId, campaignId);
-  if (usePreferencesStore.getState().tourSeenByCampaign[key]) return true;
-  try {
-    const legacy = `stacnotator:tour-seen:${accountId}:${campaignId}`;
-    if (localStorage.getItem(legacy) === '1') {
-      usePreferencesStore.getState().markTourSeen(accountId, campaignId);
-      localStorage.removeItem(legacy);
-      return true;
-    }
-  } catch {
-    // localStorage unavailable (private browsing etc.) - treat as not seen
-  }
-  return false;
+  return !!usePreferencesStore.getState().tourSeenByCampaign[tourKey(accountId, campaignId)];
 }

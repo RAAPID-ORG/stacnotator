@@ -1,4 +1,4 @@
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import OLMap from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -7,7 +7,8 @@ import VectorSource from 'ol/source/Vector';
 import XYZ from 'ol/source/XYZ';
 import Overlay from 'ol/Overlay';
 import { fromLonLat } from 'ol/proj';
-import { defaults as defaultInteractions } from 'ol/interaction';
+import { defaults as defaultInteractions, MouseWheelZoom } from 'ol/interaction';
+import { platformModifierKeyOnly } from 'ol/events/condition';
 import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
 import type OLFeature from 'ol/Feature';
@@ -61,6 +62,8 @@ const geoJsonFormat = new OLGeoJSON();
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
 
+const ZOOM_HINT = 'Ctrl/⌘ + scroll to zoom';
+
 const WindowMap = ({
   initialCenter,
   initialZoom,
@@ -91,6 +94,18 @@ const WindowMap = ({
   const campaign = useCampaignStore((state) => state.campaign);
   const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
   const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
+
+  // Wheel zoom is gated behind the platform modifier so plain scroll pages the
+  // canvas. Flash a hint when the user scrolls over a window without it.
+  const [showZoomHint, setShowZoomHint] = useState(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(hintTimerRef.current ?? undefined), []);
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) return;
+    setShowZoomHint(true);
+    clearTimeout(hintTimerRef.current ?? undefined);
+    hintTimerRef.current = setTimeout(() => setShowZoomHint(false), 1200);
+  };
 
   // Create the map once on mount
   useEffect(() => {
@@ -154,7 +169,9 @@ const WindowMap = ({
         zoom: initialZoom,
       }),
       controls: [],
-      interactions: defaultInteractions(),
+      interactions: defaultInteractions({ mouseWheelZoom: false }).extend([
+        new MouseWheelZoom({ condition: platformModifierKeyOnly }),
+      ]),
     });
 
     // Crosshair overlay
@@ -353,7 +370,17 @@ const WindowMap = ({
     }
   }, [crosshair, crosshair?.lat, crosshair?.lon, crosshair?.color, showCrosshair]);
 
-  return <div ref={containerRef} className="w-full h-full bg-neutral-200" />;
+  return (
+    <div className="relative w-full h-full" onWheel={handleWheel}>
+      <div ref={containerRef} className="w-full h-full bg-neutral-200" />
+      <div
+        data-zoom-hint
+        className={`pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white transition-opacity duration-200 ${showZoomHint ? 'opacity-100' : 'opacity-0'}`}
+      >
+        {ZOOM_HINT}
+      </div>
+    </div>
+  );
 };
 
 export default memo(WindowMap);

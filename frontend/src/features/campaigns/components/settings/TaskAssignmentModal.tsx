@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
+import { distributeEvenly, assignFixedCount } from '~/features/campaigns/utils/taskAssignment';
 
 interface TaskAssignmentModalProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface TaskAssignmentModalProps {
   onAssign: (assignments: { [taskId: number]: string[] }) => Promise<void>;
 }
 
-type AssignmentMode = 'random-all' | 'random-count';
+type AssignmentMode = 'distribute-evenly' | 'fixed-count';
 
 export const TaskAssignmentModal = ({
   isOpen,
@@ -19,7 +20,7 @@ export const TaskAssignmentModal = ({
   campaignUsers,
   onAssign,
 }: TaskAssignmentModalProps) => {
-  const [mode, setMode] = useState<AssignmentMode>('random-all');
+  const [mode, setMode] = useState<AssignmentMode>('distribute-evenly');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [tasksPerUser, setTasksPerUser] = useState<{ [userId: string]: number }>({});
   const [assigning, setAssigning] = useState(false);
@@ -67,35 +68,18 @@ export const TaskAssignmentModal = ({
   };
 
   const generateAssignments = (): { [taskId: number]: string[] } => {
-    const assignments: { [taskId: number]: string[] } = {};
+    if (selectedUsers.length === 0) return {};
 
-    if (mode === 'random-all') {
-      if (selectedUsers.length === 0) return assignments;
+    const taskIds = unassignedTasks.map((t) => t.id);
 
-      unassignedTasks.forEach((task, index) => {
-        const userIndex = index % selectedUsers.length;
-        assignments[task.id] = [selectedUsers[userIndex]];
-      });
-    } else if (mode === 'random-count') {
-      if (selectedUsers.length === 0) return assignments;
-
-      const shuffled = [...unassignedTasks].sort(() => Math.random() - 0.5);
-      let taskIndex = 0;
-
-      selectedUsers.forEach((userId) => {
-        const count = tasksPerUser[userId] || 10;
-        for (let i = 0; i < count && taskIndex < shuffled.length; i++) {
-          const task = shuffled[taskIndex];
-          if (!assignments[task.id]) {
-            assignments[task.id] = [];
-          }
-          assignments[task.id].push(userId);
-          taskIndex++;
-        }
-      });
+    if (mode === 'distribute-evenly') {
+      return distributeEvenly(taskIds, selectedUsers);
     }
 
-    return assignments;
+    return assignFixedCount(
+      taskIds,
+      selectedUsers.map((userId) => ({ userId, count: tasksPerUser[userId] || 10 }))
+    );
   };
 
   const handleAssign = async () => {
@@ -142,19 +126,19 @@ export const TaskAssignmentModal = ({
             </label>
             <div className="flex gap-3">
               <button
-                onClick={() => setMode('random-all')}
+                onClick={() => setMode('distribute-evenly')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
-                  mode === 'random-all'
+                  mode === 'distribute-evenly'
                     ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
               >
-                Assign All Random
+                Distribute Evenly
               </button>
               <button
-                onClick={() => setMode('random-count')}
+                onClick={() => setMode('fixed-count')}
                 className={`px-4 py-2 rounded-lg border transition-colors ${
-                  mode === 'random-count'
+                  mode === 'fixed-count'
                     ? 'bg-brand-600 text-white border-brand-600'
                     : 'bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50'
                 }`}
@@ -162,13 +146,25 @@ export const TaskAssignmentModal = ({
                 N Tasks per User
               </button>
             </div>
+            {mode === 'distribute-evenly' && (
+              <p className="text-sm text-neutral-500 mt-2">
+                All unassigned tasks are split as evenly as possible across the selected users. Each
+                user receives either ⌊N/users⌋ or ⌈N/users⌉ tasks, assigned in random order.
+              </p>
+            )}
+            {mode === 'fixed-count' && (
+              <p className="text-sm text-neutral-500 mt-2">
+                Each user receives the exact number of tasks you specify. Tasks are drawn randomly
+                from the pool; once a task is taken it won't be assigned to anyone else.
+              </p>
+            )}
           </div>
 
-          {/* Random All / Random Count Mode */}
-          {(mode === 'random-all' || mode === 'random-count') && (
+          {/* Distribute Evenly / Fixed Count Mode */}
+          {(mode === 'distribute-evenly' || mode === 'fixed-count') && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Select Users {mode === 'random-count' && 'and Task Counts'}
+                Select Users {mode === 'fixed-count' && 'and Task Counts'}
               </label>
               <button
                 onClick={handleSelectAllUsers}
@@ -204,7 +200,7 @@ export const TaskAssignmentModal = ({
                       </div>
                     </label>
 
-                    {mode === 'random-count' && selectedUsers.includes(user.user.id) && (
+                    {mode === 'fixed-count' && selectedUsers.includes(user.user.id) && (
                       <div className="flex items-center gap-2 ml-4">
                         <label className="text-sm text-neutral-600 whitespace-nowrap">Tasks:</label>
                         <input
@@ -229,8 +225,9 @@ export const TaskAssignmentModal = ({
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
                 <strong>Preview:</strong> Will assign {previewAssignmentCount} tasks
-                {mode === 'random-all' && ` evenly distributed to ${selectedUsers.length} user(s)`}
-                {mode === 'random-count' && ` to ${selectedUsers.length} user(s)`}
+                {mode === 'distribute-evenly' &&
+                  ` evenly distributed across ${selectedUsers.length} user(s)`}
+                {mode === 'fixed-count' && ` to ${selectedUsers.length} user(s)`}
               </p>
             </div>
           )}

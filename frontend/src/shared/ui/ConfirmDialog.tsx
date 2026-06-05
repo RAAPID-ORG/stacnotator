@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from './forms';
 import { AnimatedDialog } from './motion';
+import { Spinner } from './Spinner';
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
@@ -71,11 +72,7 @@ export const ConfirmDialog = ({
           variant={isDangerous ? 'danger' : 'primary'}
           onClick={handleConfirm}
           disabled={isLoading}
-          leading={
-            isLoading ? (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            ) : undefined
-          }
+          leading={isLoading ? <Spinner size="xs" variant="white" /> : undefined}
         >
           {confirmText}
         </Button>

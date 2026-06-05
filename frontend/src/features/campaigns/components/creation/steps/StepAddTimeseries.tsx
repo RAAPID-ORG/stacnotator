@@ -7,7 +7,8 @@ import {
 } from '~/api/client';
 import { inputMonthToYYYYMM, yyyymmToInputMonth } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
-import { MonthPicker } from './imagery/MonthPicker';
+import { MonthPicker } from '~/shared/ui/MonthPicker';
+import { Input, Select, Button } from '~/shared/ui/forms';
 
 const emptyTimeseries = (): TimeSeriesCreate => ({
   name: '',
@@ -103,11 +104,11 @@ export const StepAddTimeseries = ({
             </button>
           </div>
 
-          <input
+          <Input
+            size="sm"
             placeholder="Timeseries name"
             value={i.name}
             onChange={(e) => updateItem(index, { name: e.target.value })}
-            className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -130,10 +131,10 @@ export const StepAddTimeseries = ({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Data Source</label>
-              <select
+              <Select
+                size="sm"
                 value={i.data_source}
                 onChange={(e) => updateItem(index, { data_source: e.target.value })}
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
               >
                 <option value="">Select Data Source</option>
                 {tsOptions?.data_sources.map((source) => (
@@ -141,15 +142,15 @@ export const StepAddTimeseries = ({
                     {source}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Provider</label>
-              <select
+              <Select
+                size="sm"
                 value={i.provider}
                 onChange={(e) => updateItem(index, { provider: e.target.value })}
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
               >
                 <option value="">Select Provider</option>
                 {tsOptions?.providers.map((provider) => (
@@ -157,15 +158,15 @@ export const StepAddTimeseries = ({
                     {provider}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <div className="space-y-1">
               <label className="text-xs text-neutral-700">Type</label>
-              <select
+              <Select
+                size="sm"
                 value={i.ts_type}
                 onChange={(e) => updateItem(index, { ts_type: e.target.value })}
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 outline-none transition-colors"
               >
                 <option value="">Select Type</option>
                 {tsOptions?.ts_types.map((type) => (
@@ -173,20 +174,16 @@ export const StepAddTimeseries = ({
                     {type}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
         </div>
       ))}
 
       <div>
-        <button
-          type="button"
-          onClick={addItem}
-          className="rounded-md border text-neutral-700 border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 cursor-pointer"
-        >
+        <Button variant="secondary" onClick={addItem}>
           + Add Timeseries
-        </button>
+        </Button>
       </div>
 
       {items.length === 0 && (

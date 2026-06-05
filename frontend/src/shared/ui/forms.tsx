@@ -10,35 +10,55 @@ import {
 // Single source of truth for form primitives. Import from here instead of
 // writing `border border-neutral-300 rounded-md px-3 py-2` inline.
 
+export type FieldSize = 'sm' | 'md';
+
 const fieldBase =
-  'w-full text-sm text-neutral-900 bg-white border border-neutral-300 rounded-md ' +
+  'w-full text-neutral-900 bg-white border border-neutral-300 rounded-md ' +
   'placeholder:text-neutral-400 ' +
   'focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15 ' +
   'disabled:bg-neutral-50 disabled:text-neutral-500 disabled:cursor-not-allowed ' +
   'transition-colors';
 
-const fieldSingle = 'h-9 px-3';
+// Per-size dimensions for single-line fields (input/select) and textareas.
+const fieldSingleSize: Record<FieldSize, string> = {
+  sm: 'h-8 px-2.5 text-xs',
+  md: 'h-9 px-3 text-sm',
+};
 
-export const inputClass = `${fieldBase} ${fieldSingle}`;
+const fieldAreaSize: Record<FieldSize, string> = {
+  sm: 'px-2.5 py-1.5 text-xs',
+  md: 'px-3 py-2 text-sm',
+};
 
-export const textareaClass = `${fieldBase} px-3 py-2 resize-y min-h-[5rem]`;
-
-export const selectClass =
-  `${fieldBase} ${fieldSingle} pr-8 appearance-none cursor-pointer ` +
-  "bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23737373%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] " +
+const selectChevron =
+  "pr-8 appearance-none cursor-pointer bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23737373%22%20d%3D%22M2%204l4%204%204-4%22%2F%3E%3C%2Fsvg%3E')] " +
   'bg-no-repeat bg-[right_0.625rem_center]';
+
+export const fieldClass = (size: FieldSize = 'md') => `${fieldBase} ${fieldSingleSize[size]}`;
+
+export const inputClass = fieldClass('md');
+
+export const textareaClass = `${fieldBase} ${fieldAreaSize.md} resize-y min-h-[5rem]`;
+
+export const selectClass = `${fieldBase} ${fieldSingleSize.md} ${selectChevron}`;
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  size?: FieldSize;
   leading?: ReactNode;
   trailing?: ReactNode;
 }
 
 const buttonBase =
-  'inline-flex items-center justify-center gap-1.5 h-9 px-4 text-sm font-medium rounded-md ' +
+  'inline-flex items-center justify-center gap-1.5 font-medium rounded-md ' +
   'transition-colors disabled:cursor-not-allowed select-none whitespace-nowrap';
+
+const buttonSize: Record<FieldSize, string> = {
+  sm: 'h-8 px-3 text-xs',
+  md: 'h-9 px-4 text-sm',
+};
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
@@ -56,11 +76,14 @@ const buttonVariants: Record<ButtonVariant, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', leading, trailing, className, children, type, ...rest }, ref) => (
+  (
+    { variant = 'primary', size = 'md', leading, trailing, className, children, type, ...rest },
+    ref
+  ) => (
     <button
       ref={ref}
       type={type ?? 'button'}
-      className={`${buttonBase} ${buttonVariants[variant]} ${className ?? ''}`}
+      className={`${buttonBase} ${buttonSize[size]} ${buttonVariants[variant]} ${className ?? ''}`}
       {...rest}
     >
       {leading}
@@ -72,19 +95,48 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = 'Button';
 
 export const buttonClass = (variant: ButtonVariant = 'primary', extra?: string) =>
-  `${buttonBase} ${buttonVariants[variant]}${extra ? ' ' + extra : ''}`;
+  `${buttonBase} ${buttonSize.md} ${buttonVariants[variant]}${extra ? ' ' + extra : ''}`;
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export type IconButtonTone = 'neutral' | 'danger' | 'brand';
+
+const iconButtonTones: Record<IconButtonTone, string> = {
+  neutral: 'text-neutral-400 hover:text-neutral-700',
+  danger: 'text-red-400 hover:text-red-600',
+  brand: 'text-neutral-500 hover:text-brand-600',
+};
+
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  tone?: IconButtonTone;
+}
+
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
+  ({ tone = 'neutral', className, type, children, ...rest }, ref) => (
+    <button
+      ref={ref}
+      type={type ?? 'button'}
+      className={`inline-flex items-center justify-center rounded p-0.5 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${iconButtonTones[tone]} ${className ?? ''}`}
+      {...rest}
+    >
+      {children}
+    </button>
+  )
+);
+IconButton.displayName = 'IconButton';
+
+const invalidClass = 'border-red-400 focus:border-red-500 focus:ring-red-500/15';
+
+interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   invalid?: boolean;
+  size?: FieldSize;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, invalid, ...rest }, ref) => (
+  ({ className, invalid, size = 'md', ...rest }, ref) => (
     <input
       ref={ref}
-      className={`${inputClass} ${
-        invalid ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''
-      } ${className ?? ''}`}
+      className={`${fieldBase} ${fieldSingleSize[size]} ${invalid ? invalidClass : ''} ${
+        className ?? ''
+      }`}
       {...rest}
     />
   )
@@ -93,14 +145,15 @@ Input.displayName = 'Input';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   invalid?: boolean;
+  size?: FieldSize;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, invalid, ...rest }, ref) => (
+  ({ className, invalid, size = 'md', ...rest }, ref) => (
     <textarea
       ref={ref}
-      className={`${textareaClass} ${
-        invalid ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''
+      className={`${fieldBase} ${fieldAreaSize[size]} resize-y min-h-[5rem] ${
+        invalid ? invalidClass : ''
       } ${className ?? ''}`}
       {...rest}
     />
@@ -108,16 +161,17 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 Textarea.displayName = 'Textarea';
 
-interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   invalid?: boolean;
+  size?: FieldSize;
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, invalid, children, ...rest }, ref) => (
+  ({ className, invalid, size = 'md', children, ...rest }, ref) => (
     <select
       ref={ref}
-      className={`${selectClass} ${
-        invalid ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''
+      className={`${fieldBase} ${fieldSingleSize[size]} ${selectChevron} ${
+        invalid ? invalidClass : ''
       } ${className ?? ''}`}
       {...rest}
     >

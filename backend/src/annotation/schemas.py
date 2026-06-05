@@ -88,6 +88,38 @@ class AnnotationTaskAssignmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
+    """Derive a task's status from its assignments and annotations."""
+    labeled = [a for a in annotation_list if a.get("label_id") is not None]
+    has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
+
+    if has_authoritative_label:
+        # An authoritative reviewer's label resolves the task on its own,
+        # overriding assignment-based aggregation.
+        return TASK_STATUS_DONE
+    if not assignment_list:
+        # No assignment table entries - treat any label as done.
+        return TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
+
+    all_assigned_ids = {a["user_id"] for a in assignment_list}
+    all_skipped = all(a.get("status") == ANNOTATION_TASK_STATUS_SKIPPED for a in assignment_list)
+    labeled_ids = {
+        a["created_by_user_id"] for a in labeled if a["created_by_user_id"] in all_assigned_ids
+    }
+
+    if all_skipped:
+        return TASK_STATUS_SKIPPED
+    if not labeled_ids:
+        # Nobody labeled yet; some may have skipped or still be pending.
+        return TASK_STATUS_PENDING
+    if labeled_ids != all_assigned_ids:
+        # Some assignees labeled, others didn't (skip or not-yet-acted).
+        # Not enough information to call this done or conflicting.
+        return TASK_STATUS_PARTIAL
+    labels = {a["label_id"] for a in labeled if a["created_by_user_id"] in labeled_ids}
+    return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+
+
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
@@ -153,39 +185,7 @@ class AnnotationTaskOut(BaseModel):
         else:
             return data
 
-        labeled = [a for a in annotation_list if a.get("label_id") is not None]
-        has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
-
-        if has_authoritative_label:
-            # An authoritative reviewer's label resolves the task on its own,
-            # overriding assignment-based aggregation.
-            status = TASK_STATUS_DONE
-        elif not assignment_list:
-            # No assignment table entries - treat any label as done.
-            status = TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
-        else:
-            all_assigned_ids = {a["user_id"] for a in assignment_list}
-            all_skipped = all(
-                a.get("status") == ANNOTATION_TASK_STATUS_SKIPPED for a in assignment_list
-            )
-            labeled_ids = {
-                a["created_by_user_id"]
-                for a in labeled
-                if a["created_by_user_id"] in all_assigned_ids
-            }
-
-            if all_skipped:
-                status = TASK_STATUS_SKIPPED
-            elif not labeled_ids:
-                # Nobody labeled yet; some may have skipped or still be pending.
-                status = TASK_STATUS_PENDING
-            elif labeled_ids != all_assigned_ids:
-                # Some assignees labeled, others didn't (skip or not-yet-acted).
-                # Not enough information to call this done or conflicting.
-                status = TASK_STATUS_PARTIAL
-            else:
-                labels = {a["label_id"] for a in labeled if a["created_by_user_id"] in labeled_ids}
-                status = TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+        status = compute_task_status_value(assignment_list, annotation_list)
 
         # Set the computed status on the data
         if hasattr(data, "__dict__"):

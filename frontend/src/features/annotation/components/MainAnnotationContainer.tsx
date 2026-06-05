@@ -22,8 +22,10 @@ import {
   extractCentroidFromWKT,
   computeExtentGeoJSON,
   convertWKTToGeoJSON,
+  formatSliceLabel,
 } from '~/shared/utils/utility';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
+import { sliceView } from '../utils/sliceView';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -49,26 +51,19 @@ export const MainAnnotationsContainer = ({
   const refocusTrigger = useMapStore((s) => s.refocusTrigger);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
-  const setSliceNavIntent = useMapStore((s) => s.setSliceNavIntent);
 
-  /**
-   * Slice change triggered by a deliberate user pick (dropdown / timeline).
-   * Marks the intent as 'pick' so ImageryContainer's empty-probe does not
-   * auto-skip away from an explicitly-selected empty slice.
-   */
-  const pickSlice = (index: number) => {
-    setSliceNavIntent('pick');
-    setActiveSliceIndex(index);
-  };
+  const pickSlice = (index: number) => setActiveSliceIndex(index);
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setMapCenter = useMapStore((s) => s.setMapCenter);
   const setMapZoom = useMapStore((s) => s.setMapZoom);
   const setMapBounds = useMapStore((s) => s.setMapBounds);
+  const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
   const setSelectedBasemapId = useMapStore((s) => s.setSelectedBasemapId);
+  const recordSourceState = useMapStore((s) => s.recordSourceState);
   const emptySlices = useMapStore((s) => s.emptySlices);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const setProbeTimeseriesPoint = useMapStore((s) => s.setProbeTimeseriesPoint);
@@ -262,8 +257,14 @@ export const MainAnnotationsContainer = ({
         const vIdx = layerId.indexOf('-v');
         if (vIdx !== -1) {
           const vizName = layerId.slice(vIdx + 2);
-          // Switch to the collection if it belongs to a different source
+          // Record current source's viz so cycling back with I restores it.
           if (collectionId != null && collectionId !== activeCollectionId) {
+            const currentSrc = campaign?.imagery_sources.find((s) =>
+              s.collections.some((c) => c.id === activeCollectionId)
+            );
+            if (currentSrc && activeCollectionId !== null) {
+              recordSourceState(currentSrc.id, activeCollectionId, selectedLayerIndex);
+            }
             setActiveCollectionId(collectionId);
           }
           const entryIdx = allVizEntries.findIndex((e) => e.vizName === vizName);
@@ -277,11 +278,14 @@ export const MainAnnotationsContainer = ({
       mapLayers,
       allVizEntries,
       activeCollectionId,
+      selectedLayerIndex,
+      campaign,
       setActiveLayerId,
       setActiveCollectionId,
       setSelectedBasemapId,
       setShowBasemap,
       setSelectedLayerIndex,
+      recordSourceState,
     ]
   );
 
@@ -314,9 +318,7 @@ export const MainAnnotationsContainer = ({
         collapsed={timelineCollapsed}
         onToggleCollapse={() => setTimelineCollapsed((c) => !c)}
         onCollectionChange={setActiveCollectionId}
-        onSliceChange={pickSlice}
         onDraggingChange={setTimelineDragging}
-        emptySlices={emptySlices}
       />
       <div className="flex-1 min-w-0 h-full relative">
         {/* Header controls – rendered via portal into the card header slot in Canvas */}
@@ -346,21 +348,36 @@ export const MainAnnotationsContainer = ({
                 />
               )}
 
-              {slices.length > 1 && (
-                <HeaderSelect
-                  value={activeSliceIndex}
-                  options={slices.map((slice, idx) => {
+              {slices.length > 1 &&
+                (() => {
+                  const { pickerIndices } = sliceView(
+                    slices.length,
+                    activeCollection?.cover_slice_index,
+                    activeCollection?.has_dedicated_cover
+                  );
+                  const options = pickerIndices.map((idx) => {
+                    const slice = slices[idx];
                     const isEmpty = !!emptySlices[`${activeCollectionId}-${idx}`];
+                    const baseLabel =
+                      slice.name ||
+                      (slice.start_date && slice.end_date
+                        ? formatSliceLabel(slice.start_date, slice.end_date, 'days', idx)
+                        : `Slice ${idx + 1}`);
                     return {
                       value: idx,
-                      label: `${slice.name}${isEmpty ? ' (empty)' : ''}`,
+                      label: `${baseLabel}${isEmpty ? ' (empty)' : ''}`,
                       dimmed: isEmpty,
                     };
-                  })}
-                  onChange={(v) => pickSlice(Number(v))}
-                  title={isTaskMode ? 'Select time slice (a/d)' : 'Select time slice'}
-                />
-              )}
+                  });
+                  return (
+                    <HeaderSelect
+                      value={activeSliceIndex}
+                      options={options}
+                      onChange={(v) => pickSlice(Number(v))}
+                      title={isTaskMode ? 'Select time slice (a/d)' : 'Select time slice'}
+                    />
+                  );
+                })()}
 
               {/* Divider */}
               <div className="w-px h-3 bg-neutral-200 mx-0.5" />

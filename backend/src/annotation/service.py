@@ -26,8 +26,8 @@ from src.annotation.models import (
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
-    AnnotationTaskOut,
     AnnotationUpdate,
+    compute_task_status_value,
 )
 from src.auth.models import User
 from src.auth.service import is_admin as is_platform_admin
@@ -910,7 +910,10 @@ def _fetch_annotations_with_context(
         db.execute(
             select(Annotation)
             .where(Annotation.campaign_id == campaign.id)
-            .options(joinedload(Annotation.geometry), joinedload(Annotation.annotation_task))
+            .options(
+                joinedload(Annotation.geometry),
+                joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
+            )
         )
         .unique()
         .scalars()
@@ -1008,20 +1011,39 @@ def _conflicting_task_numbers(
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
         labeled = [a for a in task_anns if a.label_id is not None]
+        # An authoritative reviewer's label resolves the task on its own
+        # (same rule as compute_task_status, which marks it 'done'), so it is
+        # not a merge conflict even if the assignees disagreed.
+        if any(a.is_authoritative for a in labeled):
+            continue
         if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
             task = task_anns[0].annotation_task
             conflicts.append(task.annotation_number if task else task_id)
     return sorted(conflicts)
 
 
-def _compute_task_status_for_export(task: AnnotationTask | None) -> str | None:
-    """Use the same status rules as the API by going through the schema.
+def _compute_task_status_for_export(
+    task: AnnotationTask | None, task_anns: list[Annotation]
+) -> str | None:
+    """Compute task status using the shared rule on already-loaded data.
 
-    Avoids duplicating the logic in schemas.py:88 (compute_task_status).
+    Calls the same logic as the API (``compute_task_status_value`` in schemas.py)
+    but feeds it in-memory annotations and the eager-loaded assignments, avoiding
+    ``AnnotationTaskOut.model_validate`` which would lazy-load creator/user/geometry
+    relationships once per task and annotation (an N+1 storm during export).
     """
     if task is None:
         return None
-    return AnnotationTaskOut.model_validate(task).task_status
+    assignment_list = [{"user_id": a.user_id, "status": a.status} for a in (task.assignments or [])]
+    annotation_list = [
+        {
+            "label_id": a.label_id,
+            "created_by_user_id": a.created_by_user_id,
+            "is_authoritative": a.is_authoritative,
+        }
+        for a in task_anns
+    ]
+    return compute_task_status_value(assignment_list, annotation_list)
 
 
 def _build_export_record_for_annotation(
@@ -1162,7 +1184,7 @@ def _build_annotation_records(
     for task_id in sorted(grouped.keys()):
         task_anns = grouped[task_id]
         task = task_anns[0].annotation_task
-        task_status = _compute_task_status_for_export(task)
+        task_status = _compute_task_status_for_export(task, task_anns)
         labeled = [a for a in task_anns if a.label_id is not None]
 
         if merge_on_agreement and len(labeled) >= 2:

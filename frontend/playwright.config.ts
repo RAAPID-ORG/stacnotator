@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Playwright E2E test configuration.
  *
  * Default target: local Vite dev server (make dev-up -> localhost:5173).
- * Override with BASE_URL env var for staging (localhost:5174) or CI.
+ * Override with the BASE_URL env var for a different target (e.g. CI preview server).
  *
  * All API calls are intercepted and mocked in fixtures so a real backend
  * is NOT required - only the frontend needs to be running.

@@ -989,7 +989,7 @@ export const AnnotationToolbar = () => {
                 </div>
                 {(
                   [
-                    { key: 'V', description: 'Pan tool' },
+                    { key: 'P', description: 'Pan tool' },
                     { key: 'R', description: 'Annotate tool' },
                     { key: 'E', description: 'Edit tool' },
                     { key: 'T', description: 'Timeseries probe' },

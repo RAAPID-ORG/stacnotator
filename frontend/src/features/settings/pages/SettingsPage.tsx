@@ -11,6 +11,8 @@ import {
   denyUsersBulk,
   grantAdmin,
   revokeAdmin,
+  grantVisitor,
+  revokeVisitor,
   editUserInfo,
   type UserOutDetailed,
 } from '~/api/client';
@@ -87,7 +89,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -110,7 +111,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -133,7 +133,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Remove denied users from local state
       setUsers((prevUsers) =>
         prevUsers.filter((user) => !data?.success.some((u) => u.id === user.id))
       );
@@ -153,7 +152,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -176,7 +174,6 @@ export const SettingsPage = () => {
         body: { user_ids: userIds },
       });
 
-      // Update local state
       setUsers((prevUsers) =>
         prevUsers.map((user) => {
           const updated = data?.success.find((u) => u.id === user.id);
@@ -187,6 +184,50 @@ export const SettingsPage = () => {
       showAlert(`${data?.success.length || 0} admin role(s) revoked successfully`, 'success');
     } catch (err) {
       handleError(err, 'Failed to revoke admin');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGrantVisitor = async (userIds: string[]) => {
+    try {
+      setSaving(true);
+      const { data } = await grantVisitor({
+        body: { user_ids: userIds },
+      });
+
+      setUsers((prevUsers) =>
+        prevUsers.map((user) => {
+          const updated = data?.success.find((u) => u.id === user.id);
+          return updated || user;
+        })
+      );
+
+      showAlert(`${data?.success.length || 0} user(s) set as visitor`, 'success');
+    } catch (err) {
+      handleError(err, 'Failed to set users as visitor');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevokeVisitor = async (userIds: string[]) => {
+    try {
+      setSaving(true);
+      const { data } = await revokeVisitor({
+        body: { user_ids: userIds },
+      });
+
+      setUsers((prevUsers) =>
+        prevUsers.map((user) => {
+          const updated = data?.success.find((u) => u.id === user.id);
+          return updated || user;
+        })
+      );
+
+      showAlert(`${data?.success.length || 0} user(s) set as standard`, 'success');
+    } catch (err) {
+      handleError(err, 'Failed to set users as standard');
     } finally {
       setSaving(false);
     }
@@ -539,6 +580,8 @@ export const SettingsPage = () => {
                       onDeny={handleDeny}
                       onGrantAdmin={handleGrantAdmin}
                       onRevokeAdmin={handleRevokeAdmin}
+                      onGrantVisitor={handleGrantVisitor}
+                      onRevokeVisitor={handleRevokeVisitor}
                       loading={isPageLoading}
                     />
                   </section>
@@ -549,7 +592,6 @@ export const SettingsPage = () => {
         </FadeIn>
       </div>
 
-      {/* Loading Overlay */}
       <LoadingOverlay visible={saving} text="Processing..." />
     </>
   );

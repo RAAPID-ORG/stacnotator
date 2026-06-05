@@ -35,6 +35,7 @@ export const AnnotationTasksTable = ({
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
@@ -100,9 +101,10 @@ export const AnnotationTasksTable = ({
     try {
       setIsDeleting(true);
       await onDeleteTasks(Array.from(selectedTasks));
-      setSelectedTasks(new Set()); // Clear selection after successful delete
+      setSelectedTasks(new Set());
     } finally {
       setIsDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -145,10 +147,10 @@ export const AnnotationTasksTable = ({
             {onDeleteTasks && (
               <Button
                 variant="danger"
-                onClick={handleDeleteSelected}
+                onClick={() => setConfirmDelete(true)}
                 disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
               >
-                {isDeleting ? 'Deleting…' : 'Delete selected'}
+                Delete selected
               </Button>
             )}
             {onBatchUnassignTasks && (
@@ -185,7 +187,7 @@ export const AnnotationTasksTable = ({
                 onClick={onOpenReviewerAssign}
                 disabled={isDeleting || isBatchUnassigning}
               >
-                Assign reviewers
+                Set up reviews
               </Button>
             )}
           </div>
@@ -417,6 +419,18 @@ export const AnnotationTasksTable = ({
           </div>
         );
       })()}
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title="Delete selected tasks?"
+        description={`This will permanently delete ${selectedTasks.size} selected task(s) and all associated annotations. This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isDangerous
+        isLoading={isDeleting}
+        onConfirm={handleDeleteSelected}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       <ConfirmDialog
         isOpen={confirmBatchUnassign}

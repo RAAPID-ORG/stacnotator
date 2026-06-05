@@ -4,7 +4,7 @@
 	typecheck typecheck-backend typecheck-frontend \
 	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
-	staging-up staging-down staging-logs dev-restore-backup \
+	dev-restore-backup \
 	dev-logs-tiler dev-restart-tiler dev-shell-tiler logs-tiler restart-tiler \
 	az-deploy-prod az-deploy-dev az-sync-prod-to-dev \
 	az-logs-prod az-logs-dev az-upload-secrets-prod az-upload-secrets-dev
@@ -20,9 +20,6 @@ COMPOSE_DEV = docker-compose -f docker-compose.dev.yml
 
 # Production Commands (standalone prod compose file)
 COMPOSE_PROD = docker-compose -f docker-compose.prod.yml
-
-# Staging Commands (isolated stack for pre-deploy testing)
-COMPOSE_STAGING = docker compose -p stacnotator-staging -f docker-compose.staging.yml
 
 ###################################################
 # Dev Commands
@@ -296,19 +293,6 @@ pre-commit-install: ## Install pre-commit hooks
 
 pre-commit-run: ## Run pre-commit on all files
 	cd backend && uv run pre-commit run --all-files
-
-###################################################
-# Staging (pre-deploy testing against prod DB copy)
-###################################################
-
-staging-up: ## Download prod DB, spin up isolated stack, run migrations, and test
-	./azure_deploy/make-staging-env.sh
-
-staging-down: ## Tear down the staging stack
-	./azure_deploy/make-staging-env.sh --down
-
-staging-logs: ## Show logs from the staging stack
-	$(COMPOSE_STAGING) logs -f
 
 ###################################################
 # Azure Deployment

@@ -6,6 +6,7 @@ import { IconPlus, IconDocument, IconGear, IconGlobe } from '~/shared/ui/Icons';
 import { Button, Input } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import { useCanCreateCampaigns } from '~/features/account/account.store';
 import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -27,6 +28,7 @@ export const CampaignsPage = () => {
   const [filter, setFilter] = useState<'all' | 'mine' | 'public'>('all');
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
+  const canCreateCampaigns = useCanCreateCampaigns();
 
   useEffect(() => {
     setBreadcrumbs([{ label: 'Campaigns' }]);
@@ -77,12 +79,14 @@ export const CampaignsPage = () => {
               {filter !== 'all' || query ? ` · ${filtered.length} shown` : ''}
             </p>
           </div>
-          <Button
-            onClick={() => navigate('/campaigns/new')}
-            leading={<IconPlus className="w-4 h-4" />}
-          >
-            New campaign
-          </Button>
+          {canCreateCampaigns && (
+            <Button
+              onClick={() => navigate('/campaigns/new')}
+              leading={<IconPlus className="w-4 h-4" />}
+            >
+              New campaign
+            </Button>
+          )}
         </header>
 
         {campaigns.length === 0 ? (
@@ -93,14 +97,18 @@ export const CampaignsPage = () => {
               </div>
               <p className="text-base text-neutral-800 font-medium mb-1">No campaigns yet</p>
               <p className="text-sm text-neutral-500 mb-5">
-                Create your first campaign to get started.
+                {canCreateCampaigns
+                  ? 'Create your first campaign to get started.'
+                  : "You'll see campaigns here once you're added to one."}
               </p>
-              <Button
-                onClick={() => navigate('/campaigns/new')}
-                leading={<IconPlus className="w-4 h-4" />}
-              >
-                Create campaign
-              </Button>
+              {canCreateCampaigns && (
+                <Button
+                  onClick={() => navigate('/campaigns/new')}
+                  leading={<IconPlus className="w-4 h-4" />}
+                >
+                  Create campaign
+                </Button>
+              )}
             </div>
           </div>
         ) : (

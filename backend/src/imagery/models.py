@@ -1,5 +1,6 @@
 from geoalchemy2 import Geometry
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -43,10 +44,12 @@ class ImagerySource(Base):
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
+        order_by="VisualizationTemplate.display_order",
     )
     collections: Mapped[list["ImageryCollection"]] = relationship(
         back_populates="source",
         cascade="all, delete-orphan",
+        order_by="ImageryCollection.display_order",
     )
 
 
@@ -83,12 +86,19 @@ class ImageryCollection(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     cover_slice_index: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    # True when the slice at cover_slice_index is an out-of-band cover with
+    # override viz params / search query. False for a regular slice promoted
+    # to cover (which renders with the normal viz_params).
+    has_dedicated_cover: Mapped[bool] = mapped_column(
+        Boolean, server_default="false", nullable=False
+    )
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
     source: Mapped["ImagerySource"] = relationship(back_populates="collections")
     slices: Mapped[list["ImagerySlice"]] = relationship(
         back_populates="collection",
         cascade="all, delete-orphan",
+        order_by="ImagerySlice.display_order",
     )
     stac_config: Mapped["CollectionStacConfig | None"] = relationship(
         back_populates="collection",
@@ -107,13 +117,7 @@ class CollectionStacConfig(Base):
         ForeignKey("data.imagery_collections.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    registration_url: Mapped[str] = mapped_column(Text, nullable=False)
-    search_body: Mapped[str] = mapped_column(Text, nullable=False)
-    # Tile URL templates with {searchId} placeholders, persisted so we can re-register
-    # when the campaign bbox changes.  Format: [{"viz_name": "...", "url_template": "..."}]
-    viz_url_templates: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-
-    # New fields for STAC catalog browser / TiTiler integration ──
+    # STAC catalog browser / TiTiler integration ──
     catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
     tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)

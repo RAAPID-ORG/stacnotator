@@ -38,41 +38,58 @@ import type { DrawEvent } from 'ol/interaction/Draw';
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { useMapStore } from '../../stores/map.store';
+import { usePreferencesStore } from '../../stores/preferences.store';
+import {
+  resolveLabelStyle,
+  styleKey,
+  emphasizedFillOpacity,
+  emphasizedStrokeWidth,
+  type LabelStyle,
+} from '../../utils/annotationStyle';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
 
-function buildStyle(
-  color: string,
-  selected = false,
-  hovered = false,
-  geometryType: ExtendedLabel['geometry_type'] = 'polygon'
-): Style {
-  const fillOpacity = selected ? 0.35 : hovered ? 0.25 : 0.2;
-  const strokeWidth = selected ? 3 : hovered ? 2.5 : geometryType === 'line' ? 3 : 2;
+function buildStyle(style: LabelStyle, selected = false, hovered = false): Style {
+  const fillOpacity = emphasizedFillOpacity(style.fillOpacity, { selected, hovered });
+  const strokeWidth = emphasizedStrokeWidth(style.strokeWidth, { selected, hovered });
 
   return new Style({
-    fill: new Fill({ color: hexToRgba(color, fillOpacity) }),
-    stroke: new Stroke({ color, width: strokeWidth }),
+    fill: new Fill({ color: hexToRgba(style.fillColor, fillOpacity) }),
+    stroke: new Stroke({
+      color: hexToRgba(style.strokeColor, style.strokeOpacity),
+      width: strokeWidth,
+    }),
     image: new CircleStyle({
       radius: selected ? 8 : hovered ? 7 : 6,
-      fill: new Fill({ color: hexToRgba(color, 0.85) }),
-      stroke: new Stroke({ color: '#fff', width: 2 }),
+      fill: new Fill({ color: hexToRgba(style.fillColor, fillOpacity) }),
+      stroke: new Stroke({
+        color: hexToRgba(style.strokeColor, style.strokeOpacity),
+        width: strokeWidth,
+      }),
     }),
   });
 }
 
-function buildDrawStyle(color: string, geometryType: ExtendedLabel['geometry_type']): Style[] {
+function buildDrawStyle(style: LabelStyle): Style[] {
   return [
     new Style({
-      fill: new Fill({ color: hexToRgba(color, 0.15) }),
-      stroke: new Stroke({ color, width: geometryType === 'line' ? 3 : 2, lineDash: [6, 4] }),
+      fill: new Fill({ color: hexToRgba(style.fillColor, Math.min(style.fillOpacity, 0.15)) }),
+      stroke: new Stroke({
+        color: hexToRgba(style.strokeColor, style.strokeOpacity),
+        width: style.strokeWidth,
+        lineDash: [6, 4],
+      }),
       image: new CircleStyle({
         radius: 5,
-        fill: new Fill({ color }),
-        stroke: new Stroke({ color: '#fff', width: 1.5 }),
+        fill: new Fill({ color: hexToRgba(style.fillColor, style.fillOpacity) }),
+        stroke: new Stroke({
+          color: hexToRgba(style.strokeColor, style.strokeOpacity),
+          width: style.strokeWidth,
+        }),
       }),
     }),
   ];
@@ -112,6 +129,21 @@ const DrawingLayer = ({
   const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
   const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);
   const setSelectedAnnotationId = useAnnotationStore((state) => state.setSelectedAnnotationId);
+  const styleOverrides = usePreferencesStore((state) => state.annotationStyles);
+  const showAnnotations = useMapStore((state) => state.showAnnotations);
+
+  const campaignId = campaign?.id ?? null;
+
+  // Resolve a label's effective style (user override layered on the default color)
+  const styleForLabel = useCallback(
+    (label: Pick<ExtendedLabel, 'id' | 'color' | 'geometry_type'>): LabelStyle =>
+      resolveLabelStyle(
+        label.color,
+        label.geometry_type,
+        campaignId !== null ? styleOverrides[styleKey(campaignId, label.id)] : undefined
+      ),
+    [campaignId, styleOverrides]
+  );
 
   const extendedLabels = useMemo(
     () => (campaign ? extendLabelsWithMetadata(campaign.settings.labels) : []),
@@ -157,6 +189,7 @@ const DrawingLayer = ({
       source,
       zIndex: ANNOTATION_LAYER_Z_INDEX,
     });
+    layer.setVisible(useMapStore.getState().showAnnotations);
     vectorLayerRef.current = layer;
     map.addLayer(layer);
 
@@ -166,6 +199,11 @@ const DrawingLayer = ({
       vectorLayerRef.current = null;
     };
   }, [map]);
+
+  // Toggle visibility of all drawn objects (D / eye button in open-mode controls)
+  useEffect(() => {
+    vectorLayerRef.current?.setVisible(showAnnotations);
+  }, [showAnnotations]);
 
   // 2. Sync annotation features from store into VectorSource
   useEffect(() => {
@@ -187,8 +225,9 @@ const DrawingLayer = ({
 
       incomingIds.add(annotation.id);
       const label = extendedLabels.find((l) => l.id === annotation.label_id);
-      const color = label?.color ?? '#3b82f6';
-      const geometryType = label?.geometry_type ?? 'polygon';
+      const style = styleForLabel(
+        label ?? { id: annotation.label_id ?? -1, color: '#3b82f6', geometry_type: 'polygon' }
+      );
 
       if (existing.has(annotation.id)) {
         const existingFeature = existing.get(annotation.id)!;
@@ -196,7 +235,7 @@ const DrawingLayer = ({
           featureProjection: 'EPSG:3857',
         }) as Geometry;
         existingFeature.setGeometry(newGeom);
-        existingFeature.setStyle(buildStyle(color, false, false, geometryType));
+        existingFeature.setStyle(buildStyle(style, false, false));
       } else {
         // Add new feature
         const feature = geoJsonFormat.readFeature(
@@ -205,7 +244,7 @@ const DrawingLayer = ({
         ) as OLFeature<Geometry>;
         feature.set(PROP_ANNOTATION_ID, annotation.id);
         feature.set(PROP_LABEL_ID, annotation.label_id);
-        feature.setStyle(buildStyle(color, false, false, geometryType));
+        feature.setStyle(buildStyle(style, false, false));
         source.addFeature(feature);
       }
     }
@@ -216,7 +255,7 @@ const DrawingLayer = ({
         source.removeFeature(feature);
       }
     }
-  }, [annotations, extendedLabels]);
+  }, [annotations, extendedLabels, styleForLabel]);
 
   // Helper: recompute edit controls position
   // Kept in a ref so interaction callbacks (modifyend, translateend) always
@@ -303,8 +342,7 @@ const DrawingLayer = ({
     const source = sourceRef.current;
     if (!source || !selectedLabel) return;
 
-    const color = selectedLabel.color;
-    const drawStyle = buildDrawStyle(color, selectedLabel.geometry_type);
+    const drawStyle = buildDrawStyle(styleForLabel(selectedLabel));
 
     const olDrawType =
       selectedLabel.geometry_type === 'point'
@@ -340,7 +378,7 @@ const DrawingLayer = ({
     snapInteractionRef.current = snap;
 
     map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
-  }, [map, selectedLabel, saveAnnotation]);
+  }, [map, selectedLabel, saveAnnotation, styleForLabel]);
 
   // 3b. Magic-wand interaction (single click -> auto polygon)
   const magicWandAbortRef = useRef<AbortController | null>(null);
@@ -387,10 +425,9 @@ const DrawingLayer = ({
         const labelId = feature.get(PROP_LABEL_ID) as number;
         const label = extendedLabels.find((l) => l.id === labelId);
         return buildStyle(
-          label?.color ?? '#3b82f6',
+          styleForLabel(label ?? { id: labelId, color: '#3b82f6', geometry_type: 'polygon' }),
           true,
-          false,
-          label?.geometry_type ?? 'polygon'
+          false
         );
       },
     });
@@ -455,7 +492,7 @@ const DrawingLayer = ({
     return () => {
       map.un('pointermove', handlePointerMove as unknown as () => void);
     };
-  }, [map, extendedLabels, setSelectedAnnotationId]); // refreshEditControlsPos intentionally omitted - called via stable ref
+  }, [map, extendedLabels, setSelectedAnnotationId, styleForLabel]); // refreshEditControlsPos intentionally omitted - called via stable ref
 
   // 3d. Timeseries click handler
   const setupTimeseriesInteraction = useCallback(() => {

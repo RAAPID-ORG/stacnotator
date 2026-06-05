@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useMapStore } from '../stores/map.store';
+import { sliceView } from '../utils/sliceView';
 
 /**
  * Shared slice/collection navigation used by keyboard shortcuts and on-screen
@@ -15,9 +16,8 @@ export const useSliceNavigation = () => {
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const setActiveSliceIndex = useMapStore((s) => s.setActiveSliceIndex);
-  const setSliceNavIntent = useMapStore((s) => s.setSliceNavIntent);
+  const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
   const emptySlices = useMapStore((s) => s.emptySlices);
-  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
 
   const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
 
@@ -29,7 +29,20 @@ export const useSliceNavigation = () => {
     );
   }, [campaign, activeCollectionId]);
 
-  const viewCollections = useMemo(() => {
+  type ViewCollection = {
+    collection_id: number;
+    source_id: number;
+    show_as_window: boolean;
+    source: { id: number };
+    collection: {
+      id: number;
+      cover_slice_index: number;
+      has_dedicated_cover?: boolean;
+      slices: { name: string }[];
+    };
+  };
+
+  const viewCollections = useMemo<ViewCollection[]>(() => {
     if (!selectedView || !campaign) return [];
     return selectedView.collection_refs
       .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
@@ -39,15 +52,9 @@ export const useSliceNavigation = () => {
         );
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         if (!source || !collection) return null;
-        return { ...ref, collection, source };
+        return { ...ref, collection, source } as ViewCollection;
       })
-      .filter(Boolean) as {
-      collection_id: number;
-      source_id: number;
-      show_as_window: boolean;
-      collection: { id: number; slices: { name: string }[] };
-      source: { id: number };
-    }[];
+      .filter((c): c is ViewCollection => c !== null);
   }, [selectedView, campaign, activeSourceId]);
 
   const currentCollectionIndex = viewCollections.findIndex(
@@ -56,13 +63,16 @@ export const useSliceNavigation = () => {
   const currentEntry = viewCollections[currentCollectionIndex];
   const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
 
-  const firstNonEmptySlice = useCallback(
-    (collectionId: number, totalSlices: number, preferredIndex = 0): number => {
-      for (let offset = 0; offset < totalSlices; offset++) {
-        const i = (preferredIndex + offset) % totalSlices;
-        if (!emptySlices[`${collectionId}-${i}`]) return i;
-      }
-      return -1;
+  /** Indices participating in a/d navigation: regular slices that aren't
+   *  known to be empty. (Custom cover slices are excluded by sliceView.) */
+  const sliceNavIndices = useCallback(
+    (col: ViewCollection['collection'], colId: number): number[] => {
+      const { navIndices } = sliceView(
+        col.slices.length,
+        col.cover_slice_index,
+        col.has_dedicated_cover
+      );
+      return navIndices.filter((i) => !emptySlices[`${colId}-${i}`]);
     },
     [emptySlices]
   );
@@ -70,90 +80,57 @@ export const useSliceNavigation = () => {
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
       if (!currentEntry) return;
-      setSliceNavIntent(direction);
-      const colId = currentEntry.collection_id;
-      const nonEmpty: number[] = [];
-      for (let i = 0; i < currentSliceCount; i++) {
-        if (!emptySlices[`${colId}-${i}`]) nonEmpty.push(i);
+      const nonEmpty = sliceNavIndices(currentEntry.collection, currentEntry.collection_id);
+
+      const nextInCol =
+        direction === 'next'
+          ? nonEmpty.find((i) => i > activeSliceIndex)
+          : [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
+
+      if (nextInCol !== undefined) {
+        setActiveSliceIndex(nextInCol);
+        return;
       }
 
-      if (direction === 'next') {
-        const nextInCol = nonEmpty.find((i) => i > activeSliceIndex);
-        if (nextInCol !== undefined) {
-          setActiveSliceIndex(nextInCol);
-        } else if (currentCollectionIndex < viewCollections.length - 1) {
-          const next = viewCollections[currentCollectionIndex + 1];
-          const nextCount = next.collection.slices.length;
-          const landing = firstNonEmptySlice(next.collection_id, nextCount, 0);
-          setActiveCollectionId(next.collection_id);
-          if (landing > 0) setTimeout(() => setActiveSliceIndex(landing), 0);
-        }
-      } else {
-        const prevInCol = [...nonEmpty].reverse().find((i) => i < activeSliceIndex);
-        if (prevInCol !== undefined) {
-          setActiveSliceIndex(prevInCol);
-        } else if (currentCollectionIndex > 0) {
-          const prev = viewCollections[currentCollectionIndex - 1];
-          const prevCount = prev.collection.slices.length;
-          let landing = -1;
-          for (let i = prevCount - 1; i >= 0; i--) {
-            if (!emptySlices[`${prev.collection_id}-${i}`]) {
-              landing = i;
-              break;
-            }
-          }
-          if (landing < 0) return;
-          setActiveCollectionId(prev.collection_id);
-          setTimeout(() => setActiveSliceIndex(landing), 0);
-        }
-      }
-    },
-    [
-      activeSliceIndex,
-      currentSliceCount,
-      currentCollectionIndex,
-      currentEntry,
-      viewCollections,
-      emptySlices,
-      setActiveSliceIndex,
-      setActiveCollectionId,
-      setSliceNavIntent,
-      firstNonEmptySlice,
-    ]
-  );
-
-  const navigateCollection = useCallback(
-    (direction: 'next' | 'prev') => {
-      if (viewCollections.length === 0) return;
-      setSliceNavIntent('initial');
+      // End of current collection - step into the neighbour collection and
+      // land on its first/last non-empty regular slice. Set the slice first
+      // so setActiveCollectionId picks it up via collectionSliceIndices.
       const targetIdx =
         direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
       const target = viewCollections[targetIdx];
       if (!target) return;
-
-      const storedSlice = collectionSliceIndices[target.collection_id] ?? 0;
-      const isStoredEmpty = emptySlices[`${target.collection_id}-${storedSlice}`];
+      const targetNav = sliceNavIndices(target.collection, target.collection_id);
+      const landing =
+        direction === 'next'
+          ? (targetNav[0] ?? target.collection.cover_slice_index ?? 0)
+          : (targetNav[targetNav.length - 1] ?? target.collection.cover_slice_index ?? 0);
+      setCollectionSliceIndex(target.collection_id, landing);
       setActiveCollectionId(target.collection_id);
-
-      if (isStoredEmpty) {
-        const fallback = firstNonEmptySlice(
-          target.collection_id,
-          target.collection.slices.length,
-          storedSlice
-        );
-        if (fallback >= 0) setTimeout(() => setActiveSliceIndex(fallback), 0);
-      }
     },
     [
+      activeSliceIndex,
       currentCollectionIndex,
+      currentEntry,
       viewCollections,
-      setActiveCollectionId,
+      sliceNavIndices,
       setActiveSliceIndex,
-      setSliceNavIntent,
-      firstNonEmptySlice,
-      collectionSliceIndices,
-      emptySlices,
+      setActiveCollectionId,
+      setCollectionSliceIndex,
     ]
+  );
+
+  /** Shift+a/d - switch collection. The reducer restores the per-collection
+   *  remembered slice (or the cover_slice_index on first visit). */
+  const navigateCollection = useCallback(
+    (direction: 'next' | 'prev') => {
+      if (viewCollections.length === 0) return;
+      const targetIdx =
+        direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
+      const target = viewCollections[targetIdx];
+      if (!target) return;
+      setActiveCollectionId(target.collection_id);
+    },
+    [currentCollectionIndex, viewCollections, setActiveCollectionId]
   );
 
   const hasMultipleSlices = currentSliceCount > 1;

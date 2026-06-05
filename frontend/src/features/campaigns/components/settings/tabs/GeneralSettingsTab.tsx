@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import type { CampaignOut, CampaignSettingsCreate } from '~/api/client';
+import type { CampaignOut, CampaignSettingsCreate, LabelBase } from '~/api/client';
 import {
   updateCampaignGuide,
+  updateCampaignLabels,
   updateCampaignVisibility,
   updateEmbeddingYear,
   updateSampleExtent,
@@ -50,6 +51,49 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   const [guideMarkdown, setGuideMarkdown] = useState(campaign.settings.guide_markdown ?? '');
   const [savingGuide, setSavingGuide] = useState(false);
   const guideChanged = guideMarkdown !== (campaign.settings.guide_markdown ?? '');
+
+  // Labels editor local draft. Adds (new id) and renames (existing id, new
+  // name) are allowed; deletes are blocked by the editor and the backend.
+  const [labelsDraft, setLabelsDraft] = useState<LabelBase[]>(campaign.settings.labels);
+  const [savingLabels, setSavingLabels] = useState(false);
+  const labelsChanged = JSON.stringify(labelsDraft) !== JSON.stringify(campaign.settings.labels);
+  const labelsAreValid =
+    labelsDraft.every((l) => l.name.trim().length > 0) &&
+    new Set(labelsDraft.map((l) => l.name.trim().toLowerCase())).size === labelsDraft.length;
+  const renamedLabels = labelsDraft.filter((l) => {
+    const original = campaign.settings.labels.find((o) => o.id === l.id);
+    return original && original.name !== l.name;
+  });
+
+  const handleSaveLabels = async () => {
+    if (!labelsChanged || !labelsAreValid) return;
+    if (renamedLabels.length > 0) {
+      const ok = await showConfirmDialog({
+        title: 'Rename existing labels?',
+        description:
+          `Renaming labels affects how existing annotations display - the underlying ` +
+          `label IDs stay the same, so no data is lost, but every annotation tagged ` +
+          `with ${renamedLabels.length === 1 ? 'this label' : 'these labels'} will ` +
+          `now show the new name everywhere (review, exports, statistics).`,
+        confirmText: 'Yes, rename',
+        cancelText: 'Cancel',
+      });
+      if (!ok) return;
+    }
+    try {
+      setSavingLabels(true);
+      const res = await updateCampaignLabels({
+        path: { campaign_id: campaign.id },
+        body: { labels: labelsDraft },
+      });
+      if (onCampaignUpdated && res.data) onCampaignUpdated(res.data);
+      showAlert('Labels updated', 'success');
+    } catch (err) {
+      handleError(err, 'Failed to update labels');
+    } finally {
+      setSavingLabels(false);
+    }
+  };
 
   // Sample extent local state
   const [sampleExtent, setSampleExtent] = useState<string>(
@@ -264,16 +308,39 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <div>
           <h2 className="section-heading">Annotation labels</h2>
           <p className="section-description">
-            The class names annotators choose from when labeling. Labels cannot be changed after
-            creation to preserve data consistency.
+            The class names annotators choose from when labeling. You can add new labels and rename
+            existing ones; renaming requires confirmation since it affects how prior annotations
+            display. Deleting labels is not supported (it would orphan existing annotations).
           </p>
         </div>
         <LabelsEditor
-          value={campaign.settings.labels}
-          onChange={() => {}}
-          readOnly={true}
+          value={labelsDraft}
+          onChange={setLabelsDraft}
           showGeometryType={campaign.mode === 'open'}
+          disableDelete
         />
+        <div className="flex items-center gap-3 mt-3">
+          <Button
+            type="button"
+            onClick={() => void handleSaveLabels()}
+            disabled={!labelsChanged || !labelsAreValid || savingLabels}
+          >
+            {savingLabels ? 'Saving…' : 'Save labels'}
+          </Button>
+          {labelsChanged && (
+            <button
+              type="button"
+              onClick={() => setLabelsDraft(campaign.settings.labels)}
+              disabled={savingLabels}
+              className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
+            >
+              Discard
+            </button>
+          )}
+          {!labelsAreValid && (
+            <span className="text-xs text-red-600">Label names must be non-empty and unique.</span>
+          )}
+        </div>
       </section>
 
       {/* Embedding Year */}

@@ -1,5 +1,5 @@
 import type { CampaignCreate } from '~/api/client';
-import type { ImageryStepState } from '~/features/campaigns/components/creation/steps/imagery/types';
+import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
 
 export type FieldErrors = Record<string, string>;
 
@@ -93,24 +93,7 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
             `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Has no time slices.`;
         }
 
-        if (col.data.type === 'stac') {
-          if (!col.data.registrationUrl.trim()) {
-            errors[`${cp}_regurl`] =
-              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Registration URL is required.`;
-          }
-          if (!col.data.searchBody.trim()) {
-            errors[`${cp}_search`] =
-              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": Search body is required.`;
-          }
-        }
-
-        if (col.data.type === 'stac') {
-          const emptyVizUrls = col.data.vizUrls.filter((v) => !v.url.trim());
-          if (emptyVizUrls.length > 0) {
-            errors[`${cp}_vizurls`] =
-              `Source "${source.name || si + 1}", Collection "${col.name || ci + 1}": ${emptyVizUrls.length} visualization URL(s) are empty.`;
-          }
-        } else if (col.data.type === 'manual') {
+        if (col.data.type === 'manual') {
           const slicesWithMissing = col.slices.filter((sl) => {
             const urls = sl.vizUrls ?? [];
             return source.visualizations.some(

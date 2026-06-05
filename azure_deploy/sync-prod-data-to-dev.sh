@@ -33,9 +33,7 @@ if ! az account show &>/dev/null; then
     abort "Not logged in to Azure. Run 'az login' first."
 fi
 
-# =============================================================================
-# SAFETY GUARDS - protect prod from any possible mishap
-# =============================================================================
+# Load prod config
 
 [ -f "$SCRIPT_DIR/.env.deploy.prod" ] && set -a && source "$SCRIPT_DIR/.env.deploy.prod" && set +a
 PROD_RG="$RESOURCE_GROUP"
@@ -94,10 +92,8 @@ fi
 if [ -z "$DEV_PG_PASS" ]; then
     read -sp "Enter dev DB password: " DEV_PG_PASS
     echo ""
-    echo -e "${RED}⚠  This will DESTROY all data in the dev database!${NC}"
-    read -p "Proceed? (y/N) " CONFIRM
-    [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && echo "Cancelled." && exit 0
 fi
+DEV_PG_DBNAME=${DEV_PG_DBNAME:-stacnotator}
 
 # Safety guards - protect prod from any possible mishap
 
@@ -112,7 +108,7 @@ if [ "$PROD_PG_HOST/$PROD_PG_DBNAME" = "$DEV_PG_HOST/$DEV_PG_DBNAME" ]; then
 fi
 
 case "$DEV_PG_HOST" in
-    *stacnotator-dev*) ;;
+    *stacnotator-dev*|*stacnotatordev*) ;;
     *) abort "DEV_PG_HOST ($DEV_PG_HOST) does not look like a dev server. Refusing to run." ;;
 esac
 

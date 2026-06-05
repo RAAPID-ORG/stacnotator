@@ -42,8 +42,6 @@ class ImagerySliceOut(BaseModel):
 
 
 class CollectionStacConfigOut(BaseModel):
-    registration_url: str
-    search_body: str
     catalog_url: str | None = None
     stac_collection_id: str | None = None
     viz_params: dict | None = None
@@ -59,6 +57,7 @@ class ImageryCollectionOut(BaseModel):
     id: int
     name: str
     cover_slice_index: int
+    has_dedicated_cover: bool = False
     display_order: int
     slices: list[ImagerySliceOut]
     stac_config: CollectionStacConfigOut | None = None
@@ -159,6 +158,7 @@ class SliceTileUrlCreate(BaseModel):
 
 
 class ImagerySliceCreate(BaseModel):
+    id: int | None = None
     name: str = ""
     start_date: str
     end_date: str
@@ -192,8 +192,6 @@ class NamedVizParamsCreate(BaseModel):
 
 
 class CollectionStacConfigCreate(BaseModel):
-    registration_url: str = ""
-    search_body: str = ""
     catalog_url: str | None = None
     stac_collection_id: str | None = None
     visualizations: list[NamedVizParamsCreate] = []
@@ -203,8 +201,10 @@ class CollectionStacConfigCreate(BaseModel):
 
 
 class ImageryCollectionCreate(BaseModel):
+    id: int | None = None
     name: str
     cover_slice_index: int = 0
+    has_dedicated_cover: bool = False
     slices: list[ImagerySliceCreate]
     stac_config: CollectionStacConfigCreate | None = None
 
@@ -214,6 +214,7 @@ class VisualizationTemplateCreate(BaseModel):
 
 
 class ImagerySourceCreate(BaseModel):
+    id: int | None = None
     name: str
     crosshair_hex6: str = "ff0000"
     default_zoom: int = 14
@@ -222,6 +223,7 @@ class ImagerySourceCreate(BaseModel):
 
 
 class BasemapCreate(BaseModel):
+    id: int | None = None
     name: str
     url: str
     max_native_zoom: int | None = None
@@ -234,6 +236,7 @@ class ViewCollectionRefCreate(BaseModel):
 
 
 class ImageryViewCreate(BaseModel):
+    id: int | None = None
     name: str = ""
     collection_refs: list[ViewCollectionRefCreate] = []
 
@@ -269,6 +272,7 @@ class ImageryCollectionUpdate(BaseModel):
 
     name: str | None = None
     cover_slice_index: int | None = None
+    has_dedicated_cover: bool | None = None
 
 
 class ImageryViewUpdate(BaseModel):

@@ -244,6 +244,13 @@ class UpdateEmbeddingYearRequest(BaseModel):
     embedding_year: int | None = None
 
 
+class UpdateCampaignLabelsRequest(BaseModel):
+    """Replace the campaign's label set. Existing label IDs are preserved (so
+    annotations referencing them continue to resolve); new labels get appended."""
+
+    labels: list[LabelBase]
+
+
 class EmbeddingYearUpdateResponse(BaseModel):
     """Response after updating the embedding year.
     Includes a summary of re-computation if embeddings were regenerated."""

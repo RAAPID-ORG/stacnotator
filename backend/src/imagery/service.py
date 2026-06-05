@@ -6,7 +6,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
+from src.campaigns.constants import (
+    VIEW_LAYOUT_COLS_PER_ROW,
+    VIEW_LAYOUT_START_Y,
+    VIEW_LAYOUT_WINDOW_H,
+    VIEW_LAYOUT_WINDOW_W,
+)
 from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
 from src.imagery.models import (
     Basemap,
@@ -23,11 +28,11 @@ from src.imagery.models import (
 from src.imagery.schemas import (
     BasemapCreate,
     CanvasLayoutCreate,
+    ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
 )
-from src.imagery.stac_registration import register_collection_slices
 from src.tiling.router import build_viz_query_string, register_mosaic_sync
 from src.tiling.stac_client import _is_mpc
 
@@ -41,6 +46,10 @@ def _bbox_to_wkt(west: float, south: float, east: float, north: float) -> str:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
+    return bool(col_create.has_dedicated_cover)
 
 
 # ============================================================================
@@ -113,6 +122,459 @@ def create_imagery_from_editor_state(
     }
 
 
+def save_imagery_editor_state(
+    db: Session,
+    *,
+    campaign: Campaign,
+    editor_state: ImageryEditorStateCreate,
+) -> dict:
+    """Upsert the full imagery editor state in a single transaction.
+
+    Reconciliation rules per entity (sources, collections, slices, views,
+    basemaps): payload entry with `id` set → update in place; without `id` →
+    create; in DB but missing from payload → delete. STAC mosaic registration
+    only fires when fields that affect it (search_query, max_cloud_cover,
+    viz_params, slice date list) actually changed; pure metadata edits
+    (rename, cover_slice_index) skip the expensive re-search.
+
+    Caller commits.
+    """
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    bbox = [
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+    ]
+
+    existing_sources: dict[int, ImagerySource] = {s.id: s for s in campaign.imagery_sources}
+    existing_views: dict[int, ImageryView] = {v.id: v for v in campaign.imagery_views}
+
+    payload_source_ids = {s.id for s in editor_state.sources if s.id is not None}
+    payload_view_ids = {v.id for v in editor_state.views if v.id is not None}
+
+    deleted_collection_ids: set[int] = set()
+    deleted_source_ids: set[int] = set()
+
+    # Delete sources missing from payload. Cascade handles their collections.
+    for s_id, s in list(existing_sources.items()):
+        if s_id not in payload_source_ids:
+            for col in s.collections:
+                deleted_collection_ids.add(col.id)
+            db.delete(s)
+            deleted_source_ids.add(s_id)
+            del existing_sources[s_id]
+
+    # Within each retained source, delete collections missing from payload.
+    for src_create in editor_state.sources:
+        if src_create.id is None or src_create.id not in existing_sources:
+            continue
+        existing_src = existing_sources[src_create.id]
+        payload_col_ids = {c.id for c in src_create.collections if c.id is not None}
+        for col in list(existing_src.collections):
+            if col.id not in payload_col_ids:
+                deleted_collection_ids.add(col.id)
+                db.delete(col)
+
+    # Prune view collection_refs for anything we just deleted; without this the
+    # JSONB column would carry dangling refs into the view-upsert phase.
+    if deleted_source_ids or deleted_collection_ids:
+        for view in campaign.imagery_views:
+            cleaned = [
+                r
+                for r in (view.collection_refs or [])
+                if r.get("source_id") not in deleted_source_ids
+                and r.get("collection_id") not in deleted_collection_ids
+            ]
+            if cleaned != view.collection_refs:
+                view.collection_refs = cleaned
+                flag_modified(view, "collection_refs")
+
+    db.flush()
+
+    # Upsert sources. New ones go through the existing _create_source helper so
+    # the STAC pending-registration list works identically to campaign create.
+    # Map keys: "<src_idx>" for sources, "<src_idx>:<col_idx>" for collections.
+    # Pre-populated with existing DB IDs so refs can use either real IDs or
+    # positional temp IDs interchangeably.
+    source_id_map: dict[str, int] = {str(s.id): s.id for s in campaign.imagery_sources}
+    collection_id_map: dict[str, int] = {
+        str(c.id): c.id for s in campaign.imagery_sources for c in s.collections
+    }
+    pending_registrations: list[tuple] = []
+
+    for src_idx, src_create in enumerate(editor_state.sources):
+        if src_create.id and src_create.id in existing_sources:
+            db_src = existing_sources[src_create.id]
+            pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
+            pending_registrations.extend(pending)
+            source_id_map[str(src_idx)] = db_src.id
+            # Pair every collection by index - order of db_src.collections matches
+            # the payload after _update_source_in_place runs.
+            for col_idx, col in enumerate(db_src.collections):
+                collection_id_map[f"{src_idx}:{col_idx}"] = col.id
+        else:
+            db_src, pending = _create_source(db, campaign.id, src_create, src_idx, bbox)
+            pending_registrations.extend(pending)
+            source_id_map[str(src_idx)] = db_src.id
+            for col_idx, col in enumerate(db_src.collections):
+                collection_id_map[f"{src_idx}:{col_idx}"] = col.id
+
+    db.flush()
+
+    # Delete views missing from payload.
+    for v_id, v in list(existing_views.items()):
+        if v_id not in payload_view_ids:
+            db.delete(v)
+            del existing_views[v_id]
+    db.flush()
+
+    # Upsert views.
+    for view_idx, view_create in enumerate(editor_state.views):
+        mapped_refs = _resolve_view_refs(
+            view_create.collection_refs,
+            source_id_map,
+            collection_id_map,
+            editor_state.sources,
+        )
+        if view_create.id and view_create.id in existing_views:
+            db_view = existing_views[view_create.id]
+            old_window_ids = {
+                r["collection_id"]
+                for r in (db_view.collection_refs or [])
+                if r.get("show_as_window")
+            }
+            db_view.name = view_create.name
+            db_view.display_order = view_idx
+            db_view.collection_refs = mapped_refs
+            flag_modified(db_view, "collection_refs")
+            new_window_ids = {r["collection_id"] for r in mapped_refs if r.get("show_as_window")}
+            _sync_view_layouts(
+                db,
+                db_view.id,
+                added_collection_ids=list(new_window_ids - old_window_ids),
+                removed_collection_ids=list(old_window_ids - new_window_ids),
+            )
+        else:
+            new_view = ImageryView(
+                campaign_id=campaign.id,
+                name=view_create.name,
+                display_order=view_idx,
+                collection_refs=mapped_refs,
+            )
+            db.add(new_view)
+            db.flush()
+            window_refs = [r for r in mapped_refs if r.get("show_as_window")]
+            db.add(
+                CanvasLayout(
+                    layout_data=[
+                        {
+                            "i": str(ref["collection_id"]),
+                            **_layout_window_for(idx, VIEW_LAYOUT_START_Y),
+                        }
+                        for idx, ref in enumerate(window_refs)
+                    ],
+                    user_id=None,
+                    campaign_id=campaign.id,
+                    view_id=new_view.id,
+                    is_default=True,
+                )
+            )
+
+    # Basemaps: replace wholesale (small list, no inbound FKs).
+    db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
+    db.flush()
+    created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
+
+    db.flush()
+
+    registration_errors: list[dict] = []
+    if pending_registrations:
+        registration_errors = _register_all_stac_browser_collections(
+            db, pending_registrations, bbox
+        )
+
+    return {
+        "sources": campaign.imagery_sources,
+        "views": campaign.imagery_views,
+        "basemaps": created_basemaps,
+        "pending_registrations": pending_registrations,
+        "registration_errors": registration_errors,
+        "bbox": bbox,
+    }
+
+
+def _resolve_view_refs(
+    refs,
+    source_id_map: dict[str, int],
+    collection_id_map: dict[str, int],
+    source_creates: list[ImagerySourceCreate],
+) -> list[dict]:
+    """Resolve view collection_refs (strings from the frontend) to DB IDs.
+
+    Accepts either real numeric IDs (existing entities) or positional keys
+    ("<src_idx>" / "<src_idx>:<col_idx>") for newly-created entities. Drops
+    refs that don't resolve - defensive against stale payloads.
+    """
+    out: list[dict] = []
+    for ref in refs:
+        db_source_id = source_id_map.get(ref.source_id)
+        db_collection_id = collection_id_map.get(ref.collection_id)
+        if db_source_id is None or db_collection_id is None:
+            # Fallback: positional lookup for the campaign-create flow that
+            # references entities by index (matches the legacy _create_views).
+            for s_idx, s in enumerate(source_creates):
+                if str(s_idx) == ref.source_id:
+                    db_source_id = source_id_map.get(str(s_idx))
+                    for c_idx, _ in enumerate(s.collections):
+                        if (
+                            str(c_idx) == ref.collection_id
+                            or f"{s_idx}:{c_idx}" == ref.collection_id
+                        ):
+                            db_collection_id = collection_id_map.get(f"{s_idx}:{c_idx}")
+                            break
+                    break
+        if db_source_id and db_collection_id:
+            out.append(
+                {
+                    "collection_id": db_collection_id,
+                    "source_id": db_source_id,
+                    "show_as_window": ref.show_as_window,
+                }
+            )
+    return out
+
+
+def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> bool:
+    """Cheap deep-compare of fields that require mosaic re-registration."""
+    if existing is None:
+        return True
+    first_viz = incoming.visualizations[0] if incoming.visualizations else None
+    new_viz_params = first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
+    new_cover_viz_params = (
+        first_viz.cover_viz_params.model_dump(exclude_none=True)
+        if first_viz and first_viz.cover_viz_params
+        else None
+    )
+    return (
+        existing.viz_params != new_viz_params
+        or existing.cover_viz_params != new_cover_viz_params
+        or existing.max_cloud_cover != incoming.max_cloud_cover
+        or existing.search_query != incoming.search_query
+        or existing.cover_search_query != incoming.cover_search_query
+    )
+
+
+def _update_source_in_place(
+    db: Session,
+    db_src: ImagerySource,
+    src_create: ImagerySourceCreate,
+    src_idx: int,
+    bbox: list[float],
+) -> list[tuple]:
+    """Update source metadata + viz templates, then reconcile collections.
+    Returns pending STAC registrations from any new or re-registered collections."""
+    db_src.name = src_create.name
+    db_src.crosshair_hex6 = src_create.crosshair_hex6
+    db_src.default_zoom = src_create.default_zoom
+    db_src.display_order = src_idx
+
+    # Reconcile visualization templates by name.
+    existing_viz = {v.name: v for v in db_src.visualizations}
+    payload_names = [v.name for v in src_create.visualizations]
+    for name, viz in list(existing_viz.items()):
+        if name not in payload_names:
+            db.delete(viz)
+    for viz_idx, viz in enumerate(src_create.visualizations):
+        if viz.name in existing_viz:
+            existing_viz[viz.name].display_order = viz_idx
+        else:
+            db.add(VisualizationTemplate(source_id=db_src.id, name=viz.name, display_order=viz_idx))
+
+    pending: list[tuple] = []
+    for col_idx, col_create in enumerate(src_create.collections):
+        existing_col = (
+            next((c for c in db_src.collections if c.id == col_create.id), None)
+            if col_create.id
+            else None
+        )
+        if existing_col:
+            pending_entry = _update_collection_in_place(
+                db, existing_col, col_create, col_idx, src_create, bbox
+            )
+            if pending_entry:
+                pending.append(pending_entry)
+        else:
+            _, pending_entry = _create_collection_record(
+                db, db_src, src_create, col_create, col_idx, bbox
+            )
+            if pending_entry:
+                pending.append(pending_entry)
+
+    db.flush()
+    db.refresh(db_src)
+    return pending
+
+
+def _update_collection_in_place(
+    db: Session,
+    db_col: ImageryCollection,
+    col_create: ImageryCollectionCreate,
+    col_idx: int,
+    src_create: ImagerySourceCreate,
+    bbox: list[float],
+) -> tuple | None:
+    """Update a collection's metadata, slices, and stac_config. Returns a
+    pending-registration tuple if mosaic re-search is required."""
+    db_col.name = col_create.name
+    db_col.cover_slice_index = col_create.cover_slice_index
+    db_col.has_dedicated_cover = col_create.has_dedicated_cover
+    db_col.display_order = col_idx
+
+    needs_reregistration = False
+    has_cover = _payload_has_dedicated_cover(col_create)
+
+    if col_create.stac_config:
+        if db_col.stac_config is None:
+            # Collection just gained a stac_config (unusual).
+            first_viz = (
+                col_create.stac_config.visualizations[0]
+                if col_create.stac_config.visualizations
+                else None
+            )
+            db.add(
+                CollectionStacConfig(
+                    collection_id=db_col.id,
+                    catalog_url=col_create.stac_config.catalog_url,
+                    stac_collection_id=col_create.stac_config.stac_collection_id,
+                    viz_params=(
+                        first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
+                    ),
+                    cover_viz_params=(
+                        first_viz.cover_viz_params.model_dump(exclude_none=True)
+                        if has_cover and first_viz and first_viz.cover_viz_params
+                        else None
+                    ),
+                    max_cloud_cover=col_create.stac_config.max_cloud_cover,
+                    search_query=col_create.stac_config.search_query,
+                    cover_search_query=(
+                        col_create.stac_config.cover_search_query if has_cover else None
+                    ),
+                )
+            )
+            needs_reregistration = True
+        else:
+            if _stac_config_changed(db_col.stac_config, col_create.stac_config):
+                needs_reregistration = True
+            first_viz = (
+                col_create.stac_config.visualizations[0]
+                if col_create.stac_config.visualizations
+                else None
+            )
+            db_col.stac_config.viz_params = (
+                first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
+            )
+            db_col.stac_config.cover_viz_params = (
+                first_viz.cover_viz_params.model_dump(exclude_none=True)
+                if has_cover and first_viz and first_viz.cover_viz_params
+                else None
+            )
+            db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
+            db_col.stac_config.search_query = col_create.stac_config.search_query
+            db_col.stac_config.cover_search_query = (
+                col_create.stac_config.cover_search_query if has_cover else None
+            )
+            flag_modified(db_col.stac_config, "search_query")
+            flag_modified(db_col.stac_config, "cover_search_query")
+
+    # Reconcile slices.
+    payload_slice_ids = {s.id for s in col_create.slices if s.id is not None}
+    existing_slices = {s.id: s for s in db_col.slices}
+    for sl_id, sl in list(existing_slices.items()):
+        if sl_id not in payload_slice_ids:
+            db.delete(sl)
+            needs_reregistration = True
+
+    for sl_idx, sl_create in enumerate(col_create.slices):
+        if sl_create.id and sl_create.id in existing_slices:
+            db_sl = existing_slices[sl_create.id]
+            if db_sl.start_date != sl_create.start_date or db_sl.end_date != sl_create.end_date:
+                needs_reregistration = True
+            db_sl.name = sl_create.name
+            db_sl.start_date = sl_create.start_date
+            db_sl.end_date = sl_create.end_date
+            db_sl.display_order = sl_idx
+            # Replace tile_urls only for manual collections; STAC ones get
+            # rebuilt by the re-registration / viz-params rebake below.
+            if col_create.stac_config is None:
+                for tu in list(db_sl.tile_urls):
+                    db.delete(tu)
+                for t in sl_create.tile_urls:
+                    db.add(
+                        SliceTileUrl(
+                            slice_id=db_sl.id,
+                            visualization_name=t.visualization_name,
+                            tile_url=t.tile_url,
+                        )
+                    )
+        else:
+            new_sl = ImagerySlice(
+                collection_id=db_col.id,
+                name=sl_create.name,
+                start_date=sl_create.start_date,
+                end_date=sl_create.end_date,
+                display_order=sl_idx,
+            )
+            db.add(new_sl)
+            db.flush()
+            for t in sl_create.tile_urls:
+                db.add(
+                    SliceTileUrl(
+                        slice_id=new_sl.id,
+                        visualization_name=t.visualization_name,
+                        tile_url=t.tile_url,
+                    )
+                )
+            needs_reregistration = True
+
+    db.flush()
+    db.refresh(db_col)
+
+    if not col_create.stac_config:
+        return None
+
+    # A newly added (or removed) visualization name has no tile URLs yet, and the
+    # cheap viz-params compare above only inspects the first viz - so reconcile the
+    # full set here to force a rebuild when the visualization names change.
+    incoming_viz_names = {v.name for v in col_create.stac_config.visualizations}
+    existing_viz_names = {tu.visualization_name for sl in db_col.slices for tu in sl.tile_urls}
+    if incoming_viz_names != existing_viz_names:
+        needs_reregistration = True
+
+    if needs_reregistration and col_create.stac_config.catalog_url:
+        # Drop existing tile URLs so the registration step rebuilds them fresh.
+        for sl in db_col.slices:
+            for tu in list(sl.tile_urls):
+                db.delete(tu)
+        db.flush()
+        return (db_col, col_create, src_create)
+
+    # No search/slice changes - just rebake viz params into existing URLs.
+    viz_by_name = {
+        v.name: v.viz_params.model_dump(exclude_none=True)
+        for v in col_create.stac_config.visualizations
+    }
+    cover_viz_by_name = {
+        v.name: v.cover_viz_params.model_dump(exclude_none=True)
+        for v in col_create.stac_config.visualizations
+        if v.cover_viz_params
+    }
+    update_collection_viz_params(db, db_col.id, viz_by_name, cover_viz_by_name or None)
+    return None
+
+
 def _create_source(
     db: Session,
     campaign_id: int,
@@ -145,167 +607,96 @@ def _create_source(
 
     # Collections
     for col_idx, col_create in enumerate(src.collections):
-        collection = ImageryCollection(
-            source_id=source.id,
-            name=col_create.name,
-            cover_slice_index=col_create.cover_slice_index,
-            display_order=col_idx,
-        )
-        db.add(collection)
-        db.flush()
-
-        # STAC config
-        if col_create.stac_config:
-            # Capture viz URL templates (with {searchId} placeholders) so we can
-            # re-register later when the campaign bbox changes.
-            viz_url_templates = (
-                [
-                    {"viz_name": vu.visualization_name, "url_template": vu.tile_url}
-                    for vu in col_create.slices[0].tile_urls
-                ]
-                if col_create.slices and col_create.slices[0].tile_urls
-                else None
-            )
-            # DB columns store the first viz's params as a representative
-            # (used by legacy update/refresh paths). Per-viz tile URLs are
-            # persisted separately as SliceTileUrl rows further down.
-            first_viz = (
-                col_create.stac_config.visualizations[0]
-                if col_create.stac_config.visualizations
-                else None
-            )
-            db.add(
-                CollectionStacConfig(
-                    collection_id=collection.id,
-                    registration_url=col_create.stac_config.registration_url,
-                    search_body=col_create.stac_config.search_body,
-                    viz_url_templates=viz_url_templates,
-                    catalog_url=col_create.stac_config.catalog_url,
-                    stac_collection_id=col_create.stac_config.stac_collection_id,
-                    viz_params=(
-                        first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
-                    ),
-                    cover_viz_params=(
-                        first_viz.cover_viz_params.model_dump(exclude_none=True)
-                        if first_viz and first_viz.cover_viz_params
-                        else None
-                    ),
-                    max_cloud_cover=col_create.stac_config.max_cloud_cover,
-                    search_query=col_create.stac_config.search_query,
-                    cover_search_query=col_create.stac_config.cover_search_query,
-                )
-            )
-
-        # Slices
-        for sl_idx, sl_create in enumerate(col_create.slices):
-            slice_obj = ImagerySlice(
-                collection_id=collection.id,
-                name=sl_create.name,
-                start_date=sl_create.start_date,
-                end_date=sl_create.end_date,
-                display_order=sl_idx,
-            )
-            db.add(slice_obj)
-            db.flush()
-
-            # Direct tile URLs (manual XYZ)
-            for tile in sl_create.tile_urls:
-                db.add(
-                    SliceTileUrl(
-                        slice_id=slice_obj.id,
-                        visualization_name=tile.visualization_name,
-                        tile_url=tile.tile_url,
-                    )
-                )
-
-        # STAC registration: resolve tile URLs for all slices (old stac flow)
-        if col_create.stac_config and col_create.slices and col_create.stac_config.registration_url:
-            _register_stac_collection(db, collection, col_create, src, bbox)
-
-        # Collect stac_browser collections for batch registration
-        if (
-            col_create.stac_config
-            and col_create.stac_config.catalog_url
-            and col_create.stac_config.stac_collection_id
-            and col_create.slices
-        ):
-            pending.append((collection, col_create, src))
+        _, pending_entry = _create_collection_record(db, source, src, col_create, col_idx, bbox)
+        if pending_entry:
+            pending.append(pending_entry)
 
     db.flush()
     db.refresh(source)
     return source, pending
 
 
-def _register_stac_collection(
+def _create_collection_record(
     db: Session,
-    collection: ImageryCollection,
-    col_create,
+    source: ImagerySource,
     src_create: ImagerySourceCreate,
+    col_create: ImageryCollectionCreate,
+    col_idx: int,
     bbox: list[float],
-) -> None:
-    """Register STAC mosaics for a collection's slices and persist resolved tile URLs."""
-    stac = col_create.stac_config
-    if not stac:
-        return
+) -> tuple[ImageryCollection, tuple | None]:
+    """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
-    # Build viz URL templates from the collection data
-    viz_templates = (
-        [
-            {"viz_name": vu.visualization_name, "url_template": vu.tile_url}
-            for vu in col_create.slices[0].tile_urls
-        ]
-        if col_create.slices and col_create.slices[0].tile_urls
-        else []
+    Returns (collection, pending_stac_browser_entry). The second item is a tuple
+    suitable for `_register_all_stac_browser_collections`, or None if the
+    collection doesn't need deferred registration.
+    """
+    collection = ImageryCollection(
+        source_id=source.id,
+        name=col_create.name,
+        cover_slice_index=col_create.cover_slice_index,
+        has_dedicated_cover=col_create.has_dedicated_cover,
+        display_order=col_idx,
     )
+    db.add(collection)
+    db.flush()
 
-    # If no tile_urls on slices, try to use viz URLs from the stac config's first slice
-    # (the frontend sends viz URL templates as tile_urls with {searchId} placeholders)
-    if not viz_templates:
-        return
+    has_cover = _payload_has_dedicated_cover(col_create)
 
-    slice_descriptors = [
-        {"index": i, "start_date": s.start_date, "end_date": s.end_date}
-        for i, s in enumerate(col_create.slices)
-    ]
-
-    try:
-        results = register_collection_slices(
-            registration_url=stac.registration_url,
-            search_body=stac.search_body,
-            bbox=bbox,
-            slices=slice_descriptors,
-            viz_url_templates=viz_templates,
+    if col_create.stac_config:
+        first_viz = (
+            col_create.stac_config.visualizations[0]
+            if col_create.stac_config.visualizations
+            else None
         )
-
-        # Persist resolved URLs
-        db_slices = (
-            db.execute(
-                select(ImagerySlice)
-                .where(ImagerySlice.collection_id == collection.id)
-                .order_by(ImagerySlice.display_order)
+        db.add(
+            CollectionStacConfig(
+                collection_id=collection.id,
+                catalog_url=col_create.stac_config.catalog_url,
+                stac_collection_id=col_create.stac_config.stac_collection_id,
+                viz_params=(
+                    first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
+                ),
+                cover_viz_params=(
+                    first_viz.cover_viz_params.model_dump(exclude_none=True)
+                    if has_cover and first_viz and first_viz.cover_viz_params
+                    else None
+                ),
+                max_cloud_cover=col_create.stac_config.max_cloud_cover,
+                search_query=col_create.stac_config.search_query,
+                cover_search_query=(
+                    col_create.stac_config.cover_search_query if has_cover else None
+                ),
             )
-            .scalars()
-            .all()
         )
 
-        for result in results:
-            idx = result["slice_index"]
-            if idx < len(db_slices):
-                db.execute(delete(SliceTileUrl).where(SliceTileUrl.slice_id == db_slices[idx].id))
-                for tile in result["tile_urls"]:
-                    db.add(
-                        SliceTileUrl(
-                            slice_id=db_slices[idx].id,
-                            visualization_name=tile["viz_name"],
-                            tile_url=tile["url"],
-                        )
-                    )
-    except Exception:
-        logger.warning(
-            "STAC registration failed for collection %s - tile URLs left as templates",
-            collection.name,
-            exc_info=True,
+    for sl_idx, sl_create in enumerate(col_create.slices):
+        slice_obj = ImagerySlice(
+            collection_id=collection.id,
+            name=sl_create.name,
+            start_date=sl_create.start_date,
+            end_date=sl_create.end_date,
+            display_order=sl_idx,
         )
+        db.add(slice_obj)
+        db.flush()
+        for tile in sl_create.tile_urls:
+            db.add(
+                SliceTileUrl(
+                    slice_id=slice_obj.id,
+                    visualization_name=tile.visualization_name,
+                    tile_url=tile.tile_url,
+                )
+            )
+
+    pending_entry: tuple | None = None
+    if (
+        col_create.stac_config
+        and col_create.stac_config.catalog_url
+        and col_create.stac_config.stac_collection_id
+        and col_create.slices
+    ):
+        pending_entry = (collection, col_create, src_create)
+    return collection, pending_entry
 
 
 def _sanitize_stac_error(e: Exception) -> str:
@@ -404,7 +795,7 @@ def _register_all_stac_browser_collections(
         )
 
         for sl_idx, db_slice in enumerate(db_slices):
-            is_cover = sl_idx == col_create.cover_slice_index
+            is_cover = col_create.has_dedicated_cover and sl_idx == col_create.cover_slice_index
 
             # Effective per-viz params for this slice (cover override if present)
             slice_viz_by_name: dict[str, dict] = {
@@ -432,7 +823,6 @@ def _register_all_stac_browser_collections(
                     "any_uses_mpc": any_uses_mpc,
                     "any_needs_local": any_needs_local,
                     "collection_name": collection.name,
-                    "is_cover": is_cover,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
                     else search_query,
@@ -699,13 +1089,12 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 
 
 def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
-    """
-    Re-register STAC mosaics for every STAC-based collection in a campaign
-    using a new bounding box.  Returns the number of collections updated.
+    """Re-register every stac_browser collection in a campaign with a new bbox.
 
-    Requires that ``viz_url_templates`` was previously persisted on each
-    ``CollectionStacConfig``.  Collections without stored templates are skipped.
+    Returns the number of collections updated.
     """
+    from datetime import datetime as dt
+
     sources = (
         db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
         .scalars()
@@ -716,7 +1105,7 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
     for source in sources:
         for collection in source.collections:
             stac = collection.stac_config
-            if not stac or not stac.viz_url_templates:
+            if not stac or not stac.catalog_url:
                 continue
 
             slices = (
@@ -731,42 +1120,111 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
             if not slices:
                 continue
 
-            slice_descriptors = [
-                {"index": i, "start_date": s.start_date, "end_date": s.end_date}
-                for i, s in enumerate(slices)
-            ]
-
-            try:
-                results = register_collection_slices(
-                    registration_url=stac.registration_url,
-                    search_body=stac.search_body,
-                    bbox=bbox,
-                    slices=slice_descriptors,
-                    viz_url_templates=stac.viz_url_templates,
+            collection_updated = False
+            for sl_idx, sl in enumerate(slices):
+                is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
+                custom_query = (
+                    stac.cover_search_query
+                    if (is_cover and stac.cover_search_query)
+                    else stac.search_query
                 )
+                viz_params = (
+                    stac.cover_viz_params
+                    if (is_cover and stac.cover_viz_params)
+                    else stac.viz_params
+                )
+                dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
 
-                for result in results:
-                    idx = result["slice_index"]
-                    if idx < len(slices):
-                        db.execute(
-                            delete(SliceTileUrl).where(SliceTileUrl.slice_id == slices[idx].id)
-                        )
-                        for tile in result["tile_urls"]:
-                            db.add(
-                                SliceTileUrl(
-                                    slice_id=slices[idx].id,
-                                    visualization_name=tile["viz_name"],
-                                    tile_url=tile["url"],
-                                )
+                for tu in sl.tile_urls:
+                    try:
+                        if tu.tile_provider == "self_hosted":
+                            result = register_mosaic_sync(
+                                catalog_url=stac.catalog_url,
+                                collection_id=stac.stac_collection_id,
+                                bbox=bbox,
+                                datetime_range=dt_range,
+                                search_query=custom_query,
                             )
+                            mosaic_id = result["mosaic_id"]
+                            item_refs = result["item_refs"]
+
+                            reg = db.execute(
+                                select(MosaicRegistration).where(
+                                    MosaicRegistration.mosaic_id == mosaic_id
+                                )
+                            ).scalar_one_or_none()
+                            if reg:
+                                reg.item_count = len(item_refs)
+                                reg.assets_info = result.get("assets")
+                                reg.status = "ready" if item_refs else "empty"
+                                reg.registered_at = dt.utcnow()
+                                reg.error_message = None
+                                db.execute(
+                                    delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id)
+                                )
+                            else:
+                                db.add(
+                                    MosaicRegistration(
+                                        mosaic_id=mosaic_id,
+                                        catalog_url=stac.catalog_url,
+                                        stac_collection_id=stac.stac_collection_id,
+                                        bbox=bbox,
+                                        datetime_range=dt_range,
+                                        max_cloud_cover=stac.max_cloud_cover,
+                                        item_count=len(item_refs),
+                                        assets_info=result.get("assets"),
+                                        status="ready" if item_refs else "empty",
+                                        registered_at=dt.utcnow(),
+                                    )
+                                )
+                            db.flush()
+                            for ref in item_refs:
+                                db.add(
+                                    MosaicItem(
+                                        mosaic_id=mosaic_id,
+                                        item_id=ref["id"],
+                                        href=ref["href"],
+                                        bbox_west=ref["bbox"][0],
+                                        bbox_south=ref["bbox"][1],
+                                        bbox_east=ref["bbox"][2],
+                                        bbox_north=ref["bbox"][3],
+                                        datetime=ref.get("datetime", ""),
+                                        cloud_cover=ref.get("cloud_cover"),
+                                        geom=_bbox_to_wkt(
+                                            ref["bbox"][0],
+                                            ref["bbox"][1],
+                                            ref["bbox"][2],
+                                            ref["bbox"][3],
+                                        ),
+                                        stac_item=ref.get("stac_item"),
+                                    )
+                                )
+                            base_url = f"/api/stac/mosaic/{mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
+                            viz_qs = build_viz_query_string(viz_params)
+                            tu.tile_url = f"{base_url}?{viz_qs}" if viz_qs else base_url
+                            tu.mosaic_id = mosaic_id
+                            collection_updated = True
+
+                        elif tu.tile_provider == "mpc":
+                            mpc_search_id = _register_mpc_slice(stac, sl, bbox, custom_query)
+                            base_url = (
+                                MPC_TILES_BASE.replace("{searchId}", mpc_search_id)
+                                + f"?collection={stac.stac_collection_id}&pixel_selection=first"
+                            )
+                            viz_qs = build_viz_query_string(viz_params, for_mpc=True)
+                            tu.tile_url = f"{base_url}&{viz_qs}" if viz_qs else base_url
+                            collection_updated = True
+
+                    except Exception:
+                        logger.warning(
+                            "STAC re-registration failed for collection %s slice %s",
+                            collection.name,
+                            sl.name,
+                            exc_info=True,
+                        )
+
+            if collection_updated:
                 updated += 1
-            except Exception:
-                logger.warning(
-                    "STAC re-registration failed for collection %s (id=%s)",
-                    collection.name,
-                    collection.id,
-                    exc_info=True,
-                )
 
     return updated
 
@@ -803,7 +1261,7 @@ def update_collection_viz_params(
     first_cover = (
         next(iter((cover_viz_by_name or {}).values()), None) if cover_viz_by_name else None
     )
-    stac.cover_viz_params = first_cover
+    stac.cover_viz_params = first_cover if collection.has_dedicated_cover else None
 
     slices = (
         db.execute(
@@ -816,7 +1274,7 @@ def update_collection_viz_params(
     )
 
     for sl_idx, sl in enumerate(slices):
-        is_cover = sl_idx == collection.cover_slice_index
+        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
 
         for tu in sl.tile_urls:
             # Pick params for this specific visualization
@@ -842,36 +1300,6 @@ def update_collection_viz_params(
                 if viz_qs:
                     new_qs = f"{new_qs}&{viz_qs}" if new_qs else viz_qs
                 tu.tile_url = urlunparse(parsed._replace(query=new_qs))
-
-    db.flush()
-
-
-def update_collection_tile_urls(
-    db: Session,
-    collection_id: int,
-    tile_urls_by_viz: dict[str, str],
-) -> None:
-    """Update raw tile URLs for XYZ/manual collections.
-
-    tile_urls_by_viz: { "True Color": "https://...", "NDVI": "https://..." }
-    Updates all slices to use the new URL for each visualization.
-    """
-    collection = db.execute(
-        select(ImageryCollection).where(ImageryCollection.id == collection_id)
-    ).scalar_one_or_none()
-    if not collection:
-        return
-
-    slices = (
-        db.execute(select(ImagerySlice).where(ImagerySlice.collection_id == collection.id))
-        .scalars()
-        .all()
-    )
-
-    for sl in slices:
-        for tu in sl.tile_urls:
-            if tu.visualization_name in tile_urls_by_viz:
-                tu.tile_url = tile_urls_by_viz[tu.visualization_name]
 
     db.flush()
 
@@ -909,7 +1337,7 @@ def refresh_collection_imagery(
 
     refreshed_count = 0
     for sl_idx, sl in enumerate(slices):
-        is_cover = sl_idx == collection.cover_slice_index
+        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
         custom_query = (
             stac.cover_search_query if (is_cover and stac.cover_search_query) else stac.search_query
         )
@@ -1019,6 +1447,49 @@ def _create_basemaps(
     return created
 
 
+def _layout_window_for(slot: int, base_y: int) -> dict:
+    """Return a layout item dict for a given linear slot (0-indexed) and base y."""
+    return {
+        "x": (slot % VIEW_LAYOUT_COLS_PER_ROW) * VIEW_LAYOUT_WINDOW_W,
+        "y": base_y + (slot // VIEW_LAYOUT_COLS_PER_ROW) * VIEW_LAYOUT_WINDOW_H,
+        "w": VIEW_LAYOUT_WINDOW_W,
+        "h": VIEW_LAYOUT_WINDOW_H,
+    }
+
+
+def _sync_view_layouts(
+    db: Session,
+    view_id: int,
+    added_collection_ids: list[int],
+    removed_collection_ids: list[int],
+) -> None:
+    """Apply a collection-set delta to every canvas_layout for a view.
+
+    Removed collections drop out of the grid (other items keep their positions -
+    react-grid-layout tolerates gaps). Added collections append at the bottom in
+    a new row, so user customizations remain visually intact.
+    """
+    if not added_collection_ids and not removed_collection_ids:
+        return
+
+    removed_set = {str(cid) for cid in removed_collection_ids}
+    layouts = (
+        db.execute(select(CanvasLayout).where(CanvasLayout.view_id == view_id)).scalars().all()
+    )
+    for layout in layouts:
+        items = [it for it in (layout.layout_data or []) if it.get("i") not in removed_set]
+        if added_collection_ids:
+            # Stack new windows below the existing ones (or at the view base).
+            existing_bottom: int = max(
+                (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
+                default=VIEW_LAYOUT_START_Y,
+            )
+            for offset, cid in enumerate(added_collection_ids):
+                items.append({"i": str(cid), **_layout_window_for(offset, existing_bottom)})
+        layout.layout_data = items
+        flag_modified(layout, "layout_data")
+
+
 def _create_views(
     db: Session,
     campaign_id: int,
@@ -1085,27 +1556,13 @@ def _create_views(
         db.add(view)
         db.flush()
 
-        # Build default view layout data for window collections
-        # Windows are placed in rows below the main canvas (which ends at y=25).
-        # With a 60-col grid and w=10, we fit 6 windows per row.
+        # Windows arrange in rows under the main canvas; gaps are kept on later
+        # edits so user customizations survive collection changes (see _sync_view_layouts).
         window_refs = [r for r in mapped_refs if r.get("show_as_window")]
-        COLS_PER_ROW = 6
-        WINDOW_W = 10
-        WINDOW_H = 9
-        START_Y = DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT[0]["h"]  # directly below the main canvas
-        view_layout_data = []
-        for w_idx, ref in enumerate(window_refs):
-            row = w_idx // COLS_PER_ROW
-            col = w_idx % COLS_PER_ROW
-            view_layout_data.append(
-                {
-                    "i": str(ref["collection_id"]),
-                    "x": col * WINDOW_W,
-                    "y": START_Y + row * WINDOW_H,
-                    "w": WINDOW_W,
-                    "h": WINDOW_H,
-                }
-            )
+        view_layout_data = [
+            {"i": str(ref["collection_id"]), **_layout_window_for(idx, VIEW_LAYOUT_START_Y)}
+            for idx, ref in enumerate(window_refs)
+        ]
 
         # Create default canvas layout for this view
         canvas_layout = CanvasLayout(
@@ -1278,154 +1735,3 @@ def create_new_canvas_layout(
 # ============================================================================
 # Deletion
 # ============================================================================
-
-
-def update_source(db: Session, source_id: int, campaign_id: int, updates: dict) -> ImagerySource:
-    """Update display settings and visualizations for an imagery source."""
-    source = db.execute(
-        select(ImagerySource).where(
-            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
-        )
-    ).scalar_one_or_none()
-    if not source:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source {source_id} not found in campaign {campaign_id}",
-        )
-
-    viz_updates = updates.pop("visualizations", None)
-
-    for key, value in updates.items():
-        if value is not None and hasattr(source, key):
-            setattr(source, key, value)
-
-    if viz_updates is not None:
-        db.execute(
-            delete(VisualizationTemplate).where(VisualizationTemplate.source_id == source_id)
-        )
-        db.flush()
-        for i, viz in enumerate(viz_updates):
-            db.add(
-                VisualizationTemplate(
-                    source_id=source_id,
-                    name=viz["name"],
-                    display_order=i,
-                )
-            )
-
-    db.commit()
-    db.refresh(source)
-    return source
-
-
-def delete_source(db: Session, source_id: int, campaign_id: int) -> None:
-    source = db.execute(
-        select(ImagerySource).where(
-            ImagerySource.id == source_id, ImagerySource.campaign_id == campaign_id
-        )
-    ).scalar_one_or_none()
-    if not source:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Source {source_id} not found in campaign {campaign_id}",
-        )
-    db.delete(source)
-    db.commit()
-
-
-def update_collection(
-    db: Session, collection_id: int, campaign_id: int, updates: dict
-) -> ImageryCollection:
-    """Update name and cover_slice_index for an imagery collection."""
-    collection = db.execute(
-        select(ImageryCollection)
-        .join(ImagerySource, ImageryCollection.source_id == ImagerySource.id)
-        .where(
-            ImageryCollection.id == collection_id,
-            ImagerySource.campaign_id == campaign_id,
-        )
-    ).scalar_one_or_none()
-    if not collection:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Collection {collection_id} not found in campaign {campaign_id}",
-        )
-
-    for key, value in updates.items():
-        if value is not None and hasattr(collection, key):
-            setattr(collection, key, value)
-
-    db.commit()
-    db.refresh(collection)
-    return collection
-
-
-def add_view(db: Session, campaign_id: int, name: str, collection_refs: list[dict]) -> ImageryView:
-    """Add a new imagery view to an existing campaign."""
-    # Determine next display_order
-    max_order = db.execute(
-        select(ImageryView.display_order)
-        .where(ImageryView.campaign_id == campaign_id)
-        .order_by(ImageryView.display_order.desc())
-        .limit(1)
-    ).first()
-    next_order = (max_order[0] + 1) if max_order else 0
-
-    view = ImageryView(
-        campaign_id=campaign_id,
-        name=name,
-        display_order=next_order,
-        collection_refs=collection_refs,
-    )
-    db.add(view)
-    db.commit()
-    db.refresh(view)
-    return view
-
-
-def update_view(db: Session, view_id: int, campaign_id: int, updates: dict) -> ImageryView:
-    """Update an imagery view (name, collection_refs)."""
-    view = db.execute(
-        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign_id)
-    ).scalar_one_or_none()
-    if not view:
-        raise HTTPException(
-            status_code=404,
-            detail=f"View {view_id} not found in campaign {campaign_id}",
-        )
-
-    for key, value in updates.items():
-        if hasattr(view, key):
-            setattr(view, key, value)
-
-    db.commit()
-    db.refresh(view)
-    return view
-
-
-def reorder_views(db: Session, campaign_id: int, view_ids: list[int]) -> None:
-    """Update display_order for all views based on the given ID order."""
-    views = (
-        db.execute(select(ImageryView).where(ImageryView.campaign_id == campaign_id))
-        .scalars()
-        .all()
-    )
-    view_map = {v.id: v for v in views}
-    for order, vid in enumerate(view_ids):
-        if vid in view_map:
-            view_map[vid].display_order = order
-    db.commit()
-
-
-def delete_view(db: Session, view_id: int, campaign_id: int) -> None:
-    """Delete an imagery view and its canvas layouts."""
-    view = db.execute(
-        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign_id)
-    ).scalar_one_or_none()
-    if not view:
-        raise HTTPException(
-            status_code=404,
-            detail=f"View {view_id} not found in campaign {campaign_id}",
-        )
-    db.delete(view)
-    db.commit()

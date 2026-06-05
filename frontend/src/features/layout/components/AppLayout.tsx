@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useState, useLayoutEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster } from 'sonner';
 import { AppSidebar } from 'src/features/layout/components/AppSidebar';
@@ -8,7 +8,8 @@ import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
 import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
 import { useLayoutStore } from 'src/features/layout/layout.store';
-import { useRouteAwareSidebar } from 'src/features/layout/hooks/useRouteAwareSidebar';
+
+const ANNOTATION_ROUTE = /^\/campaigns\/\d+\/annotate/;
 
 /**
  * Main application layout
@@ -16,7 +17,7 @@ import { useRouteAwareSidebar } from 'src/features/layout/hooks/useRouteAwareSid
  * All layout-related state is managed via useLayoutStore - pages can trigger UI changes via the store
  */
 export const AppLayout = () => {
-  useRouteAwareSidebar(); // Custom hook to auto-collapse sidebar based on route
+  const { pathname } = useLocation();
 
   // All layout state from a single source of truth
   const {
@@ -31,6 +32,14 @@ export const AppLayout = () => {
   } = useLayoutStore();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Auto-collapse the sidebar on the annotator route so the map gets full
+  // width. useLayoutEffect (not useEffect): collapse must happen pre-paint,
+  // otherwise the annotator grid mounts at the old width and re-lays out
+  // mid-transition.
+  useLayoutEffect(() => {
+    setSidebarCollapsed(ANNOTATION_ROUTE.test(pathname));
+  }, [pathname, setSidebarCollapsed]);
 
   return (
     <div className="flex h-[100dvh] w-full">
