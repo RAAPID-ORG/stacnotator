@@ -70,8 +70,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const showBasemap = useMapStore((s) => s.showBasemap);
   const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
-  const currentMapBounds = useMapStore((s) => s.currentMapBounds);
-  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
+  // Only open mode reads these; subscribing in task mode would re-render the
+  // whole grid every motion frame for nothing.
+  const currentMapBounds = useMapStore((s) =>
+    campaign?.mode === 'open' ? s.currentMapBounds : null
+  );
+  const currentMapCenter = useMapStore((s) =>
+    campaign?.mode === 'open' ? s.currentMapCenter : null
+  );
   const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
@@ -83,19 +89,22 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
-  const tasksInAssignmentScope = allTasks.filter((task) => {
-    if (taskFilter.assignedTo.length === 0) return true;
-    const assignments = task.assignments || [];
-    return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
-  });
-  const totalTasksForCounter = tasksInAssignmentScope.length;
-  const completedTasksForCounter = tasksInAssignmentScope.filter((task) => {
-    return (
-      task.task_status === 'done' ||
-      task.task_status === 'skipped' ||
-      task.task_status === 'conflicting'
-    );
-  }).length;
+  const { totalTasksForCounter, completedTasksForCounter } = useMemo(() => {
+    const tasksInAssignmentScope = allTasks.filter((task) => {
+      if (taskFilter.assignedTo.length === 0) return true;
+      const assignments = task.assignments || [];
+      return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
+    });
+    return {
+      totalTasksForCounter: tasksInAssignmentScope.length,
+      completedTasksForCounter: tasksInAssignmentScope.filter(
+        (task) =>
+          task.task_status === 'done' ||
+          task.task_status === 'skipped' ||
+          task.task_status === 'conflicting'
+      ).length,
+    };
+  }, [allTasks, taskFilter.assignedTo]);
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = campaign?.mode === 'open';
@@ -205,11 +214,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     );
   }, [campaign, activeCollectionId]);
 
-  const activeCollection =
-    activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null;
+  const activeCollection = useMemo(
+    () => activeSource?.collections.find((c) => c.id === activeCollectionId) ?? null,
+    [activeSource, activeCollectionId]
+  );
   const activeSlice = activeCollection?.slices[activeSliceIndex] ?? null;
 
-  const activeSourceVizName = (() => {
+  const activeSourceVizName = useMemo(() => {
     if (!activeSource || !campaign) return null;
     let offset = 0;
     for (const s of campaign.imagery_sources) {
@@ -221,7 +232,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       activeSource.visualizations[Math.min(idx, activeSource.visualizations.length - 1)]?.name ??
       null
     );
-  })();
+  }, [activeSource, campaign, selectedLayerIndex]);
 
   // Open mode: viewport center. Task mode: task geometry centroid.
   const latLon = useMemo<LatLon | null>(() => {
