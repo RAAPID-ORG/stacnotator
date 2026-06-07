@@ -72,6 +72,11 @@ export const MainAnnotationsContainer = ({
 
   const preloadMode = usePreferencesStore((s) => s.preloadMode);
   const setPreloadMode = usePreferencesStore((s) => s.setPreloadMode);
+  // Per-view pinned "start each task on this collection" preference.
+  const pinnedStartCollection = usePreferencesStore((s) =>
+    selectedViewId != null ? s.taskStartCollectionByView[selectedViewId] : undefined
+  );
+  const setTaskStartCollection = usePreferencesStore((s) => s.setTaskStartCollection);
   const autoTier = useMemo(() => getAutoPreloadTier(), []);
   const effectiveTier = resolvePreloadTier(preloadMode);
   const effectiveConcurrency = resolvePreloadConcurrency(preloadMode);
@@ -357,6 +362,25 @@ export const MainAnnotationsContainer = ({
                   }))}
                   onChange={(v) => setActiveCollectionId(Number(v))}
                   title={isTaskMode ? 'Select collection (shift + a/d)' : 'Select collection'}
+                  // Task mode only: the flag picks which collection each task opens on.
+                  markedValue={
+                    isTaskMode && selectedViewId != null
+                      ? (pinnedStartCollection ?? null)
+                      : undefined
+                  }
+                  onMarkOption={
+                    isTaskMode && selectedViewId != null
+                      ? (v) => {
+                          const id = Number(v);
+                          setTaskStartCollection(
+                            selectedViewId,
+                            pinnedStartCollection === id ? null : id
+                          );
+                        }
+                      : undefined
+                  }
+                  markActiveTitle="Opens first on every task - click to clear"
+                  markInactiveTitle="Show this collection first on every task"
                 />
               )}
 

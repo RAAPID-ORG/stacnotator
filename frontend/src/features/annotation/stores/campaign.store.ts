@@ -14,6 +14,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { useMapStore } from './map.store';
 import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
+import { usePreferencesStore } from './preferences.store';
 import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
 import type { ImageryViewOut } from '~/api/client';
 import {
@@ -151,9 +152,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const firstView = campaign.imagery_views[0];
       const selectedViewId = firstView?.id ?? null;
 
-      // Find the first collection with show_as_window from the first view
-      const firstWindowRef = firstView?.collection_refs?.find((r) => r.show_as_window);
-      const activeCollectionId = firstWindowRef?.collection_id ?? null;
+      // Active collection: the user's pinned start collection for this view if
+      // still valid, otherwise the first window collection. Mirrors the task-nav
+      // logic in task.store so the first task opens consistently with the rest.
+      const windowRefs = firstView?.collection_refs?.filter((r) => r.show_as_window) ?? [];
+      const pinnedStart =
+        selectedViewId != null
+          ? usePreferencesStore.getState().taskStartCollectionByView[selectedViewId]
+          : undefined;
+      const pinnedValid = windowRefs.some((r) => r.collection_id === pinnedStart);
+      const activeCollectionId = (pinnedValid ? pinnedStart : windowRefs[0]?.collection_id) ?? null;
 
       const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
         campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;

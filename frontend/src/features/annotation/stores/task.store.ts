@@ -12,6 +12,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
+import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, type TaskFilter } from '../utils/taskFilter';
 
 export type { TaskFilter, TaskStatus };
@@ -98,8 +99,16 @@ const resetMapForTaskNav = () => {
   const campaign = useCampaignStore.getState().campaign;
   const selectedViewId = useCampaignStore.getState().selectedViewId;
   const view = campaign?.imagery_views.find((v) => v.id === selectedViewId);
-  const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
-  const defaultCollectionId = firstWindowRef?.collection_id ?? null;
+  const windowRefs = view?.collection_refs?.filter((r) => r.show_as_window) ?? [];
+
+  // Honour the user's pinned starting collection for this view, falling back to
+  // the first window collection if unset or no longer valid (e.g. removed).
+  const pinned =
+    selectedViewId != null
+      ? usePreferencesStore.getState().taskStartCollectionByView[selectedViewId]
+      : undefined;
+  const pinnedValid = windowRefs.some((r) => r.collection_id === pinned);
+  const defaultCollectionId = (pinnedValid ? pinned : windowRefs[0]?.collection_id) ?? null;
 
   useMapStore.setState({
     // Clear per-collection memory so the active slice resolves from the

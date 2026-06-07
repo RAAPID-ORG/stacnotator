@@ -30,6 +30,14 @@ interface PreferencesStore {
   setPreloadMode: (mode: PreloadMode) => void;
 
   /**
+   * Per-view choice of which collection becomes active when navigating to a new
+   * task. Key = view id, value = collection id. An absent entry means "use the
+   * view's first window collection" (the default). Pass `null` to clear.
+   */
+  taskStartCollectionByView: Record<number, number>;
+  setTaskStartCollection: (viewId: number, collectionId: number | null) => void;
+
+  /**
    * Sparse map of (account, campaign) pairs the user has already dismissed
    * the guided tour for. Key format: `${accountId}:${campaignId}`. Absent
    * key means "not seen". Read via `hasSeenTour` (which also migrates from
@@ -56,6 +64,15 @@ export const usePreferencesStore = create<PreferencesStore>()(
     (set) => ({
       preloadMode: 'auto',
       setPreloadMode: (mode) => set({ preloadMode: mode }),
+
+      taskStartCollectionByView: {},
+      setTaskStartCollection: (viewId, collectionId) =>
+        set((s) => {
+          const next = { ...s.taskStartCollectionByView };
+          if (collectionId === null) delete next[viewId];
+          else next[viewId] = collectionId;
+          return { taskStartCollectionByView: next };
+        }),
 
       tourSeenByCampaign: {},
       markTourSeen: (accountId, campaignId) =>
