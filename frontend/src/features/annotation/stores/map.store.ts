@@ -73,6 +73,13 @@ interface MapStore {
   setMapCenter: (center: [number, number]) => void;
   setMapZoom: (zoom: number) => void;
   setMapBounds: (bounds: [number, number, number, number]) => void;
+  // Single batched write for the per-frame view sync, so one motion frame is one
+  // store notification (not three). Bounds omitted in task mode (unused there).
+  setView: (
+    center: [number, number],
+    zoom: number,
+    bounds?: [number, number, number, number]
+  ) => void;
 
   triggerRefocus: () => void;
   triggerFitAnnotations: () => void;
@@ -222,6 +229,12 @@ export const useMapStore = create<MapStore>((set) => ({
   setMapCenter: (center) => set({ currentMapCenter: center }),
   setMapZoom: (zoom) => set({ currentMapZoom: zoom }),
   setMapBounds: (bounds) => set({ currentMapBounds: bounds }),
+  setView: (center, zoom, bounds) =>
+    set(
+      bounds !== undefined
+        ? { currentMapCenter: center, currentMapZoom: zoom, currentMapBounds: bounds }
+        : { currentMapCenter: center, currentMapZoom: zoom }
+    ),
 
   triggerRefocus: () => set((s) => ({ refocusTrigger: s.refocusTrigger + 1 })),
   triggerFitAnnotations: () => set((s) => ({ fitAnnotationsTrigger: s.fitAnnotationsTrigger + 1 })),

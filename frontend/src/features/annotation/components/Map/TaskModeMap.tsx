@@ -50,7 +50,7 @@ interface TaskModeMapProps {
   onViewChange?: (
     center: [number, number],
     zoom: number,
-    bounds: [number, number, number, number]
+    bounds?: [number, number, number, number]
   ) => void;
   onReady?: () => void;
   activeTool?: 'pan' | 'annotate' | 'edit' | 'timeseries';
@@ -291,9 +291,12 @@ const TaskModeMap = ({
 
           initLayers(lm);
 
-          // Publish view changes on every frame during pan/zoom
+          // Publish view changes during pan/zoom, coalesced to one store write
+          // per frame (center + resolution can both change in a single frame).
           const view = map.getView();
-          const syncView = () => {
+          let viewSyncRaf: number | null = null;
+          const emitViewChange = () => {
+            viewSyncRaf = null;
             const olCenter = view.getCenter();
             const z = view.getZoom();
             if (!olCenter || z === undefined) return;
@@ -301,15 +304,17 @@ const TaskModeMap = ({
             // Guard: skip if map hasn't laid out yet (size is 0)
             if (!size || size[0] === 0 || size[1] === 0) return;
             const [lon, lat] = toLonLat(olCenter);
-            const extent = view.calculateExtent(size);
-            const [minLon, minLat] = toLonLat([extent[0], extent[1]]);
-            const [maxLon, maxLat] = toLonLat([extent[2], extent[3]]);
-            onViewChangeRef.current?.([lat, lon], z, [minLon, minLat, maxLon, maxLat]);
+            // Task mode doesn't consume bounds, so we skip the extent math entirely.
+            onViewChangeRef.current?.([lat, lon], z);
+          };
+          const syncView = () => {
+            if (viewSyncRaf !== null) return;
+            viewSyncRaf = requestAnimationFrame(emitViewChange);
           };
           view.on('change:center', syncView);
           view.on('change:resolution', syncView);
           // Wait for the first full render so map.getSize() returns real dimensions
-          map.once('rendercomplete', syncView);
+          map.once('rendercomplete', emitViewChange);
 
           // Create crosshair overlay
           const el = createCrosshairElement(crosshair?.color);

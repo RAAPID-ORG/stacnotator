@@ -306,9 +306,12 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
 
             initLayers(lm);
 
-            // Publish view changes so window maps stay synced
+            // Publish view changes so window maps stay synced, coalesced to one
+            // store write per frame (center + resolution can both change in one).
             const view = map.getView();
-            const syncView = () => {
+            let viewSyncRaf: number | null = null;
+            const emitViewChange = () => {
+              viewSyncRaf = null;
               const olCenter = view.getCenter();
               const zoom = view.getZoom();
               if (!olCenter || zoom === undefined) return;
@@ -321,10 +324,14 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
               const [maxLon, maxLat] = toLonLat([extent[2], extent[3]]);
               onViewChangeRef.current?.([lat, lon], zoom, [minLon, minLat, maxLon, maxLat]);
             };
+            const syncView = () => {
+              if (viewSyncRaf !== null) return;
+              viewSyncRaf = requestAnimationFrame(emitViewChange);
+            };
             view.on('change:center', syncView);
             view.on('change:resolution', syncView);
             // Wait for the first full render so map.getSize() returns real dimensions
-            map.once('rendercomplete', syncView);
+            map.once('rendercomplete', emitViewChange);
 
             // Create probe marker overlay
             const probeEl = document.createElement('div');

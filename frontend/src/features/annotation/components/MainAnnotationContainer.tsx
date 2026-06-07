@@ -56,9 +56,7 @@ export const MainAnnotationsContainer = ({
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
-  const setMapCenter = useMapStore((s) => s.setMapCenter);
-  const setMapZoom = useMapStore((s) => s.setMapZoom);
-  const setMapBounds = useMapStore((s) => s.setMapBounds);
+  const setView = useMapStore((s) => s.setView);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
@@ -298,6 +296,20 @@ export const MainAnnotationsContainer = ({
       }
     },
     [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
+  );
+
+  const handleLayersChange = useCallback((layers: Layer[], id: string) => {
+    setMapLayers(layers);
+    setActiveLayerId(id);
+  }, []);
+
+  // Stable identity: onViewChange fires every motion frame; a fresh closure would
+  // break TaskModeMap/OpenModeMap memoization. One batched write per frame.
+  const handleViewChange = useCallback(
+    (newCenter: [number, number], zoom: number, bounds?: [number, number, number, number]) => {
+      setView(newCenter, zoom, bounds);
+    },
+    [setView]
   );
 
   if (!campaign || !activeSource) return null;
@@ -613,15 +625,8 @@ export const MainAnnotationsContainer = ({
             showCrosshair={showCrosshair}
             sampleExtent={showCrosshair ? sampleExtent : null}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => {
-              setMapLayers(layers);
-              setActiveLayerId(id);
-            }}
-            onViewChange={(newCenter, zoom, bounds) => {
-              setMapCenter(newCenter);
-              setMapZoom(zoom);
-              setMapBounds(bounds);
-            }}
+            onLayersChange={handleLayersChange}
+            onViewChange={handleViewChange}
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
@@ -636,15 +641,8 @@ export const MainAnnotationsContainer = ({
             showCrosshair={showCrosshair}
             crosshairColor={activeSource?.crosshair_hex6 ?? undefined}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => {
-              setMapLayers(layers);
-              setActiveLayerId(id);
-            }}
-            onViewChange={(newCenter, zoom, bounds) => {
-              setMapCenter(newCenter);
-              setMapZoom(zoom);
-              setMapBounds(bounds);
-            }}
+            onLayersChange={handleLayersChange}
+            onViewChange={handleViewChange}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
             magicWandActive={magicWandActive}

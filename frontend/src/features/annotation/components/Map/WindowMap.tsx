@@ -23,6 +23,7 @@ import {
 
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { useMapStore } from '../../stores/map.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { tileLoadImagery } from '../../utils/tileLoading';
@@ -32,9 +33,12 @@ interface WindowMapProps {
   // [lat, lon] - initial map position, set once on mount
   initialCenter: [number, number];
   initialZoom: number;
-  // Reactive: pan/zoom the map when these change (synced from main map via store)
+  // Task-anchored position (e.g. task nav). Ignored while `follow` is on.
   center?: [number, number];
   zoom?: number;
+  // Mirror the main map's live center/zoom imperatively from the store, so
+  // per-frame motion never re-renders React.
+  follow?: boolean;
   // The single tile URL to display (already resolved by the parent)
   tileUrl: string;
   // Crosshair
@@ -69,6 +73,7 @@ const WindowMap = ({
   initialZoom,
   center,
   zoom,
+  follow = false,
   tileUrl,
   crosshair,
   showCrosshair = true,
@@ -257,15 +262,38 @@ const WindowMap = ({
     }
   }, [tileUrl, detectionKey]);
 
-  // Sync center+zoom from main map (store-driven).
-  // Use instant setCenter/setZoom (no animation) so windows track the main map
-  // frame-by-frame with zero lag. The main map now fires change:center every frame.
+  // Move to the task-anchored center/zoom (non-following windows only; followers
+  // are driven by the subscription below). Also runs on `follow` transitions, so
+  // a window that stops following returns to its task position.
   useEffect(() => {
-    if (!center || !mapRef.current) return;
+    if (follow || !center || !mapRef.current) return;
     const view = mapRef.current.getView();
     view.setCenter(fromLonLat([center[1], center[0]]));
     if (zoom !== undefined) view.setZoom(zoom);
-  }, [center, zoom]);
+  }, [center, zoom, follow]);
+
+  // While following, track the store's center/zoom imperatively (poke the OL view
+  // directly) so motion updates every window without a React re-render.
+  useEffect(() => {
+    if (!follow) return;
+    const applyView = (c: [number, number] | null, z: number | null) => {
+      const view = mapRef.current?.getView();
+      if (!view || !c) return;
+      view.setCenter(fromLonLat([c[1], c[0]]));
+      if (z !== null) view.setZoom(z);
+    };
+    // Snap to the current position immediately, then track future changes.
+    const s = useMapStore.getState();
+    applyView(s.currentMapCenter, s.currentMapZoom);
+    return useMapStore.subscribe((state, prev) => {
+      if (
+        state.currentMapCenter !== prev.currentMapCenter ||
+        state.currentMapZoom !== prev.currentMapZoom
+      ) {
+        applyView(state.currentMapCenter, state.currentMapZoom);
+      }
+    });
+  }, [follow]);
 
   // Sync annotations into the vector source
   // Incremental update - same pattern as DrawingLayer - to avoid flicker.

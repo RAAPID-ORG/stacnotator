@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useMapStore } from '../stores/map.store';
 import type { ImageryCollectionOut } from '~/api/client';
 import { formatSliceLabel } from '~/shared/utils/utility';
@@ -10,15 +10,25 @@ interface WindowSliceSelectProps {
   darkBg?: boolean;
 }
 
-export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSelectProps) => {
-  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
-  const emptySlices = useMapStore((s) => s.emptySlices);
+const WindowSliceSelectImpl = ({ collection, darkBg = false }: WindowSliceSelectProps) => {
+  // Subscribe per-collection, so another window's slice change doesn't re-render
+  // every picker on the page.
+  const sliceIndexForCollection = useMapStore((s) => s.collectionSliceIndices[collection.id]);
+  // A primitive signature, so default equality only re-renders on our own empties.
+  const emptySig = useMapStore((s) => {
+    let sig = '';
+    for (let i = 0; i < collection.slices.length; i++) {
+      if (s.emptySlices[`${collection.id}-${i}`]) sig += `${i},`;
+    }
+    return sig;
+  });
   const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
 
-  const currentSliceIndex = resolveSliceIndex(collection, collectionSliceIndices[collection.id]);
+  const currentSliceIndex = resolveSliceIndex(collection, sliceIndexForCollection);
   const slices = collection.slices;
 
   const options = useMemo(() => {
+    const emptyIdx = new Set(emptySig ? emptySig.split(',').filter(Boolean).map(Number) : []);
     const { pickerIndices } = sliceView(
       slices.length,
       collection.cover_slice_index,
@@ -26,7 +36,7 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
     );
     return pickerIndices.map((idx) => {
       const slice = slices[idx];
-      const isEmpty = !!emptySlices[`${collection.id}-${idx}`];
+      const isEmpty = emptyIdx.has(idx);
       const baseLabel =
         slice.name ||
         (slice.start_date && slice.end_date
@@ -38,13 +48,7 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
         dimmed: isEmpty,
       };
     });
-  }, [
-    slices,
-    emptySlices,
-    collection.id,
-    collection.cover_slice_index,
-    collection.has_dedicated_cover,
-  ]);
+  }, [slices, emptySig, collection.cover_slice_index, collection.has_dedicated_cover]);
 
   if (slices.length <= 1) return null;
 
@@ -65,3 +69,5 @@ export const WindowSliceSelect = ({ collection, darkBg = false }: WindowSliceSel
     </span>
   );
 };
+
+export const WindowSliceSelect = memo(WindowSliceSelectImpl);
