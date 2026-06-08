@@ -979,6 +979,10 @@ export type CollectionStacConfigOut = {
         [key: string]: unknown;
     } | null;
     /**
+     * Visualizations
+     */
+    visualizations?: Array<NamedVizParamsOut> | null;
+    /**
      * Max Cloud Cover
      */
     max_cloud_cover?: number | null;
@@ -1424,6 +1428,28 @@ export type NamedVizParamsCreate = {
     name: string;
     viz_params: VizParamsCreate;
     cover_viz_params?: VizParamsCreate | null;
+};
+
+/**
+ * NamedVizParamsOut
+ */
+export type NamedVizParamsOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Viz Params
+     */
+    viz_params?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cover Viz Params
+     */
+    cover_viz_params?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**

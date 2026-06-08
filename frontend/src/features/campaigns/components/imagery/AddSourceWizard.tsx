@@ -13,6 +13,9 @@ interface AddSourceWizardProps {
   controller: ImageryController;
   onClose: () => void;
   campaignBbox?: number[] | null;
+  /** Called with the new source id right after it's created, so the caller can
+   *  open it for editing immediately. */
+  onCreated?: (sourceId: string) => void;
 }
 
 type WizardStep =
@@ -40,6 +43,7 @@ export const AddSourceWizard = ({
   controller,
   onClose,
   campaignBbox = null,
+  onCreated,
 }: AddSourceWizardProps) => {
   const [step, setStep] = useState<WizardStep>({ kind: 'pick-preset' });
 
@@ -65,7 +69,8 @@ export const AddSourceWizard = ({
     src.collections = collections;
 
     await controller.addSource(src);
-    onClose();
+    if (onCreated) onCreated(src.id);
+    else onClose();
   };
 
   if (step.kind === 'configure-preset') {
@@ -103,7 +108,8 @@ export const AddSourceWizard = ({
         onBack={back}
         onConfirm={async (source) => {
           await controller.addSource(source);
-          onClose();
+          if (onCreated) onCreated(source.id);
+          else onClose();
         }}
       />
     );

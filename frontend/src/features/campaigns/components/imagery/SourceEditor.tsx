@@ -8,8 +8,8 @@ import {
   IconClock,
   IconPlus,
 } from '~/shared/ui/Icons';
-import type { CollectionItem, ImagerySource } from './types';
-import { emptyManualCollection, swap } from './types';
+import type { CollectionItem, ImagerySource, NamedVizParams } from './types';
+import { emptyManualCollection, emptyVizParams, swap } from './types';
 import { IconButton, Input, Button } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { CollectionEditor } from './CollectionEditor';
@@ -59,6 +59,31 @@ function rewriteVizUrls(
     data: { ...c.data, vizUrls: filter(c.data.vizUrls) },
     slices: c.slices.map((sl) => (sl.vizUrls ? { ...sl, vizUrls: filter(sl.vizUrls) } : sl)),
   }));
+}
+
+/** Align a freshly-added collection to the source's visualization names so it
+ * exposes the same named tabs. Params for a matching name are carried over;
+ * names the source has but the collection lacks become empty tabs ready to fill;
+ * extra names from the catalog that the source doesn't have are dropped. */
+function alignCollectionToVizNames(c: CollectionItem, vizNames: string[]): CollectionItem {
+  if (c.data.type !== 'stac_browser' || vizNames.length === 0) return c;
+  const data = c.data;
+  const byName = new Map(data.visualizations.map((v) => [v.name, v]));
+  const visualizations: NamedVizParams[] = vizNames.map(
+    (name) => byName.get(name) ?? { name, vizParams: emptyVizParams() }
+  );
+  let coverVisualizations = data.coverVisualizations;
+  if (coverVisualizations) {
+    const coverByName = new Map(coverVisualizations.map((v) => [v.name, v]));
+    coverVisualizations = vizNames.map(
+      (name) =>
+        coverByName.get(name) ?? { name, vizParams: { ...emptyVizParams(), compositing: 'first' } }
+    );
+  }
+  const vizUrls = vizNames.map(
+    (name) => data.vizUrls.find((u) => u.vizName === name) ?? { vizName: name, url: '' }
+  );
+  return { ...c, data: { ...data, visualizations, coverVisualizations, vizUrls } };
 }
 
 export const SourceEditor = ({
@@ -111,7 +136,9 @@ export const SourceEditor = ({
 
   const addCollectionsFromCatalog = async (collections: CollectionItem[]) => {
     for (const c of collections) {
-      await controller.addCollection(source.id, c); // sequential - persisted mode hits the API per call
+      // Align to the source's viz names so the new collection shows the same
+      // named tabs (waiting to be filled) as the rest of the source.
+      await controller.addCollection(source.id, alignCollectionToVizNames(c, vizNames));
     }
     setAddStep(null);
   };

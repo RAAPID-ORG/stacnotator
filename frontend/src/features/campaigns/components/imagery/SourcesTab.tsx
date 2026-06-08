@@ -2,22 +2,18 @@ import { useState } from 'react';
 import { IconPlus, IconSettings } from '~/shared/ui/Icons';
 import type { ImageryController } from './controller';
 import { AddSourceWizard } from './AddSourceWizard';
-import { SourceEditor } from './SourceEditor';
-import type { ImagerySource } from './types';
 
 interface SourcesTabProps {
   controller: ImageryController;
   campaignBbox?: number[] | null;
+  /** Open the shared source editor for the given source id. */
+  onEditSource: (sourceId: string) => void;
 }
 
-export const SourcesTab = ({ controller, campaignBbox = null }: SourcesTabProps) => {
+export const SourcesTab = ({ controller, campaignBbox = null, onEditSource }: SourcesTabProps) => {
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   const sources = controller.state.sources;
-  const editing: ImagerySource | undefined = editingId
-    ? sources.find((s) => s.id === editingId)
-    : undefined;
 
   return (
     <div className="space-y-3">
@@ -33,7 +29,7 @@ export const SourcesTab = ({ controller, campaignBbox = null }: SourcesTabProps)
           <button
             key={source.id}
             type="button"
-            onClick={() => setEditingId(source.id)}
+            onClick={() => onEditSource(source.id)}
             title="Click to configure"
             className="group relative flex items-center justify-center rounded-lg border-2 transition-all cursor-pointer px-4 py-3 shrink-0 border-neutral-200 bg-white text-neutral-800 hover:border-brand-400 hover:bg-brand-700/10"
           >
@@ -59,15 +55,10 @@ export const SourcesTab = ({ controller, campaignBbox = null }: SourcesTabProps)
           controller={controller}
           campaignBbox={campaignBbox}
           onClose={() => setWizardOpen(false)}
-        />
-      )}
-
-      {editing && (
-        <SourceEditor
-          source={editing}
-          controller={controller}
-          campaignBbox={campaignBbox}
-          onClose={() => setEditingId(null)}
+          onCreated={(sourceId) => {
+            setWizardOpen(false);
+            onEditSource(sourceId);
+          }}
         />
       )}
     </div>

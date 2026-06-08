@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useMemo, useState, useEffect, memo } from 'react';
 import WindowMap from './Map/WindowMap';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
@@ -57,19 +57,25 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const refocusTrigger = useMapStore((s) => s.refocusTrigger);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
-  const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
-  const collectionSliceIndices = useMapStore((s) => s.collectionSliceIndices);
-  const currentMapCenter = useMapStore((s) => s.currentMapCenter);
-  const currentMapZoom = useMapStore((s) => s.currentMapZoom);
+  // Per-collection, so another window's slice change doesn't re-render this one.
+  const sliceIndexForCollection = useMapStore((s) => s.collectionSliceIndices[collectionId]);
   const viewSyncEnabled = useMapStore((s) => s.viewSyncEnabled);
+  // WindowMap follows the live center/zoom imperatively (its `follow` prop), so
+  // we only pass this flag - reading live center/zoom here would re-render us per frame.
+  const isFollowing = collectionId === activeCollectionId || viewSyncEnabled;
   const showCrosshair = useMapStore((s) => s.showCrosshair);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
   const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
-  const emptySlices = useMapStore((s) => s.emptySlices);
 
   // Resolve collection and source from campaign
-  const source = campaign?.imagery_sources.find((s) => s.id === sourceId) ?? null;
-  const collection = source?.collections.find((c) => c.id === collectionId) ?? null;
+  const source = useMemo(
+    () => campaign?.imagery_sources.find((s) => s.id === sourceId) ?? null,
+    [campaign, sourceId]
+  );
+  const collection = useMemo(
+    () => source?.collections.find((c) => c.id === collectionId) ?? null,
+    [source, collectionId]
+  );
   const currentTask = visibleTasks[currentTaskIndex] || null;
   const isOpenMode = campaign?.mode === 'open';
   const campaignBbox = campaign
@@ -81,40 +87,41 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       ] as [number, number, number, number])
     : null;
 
-  const isActiveCollection = collectionId === activeCollectionId;
-
   const slices = collection?.slices ?? [];
 
-  const currentSliceIndex = resolveSliceIndex(collection, collectionSliceIndices[collectionId]);
+  const currentSliceIndex = resolveSliceIndex(collection, sliceIndexForCollection);
   const activeSlice = slices[currentSliceIndex] ?? slices[0];
 
   // Resolve which viz to show in this window.
   // selectedLayerIndex is global. We convert it to a position within the
   // active source, then apply that same position to this window's source.
   // If this window belongs to a different source, it stays on viz 0.
-  const sources = campaign?.imagery_sources ?? [];
-  const ownerSource = sources.find((s) => s.collections.some((c) => c.id === collectionId));
-  const mainSource = sources.find((s) => s.collections.some((c) => c.id === activeCollectionId));
-
-  let vizIndex = 0;
-  if (ownerSource && mainSource && ownerSource.id === mainSource.id) {
-    // Same source as the main map - compute position within this source
-    let offset = 0;
-    for (const s of sources) {
-      if (s.id === mainSource.id) break;
-      offset += s.visualizations.length;
+  const activeVizName = useMemo(() => {
+    const sources = campaign?.imagery_sources ?? [];
+    const ownerSource = sources.find((s) => s.collections.some((c) => c.id === collectionId));
+    const mainSource = sources.find((s) => s.collections.some((c) => c.id === activeCollectionId));
+    let vizIndex = 0;
+    if (ownerSource && mainSource && ownerSource.id === mainSource.id) {
+      // Same source as the main map - compute position within this source
+      let offset = 0;
+      for (const s of sources) {
+        if (s.id === mainSource.id) break;
+        offset += s.visualizations.length;
+      }
+      vizIndex = Math.min(
+        Math.max(0, selectedLayerIndex - offset),
+        ownerSource.visualizations.length - 1
+      );
     }
-    vizIndex = Math.min(
-      Math.max(0, selectedLayerIndex - offset),
-      ownerSource.visualizations.length - 1
-    );
-  }
+    return ownerSource?.visualizations[vizIndex]?.name ?? null;
+  }, [campaign, collectionId, activeCollectionId, selectedLayerIndex]);
 
-  const activeVizName = ownerSource?.visualizations[vizIndex]?.name ?? null;
-  const tileUrlEntry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
-  const tileUrl = tileUrlEntry
-    ? buildTileUrl({ tile_url: tileUrlEntry.tile_url, tile_provider: tileUrlEntry.tile_provider })
-    : '';
+  const tileUrl = useMemo(() => {
+    const entry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
+    return entry
+      ? buildTileUrl({ tile_url: entry.tile_url, tile_provider: entry.tile_provider })
+      : '';
+  }, [activeSlice, activeVizName]);
   const loading = !activeSlice || !tileUrl;
 
   // Memoize latLon extraction (supports all geometry types via centroid)
@@ -124,33 +131,27 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     [currentTask?.geometry.geometry]
   );
 
-  // Initial center for map mount
+  // Center the OL view is (re)created at. Kept current to the task so a window
+  // remounted by virtualization after navigation opens at the current task, not
+  // a stale one. (For followers, the follow effect then snaps to the main map.)
   const initialCenter = useMemo<[number, number]>(() => {
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox)
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return [0, 0];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [latLon?.lat, latLon?.lon]);
 
-  // Reactive center - follows the main map when active or synced
+  // Resting position (task centroid / bbox); live follow motion is imperative in WindowMap.
   const center = useMemo<[number, number] | undefined>(() => {
-    if (isActiveCollection || viewSyncEnabled) {
-      if (currentMapCenter) return currentMapCenter;
-    }
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox)
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMapCenter, latLon?.lat, latLon?.lon, isActiveCollection, viewSyncEnabled]);
+  }, [latLon?.lat, latLon?.lon]);
 
-  const zoom = useMemo(() => {
-    if (isActiveCollection || viewSyncEnabled) {
-      if (currentMapZoom !== null) return currentMapZoom;
-    }
-    return source?.default_zoom ?? 10;
-  }, [currentMapZoom, source?.default_zoom, isActiveCollection, viewSyncEnabled]);
+  const zoom = source?.default_zoom ?? 10;
 
   // Detect whether the current task has a polygon geometry
   const isPolygonTask = useMemo(() => {
@@ -185,9 +186,14 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     latLon?.lon,
   ]);
 
-  // True once every slice for this collection has been confirmed empty at the crosshair
-  const allSlicesEmpty =
-    !isOpenMode && slices.length > 0 && slices.every((_, i) => emptySlices[`${collectionId}-${i}`]);
+  // Derived boolean for this collection only, so another window's empty-slice
+  // change doesn't re-render us.
+  const allSlicesEmpty = useMapStore(
+    (s) =>
+      !isOpenMode &&
+      slices.length > 0 &&
+      slices.every((_, i) => !!s.emptySlices[`${collectionId}-${i}`])
+  );
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
 
@@ -237,14 +243,15 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         }
 
         const sliceKey = `${collectionId}-${currentSliceIndex}`;
-        const alreadyKnownEmpty = !!emptySlices[sliceKey];
+        const emptySlicesNow = useMapStore.getState().emptySlices;
+        const alreadyKnownEmpty = !!emptySlicesNow[sliceKey];
         markSliceEmpty(sliceKey);
         if (alreadyKnownEmpty) return;
 
         // Find the nearest non-empty regular slice: forward first (matches
         // the user's mental model of "stay within the time series"), then
         // backward, then any non-empty slice (custom cover) as a last resort.
-        const currentEmpty = { ...emptySlices, [sliceKey]: true as const };
+        const currentEmpty = { ...emptySlicesNow, [sliceKey]: true as const };
         const isEmpty = (i: number) => !!currentEmpty[`${collectionId}-${i}`];
         const { navIndices } = sliceView(
           slices.length,
@@ -289,7 +296,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   return (
     <div
-      className="flex-1 relative overflow-hidden select-none"
+      className="flex-1 relative overflow-hidden select-none bg-neutral-200"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -319,6 +326,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               initialZoom={zoom}
               center={center}
               zoom={zoom}
+              follow={isFollowing}
               tileUrl={tileUrl}
               crosshair={crosshair}
               showCrosshair={!isOpenMode && showCrosshair && !emptyTileAlert}
@@ -335,4 +343,4 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   );
 };
 
-export default ImageryContainer;
+export default memo(ImageryContainer);

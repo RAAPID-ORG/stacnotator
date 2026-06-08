@@ -52,6 +52,28 @@ def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
     return bool(col_create.has_dedicated_cover)
 
 
+def _serialize_visualizations(stac_config, has_cover: bool) -> list[dict] | None:
+    """Full per-visualization params list for CollectionStacConfig.visualizations.
+
+    One entry per source visualization so a roundtrip-save preserves each viz's
+    params independently (the legacy viz_params blob only holds the first viz).
+    """
+    if not stac_config or not stac_config.visualizations:
+        return None
+    return [
+        {
+            "name": v.name,
+            "viz_params": v.viz_params.model_dump(exclude_none=True),
+            "cover_viz_params": (
+                v.cover_viz_params.model_dump(exclude_none=True)
+                if has_cover and v.cover_viz_params
+                else None
+            ),
+        }
+        for v in stac_config.visualizations
+    ]
+
+
 # ============================================================================
 # Imagery Creation (new model)
 # ============================================================================
@@ -254,8 +276,9 @@ def save_imagery_editor_state(
             _sync_view_layouts(
                 db,
                 db_view.id,
+                campaign.id,
+                window_collection_ids=new_window_ids,
                 added_collection_ids=list(new_window_ids - old_window_ids),
-                removed_collection_ids=list(old_window_ids - new_window_ids),
             )
         else:
             new_view = ImageryView(
@@ -457,6 +480,7 @@ def _update_collection_in_place(
                         if has_cover and first_viz and first_viz.cover_viz_params
                         else None
                     ),
+                    visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                     max_cloud_cover=col_create.stac_config.max_cloud_cover,
                     search_query=col_create.stac_config.search_query,
                     cover_search_query=(
@@ -481,6 +505,9 @@ def _update_collection_in_place(
                 if has_cover and first_viz and first_viz.cover_viz_params
                 else None
             )
+            db_col.stac_config.visualizations = _serialize_visualizations(
+                col_create.stac_config, has_cover
+            )
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
             db_col.stac_config.search_query = col_create.stac_config.search_query
             db_col.stac_config.cover_search_query = (
@@ -488,6 +515,7 @@ def _update_collection_in_place(
             )
             flag_modified(db_col.stac_config, "search_query")
             flag_modified(db_col.stac_config, "cover_search_query")
+            flag_modified(db_col.stac_config, "visualizations")
 
     # Reconcile slices.
     payload_slice_ids = {s.id for s in col_create.slices if s.id is not None}
@@ -661,6 +689,7 @@ def _create_collection_record(
                     if has_cover and first_viz and first_viz.cover_viz_params
                     else None
                 ),
+                visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                 max_cloud_cover=col_create.stac_config.max_cloud_cover,
                 search_query=col_create.stac_config.search_query,
                 cover_search_query=(
@@ -1262,6 +1291,19 @@ def update_collection_viz_params(
         next(iter((cover_viz_by_name or {}).values()), None) if cover_viz_by_name else None
     )
     stac.cover_viz_params = first_cover if collection.has_dedicated_cover else None
+    # Keep the authoritative per-viz list in sync so a load roundtrip preserves
+    # each visualization's params independently.
+    stac.visualizations = [
+        {
+            "name": name,
+            "viz_params": params,
+            "cover_viz_params": (
+                (cover_viz_by_name or {}).get(name) if collection.has_dedicated_cover else None
+            ),
+        }
+        for name, params in viz_by_name.items()
+    ]
+    flag_modified(stac, "visualizations")
 
     slices = (
         db.execute(
@@ -1275,6 +1317,26 @@ def update_collection_viz_params(
 
     for sl_idx, sl in enumerate(slices):
         is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
+
+        # A visualization added after this collection was first registered has no
+        # tile URL row yet. Clone one from any sibling on the same slice (same
+        # provider / mosaic) so every viz becomes switchable - the rebuild loop
+        # below then bakes its own params into the cloned URL.
+        existing_names = {tu.visualization_name for tu in sl.tile_urls}
+        template = sl.tile_urls[0] if sl.tile_urls else None
+        if template is not None:
+            for name in viz_by_name:
+                if name in existing_names:
+                    continue
+                clone = SliceTileUrl(
+                    slice_id=sl.id,
+                    visualization_name=name,
+                    tile_url=template.tile_url,
+                    tile_provider=template.tile_provider,
+                    mosaic_id=template.mosaic_id,
+                )
+                db.add(clone)
+                sl.tile_urls.append(clone)
 
         for tu in sl.tile_urls:
             # Pick params for this specific visualization
@@ -1457,37 +1519,78 @@ def _layout_window_for(slot: int, base_y: int) -> dict:
     }
 
 
+def _layout_bottom(layout_data: list | None) -> int:
+    """Lowest occupied grid row (max y+h) across the items, 0 when empty."""
+    return max(
+        (int(it.get("y", 0)) + int(it.get("h", 0)) for it in (layout_data or [])),
+        default=0,
+    )
+
+
 def _sync_view_layouts(
     db: Session,
     view_id: int,
+    campaign_id: int,
+    window_collection_ids: set[int],
     added_collection_ids: list[int],
-    removed_collection_ids: list[int],
 ) -> None:
-    """Apply a collection-set delta to every canvas_layout for a view.
+    """Reconcile every canvas_layout for a view against its current windows.
 
-    Removed collections drop out of the grid (other items keep their positions -
-    react-grid-layout tolerates gaps). Added collections append at the bottom in
-    a new row, so user customizations remain visually intact.
+    ``window_collection_ids`` is the full set of collections currently shown as
+    windows in the view. Any layout item for a collection outside that set is
+    dropped - this is what removes the slots of deleted collections (or ones
+    toggled off), so they no longer reserve grid space or push new windows below
+    a source that no longer exists. Items kept hold their positions (gaps are
+    fine for react-grid-layout).
+
+    ``added_collection_ids`` are freshly-added windows; they're appended below
+    everything already on the grid. We only append the *new* ones (not the full
+    window set) so a window a user has personally hidden - present in the view
+    but absent from their layout - stays hidden.
     """
-    if not added_collection_ids and not removed_collection_ids:
-        return
+    valid = {str(cid) for cid in window_collection_ids}
 
-    removed_set = {str(cid) for cid in removed_collection_ids}
+    # The page chrome (main map / controls / minimap / timeseries) lives in the
+    # view_id=NULL "main" layout and shares the same grid as the windows on the
+    # client. New windows must clear it, so index each user's chrome bottom (with
+    # the campaign default as the fallback for users without a personal main).
+    main_layouts = (
+        db.execute(
+            select(CanvasLayout).where(
+                CanvasLayout.campaign_id == campaign_id,
+                CanvasLayout.view_id.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    chrome_bottom_by_user = {ml.user_id: _layout_bottom(ml.layout_data) for ml in main_layouts}
+    default_chrome_bottom = chrome_bottom_by_user.get(None, VIEW_LAYOUT_START_Y)
+
     layouts = (
         db.execute(select(CanvasLayout).where(CanvasLayout.view_id == view_id)).scalars().all()
     )
     for layout in layouts:
-        items = [it for it in (layout.layout_data or []) if it.get("i") not in removed_set]
-        if added_collection_ids:
-            # Stack new windows below the existing ones (or at the view base).
-            existing_bottom: int = max(
-                (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
-                default=VIEW_LAYOUT_START_Y,
+        original = layout.layout_data or []
+        items = [it for it in original if it.get("i") in valid]
+        present = {it.get("i") for it in items}
+        to_add = [cid for cid in added_collection_ids if str(cid) not in present]
+        if to_add:
+            chrome_bottom = chrome_bottom_by_user.get(layout.user_id, default_chrome_bottom)
+            # Stack new windows below both the kept windows and the page chrome,
+            # so they never overlap an existing item in the merged grid.
+            base_y = max(
+                max(
+                    (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
+                    default=VIEW_LAYOUT_START_Y,
+                ),
+                chrome_bottom,
             )
-            for offset, cid in enumerate(added_collection_ids):
-                items.append({"i": str(cid), **_layout_window_for(offset, existing_bottom)})
-        layout.layout_data = items
-        flag_modified(layout, "layout_data")
+            for offset, cid in enumerate(to_add):
+                items.append({"i": str(cid), **_layout_window_for(offset, base_y)})
+        if items != original:
+            layout.layout_data = items
+            flag_modified(layout, "layout_data")
 
 
 def _create_views(

@@ -56,9 +56,7 @@ export const MainAnnotationsContainer = ({
   const toggleCrosshair = useMapStore((s) => s.toggleCrosshair);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
-  const setMapCenter = useMapStore((s) => s.setMapCenter);
-  const setMapZoom = useMapStore((s) => s.setMapZoom);
-  const setMapBounds = useMapStore((s) => s.setMapBounds);
+  const setView = useMapStore((s) => s.setView);
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const setSelectedLayerIndex = useMapStore((s) => s.setSelectedLayerIndex);
   const setShowBasemap = useMapStore((s) => s.setShowBasemap);
@@ -74,6 +72,11 @@ export const MainAnnotationsContainer = ({
 
   const preloadMode = usePreferencesStore((s) => s.preloadMode);
   const setPreloadMode = usePreferencesStore((s) => s.setPreloadMode);
+  // Per-view pinned "start each task on this collection" preference.
+  const pinnedStartCollection = usePreferencesStore((s) =>
+    selectedViewId != null ? s.taskStartCollectionByView[selectedViewId] : undefined
+  );
+  const setTaskStartCollection = usePreferencesStore((s) => s.setTaskStartCollection);
   const autoTier = useMemo(() => getAutoPreloadTier(), []);
   const effectiveTier = resolvePreloadTier(preloadMode);
   const effectiveConcurrency = resolvePreloadConcurrency(preloadMode);
@@ -300,6 +303,20 @@ export const MainAnnotationsContainer = ({
     [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
   );
 
+  const handleLayersChange = useCallback((layers: Layer[], id: string) => {
+    setMapLayers(layers);
+    setActiveLayerId(id);
+  }, []);
+
+  // Stable identity: onViewChange fires every motion frame; a fresh closure would
+  // break TaskModeMap/OpenModeMap memoization. One batched write per frame.
+  const handleViewChange = useCallback(
+    (newCenter: [number, number], zoom: number, bounds?: [number, number, number, number]) => {
+      setView(newCenter, zoom, bounds);
+    },
+    [setView]
+  );
+
   if (!campaign || !activeSource) return null;
 
   const isTaskMode = campaign.mode === 'tasks';
@@ -345,6 +362,25 @@ export const MainAnnotationsContainer = ({
                   }))}
                   onChange={(v) => setActiveCollectionId(Number(v))}
                   title={isTaskMode ? 'Select collection (shift + a/d)' : 'Select collection'}
+                  // Task mode only: the flag picks which collection each task opens on.
+                  markedValue={
+                    isTaskMode && selectedViewId != null
+                      ? (pinnedStartCollection ?? null)
+                      : undefined
+                  }
+                  onMarkOption={
+                    isTaskMode && selectedViewId != null
+                      ? (v) => {
+                          const id = Number(v);
+                          setTaskStartCollection(
+                            selectedViewId,
+                            pinnedStartCollection === id ? null : id
+                          );
+                        }
+                      : undefined
+                  }
+                  markActiveTitle="Opens first on every task - click to clear"
+                  markInactiveTitle="Show this collection first on every task"
                 />
               )}
 
@@ -613,15 +649,8 @@ export const MainAnnotationsContainer = ({
             showCrosshair={showCrosshair}
             sampleExtent={showCrosshair ? sampleExtent : null}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => {
-              setMapLayers(layers);
-              setActiveLayerId(id);
-            }}
-            onViewChange={(newCenter, zoom, bounds) => {
-              setMapCenter(newCenter);
-              setMapZoom(zoom);
-              setMapBounds(bounds);
-            }}
+            onLayersChange={handleLayersChange}
+            onViewChange={handleViewChange}
             activeTool={activeTool}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={probeTimeseriesPoint}
@@ -636,15 +665,8 @@ export const MainAnnotationsContainer = ({
             showCrosshair={showCrosshair}
             crosshairColor={activeSource?.crosshair_hex6 ?? undefined}
             activeLayerId={activeLayerId}
-            onLayersChange={(layers, id) => {
-              setMapLayers(layers);
-              setActiveLayerId(id);
-            }}
-            onViewChange={(newCenter, zoom, bounds) => {
-              setMapCenter(newCenter);
-              setMapZoom(zoom);
-              setMapBounds(bounds);
-            }}
+            onLayersChange={handleLayersChange}
+            onViewChange={handleViewChange}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
             magicWandActive={magicWandActive}

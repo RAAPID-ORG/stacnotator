@@ -24,6 +24,8 @@ interface CanvasPreviewProps {
   onRemoveView: (id: string) => void;
   onMoveView?: (id: string, direction: -1 | 1) => void;
   onToggleSourceInView: (sourceId: string) => void;
+  /** Open the source editor (click, as opposed to dragging to reorder). */
+  onEditSource?: (sourceId: string) => void;
   onAddSource?: () => void;
   /** Sources that are not assigned to ANY view (across all views) */
   sourcesNotInAnyView?: Set<string>;
@@ -169,6 +171,7 @@ export const CanvasPreview = ({
   onRemoveView,
   onMoveView,
   onToggleSourceInView,
+  onEditSource,
   onAddSource,
   sourcesNotInAnyView,
   className = '',
@@ -482,11 +485,12 @@ export const CanvasPreview = ({
                         setSelectedSourceId(source.id);
                         setSelectedCollectionIndex(0);
                         setSelectedSliceIndex(0);
+                        onEditSource?.(source.id);
                       }}
                       className={`flex-1 min-w-0 text-left px-1 py-1 text-[11px] leading-tight cursor-pointer flex items-center gap-1 ${
                         isSelected ? 'font-medium' : ''
                       }`}
-                      title={source.name || 'Untitled'}
+                      title={onEditSource ? 'Click to edit source' : source.name || 'Untitled'}
                     >
                       <IconLayers
                         className={`w-3 h-3 shrink-0 ${isSelected ? 'text-white/70' : 'text-neutral-400'}`}
