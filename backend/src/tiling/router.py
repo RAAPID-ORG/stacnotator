@@ -189,14 +189,24 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
     if expression:
         parts.append(("expression", expression))
 
+    # Number of output bands. An expression is a comma-separated list of band
+    # expressions - one output band per term (e.g. "(B08-B04)/(B08+B04)" -> 1,
+    # "B04,B03,B02" -> 3) - which is independent of how many assets it reads.
+    # Without an expression, each selected asset is one band.
+    if expression:
+        output_bands = len([term for term in expression.split(",") if term.strip()]) or 1
+    else:
+        output_bands = max(len(assets), 1)
+
     rescale = viz_params.get("rescale")
     if rescale:
-        num_bands = max(len(assets), 1)
-        for _ in range(num_bands):
+        for _ in range(output_bands):
             parts.append(("rescale", rescale))
 
+    # A colormap maps a single-band image to RGB, so it only applies when the
+    # output is exactly one band.
     colormap_name = viz_params.get("colormap_name")
-    if colormap_name and len(assets) <= 1:
+    if colormap_name and output_bands == 1:
         parts.append(("colormap_name", colormap_name))
 
     color_formula = viz_params.get("color_formula")

@@ -269,10 +269,13 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
 
   let data: StacBrowserCollectionData | ManualCollectionData;
   if (isStacBrowser && sc) {
-    // Backend only stores one viz_params blob per collection (the per-viz tile
-    // URLs are on slice rows). Reconstruct one named entry per source viz so
-    // a roundtrip-save doesn't trip the backend's name-parity check.
+    // Prefer the authoritative per-visualization list. Legacy rows (written
+    // before that column existed) only have the single viz_params blob - spread
+    // it across the source's viz names as a best-effort fallback. Either way we
+    // emit one named entry per source viz so a roundtrip-save keeps name parity.
     const namesForViz = sourceVizNames.length > 0 ? sourceVizNames : ['Default'];
+    const perViz = sc.visualizations ?? null;
+    const byName = new Map((perViz ?? []).map((v) => [v.name, v]));
     data = {
       type: 'stac_browser',
       catalogUrl: sc.catalog_url ?? '',
@@ -280,18 +283,32 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       isMpc: isMpcCatalogUrl(sc.catalog_url),
       mode: 'mosaic',
       maxCloudCover: sc.max_cloud_cover ?? undefined,
-      visualizations: sc.viz_params
-        ? namesForViz.map((name) => ({
-            name,
-            vizParams: vizParamsToFrontend(sc.viz_params),
-          }))
-        : [],
-      coverVisualizations: sc.cover_viz_params
-        ? namesForViz.map((name) => ({
-            name,
-            vizParams: vizParamsToFrontend(sc.cover_viz_params),
-          }))
-        : undefined,
+      visualizations:
+        perViz && perViz.length > 0
+          ? namesForViz.map((name) => ({
+              name,
+              vizParams: vizParamsToFrontend(byName.get(name)?.viz_params ?? sc.viz_params),
+            }))
+          : sc.viz_params
+            ? namesForViz.map((name) => ({
+                name,
+                vizParams: vizParamsToFrontend(sc.viz_params),
+              }))
+            : [],
+      coverVisualizations:
+        perViz && perViz.some((v) => v.cover_viz_params)
+          ? namesForViz.map((name) => ({
+              name,
+              vizParams: vizParamsToFrontend(
+                byName.get(name)?.cover_viz_params ?? sc.cover_viz_params
+              ),
+            }))
+          : sc.cover_viz_params
+            ? namesForViz.map((name) => ({
+                name,
+                vizParams: vizParamsToFrontend(sc.cover_viz_params),
+              }))
+            : undefined,
       searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
       coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
       vizUrls,

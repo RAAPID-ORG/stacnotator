@@ -49,8 +49,11 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       nodata: 0,
     },
     {
+      // Expression-based: the referenced bands must be listed as assets so the
+      // tiler loads them (with asset_as_band); the expression reduces them to a
+      // single colorized band.
       label: 'NDVI',
-      assets: [],
+      assets: ['B08', 'B04'],
       expression: '(B08-B04)/(B08+B04)',
       colormap: 'rdylgn',
       rescale: '-1,1',
@@ -98,7 +101,7 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     },
     {
       label: 'NDVI',
-      assets: [],
+      assets: ['nir08', 'red'],
       expression: '(nir08-red)/(nir08+red)',
       colormap: 'rdylgn',
       rescale: '-1,1',
@@ -120,7 +123,7 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     },
     {
       label: 'NDVI',
-      assets: [],
+      assets: ['nir08', 'red'],
       expression: '(nir08-red)/(nir08+red)',
       colormap: 'rdylgn',
       rescale: '-1,1',
@@ -154,7 +157,7 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     },
     {
       label: 'NDVI',
-      assets: [],
+      assets: ['B8A', 'B04'],
       expression: '(B8A-B04)/(B8A+B04)',
       colormap: 'rdylgn',
       rescale: '-1,1',
@@ -173,7 +176,7 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     },
     {
       label: 'NDVI',
-      assets: [],
+      assets: ['B05', 'B04'],
       expression: '(B05-B04)/(B05+B04)',
       colormap: 'rdylgn',
       rescale: '-1,1',

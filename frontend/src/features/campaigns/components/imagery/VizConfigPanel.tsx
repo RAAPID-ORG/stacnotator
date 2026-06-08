@@ -200,11 +200,14 @@ export const VizConfigPanel = ({
   };
 
   const bandLabel = (i: number) => {
+    if (vizParams.expression) return '';
     if (vizParams.assets.length === 1) return 'S';
     return ['R', 'G', 'B'][i] || '';
   };
 
   const bandColorClass = (i: number) => {
+    // Expression mode: the selected assets are the expression's inputs, not RGB.
+    if (vizParams.expression) return 'bg-brand-50 border-brand-400 text-brand-700';
     if (vizParams.assets.length === 1) return 'bg-purple-100 border-purple-400 text-purple-800';
     return (
       [
@@ -215,9 +218,16 @@ export const VizConfigPanel = ({
     );
   };
 
+  // A colormap only applies to single-band output. An expression is a
+  // comma-separated list of band expressions (one output band per term), so it
+  // qualifies only when it has a single term (e.g. NDVI). Otherwise it's the
+  // single-selected-asset case.
+  const expressionBands = vizParams.expression
+    ? vizParams.expression.split(',').filter((t) => t.trim()).length
+    : 0;
   const showColormap =
     !isRgbAsset &&
-    (vizParams.assets.length === 1 || (vizParams.assets.length === 0 && !!vizParams.expression));
+    (expressionBands === 1 || (expressionBands === 0 && vizParams.assets.length === 1));
 
   return (
     <div className="space-y-4">
@@ -285,17 +295,23 @@ export const VizConfigPanel = ({
             })}
           </div>
           <div className="text-[11px] text-neutral-500">
-            {vizParams.assets.length === 0 && 'No bands selected'}
-            {vizParams.assets.length === 1 &&
-              (isRgbAsset
-                ? `Pre-rendered RGB: ${vizParams.assets[0]}`
-                : `Single band: ${vizParams.assets[0]} (colorized)`)}
-            {vizParams.assets.length === 2 && 'Select a 3rd band for RGB, or remove one'}
-            {vizParams.assets.length === 3 && (
+            {vizParams.expression ? (
+              <>Expression inputs (colorized by the expression below)</>
+            ) : (
               <>
-                RGB: <span className="text-red-600">{vizParams.assets[0]}</span> /{' '}
-                <span className="text-green-600">{vizParams.assets[1]}</span> /{' '}
-                <span className="text-blue-600">{vizParams.assets[2]}</span>
+                {vizParams.assets.length === 0 && 'No bands selected'}
+                {vizParams.assets.length === 1 &&
+                  (isRgbAsset
+                    ? `Pre-rendered RGB: ${vizParams.assets[0]}`
+                    : `Single band: ${vizParams.assets[0]} (colorized)`)}
+                {vizParams.assets.length === 2 && 'Select a 3rd band for RGB, or remove one'}
+                {vizParams.assets.length === 3 && (
+                  <>
+                    RGB: <span className="text-red-600">{vizParams.assets[0]}</span> /{' '}
+                    <span className="text-green-600">{vizParams.assets[1]}</span> /{' '}
+                    <span className="text-blue-600">{vizParams.assets[2]}</span>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -319,24 +335,6 @@ export const VizConfigPanel = ({
             placeholder="e.g. B04, B03, B02"
             className="font-mono"
           />
-        </div>
-      )}
-
-      {/* Colormap */}
-      {showColormap && (
-        <div className="space-y-1">
-          <label className="text-xs text-neutral-700 font-medium">Colormap</label>
-          <Select
-            size="sm"
-            value={vizParams.colormapName || 'viridis'}
-            onChange={(e) => update('colormapName', e.target.value)}
-          >
-            {COLORMAPS.map((cm) => (
-              <option key={cm.value} value={cm.value}>
-                {cm.label}
-              </option>
-            ))}
-          </Select>
         </div>
       )}
 
@@ -385,6 +383,22 @@ export const VizConfigPanel = ({
 
         {showAdvanced && (
           <div className="px-3 pb-3 space-y-3 border-t border-neutral-100">
+            {showColormap && (
+              <div className="space-y-1 pt-2">
+                <label className="text-xs text-neutral-700">Colormap</label>
+                <Select
+                  size="sm"
+                  value={vizParams.colormapName || 'viridis'}
+                  onChange={(e) => update('colormapName', e.target.value)}
+                >
+                  {COLORMAPS.map((cm) => (
+                    <option key={cm.value} value={cm.value}>
+                      {cm.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
             <div className="space-y-1 pt-2">
               <label className="text-xs text-neutral-700">Band Expression</label>
               <Input

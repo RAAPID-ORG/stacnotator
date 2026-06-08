@@ -52,6 +52,28 @@ def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
     return bool(col_create.has_dedicated_cover)
 
 
+def _serialize_visualizations(stac_config, has_cover: bool) -> list[dict] | None:
+    """Full per-visualization params list for CollectionStacConfig.visualizations.
+
+    One entry per source visualization so a roundtrip-save preserves each viz's
+    params independently (the legacy viz_params blob only holds the first viz).
+    """
+    if not stac_config or not stac_config.visualizations:
+        return None
+    return [
+        {
+            "name": v.name,
+            "viz_params": v.viz_params.model_dump(exclude_none=True),
+            "cover_viz_params": (
+                v.cover_viz_params.model_dump(exclude_none=True)
+                if has_cover and v.cover_viz_params
+                else None
+            ),
+        }
+        for v in stac_config.visualizations
+    ]
+
+
 # ============================================================================
 # Imagery Creation (new model)
 # ============================================================================
@@ -191,6 +213,30 @@ def save_imagery_editor_state(
             if cleaned != view.collection_refs:
                 view.collection_refs = cleaned
                 flag_modified(view, "collection_refs")
+
+        # Also drop the deleted collections from every canvas layout. The
+        # annotation grid only renders windows whose collection id is present in
+        # the layout, and react-grid-layout reserves the slot of any stale entry
+        # (and appends new windows *below* it). Leaving phantom ids behind is the
+        # "windows pile up under a source that no longer exists" bug.
+        removed_layout_keys = {str(cid) for cid in deleted_collection_ids}
+        if removed_layout_keys:
+            view_ids = [v.id for v in campaign.imagery_views]
+            if view_ids:
+                layouts = (
+                    db.execute(select(CanvasLayout).where(CanvasLayout.view_id.in_(view_ids)))
+                    .scalars()
+                    .all()
+                )
+                for layout in layouts:
+                    kept = [
+                        it
+                        for it in (layout.layout_data or [])
+                        if it.get("i") not in removed_layout_keys
+                    ]
+                    if kept != layout.layout_data:
+                        layout.layout_data = kept
+                        flag_modified(layout, "layout_data")
 
     db.flush()
 
@@ -457,6 +503,7 @@ def _update_collection_in_place(
                         if has_cover and first_viz and first_viz.cover_viz_params
                         else None
                     ),
+                    visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                     max_cloud_cover=col_create.stac_config.max_cloud_cover,
                     search_query=col_create.stac_config.search_query,
                     cover_search_query=(
@@ -481,6 +528,9 @@ def _update_collection_in_place(
                 if has_cover and first_viz and first_viz.cover_viz_params
                 else None
             )
+            db_col.stac_config.visualizations = _serialize_visualizations(
+                col_create.stac_config, has_cover
+            )
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
             db_col.stac_config.search_query = col_create.stac_config.search_query
             db_col.stac_config.cover_search_query = (
@@ -488,6 +538,7 @@ def _update_collection_in_place(
             )
             flag_modified(db_col.stac_config, "search_query")
             flag_modified(db_col.stac_config, "cover_search_query")
+            flag_modified(db_col.stac_config, "visualizations")
 
     # Reconcile slices.
     payload_slice_ids = {s.id for s in col_create.slices if s.id is not None}
@@ -661,6 +712,7 @@ def _create_collection_record(
                     if has_cover and first_viz and first_viz.cover_viz_params
                     else None
                 ),
+                visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                 max_cloud_cover=col_create.stac_config.max_cloud_cover,
                 search_query=col_create.stac_config.search_query,
                 cover_search_query=(
@@ -1262,6 +1314,19 @@ def update_collection_viz_params(
         next(iter((cover_viz_by_name or {}).values()), None) if cover_viz_by_name else None
     )
     stac.cover_viz_params = first_cover if collection.has_dedicated_cover else None
+    # Keep the authoritative per-viz list in sync so a load roundtrip preserves
+    # each visualization's params independently.
+    stac.visualizations = [
+        {
+            "name": name,
+            "viz_params": params,
+            "cover_viz_params": (
+                (cover_viz_by_name or {}).get(name) if collection.has_dedicated_cover else None
+            ),
+        }
+        for name, params in viz_by_name.items()
+    ]
+    flag_modified(stac, "visualizations")
 
     slices = (
         db.execute(
@@ -1275,6 +1340,26 @@ def update_collection_viz_params(
 
     for sl_idx, sl in enumerate(slices):
         is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
+
+        # A visualization added after this collection was first registered has no
+        # tile URL row yet. Clone one from any sibling on the same slice (same
+        # provider / mosaic) so every viz becomes switchable - the rebuild loop
+        # below then bakes its own params into the cloned URL.
+        existing_names = {tu.visualization_name for tu in sl.tile_urls}
+        template = sl.tile_urls[0] if sl.tile_urls else None
+        if template is not None:
+            for name in viz_by_name:
+                if name in existing_names:
+                    continue
+                clone = SliceTileUrl(
+                    slice_id=sl.id,
+                    visualization_name=name,
+                    tile_url=template.tile_url,
+                    tile_provider=template.tile_provider,
+                    mosaic_id=template.mosaic_id,
+                )
+                db.add(clone)
+                sl.tile_urls.append(clone)
 
         for tu in sl.tile_urls:
             # Pick params for this specific visualization

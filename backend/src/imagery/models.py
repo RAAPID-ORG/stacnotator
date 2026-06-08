@@ -122,9 +122,16 @@ class CollectionStacConfig(Base):
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
     tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Structured viz params: {"assets": [...], "rescale": "0,3000", "colormap_name": ...}
+    # NOTE: legacy single-blob holding the FIRST visualization's params for
+    # backward compat. Authoritative per-visualization params live in
+    # `visualizations` below; kept in sync for older readers.
     viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Cover slice viz params (different compositing, etc.)
+    # Cover slice viz params (different compositing, etc.) - first viz, legacy.
     cover_viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Full per-visualization params, one entry per source visualization:
+    # [{"name": "True Color", "viz_params": {...}, "cover_viz_params": {...}}, ...]
+    # NULL for legacy rows written before this column existed.
+    visualizations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Max cloud cover percentage for STAC search filtering
     max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
     # Custom CQL2-JSON search query (when set, used instead of auto-generated query)

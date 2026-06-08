@@ -6,9 +6,12 @@ import { createId } from './types';
 
 interface ViewLayoutTabProps {
   controller: ImageryController;
+  campaignBbox?: number[] | null;
+  /** Open the shared source editor for the given source id. */
+  onEditSource?: (sourceId: string) => void;
 }
 
-export const ViewLayoutTab = ({ controller }: ViewLayoutTabProps) => {
+export const ViewLayoutTab = ({ controller, onEditSource }: ViewLayoutTabProps) => {
   const { sources, views, basemaps } = controller.state;
   const [activeViewId, setActiveViewId] = useState<string | null>(views[0]?.id ?? null);
 
@@ -74,6 +77,7 @@ export const ViewLayoutTab = ({ controller }: ViewLayoutTabProps) => {
           void controller.reorderViews(next.map((v) => v.id));
         }}
         onToggleSourceInView={toggleSourceInView}
+        onEditSource={onEditSource}
         sourcesNotInAnyView={sourcesNotInAnyView}
       />
     </div>

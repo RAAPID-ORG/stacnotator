@@ -41,11 +41,22 @@ class ImagerySliceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NamedVizParamsOut(BaseModel):
+    name: str
+    viz_params: dict | None = None
+    cover_viz_params: dict | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CollectionStacConfigOut(BaseModel):
     catalog_url: str | None = None
     stac_collection_id: str | None = None
+    # Legacy first-viz blobs, kept for backward compat.
     viz_params: dict | None = None
     cover_viz_params: dict | None = None
+    # Authoritative per-visualization params (NULL for legacy rows).
+    visualizations: list[NamedVizParamsOut] | None = None
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
