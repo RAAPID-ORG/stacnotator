@@ -558,6 +558,24 @@ export const CatalogBrowser = ({
     setVisualizations((prev) =>
       prev.map((v, i) => (i === activeVizIndex ? { ...v, vizParams: params } : v))
     );
+    // Keep the matching cover viz in sync while it hasn't been configured on its
+    // own. A freshly-added viz (e.g. one the user just set to an NDVI preset)
+    // starts with an empty cover entry; without this the cover slice would
+    // render with no params (broken). A cover the user has already filled in via
+    // Advanced is left untouched.
+    if (coverMode === 'custom') {
+      setCoverVisualizations((prev) =>
+        prev.map((cv, i) => {
+          if (i !== activeVizIndex) return cv;
+          const coverUnconfigured = cv.vizParams.assets.length === 0 && !cv.vizParams.expression;
+          if (!coverUnconfigured) return cv;
+          return {
+            ...cv,
+            vizParams: { ...params, compositing: cv.vizParams.compositing ?? 'first' },
+          };
+        })
+      );
+    }
   };
 
   // Generate collections (mosaic mode with temporal slicing)

@@ -44,20 +44,10 @@ function NoImageryOverlay() {
 interface ImageryContainerProps {
   collectionId: number;
   sourceId: number;
-  // Scroll container used as the viewport for lazy-mounting the map (see below).
-  scrollRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-const ImageryContainer: React.FC<ImageryContainerProps> = ({
-  collectionId,
-  sourceId,
-  scrollRef,
-}) => {
+const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourceId }) => {
   const isDraggingRef = useRef(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  // Only mount the OpenLayers map while this window is in/near the viewport, so a
-  // large grid doesn't keep dozens of live maps redrawing every motion frame.
-  const [inViewport, setInViewport] = useState(false);
 
   const campaign = useCampaignStore((s) => s.campaign);
 
@@ -291,20 +281,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId]);
 
-  // Mount/unmount the map as the window enters/leaves the scroll viewport. The
-  // generous margin pre-mounts windows just before they scroll into view so they
-  // aren't blank on arrival.
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => setInViewport(entries[0].isIntersecting), {
-      root: scrollRef?.current ?? null,
-      rootMargin: '600px',
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [scrollRef]);
-
   if (!collection || !campaignBbox) return null;
 
   const handleMouseDown = () => {
@@ -320,7 +296,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({
 
   return (
     <div
-      ref={rootRef}
       className="flex-1 relative overflow-hidden select-none bg-neutral-200"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -345,23 +320,23 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({
             </div>
           )}
 
-          {!loading && (tileUrl || isOpenMode)
-            ? inViewport && (
-                <WindowMap
-                  initialCenter={initialCenter}
-                  initialZoom={zoom}
-                  center={center}
-                  zoom={zoom}
-                  follow={isFollowing}
-                  tileUrl={tileUrl}
-                  crosshair={crosshair}
-                  showCrosshair={!isOpenMode && showCrosshair && !emptyTileAlert}
-                  refocusTrigger={refocusTrigger}
-                  detectionKey={currentTaskIndex}
-                  sampleExtent={!emptyTileAlert && showCrosshair ? sampleExtent : null}
-                />
-              )
-            : !loading && <NoImageryOverlay />}
+          {!loading && (tileUrl || isOpenMode) ? (
+            <WindowMap
+              initialCenter={initialCenter}
+              initialZoom={zoom}
+              center={center}
+              zoom={zoom}
+              follow={isFollowing}
+              tileUrl={tileUrl}
+              crosshair={crosshair}
+              showCrosshair={!isOpenMode && showCrosshair && !emptyTileAlert}
+              refocusTrigger={refocusTrigger}
+              detectionKey={currentTaskIndex}
+              sampleExtent={!emptyTileAlert && showCrosshair ? sampleExtent : null}
+            />
+          ) : (
+            !loading && <NoImageryOverlay />
+          )}
         </>
       )}
     </div>

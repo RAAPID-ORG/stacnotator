@@ -521,11 +521,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                     <span className="text-xs font-medium">Hide window</span>
                   </button>
                 ) : (
-                  <ImageryContainer
-                    collectionId={collection.id}
-                    sourceId={source.id}
-                    scrollRef={containerRef}
-                  />
+                  <ImageryContainer collectionId={collection.id} sourceId={source.id} />
                 )}
               </div>
             );
