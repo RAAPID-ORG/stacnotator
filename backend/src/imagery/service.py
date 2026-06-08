@@ -214,30 +214,6 @@ def save_imagery_editor_state(
                 view.collection_refs = cleaned
                 flag_modified(view, "collection_refs")
 
-        # Also drop the deleted collections from every canvas layout. The
-        # annotation grid only renders windows whose collection id is present in
-        # the layout, and react-grid-layout reserves the slot of any stale entry
-        # (and appends new windows *below* it). Leaving phantom ids behind is the
-        # "windows pile up under a source that no longer exists" bug.
-        removed_layout_keys = {str(cid) for cid in deleted_collection_ids}
-        if removed_layout_keys:
-            view_ids = [v.id for v in campaign.imagery_views]
-            if view_ids:
-                layouts = (
-                    db.execute(select(CanvasLayout).where(CanvasLayout.view_id.in_(view_ids)))
-                    .scalars()
-                    .all()
-                )
-                for layout in layouts:
-                    kept = [
-                        it
-                        for it in (layout.layout_data or [])
-                        if it.get("i") not in removed_layout_keys
-                    ]
-                    if kept != layout.layout_data:
-                        layout.layout_data = kept
-                        flag_modified(layout, "layout_data")
-
     db.flush()
 
     # Upsert sources. New ones go through the existing _create_source helper so
@@ -300,8 +276,9 @@ def save_imagery_editor_state(
             _sync_view_layouts(
                 db,
                 db_view.id,
+                campaign.id,
+                window_collection_ids=new_window_ids,
                 added_collection_ids=list(new_window_ids - old_window_ids),
-                removed_collection_ids=list(old_window_ids - new_window_ids),
             )
         else:
             new_view = ImageryView(
@@ -1542,37 +1519,78 @@ def _layout_window_for(slot: int, base_y: int) -> dict:
     }
 
 
+def _layout_bottom(layout_data: list | None) -> int:
+    """Lowest occupied grid row (max y+h) across the items, 0 when empty."""
+    return max(
+        (int(it.get("y", 0)) + int(it.get("h", 0)) for it in (layout_data or [])),
+        default=0,
+    )
+
+
 def _sync_view_layouts(
     db: Session,
     view_id: int,
+    campaign_id: int,
+    window_collection_ids: set[int],
     added_collection_ids: list[int],
-    removed_collection_ids: list[int],
 ) -> None:
-    """Apply a collection-set delta to every canvas_layout for a view.
+    """Reconcile every canvas_layout for a view against its current windows.
 
-    Removed collections drop out of the grid (other items keep their positions -
-    react-grid-layout tolerates gaps). Added collections append at the bottom in
-    a new row, so user customizations remain visually intact.
+    ``window_collection_ids`` is the full set of collections currently shown as
+    windows in the view. Any layout item for a collection outside that set is
+    dropped - this is what removes the slots of deleted collections (or ones
+    toggled off), so they no longer reserve grid space or push new windows below
+    a source that no longer exists. Items kept hold their positions (gaps are
+    fine for react-grid-layout).
+
+    ``added_collection_ids`` are freshly-added windows; they're appended below
+    everything already on the grid. We only append the *new* ones (not the full
+    window set) so a window a user has personally hidden - present in the view
+    but absent from their layout - stays hidden.
     """
-    if not added_collection_ids and not removed_collection_ids:
-        return
+    valid = {str(cid) for cid in window_collection_ids}
 
-    removed_set = {str(cid) for cid in removed_collection_ids}
+    # The page chrome (main map / controls / minimap / timeseries) lives in the
+    # view_id=NULL "main" layout and shares the same grid as the windows on the
+    # client. New windows must clear it, so index each user's chrome bottom (with
+    # the campaign default as the fallback for users without a personal main).
+    main_layouts = (
+        db.execute(
+            select(CanvasLayout).where(
+                CanvasLayout.campaign_id == campaign_id,
+                CanvasLayout.view_id.is_(None),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    chrome_bottom_by_user = {ml.user_id: _layout_bottom(ml.layout_data) for ml in main_layouts}
+    default_chrome_bottom = chrome_bottom_by_user.get(None, VIEW_LAYOUT_START_Y)
+
     layouts = (
         db.execute(select(CanvasLayout).where(CanvasLayout.view_id == view_id)).scalars().all()
     )
     for layout in layouts:
-        items = [it for it in (layout.layout_data or []) if it.get("i") not in removed_set]
-        if added_collection_ids:
-            # Stack new windows below the existing ones (or at the view base).
-            existing_bottom: int = max(
-                (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
-                default=VIEW_LAYOUT_START_Y,
+        original = layout.layout_data or []
+        items = [it for it in original if it.get("i") in valid]
+        present = {it.get("i") for it in items}
+        to_add = [cid for cid in added_collection_ids if str(cid) not in present]
+        if to_add:
+            chrome_bottom = chrome_bottom_by_user.get(layout.user_id, default_chrome_bottom)
+            # Stack new windows below both the kept windows and the page chrome,
+            # so they never overlap an existing item in the merged grid.
+            base_y = max(
+                max(
+                    (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
+                    default=VIEW_LAYOUT_START_Y,
+                ),
+                chrome_bottom,
             )
-            for offset, cid in enumerate(added_collection_ids):
-                items.append({"i": str(cid), **_layout_window_for(offset, existing_bottom)})
-        layout.layout_data = items
-        flag_modified(layout, "layout_data")
+            for offset, cid in enumerate(to_add):
+                items.append({"i": str(cid), **_layout_window_for(offset, base_y)})
+        if items != original:
+            layout.layout_data = items
+            flag_modified(layout, "layout_data")
 
 
 def _create_views(
