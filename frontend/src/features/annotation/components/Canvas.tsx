@@ -236,66 +236,46 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     );
   }, [activeSource, campaign, selectedLayerIndex]);
 
-  // Open mode: viewport center. Task mode: task geometry centroid.
-  const latLon = useMemo<LatLon | null>(() => {
+  // Own memo (geometry-only deps) so its reference stays stable across pans.
+  const taskCentroid = useMemo<LatLon | null>(
+    () => (currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentTask?.geometry.geometry]
+  );
+
+  // Open mode: map center. Task mode: the (stable) task centroid.
+  const focusPoint = useMemo<LatLon | null>(() => {
     if (isOpenMode) {
       if (currentMapCenter) return { lat: currentMapCenter[0], lon: currentMapCenter[1] };
       return null;
     }
-    return currentTask ? extractCentroidFromWKT(currentTask.geometry.geometry) : null;
+    return taskCentroid;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], currentTask?.geometry.geometry]);
+  }, [isOpenMode, currentMapCenter?.[0], currentMapCenter?.[1], taskCentroid]);
 
   // Open mode only sends a timeseries point when explicitly clicked with the
   // timeseries tool; task mode always uses the task centroid.
   const timeseriesLatLon = useMemo<LatLon | null>(() => {
     if (isOpenMode) return timeseriesPoint;
-    return latLon;
-  }, [isOpenMode, timeseriesPoint, latLon]);
+    return focusPoint;
+  }, [isOpenMode, timeseriesPoint, focusPoint]);
 
   const center = useMemo<[number, number]>(
-    () => (latLon ? [latLon.lat, latLon.lon] : [0, 0]),
+    () => (focusPoint ? [focusPoint.lat, focusPoint.lon] : [0, 0]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [latLon?.lat, latLon?.lon]
+    [focusPoint?.lat, focusPoint?.lon]
   );
 
   if (!campaign) return null;
 
   const renderMainHeader = () => {
-    const taskStatus = currentTask?.task_status as
-      | 'pending'
-      | 'partial'
-      | 'done'
-      | 'conflicting'
-      | 'skipped'
-      | undefined;
-    const statusDotColor: Record<NonNullable<typeof taskStatus>, string> = {
-      pending: 'bg-neutral-300',
-      partial: 'bg-amber-500',
-      done: 'bg-brand-600',
-      conflicting: 'bg-orange-500',
-      skipped: 'bg-violet-500',
-    };
-
     return (
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
           {!isOpenMode && currentTask ? (
-            <>
-              {taskStatus && (
-                <span
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDotColor[taskStatus]}`}
-                  title={taskStatus}
-                  aria-hidden
-                />
-              )}
-              <span className="hidden desktop:inline text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                Point
-              </span>
-              <span className="hidden desktop:inline text-xs font-semibold text-neutral-900 tabular-nums">
-                {currentTask.annotation_number}
-              </span>
-            </>
+            <span className="-ml-2.5 w-[60px] shrink-0 text-center text-xs font-semibold text-neutral-900 tabular-nums">
+              {currentTask.annotation_number}
+            </span>
           ) : (
             <span className="text-xs font-medium text-neutral-700 truncate">
               {showBasemap
@@ -340,14 +320,14 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider shrink-0">
         Loc
       </span>
-      {latLon ? (
+      {focusPoint ? (
         <>
           <span className="tabular-nums text-xs text-neutral-700 font-medium truncate">
-            {latLon.lat.toFixed(5)}, {latLon.lon.toFixed(5)}
+            {focusPoint.lat.toFixed(5)}, {focusPoint.lon.toFixed(5)}
           </span>
           <div className="flex items-center gap-0.5 ml-auto shrink-0">
             <button
-              onClick={() => copyToClipboard(`${latLon.lat},${latLon.lon}`)}
+              onClick={() => copyToClipboard(`${focusPoint.lat},${focusPoint.lon}`)}
               className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
               title="Copy coordinates to clipboard"
             >
@@ -357,7 +337,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
               </svg>
             </button>
             <a
-              href={`https://earth.google.com/web/search/${latLon.lat},${latLon.lon}`}
+              href={`https://earth.google.com/web/search/${focusPoint.lat},${focusPoint.lon}`}
               target="_blank"
               rel="noopener noreferrer"
               className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
