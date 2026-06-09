@@ -141,7 +141,8 @@ export const TimeSeriesChart = ({
     return () => {
       cancelled = true;
     };
-  }, [timeseriesIds, latLon]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
+  }, [timeseriesIds, latLon?.lat, latLon?.lon]);
 
   // Prefetch upcoming coordinates
   useEffect(() => {
