@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useMapStore } from '../stores/map.store';
 import { sliceView } from '../utils/sliceView';
+import { byCollectionDate } from '../utils/collectionOrder';
 
 /**
  * Shared slice/collection navigation used by keyboard shortcuts and on-screen
@@ -38,7 +39,7 @@ export const useSliceNavigation = () => {
       id: number;
       cover_slice_index: number;
       has_dedicated_cover?: boolean;
-      slices: { name: string }[];
+      slices: { name: string; start_date: string }[];
     };
   };
 
@@ -54,7 +55,8 @@ export const useSliceNavigation = () => {
         if (!source || !collection) return null;
         return { ...ref, collection, source } as ViewCollection;
       })
-      .filter((c): c is ViewCollection => c !== null);
+      .filter((c): c is ViewCollection => c !== null)
+      .sort(byCollectionDate);
   }, [selectedView, campaign, activeSourceId]);
 
   const currentCollectionIndex = viewCollections.findIndex(

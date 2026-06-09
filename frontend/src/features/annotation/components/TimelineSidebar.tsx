@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import type { CampaignOutFull } from '~/api/client';
 import { sliceView } from '../utils/sliceView';
+import { byCollectionDate } from '../utils/collectionOrder';
 
 interface TimelineSidebarProps {
   campaign: CampaignOutFull;
@@ -72,7 +73,8 @@ const TimelineSidebar = ({
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         return { ...ref, collection, source };
       })
-      .filter((r) => r.collection);
+      .filter((r) => r.collection)
+      .sort(byCollectionDate);
   }, [selectedView, campaign.imagery_sources, activeSourceId]);
 
   const dateRange = useMemo(() => {

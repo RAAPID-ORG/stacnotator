@@ -18,6 +18,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
+import { byCollectionDate } from '../utils/collectionOrder';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
 import { IconEyeSlash } from '~/shared/ui/Icons';
@@ -156,7 +157,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         const collection = source?.collections.find((c) => c.id === ref.collection_id);
         return { ...ref, collection, source };
       })
-      .filter((r) => r.collection && r.source);
+      .filter((r) => r.collection && r.source)
+      .sort(byCollectionDate);
   }, [campaign, selectedView, currentLayout]);
 
   // On mobile we ignore the saved desktop layout and stack everything in a
