@@ -65,7 +65,6 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const isFollowing = collectionId === activeCollectionId || viewSyncEnabled;
   const showCrosshair = useMapStore((s) => s.showCrosshair);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
-  const markSliceEmpty = useMapStore((s) => s.markSliceEmpty);
 
   // Resolve collection and source from campaign
   const source = useMemo(
@@ -197,85 +196,106 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
 
-  // Compute the tile URL at the crosshair position for empty-slice probing.
-  // Always uses default_zoom + task centroid so zooming doesn't re-trigger detection.
+  // Build the tile URL at the crosshair position for any slice, for empty-slice
+  // probing. Always uses default_zoom + task centroid so zooming doesn't
+  // re-trigger detection. Probing a slice this way (a single background fetch)
+  // never touches the rendered map, so resolving an empty collection doesn't
+  // churn the OL source per slice.
   const defaultZoom = source?.default_zoom ?? 10;
-  const crosshairTileUrl = useMemo(() => {
-    if (!tileUrl || !latLon) return null;
+  const buildCrosshairTileUrl = (sliceIdx: number): string | null => {
+    if (!latLon) return null;
+    const entry = slices[sliceIdx]?.tile_urls.find((t) => t.visualization_name === activeVizName);
+    if (!entry) return null;
+    const base = buildTileUrl({ tile_url: entry.tile_url, tile_provider: entry.tile_provider });
+    if (!base) return null;
     const z = Math.round(defaultZoom);
     const n = Math.pow(2, z);
     const x = Math.floor(((latLon.lon + 180) / 360) * n);
     const yRad = (latLon.lat * Math.PI) / 180;
     const y = Math.floor(((1 - Math.log(Math.tan(yRad) + 1 / Math.cos(yRad)) / Math.PI) / 2) * n);
-    return tileUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
-  }, [tileUrl, latLon, defaultZoom]);
+    return base.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+  };
+  const crosshairTileUrl = useMemo(
+    () => buildCrosshairTileUrl(currentSliceIndex),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [slices, activeVizName, defaultZoom, latLon, currentSliceIndex]
+  );
 
-  // Probe the crosshair tile to detect empty slices.
-  // One lightweight fetch per task/slice change - not per tile.
+  // Probe the crosshair tile to detect empty slices. If the current slice is
+  // empty, keep probing candidate slices in the background (forward, then
+  // backward, then any) and commit ONCE to the first non-empty one. This avoids
+  // advancing the rendered slice per probe - which would rebuild the OL source
+  // each step and stall the main thread when a collection is mostly empty.
   // Self-hosted tiles need an auth token; MPC tiles are fetched directly.
   useEffect(() => {
     if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
 
     const controller = new AbortController();
-    const isSelfHosted = TILER_BASE && crosshairTileUrl.startsWith(TILER_BASE);
 
-    const doFetch = isSelfHosted
-      ? getTilerToken().then((token) => {
-          const sep = crosshairTileUrl.includes('?') ? '&' : '?';
-          return fetch(`${crosshairTileUrl}${sep}token=${encodeURIComponent(token)}`, {
-            mode: 'cors',
-            credentials: 'omit',
-            signal: controller.signal,
-          });
-        })
-      : fetch(crosshairTileUrl, { mode: 'cors', credentials: 'omit', signal: controller.signal });
+    // Resolves true when the tile is empty (no content / not found).
+    // Self-hosted tiler returns 200 + transparent PNG for empty - never empty here.
+    const probeEmpty = async (url: string): Promise<boolean> => {
+      const isSelfHosted = !!TILER_BASE && url.startsWith(TILER_BASE);
+      let resp: Response;
+      if (isSelfHosted) {
+        const token = await getTilerToken();
+        const sep = url.includes('?') ? '&' : '?';
+        resp = await fetch(`${url}${sep}token=${encodeURIComponent(token)}`, {
+          mode: 'cors',
+          credentials: 'omit',
+          signal: controller.signal,
+        });
+      } else {
+        resp = await fetch(url, { mode: 'cors', credentials: 'omit', signal: controller.signal });
+      }
+      return resp.status === 204 || (!isSelfHosted && !resp.ok);
+    };
 
-    doFetch
-      .then((resp) => {
-        // 204 = no content (MPC returns this for empty tiles).
-        // Non-ok (404/500) also means no data.
-        // Self-hosted tiler returns 200 + transparent PNG for empty - skip.
-        if (resp.status === 204 || (!isSelfHosted && !resp.ok)) {
-          // fall through to mark empty
+    (async () => {
+      if (!(await probeEmpty(crosshairTileUrl))) return;
+
+      const knownEmpty = useMapStore.getState().emptySlices;
+      const newlyEmpty = new Set<number>([currentSliceIndex]);
+
+      // Candidate order: forward first (stay within the time series), then
+      // backward, then any remaining slice (e.g. a custom cover) as last resort.
+      const { navIndices } = sliceView(
+        slices.length,
+        collection?.cover_slice_index,
+        collection?.has_dedicated_cover
+      );
+      const forward = navIndices.filter((i) => i > currentSliceIndex);
+      const backward = [...navIndices].reverse().filter((i) => i < currentSliceIndex);
+      const rest = slices
+        .map((_, i) => i)
+        .filter((i) => i !== currentSliceIndex && !navIndices.includes(i));
+
+      let resolved = -1;
+      for (const i of [...forward, ...backward, ...rest]) {
+        if (newlyEmpty.has(i) || knownEmpty[`${collectionId}-${i}`]) continue;
+        const url = buildCrosshairTileUrl(i);
+        if (!url) continue;
+        if (await probeEmpty(url)) {
+          newlyEmpty.add(i);
         } else {
-          return;
+          resolved = i;
+          break;
         }
+      }
 
-        const sliceKey = `${collectionId}-${currentSliceIndex}`;
-        const emptySlicesNow = useMapStore.getState().emptySlices;
-        const alreadyKnownEmpty = !!emptySlicesNow[sliceKey];
-        markSliceEmpty(sliceKey);
-        if (alreadyKnownEmpty) return;
+      useMapStore.getState().markSlicesEmpty([...newlyEmpty].map((i) => `${collectionId}-${i}`));
 
-        // Find the nearest non-empty regular slice: forward first (matches
-        // the user's mental model of "stay within the time series"), then
-        // backward, then any non-empty slice (custom cover) as a last resort.
-        const currentEmpty = { ...emptySlicesNow, [sliceKey]: true as const };
-        const isEmpty = (i: number) => !!currentEmpty[`${collectionId}-${i}`];
-        const { navIndices } = sliceView(
-          slices.length,
-          collection?.cover_slice_index,
-          collection?.has_dedicated_cover
-        );
-        const forward = navIndices.filter((i) => i > currentSliceIndex);
-        const backward = [...navIndices].reverse().filter((i) => i < currentSliceIndex);
-        let nextIndex = forward.find((i) => !isEmpty(i)) ?? backward.find((i) => !isEmpty(i)) ?? -1;
-        if (nextIndex === -1) {
-          nextIndex = slices.findIndex((_, i) => i !== currentSliceIndex && !isEmpty(i));
-        }
-
-        if (nextIndex !== -1) {
-          useMapStore.getState().setCollectionSliceIndex(collectionId, nextIndex);
-        } else {
-          const sliceLabel = activeSlice?.name ?? '';
-          const colName = collection?.name ?? '';
-          setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
-        }
-      })
-      .catch(() => {
-        // fetch aborted or network error - ignore
-      });
+      if (resolved !== -1) {
+        useMapStore.getState().setCollectionSliceIndex(collectionId, resolved);
+      } else {
+        const sliceLabel = activeSlice?.name ?? '';
+        const colName = collection?.name ?? '';
+        setEmptyTileAlert(sliceLabel ? `${colName} - ${sliceLabel}` : colName);
+      }
+    })().catch(() => {
+      // fetch aborted or network error - ignore
+    });
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps

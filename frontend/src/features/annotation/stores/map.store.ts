@@ -60,7 +60,7 @@ interface MapStore {
   setActiveCollectionId: (id: number | null) => void;
   setActiveSliceIndex: (index: number) => void;
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
-  markSliceEmpty: (sliceKey: string) => void;
+  markSlicesEmpty: (sliceKeys: string[]) => void;
   clearEmptySlices: () => void;
   saveViewSnapshot: (viewId: number | null) => void;
   restoreViewSnapshot: (viewId: number | null, fallbackCollectionId: number | null) => void;
@@ -169,8 +169,13 @@ export const useMapStore = create<MapStore>((set) => ({
       ...(s.activeCollectionId === collectionId ? { activeSliceIndex: index } : {}),
     })),
 
-  markSliceEmpty: (sliceKey) =>
-    set((s) => ({ emptySlices: { ...s.emptySlices, [sliceKey]: true } })),
+  markSlicesEmpty: (sliceKeys) =>
+    set((s) => {
+      if (sliceKeys.every((k) => s.emptySlices[k])) return s;
+      const emptySlices = { ...s.emptySlices };
+      for (const k of sliceKeys) emptySlices[k] = true;
+      return { emptySlices };
+    }),
 
   clearEmptySlices: () => set({ emptySlices: {} }),
 
