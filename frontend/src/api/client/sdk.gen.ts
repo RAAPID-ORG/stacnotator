@@ -529,7 +529,7 @@ export const demoteAuthorativeReviewer = <ThrowOnError extends boolean = false>(
 /**
  * Assign Tasks To Users
  *
- * Assign multiple annotation tasks to different users in bulk. Supports multiple reviewers per task.
+ * Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing.
  */
 export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options: Options<AssignTasksToUsersData, ThrowOnError>) => (options.client ?? client).post<AssignTasksToUsersResponses, AssignTasksToUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

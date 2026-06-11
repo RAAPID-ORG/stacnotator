@@ -32,6 +32,8 @@ from src.campaigns.models import (
 )
 from src.campaigns.schemas import (
     AnnotatorInfo,
+    AssignTasksToUsersRequest,
+    AssignTasksToUsersResult,
     CampaignSettingsCreate,
     CampaignStatistics,
     PairwiseAgreement,
@@ -764,79 +766,149 @@ def _seed_assignment_status(
     return seeded
 
 
-def assign_tasks_to_users(
-    db: Session, campaign_id: int, task_assignments: dict[int, list[UUID]]
-) -> None:
-    """
-    Assign multiple annotation tasks to different users in bulk.
-    Supports multiple users per task for quality assurance.
-    """
-
-    # Flatten all user IDs from all tasks
-    all_user_ids = []
-    for user_list in task_assignments.values():
-        all_user_ids.extend(user_list)
-    user_ids = list(set(all_user_ids))
-
-    # Verify all users are members of the campaign
-    stmt = select(CampaignUser).where(
-        CampaignUser.campaign_id == campaign_id, CampaignUser.user_id.in_(user_ids)
+def _verify_campaign_members(db: Session, campaign_id: int, user_ids: set[UUID]) -> None:
+    if not user_ids:
+        return
+    found = set(
+        db.scalars(
+            select(CampaignUser.user_id).where(
+                CampaignUser.campaign_id == campaign_id,
+                CampaignUser.user_id.in_(user_ids),
+            )
+        ).all()
     )
-    campaign_users = db.scalars(stmt).all()
-
-    found_user_ids = {cu.user_id for cu in campaign_users}
-    missing_user_ids = set(user_ids) - found_user_ids
-
-    if missing_user_ids:
+    missing = user_ids - found
+    if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Users not assigned to campaign: {', '.join(str(uid) for uid in missing_user_ids)}",
+            detail=f"Users not assigned to campaign: {', '.join(str(uid) for uid in missing)}",
         )
 
-    # Verify all tasks belong to the campaign
-    task_ids = list(task_assignments.keys())
-    stmt = select(AnnotationTask).where(
-        AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
+
+def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> None:
+    if not task_ids:
+        return
+    found = set(
+        db.scalars(
+            select(AnnotationTask.id).where(
+                AnnotationTask.id.in_(task_ids),
+                AnnotationTask.campaign_id == campaign_id,
+            )
+        ).all()
     )
-    tasks = db.scalars(stmt).all()
-
-    found_task_ids = {task.id for task in tasks}
-    missing_task_ids = set(task_ids) - found_task_ids
-
-    if missing_task_ids:
+    missing = set(task_ids) - found
+    if missing:
         raise HTTPException(
             status_code=404,
-            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
+            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing)}",
         )
 
-    # Determine which (task, user) pairs would be newly created
-    existing_pairs = set(
+
+def _eligible_task_ids(db: Session, campaign_id: int) -> list[int]:
+    """Campaign tasks with no assignment and no annotation, locked for update."""
+    has_assignment = (
+        select(AnnotationTaskAssignment.id)
+        .where(AnnotationTaskAssignment.task_id == AnnotationTask.id)
+        .exists()
+    )
+    has_annotation = (
+        select(Annotation.id).where(Annotation.annotation_task_id == AnnotationTask.id).exists()
+    )
+    stmt = (
+        select(AnnotationTask.id)
+        .where(
+            AnnotationTask.campaign_id == campaign_id,
+            ~has_assignment,
+            ~has_annotation,
+        )
+        .order_by(AnnotationTask.id)
+        .with_for_update(skip_locked=True)
+    )
+    return list(db.scalars(stmt).all())
+
+
+def _distribute_evenly(task_ids: list[int], user_ids: list[UUID]) -> dict[int, list[UUID]]:
+    if not task_ids or not user_ids:
+        return {}
+    return {task_id: [user_ids[i % len(user_ids)]] for i, task_id in enumerate(task_ids)}
+
+
+def _distribute_fixed(
+    task_ids: list[int], user_task_counts: dict[UUID, int]
+) -> dict[int, list[UUID]]:
+    mapping: dict[int, list[UUID]] = {}
+    cursor = 0
+    for user_id, count in user_task_counts.items():
+        for _ in range(max(0, count)):
+            if cursor >= len(task_ids):
+                return mapping
+            mapping[task_ids[cursor]] = [user_id]
+            cursor += 1
+    return mapping
+
+
+def _filter_new_pairs(db: Session, pairs: list[tuple[int, UUID]]) -> list[tuple[int, UUID]]:
+    if not pairs:
+        return []
+    task_ids = {task_id for task_id, _ in pairs}
+    existing = set(
         db.execute(
             select(AnnotationTaskAssignment.task_id, AnnotationTaskAssignment.user_id).where(
                 AnnotationTaskAssignment.task_id.in_(task_ids)
             )
         ).all()
     )
+    return [pair for pair in pairs if pair not in existing]
 
-    new_pairs: list[tuple[int, UUID]] = [
-        (task_id, user_id)
-        for task_id, assigned_user_ids in task_assignments.items()
-        for user_id in assigned_user_ids
-        if (task_id, user_id) not in existing_pairs
-    ]
 
-    seeded_status = _seed_assignment_status(db, new_pairs)
+def assign_tasks_to_users(
+    db: Session, campaign_id: int, req: AssignTasksToUsersRequest
+) -> AssignTasksToUsersResult:
+    """
+    Assign annotation tasks to campaign members. "explicit" assigns the given
+    mapping directly; "even" and "fixed_per_user" distribute the pool of
+    unassigned, unannotated tasks across the selected users.
+    """
+    if req.strategy == "explicit":
+        mapping = {
+            task_id: list(user_ids) for task_id, user_ids in (req.task_assignments or {}).items()
+        }
+        user_ids = {uid for uids in mapping.values() for uid in uids}
+        _verify_campaign_members(db, campaign_id, user_ids)
+        _verify_tasks_in_campaign(db, campaign_id, list(mapping.keys()))
+    else:
+        if req.strategy == "even" and not req.user_ids:
+            raise HTTPException(status_code=400, detail="No users selected")
+        if req.strategy == "fixed_per_user" and not req.user_task_counts:
+            raise HTTPException(status_code=400, detail="No users selected")
 
-    for task_id, user_id in new_pairs:
-        db.add(
-            AnnotationTaskAssignment(
-                task_id=task_id,
-                user_id=user_id,
-                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
-            )
+        target_users = req.user_ids if req.strategy == "even" else list(req.user_task_counts)
+        _verify_campaign_members(db, campaign_id, set(target_users))
+
+        eligible_ids = _eligible_task_ids(db, campaign_id)
+        random.shuffle(eligible_ids)
+        mapping = (
+            _distribute_evenly(eligible_ids, req.user_ids)
+            if req.strategy == "even"
+            else _distribute_fixed(eligible_ids, req.user_task_counts)
         )
 
-    db.commit()
+    pairs = [(task_id, user_id) for task_id, user_ids in mapping.items() for user_id in user_ids]
+    new_pairs = _filter_new_pairs(db, pairs)
+
+    if new_pairs:
+        seeded_status = _seed_assignment_status(db, new_pairs)
+        for task_id, user_id in new_pairs:
+            db.add(
+                AnnotationTaskAssignment(
+                    task_id=task_id,
+                    user_id=user_id,
+                    status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
+                )
+            )
+        db.commit()
+
+    return AssignTasksToUsersResult(total_assigned=len(new_pairs))
 
 
 def unassign_user_from_task(db: Session, campaign_id: int, task_id: int, user_id: UUID) -> None:

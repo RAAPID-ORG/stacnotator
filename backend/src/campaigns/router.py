@@ -12,6 +12,7 @@ from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
     AssignReviewersRequest,
     AssignTasksToUsersRequest,
+    AssignTasksToUsersResult,
     AssignUsersToCampaignRequest,
     CampaignCreate,
     CampaignOut,
@@ -301,6 +302,7 @@ def demote_authorative_reviewer(
 @router.post(
     "/{campaign_id}/assign-tasks",
     status_code=200,
+    response_model=AssignTasksToUsersResult,
 )
 def assign_tasks_to_users(
     campaign_id: int,
@@ -308,9 +310,8 @@ def assign_tasks_to_users(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Assign multiple annotation tasks to different users in bulk. Supports multiple reviewers per task."""
-    service.assign_tasks_to_users(db, campaign_id, req.task_assignments)
-    return {"message": f"Successfully assigned {len(req.task_assignments)} tasks"}
+    """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing."""
+    return service.assign_tasks_to_users(db, campaign_id, req)
 
 
 @router.delete(

@@ -380,16 +380,43 @@ export type AssignReviewersRequest = {
 /**
  * AssignTasksToUsersRequest
  *
- * Request to assign multiple tasks to users.
- * Maps task IDs to list of user IDs (supports multiple reviewers per task).
+ * Intent to assign annotation tasks to campaign members.
+ *
+ * - "explicit": assign exactly the given task_assignments mapping.
+ * - "even": split the pool of unassigned, unannotated tasks across user_ids.
+ * - "fixed_per_user": give each user in user_task_counts that many tasks.
  */
 export type AssignTasksToUsersRequest = {
     /**
+     * Strategy
+     */
+    strategy: 'even' | 'fixed_per_user' | 'explicit';
+    /**
+     * User Ids
+     */
+    user_ids?: Array<string>;
+    /**
+     * User Task Counts
+     */
+    user_task_counts?: {
+        [key: string]: number;
+    } | null;
+    /**
      * Task Assignments
      */
-    task_assignments: {
+    task_assignments?: {
         [key: string]: Array<string>;
-    };
+    } | null;
+};
+
+/**
+ * AssignTasksToUsersResult
+ */
+export type AssignTasksToUsersResult = {
+    /**
+     * Total Assigned
+     */
+    total_assigned: number;
 };
 
 /**
@@ -3288,8 +3315,10 @@ export type AssignTasksToUsersResponses = {
     /**
      * Successful Response
      */
-    200: unknown;
+    200: AssignTasksToUsersResult;
 };
+
+export type AssignTasksToUsersResponse = AssignTasksToUsersResponses[keyof AssignTasksToUsersResponses];
 
 export type UnassignUserFromTaskData = {
     body?: never;

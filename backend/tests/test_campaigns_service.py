@@ -9,12 +9,16 @@ from fastapi import HTTPException
 from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
 from src.campaigns.models import CampaignUser
+from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.campaigns.service import (
     _calculate_krippendorff_alpha,
     _calculate_pairwise_agreement,
+    _distribute_evenly,
+    _distribute_fixed,
     add_users_to_campaign_bulk,
     assign_reviewers_fixed,
     assign_reviewers_percentage,
+    assign_tasks_to_users,
     delete_campaign,
     demote_admin,
     list_campaigns_with_user_roles,
@@ -692,3 +696,55 @@ class TestListCampaignsVisibility:
             svc.is_global_admin = original
 
         assert len(results) == 2
+
+
+class TestDistributeEvenly:
+    def test_round_robins_all_tasks(self):
+        u1, u2 = uuid4(), uuid4()
+        result = _distribute_evenly([10, 20, 30, 40, 50], [u1, u2])
+        assert result == {10: [u1], 20: [u2], 30: [u1], 40: [u2], 50: [u1]}
+
+    def test_every_task_assigned_exactly_once(self):
+        users = [uuid4() for _ in range(3)]
+        result = _distribute_evenly(list(range(20)), users)
+        assert len(result) == 20
+        counts = {}
+        for [uid] in result.values():
+            counts[uid] = counts.get(uid, 0) + 1
+        # 20 tasks across 3 users -> 7, 7, 6
+        assert sorted(counts.values()) == [6, 7, 7]
+
+    def test_empty_inputs_return_empty(self):
+        assert _distribute_evenly([], [uuid4()]) == {}
+        assert _distribute_evenly([1, 2], []) == {}
+
+
+class TestDistributeFixed:
+    def test_gives_each_user_their_count(self):
+        u1, u2 = uuid4(), uuid4()
+        result = _distribute_fixed([10, 20, 30, 40, 50], {u1: 2, u2: 2})
+        assert result == {10: [u1], 20: [u1], 30: [u2], 40: [u2]}
+
+    def test_stops_when_pool_exhausted(self):
+        u1, u2 = uuid4(), uuid4()
+        result = _distribute_fixed([10, 20], {u1: 5, u2: 5})
+        assert result == {10: [u1], 20: [u1]}
+
+    def test_empty_pool_returns_empty(self):
+        assert _distribute_fixed([], {uuid4(): 3}) == {}
+
+
+class TestAssignTasksToUsers:
+    def test_even_without_users_raises_400(self):
+        db = _mock_db()
+        req = AssignTasksToUsersRequest(strategy="even", user_ids=[])
+        with pytest.raises(HTTPException) as exc_info:
+            assign_tasks_to_users(db, 1, req)
+        assert exc_info.value.status_code == 400
+
+    def test_fixed_without_counts_raises_400(self):
+        db = _mock_db()
+        req = AssignTasksToUsersRequest(strategy="fixed_per_user", user_task_counts=None)
+        with pytest.raises(HTTPException) as exc_info:
+            assign_tasks_to_users(db, 1, req)
+        assert exc_info.value.status_code == 400

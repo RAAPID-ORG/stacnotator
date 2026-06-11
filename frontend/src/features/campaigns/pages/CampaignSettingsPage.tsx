@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { TaskAssignmentModal } from '~/features/campaigns/components/settings/TaskAssignmentModal';
+import {
+  TaskAssignmentModal,
+  type BulkAssignIntent,
+} from '~/features/campaigns/components/settings/TaskAssignmentModal';
 import { Button } from '~/shared/ui/forms';
 import {
   ReviewerAssignmentModal,
@@ -410,7 +413,7 @@ export const CampaignSettingsPage = () => {
     try {
       await assignTasksToUsers({
         path: { campaign_id: numericCampaignId },
-        body: { task_assignments: { [taskId]: [userId] } },
+        body: { strategy: 'explicit', task_assignments: { [taskId]: [userId] } },
       });
 
       // Refresh tasks to get updated assignments
@@ -449,27 +452,27 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  const handleBulkAssignTasks = async (assignments: { [taskId: number]: string[] }) => {
+  const handleBulkAssignTasks = async (intent: BulkAssignIntent) => {
     try {
       setSaving(true);
 
-      const taskAssignments: { [key: string]: string[] } = {};
-      Object.entries(assignments).forEach(([taskId, userIds]) => {
-        taskAssignments[taskId] = userIds;
-      });
+      const body =
+        intent.strategy === 'even'
+          ? { strategy: 'even' as const, user_ids: intent.userIds }
+          : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts };
 
-      await assignTasksToUsers({
+      const { data } = await assignTasksToUsers({
         path: { campaign_id: numericCampaignId },
-        body: { task_assignments: taskAssignments },
+        body,
       });
 
       // Refresh tasks to get updated assignments
-      const { data } = await getAllAnnotationTasks({
+      const { data: tasksData } = await getAllAnnotationTasks({
         path: { campaign_id: numericCampaignId },
       });
-      setAnnotationTasks(data!.tasks);
+      setAnnotationTasks(tasksData!.tasks);
 
-      showAlert(`${Object.keys(assignments).length} task(s) assigned successfully`, 'success');
+      showAlert(`${data!.total_assigned} task(s) assigned successfully`, 'success');
       setShowAssignmentModal(false);
     } catch (err) {
       handleError(err, 'Failed to assign tasks');

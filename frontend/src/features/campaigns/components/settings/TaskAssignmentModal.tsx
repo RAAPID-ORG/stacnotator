@@ -1,14 +1,17 @@
 import { useState, useMemo } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { distributeEvenly, assignFixedCount } from '~/features/campaigns/utils/taskAssignment';
+
+export type BulkAssignIntent =
+  | { strategy: 'even'; userIds: string[] }
+  | { strategy: 'fixed_per_user'; userTaskCounts: Record<string, number> };
 
 interface TaskAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   tasks: AnnotationTaskOut[];
   campaignUsers: CampaignUserOut[];
-  onAssign: (assignments: { [taskId: number]: string[] }) => Promise<void>;
+  onAssign: (intent: BulkAssignIntent) => Promise<void>;
 }
 
 type AssignmentMode = 'distribute-evenly' | 'fixed-count';
@@ -67,30 +70,29 @@ export const TaskAssignmentModal = ({
     setTasksPerUser((prev) => ({ ...prev, [userId]: Math.max(1, count) }));
   };
 
-  const generateAssignments = (): { [taskId: number]: string[] } => {
-    if (selectedUsers.length === 0) return {};
+  const previewAssignmentCount = useMemo(() => {
+    if (selectedUsers.length === 0) return 0;
+    if (mode === 'distribute-evenly') return unassignedTasks.length;
+    const requested = selectedUsers.reduce((sum, userId) => sum + (tasksPerUser[userId] || 10), 0);
+    return Math.min(unassignedTasks.length, requested);
+  }, [mode, selectedUsers, tasksPerUser, unassignedTasks]);
 
-    const taskIds = unassignedTasks.map((t) => t.id);
-
-    if (mode === 'distribute-evenly') {
-      return distributeEvenly(taskIds, selectedUsers);
-    }
-
-    return assignFixedCount(
-      taskIds,
-      selectedUsers.map((userId) => ({ userId, count: tasksPerUser[userId] || 10 }))
-    );
-  };
+  const buildIntent = (): BulkAssignIntent =>
+    mode === 'distribute-evenly'
+      ? { strategy: 'even', userIds: selectedUsers }
+      : {
+          strategy: 'fixed_per_user',
+          userTaskCounts: Object.fromEntries(
+            selectedUsers.map((userId) => [userId, tasksPerUser[userId] || 10])
+          ),
+        };
 
   const handleAssign = async () => {
-    const assignments = generateAssignments();
-    if (Object.keys(assignments).length === 0) {
-      return;
-    }
+    if (selectedUsers.length === 0) return;
 
     try {
       setAssigning(true);
-      await onAssign(assignments);
+      await onAssign(buildIntent());
       onClose();
       setSelectedUsers([]);
       setTasksPerUser({});
@@ -100,11 +102,6 @@ export const TaskAssignmentModal = ({
       setAssigning(false);
     }
   };
-
-  const previewAssignmentCount = useMemo(() => {
-    return Object.keys(generateAssignments()).length;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- generateAssignments depends on mode, selectedUsers, tasksPerUser, unassignedTasks
-  }, [mode, selectedUsers, tasksPerUser, unassignedTasks]);
 
   if (!isOpen) return null;
 
@@ -148,8 +145,9 @@ export const TaskAssignmentModal = ({
             </div>
             {mode === 'distribute-evenly' && (
               <p className="text-sm text-neutral-500 mt-2">
-                All unassigned tasks are split as evenly as possible across the selected users. Each
-                user receives either ⌊N/users⌋ or ⌈N/users⌉ tasks, assigned in random order.
+                All unassigned/ not yet completed tasks are split as evenly as possible across the
+                selected users. Each user receives either ⌊N/users⌋ or ⌈N/users⌉ tasks, assigned in
+                random order.
               </p>
             )}
             {mode === 'fixed-count' && (

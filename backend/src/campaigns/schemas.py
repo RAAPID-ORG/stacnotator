@@ -262,11 +262,21 @@ class EmbeddingYearUpdateResponse(BaseModel):
 
 class AssignTasksToUsersRequest(BaseModel):
     """
-    Request to assign multiple tasks to users.
-    Maps task IDs to list of user IDs (supports multiple reviewers per task).
+    Intent to assign annotation tasks to campaign members.
+
+    - "explicit": assign exactly the given task_assignments mapping.
+    - "even": split the pool of unassigned, unannotated tasks across user_ids.
+    - "fixed_per_user": give each user in user_task_counts that many tasks.
     """
 
-    task_assignments: dict[int, list[UUID]]
+    strategy: Literal["even", "fixed_per_user", "explicit"]
+    user_ids: list[UUID] = []
+    user_task_counts: dict[UUID, int] | None = None
+    task_assignments: dict[int, list[UUID]] | None = None
+
+
+class AssignTasksToUsersResult(BaseModel):
+    total_assigned: int
 
 
 class AssignReviewersRequest(BaseModel):
