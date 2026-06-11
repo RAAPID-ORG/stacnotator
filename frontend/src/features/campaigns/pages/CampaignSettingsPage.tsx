@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TaskAssignmentModal } from '~/features/campaigns/components/settings/TaskAssignmentModal';
 import { Button } from '~/shared/ui/forms';
@@ -13,6 +13,8 @@ import TabNavigator from '~/shared/ui/TabNavigator';
 import { DeleteCampaignDialog } from '~/features/campaigns/components/DeleteCampaignDialog';
 import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/GeneralSettingsTab';
 import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
+import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
+import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
@@ -87,6 +89,48 @@ export const CampaignSettingsPage = () => {
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
+
+  const campaignBbox = useMemo(
+    () =>
+      campaign?.settings
+        ? [
+            campaign.settings.bbox_west,
+            campaign.settings.bbox_south,
+            campaign.settings.bbox_east,
+            campaign.settings.bbox_north,
+          ]
+        : null,
+    [campaign?.settings]
+  );
+
+  // Refetch the campaign after imagery edits are persisted so local state
+  // reflects server truth (and the controller clears its dirty flag).
+  const handleImageryChanged = useCallback(async () => {
+    try {
+      const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+      if (data) {
+        setCampaign(data);
+        setImagery(data.imagery_sources);
+      }
+    } catch {
+      /* silent refresh */
+    }
+  }, [numericCampaignId]);
+
+  const imageryController = usePersistedController({
+    campaignId: numericCampaignId,
+    imagery,
+    views: campaign?.imagery_views ?? [],
+    basemaps: campaign?.basemaps ?? [],
+    campaignBbox,
+    refetch: handleImageryChanged,
+  });
+
+  // Warn if the user navigates away with unsaved imagery edits.
+  useUnsavedChangesGuard(imageryController.isDirty, {
+    title: 'Unsaved imagery changes',
+    description: 'Your imagery edits have not been saved and will be lost. Leave without saving?',
+  });
 
   useEffect(() => {
     if (campaign) {
@@ -558,13 +602,28 @@ export const CampaignSettingsPage = () => {
               <p className="page-subtitle">Manage your campaign settings, imagery, and users.</p>
             </div>
             <div className="flex gap-2">
-              <Button
-                onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
-                disabled={isAnyRegistering}
-                title={isAnyRegistering ? 'Waiting for background setup to complete...' : undefined}
-              >
-                Start annotating
-              </Button>
+              {imageryController.isDirty ? (
+                <Button
+                  onClick={() => {
+                    imageryController.save().catch(() => {
+                      /* error already surfaced via handleError */
+                    });
+                  }}
+                  disabled={imageryController.pending}
+                >
+                  {imageryController.pending ? 'Saving…' : 'Save'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
+                  disabled={isAnyRegistering}
+                  title={
+                    isAnyRegistering ? 'Waiting for background setup to complete...' : undefined
+                  }
+                >
+                  Start annotating
+                </Button>
+              )}
             </div>
           </header>
 
@@ -724,36 +783,7 @@ export const CampaignSettingsPage = () => {
               )}
 
               {activeTab === 'imagery' && (
-                <ImageryTab
-                  key={numericCampaignId}
-                  imagery={imagery}
-                  views={campaign?.imagery_views ?? []}
-                  basemaps={campaign?.basemaps ?? []}
-                  campaignId={numericCampaignId}
-                  campaignBbox={
-                    campaign?.settings
-                      ? [
-                          campaign.settings.bbox_west,
-                          campaign.settings.bbox_south,
-                          campaign.settings.bbox_east,
-                          campaign.settings.bbox_north,
-                        ]
-                      : null
-                  }
-                  onChanged={async () => {
-                    try {
-                      const { data } = await getCampaign({
-                        path: { campaign_id: numericCampaignId },
-                      });
-                      if (data) {
-                        setCampaign(data);
-                        setImagery(data.imagery_sources);
-                      }
-                    } catch {
-                      /* silent refresh */
-                    }
-                  }}
-                />
+                <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
               )}
 
               {activeTab === 'timeseries' && (

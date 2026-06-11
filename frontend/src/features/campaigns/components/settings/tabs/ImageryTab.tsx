@@ -1,35 +1,15 @@
-import type { ImagerySourceOut, ImageryViewOut, BasemapOut } from '~/api/client';
 import { ImagerySetup } from '~/features/campaigns/components/imagery/ImagerySetup';
-import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
-import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
+import type { ImageryController } from '~/features/campaigns/components/imagery/controller';
 
 interface Props {
-  imagery: ImagerySourceOut[];
-  views: ImageryViewOut[];
-  basemaps?: BasemapOut[];
-  campaignId: number;
+  /** Persisted imagery controller, owned by the page so the header action can
+   *  reflect the dirty/save state. */
+  controller: ImageryController;
   campaignBbox?: number[] | null;
-  /** Called after a successful save so the parent can refetch the campaign. */
-  onChanged?: () => void;
 }
 
-const ImageryTab = ({ imagery, views, basemaps, campaignId, campaignBbox, onChanged }: Props) => {
-  const controller = usePersistedController({
-    campaignId,
-    imagery,
-    views,
-    basemaps,
-    campaignBbox: campaignBbox ?? null,
-    refetch: onChanged,
-  });
-
+const ImageryTab = ({ controller, campaignBbox }: Props) => {
   const { isDirty, pending, save, discard } = controller;
-
-  // Warn if the user navigates to another page with unsaved imagery edits.
-  useUnsavedChangesGuard(isDirty, {
-    title: 'Unsaved imagery changes',
-    description: 'Your imagery edits have not been saved and will be lost. Leave without saving?',
-  });
 
   return (
     <div id="tab-imagery" role="tabpanel">
