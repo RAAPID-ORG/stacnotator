@@ -8,6 +8,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
+import { UNASSIGNED } from '../utils/taskFilter';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconFlag } from '~/shared/ui/Icons';
@@ -64,12 +65,18 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
     });
   });
   const allUsers = Array.from(userMap.values());
+  const hasUnassignedTasks = allTasks.some((task) => (task.assignments || []).length === 0);
 
-  const handleAssigneeToggle = (userId: string) => {
-    const isSelected = taskFilter.assignedTo.includes(userId);
-    const newAssignedTo = isSelected
-      ? taskFilter.assignedTo.filter((id) => id !== userId)
-      : [...taskFilter.assignedTo, userId];
+  // An empty assignedTo means "All" (aggregate mode). The full selectable set is
+  // used to materialize that into an explicit list the moment a box is toggled,
+  // keeping the All/Mine shortcuts fully editable afterwards.
+  const selectableIds = [...(hasUnassignedTasks ? [UNASSIGNED] : []), ...allUsers.map((u) => u.id)];
+
+  const handleToggle = (id: string) => {
+    const current = taskFilter.assignedTo.length === 0 ? selectableIds : taskFilter.assignedTo;
+    const newAssignedTo = current.includes(id)
+      ? current.filter((existing) => existing !== id)
+      : [...current, id];
 
     setTaskFilter({ assignedTo: newAssignedTo });
   };
@@ -160,6 +167,19 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
             )}
           </div>
           <div className="space-y-1 max-h-[200px] overflow-y-auto">
+            {hasUnassignedTasks && (
+              <label className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={
+                    taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(UNASSIGNED)
+                  }
+                  onChange={() => handleToggle(UNASSIGNED)}
+                  className="rounded accent-brand-500"
+                />
+                <span className="text-neutral-500 italic">Unassigned</span>
+              </label>
+            )}
             {allUsers.map((user) => (
               <label
                 key={user.id}
@@ -170,14 +190,13 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
                   checked={
                     taskFilter.assignedTo.length === 0 || taskFilter.assignedTo.includes(user.id)
                   }
-                  onChange={() => handleAssigneeToggle(user.id)}
-                  disabled={isShowingAll}
+                  onChange={() => handleToggle(user.id)}
                   className="rounded accent-brand-500"
                 />
                 <span className="text-neutral-900">{user.display_name}</span>
               </label>
             ))}
-            {allUsers.length === 0 && (
+            {allUsers.length === 0 && !hasUnassignedTasks && (
               <div className="text-xs text-neutral-500 px-2 py-1">No assigned users</div>
             )}
           </div>

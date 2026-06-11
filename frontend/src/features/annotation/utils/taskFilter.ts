@@ -1,6 +1,10 @@
 import type { AnnotationTaskOut } from '~/api/client';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 
+// Sentinel value usable inside TaskFilter.assignedTo to match tasks that have
+// no assignments. Lets the assignee filter express "unassigned" explicitly.
+export const UNASSIGNED = '__unassigned__';
+
 export interface TaskFilter {
   assignedTo: string[];
   statuses: TaskStatus[];
@@ -19,16 +23,25 @@ export const applyTaskFilter = (
   preferTaskId?: number
 ): FilteredTasks => {
   const filterByUser = filter.assignedTo.length > 0;
+  const wantUnassigned = filter.assignedTo.includes(UNASSIGNED);
+  const selectedUserIds = filter.assignedTo.filter((id) => id !== UNASSIGNED);
 
   const visibleTasks = allTasks.filter((task) => {
     const assignments = task.assignments || [];
     const annotations = task.annotations || [];
 
     if (filterByUser) {
-      const userAssignments = assignments.filter((a) => filter.assignedTo.includes(a.user_id));
-      if (userAssignments.length === 0) return false;
-      if (!userAssignments.some((a) => filter.statuses.includes(a.status as TaskStatus)))
-        return false;
+      const matchesUser =
+        selectedUserIds.length > 0 &&
+        assignments.some(
+          (a) =>
+            selectedUserIds.includes(a.user_id) && filter.statuses.includes(a.status as TaskStatus)
+        );
+      const matchesUnassigned =
+        wantUnassigned &&
+        assignments.length === 0 &&
+        filter.statuses.includes(task.task_status as TaskStatus);
+      if (!matchesUser && !matchesUnassigned) return false;
     } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {
       return false;
     }

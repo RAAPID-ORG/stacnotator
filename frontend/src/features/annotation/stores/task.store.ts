@@ -13,7 +13,7 @@ import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
-import { applyTaskFilter, type TaskFilter } from '../utils/taskFilter';
+import { applyTaskFilter, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
 
 export type { TaskFilter, TaskStatus };
 
@@ -182,28 +182,30 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           initialTaskId
         ));
       } else {
-        // Public campaigns show all tasks by default since most users
-        // won't have explicit assignments. Private campaigns default to
-        // showing only the current user's assigned tasks.
-        const showAll = campaign?.is_public;
-        taskFilter = {
-          assignedTo: showAll || !currentUserId ? [] : [currentUserId],
+        const pendingFilter = (assignedTo: string[]): TaskFilter => ({
+          assignedTo,
           statuses: ['pending'],
           selectedConfidences: [],
           flaggedOnly: false,
-        };
+        });
+
+        // Users with their own assignments start on those. Everyone else
+        // (public campaigns, or anyone with nothing assigned) starts on the
+        // pool of unassigned pending tasks — work that's free to pick up —
+        // rather than every pending task, so tasks already handed off to a
+        // reviewer don't linger in the default view.
+        const showAll = campaign?.is_public;
+        taskFilter = pendingFilter(showAll || !currentUserId ? [UNASSIGNED] : [currentUserId]);
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
 
-        // If the user-scoped filter yields nothing but unfiltered tasks
-        // exist, auto-widen to show everything so the user lands on a
-        // task instead of an empty screen.
-        if (visibleTasks.length === 0 && allTasks.length > 0 && !showAll) {
-          taskFilter = {
-            assignedTo: [],
-            statuses: ['pending'],
-            selectedConfidences: [],
-            flaggedOnly: false,
-          };
+        // Progressive fallback so the user always lands on a task when work
+        // exists: mine -> unassigned -> all.
+        if (visibleTasks.length === 0 && currentUserId && !showAll) {
+          taskFilter = pendingFilter([UNASSIGNED]);
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+        }
+        if (visibleTasks.length === 0 && allTasks.length > 0) {
+          taskFilter = pendingFilter([]);
           ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
         }
       }

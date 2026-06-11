@@ -19,6 +19,7 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { UNASSIGNED } from '../utils/taskFilter';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
 import { IconEyeSlash } from '~/shared/ui/Icons';
@@ -94,6 +95,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     const tasksInAssignmentScope = allTasks.filter((task) => {
       if (taskFilter.assignedTo.length === 0) return true;
       const assignments = task.assignments || [];
+      if (taskFilter.assignedTo.includes(UNASSIGNED) && assignments.length === 0) return true;
       return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
     });
     return {
