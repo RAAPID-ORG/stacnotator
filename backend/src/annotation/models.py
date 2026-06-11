@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from geoalchemy2 import Geometry as GeoAlchemyGeometry
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Identity,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -134,6 +136,15 @@ class AnnotationTaskAssignment(Base):
         String(32),
         nullable=False,
         server_default="pending",
+    )
+
+    # True if this assignment is a review of another user's annotation work,
+    # rather than a primary annotation assignment. Reviewers are only added to
+    # tasks that already have a primary (non-review) assignment.
+    is_review: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
     )
 
     # Relationships

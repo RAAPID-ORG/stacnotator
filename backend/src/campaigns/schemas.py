@@ -282,21 +282,26 @@ class AssignTasksToUsersResult(BaseModel):
 class AssignReviewersRequest(BaseModel):
     """
     Request to assign reviewers to tasks based on different patterns.
+
+    Reviewers may only be assigned to tasks that already have a primary
+    (non-review) assignment. Each selected task is topped up to the requested
+    number of reviewers, so re-running does not stack additional reviewers on
+    tasks that already meet the target.
     """
 
     pattern: str  # 'percentage', 'manual', 'fixed'
 
     # For 'percentage' pattern
-    percentage: float | None = None  # Percentage of tasks to review (0-100)
-    num_reviewers: int | None = None  # Number of reviewers per task
+    percentage: float | None = None  # Percentage of already-assigned tasks to review (0-100)
+    num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
     reviewer_ids: list[UUID] | None = None  # Pool of reviewers to choose from
 
     # For 'manual' pattern
-    manual_assignments: dict[int, list[UUID]] | None = None  # task_id -> list of user_ids
+    manual_assignments: dict[int, list[UUID]] | None = None  # task_id -> list of reviewer user_ids
 
     # For 'fixed' pattern
-    num_tasks: int | None = None  # Number of tasks to assign reviewers to
-    fixed_num_reviewers: int | None = None  # Fixed number of reviewers per task
+    num_tasks: int | None = None  # Number of already-assigned tasks to review
+    fixed_num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
 
 
 class DeleteAnnotationTasksRequest(BaseModel):

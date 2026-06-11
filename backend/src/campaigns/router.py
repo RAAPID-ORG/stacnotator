@@ -362,9 +362,13 @@ def assign_reviewers(
 ):
     """
     Assign reviewers to tasks using different patterns:
-    - 'percentage': Assign reviewers to X% of tasks
+    - 'percentage': Assign reviewers to X% of already-assigned tasks
     - 'manual': Manually assign specific reviewers to specific tasks
-    - 'fixed': Assign N reviewers to M tasks
+    - 'fixed': Assign reviewers to a fixed number of already-assigned tasks
+
+    Reviewers are only added to tasks that already have a primary (non-review)
+    assignment, and each task is topped up to the requested number of reviewers
+    rather than accumulating more on every call.
     """
     if req.pattern == "percentage":
         if req.percentage is None or req.num_reviewers is None or req.reviewer_ids is None:
@@ -382,8 +386,8 @@ def assign_reviewers(
             raise HTTPException(
                 status_code=400, detail="For 'manual' pattern, manual_assignments is required"
             )
-        service.assign_tasks_to_users(db, campaign_id, req.manual_assignments)
-        return {"message": f"Successfully assigned {len(req.manual_assignments)} tasks"}
+        created = service.assign_reviewers_manual(db, campaign_id, req.manual_assignments)
+        return {"message": f"Successfully assigned {created} reviewer(s)"}
 
     elif req.pattern == "fixed":
         if req.num_tasks is None or req.fixed_num_reviewers is None or req.reviewer_ids is None:

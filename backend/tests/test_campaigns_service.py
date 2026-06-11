@@ -17,6 +17,7 @@ from src.campaigns.service import (
     _distribute_fixed,
     add_users_to_campaign_bulk,
     assign_reviewers_fixed,
+    assign_reviewers_manual,
     assign_reviewers_percentage,
     assign_tasks_to_users,
     delete_campaign,
@@ -295,6 +296,12 @@ def _make_tasks(task_ids):
     return [MagicMock(id=tid) for tid in task_ids]
 
 
+def _make_assignment(task_id, user_id, is_review=False):
+    return MagicMock(
+        spec=AnnotationTaskAssignment, task_id=task_id, user_id=user_id, is_review=is_review
+    )
+
+
 class TestAssignReviewersPercentage:
     def test_invalid_percentage_raises_400(self):
         db = _mock_db()
@@ -364,13 +371,14 @@ class TestAssignReviewersPercentage:
         assert {a.task_id for a in assignments} == {10, 20, 30}
         assert all(a.user_id == u1 for a in assignments)
         assert all(a.status == ANNOTATION_TASK_STATUS_PENDING for a in assignments)
+        assert all(a.is_review is True for a in assignments)
         db.commit.assert_called_once()
 
     def test_existing_assignment_is_not_duplicated(self):
         db = _mock_db()
         u1 = uuid4()
         tasks = _make_tasks([10])
-        existing = MagicMock(spec=AnnotationTaskAssignment, task_id=10, user_id=u1)
+        existing = _make_assignment(task_id=10, user_id=u1)
         _stub_scalars(
             db,
             [
@@ -394,7 +402,7 @@ class TestAssignReviewersPercentage:
         annotator, r1, r2 = uuid4(), uuid4(), uuid4()
         tasks = _make_tasks([10, 20, 30])
         existing = [
-            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            _make_assignment(task_id=tid, user_id=annotator, is_review=False)
             for tid in [10, 20, 30]
         ]
         _stub_scalars(
@@ -427,7 +435,7 @@ class TestAssignReviewersPercentage:
         annotator, r1, r2 = uuid4(), uuid4(), uuid4()
         tasks = _make_tasks([10, 20, 30])
         existing = [
-            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            _make_assignment(task_id=tid, user_id=annotator, is_review=False)
             for tid in [10, 20, 30]
         ]
         _stub_scalars(
@@ -516,7 +524,7 @@ class TestAssignReviewersFixed:
         annotator, r1, r2 = uuid4(), uuid4(), uuid4()
         tasks = _make_tasks([10, 20, 30])
         existing = [
-            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            _make_assignment(task_id=tid, user_id=annotator, is_review=False)
             for tid in [10, 20, 30]
         ]
         _stub_scalars(
@@ -548,7 +556,7 @@ class TestAssignReviewersFixed:
         annotator, r1, r2 = uuid4(), uuid4(), uuid4()
         tasks = _make_tasks([10, 20, 30])
         existing = [
-            MagicMock(spec=AnnotationTaskAssignment, task_id=tid, user_id=annotator)
+            _make_assignment(task_id=tid, user_id=annotator, is_review=False)
             for tid in [10, 20, 30]
         ]
         _stub_scalars(
@@ -576,6 +584,120 @@ class TestAssignReviewersFixed:
             f"Expected 2 new reviewers per task, got: {dict(per_task)}"
         )
         assert len(new_assignments) == 6  # 3 tasks × 2 reviewers
+
+
+class TestReviewerTopUp:
+    def test_tops_up_to_target_not_beyond(self):
+        """Task with annotator + 1 existing reviewer, target 2 -> exactly 1 added."""
+        db = _mock_db()
+        annotator, r1, r2, r3 = uuid4(), uuid4(), uuid4(), uuid4()
+        existing = [
+            _make_assignment(task_id=10, user_id=annotator, is_review=False),
+            _make_assignment(task_id=10, user_id=r1, is_review=True),
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2, r3]),
+                _make_tasks([10]),
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(
+                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2, r3]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert len(new_assignments) == 1
+        assert new_assignments[0].task_id == 10
+        assert new_assignments[0].user_id in {r2, r3}
+        assert new_assignments[0].is_review is True
+
+    def test_idempotent_when_target_already_met(self):
+        """Task already has 2 reviewers, target 2 -> nothing added."""
+        db = _mock_db()
+        annotator, r1, r2 = uuid4(), uuid4(), uuid4()
+        existing = [
+            _make_assignment(task_id=10, user_id=annotator, is_review=False),
+            _make_assignment(task_id=10, user_id=r1, is_review=True),
+            _make_assignment(task_id=10, user_id=r2, is_review=True),
+        ]
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                _make_tasks([10]),
+                existing,
+            ],
+        )
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            assign_reviewers_percentage(
+                db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
+            )
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        new_assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert new_assignments == []
+
+    def test_no_reviewable_tasks_raises_404(self):
+        """Campaign has no task with a primary assignment -> 404."""
+        db = _mock_db()
+        u1 = uuid4()
+        _stub_scalars(
+            db,
+            [
+                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [],  # _reviewable_tasks returns nothing
+            ],
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            assign_reviewers_percentage(db, 1, percentage=50, num_reviewers=1, reviewer_ids=[u1])
+        assert exc_info.value.status_code == 404
+
+
+class TestAssignReviewersManual:
+    def test_assigns_reviewers_with_is_review_flag(self):
+        db = _mock_db()
+        u1, u2 = uuid4(), uuid4()
+        _stub_scalars(
+            db,
+            [
+                [u1, u2],  # _verify_campaign_members: found user_ids
+                [10, 20],  # _verify_tasks_in_campaign: found task ids
+                _make_tasks([10, 20]),  # _reviewable_tasks
+            ],
+        )
+        db.execute.return_value.all.return_value = []  # _filter_new_pairs: no existing pairs
+
+        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+            created = assign_reviewers_manual(db, 1, {10: [u1], 20: [u2]})
+
+        added = [c.args[0] for c in db.add.call_args_list]
+        assignments = [a for a in added if isinstance(a, AnnotationTaskAssignment)]
+        assert created == 2
+        assert {(a.task_id, a.user_id) for a in assignments} == {(10, u1), (20, u2)}
+        assert all(a.is_review is True for a in assignments)
+
+    def test_task_without_primary_assignment_raises_400(self):
+        db = _mock_db()
+        u1 = uuid4()
+        _stub_scalars(
+            db,
+            [
+                [u1],  # members found
+                [10, 20],  # tasks in campaign
+                _make_tasks([10]),  # only task 10 has a primary assignment
+            ],
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            assign_reviewers_manual(db, 1, {10: [u1], 20: [u1]})
+        assert exc_info.value.status_code == 400
 
 
 class TestUpdateCampaignVisibility:

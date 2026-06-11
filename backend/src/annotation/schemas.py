@@ -67,6 +67,7 @@ class AnnotationOut(AnnotationFromTaskOut):
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
     status: str
+    is_review: bool = False
     user_email: str | None = None
     user_display_name: str | None = None
 
@@ -79,6 +80,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
             result = {
                 "user_id": data.user_id,
                 "status": data.status,
+                "is_review": data.is_review,
                 "user_email": user.email,
                 "user_display_name": user.display_name,
             }
