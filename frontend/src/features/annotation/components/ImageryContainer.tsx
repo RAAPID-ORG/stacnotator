@@ -195,6 +195,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   );
 
   const [emptyTileAlert, setEmptyTileAlert] = useState<string | null>(null);
+  // Slice being probed while the effect searches a mostly-empty collection for
+  // imagery. Text-only state - it never changes tileUrl, so it gives the user
+  // progress feedback without rebuilding the OL source.
+  const [probingLabel, setProbingLabel] = useState<string | null>(null);
 
   // Build the tile URL at the crosshair position for any slice, for empty-slice
   // probing. Always uses default_zoom + task centroid so zooming doesn't
@@ -230,6 +234,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   useEffect(() => {
     if (isOpenMode || !crosshairTileUrl) return;
     setEmptyTileAlert(null);
+    setProbingLabel(null);
 
     const controller = new AbortController();
 
@@ -276,6 +281,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         if (newlyEmpty.has(i) || knownEmpty[`${collectionId}-${i}`]) continue;
         const url = buildCrosshairTileUrl(i);
         if (!url) continue;
+        setProbingLabel(slices[i]?.name ?? null);
         if (await probeEmpty(url)) {
           newlyEmpty.add(i);
         } else {
@@ -284,6 +290,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
         }
       }
 
+      setProbingLabel(null);
       useMapStore.getState().markSlicesEmpty([...newlyEmpty].map((i) => `${collectionId}-${i}`));
 
       if (resolved !== -1) {
@@ -295,6 +302,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       }
     })().catch(() => {
       // fetch aborted or network error - ignore
+      setProbingLabel(null);
     });
 
     return () => controller.abort();
@@ -327,6 +335,13 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-neutral-100/80 z-[999] text-neutral-500 text-[10px] pointer-events-none">
           Loading…
+        </div>
+      )}
+
+      {probingLabel && (
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-[1002] flex items-center gap-1.5 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white pointer-events-none">
+          <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border border-white/40 border-t-white" />
+          Searching imagery… {probingLabel}
         </div>
       )}
 
