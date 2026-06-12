@@ -147,6 +147,13 @@ class AnnotationTaskAssignment(Base):
         server_default=text("false"),
     )
 
+    # Set when the assignment is a soft claim (auto-created when a user dwells on an
+    # unassigned task). NULL for explicit admin assignments, which never expire.
+    claimed_at: Mapped[dt_datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Relationships
     annotation_task: Mapped["AnnotationTask"] = relationship(
         back_populates="assignments",

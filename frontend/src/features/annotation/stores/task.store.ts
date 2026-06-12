@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   getAllAnnotationTasks,
   completeAnnotationTask,
+  claimAnnotationTask,
   deleteAnnotation,
   validateAnnotationSubmission,
   type AnnotationTaskOut,
@@ -13,7 +14,7 @@ import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
-import { applyTaskFilter, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
+import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
 
 export type { TaskFilter, TaskStatus };
 
@@ -51,6 +52,7 @@ interface TaskStore {
   previousTask: () => void;
   goToTask: (annotationNumber: number) => void;
   goToTaskById: (taskId: number, options?: { resetFilters?: boolean }) => void;
+  claimCurrentTask: () => Promise<void>;
 
   setSelectedLabelId: (id: number | null) => void;
   setComment: (comment: string) => void;
@@ -418,6 +420,54 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         currentTaskIndex: targetIndex,
         ...getFormStateForTask(targetTask),
       });
+    },
+
+    // Claim the current task (or renew our own claim) so others stop seeing it as
+    // free. The backend enforces one claim per user, so this also releases any prior
+    // claim; the lease TTL is the real release. A 409 means someone beat us: skip on.
+    claimCurrentTask: async () => {
+      if (useCampaignStore.getState().isReviewMode) return;
+      const { visibleTasks, currentTaskIndex } = get();
+      const task = visibleTasks[currentTaskIndex];
+      const campaign = useCampaignStore.getState().campaign;
+      const currentUserId = useAccountStore.getState().account?.id;
+      if (!task || !campaign || !currentUserId) return;
+
+      const mine = (task.assignments || []).find((a) => a.user_id === currentUserId);
+      const holdsSoftClaim = mine != null && mine.claimed_at != null && mine.status === 'pending';
+      if (!holdsSoftClaim && !isClaimable(task)) return;
+
+      const { data, response } = await claimAnnotationTask({
+        path: { campaign_id: campaign.id, annotation_task_id: task.id },
+      });
+
+      if (data) {
+        const updatedTask: AnnotationTaskOut = {
+          ...task,
+          assignments: mine
+            ? (task.assignments || []).map((a) =>
+                a.user_id === currentUserId ? { ...a, claimed_at: data.claimed_at } : a
+              )
+            : [
+                ...(task.assignments || []),
+                { user_id: currentUserId, status: 'pending', claimed_at: data.claimed_at },
+              ],
+        };
+        // Functional update: read both lists fresh so overlapping claims from rapid
+        // navigation can't clobber each other's in-place edits.
+        const replace = (list: AnnotationTaskOut[]) =>
+          list.map((t) => (t.id === task.id ? updatedTask : t));
+        set((s) => ({ allTasks: replace(s.allTasks), visibleTasks: replace(s.visibleTasks) }));
+        return;
+      }
+
+      if (response?.status === 409) {
+        const { visibleTasks: vt, currentTaskIndex: ci } = get();
+        if (vt[ci]?.id === task.id) {
+          useLayoutStore.getState().showAlert('Task already taken — skipping', 'warning');
+          get().nextTask();
+        }
+      }
     },
 
     // Form actions

@@ -1,6 +1,6 @@
 """Tests for annotation service layer."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -14,6 +14,7 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
     ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
+    CLAIM_TTL_MINUTES,
 )
 from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
@@ -22,6 +23,7 @@ from src.annotation.service import (
     add_annotation_for_task,
     build_annotations_export,
     build_annotations_geojson_export,
+    claim_task_for_user,
     create_annotation,
     create_annotation_tasks_from_csv,
     delete_annotation,
@@ -1147,3 +1149,153 @@ class TestExportMergeCorrectness:
         a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None, geometry=None)
         fc = self._geojson([a])
         assert fc["features"][0]["geometry"] is None
+
+
+def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):
+    a = MagicMock(spec=AnnotationTaskAssignment)
+    a.task_id = 1
+    a.user_id = user_id
+    a.status = status
+    a.claimed_at = claimed_at
+    return a
+
+
+def _result(scalar=None, first=None, all_=None):
+    """A stand-in for db.execute()'s return value covering the access patterns used."""
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = scalar
+    r.first.return_value = first
+    r.scalars.return_value.all.return_value = all_ or []
+    return r
+
+
+class TestClaimTaskForUser:
+    """Tests for dwell-based soft claiming of unassigned tasks."""
+
+    def test_claim_unassigned_creates_assignment(self):
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+        db.execute.side_effect = [
+            _result(scalar=task),  # lock task row
+            _result(first=None),  # no annotation
+            _result(all_=[]),  # no assignments
+            _result(all_=[]),  # no other soft claims to release
+        ]
+
+        result = claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+
+        added = db.add.call_args[0][0]
+        assert isinstance(added, AnnotationTaskAssignment)
+        assert added.user_id == user_id
+        assert added.status == ANNOTATION_TASK_STATUS_PENDING
+        assert added.claimed_at is not None
+        db.commit.assert_called_once()
+        assert result is added
+
+    def test_claim_locked_task_raises_409(self):
+        db = _mock_db()
+        db.execute.side_effect = [_result(scalar=None)]  # skip_locked -> no row
+        with pytest.raises(HTTPException) as exc:
+            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
+        assert exc.value.status_code == 409
+
+    def test_claim_already_annotated_raises_409(self):
+        db = _mock_db()
+        task = _make_task()
+        db.execute.side_effect = [
+            _result(scalar=task),
+            _result(first=(1,)),  # an annotation exists
+        ]
+        with pytest.raises(HTTPException) as exc:
+            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
+        assert exc.value.status_code == 409
+
+    def test_claim_admin_assignment_of_other_raises_409(self):
+        db = _mock_db()
+        task = _make_task()
+        other = _claim_assignment(uuid4(), claimed_at=None)  # admin assignment
+        db.execute.side_effect = [
+            _result(scalar=task),
+            _result(first=None),
+            _result(all_=[other]),
+        ]
+        with pytest.raises(HTTPException) as exc:
+            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
+        assert exc.value.status_code == 409
+        db.add.assert_not_called()
+
+    def test_claim_active_other_claim_raises_409(self):
+        db = _mock_db()
+        task = _make_task()
+        other = _claim_assignment(uuid4(), claimed_at=datetime.now(UTC))  # fresh claim
+        db.execute.side_effect = [
+            _result(scalar=task),
+            _result(first=None),
+            _result(all_=[other]),
+        ]
+        with pytest.raises(HTTPException) as exc:
+            claim_task_for_user(db, campaign_id=1, task_id=1, user_id=uuid4())
+        assert exc.value.status_code == 409
+        db.delete.assert_not_called()
+
+    def test_claim_stale_other_claim_is_taken_over(self):
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+        stale = _claim_assignment(
+            uuid4(),
+            claimed_at=datetime.now(UTC) - timedelta(minutes=CLAIM_TTL_MINUTES + 1),
+        )
+        db.execute.side_effect = [
+            _result(scalar=task),
+            _result(first=None),
+            _result(all_=[stale]),
+            _result(all_=[]),  # no other soft claims to release
+        ]
+
+        claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+
+        db.delete.assert_called_once_with(stale)
+        added = db.add.call_args[0][0]
+        assert added.user_id == user_id
+
+    def test_claim_own_existing_refreshes_lease(self):
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task()
+        mine = _claim_assignment(user_id, claimed_at=datetime.now(UTC) - timedelta(minutes=5))
+        db.execute.side_effect = [
+            _result(scalar=task),
+            _result(first=None),
+            _result(all_=[mine]),
+            _result(all_=[]),  # no other soft claims to release
+        ]
+
+        result = claim_task_for_user(db, campaign_id=1, task_id=1, user_id=user_id)
+
+        assert result is mine
+        assert mine.claimed_at is not None
+        db.add.assert_not_called()
+        db.commit.assert_called_once()
+
+    def test_claim_releases_prior_soft_claim_in_campaign(self):
+        """Claiming a new task moves the claim: the caller's prior soft claim is dropped."""
+        db = _mock_db()
+        user_id = uuid4()
+        task = _make_task(task_id=2)
+        prior = _claim_assignment(user_id, claimed_at=datetime.now(UTC))
+        prior.task_id = 1
+        db.execute.side_effect = [
+            _result(scalar=task),  # lock task 2
+            _result(first=None),  # no annotation on task 2
+            _result(all_=[]),  # no assignment on task 2 yet
+            _result(all_=[prior]),  # caller's prior soft claim on task 1
+        ]
+
+        claim_task_for_user(db, campaign_id=1, task_id=2, user_id=user_id)
+
+        db.delete.assert_called_once_with(prior)
+        added = db.add.call_args[0][0]
+        assert added.task_id == 2
+        assert added.user_id == user_id

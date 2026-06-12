@@ -1,9 +1,38 @@
-import type { AnnotationTaskOut } from '~/api/client';
+import type { AnnotationTaskAssignmentOut, AnnotationTaskOut } from '~/api/client';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 
 // Sentinel value usable inside TaskFilter.assignedTo to match tasks that have
 // no assignments. Lets the assignee filter express "unassigned" explicitly.
 export const UNASSIGNED = '__unassigned__';
+
+// Must mirror backend CLAIM_TTL_MINUTES; a claim older than this is stale/available.
+export const CLAIM_TTL_MS = 30 * 60 * 1000;
+
+const isStaleClaim = (a: AnnotationTaskAssignmentOut, now: number): boolean =>
+  a.claimed_at != null &&
+  a.status === 'pending' &&
+  now - new Date(a.claimed_at).getTime() > CLAIM_TTL_MS;
+
+// A task can be soft-claimed if no one has worked it and every assignment is a stale
+// soft claim. Truly-unassigned tasks satisfy `[].every(...) === true`.
+export const isClaimable = (task: AnnotationTaskOut): boolean => {
+  if ((task.annotations || []).length > 0) return false;
+  const now = Date.now();
+  return (task.assignments || []).every((a) => isStaleClaim(a, now));
+};
+
+// The active soft claim currently holding a task (for the "Claimed by" badge), or null.
+export const getActiveClaim = (task: AnnotationTaskOut): AnnotationTaskAssignmentOut | null => {
+  const now = Date.now();
+  return (
+    (task.assignments || []).find(
+      (a) =>
+        a.claimed_at != null &&
+        a.status === 'pending' &&
+        now - new Date(a.claimed_at).getTime() <= CLAIM_TTL_MS
+    ) ?? null
+  );
+};
 
 export interface TaskFilter {
   assignedTo: string[];
@@ -39,7 +68,7 @@ export const applyTaskFilter = (
         );
       const matchesUnassigned =
         wantUnassigned &&
-        assignments.length === 0 &&
+        isClaimable(task) &&
         filter.statuses.includes(task.task_status as TaskStatus);
       if (!matchesUser && !matchesUnassigned) return false;
     } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {

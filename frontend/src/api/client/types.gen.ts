@@ -186,6 +186,14 @@ export type AnnotationTaskAssignmentOut = {
      */
     status: string;
     /**
+     * Is Review
+     */
+    is_review?: boolean;
+    /**
+     * Claimed At
+     */
+    claimed_at?: string | null;
+    /**
      * User Email
      */
     user_email?: string | null;
@@ -343,6 +351,11 @@ export type AssetInfo = {
  * AssignReviewersRequest
  *
  * Request to assign reviewers to tasks based on different patterns.
+ *
+ * Reviewers may only be assigned to tasks that already have a primary
+ * (non-review) assignment. Each selected task is topped up to the requested
+ * number of reviewers, so re-running does not stack additional reviewers on
+ * tasks that already meet the target.
  */
 export type AssignReviewersRequest = {
     /**
@@ -945,6 +958,22 @@ export type CanvasLayoutOut = {
      * Layout Data
      */
     layout_data: Array<unknown>;
+};
+
+/**
+ * ClaimTaskResponse
+ *
+ * Response from soft-claiming a task.
+ */
+export type ClaimTaskResponse = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Claimed At
+     */
+    claimed_at: string | null;
 };
 
 /**
@@ -3569,6 +3598,40 @@ export type CompleteAnnotationTaskResponses = {
 };
 
 export type CompleteAnnotationTaskResponse = CompleteAnnotationTaskResponses[keyof CompleteAnnotationTaskResponses];
+
+export type ClaimAnnotationTaskData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Annotation Task Id
+         */
+        annotation_task_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/{annotation_task_id}/claim';
+};
+
+export type ClaimAnnotationTaskErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimAnnotationTaskError = ClaimAnnotationTaskErrors[keyof ClaimAnnotationTaskErrors];
+
+export type ClaimAnnotationTaskResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimTaskResponse;
+};
+
+export type ClaimAnnotationTaskResponse = ClaimAnnotationTaskResponses[keyof ClaimAnnotationTaskResponses];
 
 export type ValidateAnnotationSubmissionData = {
     body?: never;

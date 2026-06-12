@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import ReactGridLayout, { getCompactor, type Layout, type LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -19,7 +19,8 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
-import { UNASSIGNED } from '../utils/taskFilter';
+import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
+import { useAccountStore } from '~/features/account/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
 import { IconEyeSlash } from '~/shared/ui/Icons';
@@ -28,6 +29,9 @@ import { IconEyeSlash } from '~/shared/ui/Icons';
 // invalidate react-grid-layout's internal memos that key on its identity.
 const CANVAS_COMPACTOR = getCompactor(null, false, true);
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
+
+// Renew interval for a held claim; TTL/3, well inside the backend 30 min TTL.
+const CLAIM_RENEW_MS = 10 * 60 * 1000;
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -66,6 +70,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const nextTask = useTaskStore((s) => s.nextTask);
   const previousTask = useTaskStore((s) => s.previousTask);
   const goToTask = useTaskStore((s) => s.goToTask);
+  const claimCurrentTask = useTaskStore((s) => s.claimCurrentTask);
+
+  const currentUserId = useAccountStore((s) => s.account?.id);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -88,6 +95,16 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
 
   const currentTask = visibleTasks[currentTaskIndex] || null;
+
+  // Claim on arrival and renew while the user stays. The store no-ops for
+  // assigned/worked/review tasks, and claiming the next task releases this one.
+  const currentTaskId = currentTask?.id ?? null;
+  useEffect(() => {
+    if (currentTaskId == null) return;
+    void claimCurrentTask();
+    const renew = setInterval(() => void claimCurrentTask(), CLAIM_RENEW_MS);
+    return () => clearInterval(renew);
+  }, [currentTaskId, claimCurrentTask]);
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
@@ -271,6 +288,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   if (!campaign) return null;
 
   const renderMainHeader = () => {
+    const activeClaim = currentTask ? getActiveClaim(currentTask) : null;
+    const claimedByMe = activeClaim?.user_id === currentUserId;
     return (
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
@@ -284,6 +303,17 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 ? (campaign.basemaps.find((b) => `basemap-${b.id}` === selectedBasemapId)?.name ??
                   'Basemap')
                 : activeSourceVizName || 'Layer'}
+            </span>
+          )}
+          {activeClaim && (
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                claimedByMe ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {claimedByMe
+                ? 'Claimed by you'
+                : `Claimed by ${activeClaim.user_display_name || activeClaim.user_email || 'another user'}`}
             </span>
           )}
         </div>

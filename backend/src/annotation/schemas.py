@@ -68,6 +68,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
     status: str
     is_review: bool = False
+    claimed_at: datetime | None = None
     user_email: str | None = None
     user_display_name: str | None = None
 
@@ -81,6 +82,7 @@ class AnnotationTaskAssignmentOut(BaseModel):
                 "user_id": data.user_id,
                 "status": data.status,
                 "is_review": data.is_review,
+                "claimed_at": data.claimed_at,
                 "user_email": user.email,
                 "user_display_name": user.display_name,
             }
@@ -226,6 +228,15 @@ class AnnotationTaskSubmitResponse(BaseModel):
     annotation: AnnotationFromTaskOut | None
     task_status: str
     assignment_status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClaimTaskResponse(BaseModel):
+    """Response from soft-claiming a task."""
+
+    task_id: int
+    claimed_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
 

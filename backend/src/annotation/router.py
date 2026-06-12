@@ -18,6 +18,7 @@ from src.annotation.schemas import (
     AnnotationUpdate,
     BatchDeleteAnnotationsRequest,
     BatchDeleteAnnotationsResponse,
+    ClaimTaskResponse,
     KnnValidationStatusOut,
     ValidateLabelSubmissionsResponse,
 )
@@ -100,6 +101,26 @@ def complete_annotation_task(
         task_status=task_out.task_status,
         assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
     )
+
+
+@router.post(
+    "/campaigns/{campaign_id}/{annotation_task_id}/claim",
+    response_model=ClaimTaskResponse,
+)
+def claim_annotation_task(
+    campaign_id: int,
+    annotation_task_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> ClaimTaskResponse:
+    assignment = service.claim_task_for_user(
+        db=db,
+        campaign_id=campaign_id,
+        task_id=annotation_task_id,
+        user_id=user.id,
+    )
+    return ClaimTaskResponse(task_id=annotation_task_id, claimed_at=assignment.claimed_at)
 
 
 @router.get(
