@@ -150,20 +150,15 @@ IDENTITY_ID=$(az identity show --name "$APPS_IDENTITY_NAME" -g "$RESOURCE_GROUP"
 ci_mask "$IDENTITY_ID"
 echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 
-# Build + push images
+# Build + push images (serverside build).
 echo ""
-echo -e "${YELLOW}Logging in to ACR...${NC}"
-az acr login --name "$ACR_NAME" -g "$RESOURCE_GROUP"
+echo -e "${YELLOW}Building backend (server-side in ACR)...${NC}"
+az acr build --registry "$ACR_NAME" --image "backend:$IMAGE_TAG" -f backend/Dockerfile backend/
+echo -e "${GREEN}✓ Backend built + pushed${NC}"
 
-echo -e "${YELLOW}Building backend...${NC}"
-docker build -t "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" -f backend/Dockerfile backend/
-docker push "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG"
-echo -e "${GREEN}✓ Backend pushed${NC}"
-
-echo -e "${YELLOW}Building tiler...${NC}"
-docker build -t "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" -f tiler/Dockerfile tiler/
-docker push "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG"
-echo -e "${GREEN}✓ Tiler pushed${NC}"
+echo -e "${YELLOW}Building tiler (server-side in ACR)...${NC}"
+az acr build --registry "$ACR_NAME" --image "tiler:$IMAGE_TAG" -f tiler/Dockerfile tiler/
+echo -e "${GREEN}✓ Tiler built + pushed${NC}"
 
 # Deploy backend
 echo ""
