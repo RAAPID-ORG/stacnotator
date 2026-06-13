@@ -30,8 +30,21 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://localhost:5173", validation_alias="CORS_ORIGINS"
     )
 
-    # Shared secret for signing tiler access tokens (HMAC)
+    # Shared secret for signing tiler access tokens (HS256 JWT). Must match the tilers.
     TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
+
+    # tiler_token cookie attributes. For sibling-subdomain deployments set
+    # TILER_COOKIE_DOMAIN=".example.com" so the cookie reaches the tiler subdomains.
+    TILER_COOKIE_DOMAIN: str | None = None
+    TILER_COOKIE_SAMESITE: str = "lax"
+    TILER_COOKIE_SECURE: bool = True
+
+    # Hosted titiler-pgstac tiler instances (browser-facing bases). The internal URLs are
+    # used by the backend to register searches (default to the public ones).
+    AZURE_TILER_URL: str | None = None
+    GCP_TILER_URL: str | None = None
+    AZURE_TILER_INTERNAL_URL: str | None = None
+    GCP_TILER_INTERNAL_URL: str | None = None
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None

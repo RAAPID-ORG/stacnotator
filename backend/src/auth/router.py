@@ -1,9 +1,6 @@
-import hashlib
-import hmac
-import time
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -15,8 +12,10 @@ from src.auth.schemas import (
     BulkUserActionResponse,
     UserOutDetailed,
 )
+from src.campaigns.service import list_campaigns_with_user_roles
 from src.config import get_settings
 from src.database import get_db
+from src.tiling.tiler_token import mint as mint_tiler_token
 from src.utils import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -56,16 +55,25 @@ TILER_TOKEN_TTL = 3600  # 1 hour
 
 @router.get("/tiler-token")
 def get_tiler_token(
+    response: Response,
     user: User = Depends(require_approved_user),
+    db: Session = Depends(get_db),
 ):
-    """Issue a short-lived HMAC token for tiler access (approved users only)."""
+    """Set a short-lived, campaign-scoped tiler HttpOnly cookie (approved users only)."""
     settings = get_settings()
-    expiry = int(time.time()) + TILER_TOKEN_TTL
-    payload = f"{user.id}:{expiry}"
-    sig = hmac.new(
-        settings.TILER_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
-    return {"token": f"{payload}:{sig}", "expires_in": TILER_TOKEN_TTL}
+    campaigns = [str(row["campaign"].id) for row in list_campaigns_with_user_roles(db, user.id)]
+    token = mint_tiler_token(user.id, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
+    response.set_cookie(
+        key="tiler_token",
+        value=token,
+        max_age=TILER_TOKEN_TTL,
+        httponly=True,
+        secure=settings.TILER_COOKIE_SECURE,
+        samesite=settings.TILER_COOKIE_SAMESITE,
+        domain=settings.TILER_COOKIE_DOMAIN,
+        path="/",
+    )
+    return {"expires_in": TILER_TOKEN_TTL}
 
 
 @router.get("/users", response_model=list[UserOutDetailed])
