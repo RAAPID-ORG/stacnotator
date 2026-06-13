@@ -204,3 +204,9 @@ export const IconKey = ({ className = 'w-4 h-4' }: IconProps) => (
     <path d="M10 10h7M14 10v2.5M17 10v1.5" />
   </svg>
 );
+
+export const IconFilter = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 4.5h14l-5.5 6.5v4.5l-3 1.5V11L3 4.5z" />
+  </svg>
+);

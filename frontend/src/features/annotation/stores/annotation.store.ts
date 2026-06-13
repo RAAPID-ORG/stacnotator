@@ -20,6 +20,8 @@ interface OpenAnnotationStore {
   currentAnnotationIndex: number;
   /** ID of the annotation currently selected in edit mode (mirrors DrawingLayer state). */
   selectedAnnotationId: number | null;
+  /** Label ids that prev/next navigation is restricted to. Empty = navigate all labels. */
+  navigationLabelFilter: number[];
 
   loadAnnotations: (campaignId: number) => Promise<void>;
   saveAnnotation: (
@@ -39,8 +41,15 @@ interface OpenAnnotationStore {
   goToPreviousAnnotation: () => AnnotationOut | null;
   /** Navigate to next annotation (newer by updated_at) */
   goToNextAnnotation: () => AnnotationOut | null;
-  /** Get sorted annotations list (by updated_at descending - newest first) */
+  /**
+   * Get the list navigation steps through: annotations restricted to
+   * navigationLabelFilter (when set) and sorted by updated_at descending.
+   */
   getSortedAnnotations: () => AnnotationOut[];
+  /** Restrict prev/next navigation to the given label ids (empty = all). Resets position. */
+  setNavigationLabelFilter: (labelIds: number[]) => void;
+  /** Toggle a single label id in the navigation filter. Resets position. */
+  toggleNavigationLabel: (labelId: number) => void;
   /** Set current annotation index directly */
   setCurrentAnnotationIndex: (index: number) => void;
   reset: () => void;
@@ -52,6 +61,7 @@ const initialState = {
   isSaving: false,
   currentAnnotationIndex: -1,
   selectedAnnotationId: null as number | null,
+  navigationLabelFilter: [] as number[],
 };
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
@@ -199,13 +209,30 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
   },
 
   getSortedAnnotations: () => {
-    const { annotations } = get();
-    return [...annotations].sort((a, b) => {
+    const { annotations, navigationLabelFilter } = get();
+    const visible =
+      navigationLabelFilter.length === 0
+        ? annotations
+        : annotations.filter(
+            (a) => a.label_id !== null && navigationLabelFilter.includes(a.label_id)
+          );
+    return [...visible].sort((a, b) => {
       const aDate = a.updated_at || a.created_at;
       const bDate = b.updated_at || b.created_at;
       return new Date(bDate).getTime() - new Date(aDate).getTime();
     });
   },
+
+  setNavigationLabelFilter: (labelIds) =>
+    set({ navigationLabelFilter: labelIds, currentAnnotationIndex: -1 }),
+
+  toggleNavigationLabel: (labelId) =>
+    set((s) => ({
+      navigationLabelFilter: s.navigationLabelFilter.includes(labelId)
+        ? s.navigationLabelFilter.filter((id) => id !== labelId)
+        : [...s.navigationLabelFilter, labelId],
+      currentAnnotationIndex: -1,
+    })),
 
   goToPreviousAnnotation: () => {
     const sorted = get().getSortedAnnotations();

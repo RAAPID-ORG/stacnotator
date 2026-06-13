@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
@@ -11,6 +11,7 @@ import {
 } from '../utils/labelMetadata';
 import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
+import { IconFilter } from '~/shared/ui/Icons';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
 
@@ -113,10 +114,16 @@ const OpenModeControls = () => {
   const resetLabelStyle = usePreferencesStore((s) => s.resetLabelStyle);
   // Which label's inline style editor is currently expanded (null = none)
   const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
+  // Whether the navigation label-filter dropdown is open
+  const [navFilterOpen, setNavFilterOpen] = useState(false);
+  const navFilterRef = useRef<HTMLDivElement>(null);
   const annotations = useAnnotationStore((s) => s.annotations);
   const currentAnnotationIndex = useAnnotationStore((s) => s.currentAnnotationIndex);
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
   const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
+  const navigationLabelFilter = useAnnotationStore((s) => s.navigationLabelFilter);
+  const toggleNavigationLabel = useAnnotationStore((s) => s.toggleNavigationLabel);
+  const setNavigationLabelFilter = useAnnotationStore((s) => s.setNavigationLabelFilter);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
   const selectedAnnotationId = useAnnotationStore((s) => s.selectedAnnotationId);
   const updateAnnotationFlags = useAnnotationStore((s) => s.updateAnnotationFlags);
@@ -132,6 +139,18 @@ const OpenModeControls = () => {
     setEditFlagCommentDraft(selectedAnnotation?.flag_comment ?? '');
   }, [selectedAnnotation?.id, selectedAnnotation?.flag_comment]);
 
+  // Close the navigation filter dropdown when clicking outside of it.
+  useEffect(() => {
+    if (!navFilterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (navFilterRef.current && !navFilterRef.current.contains(e.target as Node)) {
+        setNavFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [navFilterOpen]);
+
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
   const extendedLabels = extendLabelsWithMetadata(baseLabels);
@@ -142,6 +161,14 @@ const OpenModeControls = () => {
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
+
+  // Number of annotations prev/next navigation will step through, given the
+  // active label filter (empty filter = all annotations).
+  const navigableCount =
+    navigationLabelFilter.length === 0
+      ? annotations.length
+      : annotations.filter((a) => a.label_id !== null && navigationLabelFilter.includes(a.label_id))
+          .length;
 
   const handleToolSelect = (tool: OpenModeTool) => {
     setActiveTool(tool);
@@ -575,7 +602,91 @@ const OpenModeControls = () => {
         {/* Annotation Navigation */}
         {annotations.length > 0 && (
           <div className="flex flex-col gap-1.5 w-full">
-            <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
+
+              {/* Label filter: small icon + dropdown restricting which labels prev/next steps through. */}
+              {extendedLabels.length > 0 && (
+                <div className="relative flex-shrink-0" ref={navFilterRef}>
+                  <button
+                    onClick={() => setNavFilterOpen((o) => !o)}
+                    title="Filter navigation by label"
+                    aria-expanded={navFilterOpen}
+                    className={`relative flex items-center justify-center p-0.5 rounded transition-colors cursor-pointer ${
+                      navFilterOpen || navigationLabelFilter.length > 0
+                        ? 'text-brand-700'
+                        : 'text-neutral-400 hover:text-neutral-700'
+                    }`}
+                  >
+                    <IconFilter className="w-3.5 h-3.5" />
+                    {navigationLabelFilter.length > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[13px] h-[13px] px-0.5 flex items-center justify-center rounded-full bg-brand-600 text-white text-[9px] font-semibold tabular-nums">
+                        {navigationLabelFilter.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {navFilterOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-20 w-44 max-h-56 overflow-y-auto bg-white border border-neutral-200 rounded-md shadow-lg p-1">
+                      <div className="flex items-center justify-between px-1.5 py-1">
+                        <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
+                          Filter by label
+                        </span>
+                        {navigationLabelFilter.length > 0 && (
+                          <button
+                            onClick={() => setNavigationLabelFilter([])}
+                            className="text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      {extendedLabels.map((label) => {
+                        const active = navigationLabelFilter.includes(label.id);
+                        return (
+                          <button
+                            key={label.id}
+                            onClick={() => toggleNavigationLabel(label.id)}
+                            className={`w-full flex items-center gap-2 px-1.5 py-1.5 rounded text-[11px] font-medium text-left transition-colors cursor-pointer ${
+                              active
+                                ? 'bg-brand-50 text-brand-700'
+                                : 'text-neutral-700 hover:bg-neutral-100'
+                            }`}
+                          >
+                            <span
+                              className="w-3 h-3 flex items-center justify-center rounded-sm border flex-shrink-0"
+                              style={{
+                                backgroundColor: active ? label.color : 'transparent',
+                                borderColor: label.color,
+                              }}
+                            >
+                              {active && (
+                                <svg
+                                  width="9"
+                                  height="9"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="white"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </span>
+                            <span className="flex-1 min-w-0 truncate">
+                              {capitalizeFirst(label.name)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-1.5">
               <button
                 onClick={() => {
@@ -618,10 +729,13 @@ const OpenModeControls = () => {
                 </svg>
               </button>
             </div>
+
             <p className="text-[10px] text-neutral-400 text-center tabular-nums">
               {currentAnnotationIndex >= 0
-                ? `${currentAnnotationIndex + 1} / ${annotations.length}`
-                : `${annotations.length} annotation${annotations.length !== 1 ? 's' : ''}`}
+                ? `${currentAnnotationIndex + 1} / ${navigableCount}`
+                : `${navigableCount} annotation${navigableCount !== 1 ? 's' : ''}${
+                    navigationLabelFilter.length > 0 ? ' (filtered)' : ''
+                  }`}
             </p>
           </div>
         )}
