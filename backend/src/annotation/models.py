@@ -210,6 +210,16 @@ class Annotation(Base):
         nullable=True,
     )
 
+    # Imagery the annotator was viewing in the main window when drawing/editing.
+    # The FK gives traceability; the snapshotted dates survive slice edits/deletes.
+    imagery_slice_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.imagery_slices.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    imagery_source_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    imagery_start_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    imagery_end_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -325,6 +325,29 @@ class TestCreateAnnotation:
         assert ann.created_by_user_id == user_id
         assert ann.geometry_id == geom.id
 
+    def test_persists_imagery_snapshot(self):
+        db = _mock_db()
+        campaign = MagicMock()
+        campaign.id = 1
+
+        payload = AnnotationCreate(
+            label_id=1,
+            comment=None,
+            geometry_wkt="POINT(0 0)",
+            confidence=None,
+            imagery_slice_id=42,
+            imagery_source_name="Sentinel-2",
+            imagery_start_date="2024-01-01",
+            imagery_end_date="2024-01-31",
+        )
+        create_annotation(db, campaign, payload, uuid4())
+
+        annotation = db.add.call_args_list[1][0][0]
+        assert annotation.imagery_slice_id == 42
+        assert annotation.imagery_source_name == "Sentinel-2"
+        assert annotation.imagery_start_date == "2024-01-01"
+        assert annotation.imagery_end_date == "2024-01-31"
+
     def test_annotation_has_no_task_link(self):
         db = _mock_db()
         user_id = uuid4()
@@ -409,6 +432,61 @@ class TestUpdateAnnotation:
         added_geom = db.add.call_args[0][0]
         assert isinstance(added_geom, AnnotationGeometry)
         db.flush.assert_called_once()
+
+    def test_geometry_update_refreshes_imagery_snapshot(self):
+        db = _mock_db()
+        existing = _make_annotation(ann_id=5)
+        existing.imagery_slice_id = 1
+        existing.imagery_source_name = "Old Source"
+        existing.imagery_start_date = "2020-01-01"
+        existing.imagery_end_date = "2020-01-31"
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+
+        payload = AnnotationUpdate(
+            label_id=None,
+            comment=None,
+            geometry_wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))",
+            is_authoritative=None,
+            imagery_slice_id=99,
+            imagery_source_name="New Source",
+            imagery_start_date="2024-06-01",
+            imagery_end_date="2024-06-30",
+        )
+        update_annotation(db, 5, payload, uuid4())
+
+        assert existing.imagery_slice_id == 99
+        assert existing.imagery_source_name == "New Source"
+        assert existing.imagery_start_date == "2024-06-01"
+        assert existing.imagery_end_date == "2024-06-30"
+
+    def test_non_geometry_update_leaves_imagery_snapshot(self):
+        db = _mock_db()
+        existing = _make_annotation(ann_id=5)
+        existing.imagery_slice_id = 1
+        existing.imagery_source_name = "Old Source"
+        existing.imagery_start_date = "2020-01-01"
+        existing.imagery_end_date = "2020-01-31"
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+
+        # Flag-only update carries imagery fields but no geometry: must not touch
+        # the snapshot captured at draw time.
+        payload = AnnotationUpdate(
+            label_id=None,
+            comment=None,
+            geometry_wkt=None,
+            is_authoritative=None,
+            flagged_for_review=True,
+            imagery_slice_id=99,
+            imagery_source_name="New Source",
+            imagery_start_date="2024-06-01",
+            imagery_end_date="2024-06-30",
+        )
+        update_annotation(db, 5, payload, uuid4())
+
+        assert existing.imagery_slice_id == 1
+        assert existing.imagery_source_name == "Old Source"
+        assert existing.imagery_start_date == "2020-01-01"
+        assert existing.imagery_end_date == "2020-01-31"
 
     def test_update_not_found_raises_404(self):
         db = _mock_db()
@@ -739,6 +817,10 @@ class TestExportAnnotatorCount:
             campaign_id=1,
             annotation_task=task,
             geometry=None,
+            imagery_slice_id=None,
+            imagery_source_name=None,
+            imagery_start_date=None,
+            imagery_end_date=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -888,6 +970,10 @@ class TestExportMergeCorrectness:
             campaign_id=1,
             annotation_task=task,
             geometry=geometry,
+            imagery_slice_id=None,
+            imagery_source_name=None,
+            imagery_start_date=None,
+            imagery_end_date=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -947,6 +1033,27 @@ class TestExportMergeCorrectness:
         assert len(df) == 2
         assert set(df["stacnotator_annotation_id"]) == {1, 2}
         assert set(df["stacnotator_label_name"]) == {"Forest"}
+
+    def test_standalone_annotation_exports_imagery_snapshot(self):
+        # Open-mode annotation (no task) carrying the imagery it was drawn on.
+        ann = self._ann(
+            ann_id=1,
+            label_id=1,
+            geometry=self._geom("POINT(10 20)"),
+            imagery_source_name="Sentinel-2",
+            imagery_start_date="2024-01-01",
+            imagery_end_date="2024-01-31",
+        )
+
+        row = self._csv([ann]).iloc[0]
+        assert row["stacnotator_imagery_source_name"] == "Sentinel-2"
+        assert row["stacnotator_imagery_start_date"] == "2024-01-01"
+        assert row["stacnotator_imagery_end_date"] == "2024-01-31"
+
+        props = self._geojson([ann])["features"][0]["properties"]
+        assert props["stacnotator_imagery_source_name"] == "Sentinel-2"
+        assert props["stacnotator_imagery_start_date"] == "2024-01-01"
+        assert props["stacnotator_imagery_end_date"] == "2024-01-31"
 
     def test_merge_aggregates_comment_confidence_email_and_latest_time(self):
         u1, u2 = uuid4(), uuid4()

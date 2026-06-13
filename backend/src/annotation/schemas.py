@@ -43,6 +43,10 @@ class AnnotationFromTaskOut(BaseModel):
     is_authoritative: bool
     flagged_for_review: bool
     flag_comment: str | None
+    imagery_slice_id: int | None = None
+    imagery_source_name: str | None = None
+    imagery_start_date: str | None = None
+    imagery_end_date: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -248,6 +252,10 @@ class AnnotationCreate(BaseModel):
     confidence: int | None
     flagged_for_review: bool | None = None
     flag_comment: str | None = None
+    imagery_slice_id: int | None = None
+    imagery_source_name: str | None = None
+    imagery_start_date: str | None = None
+    imagery_end_date: str | None = None
 
 
 class BatchDeleteAnnotationsRequest(BaseModel):
@@ -266,6 +274,10 @@ class AnnotationUpdate(BaseModel):
     is_authoritative: bool | None
     flagged_for_review: bool | None = None
     flag_comment: str | None = None
+    imagery_slice_id: int | None = None
+    imagery_source_name: str | None = None
+    imagery_start_date: str | None = None
+    imagery_end_date: str | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):

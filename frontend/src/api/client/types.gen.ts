@@ -32,6 +32,22 @@ export type AnnotationCreate = {
      * Flag Comment
      */
     flag_comment?: string | null;
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
+    /**
+     * Imagery Source Name
+     */
+    imagery_source_name?: string | null;
+    /**
+     * Imagery Start Date
+     */
+    imagery_start_date?: string | null;
+    /**
+     * Imagery End Date
+     */
+    imagery_end_date?: string | null;
 };
 
 /**
@@ -116,6 +132,22 @@ export type AnnotationFromTaskOut = {
      * Flag Comment
      */
     flag_comment: string | null;
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
+    /**
+     * Imagery Source Name
+     */
+    imagery_source_name?: string | null;
+    /**
+     * Imagery Start Date
+     */
+    imagery_start_date?: string | null;
+    /**
+     * Imagery End Date
+     */
+    imagery_end_date?: string | null;
 };
 
 /**
@@ -170,6 +202,22 @@ export type AnnotationOut = {
      * Flag Comment
      */
     flag_comment: string | null;
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
+    /**
+     * Imagery Source Name
+     */
+    imagery_source_name?: string | null;
+    /**
+     * Imagery Start Date
+     */
+    imagery_start_date?: string | null;
+    /**
+     * Imagery End Date
+     */
+    imagery_end_date?: string | null;
     geometry: GeometryOut;
 };
 
@@ -297,6 +345,22 @@ export type AnnotationUpdate = {
      * Flag Comment
      */
     flag_comment?: string | null;
+    /**
+     * Imagery Slice Id
+     */
+    imagery_slice_id?: number | null;
+    /**
+     * Imagery Source Name
+     */
+    imagery_source_name?: string | null;
+    /**
+     * Imagery Start Date
+     */
+    imagery_start_date?: string | null;
+    /**
+     * Imagery End Date
+     */
+    imagery_end_date?: string | null;
 };
 
 /**

@@ -9,6 +9,7 @@ import {
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
+import { resolveActiveImagerySnapshot } from '../utils/imagerySnapshot';
 import { useCampaignStore } from './campaign.store';
 
 interface OpenAnnotationStore {
@@ -83,6 +84,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
           comment: comment || null,
           geometry_wkt: wktGeometry,
           confidence: null,
+          ...resolveActiveImagerySnapshot(),
         },
       });
 
@@ -117,6 +119,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
           comment: annotation.comment,
           geometry_wkt: wktGeometry,
           is_authoritative: null,
+          ...resolveActiveImagerySnapshot(),
         },
       });
 

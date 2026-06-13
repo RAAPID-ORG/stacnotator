@@ -710,6 +710,10 @@ def create_annotation(
             flag_comment=(
                 annotation_create.flag_comment if annotation_create.flagged_for_review else None
             ),
+            imagery_slice_id=annotation_create.imagery_slice_id,
+            imagery_source_name=annotation_create.imagery_source_name,
+            imagery_start_date=annotation_create.imagery_start_date,
+            imagery_end_date=annotation_create.imagery_end_date,
         )
         db.add(annotation)
         db.commit()
@@ -780,6 +784,13 @@ def update_annotation(
             db.add(new_geometry)
             db.flush()  # Get new geometry ID
             annotation.geometry_id = new_geometry.id
+
+            # The imagery snapshot reflects what was viewed during this geometry
+            # edit, so it only refreshes alongside a geometry change.
+            annotation.imagery_slice_id = annotation_update.imagery_slice_id
+            annotation.imagery_source_name = annotation_update.imagery_source_name
+            annotation.imagery_start_date = annotation_update.imagery_start_date
+            annotation.imagery_end_date = annotation_update.imagery_end_date
 
         # Update label if provided
         if annotation_update.label_id is not None:
@@ -1066,6 +1077,9 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_flag_comment",
     "stacnotator_created_by_user_email",
     "stacnotator_created_at",
+    "stacnotator_imagery_source_name",
+    "stacnotator_imagery_start_date",
+    "stacnotator_imagery_end_date",
     "stacnotator_geometry_wkt",
 )
 
@@ -1198,6 +1212,9 @@ def _build_export_record_for_annotation(
     record["stacnotator_created_by_user_email"] = user_email_map.get(annotation.created_by_user_id)
     record["stacnotator_created_at"] = annotation.created_at
     record["stacnotator_annotator_count"] = task_annotator_count
+    record["stacnotator_imagery_source_name"] = annotation.imagery_source_name
+    record["stacnotator_imagery_start_date"] = annotation.imagery_start_date
+    record["stacnotator_imagery_end_date"] = annotation.imagery_end_date
     if include_geometry_wkt:
         record["stacnotator_geometry_wkt"] = (
             _geometry_to_wkt(annotation.geometry.geometry) if annotation.geometry else None
