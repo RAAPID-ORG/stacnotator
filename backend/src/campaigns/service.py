@@ -1,3 +1,4 @@
+import io
 import logging
 import random
 import threading
@@ -7,8 +8,9 @@ from uuid import UUID
 
 import krippendorff
 import numpy as np
+import pandas as pd
 from fastapi import HTTPException
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -1291,6 +1293,288 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
 
     db.delete(campaign)
     db.commit()
+
+
+# ============================================================================
+# Task Assignment Export / Import
+# ============================================================================
+
+ASSIGNMENTS_CSV_COLUMNS = [
+    "annotation_number",
+    "assignees",
+    "reviewers",
+    "annotation_count",
+    "existing_annotations",
+]
+USERS_CSV_COLUMNS = ["email", "display_name", "is_admin", "is_authoritative_reviewer"]
+# Columns read back on import; the rest of ASSIGNMENTS_CSV_COLUMNS are
+# informational (existing labels) and ignored so a round-trip doesn't error.
+_IMPORT_REQUIRED_COLUMNS = {"annotation_number", "assignees", "reviewers"}
+_MAX_REPORTED_ERRORS = 50
+_SKIPPED_LABEL = "SKIPPED"
+
+
+def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
+    labels = (campaign.settings.labels if campaign.settings else None) or {}
+    mapping: dict[int, str] = {}
+    if isinstance(labels, dict):
+        for label_id, data in labels.items():
+            name = data.get("name") if isinstance(data, dict) else str(data)
+            mapping[int(label_id)] = name or f"Label {label_id}"
+    return mapping
+
+
+def build_task_assignments_export(
+    db: Session, campaign: Campaign
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build the two export tables for a campaign's task assignments.
+
+    Returns (assignments_df, users_df):
+    - assignments_df: one row per task with comma-separated assignee/reviewer
+      emails, plus the count and `email=label` pairs of annotations already on
+      the task (informational, so an admin can avoid reassigning done work).
+    - users_df: the campaign's members with roles, so the admin knows which
+      emails are valid to paste into the assignee/reviewer columns.
+    """
+    campaign_id = campaign.id
+    label_names = _label_id_to_name(campaign)
+
+    tasks = list(
+        db.scalars(
+            select(AnnotationTask)
+            .where(AnnotationTask.campaign_id == campaign_id)
+            .order_by(AnnotationTask.annotation_number)
+        ).all()
+    )
+    task_ids = [task.id for task in tasks]
+
+    assignees_by_task: dict[int, list[str]] = defaultdict(list)
+    reviewers_by_task: dict[int, list[str]] = defaultdict(list)
+    annotations_by_task: dict[int, list[tuple[str, int | None]]] = defaultdict(list)
+
+    if task_ids:
+        assignment_rows = db.execute(
+            select(
+                AnnotationTaskAssignment.task_id,
+                User.email,
+                AnnotationTaskAssignment.is_review,
+            )
+            .join(User, User.id == AnnotationTaskAssignment.user_id)
+            .where(AnnotationTaskAssignment.task_id.in_(task_ids))
+        ).all()
+        for task_id, email, is_review in assignment_rows:
+            target = reviewers_by_task if is_review else assignees_by_task
+            target[task_id].append(email)
+
+        annotation_rows = db.execute(
+            select(Annotation.annotation_task_id, User.email, Annotation.label_id)
+            .join(User, User.id == Annotation.created_by_user_id)
+            .where(Annotation.annotation_task_id.in_(task_ids))
+        ).all()
+        for task_id, email, label_id in annotation_rows:
+            annotations_by_task[task_id].append((email, label_id))
+
+    assignment_records = []
+    for task in tasks:
+        annotations = sorted(annotations_by_task.get(task.id, []), key=lambda pair: pair[0])
+        existing = [
+            f"{email}={label_names.get(label_id, f'Label {label_id}') if label_id is not None else _SKIPPED_LABEL}"
+            for email, label_id in annotations
+        ]
+        assignment_records.append(
+            {
+                "annotation_number": task.annotation_number,
+                "assignees": ", ".join(sorted(assignees_by_task.get(task.id, []))),
+                "reviewers": ", ".join(sorted(reviewers_by_task.get(task.id, []))),
+                "annotation_count": len(annotations),
+                "existing_annotations": ", ".join(existing),
+            }
+        )
+
+    assignments_df = pd.DataFrame(assignment_records, columns=ASSIGNMENTS_CSV_COLUMNS)
+
+    campaign_users = get_campaign_users_with_roles(db, campaign_id)
+    user_records = sorted(
+        (
+            {
+                "email": cu.user.email,
+                "display_name": cu.user.display_name or "",
+                "is_admin": cu.is_admin,
+                "is_authoritative_reviewer": cu.is_authorative_reviewer,
+            }
+            for cu in campaign_users
+        ),
+        key=lambda record: record["email"],
+    )
+    users_df = pd.DataFrame(user_records, columns=USERS_CSV_COLUMNS)
+
+    return assignments_df, users_df
+
+
+def _split_emails(cell: str | None) -> list[str]:
+    if not cell:
+        return []
+    return [part.strip() for part in str(cell).split(",") if part.strip()]
+
+
+def _fail_import(errors: list[str]) -> None:
+    shown = errors[:_MAX_REPORTED_ERRORS]
+    if len(errors) > _MAX_REPORTED_ERRORS:
+        shown.append(f"...and {len(errors) - _MAX_REPORTED_ERRORS} more issue(s)")
+    raise HTTPException(status_code=400, detail="Import failed:\n" + "\n".join(shown))
+
+
+def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) -> dict[str, int]:
+    """Replace task assignments/reviewers for a campaign from an uploaded CSV.
+
+    The CSV must have `annotation_number`, `assignees`, and `reviewers` columns
+    (comma-separated emails per cell); any other columns are ignored. Every
+    referenced email must belong to an existing user who is a member of this
+    campaign, or the whole import is rejected with the full list of problems.
+
+    For each task row, the listed assignees/reviewers fully replace whatever
+    was on that task (replace semantics). Tasks absent from the file are left
+    untouched.
+    """
+    try:
+        df = pd.read_csv(io.BytesIO(file_bytes), dtype=str, keep_default_na=False)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {exc}") from exc
+
+    missing_columns = _IMPORT_REQUIRED_COLUMNS - set(df.columns)
+    if missing_columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required column(s): {', '.join(sorted(missing_columns))}",
+        )
+
+    errors: list[str] = []
+
+    # Parse rows -> (annotation_number, assignee_emails, reviewer_emails).
+    parsed: list[tuple[int, list[str], list[str]]] = []
+    seen_numbers: set[int] = set()
+    duplicate_numbers: set[int] = set()
+    for idx, row in df.iterrows():
+        line = int(idx) + 2  # +1 for header, +1 for 1-based line numbers
+        raw_number = (row["annotation_number"] or "").strip()
+        if not raw_number:
+            errors.append(f"Row {line}: empty annotation_number")
+            continue
+        try:
+            number = int(raw_number)
+        except ValueError:
+            errors.append(f"Row {line}: annotation_number '{raw_number}' is not an integer")
+            continue
+        if number in seen_numbers:
+            duplicate_numbers.add(number)
+        seen_numbers.add(number)
+        parsed.append((number, _split_emails(row["assignees"]), _split_emails(row["reviewers"])))
+
+    if duplicate_numbers:
+        errors.append(f"Duplicate annotation_number(s) in file: {sorted(duplicate_numbers)}")
+
+    # Resolve tasks by their campaign-local annotation number.
+    tasks = db.scalars(
+        select(AnnotationTask).where(AnnotationTask.campaign_id == campaign_id)
+    ).all()
+    task_by_number = {task.annotation_number: task for task in tasks}
+    missing_tasks = sorted({n for n, _, _ in parsed} - set(task_by_number))
+    if missing_tasks:
+        errors.append(f"annotation_number(s) not found in campaign: {missing_tasks}")
+
+    # Resolve every referenced email to a user (case-insensitive), then verify
+    # membership. Both checks aggregate so the admin sees all problems at once.
+    referenced_emails = {e for _, a, r in parsed for e in (*a, *r)}
+    lowered = {e.lower() for e in referenced_emails}
+    found_users = (
+        db.scalars(select(User).where(func.lower(User.email).in_(lowered))).all() if lowered else []
+    )
+    user_by_email = {user.email.lower(): user for user in found_users}
+
+    missing_emails = sorted(e for e in referenced_emails if e.lower() not in user_by_email)
+    if missing_emails:
+        errors.append(f"User(s) not found (no account with these emails): {missing_emails}")
+
+    member_ids = set(
+        db.scalars(
+            select(CampaignUser.user_id).where(CampaignUser.campaign_id == campaign_id)
+        ).all()
+    )
+    non_members = sorted(
+        e
+        for e in referenced_emails
+        if e.lower() in user_by_email and user_by_email[e.lower()].id not in member_ids
+    )
+    if non_members:
+        errors.append(f"User(s) not a member of this campaign: {non_members}")
+
+    # Per-row semantic checks mirroring the assignment rules.
+    for number, assignees, reviewers in parsed:
+        assignee_set = {e.lower() for e in assignees}
+        reviewer_set = {e.lower() for e in reviewers}
+        overlap = assignee_set & reviewer_set
+        if overlap:
+            errors.append(
+                f"Task {number}: user(s) listed as both assignee and reviewer: {sorted(overlap)}"
+            )
+        if reviewers and not assignees:
+            errors.append(
+                f"Task {number}: has reviewer(s) but no assignee "
+                "(a reviewer reviews an assignee's work)"
+            )
+
+    if errors:
+        _fail_import(errors)
+
+    # Replace assignments task-by-task. Deletes run immediately; the inserts are
+    # flushed on commit, so the (task_id, user_id) unique constraint never trips.
+    new_assignments: list[tuple[int, UUID, bool]] = []
+    assignees_created = 0
+    reviewers_created = 0
+    for number, assignees, reviewers in parsed:
+        task = task_by_number[number]
+        assignee_users = _unique_users(assignees, user_by_email)
+        reviewer_users = _unique_users(reviewers, user_by_email)
+
+        db.execute(
+            delete(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id == task.id)
+        )
+        for user in assignee_users:
+            new_assignments.append((task.id, user.id, False))
+        for user in reviewer_users:
+            new_assignments.append((task.id, user.id, True))
+        assignees_created += len(assignee_users)
+        reviewers_created += len(reviewer_users)
+
+    seeded_status = _seed_assignment_status(db, [(tid, uid) for tid, uid, _ in new_assignments])
+    for task_id, user_id, is_review in new_assignments:
+        db.add(
+            AnnotationTaskAssignment(
+                task_id=task_id,
+                user_id=user_id,
+                status=seeded_status.get((task_id, user_id), ANNOTATION_TASK_STATUS_PENDING),
+                is_review=is_review,
+            )
+        )
+
+    db.commit()
+
+    return {
+        "tasks_updated": len(parsed),
+        "assignees_created": assignees_created,
+        "reviewers_created": reviewers_created,
+    }
+
+
+def _unique_users(emails: list[str], user_by_email: dict[str, User]) -> list[User]:
+    seen: set[UUID] = set()
+    result: list[User] = []
+    for email in emails:
+        user = user_by_email[email.lower()]
+        if user.id not in seen:
+            seen.add(user.id)
+            result.append(user)
+    return result
 
 
 # ============================================================================

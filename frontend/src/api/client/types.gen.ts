@@ -525,6 +525,16 @@ export type BodyGenerateTasksFromSampling = {
 };
 
 /**
+ * Body_importTaskAssignments
+ */
+export type BodyImportTaskAssignments = {
+    /**
+     * File
+     */
+    file: string;
+};
+
+/**
  * Body_ingestAnnotationTasksFromCsv
  */
 export type BodyIngestAnnotationTasksFromCsv = {
@@ -1373,6 +1383,26 @@ export type ImageryViewOut = {
     collection_refs: Array<ViewCollectionRefItem>;
     readonly default_canvas_layout: CanvasLayoutOut | null;
     readonly personal_canvas_layout: CanvasLayoutOut | null;
+};
+
+/**
+ * ImportTaskAssignmentsResult
+ *
+ * Summary of a task-assignment CSV import.
+ */
+export type ImportTaskAssignmentsResult = {
+    /**
+     * Tasks Updated
+     */
+    tasks_updated: number;
+    /**
+     * Assignees Created
+     */
+    assignees_created: number;
+    /**
+     * Reviewers Created
+     */
+    reviewers_created: number;
 };
 
 /**
@@ -3534,6 +3564,64 @@ export type GetAllAnnotationTasksResponses = {
 };
 
 export type GetAllAnnotationTasksResponse = GetAllAnnotationTasksResponses[keyof GetAllAnnotationTasksResponses];
+
+export type ExportTaskAssignmentsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/export-task-assignments';
+};
+
+export type ExportTaskAssignmentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportTaskAssignmentsError = ExportTaskAssignmentsErrors[keyof ExportTaskAssignmentsErrors];
+
+export type ExportTaskAssignmentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ImportTaskAssignmentsData = {
+    body: BodyImportTaskAssignments;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/import-task-assignments';
+};
+
+export type ImportTaskAssignmentsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportTaskAssignmentsError = ImportTaskAssignmentsErrors[keyof ImportTaskAssignmentsErrors];
+
+export type ImportTaskAssignmentsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportTaskAssignmentsResult;
+};
+
+export type ImportTaskAssignmentsResponse = ImportTaskAssignmentsResponses[keyof ImportTaskAssignmentsResponses];
 
 export type GetCampaignStatisticsEndpointData = {
     body?: never;

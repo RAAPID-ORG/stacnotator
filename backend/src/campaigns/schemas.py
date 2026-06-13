@@ -279,6 +279,14 @@ class AssignTasksToUsersResult(BaseModel):
     total_assigned: int
 
 
+class ImportTaskAssignmentsResult(BaseModel):
+    """Summary of a task-assignment CSV import."""
+
+    tasks_updated: int
+    assignees_created: int
+    reviewers_created: int
+
+
 class AssignReviewersRequest(BaseModel):
     """
     Request to assign reviewers to tasks based on different patterns.

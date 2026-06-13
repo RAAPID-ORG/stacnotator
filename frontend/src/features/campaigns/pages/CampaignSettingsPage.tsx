@@ -370,6 +370,17 @@ export const CampaignSettingsPage = () => {
     }
   };
 
+  const reloadAnnotationTasks = async () => {
+    try {
+      const { data } = await getAllAnnotationTasks({
+        path: { campaign_id: numericCampaignId },
+      });
+      setAnnotationTasks(data!.tasks);
+    } catch (err) {
+      handleError(err, 'Failed to reload annotation tasks', { showUser: false });
+    }
+  };
+
   const handleTasksGenerated = async (response: GenerateTasksResponse) => {
     showAlert(`${response.num_tasks_created} tasks generated successfully`, 'success');
 
@@ -821,6 +832,8 @@ export const CampaignSettingsPage = () => {
                   handleBatchUnassignTasks={handleBatchUnassignTasks}
                   handleDeleteTasks={handleDeleteTasks}
                   campaignId={numericCampaignId}
+                  campaignName={campaign.name}
+                  onAssignmentsImported={reloadAnnotationTasks}
                   bbox={
                     campaign
                       ? {

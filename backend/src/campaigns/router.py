@@ -1,6 +1,9 @@
+import io
+import zipfile
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -22,6 +25,7 @@ from src.campaigns.schemas import (
     CampaignUsersResponse,
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
+    ImportTaskAssignmentsResult,
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignGuideRequest,
@@ -32,7 +36,7 @@ from src.campaigns.schemas import (
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
-from src.utils import FunctionNameOperationIdRoute
+from src.utils import FunctionNameOperationIdRoute, clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -436,6 +440,67 @@ def delete_annotation_tasks(
     """Delete multiple annotation tasks from a campaign"""
     deleted_count = service.delete_annotation_tasks(db, campaign_id, req.task_ids)
     return {"message": f"Successfully deleted {deleted_count} task(s)"}
+
+
+@router.get("/{campaign_id}/export-task-assignments")
+def export_task_assignments(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Export task assignments as a ZIP for campaign admins.
+
+    The archive contains two files:
+    - `assignments.csv`: one row per task with comma-separated assignee and
+      reviewer emails, plus a count and `email=label` listing of annotations
+      already on the task (informational, ignored on re-import).
+    - `users.csv`: the campaign's members with roles, so the admin knows which
+      emails are valid to use in the assignee/reviewer columns.
+    """
+    assignments_df, users_df = service.build_task_assignments_export(db, campaign)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("assignments.csv", assignments_df.to_csv(index=False))
+        archive.writestr("users.csv", users_df.to_csv(index=False))
+    buffer.seek(0)
+
+    cleaned = clean_filename(campaign.name)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="campaign_{cleaned}_task_assignments.zip"'
+            )
+        },
+    )
+
+
+@router.post(
+    "/{campaign_id}/import-task-assignments",
+    response_model=ImportTaskAssignmentsResult,
+)
+async def import_task_assignments(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    file: UploadFile = File(...),
+):
+    """Import task assignments from a CSV (campaign admins only).
+
+    Expects the `assignments.csv` layout from the export: `annotation_number`,
+    `assignees`, and `reviewers` columns (comma-separated emails). Every email
+    must belong to an existing member of this campaign or the whole import is
+    rejected. Listed tasks have their assignments replaced; other tasks are
+    left untouched.
+    """
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    contents = await file.read()
+    result = service.import_task_assignments(db, campaign.id, contents)
+    return ImportTaskAssignmentsResult(**result)
 
 
 @router.delete("/{campaign_id}", status_code=204)

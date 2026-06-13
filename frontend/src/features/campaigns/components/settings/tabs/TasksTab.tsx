@@ -2,6 +2,7 @@ import React from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
+import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
 import type { AnnotationTaskOut, CampaignUserOut, GenerateTasksResponse } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
@@ -21,6 +22,8 @@ interface Props {
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
   campaignId: number;
+  campaignName: string;
+  onAssignmentsImported: () => Promise<void>;
   bbox?: {
     west: number;
     south: number;
@@ -45,6 +48,8 @@ export const TasksTab: React.FC<Props> = ({
   handleBatchUnassignTasks,
   handleDeleteTasks,
   campaignId,
+  campaignName,
+  onAssignmentsImported,
   bbox,
 }) => {
   const sectionCls =
@@ -150,6 +155,14 @@ export const TasksTab: React.FC<Props> = ({
           />
         )}
       </section>
+
+      {annotationTasks.length > 0 && (
+        <TaskAssignmentsExportImport
+          campaignId={campaignId}
+          campaignName={campaignName}
+          onImported={onAssignmentsImported}
+        />
+      )}
 
       <section className={sectionCls}>
         <div>
