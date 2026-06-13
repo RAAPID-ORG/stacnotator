@@ -1,5 +1,6 @@
 """Tests for annotation service layer."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -26,6 +27,7 @@ from src.annotation.service import (
     claim_task_for_user,
     create_annotation,
     create_annotation_tasks_from_csv,
+    create_annotations_from_geojson,
     delete_annotation,
     update_annotation,
 )
@@ -805,6 +807,7 @@ class TestExportAnnotatorCount:
     def _ann(*, ann_id, label_id, user_id, task=None, **overrides):
         ann = SimpleNamespace(
             id=ann_id,
+            source_id=None,
             label_id=label_id,
             comment=None,
             confidence=None,
@@ -958,6 +961,7 @@ class TestExportMergeCorrectness:
     def _ann(*, ann_id, label_id, user_id=None, task=None, geometry=None, **overrides):
         ann = SimpleNamespace(
             id=ann_id,
+            source_id=None,
             label_id=label_id,
             comment=None,
             confidence=None,
@@ -1406,3 +1410,112 @@ class TestClaimTaskForUser:
         added = db.add.call_args[0][0]
         assert added.task_id == 2
         assert added.user_id == user_id
+
+
+class TestCreateAnnotationsFromGeojson:
+    """Bulk import of existing features as standalone open-mode annotations."""
+
+    LABELS = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
+
+    @classmethod
+    def _campaign(cls, *, mode="open", labels=None):
+        return SimpleNamespace(
+            id=1,
+            mode=mode,
+            settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels),
+        )
+
+    @staticmethod
+    def _feature(label_id, *, source_id=None, geom=None):
+        properties = {} if label_id is None else {"stacnotator_label_id": label_id}
+        if source_id is not None:
+            properties["stacnotator_annotation_id"] = source_id
+        return {
+            "type": "Feature",
+            "geometry": geom or {"type": "Point", "coordinates": [10.0, 20.0]},
+            "properties": properties,
+        }
+
+    def _fc(self, features):
+        return json.dumps({"type": "FeatureCollection", "features": features}).encode("utf-8")
+
+    def test_happy_path_creates_annotations(self):
+        db = MagicMock()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
+            MagicMock(),  # annotation insert
+        ]
+        user_id = uuid4()
+        contents = self._fc([self._feature(1), self._feature("2")])
+
+        num = create_annotations_from_geojson(db, self._campaign(), contents, user_id)
+
+        assert num == 2
+        db.commit.assert_called_once()
+        # Second execute call carries the annotation records.
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert [r["label_id"] for r in annotation_records] == [1, 2]
+        assert all(r["annotation_task_id"] is None for r in annotation_records)
+        assert all(r["created_by_user_id"] == user_id for r in annotation_records)
+        assert all(r["campaign_id"] == 1 for r in annotation_records)
+
+    def test_rejects_non_open_campaign(self):
+        db = MagicMock()
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(
+                db, self._campaign(mode="tasks"), self._fc([self._feature(1)]), uuid4()
+            )
+        assert exc.value.status_code == 400
+        db.commit.assert_not_called()
+
+    def test_rejects_missing_label(self):
+        db = MagicMock()
+        contents = self._fc([self._feature(1), self._feature(None)])
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert "stacnotator_label_id" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_label_not_in_campaign(self):
+        db = MagicMock()
+        contents = self._fc([self._feature(99)])
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert "not a label of this campaign" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_preserves_source_id(self):
+        db = MagicMock()
+        db.scalars.return_value.all.return_value = []  # no existing collision
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101), SimpleNamespace(id=102)],
+            MagicMock(),
+        ]
+        contents = self._fc([self._feature(1, source_id=500), self._feature(2, source_id="501")])
+
+        num = create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+
+        assert num == 2
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert [r["source_id"] for r in annotation_records] == [500, 501]
+
+    def test_rejects_duplicate_source_id_in_file(self):
+        db = MagicMock()
+        contents = self._fc([self._feature(1, source_id=7), self._feature(2, source_id=7)])
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert "duplicate id" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_source_id_collision_with_existing(self):
+        db = MagicMock()
+        db.scalars.return_value.all.return_value = [500]  # already in campaign
+        contents = self._fc([self._feature(1, source_id=500)])
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert "already exist" in exc.value.detail
+        db.execute.assert_not_called()

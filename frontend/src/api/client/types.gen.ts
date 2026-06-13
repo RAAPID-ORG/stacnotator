@@ -619,6 +619,16 @@ export type BodyIngestAnnotationTasksFromGeojson = {
 };
 
 /**
+ * Body_ingestAnnotationsFromGeojson
+ */
+export type BodyIngestAnnotationsFromGeojson = {
+    /**
+     * File
+     */
+    file: string;
+};
+
+/**
  * BulkUserActionRequest
  *
  * Request body for bulk user operations.
@@ -3904,6 +3914,34 @@ export type IngestAnnotationTasksFromGeojsonErrors = {
 export type IngestAnnotationTasksFromGeojsonError = IngestAnnotationTasksFromGeojsonErrors[keyof IngestAnnotationTasksFromGeojsonErrors];
 
 export type IngestAnnotationTasksFromGeojsonResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type IngestAnnotationsFromGeojsonData = {
+    body: BodyIngestAnnotationsFromGeojson;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/ingest-annotations-geojson';
+};
+
+export type IngestAnnotationsFromGeojsonErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IngestAnnotationsFromGeojsonError = IngestAnnotationsFromGeojsonErrors[keyof IngestAnnotationsFromGeojsonErrors];
+
+export type IngestAnnotationsFromGeojsonResponses = {
     /**
      * Successful Response
      */

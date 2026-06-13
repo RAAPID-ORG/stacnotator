@@ -21,6 +21,7 @@ import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
+import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -64,12 +65,19 @@ export const CampaignSettingsPage = () => {
   const [searchParams] = useSearchParams();
   const initialTab = (() => {
     const t = searchParams.get('tab');
-    if (t === 'general' || t === 'imagery' || t === 'tasks' || t === 'users' || t === 'timeseries')
+    if (
+      t === 'general' ||
+      t === 'imagery' ||
+      t === 'tasks' ||
+      t === 'users' ||
+      t === 'timeseries' ||
+      t === 'annotations'
+    )
       return t;
     return 'general';
   })();
   const [activeTab, setActiveTab] = useState<
-    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries'
+    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries' | 'annotations'
   >(initialTab);
 
   // Form states
@@ -771,6 +779,7 @@ export const CampaignSettingsPage = () => {
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
                 ...(campaign?.mode !== 'open' ? [{ id: 'tasks', label: 'Annotation Tasks' }] : []),
+                ...(campaign?.mode === 'open' ? [{ id: 'annotations', label: 'Annotations' }] : []),
                 { id: 'users', label: 'Users' },
               ]}
               activeId={activeTab}
@@ -844,6 +853,15 @@ export const CampaignSettingsPage = () => {
                         }
                       : undefined
                   }
+                />
+              )}
+
+              {activeTab === 'annotations' && (
+                <ImportFeaturesSection
+                  campaignId={numericCampaignId}
+                  labels={campaign!.settings.labels}
+                  onSuccess={(msg) => showAlert(msg, 'success')}
+                  onError={(msg) => showAlert(msg, 'error')}
                 />
               )}
 

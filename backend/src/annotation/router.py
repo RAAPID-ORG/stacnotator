@@ -213,6 +213,29 @@ async def ingest_annotation_tasks_from_geojson(
     return {"num_tasks_created": num_created}
 
 
+@router.post("/campaigns/{campaign_id}/ingest-annotations-geojson")
+async def ingest_annotations_from_geojson(
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
+    file: UploadFile = File(...),
+):
+    """
+    Bulk-import existing features as standalone annotations (open mode only).
+
+    Each feature becomes one annotation owned by the uploading admin. The label
+    is read from the ``stacnotator_label_id`` property and must be a label of
+    the campaign; otherwise the whole import is rejected.
+    """
+    fname = (file.filename or "").lower()
+    if not (fname.endswith(".geojson") or fname.endswith(".json")):
+        raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
+
+    contents = await file.read()
+    num_created = service.create_annotations_from_geojson(db, campaign, contents, user.id)
+    return {"num_annotations_created": num_created}
+
+
 # ============================================================================
 # Open-Mode Annotation
 # ============================================================================

@@ -178,6 +178,11 @@ class Annotation(Base):
             "created_by_user_id",
             name="uq_annotation_task_user",
         ),
+        UniqueConstraint(
+            "campaign_id",
+            "source_id",
+            name="uq_annotation_campaign_source",
+        ),
         {"schema": "data"},
     )
 
@@ -219,6 +224,11 @@ class Annotation(Base):
     imagery_source_name: Mapped[str | None] = mapped_column(String, nullable=True)
     imagery_start_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     imagery_end_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # Stable identifier carried over from a bulk feature import (the source
+    # file's stacnotator_annotation_id). NULL for annotations drawn in-app.
+    # Unique per campaign so re-importing the same file is rejected.
+    source_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

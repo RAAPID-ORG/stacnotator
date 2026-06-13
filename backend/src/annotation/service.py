@@ -450,6 +450,169 @@ def create_annotation_tasks_from_geojson(
         ) from None
 
 
+def create_annotations_from_geojson(
+    db: Session,
+    campaign: Campaign,
+    contents: bytes,
+    user_id: UUID,
+) -> int:
+    """
+    Bulk-import existing features as standalone open-mode annotations.
+
+    Each Feature becomes one annotation owned by the uploading admin. The
+    label is read from the ``stacnotator_label_id`` property (round-trips with
+    the GeoJSON export). Every feature must carry a label id that exists in the
+    campaign's label set; otherwise the whole import is rejected and nothing is
+    created.
+
+    Returns:
+        Number of annotations created
+    """
+    if campaign.mode != "open":
+        raise HTTPException(
+            status_code=400,
+            detail="Features can only be imported into open-mode campaigns",
+        )
+
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024:.0f}MB",
+        )
+
+    try:
+        geojson = json.loads(contents.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid GeoJSON file") from exc
+
+    if geojson.get("type") == "FeatureCollection":
+        features = geojson.get("features", [])
+    elif geojson.get("type") == "Feature":
+        features = [geojson]
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported GeoJSON type")
+
+    if not features:
+        raise HTTPException(status_code=400, detail="GeoJSON contains no features")
+
+    valid_label_ids = set(campaign.settings.labels.keys())
+    allowed_types = {"Point", "Polygon", "MultiPolygon"}
+    geometry_records: list[dict] = []
+    label_ids: list[int] = []
+    source_ids: list[int | None] = []
+    seen_source_ids: set[int] = set()
+
+    for idx, feat in enumerate(features):
+        properties = feat.get("properties") or {}
+        raw_label = properties.get("stacnotator_label_id")
+        if raw_label is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx} is missing a 'stacnotator_label_id'",
+            )
+        try:
+            label_id = int(raw_label)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: label id '{raw_label}' is not a valid integer",
+            ) from exc
+        if str(label_id) not in valid_label_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: label id {label_id} is not a label of this campaign",
+            )
+
+        raw_source = properties.get("stacnotator_annotation_id")
+        source_id: int | None = None
+        if raw_source is not None:
+            try:
+                source_id = int(raw_source)
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Feature {idx}: id '{raw_source}' is not a valid integer",
+                ) from exc
+            if source_id in seen_source_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Feature {idx}: duplicate id {source_id} within the file",
+                )
+            seen_source_ids.add(source_id)
+
+        geom_json = feat.get("geometry")
+        if not geom_json:
+            raise HTTPException(status_code=400, detail=f"Feature {idx} has no geometry")
+        geom_type = geom_json.get("type")
+        if geom_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: unsupported geometry type '{geom_type}'. "
+                f"Allowed: {sorted(allowed_types)}",
+            )
+
+        try:
+            geom = shape(geom_json)
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+            if geom.is_empty:
+                raise ValueError("empty geometry")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: invalid geometry – {exc}",
+            ) from exc
+
+        geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
+        label_ids.append(label_id)
+        source_ids.append(source_id)
+
+    # Reject ids that already exist in this campaign so a feature's id stays a
+    # stable, unique handle across re-imports and exports.
+    if seen_source_ids:
+        existing = db.scalars(
+            select(Annotation.source_id).where(
+                Annotation.campaign_id == campaign.id,
+                Annotation.source_id.in_(seen_source_ids),
+            )
+        ).all()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"id(s) already exist in this campaign: {sorted(set(existing))}",
+            )
+
+    try:
+        geo_result = db.execute(
+            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
+            geometry_records,
+        )
+        geometry_ids = [row.id for row in geo_result]
+
+        annotation_records = [
+            {
+                "geometry_id": gid,
+                "campaign_id": campaign.id,
+                "created_by_user_id": user_id,
+                "annotation_task_id": None,
+                "label_id": label_id,
+                "source_id": source_id,
+            }
+            for gid, label_id, source_id in zip(geometry_ids, label_ids, source_ids, strict=True)
+        ]
+
+        db.execute(insert(Annotation), annotation_records)
+        db.commit()
+        return len(annotation_records)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Import failed. No annotations were created.",
+        ) from None
+
+
 # ============================================================================
 # Annotation Creation
 # ============================================================================
@@ -1070,6 +1233,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_label_name",
     "stacnotator_annotator_count",
     "stacnotator_annotation_id",
+    "stacnotator_source_id",
     "stacnotator_comment",
     "stacnotator_confidence",
     "stacnotator_is_authoritative",
@@ -1202,6 +1366,7 @@ def _build_export_record_for_annotation(
         record["stacnotator_task_status"] = task_status
 
     record["stacnotator_annotation_id"] = annotation.id
+    record["stacnotator_source_id"] = annotation.source_id
     record["stacnotator_label_id"] = annotation.label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, annotation.label_id)
     record["stacnotator_comment"] = annotation.comment
