@@ -3,8 +3,20 @@ import os
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-from pydantic import Field, computed_field
+from pydantic import BaseModel, Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class TilerCfg(BaseModel):
+    """A titiler-pgstac tiler endpoint. STACNotator is unaware of where it's hosted.
+
+    ``url`` is browser-facing; ``internal_url`` (optional) is the backend->tiler base for
+    register/ingest; ``allows_ingest`` says whether this tiler exposes ``POST /ingest``.
+    """
+
+    url: str
+    internal_url: str | None = None
+    allows_ingest: bool = False
 
 
 class Settings(BaseSettings):
@@ -39,12 +51,13 @@ class Settings(BaseSettings):
     TILER_COOKIE_SAMESITE: str = "lax"
     TILER_COOKIE_SECURE: bool = True
 
-    # Hosted titiler-pgstac tiler instances (browser-facing bases). The internal URLs are
-    # used by the backend to register searches (default to the public ones).
-    AZURE_TILER_URL: str | None = None
-    GCP_TILER_URL: str | None = None
-    AZURE_TILER_INTERNAL_URL: str | None = None
-    GCP_TILER_INTERNAL_URL: str | None = None
+    # Config-only tiler registry: name -> tiler. STACNotator routes by name and stays
+    # unaware of hosting (Azure/GCP/...). MPC is the only tiler special-cased in code.
+    # Set via the TILERS env var as JSON, e.g.
+    #   TILERS='{"planet":{"url":"https://t1"},"external":{"url":"https://t2","allows_ingest":true}}'
+    TILERS: dict[str, TilerCfg] = {}
+    # Tiler used when a collection doesn't name one.
+    DEFAULT_TILER: str | None = None
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
