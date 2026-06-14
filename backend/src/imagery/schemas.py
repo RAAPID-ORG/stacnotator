@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, computed_field
@@ -14,18 +13,6 @@ class SliceTileUrlOut(BaseModel):
     tile_url: str
     tile_provider: str | None = None
     mosaic_id: str | None = None
-    mosaic_status: str | None = None
-    registered_at: datetime | None = None
-
-    @classmethod
-    def from_orm_with_mosaic(cls, obj: object) -> "SliceTileUrlOut":
-        """Create from ORM object, pulling status/timestamp from the mosaic relationship."""
-        instance = cls.model_validate(obj)
-        mosaic = getattr(obj, "mosaic", None)
-        if mosaic:
-            instance.mosaic_status = mosaic.status
-            instance.registered_at = mosaic.registered_at
-        return instance
 
     model_config = ConfigDict(from_attributes=True)
 

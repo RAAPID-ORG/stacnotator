@@ -1,16 +1,11 @@
-from geoalchemy2 import Geometry
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
-    DateTime,
-    Float,
     ForeignKey,
-    Index,
     Integer,
     SmallInteger,
     String,
     Text,
-    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -181,83 +176,12 @@ class SliceTileUrl(Base):
     )
     visualization_name: Mapped[str] = mapped_column(String, nullable=False)
     tile_url: Mapped[str] = mapped_column(Text, nullable=False)
-    # 'mpc' | 'self_hosted' | null (= direct URL, backward compat)
-    tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Link to mosaic registration (NULL for MPC/manual URLs)
-    mosaic_id: Mapped[str | None] = mapped_column(
-        String(64),
-        ForeignKey("data.mosaic_registrations.mosaic_id", ondelete="SET NULL"),
-        nullable=True,
-    )
+    # "mpc" or a configured tiler name (Settings.TILERS); null = direct/manual URL.
+    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # the registered search id (MPC searchid / titiler-pgstac id).
+    mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     slice: Mapped["ImagerySlice"] = relationship(back_populates="tile_urls")
-    mosaic: Mapped["MosaicRegistration | None"] = relationship(back_populates="tile_urls")
-
-
-class MosaicRegistration(Base):
-    """
-    Persistent record of a STAC mosaic registration.
-    Replaces the volatile in-memory _mosaic_store dict.
-    One row per unique mosaic (deduplicated by deterministic SHA256 hash).
-    """
-
-    __tablename__ = "mosaic_registrations"
-    __table_args__ = {"schema": "data"}
-
-    mosaic_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    catalog_url: Mapped[str] = mapped_column(Text, nullable=False)
-    stac_collection_id: Mapped[str] = mapped_column(String, nullable=False)
-    bbox: Mapped[list] = mapped_column(JSONB, nullable=False)  # [west, south, east, north]
-    datetime_range: Mapped[str] = mapped_column(String, nullable=False)
-    max_cloud_cover: Mapped[float | None] = mapped_column(Float, nullable=True)
-    item_count: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
-    assets_info: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # pending | ready | failed | empty
-    status: Mapped[str] = mapped_column(String(20), server_default="pending", nullable=False)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    registered_at: Mapped[str | None] = mapped_column(DateTime, server_default=func.now())
-
-    items: Mapped[list["MosaicItem"]] = relationship(
-        back_populates="mosaic",
-        cascade="all, delete-orphan",
-    )
-    tile_urls: Mapped[list["SliceTileUrl"]] = relationship(back_populates="mosaic")
-
-
-class MosaicItem(Base):
-    """
-    STAC item reference within a mosaic registration.
-    Stores the minimal data needed for tile compositing (href, bbox, datetime).
-    The geom column is a PostGIS envelope built from the bbox for spatial indexing.
-    """
-
-    __tablename__ = "mosaic_items"
-    __table_args__ = (
-        Index("ix_mosaic_items_geom", "geom", postgresql_using="gist"),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    mosaic_id: Mapped[str] = mapped_column(
-        String(64),
-        ForeignKey("data.mosaic_registrations.mosaic_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    item_id: Mapped[str] = mapped_column(String, nullable=False)
-    href: Mapped[str] = mapped_column(Text, nullable=False)
-    bbox_west: Mapped[float] = mapped_column(Float, nullable=False)
-    bbox_south: Mapped[float] = mapped_column(Float, nullable=False)
-    bbox_east: Mapped[float] = mapped_column(Float, nullable=False)
-    bbox_north: Mapped[float] = mapped_column(Float, nullable=False)
-    datetime: Mapped[str] = mapped_column(String, nullable=False)
-    cloud_cover: Mapped[float | None] = mapped_column(Float, nullable=True)
-    geom = mapped_column(Geometry("POLYGON", srid=4326), nullable=True)
-    # Full STAC item JSON (assets included). When populated, the tiler can
-    # skip the HTTP fetch to the source catalog. Null on legacy rows.
-    stac_item: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    mosaic: Mapped["MosaicRegistration"] = relationship(back_populates="items")
 
 
 class Basemap(Base):

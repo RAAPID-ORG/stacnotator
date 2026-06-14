@@ -306,7 +306,7 @@ def create_campaign(
             try:
                 logger.info("Background mosaic registration started for campaign %d", campaign_id)
                 errors = _register_all_stac_browser_collections(
-                    bg_db, pending_registrations, registration_bbox
+                    bg_db, pending_registrations, registration_bbox, campaign_id
                 )
                 bg_campaign = bg_db.execute(
                     select(Campaign).where(Campaign.id == campaign_id)

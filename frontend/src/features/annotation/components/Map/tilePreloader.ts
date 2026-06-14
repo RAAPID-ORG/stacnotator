@@ -18,8 +18,7 @@
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
-import { getTilerToken } from '~/api/tilerToken';
-import { isSelfHostedUrl } from '../../utils/tileLoading';
+import { crossOriginFor, ensureSessionFor } from '../../utils/tileLoading';
 
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
@@ -30,6 +29,7 @@ export interface PreloadJob {
   urlTemplate: string; // Fully-resolved XYZ tile URL template (contains {z}, {x}, {y}).
   extent: [number, number, number, number]; // Map extent in EPSG:4326 [west, south, east, north].
   zoom: number;
+  tileProvider?: string | null; // "mpc" / tiler name / null - drives crossOrigin + cookie.
 }
 
 const defaultGrid = createXYZ();
@@ -67,6 +67,7 @@ interface QueuedTile {
   url: string;
   priority: number;
   groupId: string;
+  crossOrigin: 'anonymous' | 'use-credentials';
 }
 
 export class TilePreloader {
@@ -186,6 +187,7 @@ export class TilePreloader {
         this.groupStats.set(job.groupId, { errors: 0, successes: 0, emptyFired: false });
       }
 
+      const crossOrigin = crossOriginFor(job.tileProvider);
       const urls = tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom);
       for (const url of urls) {
         if (this.preloaded.has(url)) continue;
@@ -194,7 +196,7 @@ export class TilePreloader {
           this.preloaded.clear();
         }
         this.preloaded.add(url);
-        this.tileQueue.push({ url, priority: job.priority, groupId: job.groupId });
+        this.tileQueue.push({ url, priority: job.priority, groupId: job.groupId, crossOrigin });
       }
     }
     this.tileQueue.sort((a, b) => a.priority - b.priority);
@@ -248,7 +250,7 @@ export class TilePreloader {
 
     const startImg = (url: string) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      img.crossOrigin = tile.crossOrigin;
       // Low priority so the browser/server scheduler keeps bandwidth and
       // HTTP/2 stream priority free for user-initiated active-layer tiles
       // (which set fetchPriority='high' in tileLoadImagery).
@@ -281,21 +283,16 @@ export class TilePreloader {
       img.src = url;
     };
 
-    // Self-hosted tiles need an auth token appended to the URL
-    if (isSelfHostedUrl(tile.url)) {
-      getTilerToken()
-        .then((token) => {
-          if (this.disposed || gen !== this.generation) {
-            done(false, true);
-            return;
-          }
-          const sep = tile.url.includes('?') ? '&' : '?';
-          startImg(`${tile.url}${sep}token=${encodeURIComponent(token)}`);
-        })
-        .catch(() => done(false));
-    } else {
-      startImg(tile.url);
-    }
+    // Refresh the tiler cookie first for our-tiler tiles (no-op for MPC/public), then load.
+    ensureSessionFor(tile.crossOrigin)
+      .then(() => {
+        if (this.disposed || gen !== this.generation) {
+          done(false, true);
+          return;
+        }
+        startImg(tile.url);
+      })
+      .catch(() => done(false));
   }
 
   // Cancel all in-flight <img> loads.

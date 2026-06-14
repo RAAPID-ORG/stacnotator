@@ -3,7 +3,7 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
-import { buildTileUrl, substituteApiKeys } from '../../utils/tileLoading';
+import { crossOriginFor, substituteApiKeys } from '../../utils/tileLoading';
 import { useApiKeyStore } from '../../stores/apiKey.store';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
@@ -202,7 +202,7 @@ export function useSliceLayers({
               if (lm.getLayerById(layerId)) continue;
 
               const resolvedUrl = substituteApiKeys(
-                buildTileUrl({ tile_url: tileUrl.tile_url, tile_provider: tileUrl.tile_provider }),
+                tileUrl.tile_url,
                 collectionKeyValue ? { api_key: collectionKeyValue } : {}
               );
 
@@ -213,6 +213,7 @@ export function useSliceLayers({
                   layerType: 'imagery',
                   urlTemplate: resolvedUrl,
                   preload: preloadDepth,
+                  crossOrigin: crossOriginFor(tileUrl.tile_provider),
                 })
               );
             }

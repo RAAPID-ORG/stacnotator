@@ -8,11 +8,9 @@ import {
   convertWKTToGeoJSON,
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
-import { buildTileUrl } from '../utils/tileLoading';
+import { isSelfHostedTiler } from '../utils/tileLoading';
 import { sliceView, resolveSliceIndex } from '../utils/sliceView';
-import { getTilerToken } from '~/api/tilerToken';
-
-const TILER_BASE = import.meta.env.VITE_TILER_BASE_URL || import.meta.env.VITE_API_BASE_URL || '';
+import { ensureTilerSession } from '~/api/tilerToken';
 
 /** Hatched overlay indicating no imagery is available for this tile/area */
 function NoImageryOverlay() {
@@ -115,12 +113,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     return ownerSource?.visualizations[vizIndex]?.name ?? null;
   }, [campaign, collectionId, activeCollectionId, selectedLayerIndex]);
 
-  const tileUrl = useMemo(() => {
-    const entry = activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName);
-    return entry
-      ? buildTileUrl({ tile_url: entry.tile_url, tile_provider: entry.tile_provider })
-      : '';
-  }, [activeSlice, activeVizName]);
+  const activeEntry = useMemo(
+    () => activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName) ?? null,
+    [activeSlice, activeVizName]
+  );
+  const tileUrl = activeEntry?.tile_url ?? '';
+  const tileProvider = activeEntry?.tile_provider ?? null;
   const loading = !activeSlice || !tileUrl;
 
   // Memoize latLon extraction (supports all geometry types via centroid)
@@ -209,9 +207,8 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const buildCrosshairTileUrl = (sliceIdx: number): string | null => {
     if (!latLon) return null;
     const entry = slices[sliceIdx]?.tile_urls.find((t) => t.visualization_name === activeVizName);
-    if (!entry) return null;
-    const base = buildTileUrl({ tile_url: entry.tile_url, tile_provider: entry.tile_provider });
-    if (!base) return null;
+    if (!entry?.tile_url) return null;
+    const base = entry.tile_url;
     const z = Math.round(defaultZoom);
     const n = Math.pow(2, z);
     const x = Math.floor(((latLon.lon + 180) / 360) * n);
@@ -238,23 +235,22 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
     const controller = new AbortController();
 
-    // Resolves true when the tile is empty (no content / not found).
-    // Self-hosted tiler returns 200 + transparent PNG for empty - never empty here.
+    // Resolves true when the tile is empty (no content / not found). Our tilers return
+    // 204 for an empty tile; auth is via the cookie (credentials: 'include').
+    const selfHosted = isSelfHostedTiler(tileProvider);
     const probeEmpty = async (url: string): Promise<boolean> => {
-      const isSelfHosted = !!TILER_BASE && url.startsWith(TILER_BASE);
       let resp: Response;
-      if (isSelfHosted) {
-        const token = await getTilerToken();
-        const sep = url.includes('?') ? '&' : '?';
-        resp = await fetch(`${url}${sep}token=${encodeURIComponent(token)}`, {
+      if (selfHosted) {
+        await ensureTilerSession();
+        resp = await fetch(url, {
           mode: 'cors',
-          credentials: 'omit',
+          credentials: 'include',
           signal: controller.signal,
         });
       } else {
         resp = await fetch(url, { mode: 'cors', credentials: 'omit', signal: controller.signal });
       }
-      return resp.status === 204 || (!isSelfHosted && !resp.ok);
+      return resp.status === 204 || (!selfHosted && !resp.ok);
     };
 
     (async () => {
@@ -307,7 +303,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId]);
+  }, [crosshairTileUrl, isOpenMode, currentSliceIndex, collectionId, tileProvider]);
 
   if (!collection || !campaignBbox) return null;
 
@@ -363,6 +359,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
               zoom={zoom}
               follow={isFollowing}
               tileUrl={tileUrl}
+              tileProvider={tileProvider}
               crosshair={crosshair}
               showCrosshair={!isOpenMode && showCrosshair && !emptyTileAlert}
               refocusTrigger={refocusTrigger}

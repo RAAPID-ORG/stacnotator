@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { substituteApiKeys } from './tileLoading';
+import { describe, it, expect } from 'vitest';
+import { crossOriginFor, isSelfHostedTiler, substituteApiKeys } from './tileLoading';
 
 describe('substituteApiKeys', () => {
   it('substitutes {api_key} with the stored value', () => {
@@ -56,83 +56,19 @@ describe('substituteApiKeys', () => {
   });
 });
 
-// TILER_BASE is a module-level constant so we stub the env var and reset the
-// module registry before each describe block to get a fresh evaluation.
-
-describe('buildTileUrl', () => {
-  let mod: typeof import('./tileLoading');
-
-  beforeAll(async () => {
-    vi.stubEnv('VITE_TILER_BASE_URL', 'https://tiler.example.com');
-    vi.resetModules();
-    mod = await import('./tileLoading');
+describe('isSelfHostedTiler / crossOriginFor', () => {
+  it('treats any provider that is not "mpc"/null as one of our tilers', () => {
+    expect(isSelfHostedTiler('planet')).toBe(true);
+    expect(isSelfHostedTiler('external')).toBe(true);
+    expect(isSelfHostedTiler('mpc')).toBe(false);
+    expect(isSelfHostedTiler(null)).toBe(false);
+    expect(isSelfHostedTiler(undefined)).toBe(false);
   });
 
-  afterAll(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it('prepends the tiler base for self-hosted tiles', () => {
-    expect(
-      mod.buildTileUrl({
-        tile_url: '/mosaic/abc123/tiles/15/1/1.png',
-        tile_provider: 'self_hosted',
-      })
-    ).toBe('https://tiler.example.com/mosaic/abc123/tiles/15/1/1.png');
-  });
-
-  it('returns the tile URL unchanged for the mpc provider', () => {
-    const url =
-      'https://planetarycomputer.microsoft.com/api/data/v1/mosaic/abc/tiles/WebMercatorQuad/15/1/1';
-    expect(mod.buildTileUrl({ tile_url: url, tile_provider: 'mpc' })).toBe(url);
-  });
-
-  it('returns the tile URL unchanged when provider is null', () => {
-    const url = 'https://tiles.example.com/custom/15/1/1.png';
-    expect(mod.buildTileUrl({ tile_url: url, tile_provider: null })).toBe(url);
-  });
-
-  it('returns the tile URL unchanged when provider is undefined', () => {
-    const url = 'https://tiles.example.com/custom/15/1/1.png';
-    expect(mod.buildTileUrl({ tile_url: url })).toBe(url);
-  });
-});
-
-describe('isSelfHostedUrl', () => {
-  let mod: typeof import('./tileLoading');
-
-  beforeAll(async () => {
-    vi.stubEnv('VITE_TILER_BASE_URL', 'https://tiler.example.com');
-    vi.resetModules();
-    mod = await import('./tileLoading');
-  });
-
-  afterAll(() => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-  });
-
-  it('returns true for a URL that starts with the tiler base', () => {
-    expect(mod.isSelfHostedUrl('https://tiler.example.com/mosaic/abc/tiles/15/1/1')).toBe(true);
-  });
-
-  it('returns false for a third-party URL', () => {
-    expect(
-      mod.isSelfHostedUrl('https://planetarycomputer.microsoft.com/api/data/v1/mosaic/abc')
-    ).toBe(false);
-  });
-
-  it('returns false for a URL that contains but does not start with the tiler base', () => {
-    expect(
-      mod.isSelfHostedUrl('https://proxy.example.com?url=https://tiler.example.com/path')
-    ).toBe(false);
-  });
-
-  it('returns false when TILER_BASE is empty', async () => {
-    vi.unstubAllEnvs();
-    vi.resetModules();
-    const emptyMod = await import('./tileLoading');
-    expect(emptyMod.isSelfHostedUrl('https://anywhere.example.com/tiles')).toBe(false);
+  it('uses credentialed crossOrigin only for our tilers', () => {
+    expect(crossOriginFor('planet')).toBe('use-credentials');
+    expect(crossOriginFor('mpc')).toBe('anonymous');
+    expect(crossOriginFor(null)).toBe('anonymous');
+    expect(crossOriginFor(undefined)).toBe('anonymous');
   });
 });

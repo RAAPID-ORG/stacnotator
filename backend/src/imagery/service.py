@@ -13,6 +13,7 @@ from src.campaigns.constants import (
     VIEW_LAYOUT_WINDOW_W,
 )
 from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
+from src.config import get_settings
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
@@ -20,8 +21,6 @@ from src.imagery.models import (
     ImagerySlice,
     ImagerySource,
     ImageryView,
-    MosaicItem,
-    MosaicRegistration,
     SliceTileUrl,
     VisualizationTemplate,
 )
@@ -33,17 +32,8 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
     ImageryViewCreate,
 )
-from src.tiling.router import build_viz_query_string, register_mosaic_sync
-from src.tiling.stac_client import _is_mpc
-
-
-def _bbox_to_wkt(west: float, south: float, east: float, north: float) -> str:
-    """Convert bbox to WKT POLYGON for PostGIS ST_GeomFromText."""
-    return (
-        f"SRID=4326;POLYGON(({west} {south},{east} {south},"
-        f"{east} {north},{west} {north},{west} {south}))"
-    )
-
+from src.tiling import providers
+from src.tiling.router import build_viz_query_string
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +306,7 @@ def save_imagery_editor_state(
     registration_errors: list[dict] = []
     if pending_registrations:
         registration_errors = _register_all_stac_browser_collections(
-            db, pending_registrations, bbox
+            db, pending_registrations, bbox, campaign.id
         )
 
     return {
@@ -761,23 +751,22 @@ def _sanitize_stac_error(e: Exception) -> str:
 
 
 MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
-MPC_TILES_BASE = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
 
 
 def _register_all_stac_browser_collections(
     db: Session,
     pending: list[tuple],
     bbox: list[float],
+    campaign_id: int,
 ) -> list[dict]:
     """Register mosaics for all stac_browser collections in parallel with retries.
     Returns a list of error dicts for failed slices (empty on full success).
 
-    Persists MosaicRegistration + MosaicItem rows to DB and bakes viz params
-    into the stored tile URLs so the frontend doesn't need to build them.
+    Each slice's vizs are routed per provider (MPC direct vs a configured hosted
+    titiler-pgstac tiler) and the absolute tile URL is baked into the SliceTileUrl rows.
     """
     import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    from datetime import datetime as dt
 
     MAX_WORKERS = 16
     MAX_RETRIES = 2
@@ -786,7 +775,6 @@ def _register_all_stac_browser_collections(
     tasks: list[dict] = []
     for collection, col_create, src_create in pending:
         stac = col_create.stac_config
-        is_mpc = _is_mpc(stac.catalog_url or "")
 
         # Validate viz name parity between source and stac_config
         source_names = [v.name for v in src_create.visualizations]
@@ -836,13 +824,13 @@ def _register_all_stac_browser_collections(
                 for name, params in viz_params_by_name.items()
             }
 
-            # Per-viz MPC eligibility: MPC catalog + first-valid compositing + no masking
-            def _mpc_eligible(p: dict, is_mpc: bool = is_mpc) -> bool:
-                comp = p.get("compositing")
-                return is_mpc and (not comp or comp == "first") and not p.get("mask_layer")
-
-            any_uses_mpc = any(_mpc_eligible(p) for p in slice_viz_by_name.values())
-            any_needs_local = any(not _mpc_eligible(p) for p in slice_viz_by_name.values())
+            # Route each viz to a provider ("mpc" direct vs a hosted tiler).
+            provider_by_viz = {
+                name: providers.select_provider(stac.catalog_url, p)
+                for name, p in slice_viz_by_name.items()
+            }
+            any_uses_mpc = any(v == "mpc" for v in provider_by_viz.values())
+            any_needs_hosted = any(v == "hosted" for v in provider_by_viz.values())
 
             tasks.append(
                 {
@@ -850,7 +838,7 @@ def _register_all_stac_browser_collections(
                     "stac": stac,
                     "viz_params_by_name": slice_viz_by_name,
                     "any_uses_mpc": any_uses_mpc,
-                    "any_needs_local": any_needs_local,
+                    "any_needs_hosted": any_needs_hosted,
                     "collection_name": collection.name,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
@@ -859,31 +847,32 @@ def _register_all_stac_browser_collections(
             )
 
     if not tasks:
-        return
+        return []
 
-    total_mpc = sum(1 for t in tasks if t["any_uses_mpc"])
-    total_local = sum(1 for t in tasks if t["any_needs_local"])
+    # Resolve the hosted tiler once (config-driven; only needed if any viz isn't MPC).
+    needs_hosted = any(t["any_needs_hosted"] for t in tasks)
+    tiler_name = get_settings().DEFAULT_TILER if needs_hosted else None
+    tiler = providers.resolve_tiler(tiler_name) if needs_hosted else None
+
     logger.info(
-        "Registering %d mosaic slices in parallel (%d need MPC, %d need local)",
+        "Registering %d mosaic slices in parallel (%d need MPC, %d need hosted)",
         len(tasks),
-        total_mpc,
-        total_local,
+        sum(1 for t in tasks if t["any_uses_mpc"]),
+        sum(1 for t in tasks if t["any_needs_hosted"]),
     )
 
     # Collect user-facing error messages (no internal details)
     registration_errors: list[dict] = []
 
-    def _register_one_with_retry(task: dict) -> tuple[int, str | None, dict | None]:
-        """Returns (slice_id, mpc_search_id_or_none, local_result_or_none).
+    def _register_one_with_retry(task: dict) -> tuple[int, str | None, str | None]:
+        """Returns (slice_id, mpc_search_id_or_none, hosted_search_id_or_none).
 
-        A slice can need MPC, local, or both depending on the mix of
-        per-visualization params. If a required registration fails after
-        retries, the corresponding result is None and an error is recorded.
+        A slice can need MPC, a hosted tiler, or both depending on the mix of
+        per-visualization params. If a required registration fails after retries, the
+        corresponding result is None and an error is recorded.
         """
         db_slice = task["db_slice"]
         stac = task["stac"]
-        need_mpc = task["any_uses_mpc"]
-        need_local = task["any_needs_local"]
         dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
         custom_query = task.get("search_query")
 
@@ -917,181 +906,114 @@ def _register_all_stac_browser_collections(
                     return None
 
         mpc_search_id = None
-        local_result = None
-        if need_mpc:
+        hosted_search_id = None
+        if task["any_uses_mpc"]:
             mpc_search_id = _run(
                 lambda: _register_mpc_slice(stac, db_slice, bbox, custom_query), "MPC"
             )
-        if need_local:
-            local_result = _run(
-                lambda: register_mosaic_sync(
-                    catalog_url=stac.catalog_url,
-                    collection_id=stac.stac_collection_id,
-                    bbox=bbox,
-                    datetime_range=dt_range,
-                    search_query=custom_query,
+        if task["any_needs_hosted"]:
+            hosted_search_id = _run(
+                lambda: _register_hosted_slice(
+                    stac, db_slice, bbox, custom_query, campaign_id, tiler
                 ),
-                "Local mosaic",
+                "Hosted tiler",
             )
-        return db_slice.id, mpc_search_id, local_result
+        return db_slice.id, mpc_search_id, hosted_search_id
 
-    # Execute all in parallel
-    # slice_id -> (mpc_search_id | None, local_result | None)
-    results: dict[int, tuple[str | None, dict | None]] = {}
+    # Execute all in parallel. slice_id -> (mpc_search_id | None, hosted_search_id | None)
+    results: dict[int, tuple[str | None, str | None]] = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futures = {pool.submit(_register_one_with_retry, t): t for t in tasks}
         for future in as_completed(futures):
-            slice_id, mpc_search_id, local_result = future.result()
-            results[slice_id] = (mpc_search_id, local_result)
+            slice_id, mpc_search_id, hosted_search_id = future.result()
+            results[slice_id] = (mpc_search_id, hosted_search_id)
 
-    succeeded = sum(
-        1 for _, (mpc_id, local) in results.items() if (mpc_id is not None or local is not None)
-    )
-    logger.info(
-        "Mosaic registration complete: %d/%d slices succeeded",
-        succeeded,
-        len(tasks),
-    )
+    succeeded = sum(1 for _, (m, h) in results.items() if (m is not None or h is not None))
+    logger.info("Mosaic registration complete: %d/%d slices succeeded", succeeded, len(tasks))
 
-    # Build lookups
     task_by_slice: dict[int, dict] = {t["db_slice"].id: t for t in tasks}
 
-    def _mpc_eligible_params(p: dict, is_mpc_catalog: bool) -> bool:
-        comp = p.get("compositing")
-        return is_mpc_catalog and (not comp or comp == "first") and not p.get("mask_layer")
-
-    # Persist tile URLs and mosaic registrations
-    for slice_id, (mpc_search_id, local_result) in results.items():
+    # Emit one SliceTileUrl per visualization, routed per provider.
+    for slice_id, (mpc_search_id, hosted_search_id) in results.items():
         task = task_by_slice[slice_id]
-        viz_params_by_name: dict[str, dict] = task["viz_params_by_name"]
         stac = task["stac"]
-        is_mpc_catalog = _is_mpc(stac.catalog_url or "")
-
-        # Persist local mosaic registration + items once per slice (shared across vizs)
-        local_mosaic_id = None
-        if local_result is not None:
-            local_mosaic_id = local_result["mosaic_id"]
-            item_refs = local_result["item_refs"]
-
-            db_slice = task["db_slice"]
-            datetime_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
-            existing_reg = db.execute(
-                select(MosaicRegistration).where(MosaicRegistration.mosaic_id == local_mosaic_id)
-            ).scalar_one_or_none()
-            if existing_reg:
-                existing_reg.item_count = len(item_refs)
-                existing_reg.assets_info = local_result.get("assets")
-                existing_reg.status = "ready" if item_refs else "empty"
-                existing_reg.registered_at = dt.utcnow()
-                existing_reg.error_message = None
-                db.execute(delete(MosaicItem).where(MosaicItem.mosaic_id == local_mosaic_id))
-            else:
-                db.add(
-                    MosaicRegistration(
-                        mosaic_id=local_mosaic_id,
-                        catalog_url=stac.catalog_url,
-                        stac_collection_id=stac.stac_collection_id,
-                        bbox=bbox,
-                        datetime_range=datetime_range,
-                        max_cloud_cover=stac.max_cloud_cover,
-                        item_count=len(item_refs),
-                        assets_info=local_result.get("assets"),
-                        status="ready" if item_refs else "empty",
-                        registered_at=dt.utcnow(),
-                    )
-                )
-            db.flush()
-
-            for ref in item_refs:
-                db.add(
-                    MosaicItem(
-                        mosaic_id=local_mosaic_id,
-                        item_id=ref["id"],
-                        href=ref["href"],
-                        bbox_west=ref["bbox"][0],
-                        bbox_south=ref["bbox"][1],
-                        bbox_east=ref["bbox"][2],
-                        bbox_north=ref["bbox"][3],
-                        datetime=ref.get("datetime", ""),
-                        cloud_cover=ref.get("cloud_cover"),
-                        geom=_bbox_to_wkt(
-                            ref["bbox"][0], ref["bbox"][1], ref["bbox"][2], ref["bbox"][3]
-                        ),
-                        stac_item=ref.get("stac_item"),
-                    )
-                )
-
-        # Emit one SliceTileUrl per visualization, routed per viz
-        for viz_name, params in viz_params_by_name.items():
-            uses_mpc = _mpc_eligible_params(params, is_mpc_catalog)
-
-            if uses_mpc:
+        for viz_name, params in task["viz_params_by_name"].items():
+            if providers.select_provider(stac.catalog_url, params) == "mpc":
                 if mpc_search_id is None:
-                    # MPC registration failed for this slice - skip
                     continue
-                base_url = (
-                    MPC_TILES_BASE.replace("{searchId}", mpc_search_id)
-                    + f"?collection={stac.stac_collection_id}&pixel_selection=first"
+                tile_url = providers.build_tile_url(
+                    "mpc", mpc_search_id, params, collection_id=stac.stac_collection_id
                 )
-                viz_qs = build_viz_query_string(params, for_mpc=True)
-                tile_url = f"{base_url}&{viz_qs}" if viz_qs else base_url
-                db.add(
-                    SliceTileUrl(
-                        slice_id=slice_id,
-                        visualization_name=viz_name,
-                        tile_url=tile_url,
-                        tile_provider="mpc",
-                    )
-                )
+                provider_name, ref = "mpc", mpc_search_id
             else:
-                if local_mosaic_id is None:
-                    # Local mosaic registration failed for this slice - skip
+                if hosted_search_id is None:
                     continue
-                base_url = f"/api/stac/mosaic/{local_mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
-                viz_qs = build_viz_query_string(params)
-                tile_url = f"{base_url}?{viz_qs}" if viz_qs else base_url
-                db.add(
-                    SliceTileUrl(
-                        slice_id=slice_id,
-                        visualization_name=viz_name,
-                        tile_url=tile_url,
-                        tile_provider="self_hosted",
-                        mosaic_id=local_mosaic_id,
-                    )
+                tile_url = providers.build_tile_url("hosted", hosted_search_id, params, tiler=tiler)
+                provider_name, ref = tiler_name, hosted_search_id
+            db.add(
+                SliceTileUrl(
+                    slice_id=slice_id,
+                    visualization_name=viz_name,
+                    tile_url=tile_url,
+                    tile_provider=provider_name,
+                    mosaic_id=ref,
                 )
+            )
 
     return registration_errors
 
 
-def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | None = None) -> str:
-    """Register a single slice mosaic via MPC. Returns searchid.
+def _resolved_search_body(search_query: dict | None, bbox: list[float], db_slice) -> dict:
+    """Deepcopy the CQL2-JSON query and inject bbox + this slice's datetime.
 
-    The search_query is the CQL2-JSON body built by the frontend.
-    Bbox and datetime ({sliceDatetime} placeholder) are injected.
+    Shared by MPC and hosted-tiler registration so both register the identical search.
     """
     import copy
 
-    import httpx
-
     if not search_query:
         raise ValueError(
-            "search_query is required for MPC registration. "
+            "search_query is required for registration. "
             "The frontend must provide the full CQL2-JSON query."
         )
-
-    search_body = copy.deepcopy(search_query)
-    search_body["bbox"] = bbox
+    body = copy.deepcopy(search_query)
+    body["bbox"] = bbox
     _inject_datetime_into_query(
-        search_body,
+        body,
         f"{db_slice.start_date}T00:00:00Z",
         f"{db_slice.end_date}T23:59:59Z",
     )
-    if "filterLang" not in search_body:
-        search_body["filterLang"] = "cql2-json"
+    body.setdefault("filterLang", "cql2-json")
+    return body
 
-    resp = httpx.post(MPC_REGISTER_URL, json=search_body, timeout=30)
+
+def _register_mpc_slice(stac, db_slice, bbox: list[float], search_query: dict | None = None) -> str:
+    """Register a single slice mosaic via MPC's own tiler. Returns its searchid."""
+    import httpx
+
+    body = _resolved_search_body(search_query, bbox, db_slice)
+    resp = httpx.post(MPC_REGISTER_URL, json=body, timeout=30)
     resp.raise_for_status()
     return resp.json()["searchid"]
+
+
+def _register_hosted_slice(stac, db_slice, bbox, search_query, campaign_id, tiler) -> str:
+    """Ingest the slice's AOI into the hosted tiler's pgstac, then register the search.
+
+    Returns the tiler's search id. The tiler runs the ingest server-side (the backend never
+    writes to the tiler DB); ingest is skipped for tilers that serve only pre-loaded data.
+    """
+    dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
+    if tiler.allows_ingest:
+        providers.ingest_on_tiler(
+            tiler,
+            stac.catalog_url,
+            stac.stac_collection_id,
+            bbox,
+            dt_range,
+            stac.max_cloud_cover,
+        )
+    body = _resolved_search_body(search_query, bbox, db_slice)
+    return providers.register_on_tiler(tiler, body, campaign_id)
 
 
 def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
@@ -1117,12 +1039,26 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 # ============================================================================
 
 
+def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
+    """Per-visualization params for a slice, applying the cover override when present.
+
+    Reads the authoritative per-viz list (``CollectionStacConfig.visualizations``); falls
+    back to the legacy single blob for rows written before that column existed.
+    """
+    for v in stac.visualizations or []:
+        if v.get("name") == viz_name:
+            cover = v.get("cover_viz_params")
+            return cover if (is_cover and cover) else (v.get("viz_params") or {})
+    if is_cover and stac.cover_viz_params:
+        return stac.cover_viz_params
+    return stac.viz_params or {}
+
+
 def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
     """Re-register every stac_browser collection in a campaign with a new bbox.
 
     Returns the number of collections updated.
     """
-    from datetime import datetime as dt
 
     sources = (
         db.execute(select(ImagerySource).where(ImagerySource.campaign_id == campaign_id))
@@ -1157,100 +1093,49 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                     if (is_cover and stac.cover_search_query)
                     else stac.search_query
                 )
-                viz_params = (
-                    stac.cover_viz_params
-                    if (is_cover and stac.cover_viz_params)
-                    else stac.viz_params
-                )
-                dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
 
-                for tu in sl.tile_urls:
+                # Register once per provider this slice uses (shared across its vizs); "mpc"
+                # or a configured tiler name. Each provider is isolated so one failing
+                # doesn't drop the other.
+                refs: dict[str, str] = {}
+                for provider in {tu.tile_provider for tu in sl.tile_urls if tu.tile_provider}:
                     try:
-                        if tu.tile_provider == "self_hosted":
-                            result = register_mosaic_sync(
-                                catalog_url=stac.catalog_url,
-                                collection_id=stac.stac_collection_id,
-                                bbox=bbox,
-                                datetime_range=dt_range,
-                                search_query=custom_query,
+                        if provider == "mpc":
+                            refs[provider] = _register_mpc_slice(stac, sl, bbox, custom_query)
+                        else:
+                            refs[provider] = _register_hosted_slice(
+                                stac,
+                                sl,
+                                bbox,
+                                custom_query,
+                                campaign_id,
+                                providers.resolve_tiler(provider),
                             )
-                            mosaic_id = result["mosaic_id"]
-                            item_refs = result["item_refs"]
-
-                            reg = db.execute(
-                                select(MosaicRegistration).where(
-                                    MosaicRegistration.mosaic_id == mosaic_id
-                                )
-                            ).scalar_one_or_none()
-                            if reg:
-                                reg.item_count = len(item_refs)
-                                reg.assets_info = result.get("assets")
-                                reg.status = "ready" if item_refs else "empty"
-                                reg.registered_at = dt.utcnow()
-                                reg.error_message = None
-                                db.execute(
-                                    delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id)
-                                )
-                            else:
-                                db.add(
-                                    MosaicRegistration(
-                                        mosaic_id=mosaic_id,
-                                        catalog_url=stac.catalog_url,
-                                        stac_collection_id=stac.stac_collection_id,
-                                        bbox=bbox,
-                                        datetime_range=dt_range,
-                                        max_cloud_cover=stac.max_cloud_cover,
-                                        item_count=len(item_refs),
-                                        assets_info=result.get("assets"),
-                                        status="ready" if item_refs else "empty",
-                                        registered_at=dt.utcnow(),
-                                    )
-                                )
-                            db.flush()
-                            for ref in item_refs:
-                                db.add(
-                                    MosaicItem(
-                                        mosaic_id=mosaic_id,
-                                        item_id=ref["id"],
-                                        href=ref["href"],
-                                        bbox_west=ref["bbox"][0],
-                                        bbox_south=ref["bbox"][1],
-                                        bbox_east=ref["bbox"][2],
-                                        bbox_north=ref["bbox"][3],
-                                        datetime=ref.get("datetime", ""),
-                                        cloud_cover=ref.get("cloud_cover"),
-                                        geom=_bbox_to_wkt(
-                                            ref["bbox"][0],
-                                            ref["bbox"][1],
-                                            ref["bbox"][2],
-                                            ref["bbox"][3],
-                                        ),
-                                        stac_item=ref.get("stac_item"),
-                                    )
-                                )
-                            base_url = f"/api/stac/mosaic/{mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
-                            viz_qs = build_viz_query_string(viz_params)
-                            tu.tile_url = f"{base_url}?{viz_qs}" if viz_qs else base_url
-                            tu.mosaic_id = mosaic_id
-                            collection_updated = True
-
-                        elif tu.tile_provider == "mpc":
-                            mpc_search_id = _register_mpc_slice(stac, sl, bbox, custom_query)
-                            base_url = (
-                                MPC_TILES_BASE.replace("{searchId}", mpc_search_id)
-                                + f"?collection={stac.stac_collection_id}&pixel_selection=first"
-                            )
-                            viz_qs = build_viz_query_string(viz_params, for_mpc=True)
-                            tu.tile_url = f"{base_url}&{viz_qs}" if viz_qs else base_url
-                            collection_updated = True
-
                     except Exception:
                         logger.warning(
-                            "STAC re-registration failed for collection %s slice %s",
+                            "STAC re-registration failed for collection %s slice %s provider %s",
                             collection.name,
                             sl.name,
+                            provider,
                             exc_info=True,
                         )
+
+                # Rebuild each visualization's URL with its own params + the slice's new ref.
+                for tu in sl.tile_urls:
+                    ref = refs.get(tu.tile_provider)
+                    if ref is None:
+                        continue
+                    params = _slice_viz_params(stac, tu.visualization_name, is_cover)
+                    if tu.tile_provider == "mpc":
+                        tu.tile_url = providers.build_tile_url(
+                            "mpc", ref, params, collection_id=stac.stac_collection_id
+                        )
+                    else:
+                        tu.tile_url = providers.build_tile_url(
+                            "hosted", ref, params, tiler=providers.resolve_tiler(tu.tile_provider)
+                        )
+                    tu.mosaic_id = ref
+                    collection_updated = True
 
             if collection_updated:
                 updated += 1
@@ -1347,11 +1232,7 @@ def update_collection_viz_params(
             else:
                 params = first_params
 
-            if tu.tile_provider == "self_hosted" and tu.mosaic_id:
-                viz_qs = build_viz_query_string(params)
-                base = f"/api/stac/mosaic/{tu.mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
-                tu.tile_url = f"{base}?{viz_qs}" if viz_qs else base
-            elif tu.tile_provider == "mpc":
+            if tu.tile_provider == "mpc":
                 viz_qs = build_viz_query_string(params, for_mpc=True)
                 parsed = urlparse(tu.tile_url)
                 existing = parse_qs(parsed.query, keep_blank_values=True)
@@ -1362,6 +1243,10 @@ def update_collection_viz_params(
                 if viz_qs:
                     new_qs = f"{new_qs}&{viz_qs}" if new_qs else viz_qs
                 tu.tile_url = urlunparse(parsed._replace(query=new_qs))
+            elif tu.tile_provider and tu.mosaic_id:
+                # Hosted tiler: rebuild the absolute URL with the new viz params (no re-search).
+                tiler = providers.resolve_tiler(tu.tile_provider)
+                tu.tile_url = providers.build_tile_url("hosted", tu.mosaic_id, params, tiler=tiler)
 
     db.flush()
 
@@ -1398,90 +1283,37 @@ def refresh_collection_imagery(
     )
 
     refreshed_count = 0
-    for sl_idx, sl in enumerate(slices):
-        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
-        custom_query = (
-            stac.cover_search_query if (is_cover and stac.cover_search_query) else stac.search_query
+    for sl in slices:
+        # Re-ingest the slice's AOI into the hosted tiler's pgstac; the registered search
+        # auto-picks-up new items, so the tile URL is unchanged. MPC manages its own; direct
+        # URLs and ingest-incapable tilers (pre-loaded data) have nothing to refresh.
+        hosted_tu = next(
+            (
+                tu
+                for tu in sl.tile_urls
+                if tu.tile_provider and tu.tile_provider != "mpc" and tu.mosaic_id
+            ),
+            None,
         )
-        viz_params = (
-            stac.cover_viz_params if (is_cover and stac.cover_viz_params) else stac.viz_params
-        )
+        if not hosted_tu:
+            continue
+        tiler = providers.resolve_tiler(hosted_tu.tile_provider)
+        if not tiler.allows_ingest:
+            continue
 
-        # Only refresh self_hosted mosaics (MPC manages its own)
-        for tu in sl.tile_urls:
-            if tu.tile_provider != "self_hosted" or not tu.mosaic_id:
-                continue
-
-            dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
-            try:
-                result = register_mosaic_sync(
-                    catalog_url=stac.catalog_url,
-                    collection_id=stac.stac_collection_id,
-                    bbox=bbox,
-                    datetime_range=dt_range,
-                    search_query=custom_query,
-                )
-                mosaic_id = result["mosaic_id"]
-                item_refs = result["item_refs"]
-
-                # Update MosaicRegistration
-                reg = db.execute(
-                    select(MosaicRegistration).where(MosaicRegistration.mosaic_id == mosaic_id)
-                ).scalar_one_or_none()
-                if reg:
-                    reg.item_count = len(item_refs)
-                    reg.assets_info = result.get("assets")
-                    reg.status = "ready" if item_refs else "empty"
-                    reg.registered_at = dt.utcnow()
-                    reg.error_message = None
-                    db.execute(delete(MosaicItem).where(MosaicItem.mosaic_id == mosaic_id))
-                else:
-                    db.add(
-                        MosaicRegistration(
-                            mosaic_id=mosaic_id,
-                            catalog_url=stac.catalog_url,
-                            stac_collection_id=stac.stac_collection_id,
-                            bbox=bbox,
-                            datetime_range=dt_range,
-                            max_cloud_cover=stac.max_cloud_cover,
-                            item_count=len(item_refs),
-                            assets_info=result.get("assets"),
-                            status="ready" if item_refs else "empty",
-                            registered_at=dt.utcnow(),
-                        )
-                    )
-                db.flush()
-
-                for ref in item_refs:
-                    db.add(
-                        MosaicItem(
-                            mosaic_id=mosaic_id,
-                            item_id=ref["id"],
-                            href=ref["href"],
-                            bbox_west=ref["bbox"][0],
-                            bbox_south=ref["bbox"][1],
-                            bbox_east=ref["bbox"][2],
-                            bbox_north=ref["bbox"][3],
-                            datetime=ref.get("datetime", ""),
-                            cloud_cover=ref.get("cloud_cover"),
-                            geom=_bbox_to_wkt(
-                                ref["bbox"][0], ref["bbox"][1], ref["bbox"][2], ref["bbox"][3]
-                            ),
-                            stac_item=ref.get("stac_item"),
-                        )
-                    )
-
-                # Rebuild tile URL with viz params
-                base_url = f"/api/stac/mosaic/{mosaic_id}/tiles/{{z}}/{{x}}/{{y}}.png"
-                viz_qs = build_viz_query_string(viz_params)
-                tu.tile_url = f"{base_url}?{viz_qs}" if viz_qs else base_url
-                tu.mosaic_id = mosaic_id
-
-                refreshed_count += 1
-            except Exception:
-                logger.warning(
-                    "Refresh failed for slice %s (mosaic %s)", sl.name, tu.mosaic_id, exc_info=True
-                )
+        dt_range = f"{sl.start_date}T00:00:00Z/{sl.end_date}T23:59:59Z"
+        try:
+            providers.ingest_on_tiler(
+                tiler,
+                stac.catalog_url,
+                stac.stac_collection_id,
+                bbox,
+                dt_range,
+                stac.max_cloud_cover,
+            )
+            refreshed_count += 1
+        except Exception:
+            logger.warning("Refresh failed for slice %s", sl.name, exc_info=True)
 
     db.flush()
     return {

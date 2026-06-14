@@ -13,7 +13,6 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { TilePreloader } from './tilePreloader';
-import { buildTileUrl } from '../../utils/tileLoading';
 import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
@@ -141,10 +140,7 @@ function buildCoverSliceJobs(
       const tileUrlEntry = slice.tile_urls[0];
       if (!tileUrlEntry) continue;
 
-      const resolvedUrl = buildTileUrl({
-        tile_url: tileUrlEntry.tile_url,
-        tile_provider: tileUrlEntry.tile_provider,
-      });
+      const resolvedUrl = tileUrlEntry.tile_url;
 
       jobs.push({
         priority: getPriority(collection.id),
@@ -152,6 +148,7 @@ function buildCoverSliceJobs(
         urlTemplate: resolvedUrl,
         extent,
         zoom,
+        tileProvider: tileUrlEntry.tile_provider,
       });
     }
   }
@@ -236,10 +233,7 @@ export function useTilePreloading({
         const tileUrlEntry = nextSlice.tile_urls[0];
         if (!tileUrlEntry) continue;
 
-        const resolvedUrl = buildTileUrl({
-          tile_url: tileUrlEntry.tile_url,
-          tile_provider: tileUrlEntry.tile_provider,
-        });
+        const resolvedUrl = tileUrlEntry.tile_url;
 
         // Determine priority from prefix
         const isDefault = collectionId === activeCollectionIdRef.current;
@@ -268,6 +262,7 @@ export function useTilePreloading({
           urlTemplate: resolvedUrl,
           extent,
           zoom,
+          tileProvider: tileUrlEntry.tile_provider,
         });
         break; // Only try one fallback slice at a time
       }

@@ -26,7 +26,7 @@ import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore } from '../../stores/map.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { tileLoadImagery } from '../../utils/tileLoading';
+import { crossOriginFor, tileLoadImagery } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -41,6 +41,8 @@ interface WindowMapProps {
   follow?: boolean;
   // The single tile URL to display (already resolved by the parent)
   tileUrl: string;
+  // Tile provider ("mpc" / tiler name / null) - drives crossOrigin (cookie vs anonymous).
+  tileProvider?: string | null;
   // Crosshair
   crosshair?: { lat: number; lon: number; color?: string };
   showCrosshair?: boolean;
@@ -75,6 +77,7 @@ const WindowMap = ({
   zoom,
   follow = false,
   tileUrl,
+  tileProvider,
   crosshair,
   showCrosshair = true,
   refocusTrigger,
@@ -118,7 +121,7 @@ const WindowMap = ({
 
     const source = new XYZ({
       url: tileUrl,
-      crossOrigin: 'anonymous',
+      crossOrigin: crossOriginFor(tileProvider),
       cacheSize: 256,
       transition: 0,
       tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
@@ -229,7 +232,7 @@ const WindowMap = ({
 
     const source = new XYZ({
       url: tileUrl,
-      crossOrigin: 'anonymous',
+      crossOrigin: crossOriginFor(tileProvider),
       cacheSize: 256,
       transition: 0,
       tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
@@ -260,7 +263,7 @@ const WindowMap = ({
     if (map) {
       map.once('postrender', () => source.changed());
     }
-  }, [tileUrl, detectionKey]);
+  }, [tileUrl, tileProvider, detectionKey]);
 
   // Move to the task-anchored center/zoom (non-following windows only; followers
   // are driven by the subscription below). Also runs on `follow` transitions, so

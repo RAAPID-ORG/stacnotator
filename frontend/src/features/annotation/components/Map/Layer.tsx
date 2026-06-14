@@ -34,6 +34,7 @@ export class XYZLayer extends Layer {
   readonly minZoom?: number;
   readonly maxZoom?: number;
   readonly preload?: number;
+  readonly crossOrigin: 'anonymous' | 'use-credentials';
 
   constructor(params: {
     id: string;
@@ -45,6 +46,8 @@ export class XYZLayer extends Layer {
     maxZoom?: number;
     /** OL preload depth. Defaults to 0 for imagery, 4 for basemaps. Use Infinity for eager neighbour/zoom prefetching. */
     preload?: number;
+    /** Credentialed for our tilers (cookie auth); anonymous for MPC/public. Default anonymous. */
+    crossOrigin?: 'anonymous' | 'use-credentials';
   }) {
     super(params.id, params.name, params.layerType);
     this.urlTemplate = params.urlTemplate;
@@ -52,6 +55,7 @@ export class XYZLayer extends Layer {
     this.minZoom = params.minZoom;
     this.maxZoom = params.maxZoom;
     this.preload = params.preload;
+    this.crossOrigin = params.crossOrigin ?? 'anonymous';
   }
 
   asOLLayer() {
@@ -60,7 +64,7 @@ export class XYZLayer extends Layer {
       attributions: this.attribution,
       minZoom: this.minZoom,
       maxZoom: this.maxZoom,
-      crossOrigin: 'anonymous' as const,
+      crossOrigin: this.crossOrigin,
       cacheSize: 512,
       transition: 150,
       ...(this.layerType === 'imagery'

@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class TilerCfg(BaseModel):
-    """A titiler-pgstac tiler endpoint. STACNotator is unaware of where it's hosted.
+    """A titiler-pgstac tiler endpoint.
 
     ``url`` is browser-facing; ``internal_url`` (optional) is the backend->tiler base for
     register/ingest; ``allows_ingest`` says whether this tiler exposes ``POST /ingest``.
@@ -51,13 +51,11 @@ class Settings(BaseSettings):
     TILER_COOKIE_SAMESITE: str = "lax"
     TILER_COOKIE_SECURE: bool = True
 
-    # Config-only tiler registry: name -> tiler. STACNotator routes by name and stays
-    # unaware of hosting (Azure/GCP/...). MPC is the only tiler special-cased in code.
+    # tiler registry: name -> tiler.
     # Set via the TILERS env var as JSON, e.g.
-    #   TILERS='{"planet":{"url":"https://t1"},"external":{"url":"https://t2","allows_ingest":true}}'
+    # TILERS='{"planet":{"url":"https://t1"},"external":{"url":"https://t2","allows_ingest":true}}'
     TILERS: dict[str, TilerCfg] = {}
-    # Tiler used when a collection doesn't name one.
-    DEFAULT_TILER: str | None = None
+    DEFAULT_TILER: str | None = None  # Tiler used when a collection doesn't name one.
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None
