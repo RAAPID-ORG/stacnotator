@@ -27,11 +27,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Drop the mosaic materialization tables and the slice_tile_urls FK."""
-    op.drop_constraint(
-        "slice_tile_urls_mosaic_id_fkey",
-        "slice_tile_urls",
-        schema="data",
-        type_="foreignkey",
+    op.execute(
+        "ALTER TABLE data.slice_tile_urls "
+        "DROP CONSTRAINT IF EXISTS fk_slice_tile_urls_mosaic_id"
     )
     op.alter_column(
         "slice_tile_urls",
@@ -93,7 +91,7 @@ def downgrade() -> None:
         existing_nullable=True,
     )
     op.create_foreign_key(
-        "slice_tile_urls_mosaic_id_fkey",
+        "fk_slice_tile_urls_mosaic_id",
         "slice_tile_urls",
         "mosaic_registrations",
         ["mosaic_id"],
