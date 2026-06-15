@@ -193,7 +193,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
         // Users with their own assignments start on those. Everyone else
         // (public campaigns, or anyone with nothing assigned) starts on the
-        // pool of unassigned pending tasks — work that's free to pick up —
+        // pool of unassigned pending tasks - work that's free to pick up -
         // rather than every pending task, so tasks already handed off to a
         // reviewer don't linger in the default view.
         const showAll = campaign?.is_public;
@@ -464,7 +464,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       if (response?.status === 409) {
         const { visibleTasks: vt, currentTaskIndex: ci } = get();
         if (vt[ci]?.id === task.id) {
-          useLayoutStore.getState().showAlert('Task already taken — skipping', 'warning');
+          useLayoutStore.getState().showAlert('Task already taken - skipping', 'warning');
           get().nextTask();
         }
       }

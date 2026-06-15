@@ -43,7 +43,7 @@ const RouteFallback = () => (
 );
 
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
-// can be intercepted via useBlocker — see useUnsavedChangesGuard.
+// can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/" element={<AppLayout />}>

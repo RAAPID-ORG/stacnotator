@@ -68,6 +68,29 @@ APP_SWA="stacnotator-${ENV}-frontend"
 # Project name as used in Terraform (matches KV secret naming)
 PROJECT_NAME="stacnotator-${ENV}"
 
+# Tiler registry wiring for the backend (TILERS env, set once the tiler FQDN is
+# known). The tiler is registered under TILER_NAME; DEFAULT_TILER points at it.
+# TILER_ALLOWS_INGEST drives BOTH the backend's allows_ingest and the tiler's
+# ALLOW_STAC_API_INGEST so they can't drift (a mismatch makes the backend call
+# /ingest on a tiler that doesn't expose it).
+TILER_NAME="${TILER_NAME:-hosted}"
+TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
+
+# Shared parent domain for this environment, e.g. dev.stacnotator.io. When set, the
+# frontend / backend / tiler are addressed at app. / api. / tiler.<PUBLIC_DOMAIN>, and
+# the tiler-access cookie is scoped to .<PUBLIC_DOMAIN> so the browser sends it to the
+# tiler same-site (the hosted tiler can't render in a browser otherwise). The custom
+# domains must already be bound to the SWA + Container Apps (one-time; see
+# azure_deploy/README.md). Empty => default Azure hostnames (cross-domain: MPC works,
+# hosted-tiler tiles 401 in the browser).
+PUBLIC_DOMAIN="${PUBLIC_DOMAIN:-}"
+if [ -n "$PUBLIC_DOMAIN" ]; then
+    APP_FQDN="app.$PUBLIC_DOMAIN"
+    API_FQDN="api.$PUBLIC_DOMAIN"
+    TILER_PUBLIC_FQDN="tiler.$PUBLIC_DOMAIN"
+    COOKIE_DOMAIN=".$PUBLIC_DOMAIN"
+fi
+
 # Resource sizing per environment.
 # Backend is pinned to single replica (MIN=MAX=1) so alembic migrations
 # on container startup are serialized by definition. To raise the cap,
@@ -77,11 +100,11 @@ PROJECT_NAME="stacnotator-${ENV}"
 # a lock for database migrations that run on startup.
 if [ "$ENV" = "dev" ]; then
     BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
-    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=1    TILER_WORKERS=8
+    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=1    TILER_MAX=1    TILER_WORKERS=4
     TILER_DEDICATED=false
 else
     BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=4
-    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=0    TILER_MAX=2    TILER_WORKERS=16
+    TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=1    TILER_MAX=1    TILER_WORKERS=4
     TILER_DEDICATED=false
 fi
 
@@ -156,9 +179,16 @@ echo -e "${YELLOW}Building backend (server-side in ACR)...${NC}"
 az acr build --registry "$ACR_NAME" --image "backend:$IMAGE_TAG" -f backend/Dockerfile backend/
 echo -e "${GREEN}✓ Backend built + pushed${NC}"
 
-echo -e "${YELLOW}Building tiler (server-side in ACR)...${NC}"
-az acr build --registry "$ACR_NAME" --image "tiler:$IMAGE_TAG" -f tiler/Dockerfile tiler/
-echo -e "${GREEN}✓ Tiler built + pushed${NC}"
+# The tiler lives in its own repo (RAAPID-ORG/stacnotator-tiler) and owns its
+# own build+deploy (deployment/deploy-containerapp.sh, called below). CI checks
+# it out into TILER_REPO_DIR; locally it defaults to a sibling clone. We just
+# locate it here and fail early if it's missing.
+TILER_REPO_DIR="${TILER_REPO_DIR:-../stacnotator-tiler}"
+if [ ! -f "$TILER_REPO_DIR/deployment/deploy-containerapp.sh" ]; then
+    echo -e "${RED}Tiler repo not found at '$TILER_REPO_DIR'.${NC}"
+    echo -e "${RED}Set TILER_REPO_DIR, or check out RAAPID-ORG/stacnotator-tiler as a sibling.${NC}"
+    exit 1
+fi
 
 # Deploy backend
 echo ""
@@ -169,6 +199,7 @@ DB_HOST_URI="https://$KV_NAME.vault.azure.net/secrets/${PROJECT_NAME}-postgres-h
 FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credentials"
 EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
 TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
+TILER_DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-db-password"
 
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -206,12 +237,14 @@ else
 fi
 echo -e "${GREEN}✓ Backend deployed${NC}"
 
-# Deploy tiler
+# Deploy tiler. The tiler is its own repo (RAAPID-ORG/stacnotator-tiler); its
+# deploy logic lives there. We provision the CAE-level workload profile here
+# (an environment concern), then hand the Container App off to the tiler repo's
+# deployment/deploy-containerapp.sh with this env's parameters.
 echo ""
 echo -e "${YELLOW}Deploying tiler...${NC}"
 
-# Workload profile: D16 for prod, consumption for dev
-TILER_PROFILE_ARGS=""
+WORKLOAD_PROFILE=""
 if [ "$TILER_DEDICATED" = "true" ]; then
     EXISTING_PROFILES=$(az containerapp env workload-profile list -g "$RESOURCE_GROUP" --name "$CAE_NAME" --query "[].name" -o tsv 2>/dev/null || echo "")
     if ! echo "$EXISTING_PROFILES" | grep -q "tiler-dedicated"; then
@@ -224,48 +257,25 @@ if [ "$TILER_DEDICATED" = "true" ]; then
             --output none
         echo -e "${GREEN}  ✓ Workload profile added${NC}"
     fi
-    TILER_PROFILE_ARGS="--workload-profile-name tiler-dedicated"
+    WORKLOAD_PROFILE="tiler-dedicated"
 fi
 
-if az containerapp show --name "$APP_TILER" -g "$RESOURCE_GROUP" &>/dev/null; then
-    az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
-        --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
-        --output none
-else
-    az containerapp create --name "$APP_TILER" -g "$RESOURCE_GROUP" \
-        --environment "$CAE_NAME" \
-        $TILER_PROFILE_ARGS \
-        --image "$ACR_LOGIN_SERVER/tiler:$IMAGE_TAG" \
-        --target-port 8001 --ingress external \
-        --cpu "$TILER_CPU" --memory "$TILER_MEM" \
-        --min-replicas "$TILER_MIN" --max-replicas "$TILER_MAX" \
-        --scale-rule-name http-concurrency --scale-rule-type http --scale-rule-http-concurrency 20 \
-        --user-assigned "$IDENTITY_ID" \
-        --registry-server "$ACR_LOGIN_SERVER" --registry-identity "$IDENTITY_ID" \
-        --secrets "db-password=keyvaultref:$DB_PASS_URI,identityref:$IDENTITY_ID" \
-                  "db-host=keyvaultref:$DB_HOST_URI,identityref:$IDENTITY_ID" \
-                  "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
-        --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
-                   "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
-                   "DBPASS=secretref:db-password" "DBHOST=secretref:db-host" \
-                   "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
-                   "WORKERS=$TILER_WORKERS" "TIMEOUT=120" "MAX_REQUESTS=500" \
-                   "GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR" \
-                   "GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES" \
-                   "GDAL_HTTP_MULTIPLEX=YES" \
-                   "GDAL_HTTP_VERSION=2" \
-                   "GDAL_HTTP_TIMEOUT=60" \
-                   "GDAL_HTTP_MAX_RETRY=3" \
-                   "GDAL_HTTP_RETRY_DELAY=1" \
-                   "GDAL_INGESTED_BYTES_AT_OPEN=32768" \
-                   "VSI_CACHE=TRUE" \
-                   "VSI_CACHE_SIZE=536870912" \
-                   "CPL_VSIL_CURL_CACHE_SIZE=200000000" \
-                   "GDAL_CACHEMAX=256" \
-                   "CPL_VSIL_CURL_ALLOWED_EXTENSIONS=.tif,.tiff" \
-                   "CORS_ORIGINS=__PENDING__" \
-        --output none
-fi
+RESOURCE_GROUP="$RESOURCE_GROUP" \
+CONTAINERAPP_NAME="$APP_TILER" \
+CAE_NAME="$CAE_NAME" \
+ACR_NAME="$ACR_NAME" \
+IMAGE_TAG="$IMAGE_TAG" \
+ACR_LOGIN_SERVER="$ACR_LOGIN_SERVER" \
+IDENTITY_ID="$IDENTITY_ID" \
+DB_HOST_SECRET_URI="$DB_HOST_URI" \
+TILER_DB_PASSWORD_SECRET_URI="$TILER_DB_PASS_URI" \
+TILER_TOKEN_SECRET_URI="$TILER_SECRET_URI" \
+CPU="$TILER_CPU" MEMORY="$TILER_MEM" \
+MIN_REPLICAS="$TILER_MIN" MAX_REPLICAS="$TILER_MAX" \
+WEB_CONCURRENCY="$TILER_WORKERS" \
+ALLOW_STAC_API_INGEST="$TILER_ALLOWS_INGEST" \
+WORKLOAD_PROFILE="$WORKLOAD_PROFILE" \
+    "$TILER_REPO_DIR/deployment/deploy-containerapp.sh"
 echo -e "${GREEN}✓ Tiler deployed${NC}"
 
 # Wait for the new backend revision to become healthy.
@@ -350,8 +360,7 @@ echo -e "${YELLOW}  Building frontend...${NC}"
 cd frontend
 echo -e "${YELLOW}  Installing frontend dependencies...${NC}"
 npm ci
-VITE_API_BASE_URL="https://$BACKEND_URL" \
-VITE_TILER_BASE_URL="https://$TILER_URL" \
+VITE_API_BASE_URL="https://${API_FQDN:-$BACKEND_URL}" \
 VITE_FIREBASE_API_KEY="$VITE_FIREBASE_API_KEY" \
 VITE_FIREBASE_AUTH_DOMAIN="$VITE_FIREBASE_AUTH_DOMAIN" \
 VITE_FIREBASE_PROJECT_ID="$VITE_FIREBASE_PROJECT_ID" \
@@ -378,18 +387,37 @@ echo -e "${GREEN}✓ Frontend deployed${NC}"
 # Update CORS
 echo ""
 echo -e "${YELLOW}Updating CORS...${NC}"
-CORS_ORIGINS_VALUE="https://$FRONTEND_URL"
+CORS_ORIGINS_VALUE="https://${APP_FQDN:-$FRONTEND_URL}"
 if [ -n "$CUSTOM_DOMAINS" ]; then
     # CUSTOM_DOMAINS is a comma-separated list of full origins,
     # e.g. "https://www.stacnotator.io,https://stacnotator.io"
     CORS_ORIGINS_VALUE="${CORS_ORIGINS_VALUE},${CUSTOM_DOMAINS}"
 fi
 echo -e "${BLUE}  CORS_ORIGINS=${CORS_ORIGINS_VALUE}${NC}"
+
+# Wire the tiler into the backend's registry now that its FQDN is known (same
+# late-binding pattern as CORS - the backend is created before the tiler exists).
+# Browser-facing url = the custom tiler domain when set (so it's same-site with the
+# app for cookie auth); internal_url stays the Azure FQDN so backend->tiler
+# register/ingest routes directly inside Azure (no dependency on public DNS).
+TILER_BROWSER_URL="https://${TILER_PUBLIC_FQDN:-$TILER_URL}"
+TILER_INTERNAL_URL="https://$TILER_URL"
+TILERS_JSON="{\"$TILER_NAME\":{\"url\":\"$TILER_BROWSER_URL\",\"internal_url\":\"$TILER_INTERNAL_URL\",\"allows_ingest\":$TILER_ALLOWS_INGEST}}"
+echo -e "${BLUE}  TILERS=${TILERS_JSON}${NC}"
+echo -e "${BLUE}  DEFAULT_TILER=${TILER_NAME}${NC}"
+
+BACKEND_ENV=("CORS_ORIGINS=$CORS_ORIGINS_VALUE" "TILERS=$TILERS_JSON" "DEFAULT_TILER=$TILER_NAME")
+if [ -n "$COOKIE_DOMAIN" ]; then
+    # Scope the tiler-access cookie to the shared parent so the browser sends it to
+    # the tiler subdomain (same-site). SameSite=lax / Secure=true are the defaults.
+    BACKEND_ENV+=("TILER_COOKIE_DOMAIN=$COOKIE_DOMAIN")
+    echo -e "${BLUE}  TILER_COOKIE_DOMAIN=${COOKIE_DOMAIN}${NC}"
+fi
 az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-    --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none
+    --set-env-vars "${BACKEND_ENV[@]}" --output none
 az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
     --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none 2>/dev/null || true
-echo -e "${GREEN}✓ CORS updated${NC}"
+echo -e "${GREEN}✓ CORS + tiler registry updated${NC}"
 
 echo ""
 echo -e "${GREEN}Deployment Complete${NC}"

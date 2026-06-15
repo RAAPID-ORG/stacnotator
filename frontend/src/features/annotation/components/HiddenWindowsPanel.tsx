@@ -208,7 +208,7 @@ export const HiddenWindowsPanel = () => {
         <div className="flex gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 py-2">
           <IconInfo className="mt-px h-3 w-3 shrink-0 text-neutral-400" />
           <p className="text-[11px] leading-snug text-neutral-500">
-            Hide windows you don't need as dedicated views — their dates stay available in the
+            Hide windows you don't need as dedicated views - their dates stay available in the
             timeline, and fewer windows load faster. Drag one onto the canvas to place it, or click
             Add for the next free slot.
           </p>
@@ -284,7 +284,7 @@ export const HiddenWindowsPanel = () => {
             </span>
             <p className="text-xs font-medium text-neutral-600">All windows visible</p>
             <p className="text-[11px] leading-snug text-neutral-400">
-              Use the eye icon on a window header — or “Hide all” — to move windows here.
+              Use the eye icon on a window header - or “Hide all” - to move windows here.
             </p>
           </div>
         ) : (

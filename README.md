@@ -106,7 +106,6 @@ The app will be available at:
 |---|---|
 | Frontend | http://localhost:5173 (auto-reloads) |
 | Backend | http://localhost:8000 (auto-reloads) |
-| Tiler | http://localhost:8001 (auto-reloads) |
 | API Docs | http://localhost:8000/docs |
 
 #### Step 5 - Stop All Services
@@ -131,10 +130,6 @@ stacnotator/
 │   ├── Dockerfile.dev           # Development (with reload)
 │   ├── src/                     # Application code
 │   └── alembic/                 # Database migrations
-├── tiler/                       # TiTiler tile serving service
-│   ├── Dockerfile               # Production build (GDAL + COG)
-│   ├── Dockerfile.dev           # Development (with reload)
-│   └── src/                     # Tile server code
 └── frontend/                    # React + Vite application
     ├── Dockerfile               # Production build (nginx)
     ├── Dockerfile.dev           # Development server (HMR)
@@ -153,7 +148,7 @@ stacnotator/
 **Services:**
 - **Frontend**: React app (Vite + OpenLayers). Backend client generated with `openapi-ts`. Deployed as Azure Static Web App in production.
 - **Backend**: FastAPI application with Gunicorn workers. Handles auth, campaigns, annotations, STAC catalog browsing, and mosaic registration.
-- **Tiler**: Self-hosted tile server (TiTiler + GDAL). Reads COGs from STAC catalogs, composites mosaics, serves PNG tiles. Uses PostGIS spatial index for fast per-tile item lookups.
+- **Tiler** (optional, separate repo: [stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)): self-hosted TiTiler + GDAL tile server. Reads COGs from STAC catalogs into a pgstac index, composites mosaics, serves PNG tiles. Only needed for non-MPC catalogs or compositing/masking - MPC imagery with first-valid compositing is served directly by Planetary Computer.
 - **Database**: PostgreSQL 16 with PostGIS (spatial queries), pgvector (embeddings)
 
 ## Development
@@ -173,6 +168,33 @@ make dev-shell-backend     # Backend shell
 make dev-migrate           # Run database migrations
 make dev-down              # Stop all services
 ```
+
+### Imagery providers locally
+
+The dev stack runs **db + backend + frontend only** - no tiler. That fully covers
+**Microsoft Planetary Computer (MPC) imagery with first-valid compositing**, which is
+served straight from MPC (no tiler in the path).
+
+A tiler is only needed for imagery from **outside MPC** (custom STAC catalogs) or for
+any additional **compositing / masking** (median, mean, NDVI-best, SCL masks). To use those:
+
+1. Clone and run the tiler ([stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler)) - `docker compose up` there brings up its own pgstac + tiler on `:8000`.
+2. Uncomment/set `TILERS` and `DEFAULT_TILER` on the `backend` service in `docker-compose.dev.yml` (an example is in the file).
+
+Without a tiler configured, the backend's tiler registry is empty and non-MPC or
+compositing imagery is rejected when you try to add it in campaign setup.
+
+**Local vs deployed networking.** Locally this "just works" because the backend and
+tiler share `localhost` (cookies aren't port-scoped). In a **deployed** setup, tile
+access is authorized by an HttpOnly cookie the backend sets, so the browser only
+sends it to the tiler if the tiler shares a **registrable domain** with the app -
+i.e. same-origin behind a reverse proxy, or a sibling subdomain (`tiler.example.com`)
+with `TILER_COOKIE_DOMAIN=.example.com`. A tiler on an unrelated domain can't receive
+the cookie, so its tiles 401 in the browser even if the registry wiring is correct.
+The tiler also shares the backend's `TILER_TOKEN_SECRET` (the backend mints HS256
+tokens the tiler verifies), so a tiler is part of one trusted deployment - not a
+third-party service you point at across origins. See the tiler repo's
+"Production topology" for the exact reverse-proxy / subdomain setup.
 
 ### Pre-commit Hooks
 

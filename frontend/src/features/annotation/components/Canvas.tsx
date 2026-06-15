@@ -25,7 +25,7 @@ import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
 import { IconEyeSlash } from '~/shared/ui/Icons';
 
-// A single stable compactor instance — recreating it per render would
+// A single stable compactor instance - recreating it per render would
 // invalidate react-grid-layout's internal memos that key on its identity.
 const CANVAS_COMPACTOR = getCompactor(null, false, true);
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;

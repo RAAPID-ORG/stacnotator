@@ -74,6 +74,102 @@ make az-deploy-prod           # or az-deploy-dev
 # https://console.firebase.google.com/ -> Authentication -> Settings -> Authorized domains
 ```
 
+### Tiler database (pgstac) - one-time per environment
+
+The tiler serves tiles from a **pgstac** catalog and connects as a dedicated, least-privilege
+role - it does **not** use the backend's database user or tables. This must be bootstrapped once
+against the Flexible Server before the tiler can serve, and is **not** done by `deploy-app.sh`
+(it needs admin DB privileges the running tiler must never hold).
+
+The full, provider-agnostic procedure and rationale live in the tiler repo:
+**`stacnotator-tiler/docs/database.md`**. Run it from a host that can reach the (private) admin
+endpoint - on VPN or the self-hosted CI runner. Exact Azure steps (copy-paste, set the two vars
+at the top for your environment):
+
+```bash
+RG=rg-stacnotator-dev-prod-westeurope        # the env's resource group
+PROJECT=stacnotator-dev                        # stacnotator-dev | stacnotator-prod
+
+KV=$(az keyvault list -g "$RG" --query "[0].name" -o tsv)
+SERVER=$(az postgres flexible-server list -g "$RG" --query "[0].name" -o tsv)
+
+# 1. Allowlist the extensions pgstac installs (postgis, btree_gist, unaccent). The
+#    canonical home is Terraform (azurerm_postgresql_flexible_server_configuration);
+#    set it directly if you're bootstrapping ahead of that:
+az postgres flexible-server parameter set -g "$RG" -s "$SERVER" \
+  --name azure.extensions --value POSTGIS,BTREE_GIST,UNACCENT
+
+# 2. Pull the admin creds + host from Key Vault and generate the tiler role password:
+ADMIN_PW=$(az keyvault secret show --vault-name "$KV" --name "${PROJECT}-postgres-admin-password" --query value -o tsv)
+PGHOST_VAL=$(az keyvault secret show --vault-name "$KV" --name "${PROJECT}-postgres-host" --query value -o tsv)
+TILER_PW=$(openssl rand -base64 24)
+
+# 3. Bootstrap pgstac as psqladmin. Creates the `pgstac` database, installs pgstac,
+#    and creates the least-privilege `tiler_app` login role (member of pgstac_ingest):
+cd ../stacnotator-tiler
+pip install "pypgstac[psycopg]==0.9.5"
+PGHOST="$PGHOST_VAL" PGUSER=psqladmin PGPASSWORD="$ADMIN_PW" PGSSLMODE=require \
+TILER_DB_PASSWORD="$TILER_PW" ./scripts/bootstrap-pgstac.sh
+
+# 4. Store the tiler role password in Key Vault. deploy-app.sh wires it into the tiler
+#    Container App as the `tiler-db-password` secret (separate from the backend's db-password):
+az keyvault secret set --vault-name "$KV" --name tiler-db-password --value "$TILER_PW"
+```
+
+The tiler Container App then runs with `PGDATABASE=pgstac`, `PGUSER=tiler_app`,
+`PGSSLMODE=require`, and `PGPASSWORD` from `tiler-db-password` - all set by `deploy-app.sh`.
+
+Upgrading pgstac later: bump the `pypgstac` pin and re-run `pypgstac migrate` as admin (see the
+tiler doc). The runtime `tiler_app` role is unaffected.
+
+### Custom domains - one-time per environment (required for hosted-tiler tiles)
+
+Tile access is authorized by an `HttpOnly` cookie the backend sets. The browser only sends it
+to the tiler if the tiler shares a **registrable domain** with the app. With the default Azure
+hostnames (`*.azurestaticapps.net` for the SWA, `*.azurecontainerapps.io` for the Container Apps)
+they're different domains, so hosted-tiler tiles **401 in the browser** (MPC still works - MPC
+tiles don't use our cookie). Fix: put all three under one parent domain per environment.
+
+Pick a per-env parent so dev and prod cookies don't bleed into each other:
+
+| Env  | Parent (`PUBLIC_DOMAIN`) | Frontend            | Backend             | Tiler                 |
+|------|--------------------------|---------------------|---------------------|-----------------------|
+| dev  | `dev.stacnotator.io`     | `app.dev.stacnotator.io` | `api.dev.stacnotator.io` | `tiler.dev.stacnotator.io` |
+| prod | `stacnotator.io`         | `app.stacnotator.io`     | `api.stacnotator.io`     | `tiler.stacnotator.io`     |
+
+**1. Bind the SWA custom domain** (frontend). CNAME-validated:
+
+```bash
+# DNS: CNAME app.dev -> <swa-default-hostname>
+az staticwebapp hostname set -n stacnotator-dev-frontend -g <rg> \
+  --hostname app.dev.stacnotator.io
+```
+
+**2. Bind each Container App custom domain** (backend + tiler). Each needs a CNAME plus an
+`asuid.` TXT for domain ownership, then a managed certificate:
+
+```bash
+VID=$(az containerapp show -n stacnotator-dev-backend -g <rg> \
+  --query properties.customDomainVerificationId -o tsv)
+# DNS: CNAME api.dev -> <backend-containerapp-fqdn>
+#      TXT   asuid.api.dev -> $VID
+az containerapp hostname add  -n stacnotator-dev-backend -g <rg> --hostname api.dev.stacnotator.io
+az containerapp hostname bind -n stacnotator-dev-backend -g <rg> --hostname api.dev.stacnotator.io \
+  --environment <cae-name> --validation-method CNAME   # issues a managed cert
+```
+
+Repeat step 2 for `stacnotator-dev-tiler` -> `tiler.dev.stacnotator.io` (its
+`customDomainVerificationId` and FQDN). Custom-domain bindings persist on the resource, so this
+is one-time per environment.
+
+**3. Tell the deploy script the parent domain.** Set `PUBLIC_DOMAIN` (in
+`.env.deploy.<env>` for local, or the `PUBLIC_DOMAIN_DEV` / `PUBLIC_DOMAIN_PROD` GitHub
+Actions **variable** for CI). The deploy then builds the frontend against `api.<domain>`, points
+`TILERS` at `https://tiler.<domain>` (browser-facing) with `internal_url` on the Azure FQDN
+(backend->tiler stays in-Azure), sets `CORS_ORIGINS` to `https://app.<domain>`, and sets
+`TILER_COOKIE_DOMAIN=.<domain>` on the backend. `SameSite=lax` + `Secure` (the defaults) then
+work because all three are same-site.
+
 ## Manual deployment (local CLI)
 
 Prod and dev normally deploy from CI (see [Automated deployments](#automated-deployments-ci)). Use this path for local/manual deploys from a developer laptop on VPN, or for first-time bootstrapping.
@@ -136,7 +232,7 @@ Safety relies on:
 
 #### One-time setup (do this before the first CI dev deploy)
 
-1. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). These mirror how the prod deploy reads its secrets from the `production` Environment - there are no repo-level secrets on this project.
+1. **Configure GitHub Environment secrets on the `dev` Environment** (Settings → Environments → `dev` → Environment secrets). These mirror how the prod deploy reads its secrets from the `production` Environment. (The one exception is `TILER_REPO_TOKEN`, which must be repo-level - see step 2.)
 
    | Secret | Value |
    |---|---|
@@ -148,7 +244,26 @@ Safety relies on:
    - If they're listed there, copy them into the `dev` Environment too.
    - If they're not listed there, they're Organization secrets (Settings → Organization → Secrets and variables → Actions). Make sure the `dev` Environment is allowed in their access policy.
 
-2. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
+2. **Add the tiler-repo checkout token + ref at the REPOSITORY level** (Settings → Secrets and variables → Actions). The tiler lives in its own private repo (`RAAPID-ORG/stacnotator-tiler`); the deploy jobs **and** the non-environment `docker-build` job (PR/push to `main`) check it out. Because `docker-build` is not environment-scoped, it can't read Environment secrets - so these are repository-level:
+
+   | Repository **secret** | Value |
+   |---|---|
+   | `TILER_REPO_TOKEN` | Token with `contents:read` on `RAAPID-ORG/stacnotator-tiler` (fine-grained PAT or GitHub App token). Without it the tiler checkout fails. |
+
+   | Repository **variable** (optional) | Value |
+   |---|---|
+   | `TILER_REPO_REF` | Git ref of the tiler repo to build/deploy. Defaults to `main` if unset. |
+
+3. **Set the public domain as an Environment variable** - only needed once the custom domains are bound (see [Custom domains](#custom-domains---one-time-per-environment-required-for-hosted-tiler-tiles) above). These are per-environment **variables** (not secrets), set alongside the secrets in each Environment:
+
+   | Environment | Variable | Value |
+   |---|---|---|
+   | `dev` | `PUBLIC_DOMAIN_DEV` | `dev.stacnotator.io` |
+   | `production` | `PUBLIC_DOMAIN_PROD` | `stacnotator.io` |
+
+   Until set, deploys use the default Azure hostnames: MPC imagery works, but hosted-tiler tiles 401 in the browser (cross-domain cookie).
+
+4. **Create the `dev` GitHub Environment** under Settings → Environments → New environment → name it `dev`. The workflow references `environment: dev` (matching how the prod deploy references `environment: production`), so the job will not start until this Environment exists. Configure it as follows:
 
    - **Required reviewers**: mirror the list from the `production` Environment.
    - **Deployment branches**: restrict to `develop` only (Selected branches → add `develop`).

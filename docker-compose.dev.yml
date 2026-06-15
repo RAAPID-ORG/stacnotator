@@ -51,7 +51,12 @@ services:
       TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       ENVIRONMENT: development
       LOG_LEVEL: debug
-      TILER_BASE_URL: ${TILER_BASE_URL:-http://tiler:8001}
+      # No tiler runs locally by default, so the tiler registry is empty: only MPC
+      # imagery with first-valid compositing works (served directly by MPC). To use
+      # non-MPC catalogs or compositing/masking, run the tiler (see note below) and
+      # uncomment these to register it (the URL must be reachable from this container):
+      # TILERS: '{"hosted":{"url":"http://host.docker.internal:8000","allows_ingest":true}}'
+      # DEFAULT_TILER: hosted
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
@@ -76,45 +81,17 @@ services:
     # Override command for development with hot reload
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
-  # Tiler Service (tile serving, separated from backend for independent scaling)
-  tiler:
-    build:
-      context: ./tiler
-      dockerfile: Dockerfile.dev
-    container_name: tiler-dev
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DBNAME: ${POSTGRES_DB:-stacnotator}
-      DBUSER: ${POSTGRES_USER:-stacnotator}
-      DBPASS: ${POSTGRES_PASSWORD:-devpassword}
-      DBHOST: db
-      DBPORT: 5432
-      DBDRIVER: psycopg2
-      DBSCHEME: postgresql
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173,http://localhost:8080}
-      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
-      GDAL_DISABLE_READDIR_ON_OPEN: EMPTY_DIR
-      GDAL_HTTP_MERGE_CONSECUTIVE_RANGES: "NO"
-      GDAL_HTTP_MULTIPLEX: "YES"
-      GDAL_HTTP_TIMEOUT: "60"
-      GDAL_HTTP_MAX_RETRY: "3"
-      GDAL_HTTP_RETRY_DELAY: "1"
-      GDAL_CACHEMAX: "256"
-      VSI_CACHE: "TRUE"
-      VSI_CACHE_SIZE: "536870912"
-      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.tiff"
-      CPL_VSIL_CURL_CACHE_SIZE: "128000000"
-    volumes:
-      - ./tiler/src:/app/src:ro
-      - ./tiler/pyproject.toml:/app/pyproject.toml:ro
-    ports:
-      - "${TILER_PORT:-8001}:8001"
-    networks:
-      - stacnotator-dev-network
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8001 --reload --log-level debug
+  # No tiler service here. The tiler lives in its own repo
+  # (https://github.com/RAAPID-ORG/stacnotator-tiler) and isn't needed for local
+  # development: MPC imagery with first-valid compositing is served directly by
+  # Microsoft Planetary Computer, so db + backend + frontend is enough.
+  #
+  # A tiler is only required for imagery from OUTSIDE MPC (custom STAC catalogs) or
+  # for compositing/masking (median/mean/NDVI-best, SCL masks). To use those
+  # locally, clone the tiler repo and `docker compose up` there (it brings up its
+  # own pgstac + tiler on :8000), then set TILERS + DEFAULT_TILER on the backend
+  # service above. Without that, the backend's tiler registry is empty and any
+  # non-MPC / compositing imagery is rejected at imagery-setup time.
 
   # Frontend (Development with Vite HMR)
   frontend:
@@ -123,7 +100,6 @@ services:
       dockerfile: Dockerfile.dev
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-        VITE_TILER_BASE_URL: ${VITE_TILER_BASE_URL:-http://localhost:8001}
         VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
         VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
         VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
@@ -131,10 +107,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-      - tiler
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
-      VITE_TILER_BASE_URL: ${VITE_TILER_BASE_URL:-http://localhost:8001}
       VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
       VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
       VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}

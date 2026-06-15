@@ -5,7 +5,6 @@
 	test-backend test-e2e test-backend-docker test-e2e-docker test-dockerized \
 	ci-check ci-check-docker pre-commit-install pre-commit-run \
 	dev-restore-backup \
-	dev-logs-tiler dev-restart-tiler dev-shell-tiler logs-tiler restart-tiler \
 	az-deploy-prod az-deploy-dev az-sync-prod-to-dev \
 	az-logs-prod az-logs-dev az-upload-secrets-prod az-upload-secrets-dev
 
@@ -46,9 +45,6 @@ dev-logs-backend: ## Show backend development logs
 dev-logs-frontend: ## Show frontend development logs
 	$(COMPOSE_DEV) logs -f frontend
 
-dev-logs-tiler: ## Show tiler development logs
-	$(COMPOSE_DEV) logs -f tiler
-
 dev-restart: ## Restart development services
 	$(COMPOSE_DEV) restart
 
@@ -58,17 +54,11 @@ dev-restart-backend: ## Restart backend development service
 dev-restart-frontend: ## Restart frontend development service
 	$(COMPOSE_DEV) restart frontend
 
-dev-restart-tiler: ## Restart tiler development service
-	$(COMPOSE_DEV) restart tiler
-
 dev-shell-backend: ## Open shell in backend development container
 	$(COMPOSE_DEV) exec backend /bin/bash
 
 dev-shell-frontend: ## Open shell in frontend development container
 	$(COMPOSE_DEV) exec frontend /bin/bash
-
-dev-shell-tiler: ## Open shell in tiler development container
-	$(COMPOSE_DEV) exec tiler /bin/bash
 
 dev-clean: ## Remove development containers and volumes
 	$(COMPOSE_DEV) down -v --remove-orphans
@@ -169,9 +159,6 @@ logs-backend: ## Show backend logs (production)
 logs-frontend: ## Show frontend logs (production)
 	$(COMPOSE_PROD) logs -f frontend
 
-logs-tiler: ## Show tiler logs (production)
-	$(COMPOSE_PROD) logs -f tiler
-
 logs-db: ## Show database logs (production)
 	$(COMPOSE_PROD) logs -f db
 
@@ -186,9 +173,6 @@ restart-backend: ## Restart backend service (production)
 
 restart-frontend: ## Restart frontend service (production)
 	$(COMPOSE_PROD) restart frontend
-
-restart-tiler: ## Restart tiler service (production)
-	$(COMPOSE_PROD) restart tiler
 
 ps: ## Show running containers (all)
 	@echo "Production containers:"

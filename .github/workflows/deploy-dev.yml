@@ -39,6 +39,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      # The tiler is its own repo; check it out so deploy-app.sh can build +
+      # deploy it. Needs a token with read access to the private tiler repo.
+      - name: Check out tiler repo
+        uses: actions/checkout@v4
+        with:
+          repository: RAAPID-ORG/stacnotator-tiler
+          ref: ${{ vars.TILER_REPO_REF || 'main' }}
+          token: ${{ secrets.TILER_REPO_TOKEN }}
+          path: stacnotator-tiler
+
       - name: Azure Login via OIDC (dev identity)
         uses: azure/login@v2
         with:
@@ -57,4 +67,6 @@ jobs:
           CI: "true"
           RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_DEV }}
           EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_DEV }}
+          TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
+          PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_DEV }}
         run: ./azure_deploy/deploy-app.sh dev

@@ -191,8 +191,16 @@ jobs:
       - name: Build backend image
         run: docker build -t stacnotator-backend:ci ./backend
 
+      - name: Check out tiler repo
+        uses: actions/checkout@v4
+        with:
+          repository: RAAPID-ORG/stacnotator-tiler
+          ref: ${{ vars.TILER_REPO_REF || 'main' }}
+          token: ${{ secrets.TILER_REPO_TOKEN }}
+          path: stacnotator-tiler
+
       - name: Build tiler image
-        run: docker build -t stacnotator-tiler:ci ./tiler
+        run: docker build -t stacnotator-tiler:ci ./stacnotator-tiler
 
       - name: Build frontend image
         run: docker build -t stacnotator-frontend:ci ./frontend
@@ -211,6 +219,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # The tiler is its own repo; check it out so deploy-app.sh can build +
+      # deploy it. Needs a token with read access to the private tiler repo.
+      - name: Check out tiler repo
+        uses: actions/checkout@v4
+        with:
+          repository: RAAPID-ORG/stacnotator-tiler
+          ref: ${{ vars.TILER_REPO_REF || 'main' }}
+          token: ${{ secrets.TILER_REPO_TOKEN }}
+          path: stacnotator-tiler
 
       - name: Azure Login via OIDC (prod identity)
         uses: azure/login@v2
@@ -231,4 +249,6 @@ jobs:
           RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP_PROD }}
           EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_PROD }}
           CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS_PROD }}
+          TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
+          PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_PROD }}
         run: ./azure_deploy/deploy-app.sh prod
