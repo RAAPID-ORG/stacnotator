@@ -76,7 +76,6 @@ PROJECT_NAME="stacnotator-${ENV}"
 TILER_NAME="${TILER_NAME:-hosted}"
 TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
 
-TILER_DB_MAX_CONN="${TILER_DB_MAX_CONN:-4}"
 # Optional extra tiler registry entries (inner JSON, no braces) for externally
 # hosted tilers like the GCP VM tiler - see the EXTRA_TILERS use below.
 EXTRA_TILERS="${EXTRA_TILERS:-}"
@@ -105,13 +104,22 @@ fi
 # a lock for database migrations that run on startup.
 if [ "$ENV" = "dev" ]; then
     BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
+    BACKEND_POOL_SIZE=3  BACKEND_MAX_OVERFLOW=2
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=1    TILER_MAX=1    TILER_WORKERS=4
+    TILER_DB_MAX_CONN=2
     TILER_DEDICATED=false
 else
     BACKEND_CPU=1    BACKEND_MEM=2Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=4
+    BACKEND_POOL_SIZE=15  BACKEND_MAX_OVERFLOW=20
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=1    TILER_MAX=1    TILER_WORKERS=4
+    TILER_DB_MAX_CONN=4
     TILER_DEDICATED=false
 fi
+# Connection budget (must fit the Postgres server's max_connections):
+#   backend = (BACKEND_POOL_SIZE + BACKEND_MAX_OVERFLOW) x BACKEND_WORKERS
+#   tiler   = TILER_DB_MAX_CONN x TILER_WORKERS
+# dev: backend 5x2=10 + tiler 2x4=8 = ~18. prod pools assume a larger DB SKU
+# (and ideally PgBouncer) - review against prod max_connections.
 
 echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
 echo ""
@@ -214,6 +222,7 @@ if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; 
         --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
         --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                        "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+                       "DB_POOL_SIZE=$BACKEND_POOL_SIZE" "DB_MAX_OVERFLOW=$BACKEND_MAX_OVERFLOW" \
                        "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
         --output none
 else
@@ -241,6 +250,7 @@ else
                    "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                    "ENVIRONMENT=production" \
                    "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+                   "DB_POOL_SIZE=$BACKEND_POOL_SIZE" "DB_MAX_OVERFLOW=$BACKEND_MAX_OVERFLOW" \
         --output none
 fi
 echo -e "${GREEN}✓ Backend deployed${NC}"

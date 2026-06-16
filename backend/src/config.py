@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     DBSCHEME: str = "postgresql"
     DBDRIVER: str = "psycopg2"
 
+    # SQLAlchemy pool sizing. Total backend connections = (DB_POOL_SIZE +
+    # DB_MAX_OVERFLOW) x gunicorn workers; keep that (plus the tiler's pool) under
+    # the Postgres server's max_connections. Lower these on small DB SKUs.
+    DB_POOL_SIZE: int = 15
+    DB_MAX_OVERFLOW: int = 20
+
     ENVIRONMENT: str = "development"  # "development" | "production"
 
     AUTH_PROVIDER: str = "firebase"
