@@ -205,11 +205,14 @@ TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
 TILER_DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-db-password"
 
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
+    az containerapp secret set --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+        --secrets "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" --output none
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
         --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
         --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                        "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
+                       "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
         --output none
 else
     az containerapp create --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
