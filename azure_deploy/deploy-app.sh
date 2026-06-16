@@ -75,6 +75,8 @@ PROJECT_NAME="stacnotator-${ENV}"
 # /ingest on a tiler that doesn't expose it).
 TILER_NAME="${TILER_NAME:-hosted}"
 TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
+
+TILER_DB_MAX_CONN="${TILER_DB_MAX_CONN:-4}"
 # Optional extra tiler registry entries (inner JSON, no braces) for externally
 # hosted tilers like the GCP VM tiler - see the EXTRA_TILERS use below.
 EXTRA_TILERS="${EXTRA_TILERS:-}"
@@ -280,6 +282,7 @@ CPU="$TILER_CPU" MEMORY="$TILER_MEM" \
 MIN_REPLICAS="$TILER_MIN" MAX_REPLICAS="$TILER_MAX" \
 WEB_CONCURRENCY="$TILER_WORKERS" \
 ALLOW_STAC_API_INGEST="$TILER_ALLOWS_INGEST" \
+DB_MIN_CONN_SIZE=1 DB_MAX_CONN_SIZE="$TILER_DB_MAX_CONN" \
 WORKLOAD_PROFILE="$WORKLOAD_PROFILE" \
     "$TILER_REPO_DIR/deployment/deploy-containerapp.sh"
 echo -e "${GREEN}✓ Tiler deployed${NC}"
