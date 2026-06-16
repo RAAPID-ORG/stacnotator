@@ -69,4 +69,5 @@ jobs:
           EE_SERVICE_ACCOUNT: ${{ secrets.EE_SERVICE_ACCOUNT_DEV }}
           TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_DEV }}
+          EXTRA_TILERS: ${{ vars.EXTRA_TILERS_DEV }}
         run: ./azure_deploy/deploy-app.sh dev

@@ -75,6 +75,9 @@ PROJECT_NAME="stacnotator-${ENV}"
 # /ingest on a tiler that doesn't expose it).
 TILER_NAME="${TILER_NAME:-hosted}"
 TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
+# Optional extra tiler registry entries (inner JSON, no braces) for externally
+# hosted tilers like the GCP VM tiler - see the EXTRA_TILERS use below.
+EXTRA_TILERS="${EXTRA_TILERS:-}"
 
 # Shared parent domain for this environment, e.g. dev.stacnotator.io. When set, the
 # frontend / backend / tiler are addressed at app. / api. / tiler.<PUBLIC_DOMAIN>, and
@@ -402,7 +405,12 @@ echo -e "${BLUE}  CORS_ORIGINS=${CORS_ORIGINS_VALUE}${NC}"
 # register/ingest routes directly inside Azure (no dependency on public DNS).
 TILER_BROWSER_URL="https://${TILER_PUBLIC_FQDN:-$TILER_URL}"
 TILER_INTERNAL_URL="https://$TILER_URL"
-TILERS_JSON="{\"$TILER_NAME\":{\"url\":\"$TILER_BROWSER_URL\",\"internal_url\":\"$TILER_INTERNAL_URL\",\"allows_ingest\":$TILER_ALLOWS_INGEST}}"
+HOSTED_ENTRY="\"$TILER_NAME\":{\"url\":\"$TILER_BROWSER_URL\",\"internal_url\":\"$TILER_INTERNAL_URL\",\"allows_ingest\":$TILER_ALLOWS_INGEST}"
+# EXTRA_TILERS registers additional, externally-hosted tilers (e.g. the GCP VM
+# tiler) in the backend registry. It's the inner JSON entries WITHOUT outer braces,
+# e.g.  "tiler-gcp":{"url":"https://tiler-gcp.dev.stacnotator.io","allows_ingest":false}
+# Multiple entries are comma-separated.
+TILERS_JSON="{${HOSTED_ENTRY}${EXTRA_TILERS:+,${EXTRA_TILERS}}}"
 echo -e "${BLUE}  TILERS=${TILERS_JSON}${NC}"
 echo -e "${BLUE}  DEFAULT_TILER=${TILER_NAME}${NC}"
 

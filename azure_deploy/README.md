@@ -130,45 +130,56 @@ hostnames (`*.azurestaticapps.net` for the SWA, `*.azurecontainerapps.io` for th
 they're different domains, so hosted-tiler tiles **401 in the browser** (MPC still works - MPC
 tiles don't use our cookie). Fix: put all three under one parent domain per environment.
 
-Pick a per-env parent so dev and prod cookies don't bleed into each other:
+Pick a per-env parent so dev and prod cookies don't bleed into each other (`dev` shown; for
+prod drop the `dev.` and use the prod resources / RG):
 
 | Env  | Parent (`PUBLIC_DOMAIN`) | Frontend            | Backend             | Tiler                 |
 |------|--------------------------|---------------------|---------------------|-----------------------|
 | dev  | `dev.stacnotator.io`     | `app.dev.stacnotator.io` | `api.dev.stacnotator.io` | `tiler.dev.stacnotator.io` |
 | prod | `stacnotator.io`         | `app.stacnotator.io`     | `api.stacnotator.io`     | `tiler.stacnotator.io`     |
 
-**1. Bind the SWA custom domain** (frontend). CNAME-validated:
+**1. Gather the record values** (resources must already be deployed):
 
 ```bash
-# DNS: CNAME app.dev -> <swa-default-hostname>
-az staticwebapp hostname set -n stacnotator-dev-frontend -g <rg> \
-  --hostname app.dev.stacnotator.io
+RG=rg-stacnotator-dev-prod-westeurope
+az staticwebapp show -n stacnotator-dev-frontend -g "$RG" --query defaultHostname -o tsv          # app.* CNAME target
+az containerapp show -n stacnotator-dev-backend  -g "$RG" --query properties.configuration.ingress.fqdn -o tsv  # api.* CNAME target
+az containerapp show -n stacnotator-dev-tiler    -g "$RG" --query properties.configuration.ingress.fqdn -o tsv  # tiler.* CNAME target
+az containerapp show -n stacnotator-dev-backend  -g "$RG" --query properties.customDomainVerificationId -o tsv  # asuid TXT value (same for both apps - subscription-scoped)
 ```
 
-**2. Bind each Container App custom domain** (backend + tiler). Each needs a CNAME plus an
-`asuid.` TXT for domain ownership, then a managed certificate:
+**2. Hand these DNS records to whoever manages the `stacnotator.io` zone:**
+
+| Host / Name | Type | Value |
+|---|---|---|
+| `app.dev` | CNAME | `<swa-defaultHostname>` |
+| `api.dev` | CNAME | `<backend-fqdn>` |
+| `asuid.api.dev` | TXT | `<verificationId>` |
+| `tiler.dev` | CNAME | `<tiler-fqdn>` |
+| `asuid.tiler.dev` | TXT | `<verificationId>` |
+
+The `asuid.*` TXT value is identical for both apps. A later `tiler-gcp.dev` (GCP tiler) is added
+the same way once that tiler exists.
+
+**3. After DNS resolves, bind the domains + issue managed certs:**
 
 ```bash
-VID=$(az containerapp show -n stacnotator-dev-backend -g <rg> \
-  --query properties.customDomainVerificationId -o tsv)
-# DNS: CNAME api.dev -> <backend-containerapp-fqdn>
-#      TXT   asuid.api.dev -> $VID
-az containerapp hostname add  -n stacnotator-dev-backend -g <rg> --hostname api.dev.stacnotator.io
-az containerapp hostname bind -n stacnotator-dev-backend -g <rg> --hostname api.dev.stacnotator.io \
-  --environment <cae-name> --validation-method CNAME   # issues a managed cert
+CAE=$(az containerapp env list -g "$RG" --query "[0].name" -o tsv)
+az staticwebapp hostname set  -n stacnotator-dev-frontend -g "$RG" --hostname app.dev.stacnotator.io
+az containerapp hostname add  -n stacnotator-dev-backend  -g "$RG" --hostname api.dev.stacnotator.io
+az containerapp hostname bind -n stacnotator-dev-backend  -g "$RG" --hostname api.dev.stacnotator.io --environment "$CAE" --validation-method CNAME
+az containerapp hostname add  -n stacnotator-dev-tiler    -g "$RG" --hostname tiler.dev.stacnotator.io
+az containerapp hostname bind -n stacnotator-dev-tiler    -g "$RG" --hostname tiler.dev.stacnotator.io --environment "$CAE" --validation-method CNAME
 ```
 
-Repeat step 2 for `stacnotator-dev-tiler` -> `tiler.dev.stacnotator.io` (its
-`customDomainVerificationId` and FQDN). Custom-domain bindings persist on the resource, so this
-is one-time per environment.
+Bindings persist on the resource, so steps 1-3 are one-time per environment.
 
-**3. Tell the deploy script the parent domain.** Set `PUBLIC_DOMAIN` (in
-`.env.deploy.<env>` for local, or the `PUBLIC_DOMAIN_DEV` / `PUBLIC_DOMAIN_PROD` GitHub
-Actions **variable** for CI). The deploy then builds the frontend against `api.<domain>`, points
-`TILERS` at `https://tiler.<domain>` (browser-facing) with `internal_url` on the Azure FQDN
-(backend->tiler stays in-Azure), sets `CORS_ORIGINS` to `https://app.<domain>`, and sets
-`TILER_COOKIE_DOMAIN=.<domain>` on the backend. `SameSite=lax` + `Secure` (the defaults) then
-work because all three are same-site.
+**4. Set `PUBLIC_DOMAIN`** (after certs report Succeeded) - in `.env.deploy.<env>` for local, or the
+`PUBLIC_DOMAIN_DEV` / `PUBLIC_DOMAIN_PROD` GitHub Actions **variable** for CI - then redeploy. The
+deploy builds the frontend against `api.<domain>`, points `TILERS` at `https://tiler.<domain>`
+(browser-facing) with `internal_url` on the Azure FQDN (backend->tiler stays in-Azure), sets
+`CORS_ORIGINS` to `https://app.<domain>`, and sets `TILER_COOKIE_DOMAIN=.<domain>`. `SameSite=lax`
++ `Secure` (defaults) then work because all three are same-site.
 
 ## Manual deployment (local CLI)
 

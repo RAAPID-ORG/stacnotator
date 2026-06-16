@@ -251,4 +251,5 @@ jobs:
           CUSTOM_DOMAINS: ${{ secrets.CUSTOM_DOMAINS_PROD }}
           TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_PROD }}
+          EXTRA_TILERS: ${{ vars.EXTRA_TILERS_PROD }}
         run: ./azure_deploy/deploy-app.sh prod
