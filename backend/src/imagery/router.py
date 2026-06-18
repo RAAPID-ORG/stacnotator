@@ -9,9 +9,12 @@ from src.campaigns.models import Campaign
 from src.database import get_db
 from src.imagery import service
 from src.imagery.schemas import (
+    AllowedTilersOut,
     CanvasLayoutCreateRequest,
     ImageryEditorStateCreate,
+    TilerOption,
 )
+from src.tiling import registry
 from src.utils import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -22,11 +25,25 @@ router = APIRouter(
 )
 
 
+@router.get("/imagery/tilers", response_model=AllowedTilersOut)
+def list_tilers(user: User = Depends(require_approved_user)):
+    """Tilers the current user may use."""
+    allowed = set(user.allowed_tilers)
+    return AllowedTilersOut(
+        tilers=[
+            TilerOption(name=t.name, kind=t.kind, url=t.url, is_default=t.is_default)
+            for t in registry.all_tilers()
+            if t.name in allowed
+        ]
+    )
+
+
 @router.post("/{campaign_id}/imagery", status_code=201)
 def create_imagery(
     campaign_id: int,
     editor_state: ImageryEditorStateCreate,
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
     """Create imagery for a fresh campaign. Used by the campaign-create flow."""
@@ -34,6 +51,7 @@ def create_imagery(
         db,
         campaign=campaign,
         editor_state=editor_state,
+        user=user,
     )
     db.commit()
     response = {
@@ -52,6 +70,7 @@ def save_imagery(
     campaign_id: int,
     editor_state: ImageryEditorStateCreate,
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
     """Upsert the campaign's full imagery editor state. Used by the settings
@@ -61,6 +80,7 @@ def save_imagery(
         db,
         campaign=campaign,
         editor_state=editor_state,
+        user=user,
     )
     db.commit()
     response = {

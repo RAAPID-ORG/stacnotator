@@ -23,6 +23,10 @@ export interface StacCatalog {
   summary: string;
   is_mpc: boolean;
   auth_required: boolean;
+  /** Set for our platform tiler catalogs; picking a collection auto-targets this tiler. */
+  tiler_name?: string | null;
+  /** True for catalogs we provide (MPC + platform tiler catalogs), false for external. */
+  provided?: boolean;
 }
 
 export interface StacCollection {

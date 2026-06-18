@@ -281,6 +281,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       catalogUrl: sc.catalog_url ?? '',
       stacCollectionId: sc.stac_collection_id ?? '',
       isMpc: isMpcCatalogUrl(sc.catalog_url),
+      tiler: sc.tiler ?? null,
       mode: 'mosaic',
       maxCloudCover: sc.max_cloud_cover ?? undefined,
       visualizations:

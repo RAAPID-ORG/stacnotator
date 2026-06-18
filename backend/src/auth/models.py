@@ -6,6 +6,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
+    String,
     Text,
     UniqueConstraint,
     func,
@@ -13,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER, ROLE_VISITOR
+from src.config import get_settings
 from src.database import Base
 
 
@@ -61,11 +63,26 @@ class User(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    tilers = relationship(
+        "UserTiler",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     @property
     def is_approved(self) -> bool:
         """Check if user has the approved role."""
         return any(r.role == ROLE_APPROVED for r in self.roles)
+
+    @property
+    def allowed_tilers(self) -> list[str]:
+        """All tilers this user may use (defaults are seeded; extras are added)."""
+        return [t.tiler_name for t in self.tilers]
+
+    def can_use_tiler(self, name: str | None) -> bool:
+        """Usable iff in the user's allowed set. ``None`` means the default tiler."""
+        name = name or get_settings().DEFAULT_TILER
+        return name in self.allowed_tilers
 
     @property
     def is_visitor(self) -> bool:
@@ -103,3 +120,22 @@ class UserRole(Base):
 
     # Relationships
     user = relationship("User", back_populates="roles")
+
+
+class UserTiler(Base):
+    """Extra hosted tilers a user may use. Only non-default tilers are stored; MPC and the
+    default tiler are always allowed and never rows here."""
+
+    __tablename__ = "user_tilers"
+    __table_args__ = (
+        Index("user_tilers_user_id_idx", "user_id"),
+        {"schema": "auth"},
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    tiler_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    user = relationship("User", back_populates="tilers")

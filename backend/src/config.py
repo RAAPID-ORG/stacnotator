@@ -12,10 +12,14 @@ class TilerCfg(BaseModel):
 
     ``url`` is browser-facing; ``internal_url`` (optional) is the backend->tiler base for
     register/ingest; ``allows_ingest`` says whether this tiler exposes ``POST /ingest``.
+    ``stac_url`` (optional) is a browsable STAC API over this tiler's catalog; when set, the
+    tiler shows up as a browsable "Platform catalog" in the wizard and its collections are
+    auto-tiled by this tiler.
     """
 
     url: str
     internal_url: str | None = None
+    stac_url: str | None = None
     allows_ingest: bool = False
 
 

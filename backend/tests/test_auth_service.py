@@ -81,8 +81,7 @@ class TestRegisterUser:
         ):
             register_user(db, {"uid": "new-1", "email": "new@test.com"}, "firebase")
 
-        db.add.assert_called_once()
-        created = db.add.call_args[0][0]
+        created = db.add.call_args_list[0].args[0]
         assert isinstance(created, User)
         assert created.email == "new@test.com"
         assert created.issuer == "firebase"
@@ -97,7 +96,7 @@ class TestRegisterUser:
         ):
             register_user(db, {"uid": "new-1", "email": "a@b.com", "name": "Alice"}, "firebase")
 
-        created = db.add.call_args[0][0]
+        created = db.add.call_args_list[0].args[0]
         assert created.display_name == "Alice"
 
     def test_display_name_fallback_to_email_prefix(self):
@@ -109,7 +108,7 @@ class TestRegisterUser:
         ):
             register_user(db, {"uid": "new-1", "email": "bob@example.com"}, "firebase")
 
-        created = db.add.call_args[0][0]
+        created = db.add.call_args_list[0].args[0]
         assert created.display_name == "bob"
 
     def test_missing_email_raises(self):

@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 
 from src.auth.dependencies import require_approved_user
+from src.auth.models import User
+from src.tiling import registry
 from src.tiling.schemas import (
     MosaicRegisterRequest,
     MosaicRegisterResponse,
@@ -43,9 +45,36 @@ COLLECTIONS_CACHE_TTL = 86400  # 1 day
 
 
 @router.get("/catalogs")
-async def list_catalogs():
-    """Proxy StacIndex API with caching. Returns public STAC API catalogs.
-    Proxying as we might want to add our own catalogs in the future."""
+async def list_catalogs(user: User = Depends(require_approved_user)):
+    """Browsable catalogs: the user's platform tiler catalogs first, then public ones
+    (MPC + StacIndex). Platform catalogs carry ``tiler_name`` so the wizard auto-targets
+    the tiler; others route to the default tiler."""
+    return [*_tiler_catalogs(user), *await _public_catalogs()]
+
+
+def _tiler_catalogs(user: User) -> list[dict]:
+    """Platform tiler catalogs the user may use. Excludes MPC (a public catalog below)."""
+    out = []
+    for tiler in registry.browsable_tilers():
+        if tiler.kind == registry.MPC or not user.can_use_tiler(tiler.name):
+            continue
+        out.append(
+            {
+                "id": f"tiler-{tiler.name}",
+                "title": tiler.name,
+                "url": tiler.stac_url,
+                "summary": f"Imagery served by the {tiler.name} tiler",
+                "is_mpc": False,
+                "auth_required": False,
+                "tiler_name": tiler.name,
+                "provided": True,
+            }
+        )
+    return out
+
+
+async def _public_catalogs() -> list[dict]:
+    """MPC + StacIndex API catalogs (user-independent), cached. Proxied via StacIndex."""
     now = time.time()
     if _catalogs_cache["data"] and now < _catalogs_cache["expires"]:
         return _catalogs_cache["data"]
@@ -70,6 +99,8 @@ async def list_catalogs():
             "summary": "The Planetary Computer - petabytes of Earth observation data",
             "is_mpc": True,
             "auth_required": False,
+            "tiler_name": None,
+            "provided": True,
         }
     )
 
@@ -88,6 +119,8 @@ async def list_catalogs():
                 "summary": cat.get("summary", ""),
                 "is_mpc": False,
                 "auth_required": cat_id in _AUTH_REQUIRED_CATALOGS,
+                "tiler_name": None,
+                "provided": False,
             }
         )
 

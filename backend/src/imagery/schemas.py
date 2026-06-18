@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -39,6 +39,8 @@ class NamedVizParamsOut(BaseModel):
 class CollectionStacConfigOut(BaseModel):
     catalog_url: str | None = None
     stac_collection_id: str | None = None
+    # API name `tiler`, ORM column `tile_provider`. null => default tiler.
+    tiler: str | None = Field(default=None, validation_alias="tile_provider")
     # Legacy first-viz blobs, kept for backward compat.
     viz_params: dict | None = None
     cover_viz_params: dict | None = None
@@ -48,7 +50,22 @@ class CollectionStacConfigOut(BaseModel):
     search_query: dict | None = None
     cover_search_query: dict | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class TilerOption(BaseModel):
+    """A tiler the user may use, from the unified registry."""
+
+    name: str
+    kind: str  # "mpc" | "hosted"
+    url: str | None = None  # browser-facing URL (hosted only; null for MPC)
+    is_default: bool  # default hosted pick for non-MPC collections
+
+
+class AllowedTilersOut(BaseModel):
+    """Hosted tilers selectable in the imagery wizard (default first)."""
+
+    tilers: list[TilerOption]
 
 
 class ImageryCollectionOut(BaseModel):
@@ -192,6 +209,7 @@ class NamedVizParamsCreate(BaseModel):
 class CollectionStacConfigCreate(BaseModel):
     catalog_url: str | None = None
     stac_collection_id: str | None = None
+    tiler: str | None = None  # hosted tiler name; null => DEFAULT_TILER
     visualizations: list[NamedVizParamsCreate] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None

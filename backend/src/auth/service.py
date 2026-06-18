@@ -6,9 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER, ROLE_VISITOR
-from src.auth.models import User, UserRole
+from src.auth.models import User, UserRole, UserTiler
 from src.auth.providers.base import AuthenticatedUser
 from src.config import get_settings
+from src.tiling import registry
 
 settings = get_settings()
 
@@ -184,6 +185,9 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
         for role in (ROLE_USER, ROLE_APPROVED, ROLE_ADMIN):
             db.add(UserRole(user_id=user.id, role=role))
 
+    for tiler_name in registry.default_access_names():
+        db.add(UserTiler(user_id=user.id, tiler_name=tiler_name))
+
     db.commit()
     db.refresh(user)
 
@@ -271,6 +275,38 @@ def revoke_admin(db: Session, user_id: UUID) -> User | None:
             )
 
     return _revoke_role(db, user_id, ROLE_ADMIN, guard=keep_one_admin)
+
+
+# ============================================================================
+# Tiler Access Management
+# ============================================================================
+
+
+def grant_tiler(db: Session, user_id: UUID, tiler_name: str) -> User | None:
+    """Grant a user access to an extra hosted tiler. Idempotent; returns the user
+    (or None if the user doesn't exist)."""
+    user = db.get(User, user_id)
+    if not user:
+        return None
+    if db.get(UserTiler, (user_id, tiler_name)) is None:
+        db.add(UserTiler(user_id=user_id, tiler_name=tiler_name))
+        db.commit()
+        db.refresh(user)
+    return user
+
+
+def revoke_tiler(db: Session, user_id: UUID, tiler_name: str) -> User | None:
+    """Revoke a user's access to an extra hosted tiler. Idempotent; returns the user
+    (or None if the user doesn't exist)."""
+    user = db.get(User, user_id)
+    if not user:
+        return None
+    row = db.get(UserTiler, (user_id, tiler_name))
+    if row is not None:
+        db.delete(row)
+        db.commit()
+        db.refresh(user)
+    return user
 
 
 # ============================================================================

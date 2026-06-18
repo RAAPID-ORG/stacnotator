@@ -22,6 +22,8 @@ class UserOutDetailed(UserOut):
     issuer: str
     external_uid: str
     display_name: str
+    # All tilers this user may set up imagery on (defaults seeded; extras added).
+    allowed_tilers: list[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 

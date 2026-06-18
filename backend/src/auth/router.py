@@ -15,6 +15,7 @@ from src.auth.schemas import (
 from src.campaigns.service import list_campaigns_with_user_roles
 from src.config import get_settings
 from src.database import get_db
+from src.tiling import registry
 from src.tiling.tiler_token import mint as mint_tiler_token
 from src.utils import FunctionNameOperationIdRoute
 
@@ -267,6 +268,47 @@ def revoke_admin_single(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    return user
+
+
+def _validate_grantable_tiler(tiler_name: str) -> None:
+    if not registry.is_known(tiler_name):
+        raise HTTPException(status_code=400, detail=f"Unknown tiler '{tiler_name}'")
+
+
+@router.get("/grantable-tilers", response_model=list[str])
+def list_grantable_tilers(_: dict = Depends(require_admin)):
+    """All configured tilers an admin can toggle per user (MPC + hosted)."""
+    return registry.all_names()
+
+
+@router.post("/users/{user_id}/tilers/{tiler_name}", response_model=UserOutDetailed)
+def grant_tiler_single(
+    user_id: UUID,
+    tiler_name: str,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Grant a user access to an extra hosted tiler (admin only)."""
+    _validate_grantable_tiler(tiler_name)
+    user = service.grant_tiler(db, user_id, tiler_name)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@router.delete("/users/{user_id}/tilers/{tiler_name}", response_model=UserOutDetailed)
+def revoke_tiler_single(
+    user_id: UUID,
+    tiler_name: str,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Revoke a user's access to an extra hosted tiler (admin only)."""
+    _validate_grantable_tiler(tiler_name)
+    user = service.revoke_tiler(db, user_id, tiler_name)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
     return user
 
 

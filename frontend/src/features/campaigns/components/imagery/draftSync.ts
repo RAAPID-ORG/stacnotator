@@ -71,6 +71,7 @@ export function collectionToBackend(
             return {
               catalog_url: data.catalogUrl,
               stac_collection_id: data.stacCollectionId,
+              tiler: data.tiler ?? null,
               visualizations: names.map((name) => {
                 const cover = data.coverVisualizations?.find((c) => c.name === name);
                 return {

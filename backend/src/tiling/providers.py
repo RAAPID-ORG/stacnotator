@@ -16,6 +16,8 @@ calls, so the registration flow in ``imagery/service.py`` stays branch-light.
 import httpx
 
 from src.config import TilerCfg, get_settings
+from src.tiling.registry import HOSTED as PROVIDER_HOSTED
+from src.tiling.registry import MPC as PROVIDER_MPC
 from src.tiling.router import build_viz_query_string
 from src.tiling.stac_client import _is_mpc
 from src.tiling.tiler_token import mint as mint_tiler_token
@@ -25,9 +27,6 @@ MPC_TILES_BASE = (
     "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/"
     "{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"
 )
-
-PROVIDER_MPC = "mpc"
-PROVIDER_HOSTED = "hosted"
 
 
 def mpc_eligible(viz_params: dict) -> bool:

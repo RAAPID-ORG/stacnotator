@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Modal } from '~/shared/ui/Modal';
-import { IconChevronDown, IconChevronUp, IconPlus } from '~/shared/ui/Icons';
+import { IconPlus } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { MonthPicker } from '~/shared/ui/MonthPicker';
@@ -123,6 +123,39 @@ const AdvancedToggle = ({ expanded, onToggle }: { expanded: boolean; onToggle: (
   </div>
 );
 
+const CatalogSection = ({
+  title,
+  badge,
+  tone,
+  note,
+  children,
+}: {
+  title: string;
+  badge: string;
+  tone: 'green' | 'amber';
+  note: string;
+  children: ReactNode;
+}) => {
+  const badgeClass =
+    tone === 'green'
+      ? 'text-green-700 bg-green-50 border-green-200'
+      : 'text-amber-700 bg-amber-50 border-amber-200';
+  return (
+    <section className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wider">
+          {title}
+        </p>
+        <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badgeClass}`}>
+          {badge}
+        </span>
+      </div>
+      <p className="text-[11px] text-neutral-500 leading-snug">{note}</p>
+      {children}
+    </section>
+  );
+};
+
 export const CatalogBrowser = ({
   onAdd,
   onClose,
@@ -142,7 +175,6 @@ export const CatalogBrowser = ({
 
   const [query, setQuery] = useState('');
   const [customCatalogUrl, setCustomCatalogUrl] = useState('');
-  const [showCustomUrl, setShowCustomUrl] = useState(false);
   const [mode, setMode] = useState<'single-item' | 'mosaic'>(initialMode);
 
   // Date range - default to 2024-01 through 2024-12
@@ -687,6 +719,8 @@ export const CatalogBrowser = ({
           catalogUrl: selectedCatalog.url,
           stacCollectionId: selectedCollection.id,
           isMpc: selectedCatalog.is_mpc,
+          // Only hosted tiler catalogs pin a tiler; MPC is auto-routed by catalog URL.
+          tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
           mode: 'mosaic',
           maxCloudCover,
           itemSort,
@@ -725,6 +759,7 @@ export const CatalogBrowser = ({
         catalogUrl: selectedCatalog.url,
         stacCollectionId: selectedCollection.id,
         isMpc: selectedCatalog.is_mpc,
+        tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
         mode: 'single-item',
         itemHref: item.self_href || undefined,
         maxCloudCover,
@@ -823,11 +858,56 @@ export const CatalogBrowser = ({
     return scored.map((s) => s.item);
   };
 
-  const filteredCatalogs = fuzzy(
-    catalogs,
-    query,
-    (c) => [c.title, c.id],
-    (c) => [c.summary, c.url]
+  const providedCatalogs = catalogs.filter((c) => c.provided);
+  const stacIndexCatalogs = catalogs.filter((c) => !c.provided);
+
+  const renderCatalogCard = (cat: StacCatalog) => (
+    <div key={cat.id} className="flex items-start gap-1.5">
+      <button
+        type="button"
+        onClick={() => selectCatalog(cat)}
+        disabled={cat.auth_required}
+        className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
+          cat.auth_required
+            ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+            : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+        }`}
+      >
+        <span className="text-sm font-medium flex items-center gap-1.5">
+          {cat.title}
+          {cat.is_mpc && (
+            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
+              MPC
+            </span>
+          )}
+          {cat.auth_required && (
+            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+              Auth required
+            </span>
+          )}
+        </span>
+        <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+      </button>
+      <div className="mt-2.5">
+        <InfoPopover>
+          <div className="space-y-1.5">
+            {cat.summary ? (
+              <p>{cat.summary}</p>
+            ) : (
+              <p className="text-neutral-400 italic">No description available.</p>
+            )}
+            <a
+              href={cat.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-600 hover:underline block truncate"
+            >
+              {cat.url}
+            </a>
+          </div>
+        </InfoPopover>
+      </div>
+    </div>
   );
   const filteredCollections = fuzzy(
     collections,
@@ -917,12 +997,12 @@ export const CatalogBrowser = ({
               )}
             </div>
 
-            {/* Search bar */}
-            {(step === 'catalog' || step === 'collection') && (
+            {/* Collection search (the catalog step has its own search in the StacIndex section) */}
+            {step === 'collection' && (
               <Input
                 type="text"
                 size="sm"
-                placeholder={step === 'catalog' ? 'Search catalogs...' : 'Search collections...'}
+                placeholder="Search collections..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
@@ -937,115 +1017,60 @@ export const CatalogBrowser = ({
 
             {loading && <div className="text-xs text-neutral-400 py-4 text-center">Loading...</div>}
 
-            {/* Catalog list */}
+            {/* Catalog list: three categories, each with a visible support note */}
             {step === 'catalog' && !loading && (
-              <div className="space-y-2">
-                {/* Custom URL input */}
-                <div className="rounded-md border border-neutral-200 overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomUrl(!showCustomUrl)}
-                    className="w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-neutral-50 transition-colors"
-                  >
-                    <span className="text-xs text-neutral-600 font-medium">
-                      Custom STAC catalog URL
-                    </span>
-                    {showCustomUrl ? (
-                      <IconChevronUp className="w-3 h-3 text-neutral-400" />
-                    ) : (
-                      <IconChevronDown className="w-3 h-3 text-neutral-400" />
+              <div className="space-y-4">
+                <CatalogSection
+                  title="Provided catalogs"
+                  badge="Recommended"
+                  tone="green"
+                  note="Microsoft Planetary Computer and catalogs hosted on our own tilers. Fully supported with fast tile loading."
+                >
+                  <div className="space-y-1">{providedCatalogs.map(renderCatalogCard)}</div>
+                  {!providedCatalogs.length && (
+                    <p className="text-xs text-neutral-400 py-1">None available.</p>
+                  )}
+                </CatalogSection>
+
+                <CatalogSection
+                  title="Any STAC catalog URL"
+                  badge="Experimental"
+                  tone="amber"
+                  note="Point at any STAC API. Served by our default tiler; may need manual adjustments."
+                >
+                  <div className="flex gap-2">
+                    <Input
+                      type="url"
+                      size="sm"
+                      className="!flex-1"
+                      value={customCatalogUrl}
+                      onChange={(e) => setCustomCatalogUrl(e.target.value)}
+                      placeholder="https://earth-search.aws.element84.com/v1"
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={loadCustomCatalog}
+                      disabled={!customCatalogUrl.trim()}
+                    >
+                      Load
+                    </Button>
+                  </div>
+                </CatalogSection>
+
+                <CatalogSection
+                  title="Public catalogs (StacIndex)"
+                  badge="Experimental"
+                  tone="amber"
+                  note="Public STAC APIs indexed by StacIndex. Served by our default tiler."
+                >
+                  <div className="space-y-1 max-h-56 overflow-y-auto">
+                    {stacIndexCatalogs.map(renderCatalogCard)}
+                    {!stacIndexCatalogs.length && (
+                      <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
                     )}
-                  </button>
-                  {showCustomUrl && (
-                    <div className="px-3 pb-3 flex gap-2 border-t border-neutral-100 pt-2">
-                      <Input
-                        type="url"
-                        size="sm"
-                        className="!flex-1"
-                        value={customCatalogUrl}
-                        onChange={(e) => setCustomCatalogUrl(e.target.value)}
-                        placeholder="https://earth-search.aws.element84.com/v1"
-                      />
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={loadCustomCatalog}
-                        disabled={!customCatalogUrl.trim()}
-                      >
-                        Load
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-[11px] text-neutral-500 bg-neutral-50 border border-neutral-200 rounded px-2.5 py-1.5 leading-snug">
-                  <strong>Microsoft Planetary Computer (MPC)</strong> is fully supported with fast
-                  tile loading. Other STAC catalogs are experimental and may require manual
-                  adjustments to work correctly.{' '}
-                  <a
-                    href="https://github.com/RAAPID-ORG/stacnotator/issues"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-brand-600 hover:underline"
-                  >
-                    Report issues
-                  </a>
-                </div>
-
-                <div className="space-y-1 max-h-72 overflow-y-auto">
-                  {filteredCatalogs.map((cat) => (
-                    <div key={cat.id} className="flex items-start gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => selectCatalog(cat)}
-                        disabled={cat.auth_required}
-                        className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
-                          cat.auth_required
-                            ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-                            : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
-                        }`}
-                      >
-                        <span className="text-sm font-medium flex items-center gap-1.5">
-                          {cat.title}
-                          {cat.is_mpc && (
-                            <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-semibold">
-                              MPC
-                            </span>
-                          )}
-                          {cat.auth_required && (
-                            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
-                              Auth required
-                            </span>
-                          )}
-                        </span>
-                        <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
-                          {cat.summary}
-                        </p>
-                      </button>
-                      <div className="mt-2.5">
-                        <InfoPopover>
-                          <div className="space-y-1.5">
-                            {cat.summary && <p>{cat.summary}</p>}
-                            {!cat.summary && (
-                              <p className="text-neutral-400 italic">No description available.</p>
-                            )}
-                            <a
-                              href={cat.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-brand-600 hover:underline block truncate"
-                            >
-                              {cat.url}
-                            </a>
-                          </div>
-                        </InfoPopover>
-                      </div>
-                    </div>
-                  ))}
-                  {!filteredCatalogs.length && (
-                    <p className="text-xs text-neutral-400 text-center py-4">No catalogs found</p>
-                  )}
-                </div>
+                  </div>
+                </CatalogSection>
               </div>
             )}
 

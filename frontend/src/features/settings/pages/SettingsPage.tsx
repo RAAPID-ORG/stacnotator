@@ -14,6 +14,9 @@ import {
   grantVisitor,
   revokeVisitor,
   editUserInfo,
+  grantTilerSingle,
+  revokeTilerSingle,
+  listGrantableTilers,
   type UserOutDetailed,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
@@ -28,6 +31,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
   const [users, setUsers] = useState<UserOutDetailed[]>([]);
+  const [allTilers, setAllTilers] = useState<string[]>([]);
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -73,8 +77,9 @@ export const SettingsPage = () => {
   const loadUsers = async () => {
     try {
       setIsPageLoading(true);
-      const { data } = await listUsers();
-      setUsers(data as UserOutDetailed[]);
+      const [usersRes, tilersRes] = await Promise.all([listUsers(), listGrantableTilers()]);
+      setUsers(usersRes.data as UserOutDetailed[]);
+      setAllTilers((tilersRes.data as string[]) ?? []);
     } catch (err) {
       handleError(err, 'Failed to load users');
     } finally {
@@ -186,6 +191,31 @@ export const SettingsPage = () => {
       handleError(err, 'Failed to revoke admin');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const applyUpdatedUser = (updated: UserOutDetailed | undefined) => {
+    if (!updated) return;
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  };
+
+  const handleGrantTiler = async (userId: string, tilerName: string) => {
+    try {
+      const { data } = await grantTilerSingle({ path: { user_id: userId, tiler_name: tilerName } });
+      applyUpdatedUser(data as UserOutDetailed | undefined);
+    } catch (err) {
+      handleError(err, `Failed to grant tiler '${tilerName}'`);
+    }
+  };
+
+  const handleRevokeTiler = async (userId: string, tilerName: string) => {
+    try {
+      const { data } = await revokeTilerSingle({
+        path: { user_id: userId, tiler_name: tilerName },
+      });
+      applyUpdatedUser(data as UserOutDetailed | undefined);
+    } catch (err) {
+      handleError(err, `Failed to revoke tiler '${tilerName}'`);
     }
   };
 
@@ -582,6 +612,9 @@ export const SettingsPage = () => {
                       onRevokeAdmin={handleRevokeAdmin}
                       onGrantVisitor={handleGrantVisitor}
                       onRevokeVisitor={handleRevokeVisitor}
+                      allTilers={allTilers}
+                      onGrantTiler={handleGrantTiler}
+                      onRevokeTiler={handleRevokeTiler}
                       loading={isPageLoading}
                     />
                   </section>

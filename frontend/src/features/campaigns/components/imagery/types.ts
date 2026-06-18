@@ -55,6 +55,8 @@ export interface StacBrowserCollectionData {
   catalogUrl: string;
   stacCollectionId: string;
   isMpc: boolean;
+  /** Hosted tiler name to register/render on (null/undefined => default tiler). Non-MPC only. */
+  tiler?: string | null;
   mode: 'single-item' | 'mosaic';
   itemHref?: string;
   mosaicId?: string;

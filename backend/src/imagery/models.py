@@ -115,7 +115,8 @@ class CollectionStacConfig(Base):
     # STAC catalog browser / TiTiler integration ──
     catalog_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    tile_provider: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Hosted tiler name (a Settings.TILERS key); null => DEFAULT_TILER.
+    tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Structured viz params: {"assets": [...], "rescale": "0,3000", "colormap_name": ...}
     # NOTE: legacy single-blob holding the FIRST visualization's params for
     # backward compat. Authoritative per-visualization params live in

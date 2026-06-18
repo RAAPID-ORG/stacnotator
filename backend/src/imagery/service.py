@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from src.auth.models import User
 from src.campaigns.constants import (
     VIEW_LAYOUT_COLS_PER_ROW,
     VIEW_LAYOUT_START_Y,
@@ -69,11 +70,36 @@ def _serialize_visualizations(stac_config, has_cover: bool) -> list[dict] | None
 # ============================================================================
 
 
+def _authorize_tilers(user: User, editor_state: ImageryEditorStateCreate) -> None:
+    """Reject the whole save up front (before any writes) if the user names a tiler they
+    may not use: unknown tiler => 400, ungranted extra => 403."""
+    settings = get_settings()
+    for src in editor_state.sources:
+        for col in src.collections:
+            stac = col.stac_config
+            if not stac or not stac.catalog_url:
+                continue
+            name = stac.tiler or settings.DEFAULT_TILER
+            if name is not None and name not in settings.TILERS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown tiler '{name}' for collection '{col.name}'",
+                )
+            if not user.can_use_tiler(name):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        f"You are not authorized to use tiler '{name}' (collection '{col.name}')"
+                    ),
+                )
+
+
 def create_imagery_from_editor_state(
     db: Session,
     *,
     campaign: Campaign,
     editor_state: ImageryEditorStateCreate,
+    user: User,
 ) -> dict:
     """
     Persist the full imagery editor state (sources, views, basemaps) for a campaign.
@@ -84,6 +110,8 @@ def create_imagery_from_editor_state(
     """
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    _authorize_tilers(user, editor_state)
 
     bbox = [
         campaign.settings.bbox_west,
@@ -139,6 +167,7 @@ def save_imagery_editor_state(
     *,
     campaign: Campaign,
     editor_state: ImageryEditorStateCreate,
+    user: User,
 ) -> dict:
     """Upsert the full imagery editor state in a single transaction.
 
@@ -153,6 +182,8 @@ def save_imagery_editor_state(
     """
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    _authorize_tilers(user, editor_state)
 
     bbox = [
         campaign.settings.bbox_west,
@@ -377,6 +408,7 @@ def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> boo
         or existing.max_cloud_cover != incoming.max_cloud_cover
         or existing.search_query != incoming.search_query
         or existing.cover_search_query != incoming.cover_search_query
+        or existing.tile_provider != incoming.tiler
     )
 
 
@@ -462,6 +494,7 @@ def _update_collection_in_place(
                     collection_id=db_col.id,
                     catalog_url=col_create.stac_config.catalog_url,
                     stac_collection_id=col_create.stac_config.stac_collection_id,
+                    tile_provider=col_create.stac_config.tiler,
                     viz_params=(
                         first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
                     ),
@@ -498,6 +531,7 @@ def _update_collection_in_place(
             db_col.stac_config.visualizations = _serialize_visualizations(
                 col_create.stac_config, has_cover
             )
+            db_col.stac_config.tile_provider = col_create.stac_config.tiler
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
             db_col.stac_config.search_query = col_create.stac_config.search_query
             db_col.stac_config.cover_search_query = (
@@ -671,6 +705,7 @@ def _create_collection_record(
                 collection_id=collection.id,
                 catalog_url=col_create.stac_config.catalog_url,
                 stac_collection_id=col_create.stac_config.stac_collection_id,
+                tile_provider=col_create.stac_config.tiler,
                 viz_params=(
                     first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
                 ),
@@ -840,6 +875,7 @@ def _register_all_stac_browser_collections(
                     "any_uses_mpc": any_uses_mpc,
                     "any_needs_hosted": any_needs_hosted,
                     "collection_name": collection.name,
+                    "tiler_name": stac.tiler or get_settings().DEFAULT_TILER,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
                     else search_query,
@@ -849,10 +885,13 @@ def _register_all_stac_browser_collections(
     if not tasks:
         return []
 
-    # Resolve the hosted tiler once (config-driven; only needed if any viz isn't MPC).
-    needs_hosted = any(t["any_needs_hosted"] for t in tasks)
-    tiler_name = get_settings().DEFAULT_TILER if needs_hosted else None
-    tiler = providers.resolve_tiler(tiler_name) if needs_hosted else None
+    # Resolve each hosted tiler once; MPC-only collections resolve none.
+    tilers_by_name: dict[str, object] = {}
+    for name in {t["tiler_name"] for t in tasks if t["any_needs_hosted"]}:
+        try:
+            tilers_by_name[name] = providers.resolve_tiler(name)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unknown tiler '{name}'") from None
 
     logger.info(
         "Registering %d mosaic slices in parallel (%d need MPC, %d need hosted)",
@@ -914,7 +953,12 @@ def _register_all_stac_browser_collections(
         if task["any_needs_hosted"]:
             hosted_search_id = _run(
                 lambda: _register_hosted_slice(
-                    stac, db_slice, bbox, custom_query, campaign_id, tiler
+                    stac,
+                    db_slice,
+                    bbox,
+                    custom_query,
+                    campaign_id,
+                    tilers_by_name[task["tiler_name"]],
                 ),
                 "Hosted tiler",
             )
@@ -948,8 +992,13 @@ def _register_all_stac_browser_collections(
             else:
                 if hosted_search_id is None:
                     continue
-                tile_url = providers.build_tile_url("hosted", hosted_search_id, params, tiler=tiler)
-                provider_name, ref = tiler_name, hosted_search_id
+                tile_url = providers.build_tile_url(
+                    "hosted",
+                    hosted_search_id,
+                    params,
+                    tiler=tilers_by_name[task["tiler_name"]],
+                )
+                provider_name, ref = task["tiler_name"], hosted_search_id
             db.add(
                 SliceTileUrl(
                     slice_id=slice_id,

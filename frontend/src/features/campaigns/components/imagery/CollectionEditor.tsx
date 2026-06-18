@@ -9,13 +9,14 @@ import type {
 } from './types';
 import { emptySlice, emptyVizParams, sliceDateRange } from './types';
 import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
-import { IconButton, Input } from '~/shared/ui/forms';
+import { IconButton, Input, Select } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
 import { fetchCollections } from '~/api/stacBrowser';
 import type { StacAssetInfo } from '~/api/stacBrowser';
+import { listTilers, type TilerOption } from '~/api/client';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -45,6 +46,16 @@ export const CollectionEditor = ({
     if (!sb) return;
     onChange({ data: { ...sb, ...updates } });
   };
+
+  const [tilers, setTilers] = useState<TilerOption[]>([]);
+  useEffect(() => {
+    listTilers()
+      .then(({ data }) => setTilers(data?.tilers ?? []))
+      .catch(() => {});
+  }, []);
+  const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
+  const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const buildAutoQuery = (cloudCover: number | undefined): Record<string, unknown> => {
     const cc = cloudCover ?? 100;
@@ -613,6 +624,39 @@ export const CollectionEditor = ({
                       />
                     </div>
                   </div>
+
+                  {!sb.isMpc && hostedTilers.length > 1 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvanced((v) => !v)}
+                        className="text-[11px] font-medium text-neutral-500 hover:text-neutral-700 flex items-center gap-1"
+                      >
+                        {showAdvanced ? <IconChevronUp /> : <IconChevronDown />}
+                        Advanced
+                      </button>
+                      {showAdvanced && (
+                        <div className="space-y-1 mt-2">
+                          <label className="text-xs text-neutral-700 flex items-center gap-1">
+                            Tile server
+                            <Tooltip text="Which hosted tiler renders this collection's tiles. Only tilers you're allowed to use are listed; defaults to the standard tiler." />
+                          </label>
+                          <Select
+                            size="sm"
+                            value={sb.tiler ?? defaultTilerName ?? ''}
+                            onChange={(e) => updateSb({ tiler: e.target.value || null })}
+                          >
+                            {hostedTilers.map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {t.name}
+                                {t.is_default ? ' (default)' : ''}
+                              </option>
+                            ))}
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Cloud Cover */}
                   {sb.maxCloudCover !== undefined && (
