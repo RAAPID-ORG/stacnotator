@@ -1189,32 +1189,30 @@ export const CatalogBrowser = ({
                     </p>
                   </div>
                   <div className="p-3 space-y-3">
-                    {showAdvanced && (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setMode('mosaic')}
-                          className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                            mode === 'mosaic'
-                              ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
-                              : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                          }`}
-                        >
-                          Collection Mosaic
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMode('single-item')}
-                          className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
-                            mode === 'single-item'
-                              ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
-                              : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
-                          }`}
-                        >
-                          Single Item
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMode('mosaic')}
+                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                          mode === 'mosaic'
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        }`}
+                      >
+                        Collection Mosaic
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('single-item')}
+                        className={`flex-1 text-xs px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                          mode === 'single-item'
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                            : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                        }`}
+                      >
+                        Single Item
+                      </button>
+                    </div>
 
                     {/* Date range */}
                     <div className="grid grid-cols-2 gap-3">

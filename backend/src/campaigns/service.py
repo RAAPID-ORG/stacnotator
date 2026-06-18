@@ -283,6 +283,7 @@ def create_campaign(
             db,
             campaign=campaign,
             editor_state=imagery_editor_state,
+            user=db.get(User, user_id),
         )
         pending_registrations = imagery_result.get("pending_registrations", [])
         registration_bbox = imagery_result.get("bbox", [])
