@@ -1,4 +1,6 @@
 # Multi-stage build for optimized production image
+# Final-stage base is overridable so CI can pull it from ACR's cache (default: Docker Hub).
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
 WORKDIR /app
@@ -16,7 +18,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 # Production stage
-FROM python:3.12-slim-bookworm
+FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 

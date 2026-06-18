@@ -181,6 +181,34 @@ deploy builds the frontend against `api.<domain>`, points `TILERS` at `https://t
 `CORS_ORIGINS` to `https://app.<domain>`, and sets `TILER_COOKIE_DOMAIN=.<domain>`. `SameSite=lax`
 + `Secure` (defaults) then work because all three are same-site.
 
+### Base image cache - one-time per registry
+
+`az acr build` pulls the `python` base from Docker Hub; the shared ACR build IP hits Docker
+Hub's anonymous rate limit. Fix: pull the base through an **ACR cache** authenticated with a
+Docker Hub token, once per registry.
+
+```bash
+# Docker Hub creds in Key Vault (free account + read-only PAT)
+az keyvault secret set --vault-name $KV --name dockerhub-username --value "<user>"
+az keyvault secret set --vault-name $KV --name dockerhub-pat      --value "<PAT>"
+
+# Credential set + grant it KV read
+az acr credential-set create -r $ACR -n dockerhub -l docker.io \
+  --username-id "https://$KV.vault.azure.net/secrets/dockerhub-username" \
+  --password-id "https://$KV.vault.azure.net/secrets/dockerhub-pat"
+PID=$(az acr credential-set show -r $ACR -n dockerhub --query 'identity.principalId' -o tsv)
+az role assignment create --assignee "$PID" --role "Key Vault Secrets User" \
+  --scope "$(az keyvault show -n $KV --query id -o tsv)"
+
+# Cache rule: one rule covers all python tags (backend + tiler)
+az acr cache create -r $ACR -n python -s docker.io/library/python -t python -c dockerhub
+```
+
+The Dockerfiles take a `PYTHON_IMAGE` build arg (default Docker Hub for local/GCP); the deploy
+scripts override it to `$ACR_LOGIN_SERVER/python:<tag>` so CI builds pull from the cache. No
+Docker Hub secret is needed in CI - only in the cred set. To use a newer base tag, nothing to do
+(the cache auto-pulls it).
+
 ## Manual deployment (local CLI)
 
 Prod and dev normally deploy from CI (see [Automated deployments](#automated-deployments-ci)). Use this path for local/manual deploys from a developer laptop on VPN, or for first-time bootstrapping.

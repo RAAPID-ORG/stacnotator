@@ -189,7 +189,9 @@ echo -e "${GREEN}✓ Identity: $APPS_IDENTITY_NAME${NC}"
 # Build + push images (serverside build).
 echo ""
 echo -e "${YELLOW}Building backend (server-side in ACR)...${NC}"
-az acr build --registry "$ACR_NAME" --image "backend:$IMAGE_TAG" -f backend/Dockerfile backend/
+az acr build --registry "$ACR_NAME" --image "backend:$IMAGE_TAG" \
+    --build-arg PYTHON_IMAGE="$ACR_LOGIN_SERVER/python:3.12-slim-bookworm" \
+    -f backend/Dockerfile backend/
 echo -e "${GREEN}✓ Backend built + pushed${NC}"
 
 # The tiler lives in its own repo (RAAPID-ORG/stacnotator-tiler) and owns its
