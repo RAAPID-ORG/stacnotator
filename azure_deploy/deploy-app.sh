@@ -79,6 +79,11 @@ TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
 # Optional extra tiler registry entries (inner JSON, no braces) for externally
 # hosted tilers like the GCP VM tiler - see the EXTRA_TILERS use below.
 EXTRA_TILERS="${EXTRA_TILERS:-}"
+# Strip any CR/LF that crept in via the GitHub variable editor: a raw control
+# char inside the JSON makes the backend's json.loads(TILERS) reject it at boot
+# (SettingsError -> failed startup migration). Defensive; harmless when clean.
+EXTRA_TILERS="${EXTRA_TILERS//$'\r'/}"
+EXTRA_TILERS="${EXTRA_TILERS//$'\n'/}"
 
 # Shared parent domain for this environment, e.g. dev.stacnotator.io. When set, the
 # frontend / backend / tiler are addressed at app. / api. / tiler.<PUBLIC_DOMAIN>, and
