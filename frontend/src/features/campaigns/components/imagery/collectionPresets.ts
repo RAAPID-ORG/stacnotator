@@ -22,7 +22,7 @@ export interface BandPreset {
 export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
   // 8-band PlanetScope biweekly composites: one multiband "data" asset.
   // Bands: 1 coastal_blue, 2 blue, 3 green_i, 4 green, 5 yellow, 6 red, 7 rededge, 8 nir.
-  ps_biweekly_8band: [
+  planet_ethiopia_biweekly: [
     { label: 'True Color (RGB)', assets: ['data'], bidx: [6, 4, 2], rescale: '0,3000' },
     { label: 'Color Infrared (Vegetation)', assets: ['data'], bidx: [8, 6, 4], rescale: '0,3000' },
     { label: 'NIR', assets: ['data'], bidx: [8], rescale: '0,3000', colormap: 'viridis' },

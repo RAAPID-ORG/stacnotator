@@ -61,9 +61,9 @@ def _tiler_catalogs(user: User) -> list[dict]:
         out.append(
             {
                 "id": f"tiler-{tiler.name}",
-                "title": tiler.name,
+                "title": tiler.title or tiler.name,
                 "url": tiler.stac_url,
-                "summary": f"Imagery served by the {tiler.name} tiler",
+                "summary": tiler.title or f"Imagery served by the {tiler.name} tiler",
                 "is_mpc": False,
                 "auth_required": False,
                 "tiler_name": tiler.name,

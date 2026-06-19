@@ -23,6 +23,7 @@ class Tiler:
     is_default: bool  # default hosted pick for non-MPC collections
     default_access: bool  # seeded (pre-ticked) for new users
     stac_url: str | None  # browsable STAC catalog; None => not browsable
+    title: str | None = None  # human-friendly catalog name for the wizard (falls back to name)
 
 
 def all_tilers() -> list[Tiler]:
@@ -52,6 +53,7 @@ def all_tilers() -> list[Tiler]:
                 is_default=is_default,
                 default_access=is_default,
                 stac_url=cfg.stac_url,
+                title=cfg.title,
             )
         )
     return tilers
