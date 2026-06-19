@@ -304,51 +304,12 @@ WORKLOAD_PROFILE="$WORKLOAD_PROFILE" \
     "$TILER_REPO_DIR/deployment/deploy-containerapp.sh"
 echo -e "${GREEN}✓ Tiler deployed${NC}"
 
-# Wait for the new backend revision to become healthy.
-# Migrations now run on container startup (alembic upgrade head in the
-# Dockerfile CMD, before gunicorn). A failed migration causes the container
-# to exit non-zero; the new revision stays unhealthy and the previous
-# revision continues serving 100% traffic - automatic rollback via
-# Container Apps' single-revision traffic gating.
-#
-# TODO: Re-introduce a pre-image-swap DB backup once stacnotator-prod is
-# upgraded from Burstable to General Purpose. Customer on-demand backups
-# are unsupported on Burstable SKUs, so a backup step here is a no-op
-# today. When upgraded, take the backup before the backend image swap
-# above so the restore point matches the pre-deploy schema.
-echo ""
-echo -e "${YELLOW}Waiting for new backend revision to become healthy...${NC}"
-NEW_REVISION=$(az containerapp show -n "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-    --query "properties.latestRevisionName" -o tsv)
-ci_mask "$NEW_REVISION"
-
-REVISION_HEALTHY=
-for i in $(seq 1 60); do
-    HEALTH=$(az containerapp revision show \
-        -n "$APP_BACKEND" -g "$RESOURCE_GROUP" --revision "$NEW_REVISION" \
-        --query "properties.healthState" -o tsv 2>/dev/null || echo "Unknown")
-    if [ "$HEALTH" = "Healthy" ]; then
-        REVISION_HEALTHY=1
-        break
-    fi
-    if [ "$HEALTH" = "Unhealthy" ]; then
-        echo -e "${RED}New revision is Unhealthy. Likely a failed startup migration; previous revision still serving traffic.${NC}"
-        echo -e "${YELLOW}Inspect logs:${NC}"
-        echo -e "  az containerapp logs show -n $APP_BACKEND -g $RESOURCE_GROUP --revision <revision> --tail 200"
-        echo -e "${YELLOW}List revisions:${NC}"
-        echo -e "  az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table"
-        exit 1
-    fi
-    sleep 5
-done
-
-if [ -z "$REVISION_HEALTHY" ]; then
-    echo -e "${RED}Timed out waiting for revision health after 5 minutes. Previous revision still serving.${NC}"
-    echo -e "${YELLOW}Check status: az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✓ Backend revision healthy (migrations applied on startup).${NC}"
+# NOTE: the backend health gate runs LATER, after TILERS/CORS/DEFAULT_TILER are
+# applied (near the end of this script). Gating here would test the image-only
+# revision from the update above, which still carries the previously-stored
+# TILERS - so a fix to TILERS would never be validated (and the revision that
+# actually gets the new TILERS would go ungated). See the gate after the
+# "CORS + tiler registry updated" step.
 
 # Deploy frontend
 echo ""
@@ -449,6 +410,54 @@ az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
 az containerapp update --name "$APP_TILER" -g "$RESOURCE_GROUP" \
     --set-env-vars "CORS_ORIGINS=$CORS_ORIGINS_VALUE" --output none 2>/dev/null || true
 echo -e "${GREEN}✓ CORS + tiler registry updated${NC}"
+
+# Now wait for the revision produced by the TILERS/CORS update above to become
+# healthy. This MUST run after that update: it's the revision that carries the
+# freshly-computed TILERS, so it's the one whose startup (and migrations) we
+# actually care about.
+#
+# Migrations run on container startup (alembic upgrade head in the Dockerfile
+# CMD, before gunicorn). A failed migration - or unparseable env like a malformed
+# TILERS - exits non-zero; the revision stays unhealthy and the previous revision
+# keeps serving 100% traffic (single-revision auto-rollback).
+#
+# TODO: Re-introduce a pre-image-swap DB backup once stacnotator-prod is upgraded
+# from Burstable to General Purpose. Customer on-demand backups are unsupported on
+# Burstable SKUs, so a backup step is a no-op today. When upgraded, take it before
+# the backend image swap earlier in this script.
+echo ""
+echo -e "${YELLOW}Waiting for new backend revision to become healthy...${NC}"
+NEW_REVISION=$(az containerapp show -n "$APP_BACKEND" -g "$RESOURCE_GROUP" \
+    --query "properties.latestRevisionName" -o tsv)
+ci_mask "$NEW_REVISION"
+
+REVISION_HEALTHY=
+for i in $(seq 1 60); do
+    HEALTH=$(az containerapp revision show \
+        -n "$APP_BACKEND" -g "$RESOURCE_GROUP" --revision "$NEW_REVISION" \
+        --query "properties.healthState" -o tsv 2>/dev/null || echo "Unknown")
+    if [ "$HEALTH" = "Healthy" ]; then
+        REVISION_HEALTHY=1
+        break
+    fi
+    if [ "$HEALTH" = "Unhealthy" ]; then
+        echo -e "${RED}New revision is Unhealthy. Likely a failed startup migration; previous revision still serving traffic.${NC}"
+        echo -e "${YELLOW}Inspect logs:${NC}"
+        echo -e "  az containerapp logs show -n $APP_BACKEND -g $RESOURCE_GROUP --revision <revision> --tail 200"
+        echo -e "${YELLOW}List revisions:${NC}"
+        echo -e "  az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table"
+        exit 1
+    fi
+    sleep 5
+done
+
+if [ -z "$REVISION_HEALTHY" ]; then
+    echo -e "${RED}Timed out waiting for revision health after 5 minutes. Previous revision still serving.${NC}"
+    echo -e "${YELLOW}Check status: az containerapp revision list -n $APP_BACKEND -g $RESOURCE_GROUP -o table${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Backend revision healthy (migrations applied on startup).${NC}"
 
 echo ""
 echo -e "${GREEN}Deployment Complete${NC}"
