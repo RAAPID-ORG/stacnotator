@@ -49,6 +49,13 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
   const campaign = useCampaignStore((s) => s.campaign);
 
+  // Re-mint the tiler cookie on campaign entry so a just-created / just-joined campaign is
+  // covered (the cookie snapshots memberships at mint time). Keyed on campaign id, so the
+  // many collection windows of one campaign dedupe to a single mint.
+  useEffect(() => {
+    if (campaign?.id != null) void ensureTilerSession(String(campaign.id));
+  }, [campaign?.id]);
+
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
 

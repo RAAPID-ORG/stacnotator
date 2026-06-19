@@ -62,10 +62,12 @@ export const applyTaskFilter = (
     if (filterByUser) {
       const matchesUser =
         selectedUserIds.length > 0 &&
-        assignments.some(
-          (a) =>
-            selectedUserIds.includes(a.user_id) && filter.statuses.includes(a.status as TaskStatus)
-        );
+        assignments.some((a) => {
+          if (!selectedUserIds.includes(a.user_id)) return false;
+          if (!filter.statuses.includes(a.status as TaskStatus)) return false;
+          if (a.claimed_at != null && a.status === 'pending') return false; // pending soft claim
+          return true;
+        });
       const matchesUnassigned =
         wantUnassigned &&
         isClaimable(task) &&
