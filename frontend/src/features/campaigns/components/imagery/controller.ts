@@ -60,27 +60,9 @@ export interface ImageryController {
   setBasemaps(basemaps: Basemap[]): Promise<void>;
 }
 
-export function vizParamsToBackend(vp: VizParams): Record<string, unknown> {
-  const d: Record<string, unknown> = {};
-  if (vp.assets.length > 0) d.assets = vp.assets;
-  if (vp.assetAsBand) d.asset_as_band = true;
-  if (vp.bidx?.length) d.bidx = vp.bidx;
-  if (vp.rescale) d.rescale = vp.rescale;
-  if (vp.colormapName) d.colormap_name = vp.colormapName;
-  if (vp.colorFormula) d.color_formula = vp.colorFormula;
-  if (vp.expression) d.expression = vp.expression;
-  if (vp.resampling) d.resampling = vp.resampling;
-  if (vp.compositing) d.compositing = vp.compositing;
-  if (vp.nodata !== undefined) d.nodata = vp.nodata;
-  if (vp.extraParams && Object.keys(vp.extraParams).length > 0) d.extra_params = vp.extraParams;
-  if (vp.maskLayer) d.mask_layer = vp.maskLayer;
-  if (vp.maskValues?.length) d.mask_values = vp.maskValues;
-  if (vp.nirBand) d.nir_band = vp.nirBand;
-  if (vp.redBand) d.red_band = vp.redBand;
-  if (vp.maxItems !== undefined) d.max_items = Math.max(1, Math.min(10, vp.maxItems));
-  return d;
-}
-
+// viz_params serialization (VizParams -> API payload) lives in draftSync.ts as
+// `toVizParamsPayload` - the single writer used by the save path. This module only
+// owns the inverse (API -> VizParams) below.
 export function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
   const p = d ?? {};
   return {

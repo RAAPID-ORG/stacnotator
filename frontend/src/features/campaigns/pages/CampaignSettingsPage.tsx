@@ -675,7 +675,7 @@ export const CampaignSettingsPage = () => {
                 </svg>
                 <span>
                   <strong>Mosaic registration in progress...</strong> Tile imagery is being
-                  registered from the STAC catalog. You can configure other settings while waiting.
+                  registered from the STAC catalog.
                 </span>
               </div>
             )}

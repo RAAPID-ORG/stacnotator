@@ -2255,6 +2255,10 @@ export type VizParamsCreate = {
      */
     asset_as_band?: boolean;
     /**
+     * Bidx
+     */
+    bidx?: Array<number> | null;
+    /**
      * Rescale
      */
     rescale?: string | null;

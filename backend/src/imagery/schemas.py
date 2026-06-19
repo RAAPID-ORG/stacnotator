@@ -185,6 +185,9 @@ class VizParamsCreate(BaseModel):
 
     assets: list[str] = []
     asset_as_band: bool = False
+    # 1-based band indexes to output from a single multiband asset (e.g. [6,4,2] for RGB).
+    # The tiler slices the read result to these bands - see the tiler's CompositingBackend.
+    bidx: list[int] | None = None
     rescale: str | None = None
     colormap_name: str | None = None
     color_formula: str | None = None

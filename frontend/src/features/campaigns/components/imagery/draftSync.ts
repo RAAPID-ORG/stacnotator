@@ -24,6 +24,7 @@ export const isRealId = (id: string): boolean => toIdField(id) !== undefined;
 const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
   assets: v.assets,
   asset_as_band: v.assetAsBand,
+  bidx: v.bidx?.length ? v.bidx : undefined,
   rescale: v.rescale || undefined,
   colormap_name: v.colormapName,
   color_formula: v.colorFormula,
