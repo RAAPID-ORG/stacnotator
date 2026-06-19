@@ -8,6 +8,7 @@ from geoalchemy2.shape import to_shape
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from src.annotation.constants import EMBD_MIN_N_NEIGHBOURS
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -323,9 +324,6 @@ def has_sufficient_validation_data(
     return total >= 2 * n_neighbours and label_count >= n_neighbours
 
 
-_N_NEIGHBOURS = 5
-
-
 def get_validation_status(
     db: Session,
     campaign_id: int,
@@ -340,8 +338,8 @@ def get_validation_status(
     if embedding_year is None:
         return KnnValidationStatusOut(
             enabled=False,
-            required_per_label=_N_NEIGHBOURS,
-            required_total=2 * _N_NEIGHBOURS,
+            required_per_label=EMBD_MIN_N_NEIGHBOURS,
+            required_total=2 * EMBD_MIN_N_NEIGHBOURS,
             total_labeled_with_embedding=0,
             per_label_counts={},
         )
@@ -377,8 +375,8 @@ def get_validation_status(
 
     return KnnValidationStatusOut(
         enabled=True,
-        required_per_label=_N_NEIGHBOURS,
-        required_total=2 * _N_NEIGHBOURS,
+        required_per_label=EMBD_MIN_N_NEIGHBOURS,
+        required_total=2 * EMBD_MIN_N_NEIGHBOURS,
         total_labeled_with_embedding=int(total),
         per_label_counts=per_label,
     )
@@ -403,7 +401,7 @@ def validate_label_submission(
             agrees=None,
         )
 
-    if not has_sufficient_validation_data(db, campaign_id, label_id, _N_NEIGHBOURS):
+    if not has_sufficient_validation_data(db, campaign_id, label_id, EMBD_MIN_N_NEIGHBOURS):
         return ValidateLabelSubmissionsResponse(
             status="skipped_insufficient_data",
             agrees=None,
@@ -413,7 +411,7 @@ def validate_label_submission(
         db,
         campaign_id=campaign_id,
         target_vector=list(embedding.vector),
-        k=_N_NEIGHBOURS,
+        k=EMBD_MIN_N_NEIGHBOURS,
     )
 
     agrees = knn_label_agrees(nearest, label_id)

@@ -12,10 +12,18 @@ class StacCatalogOut(BaseModel):
     auth_required: bool
 
 
+class BandInfo(BaseModel):
+    name: str
+    description: str | None = None
+
+
 class AssetInfo(BaseModel):
     title: str
     type: str
     roles: list[str]
+    # Populated from the asset's eo:bands; lets the wizard pick bands within a single
+    # multiband asset. Empty for single-band / per-band-asset collections (e.g. MPC).
+    bands: list[BandInfo] = []
 
 
 class TemporalExtent(BaseModel):

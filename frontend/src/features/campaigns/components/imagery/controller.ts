@@ -64,6 +64,7 @@ export function vizParamsToBackend(vp: VizParams): Record<string, unknown> {
   const d: Record<string, unknown> = {};
   if (vp.assets.length > 0) d.assets = vp.assets;
   if (vp.assetAsBand) d.asset_as_band = true;
+  if (vp.bidx?.length) d.bidx = vp.bidx;
   if (vp.rescale) d.rescale = vp.rescale;
   if (vp.colormapName) d.colormap_name = vp.colormapName;
   if (vp.colorFormula) d.color_formula = vp.colorFormula;
@@ -85,6 +86,7 @@ export function vizParamsToFrontend(d: Record<string, unknown> | null | undefine
   return {
     assets: (p.assets as string[]) ?? [],
     assetAsBand: (p.asset_as_band as boolean) ?? false,
+    bidx: (p.bidx as number[]) ?? undefined,
     rescale: (p.rescale as string) ?? '',
     colormapName: (p.colormap_name as string) ?? undefined,
     colorFormula: (p.color_formula as string) ?? undefined,

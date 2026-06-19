@@ -28,6 +28,10 @@ export interface VizParams {
   colormapName?: string;
   colorFormula?: string;
   expression?: string;
+  /** 1-based band indexes to output from a single multiband asset (e.g. [6,4,2] for R,G,B).
+   *  Used when the collection exposes one asset with multiple eo:bands; the tiler slices
+   *  the read result to these bands. Mutually exclusive with multi-asset selection. */
+  bidx?: number[];
   resampling?: string;
   compositing?: string;
   nodata?: number;

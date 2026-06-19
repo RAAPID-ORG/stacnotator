@@ -120,6 +120,26 @@ export const VizConfigPanel = ({
   });
 
   const rasterAssets = getRasterAssets(availableAssets);
+
+  // Band mode: a single asset that holds many bands (e.g. an 8-band COG exposed as one
+  // "data" asset). The tiler can't subset bands via asset_bidx, so we let the user pick
+  // bands by 1-based index (vizParams.bidx) and the tiler slices the output. This is
+  // mutually exclusive with multi-asset selection - we show bands OR assets, never both.
+  const multibandAsset =
+    rasterAssets.length === 1 && (rasterAssets[0][1].bands?.length ?? 0) > 1
+      ? rasterAssets[0]
+      : null;
+  const bandMode = multibandAsset !== null;
+  const bandChoices = multibandAsset
+    ? (multibandAsset[1].bands ?? [])
+        .map((b, i) => ({ name: b.name, idx: i + 1 }))
+        // Alpha is a transparency mask, not a display band - exclude it from the picker.
+        .filter((b) => b.name.toLowerCase() !== 'alpha')
+    : [];
+  const selBidx = vizParams.bidx ?? [];
+  // How many output bands are selected (drives RGB-vs-single-band / colormap logic).
+  const selCount = bandMode ? selBidx.length : vizParams.assets.length;
+
   const presets = COLLECTION_PRESETS[collectionId] || [];
   const validPresets = presets.filter((p) =>
     p.assets.every((a) => rasterAssets.some(([k]) => k === a))
@@ -161,10 +181,28 @@ export const VizConfigPanel = ({
     });
   };
 
+  // Band-mode toggle: select up to 3 bands by 1-based index. `assets` is pinned to the
+  // single multiband asset so the tiler reads it, and bidx selects which bands to output.
+  const toggleBidx = (idx: number) => {
+    const prev = selBidx;
+    let next: number[];
+    if (prev.includes(idx)) next = prev.filter((b) => b !== idx);
+    else if (prev.length < 3) next = [...prev, idx];
+    else next = prev;
+    onChange({
+      ...vizParams,
+      assets: next.length ? [multibandAsset![0]] : [],
+      bidx: next,
+      assetAsBand: false,
+    });
+  };
+
   const applyPreset = (preset: BandPreset) => {
     const updates: Partial<VizParams> = {
       assets: preset.assets,
-      assetAsBand: preset.assets.length === 3 || !!preset.expression,
+      // bidx presets pick bands within one asset; asset_as_band doesn't apply there.
+      assetAsBand: preset.bidx ? false : preset.assets.length === 3 || !!preset.expression,
+      bidx: preset.bidx,
     };
     if (preset.colormap) updates.colormapName = preset.colormap;
     if (preset.rescale) {
@@ -201,14 +239,14 @@ export const VizConfigPanel = ({
 
   const bandLabel = (i: number) => {
     if (vizParams.expression) return '';
-    if (vizParams.assets.length === 1) return 'S';
+    if (selCount === 1) return 'S';
     return ['R', 'G', 'B'][i] || '';
   };
 
   const bandColorClass = (i: number) => {
     // Expression mode: the selected assets are the expression's inputs, not RGB.
     if (vizParams.expression) return 'bg-brand-50 border-brand-400 text-brand-700';
-    if (vizParams.assets.length === 1) return 'bg-purple-100 border-purple-400 text-purple-800';
+    if (selCount === 1) return 'bg-purple-100 border-purple-400 text-purple-800';
     return (
       [
         'bg-red-100 border-red-400 text-red-800',
@@ -226,8 +264,7 @@ export const VizConfigPanel = ({
     ? vizParams.expression.split(',').filter((t) => t.trim()).length
     : 0;
   const showColormap =
-    !isRgbAsset &&
-    (expressionBands === 1 || (expressionBands === 0 && vizParams.assets.length === 1));
+    !isRgbAsset && (expressionBands === 1 || (expressionBands === 0 && selCount === 1));
 
   return (
     <div className="space-y-4">
@@ -239,7 +276,8 @@ export const VizConfigPanel = ({
             {validPresets.map((p, i) => {
               const isActive =
                 p.assets.length === vizParams.assets.length &&
-                p.assets.every((a, j) => a === vizParams.assets[j]);
+                p.assets.every((a, j) => a === vizParams.assets[j]) &&
+                JSON.stringify(p.bidx ?? null) === JSON.stringify(vizParams.bidx ?? null);
               return (
                 <button
                   key={i}
@@ -259,10 +297,65 @@ export const VizConfigPanel = ({
         </div>
       )}
 
-      {/* Band picker (with asset metadata) - falls back to a text input when
-          the collection's STAC metadata isn't loaded (e.g. editing a saved
-          collection without re-fetching). */}
-      {rasterAssets.length > 0 ? (
+      {/* Band picker. Three cases: (1) one multiband asset -> pick bands by index;
+          (2) per-band assets (MPC-style) -> pick assets; (3) no STAC metadata -> text
+          input (e.g. editing a saved collection without re-fetching). */}
+      {bandMode ? (
+        <div className="space-y-1.5">
+          <label className="text-xs text-neutral-700 font-medium">
+            Bands{' '}
+            <span className="font-normal text-neutral-500">Select 1 (colorized) or 3 (RGB)</span>
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {bandChoices.map(({ name, idx }) => {
+              const pos = selBidx.indexOf(idx);
+              const selected = pos >= 0;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => toggleBidx(idx)}
+                  title={`band ${idx}: ${name}`}
+                  className={`relative text-xs px-2 py-1 rounded border transition-colors cursor-pointer ${
+                    selected
+                      ? bandColorClass(pos)
+                      : 'border-neutral-200 text-neutral-600 hover:border-neutral-300'
+                  }`}
+                >
+                  {selected && (
+                    <span className="absolute -top-1.5 -left-1 text-[9px] font-bold leading-none">
+                      {bandLabel(pos)}
+                    </span>
+                  )}
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-neutral-500">
+            {selBidx.length === 0 && 'No bands selected'}
+            {selBidx.length === 1 &&
+              `Single band: ${bandChoices.find((b) => b.idx === selBidx[0])?.name ?? selBidx[0]} (colorized)`}
+            {selBidx.length === 2 && 'Select a 3rd band for RGB, or remove one'}
+            {selBidx.length === 3 && (
+              <>
+                RGB:{' '}
+                <span className="text-red-600">
+                  {bandChoices.find((b) => b.idx === selBidx[0])?.name}
+                </span>{' '}
+                /{' '}
+                <span className="text-green-600">
+                  {bandChoices.find((b) => b.idx === selBidx[1])?.name}
+                </span>{' '}
+                /{' '}
+                <span className="text-blue-600">
+                  {bandChoices.find((b) => b.idx === selBidx[2])?.name}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      ) : rasterAssets.length > 0 ? (
         <div className="space-y-1.5">
           <label className="text-xs text-neutral-700 font-medium">
             Bands{' '}

@@ -6,6 +6,9 @@
 export interface BandPreset {
   label: string;
   assets: string[];
+  /** 1-based band indexes within a single multiband asset (e.g. [6,4,2]). When set, `assets`
+   *  must be the single multiband asset and the tiler slices the output to these bands. */
+  bidx?: number[];
   colormap?: string;
   rescale?: string;
   expression?: string;
@@ -17,6 +20,13 @@ export interface BandPreset {
 }
 
 export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
+  // 8-band PlanetScope biweekly composites: one multiband "data" asset.
+  // Bands: 1 coastal_blue, 2 blue, 3 green_i, 4 green, 5 yellow, 6 red, 7 rededge, 8 nir.
+  ps_biweekly_8band: [
+    { label: 'True Color (RGB)', assets: ['data'], bidx: [6, 4, 2], rescale: '0,3000' },
+    { label: 'Color Infrared (Vegetation)', assets: ['data'], bidx: [8, 6, 4], rescale: '0,3000' },
+    { label: 'NIR', assets: ['data'], bidx: [8], rescale: '0,3000', colormap: 'viridis' },
+  ],
   'sentinel-2-l2a': [
     {
       label: 'True Color (RGB)',
@@ -234,6 +244,9 @@ export interface AssetInfo {
   title: string;
   type: string;
   roles: string[];
+  /** eo:bands of this asset (order = band index). Present for single multiband assets
+   *  (e.g. an 8-band COG exposed as one asset), enabling per-band selection via bidx. */
+  bands?: { name: string; description?: string | null }[];
 }
 
 export function getRasterAssets(assets: Record<string, AssetInfo>): [string, AssetInfo][] {

@@ -64,10 +64,17 @@ def list_collections(catalog_url: str) -> list[dict]:
         item_assets = {}
         raw_item_assets = (col.extra_fields or {}).get("item_assets", {})
         for key, asset_def in raw_item_assets.items():
+            # eo:bands lets the wizard offer per-band selection for a single multiband
+            # asset (e.g. an 8-band COG served as one "data" asset). Order = band index.
+            eo_bands = asset_def.get("eo:bands") or []
             item_assets[key] = {
                 "title": asset_def.get("title", key),
                 "type": asset_def.get("type", ""),
                 "roles": asset_def.get("roles", []),
+                "bands": [
+                    {"name": b.get("name", f"b{i + 1}"), "description": b.get("description")}
+                    for i, b in enumerate(eo_bands)
+                ],
             }
 
         # Detect eo:cloud_cover support:

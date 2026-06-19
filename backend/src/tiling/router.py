@@ -222,12 +222,18 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
     if expression:
         parts.append(("expression", expression))
 
+    # bidx selects output bands from a single multiband asset (our tiler slices the
+    # composited result to these 1-based indexes - see the tiler's CompositingBackend).
+    bidx = [int(b) for b in (viz_params.get("bidx") or [])]
+
     # Number of output bands. An expression is a comma-separated list of band
     # expressions - one output band per term (e.g. "(B08-B04)/(B08+B04)" -> 1,
     # "B04,B03,B02" -> 3) - which is independent of how many assets it reads.
-    # Without an expression, each selected asset is one band.
+    # With bidx it's the number of selected bands. Otherwise each asset is one band.
     if expression:
         output_bands = len([term for term in expression.split(",") if term.strip()]) or 1
+    elif bidx:
+        output_bands = len(bidx)
     else:
         output_bands = max(len(assets), 1)
 
@@ -258,6 +264,9 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
     # endpoint would reject them or silently ignore, so skip entirely.
     if for_mpc:
         return urlencode(parts)
+
+    if bidx:
+        parts.append(("bidx", ",".join(str(b) for b in bidx)))
 
     compositing = viz_params.get("compositing")
     if compositing:
