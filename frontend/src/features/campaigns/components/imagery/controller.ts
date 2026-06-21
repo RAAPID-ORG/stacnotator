@@ -10,7 +10,8 @@ import type {
   ImageryViewOut,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { basemapToBackend, collectionToBackend, isRealId, sourceToBackend } from './draftSync';
+import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
+import { VIZ_PARAMS_FIELD_MAP } from './vizParamsMapping';
 import type {
   Basemap,
   CollectionItem,
@@ -65,24 +66,12 @@ export interface ImageryController {
 // owns the inverse (API -> VizParams) below.
 export function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
   const p = d ?? {};
-  return {
-    assets: (p.assets as string[]) ?? [],
-    assetAsBand: (p.asset_as_band as boolean) ?? false,
-    bidx: (p.bidx as number[]) ?? undefined,
-    rescale: (p.rescale as string) ?? '',
-    colormapName: (p.colormap_name as string) ?? undefined,
-    colorFormula: (p.color_formula as string) ?? undefined,
-    expression: (p.expression as string) ?? undefined,
-    resampling: (p.resampling as string) ?? undefined,
-    compositing: (p.compositing as string) ?? undefined,
-    nodata: (p.nodata as number) ?? undefined,
-    extraParams: (p.extra_params as Record<string, string>) ?? undefined,
-    maskLayer: (p.mask_layer as string) ?? undefined,
-    maskValues: (p.mask_values as number[]) ?? undefined,
-    nirBand: (p.nir_band as string) ?? undefined,
-    redBand: (p.red_band as string) ?? undefined,
-    maxItems: (p.max_items as number) ?? undefined,
-  };
+  const result = {} as VizParams;
+  for (const entry of VIZ_PARAMS_FIELD_MAP) {
+    const raw = p[entry.apiKey];
+    (result as unknown as Record<string, unknown>)[entry.feKey] = raw ?? entry.readDefault;
+  }
+  return result;
 }
 
 export interface DraftControllerOptions {
@@ -363,12 +352,6 @@ export interface PersistedControllerOptions {
   campaignBbox?: number[] | null;
   /** Called after any mutation succeeds so the parent can refetch. */
   refetch?: () => void;
-}
-
-/** Deep-equal for plain JSON-shaped state (no functions, no class instances).
- *  Key order is stable because we always build objects via the same literals. */
-function eq(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function usePersistedController({

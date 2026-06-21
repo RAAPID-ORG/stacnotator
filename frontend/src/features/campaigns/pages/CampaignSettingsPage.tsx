@@ -48,9 +48,12 @@ import {
   type TimeSeriesCreate,
   type TimeSeriesOut,
   type GenerateTasksResponse,
+  type BodyIngestAnnotationTasksFromGeojson,
+  type BodyIngestAnnotationTasksFromCsv,
   updateCampaignName,
   updateCampaignBbox,
 } from '~/api/client';
+import { fileUploadBody } from '~/shared/utils/fileUploadBody';
 
 export const CampaignSettingsPage = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -354,12 +357,12 @@ export const CampaignSettingsPage = () => {
       if (name.endsWith('.geojson') || name.endsWith('.json')) {
         await ingestAnnotationTasksFromGeojson({
           path: { campaign_id: numericCampaignId },
-          body: { file: taskFile } as never,
+          body: fileUploadBody<BodyIngestAnnotationTasksFromGeojson>({ file: taskFile }),
         });
       } else {
         await ingestAnnotationTasksFromCsv({
           path: { campaign_id: numericCampaignId },
-          body: { file: taskFile } as never,
+          body: fileUploadBody<BodyIngestAnnotationTasksFromCsv>({ file: taskFile }),
         });
       }
 

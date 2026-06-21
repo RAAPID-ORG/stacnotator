@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { generateTasksFromSampling, type GenerateTasksResponse } from '~/api/client';
+import {
+  generateTasksFromSampling,
+  type GenerateTasksResponse,
+  type BodyGenerateTasksFromSampling,
+} from '~/api/client';
+import { fileUploadBody } from '~/shared/utils/fileUploadBody';
 
 // Local type definition for sampling strategy configuration
 interface SamplingStrategyConfig {
@@ -84,7 +89,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
 
       const { data, error } = await generateTasksFromSampling({
         path: { campaign_id: campaignId },
-        body: requestBody as never,
+        body: fileUploadBody<BodyGenerateTasksFromSampling>(requestBody),
       });
 
       if (error) {

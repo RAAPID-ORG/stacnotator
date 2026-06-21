@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut, LabelBase } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { generateLabelColors } from './labelColors';
+import { useLeafletMap } from './useLeafletMap';
 
 interface AnnotationDistributionMapProps {
   tasks: AnnotationTaskOut[];
@@ -20,53 +21,12 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
   bbox,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
   const [labelColors, setLabelColors] = useState<Record<number, string>>({});
 
   useEffect(() => {
     setLabelColors(generateLabelColors(labels));
   }, [labels]);
-
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
-    const map = L.map(containerRef.current, {
-      center: [(bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2],
-      zoom: 10,
-      zoomControl: true,
-      attributionControl: true,
-    });
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: ['a', 'b', 'c', 'd'],
-      maxZoom: 19,
-    }).addTo(map);
-
-    const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
-    map.fitBounds(bounds, { padding: [20, 20] });
-
-    L.rectangle(bounds, {
-      color: '#326247',
-      weight: 2,
-      fillOpacity: 0.05,
-      dashArray: '5, 5',
-    }).addTo(map);
-
-    markersLayerRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-    setMapReady(true);
-
-    return () => {
-      mapRef.current?.remove();
-      mapRef.current = null;
-      markersLayerRef.current = null;
-      setMapReady(false);
-    };
-  }, [bbox.west, bbox.south, bbox.east, bbox.north]);
 
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current || !mapReady) return;
@@ -144,6 +104,7 @@ export const AnnotationDistributionMap: React.FC<AnnotationDistributionMapProps>
 
       markersLayerRef.current?.addLayer(marker);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mapRef/markersLayerRef are stable refs returned from useLeafletMap
   }, [tasks, mapReady, labelColors, labels]);
 
   const labelStats = labels
