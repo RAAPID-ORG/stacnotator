@@ -35,7 +35,7 @@ export type AnnotationCreate = {
     /**
      * Confidence
      */
-    confidence: number | null;
+    confidence?: number | null;
     /**
      * Flagged For Review
      */
@@ -77,7 +77,7 @@ export type AnnotationFromTaskCreate = {
     /**
      * Confidence
      */
-    confidence: number | null;
+    confidence?: number | null;
     /**
      * Is Authoritative
      */
@@ -1145,21 +1145,9 @@ export type CollectionStacConfigOut = {
      */
     tiler?: string | null;
     /**
-     * Viz Params
+     * Viz Configs
      */
-    viz_params?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Cover Viz Params
-     */
-    cover_viz_params?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Visualizations
-     */
-    visualizations?: Array<NamedVizParamsOut> | null;
+    viz_configs?: Array<CollectionVizConfigOut>;
     /**
      * Max Cloud Cover
      */
@@ -1174,6 +1162,38 @@ export type CollectionStacConfigOut = {
      * Cover Search Query
      */
     cover_search_query?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * CollectionVizConfigOut
+ *
+ * Per-collection, per-visualization render params (new authoritative representation).
+ */
+export type CollectionVizConfigOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Display Order
+     */
+    display_order: number;
+    /**
+     * Render Params
+     */
+    render_params: {
+        [key: string]: unknown;
+    };
+    /**
+     * Cover Render Params
+     */
+    cover_render_params?: {
         [key: string]: unknown;
     } | null;
 };
@@ -1580,28 +1600,6 @@ export type NamedVizParamsCreate = {
     name: string;
     viz_params: VizParamsCreate;
     cover_viz_params?: VizParamsCreate | null;
-};
-
-/**
- * NamedVizParamsOut
- */
-export type NamedVizParamsOut = {
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Viz Params
-     */
-    viz_params?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Cover Viz Params
-     */
-    cover_viz_params?: {
-        [key: string]: unknown;
-    } | null;
 };
 
 /**

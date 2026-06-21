@@ -6,6 +6,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -100,6 +101,33 @@ class ImageryCollection(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    viz_configs: Mapped[list["CollectionVizConfig"]] = relationship(
+        back_populates="collection",
+        cascade="all, delete-orphan",
+        order_by="CollectionVizConfig.display_order",
+    )
+
+
+class CollectionVizConfig(Base):
+    """Per-collection, per-visualization render params row (replaces the JSONB blobs)."""
+
+    __tablename__ = "collection_viz_configs"
+    __table_args__ = (
+        UniqueConstraint("collection_id", "name", name="uq_collection_viz_configs_collection_name"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    collection_id: Mapped[int] = mapped_column(
+        ForeignKey("data.imagery_collections.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    render_params: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    cover_render_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    collection: Mapped["ImageryCollection"] = relationship(back_populates="viz_configs")
 
 
 class CollectionStacConfig(Base):
@@ -117,17 +145,6 @@ class CollectionStacConfig(Base):
     stac_collection_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Hosted tiler name (a Settings.TILERS key); null => DEFAULT_TILER.
     tile_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # Structured viz params: {"assets": [...], "rescale": "0,3000", "colormap_name": ...}
-    # NOTE: legacy single-blob holding the FIRST visualization's params for
-    # backward compat. Authoritative per-visualization params live in
-    # `visualizations` below; kept in sync for older readers.
-    viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Cover slice viz params (different compositing, etc.) - first viz, legacy.
-    cover_viz_params: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Full per-visualization params, one entry per source visualization:
-    # [{"name": "True Color", "viz_params": {...}, "cover_viz_params": {...}}, ...]
-    # NULL for legacy rows written before this column existed.
-    visualizations: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Max cloud cover percentage for STAC search filtering
     max_cloud_cover: Mapped[float | None] = mapped_column(nullable=True)
     # Custom CQL2-JSON search query (when set, used instead of auto-generated query)
@@ -136,6 +153,10 @@ class CollectionStacConfig(Base):
     cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
+
+    @property
+    def viz_configs(self):
+        return self.collection.viz_configs if self.collection else []
 
 
 class ImagerySlice(Base):

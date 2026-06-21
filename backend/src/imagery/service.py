@@ -18,6 +18,7 @@ from src.config import get_settings
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
+    CollectionVizConfig,
     ImageryCollection,
     ImagerySlice,
     ImagerySource,
@@ -43,26 +44,64 @@ def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
     return bool(col_create.has_dedicated_cover)
 
 
-def _serialize_visualizations(stac_config, has_cover: bool) -> list[dict] | None:
-    """Full per-visualization params list for CollectionStacConfig.visualizations.
+def _upsert_viz_configs(
+    db: Session,
+    collection_id: int,
+    visualizations,
+    has_cover: bool,
+) -> None:
+    """Upsert CollectionVizConfig rows to match the given visualization list.
 
-    One entry per source visualization so a roundtrip-save preserves each viz's
-    params independently (the legacy viz_params blob only holds the first viz).
+    Inserts new rows, updates existing ones (matched by name), and deletes any
+    rows whose names are no longer present — keeping the table in sync with the
+    legacy visualizations JSONB representation.
     """
-    if not stac_config or not stac_config.visualizations:
-        return None
-    return [
-        {
-            "name": v.name,
-            "viz_params": v.viz_params.model_dump(exclude_none=True),
-            "cover_viz_params": (
-                v.cover_viz_params.model_dump(exclude_none=True)
-                if has_cover and v.cover_viz_params
-                else None
-            ),
-        }
-        for v in stac_config.visualizations
-    ]
+    if not visualizations:
+        db.execute(
+            delete(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
+        )
+        return
+
+    incoming_names = {v.name for v in visualizations}
+
+    db.execute(
+        delete(CollectionVizConfig).where(
+            CollectionVizConfig.collection_id == collection_id,
+            CollectionVizConfig.name.notin_(incoming_names),
+        )
+    )
+
+    existing = {
+        row.name: row
+        for row in db.execute(
+            select(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
+        )
+        .scalars()
+        .all()
+    }
+
+    for i, v in enumerate(visualizations):
+        render = v.viz_params.model_dump(exclude_none=True)
+        cover_render = (
+            v.cover_viz_params.model_dump(exclude_none=True)
+            if has_cover and v.cover_viz_params
+            else None
+        )
+        if v.name in existing:
+            row = existing[v.name]
+            row.display_order = i
+            row.render_params = render
+            row.cover_render_params = cover_render
+        else:
+            db.add(
+                CollectionVizConfig(
+                    collection_id=collection_id,
+                    name=v.name,
+                    display_order=i,
+                    render_params=render,
+                    cover_render_params=cover_render,
+                )
+            )
 
 
 # ============================================================================
@@ -392,19 +431,28 @@ def _resolve_view_refs(
 
 
 def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> bool:
-    """Cheap deep-compare of fields that require mosaic re-registration."""
+    """Cheap deep-compare of fields that require mosaic re-registration.
+
+    Compares the FULL set of viz configs (all names + render_params + cover_render_params)
+    so that changes to viz[1..n] correctly trigger re-registration (Quirk 3 fix).
+    """
     if existing is None:
         return True
-    first_viz = incoming.visualizations[0] if incoming.visualizations else None
-    new_viz_params = first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
-    new_cover_viz_params = (
-        first_viz.cover_viz_params.model_dump(exclude_none=True)
-        if first_viz and first_viz.cover_viz_params
-        else None
-    )
+
+    existing_viz_configs = existing.collection.viz_configs if existing.collection else []
+    existing_set = {
+        vc.name: (vc.render_params, vc.cover_render_params) for vc in existing_viz_configs
+    }
+    incoming_set = {
+        v.name: (
+            v.viz_params.model_dump(exclude_none=True),
+            v.cover_viz_params.model_dump(exclude_none=True) if v.cover_viz_params else None,
+        )
+        for v in (incoming.visualizations or [])
+    }
+
     return (
-        existing.viz_params != new_viz_params
-        or existing.cover_viz_params != new_cover_viz_params
+        existing_set != incoming_set
         or existing.max_cloud_cover != incoming.max_cloud_cover
         or existing.search_query != incoming.search_query
         or existing.cover_search_query != incoming.cover_search_query
@@ -429,6 +477,7 @@ def _update_source_in_place(
     # Reconcile visualization templates by name.
     existing_viz = {v.name: v for v in db_src.visualizations}
     payload_names = [v.name for v in src_create.visualizations]
+    removed_viz_names = {name for name in existing_viz if name not in payload_names}
     for name, viz in list(existing_viz.items()):
         if name not in payload_names:
             db.delete(viz)
@@ -437,6 +486,17 @@ def _update_source_in_place(
             existing_viz[viz.name].display_order = viz_idx
         else:
             db.add(VisualizationTemplate(source_id=db_src.id, name=viz.name, display_order=viz_idx))
+
+    # Remove CollectionVizConfig rows for viz names that disappeared from the source.
+    if removed_viz_names:
+        collection_ids = [col.id for col in db_src.collections]
+        if collection_ids:
+            db.execute(
+                delete(CollectionVizConfig).where(
+                    CollectionVizConfig.collection_id.in_(collection_ids),
+                    CollectionVizConfig.name.in_(removed_viz_names),
+                )
+            )
 
     pending: list[tuple] = []
     for col_idx, col_create in enumerate(src_create.collections):
@@ -484,26 +544,12 @@ def _update_collection_in_place(
     if col_create.stac_config:
         if db_col.stac_config is None:
             # Collection just gained a stac_config (unusual).
-            first_viz = (
-                col_create.stac_config.visualizations[0]
-                if col_create.stac_config.visualizations
-                else None
-            )
             db.add(
                 CollectionStacConfig(
                     collection_id=db_col.id,
                     catalog_url=col_create.stac_config.catalog_url,
                     stac_collection_id=col_create.stac_config.stac_collection_id,
                     tile_provider=col_create.stac_config.tiler,
-                    viz_params=(
-                        first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
-                    ),
-                    cover_viz_params=(
-                        first_viz.cover_viz_params.model_dump(exclude_none=True)
-                        if has_cover and first_viz and first_viz.cover_viz_params
-                        else None
-                    ),
-                    visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                     max_cloud_cover=col_create.stac_config.max_cloud_cover,
                     search_query=col_create.stac_config.search_query,
                     cover_search_query=(
@@ -515,22 +561,6 @@ def _update_collection_in_place(
         else:
             if _stac_config_changed(db_col.stac_config, col_create.stac_config):
                 needs_reregistration = True
-            first_viz = (
-                col_create.stac_config.visualizations[0]
-                if col_create.stac_config.visualizations
-                else None
-            )
-            db_col.stac_config.viz_params = (
-                first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
-            )
-            db_col.stac_config.cover_viz_params = (
-                first_viz.cover_viz_params.model_dump(exclude_none=True)
-                if has_cover and first_viz and first_viz.cover_viz_params
-                else None
-            )
-            db_col.stac_config.visualizations = _serialize_visualizations(
-                col_create.stac_config, has_cover
-            )
             db_col.stac_config.tile_provider = col_create.stac_config.tiler
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
             db_col.stac_config.search_query = col_create.stac_config.search_query
@@ -539,7 +569,7 @@ def _update_collection_in_place(
             )
             flag_modified(db_col.stac_config, "search_query")
             flag_modified(db_col.stac_config, "cover_search_query")
-            flag_modified(db_col.stac_config, "visualizations")
+        _upsert_viz_configs(db, db_col.id, col_create.stac_config.visualizations, has_cover)
 
     # Reconcile slices.
     payload_slice_ids = {s.id for s in col_create.slices if s.id is not None}
@@ -695,26 +725,12 @@ def _create_collection_record(
     has_cover = _payload_has_dedicated_cover(col_create)
 
     if col_create.stac_config:
-        first_viz = (
-            col_create.stac_config.visualizations[0]
-            if col_create.stac_config.visualizations
-            else None
-        )
         db.add(
             CollectionStacConfig(
                 collection_id=collection.id,
                 catalog_url=col_create.stac_config.catalog_url,
                 stac_collection_id=col_create.stac_config.stac_collection_id,
                 tile_provider=col_create.stac_config.tiler,
-                viz_params=(
-                    first_viz.viz_params.model_dump(exclude_none=True) if first_viz else None
-                ),
-                cover_viz_params=(
-                    first_viz.cover_viz_params.model_dump(exclude_none=True)
-                    if has_cover and first_viz and first_viz.cover_viz_params
-                    else None
-                ),
-                visualizations=_serialize_visualizations(col_create.stac_config, has_cover),
                 max_cloud_cover=col_create.stac_config.max_cloud_cover,
                 search_query=col_create.stac_config.search_query,
                 cover_search_query=(
@@ -722,6 +738,7 @@ def _create_collection_record(
                 ),
             )
         )
+        _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
 
     for sl_idx, sl_create in enumerate(col_create.slices):
         slice_obj = ImagerySlice(
@@ -1091,16 +1108,14 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
     """Per-visualization params for a slice, applying the cover override when present.
 
-    Reads the authoritative per-viz list (``CollectionStacConfig.visualizations``); falls
-    back to the legacy single blob for rows written before that column existed.
+    Reads from CollectionVizConfig ORM rows (authoritative since Phase 8 inc 5).
     """
-    for v in stac.visualizations or []:
-        if v.get("name") == viz_name:
-            cover = v.get("cover_viz_params")
-            return cover if (is_cover and cover) else (v.get("viz_params") or {})
-    if is_cover and stac.cover_viz_params:
-        return stac.cover_viz_params
-    return stac.viz_params or {}
+    for vc in stac.collection.viz_configs if stac.collection else []:
+        if vc.name == viz_name:
+            if is_cover and vc.cover_render_params:
+                return vc.cover_render_params
+            return vc.render_params or {}
+    return {}
 
 
 def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
@@ -1203,8 +1218,8 @@ def update_collection_viz_params(
     viz_by_name: { "True Color": {assets: [...], rescale: ...}, "NDVI": {...} }
     cover_viz_by_name: optional overrides for cover slice (same shape)
 
-    Updates the stac_config (stores first viz's params for backward compat)
-    and reconstructs the query-string portion of all SliceTileUrl rows.
+    Updates the collection's CollectionVizConfig rows and reconstructs the
+    query-string portion of all SliceTileUrl rows.
     """
     from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -1217,27 +1232,40 @@ def update_collection_viz_params(
     if not collection or not collection.stac_config:
         return
 
-    stac = collection.stac_config
-    # Store first viz params on stac_config for backward compat / display
-    first_params = next(iter(viz_by_name.values()), None)
-    stac.viz_params = first_params
-    first_cover = (
-        next(iter((cover_viz_by_name or {}).values()), None) if cover_viz_by_name else None
-    )
-    stac.cover_viz_params = first_cover if collection.has_dedicated_cover else None
-    # Keep the authoritative per-viz list in sync so a load roundtrip preserves
-    # each visualization's params independently.
-    stac.visualizations = [
-        {
-            "name": name,
-            "viz_params": params,
-            "cover_viz_params": (
-                (cover_viz_by_name or {}).get(name) if collection.has_dedicated_cover else None
-            ),
-        }
-        for name, params in viz_by_name.items()
-    ]
-    flag_modified(stac, "visualizations")
+    # Keep CollectionVizConfig rows in sync with the rebaked params.
+    existing_viz_configs = {
+        row.name: row
+        for row in db.execute(
+            select(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
+        )
+        .scalars()
+        .all()
+    }
+    for i, (name, params) in enumerate(viz_by_name.items()):
+        cover_render = (
+            (cover_viz_by_name or {}).get(name) if collection.has_dedicated_cover else None
+        )
+        if name in existing_viz_configs:
+            row = existing_viz_configs[name]
+            row.display_order = i
+            row.render_params = params
+            row.cover_render_params = cover_render
+        else:
+            db.add(
+                CollectionVizConfig(
+                    collection_id=collection_id,
+                    name=name,
+                    display_order=i,
+                    render_params=params,
+                    cover_render_params=cover_render,
+                )
+            )
+    # Remove rows for names no longer present.
+    for name, row in existing_viz_configs.items():
+        if name not in viz_by_name:
+            db.delete(row)
+
+    db.flush()
 
     slices = (
         db.execute(
@@ -1273,13 +1301,13 @@ def update_collection_viz_params(
                 sl.tile_urls.append(clone)
 
         for tu in sl.tile_urls:
-            # Pick params for this specific visualization
+            # Pick params for this specific visualization; skip if name is unknown.
             if is_cover and cover_viz_by_name and tu.visualization_name in cover_viz_by_name:
                 params = cover_viz_by_name[tu.visualization_name]
             elif tu.visualization_name in viz_by_name:
                 params = viz_by_name[tu.visualization_name]
             else:
-                params = first_params
+                continue
 
             if tu.tile_provider == "mpc":
                 viz_qs = build_viz_query_string(params, for_mpc=True)
