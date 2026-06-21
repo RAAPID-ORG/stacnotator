@@ -352,7 +352,6 @@ def create_tasks_from_sampling_strategy(
                 "annotation_number": max_annotation_number + i + 1,
                 "campaign_id": campaign_id,
                 "geometry_id": geometry_id,
-                "status": "pending",
                 "raw_source_data": {
                     "sampling_strategy": strategy_type,
                     "lon": point.x,

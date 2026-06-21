@@ -228,12 +228,6 @@ export function resolveCollection(
   return { source, collection };
 }
 
-export function allCollectionsFlat(
-  sources: ImagerySource[]
-): { source: ImagerySource; collection: CollectionItem }[] {
-  return sources.flatMap((s) => s.collections.map((c) => ({ source: s, collection: c })));
-}
-
 export function swap<T>(arr: T[], i: number, j: number): T[] {
   if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return arr;
   const copy = [...arr];

@@ -318,7 +318,6 @@ def create_annotation_tasks_from_csv(
                 "annotation_number": int(row["id"]),
                 "campaign_id": campaign_id,
                 "geometry_id": geometry_id,
-                "status": "pending",
                 "raw_source_data": row["raw_source_data"],
             }
             for geometry_id, (_, row) in zip(geometry_ids, df.iterrows(), strict=True)
@@ -442,7 +441,6 @@ def create_annotation_tasks_from_geojson(
                 "annotation_number": max_num + i + 1,
                 "campaign_id": campaign_id,
                 "geometry_id": gid,
-                "status": "pending",
                 "raw_source_data": rd,
             }
             for i, (gid, rd) in enumerate(zip(geometry_ids, raw_data, strict=True))

@@ -252,12 +252,10 @@ class UpdateCampaignLabelsRequest(BaseModel):
 
 
 class EmbeddingYearUpdateResponse(BaseModel):
-    """Response after updating the embedding year.
-    Includes a summary of re-computation if embeddings were regenerated."""
+    """Response after updating the embedding year."""
 
     embedding_year: int | None
     embeddings_recomputed: bool
-    summary: dict | None = None
 
 
 class AssignTasksToUsersRequest(BaseModel):

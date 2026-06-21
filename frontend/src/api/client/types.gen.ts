@@ -1571,52 +1571,6 @@ export type LabelBase = {
 };
 
 /**
- * MosaicRegisterRequest
- */
-export type MosaicRegisterRequest = {
-    /**
-     * Catalog Url
-     */
-    catalog_url: string;
-    /**
-     * Collection Id
-     */
-    collection_id: string;
-    /**
-     * Bbox
-     */
-    bbox: Array<number>;
-    /**
-     * Datetime Range
-     */
-    datetime_range: string;
-    /**
-     * Max Items
-     */
-    max_items?: number | null;
-};
-
-/**
- * MosaicRegisterResponse
- */
-export type MosaicRegisterResponse = {
-    /**
-     * Mosaic Id
-     */
-    mosaic_id: string;
-    /**
-     * Item Count
-     */
-    item_count: number;
-    /**
-     * Assets
-     */
-    assets: {
-        [key: string]: AssetInfo;
-    };
-};
-
-/**
  * NamedVizParamsCreate
  */
 export type NamedVizParamsCreate = {
@@ -3693,42 +3647,6 @@ export type AssignReviewersResponses = {
     200: unknown;
 };
 
-export type RemoveUserFromTaskData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * Task Id
-         */
-        task_id: number;
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/tasks/{task_id}/users/{user_id}';
-};
-
-export type RemoveUserFromTaskErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RemoveUserFromTaskError = RemoveUserFromTaskErrors[keyof RemoveUserFromTaskErrors];
-
-export type RemoveUserFromTaskResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
 export type DeleteAnnotationTasksData = {
     body: DeleteAnnotationTasksRequest;
     path: {
@@ -4702,28 +4620,3 @@ export type SearchResponses = {
 };
 
 export type SearchResponse2 = SearchResponses[keyof SearchResponses];
-
-export type RegisterMosaicData = {
-    body: MosaicRegisterRequest;
-    path?: never;
-    query?: never;
-    url: '/api/stac/mosaic/register';
-};
-
-export type RegisterMosaicErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RegisterMosaicError = RegisterMosaicErrors[keyof RegisterMosaicErrors];
-
-export type RegisterMosaicResponses = {
-    /**
-     * Successful Response
-     */
-    200: MosaicRegisterResponse;
-};
-
-export type RegisterMosaicResponse = RegisterMosaicResponses[keyof RegisterMosaicResponses];

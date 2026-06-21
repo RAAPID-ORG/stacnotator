@@ -212,11 +212,6 @@ class AnnotationTaskListOut(BaseModel):
     tasks: list[AnnotationTaskOut]
 
 
-class AnnotationsListOut(BaseModel):
-    campaign_id: int
-    annotations: list[AnnotationOut]
-
-
 class AnnotationFromTaskCreate(BaseModel):
     label_id: int | None
     comment: str | None

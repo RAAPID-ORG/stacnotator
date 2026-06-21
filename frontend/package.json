@@ -22,8 +22,7 @@
     "esbuild": "^0.28.1"
   },
   "dependencies": {
-    "@geoman-io/leaflet-geoman-free": "^2.19.0",
-    "@types/leaflet": "^1.9.21",
+"@types/leaflet": "^1.9.21",
     "chart.js": "^4.5.1",
     "chartjs-plugin-zoom": "^2.2.0",
     "firebase": "^12.7.0",

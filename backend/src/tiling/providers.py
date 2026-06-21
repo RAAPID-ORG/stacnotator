@@ -22,7 +22,6 @@ from src.tiling.router import build_viz_query_string
 from src.tiling.stac_client import _is_mpc
 from src.tiling.tiler_token import mint as mint_tiler_token
 
-MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
 MPC_TILES_BASE = (
     "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/"
     "{searchId}/tiles/WebMercatorQuad/{z}/{x}/{y}"

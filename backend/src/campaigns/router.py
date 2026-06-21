@@ -412,22 +412,6 @@ def assign_reviewers(
 
 
 @router.delete(
-    "/{campaign_id}/tasks/{task_id}/users/{user_id}",
-    status_code=200,
-)
-def remove_user_from_task(
-    campaign_id: int,
-    task_id: int,
-    user_id: UUID,
-    db: Session = Depends(get_db),
-    campaign: Campaign = Depends(require_campaign_admin),
-):
-    """Remove a user assignment from a specific task"""
-    service.unassign_user_from_task(db, campaign_id, task_id, user_id)
-    return {"message": "User unassigned successfully"}
-
-
-@router.delete(
     "/{campaign_id}/annotation-tasks",
     status_code=200,
 )

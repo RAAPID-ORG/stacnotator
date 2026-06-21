@@ -1,7 +1,5 @@
 import contextlib
-import hashlib
 import ipaddress
-import json
 import logging
 import socket
 import time
@@ -16,13 +14,11 @@ from src.auth.dependencies import require_approved_user
 from src.auth.models import User
 from src.tiling import registry
 from src.tiling.schemas import (
-    MosaicRegisterRequest,
-    MosaicRegisterResponse,
     SearchRequest,
     SearchResponse,
 )
-from src.tiling.stac_client import get_client, search_items
 from src.tiling.stac_client import list_collections as _list_collections
+from src.tiling.stac_client import search_items
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
@@ -369,155 +365,3 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
         parts.append(("max_items", str(max(1, min(int(max_items), 10)))))
 
     return urlencode(parts)
-
-
-def _extract_cloud_cover_from_filter(cql_filter: dict) -> float | None:
-    """Extract eo:cloud_cover limit from a CQL2 filter tree, if present."""
-    op = cql_filter.get("op", "")
-    args = cql_filter.get("args", [])
-
-    # Direct: {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 90]}
-    if (
-        op == "<="
-        and len(args) == 2
-        and isinstance(args[0], dict)
-        and args[0].get("property") == "eo:cloud_cover"
-    ):
-        return float(args[1])
-
-    # Wrapped in "or" with isNull (our pattern):
-    # {"op": "or", "args": [{"op": "isNull", ...}, {"op": "<=", ...}]}
-    if op == "or":
-        for arg in args:
-            result = _extract_cloud_cover_from_filter(arg)
-            if result is not None:
-                return result
-
-    # Inside "and":
-    if op == "and":
-        for arg in args:
-            result = _extract_cloud_cover_from_filter(arg)
-            if result is not None:
-                return result
-
-    return None
-
-
-def register_mosaic_sync(
-    catalog_url: str,
-    collection_id: str,
-    bbox: list[float] | None,
-    datetime_range: str,
-    max_items: int = 500,
-    search_query: dict | None = None,
-) -> dict:
-    """Register a mosaic from STAC search results (sync version).
-
-    search_query is the CQL2-JSON query built by the frontend.
-    Returns dict with mosaic_id, item_count, assets, item_refs.
-    Raises ValueError if no items found.
-    """
-    client = get_client(catalog_url)
-
-    # Check if the catalog supports CQL2 filtering
-    try:
-        conforms_to = (
-            client.conforms_to()
-            if callable(getattr(client, "conforms_to", None))
-            else (getattr(client, "conforms_to", None) or [])
-        )
-    except Exception:
-        conforms_to = []
-    supports_filter = any("filter" in c.lower() for c in (conforms_to or []))
-
-    search_kwargs: dict = {
-        "max_items": max_items,
-        "collections": (search_query or {}).get("collections", [collection_id]),
-    }
-    if bbox:
-        search_kwargs["bbox"] = bbox
-    if datetime_range:
-        search_kwargs["datetime"] = datetime_range
-
-    cql_filter = (search_query or {}).get("filter")
-    if cql_filter and supports_filter:
-        search_kwargs["filter"] = cql_filter
-        search_kwargs["filter_lang"] = "cql2-json"
-    elif cql_filter and not supports_filter:
-        # Fallback: extract cloud cover from CQL2 filter into STAC query extension
-        cloud_limit = _extract_cloud_cover_from_filter(cql_filter)
-        if cloud_limit is not None:
-            search_kwargs["query"] = {"eo:cloud_cover": {"lte": cloud_limit}}
-
-    # Pass sortby if provided (STAC API Sort Extension)
-    sortby = (search_query or {}).get("sortby")
-    if sortby:
-        search_kwargs["sortby"] = sortby
-
-    search = client.search(**search_kwargs)
-    items = list(search.items())
-
-    if not items:
-        raise HTTPException(
-            status_code=400, detail=f"No items found for {collection_id} in {datetime_range}"
-        )
-
-    item_refs = []
-    for item in items:
-        href = item.get_self_href()
-        item_bbox = list(item.bbox) if item.bbox else None
-        item_dt = item.datetime.isoformat() if item.datetime else None
-        cloud_cover = item.properties.get("eo:cloud_cover")
-        if href and item_bbox:
-            item_refs.append(
-                {
-                    "href": href,
-                    "bbox": item_bbox,
-                    "id": item.id,
-                    "datetime": item_dt,
-                    "cloud_cover": cloud_cover,
-                    "stac_item": item.to_dict(),
-                }
-            )
-
-    if not item_refs:
-        raise HTTPException(status_code=400, detail="No items with valid self_href and bbox")
-
-    sample_item = items[0]
-    assets_info = {}
-    for key, asset in sample_item.assets.items():
-        assets_info[key] = {
-            "title": asset.title or key,
-            "type": asset.media_type or "",
-            "roles": asset.roles or [],
-        }
-
-    key_data = json.dumps(
-        {
-            "catalog_url": catalog_url,
-            "collection_id": collection_id,
-            "bbox": bbox,
-            "datetime_range": datetime_range,
-        },
-        sort_keys=True,
-    )
-    mosaic_id = hashlib.sha256(key_data.encode()).hexdigest()[:16]
-
-    return {
-        "mosaic_id": mosaic_id,
-        "item_count": len(item_refs),
-        "assets": assets_info,
-        "item_refs": item_refs,
-    }
-
-
-@router.post("/mosaic/register", response_model=MosaicRegisterResponse)
-def register_mosaic(request: MosaicRegisterRequest):
-    """Create a mosaic from STAC search results for a single time window."""
-    return register_mosaic_sync(
-        catalog_url=request.catalog_url,
-        collection_id=request.collection_id,
-        bbox=request.bbox,
-        datetime_range=request.datetime_range,
-        max_items=request.max_items or 500,
-    )

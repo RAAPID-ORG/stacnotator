@@ -63,17 +63,3 @@ class StacItemOut(BaseModel):
 class SearchResponse(BaseModel):
     items: list[StacItemOut]
     count: int
-
-
-class MosaicRegisterRequest(BaseModel):
-    catalog_url: str
-    collection_id: str
-    bbox: list[float]
-    datetime_range: str
-    max_items: int | None = None
-
-
-class MosaicRegisterResponse(BaseModel):
-    mosaic_id: str
-    item_count: int
-    assets: dict[str, AssetInfo]

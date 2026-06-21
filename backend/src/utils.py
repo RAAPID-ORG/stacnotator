@@ -1,7 +1,6 @@
 import logging
 import re
 import unicodedata
-from datetime import datetime
 
 import ee
 from fastapi.routing import APIRoute
@@ -60,47 +59,6 @@ def snake_to_camel(name: str) -> str:
     """
     parts = name.split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
-
-
-# ============================================================================
-# Date/Time Utilities
-# ============================================================================
-
-
-def parse_ym_to_date(ym_str: str) -> datetime:
-    """
-    Convert YYYYMM string to datetime (first day of month).
-
-    Args:
-        ym_str: Date string in YYYYMM format
-
-    Returns:
-        Datetime object for the first day of the specified month
-
-    Example:
-        >>> parse_ym_to_date("202501")
-        datetime(2025, 1, 1)
-    """
-    year = int(ym_str[:4])
-    month = int(ym_str[4:6])
-    return datetime(year, month, 1)
-
-
-def format_date_to_yyyymmdd(date: datetime) -> str:
-    """
-    Convert datetime to YYYYMMDD string.
-
-    Args:
-        date: Datetime object to format
-
-    Returns:
-        Date string in YYYYMMDD format
-
-    Example:
-        >>> format_date_to_yyyymmdd(datetime(2025, 1, 15))
-        "20250115"
-    """
-    return date.strftime("%Y%m%d")
 
 
 # ============================================================================
