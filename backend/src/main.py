@@ -8,12 +8,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
+from src.database import SessionLocal
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
 from src.tiling.router import router as tiling_router
@@ -34,9 +36,26 @@ logging.config.fileConfig(
 logger = logging.getLogger(__name__)
 
 
+def _validate_production_config() -> None:
+    s = get_settings()
+    if s.ENVIRONMENT != "production":
+        return
+    if s.TILER_TOKEN_SECRET == "dev-tiler-secret-change-in-production":
+        raise RuntimeError("TILER_TOKEN_SECRET must be changed from the dev default in production")
+    if (
+        s.AUTH_PROVIDER == "firebase"
+        and not s.FIREBASE_CREDENTIALS_PATH
+        and not s.FIREBASE_CREDENTIALS
+    ):
+        raise RuntimeError(
+            "FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS must be set "
+            "when AUTH_PROVIDER=firebase in production"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize earth engine
+    _validate_production_config()
     initialize_earth_engine()
     yield
 
@@ -136,6 +155,24 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=86400,
 )
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/readyz", include_in_schema=False)
+def readyz():
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "degraded"})
+    finally:
+        db.close()
+
 
 # Include actual routers from each module with /api prefix
 app.include_router(auth_router, prefix="/api")

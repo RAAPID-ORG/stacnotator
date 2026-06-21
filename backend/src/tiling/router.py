@@ -1,8 +1,12 @@
+import contextlib
 import hashlib
+import ipaddress
 import json
 import logging
+import socket
 import time
-from urllib.parse import urlencode
+from collections import OrderedDict
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -40,8 +44,78 @@ _catalogs_cache: dict = {"data": None, "expires": 0}
 # Per-catalog_url collections cache. MPC's /collections can time out for
 # 20+ seconds - cache aggressively and serve stale on upstream failure so
 # one bad upstream response doesn't block the user.
-_collections_cache: dict[str, dict] = {}
+_COLLECTIONS_CACHE_MAX = 256
+_collections_cache: OrderedDict[str, dict] = OrderedDict()
 COLLECTIONS_CACHE_TTL = 86400  # 1 day
+
+
+def _cache_set(key: str, value: dict) -> None:
+    if key in _collections_cache:
+        _collections_cache.move_to_end(key)
+    _collections_cache[key] = value
+    while len(_collections_cache) > _COLLECTIONS_CACHE_MAX:
+        _collections_cache.popitem(last=False)
+
+
+def _cache_get(key: str) -> dict | None:
+    return _collections_cache.get(key)
+
+
+_INTERNAL_IP_ERROR = "Catalog URL host is not permitted"
+
+
+def _trusted_catalog_origins() -> frozenset[str]:
+    """Origins always allowed regardless of resolved IP (trusted config)."""
+    origins: set[str] = set()
+    candidate_urls = [MPC_API_URL]
+    with contextlib.suppress(Exception):
+        candidate_urls += [
+            t.stac_url for t in registry.all_tilers() if getattr(t, "stac_url", None)
+        ]
+    for u in candidate_urls:
+        p = urlparse(u)
+        origins.add(f"{p.scheme}://{p.netloc}".rstrip("/"))
+    return frozenset(origins)
+
+
+def _is_internal_ip(ip_str: str) -> bool:
+    addr = ipaddress.ip_address(ip_str)
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    )
+
+
+def _assert_catalog_url_safe(catalog_url: str) -> None:
+    """Block SSRF: reject catalog URLs whose host resolves to an internal address.
+
+    Public hosts are allowed (browsing arbitrary public STAC catalogs is a core
+    feature). Trusted configured origins (MPC, configured tilers) are always allowed.
+    """
+    parsed = urlparse(catalog_url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Catalog URL must be http or https")
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="Catalog URL has no host")
+
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    if origin in _trusted_catalog_origins():
+        return
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise HTTPException(status_code=400, detail="Catalog host could not be resolved") from e
+
+    for info in infos:
+        if _is_internal_ip(info[4][0]):
+            raise HTTPException(status_code=403, detail=_INTERNAL_IP_ERROR)
 
 
 @router.get("/catalogs")
@@ -136,8 +210,9 @@ def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
     Serves stale data on upstream failure so a transient MPC timeout
     doesn't block the user.
     """
+    _assert_catalog_url_safe(catalog_url)
     now = time.time()
-    entry = _collections_cache.get(catalog_url)
+    entry = _cache_get(catalog_url)
     if entry and now < entry["expires"]:
         age = now - (entry["expires"] - COLLECTIONS_CACHE_TTL)
         logger.info(
@@ -172,13 +247,14 @@ def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
         len(data),
         elapsed,
     )
-    _collections_cache[catalog_url] = {"data": data, "expires": now + COLLECTIONS_CACHE_TTL}
+    _cache_set(catalog_url, {"data": data, "expires": now + COLLECTIONS_CACHE_TTL})
     return data
 
 
 @router.post("/search", response_model=SearchResponse)
 def search(request: SearchRequest):
     """Search STAC items in a catalog collection."""
+    _assert_catalog_url_safe(request.catalog_url)
     try:
         items = search_items(
             catalog_url=request.catalog_url,
@@ -290,7 +366,7 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
 
     max_items = viz_params.get("max_items")
     if max_items is not None:
-        parts.append(("max_items", str(min(int(max_items), 10))))
+        parts.append(("max_items", str(max(1, min(int(max_items), 10)))))
 
     return urlencode(parts)
 

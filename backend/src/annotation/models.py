@@ -6,6 +6,7 @@ from geoalchemy2 import Geometry as GeoAlchemyGeometry
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Identity,
@@ -182,6 +183,14 @@ class Annotation(Base):
             "campaign_id",
             "source_id",
             name="uq_annotation_campaign_source",
+        ),
+        CheckConstraint(
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 10)",
+            name="annotations_confidence_range",
+        ),
+        CheckConstraint(
+            "flagged_for_review = true OR flag_comment IS NULL",
+            name="annotations_flag_comment_requires_flag",
         ),
         {"schema": "data"},
     )

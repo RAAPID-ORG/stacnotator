@@ -64,6 +64,16 @@ def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
     return campaign_admin is not None or is_platform_admin(db, user_id)
 
 
+def validate_label_id(campaign: Campaign, label_id: int) -> None:
+    """Raise HTTP 400 if label_id is not a key in the campaign's label set."""
+    labels = (campaign.settings.labels if campaign.settings else None) or {}
+    if str(label_id) not in labels:
+        raise HTTPException(
+            status_code=400,
+            detail=f"label_id {label_id} is not a label of this campaign",
+        )
+
+
 # ============================================================================
 # Task Retrieval
 # ============================================================================
@@ -495,7 +505,6 @@ def create_annotations_from_geojson(
     if not features:
         raise HTTPException(status_code=400, detail="GeoJSON contains no features")
 
-    valid_label_ids = set(campaign.settings.labels.keys())
     allowed_types = {"Point", "Polygon", "MultiPolygon"}
     geometry_records: list[dict] = []
     label_ids: list[int] = []
@@ -517,11 +526,15 @@ def create_annotations_from_geojson(
                 status_code=400,
                 detail=f"Feature {idx}: label id '{raw_label}' is not a valid integer",
             ) from exc
-        if str(label_id) not in valid_label_ids:
+        try:
+            validate_label_id(campaign, label_id)
+        except HTTPException as exc:
+            if exc.status_code != 400:
+                raise
             raise HTTPException(
                 status_code=400,
                 detail=f"Feature {idx}: label id {label_id} is not a label of this campaign",
-            )
+            ) from None
 
         raw_source = properties.get("stacnotator_annotation_id")
         source_id: int | None = None
@@ -650,6 +663,13 @@ def add_annotation_for_task(
             detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
         )
 
+    campaign = db.get(Campaign, annotation_task.campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if annotation_create.label_id is not None:
+        validate_label_id(campaign, annotation_create.label_id)
+
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
@@ -687,7 +707,7 @@ def add_annotation_for_task(
             )
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
-                annotation = existing_annotation
+            annotation = existing_annotation
     else:  # CREATE
         # Create new annotation if label or comment provided
         if annotation_create.label_id is not None or annotation_create.comment is not None:
@@ -854,6 +874,9 @@ def create_annotation(
     Raises:
         HTTPException: If geometry is invalid or creation fails
     """
+    if annotation_create.label_id is not None:
+        validate_label_id(campaign, annotation_create.label_id)
+
     try:
         # Create geometry from WKT
         geometry = AnnotationGeometry(geometry=f"SRID=4326;{annotation_create.geometry_wkt}")
@@ -957,6 +980,8 @@ def update_annotation(
 
         # Update label if provided
         if annotation_update.label_id is not None:
+            if campaign is not None:
+                validate_label_id(campaign, annotation_update.label_id)
             annotation.label_id = annotation_update.label_id
 
         # Update comment if provided (allow empty string to clear)

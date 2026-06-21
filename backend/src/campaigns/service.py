@@ -516,6 +516,39 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
             ),
         )
 
+    existing_labels = campaign.settings.labels or {}
+    for label in labels:
+        label_key = str(label.id)
+        if label_key not in existing_labels:
+            continue
+        existing_entry = existing_labels[label_key]
+        existing_geom_type = (
+            existing_entry.get("geometry_type") if isinstance(existing_entry, dict) else None
+        )
+        new_geom_type = label.geometry_type
+        if (
+            existing_geom_type is not None
+            and new_geom_type is not None
+            and existing_geom_type != new_geom_type
+        ):
+            annotation_count = db.scalar(
+                select(func.count())
+                .select_from(Annotation)
+                .where(
+                    Annotation.campaign_id == campaign_id,
+                    Annotation.label_id == label.id,
+                )
+            )
+            if annotation_count:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Cannot change geometry_type for label {label.id} from "
+                        f"'{existing_geom_type}' to '{new_geom_type}': "
+                        f"annotations using this label already exist"
+                    ),
+                )
+
     labels_dict: dict = {}
     for label in labels:
         entry: dict = {"name": label.name}
@@ -662,6 +695,31 @@ def update_embedding_year(
     }
 
 
+def _assert_not_last_admin(db: Session, campaign_id: int, user_id: UUID) -> None:
+    """Raise HTTP 409 if the given user is the sole admin of the campaign."""
+    is_admin = db.scalar(
+        select(CampaignUser.is_admin).where(
+            CampaignUser.campaign_id == campaign_id,
+            CampaignUser.user_id == user_id,
+        )
+    )
+    if not is_admin:
+        return
+    admin_count = db.scalar(
+        select(func.count())
+        .select_from(CampaignUser)
+        .where(
+            CampaignUser.campaign_id == campaign_id,
+            CampaignUser.is_admin.is_(True),
+        )
+    )
+    if admin_count <= 1:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot remove the last campaign admin",
+        )
+
+
 def remove_user_from_campaign(db: Session, campaign_id: int, user_id: UUID) -> None:
     """
     Remove a user from a campaign.
@@ -670,6 +728,7 @@ def remove_user_from_campaign(db: Session, campaign_id: int, user_id: UUID) -> N
     All annotations created by the user remain in the campaign, as the
     Annotation model uses RESTRICT on user deletion.
     """
+    _assert_not_last_admin(db, campaign_id, user_id)
     result = db.execute(
         delete(CampaignUser).where(
             CampaignUser.campaign_id == campaign_id,
@@ -687,6 +746,7 @@ def demote_admin(db: Session, campaign_id: int, user_id: UUID) -> None:
     """
     Demote a campaign admin to member role.
     """
+    _assert_not_last_admin(db, campaign_id, user_id)
     result = db.execute(
         update(CampaignUser)
         .where(

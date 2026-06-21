@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.security import HTTPBearer
+from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import box as shapely_box
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
@@ -9,6 +11,35 @@ from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
 from src.utils import FunctionNameOperationIdRoute
+
+
+def _intersect_region_with_bbox(
+    region_geometry: Polygon | MultiPolygon,
+    campaign: Campaign,
+) -> Polygon | MultiPolygon:
+    """Clip region_geometry to the campaign bbox if the campaign has settings.
+
+    Returns the original geometry unchanged when the campaign has no settings
+    (no bbox configured). Raises HTTP 400 if the intersection is empty.
+    """
+    if campaign.settings is None:
+        return region_geometry
+
+    campaign_bbox = shapely_box(
+        campaign.settings.bbox_west,
+        campaign.settings.bbox_south,
+        campaign.settings.bbox_east,
+        campaign.settings.bbox_north,
+    )
+    intersection = region_geometry.intersection(campaign_bbox)
+
+    if intersection.is_empty:
+        raise HTTPException(
+            status_code=400,
+            detail="Region file does not overlap the campaign bounding box",
+        )
+    return intersection
+
 
 bearer = HTTPBearer()
 router = APIRouter(
@@ -69,6 +100,7 @@ async def generate_tasks_from_sampling(
         # Process region file (shapefile or GeoJSON)
         gdf = await service.process_uploaded_region_file(region_file)
         region_geometry = service.get_region_geometry(gdf)
+        region_geometry = _intersect_region_with_bbox(region_geometry, campaign)
 
     # Generate tasks
     num_tasks_created = service.create_tasks_from_sampling_strategy(
