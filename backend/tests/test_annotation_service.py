@@ -39,6 +39,13 @@ def _mock_db():
     return db
 
 
+def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
+    """Return a MagicMock campaign whose label set contains the given ids."""
+    campaign = MagicMock()
+    campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
+    return campaign
+
+
 def _make_task(task_id=1, campaign_id=1, geometry_id=10):
     task = MagicMock()
     task.id = task_id
@@ -73,6 +80,7 @@ class TestAddAnnotationForTask:
 
     def test_create_new_annotation_with_label(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -109,6 +117,7 @@ class TestAddAnnotationForTask:
 
     def test_create_with_assignment_marks_done(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         assignment = _make_assignment(task_id=task.id, user_id=user_id)
@@ -136,6 +145,7 @@ class TestAddAnnotationForTask:
 
     def test_update_existing_annotation(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
@@ -179,6 +189,7 @@ class TestAddAnnotationForTask:
 
     def test_update_existing_with_assignment_marks_done(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
@@ -239,6 +250,7 @@ class TestAddAnnotationForTask:
         """A user with the authoritative-reviewer flag can create a fresh
         authoritative annotation, even with no assignment on the task."""
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -267,6 +279,7 @@ class TestAddAnnotationForTask:
         non-reviewer user can still label normally. The first scalar lookup
         should be the existing-annotation query, not a CampaignUser query."""
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -292,7 +305,7 @@ class TestCreateAnnotation:
     def test_creates_geometry_then_annotation_with_user_payload(self):
         db = _mock_db()
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 42
 
         # Have flush() populate the geometry id the way the real DB would,
@@ -329,7 +342,7 @@ class TestCreateAnnotation:
 
     def test_persists_imagery_snapshot(self):
         db = _mock_db()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -353,7 +366,7 @@ class TestCreateAnnotation:
     def test_annotation_has_no_task_link(self):
         db = _mock_db()
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -371,7 +384,7 @@ class TestCreateAnnotation:
         db = _mock_db()
         db.commit.side_effect = Exception("DB error")
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -677,13 +690,13 @@ class TestPublicCampaignAnnotationOwnership:
     """Ensure users in public campaigns can only edit/delete their own annotations."""
 
     def _make_public_campaign(self):
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
         campaign.is_public = True
         return campaign
 
     def _make_private_campaign(self):
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
         campaign.is_public = False
         return campaign

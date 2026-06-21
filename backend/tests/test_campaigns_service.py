@@ -214,6 +214,7 @@ class TestDemoteAdmin:
         result_mock = MagicMock()
         result_mock.rowcount = 0
         db.execute.return_value = result_mock
+        db.scalar.return_value = None  # user is not an admin — guard passes through
 
         with pytest.raises(HTTPException) as exc_info:
             demote_admin(db, 1, uuid4())
@@ -226,6 +227,7 @@ class TestRemoveUserFromCampaign:
         result_mock = MagicMock()
         result_mock.rowcount = 0
         db.execute.return_value = result_mock
+        db.scalar.return_value = None  # user is not a member — guard passes through
 
         with pytest.raises(HTTPException) as exc_info:
             remove_user_from_campaign(db, 1, uuid4())
