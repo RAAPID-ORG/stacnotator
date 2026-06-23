@@ -1,14 +1,12 @@
-"""drop legacy viz_params/cover_viz_params/visualizations blobs from collection_stac_configs
+"""drop viz_params/cover_viz_params/visualizations blobs from collection_stac_configs
 
-These three JSONB columns are made redundant by collection_viz_configs (Phase 8 inc 1-6).
-Dual-write was in place since inc 2; the read path was switched to collection_viz_configs
-in inc 5. This migration first backfills collection_viz_configs from the legacy blobs, then
-removes the now-dead storage columns.
+These three JSONB columns are superseded by the collection_viz_configs table. This migration
+first backfills collection_viz_configs from the blobs, then drops the now-redundant columns.
 
-The backfill is integrated here (it must run while the legacy columns still exist) and is
-idempotent: on a fresh/empty DB it inserts nothing, and ON CONFLICT guards against rows the
-dual-write path already created. Because the whole migration runs in one transaction, a
-backfill failure aborts the column drops.
+The backfill runs here (it needs the blob columns to still exist) and is idempotent: on a
+fresh/empty DB it inserts nothing, and ON CONFLICT guards against rows already written
+through the normal save path. The whole migration runs in one transaction, so a backfill
+failure aborts the column drops.
 
 IMPORTANT: downgrade re-adds the columns but does NOT restore data — this is a one-way
 migration. Recovery of dropped blob data requires a pre-migration backup.
@@ -58,7 +56,7 @@ def upgrade() -> None:
         """
     )
 
-    # Step 2: legacy rows (visualizations IS NULL) only have the first-viz blob.
+    # Step 2: older rows (visualizations IS NULL) only have the first-viz blob.
     # Fan that single blob across the source's visualization_templates names.
     op.execute(
         """
@@ -79,7 +77,7 @@ def upgrade() -> None:
         """
     )
 
-    # The legacy storage is now redundant — drop it.
+    # The blob columns are now redundant — drop them.
     op.drop_column("collection_stac_configs", "viz_params", schema="data")
     op.drop_column("collection_stac_configs", "cover_viz_params", schema="data")
     op.drop_column("collection_stac_configs", "visualizations", schema="data")

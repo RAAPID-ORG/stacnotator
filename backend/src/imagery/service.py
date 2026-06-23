@@ -53,8 +53,8 @@ def _upsert_viz_configs(
     """Upsert CollectionVizConfig rows to match the given visualization list.
 
     Inserts new rows, updates existing ones (matched by name), and deletes any
-    rows whose names are no longer present — keeping the table in sync with the
-    legacy visualizations JSONB representation.
+    rows whose names are no longer present — leaving the table holding exactly
+    the supplied visualizations.
     """
     if not visualizations:
         db.execute(
@@ -1108,7 +1108,7 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
     """Per-visualization params for a slice, applying the cover override when present.
 
-    Reads from CollectionVizConfig ORM rows (authoritative since Phase 8 inc 5).
+    Reads from the collection's CollectionVizConfig rows.
     """
     for vc in stac.collection.viz_configs if stac.collection else []:
         if vc.name == viz_name:

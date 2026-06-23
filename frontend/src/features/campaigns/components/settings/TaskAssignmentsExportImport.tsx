@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-import {
-  exportTaskAssignments,
-  importTaskAssignments,
-  type BodyImportTaskAssignments,
-} from '~/api/client';
-import { fileUploadBody } from '~/shared/utils/fileUploadBody';
+import { exportTaskAssignments, importTaskAssignments } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -66,7 +61,7 @@ export const TaskAssignmentsExportImport: React.FC<Props> = ({
     try {
       const { data } = await importTaskAssignments({
         path: { campaign_id: campaignId },
-        body: fileUploadBody<BodyImportTaskAssignments>({ file: importFile }),
+        body: { file: importFile } as never,
       });
       setImportFile(null);
       await onImported();

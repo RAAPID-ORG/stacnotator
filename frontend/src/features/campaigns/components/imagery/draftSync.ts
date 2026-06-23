@@ -7,7 +7,6 @@ import type {
 } from '~/api/client';
 import type { Basemap, CollectionItem, ImagerySource, ImageryStepState, VizParams } from './types';
 import { emptyVizParams } from './types';
-import { VIZ_PARAMS_FIELD_MAP } from './vizParamsMapping';
 
 /** Local IDs are strings: real DB rows are decimal-integer strings (from
  *  server), freshly-added entities are random UUID slices. Only emit `id`
@@ -22,13 +21,24 @@ const toIdField = (id: string): number | undefined => {
 
 export const isRealId = (id: string): boolean => toIdField(id) !== undefined;
 
-const toVizParamsPayload = (v: VizParams): VizParamsCreate => {
-  const result: Record<string, unknown> = {};
-  for (const entry of VIZ_PARAMS_FIELD_MAP) {
-    result[entry.apiKey] = entry.toApi ? entry.toApi(v) : v[entry.feKey];
-  }
-  return result as VizParamsCreate;
-};
+const toVizParamsPayload = (v: VizParams): VizParamsCreate => ({
+  assets: v.assets,
+  asset_as_band: v.assetAsBand,
+  bidx: v.bidx?.length ? v.bidx : undefined,
+  rescale: v.rescale || undefined,
+  colormap_name: v.colormapName,
+  color_formula: v.colorFormula,
+  expression: v.expression,
+  resampling: v.resampling,
+  compositing: v.compositing,
+  nodata: v.nodata,
+  extra_params: v.extraParams,
+  mask_layer: v.maskLayer,
+  mask_values: v.maskValues,
+  nir_band: v.nirBand,
+  red_band: v.redBand,
+  max_items: v.maxItems,
+});
 
 export function collectionToBackend(
   col: CollectionItem,

@@ -1,10 +1,5 @@
 import { useState } from 'react';
-import {
-  ingestAnnotationsFromGeojson,
-  type LabelBase,
-  type BodyIngestAnnotationsFromGeojson,
-} from '~/api/client';
-import { fileUploadBody } from '~/shared/utils/fileUploadBody';
+import { ingestAnnotationsFromGeojson, type LabelBase } from '~/api/client';
 
 interface ImportFeaturesSectionProps {
   campaignId: number;
@@ -41,7 +36,7 @@ export const ImportFeaturesSection: React.FC<ImportFeaturesSectionProps> = ({
       setUploading(true);
       const { data, error } = await ingestAnnotationsFromGeojson({
         path: { campaign_id: campaignId },
-        body: fileUploadBody<BodyIngestAnnotationsFromGeojson>({ file }),
+        body: { file } as never,
       });
 
       if (error) {

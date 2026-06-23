@@ -11,7 +11,6 @@ import type {
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
-import { VIZ_PARAMS_FIELD_MAP } from './vizParamsMapping';
 import type {
   Basemap,
   CollectionItem,
@@ -66,12 +65,24 @@ export interface ImageryController {
 // owns the inverse (API -> VizParams) below.
 export function vizParamsToFrontend(d: Record<string, unknown> | null | undefined): VizParams {
   const p = d ?? {};
-  const result = {} as VizParams;
-  for (const entry of VIZ_PARAMS_FIELD_MAP) {
-    const raw = p[entry.apiKey];
-    (result as unknown as Record<string, unknown>)[entry.feKey] = raw ?? entry.readDefault;
-  }
-  return result;
+  return {
+    assets: (p.assets as string[]) ?? [],
+    assetAsBand: (p.asset_as_band as boolean) ?? false,
+    bidx: (p.bidx as number[]) ?? undefined,
+    rescale: (p.rescale as string) ?? '',
+    colormapName: (p.colormap_name as string) ?? undefined,
+    colorFormula: (p.color_formula as string) ?? undefined,
+    expression: (p.expression as string) ?? undefined,
+    resampling: (p.resampling as string) ?? undefined,
+    compositing: (p.compositing as string) ?? undefined,
+    nodata: (p.nodata as number) ?? undefined,
+    extraParams: (p.extra_params as Record<string, string>) ?? undefined,
+    maskLayer: (p.mask_layer as string) ?? undefined,
+    maskValues: (p.mask_values as number[]) ?? undefined,
+    nirBand: (p.nir_band as string) ?? undefined,
+    redBand: (p.red_band as string) ?? undefined,
+    maxItems: (p.max_items as number) ?? undefined,
+  };
 }
 
 export interface DraftControllerOptions {
@@ -242,12 +253,12 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
 
   let data: StacBrowserCollectionData | ManualCollectionData;
   if (isStacBrowser && sc) {
-    // Read from the authoritative per-viz rows (viz_configs). One CollectionVizConfig
-    // row per named visualization; cover_render_params is NULL when has_dedicated_cover=False.
+    // One viz_config row per named visualization; cover params are stored only
+    // when the collection has a dedicated cover.
     const vizConfigs = sc.viz_configs ?? [];
     const byName = new Map(vizConfigs.map((vc) => [vc.name, vc]));
     const namesForViz = sourceVizNames.length > 0 ? sourceVizNames : ['Default'];
-    const hasCoverParams = vizConfigs.some((vc) => vc.cover_render_params != null);
+    const hasDedicatedCover = col.has_dedicated_cover ?? false;
     data = {
       type: 'stac_browser',
       catalogUrl: sc.catalog_url ?? '',
@@ -260,7 +271,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
         name,
         vizParams: vizParamsToFrontend(byName.get(name)?.render_params),
       })),
-      coverVisualizations: hasCoverParams
+      coverVisualizations: hasDedicatedCover
         ? namesForViz.map((name) => ({
             name,
             vizParams: vizParamsToFrontend(byName.get(name)?.cover_render_params),

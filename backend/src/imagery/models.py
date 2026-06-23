@@ -109,7 +109,7 @@ class ImageryCollection(Base):
 
 
 class CollectionVizConfig(Base):
-    """Per-collection, per-visualization render params row (replaces the JSONB blobs)."""
+    """Per-collection, per-visualization render params (canonical viz storage)."""
 
     __tablename__ = "collection_viz_configs"
     __table_args__ = (
