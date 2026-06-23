@@ -126,3 +126,5 @@ coverage/
 *.lcov
 test-results/
 playwright-report/
+
+docs/superpowers/
