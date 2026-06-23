@@ -9,7 +9,7 @@ from fastapi import HTTPException
 
 from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
-from src.campaigns.service import (
+from src.campaigns.assignments import (
     USERS_CSV_COLUMNS,
     _label_id_to_name,
     _split_emails,
@@ -259,7 +259,7 @@ class TestImportApply:
             [{"annotation_number": 1001, "assignees": "alice@x.com", "reviewers": "bob@x.com"}]
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             result = import_task_assignments(db, 1, contents)
 
         # Existing assignments for the task are cleared first.
@@ -284,7 +284,7 @@ class TestImportApply:
         _stub_scalars(db, [[_task(1001, 10)], [], []])
         contents = _csv_bytes([{"annotation_number": 1001, "assignees": "", "reviewers": ""}])
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             result = import_task_assignments(db, 1, contents)
 
         # Task still gets its assignments deleted, but nothing is added.

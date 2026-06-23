@@ -7,7 +7,7 @@ from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-from src.imagery import service
+from src.imagery import layouts, service
 from src.imagery.schemas import (
     AllowedTilersOut,
     CanvasLayoutCreateRequest,
@@ -102,7 +102,7 @@ def create_new_canvas_layout(
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
 ):
-    result = service.create_new_canvas_layout(
+    result = layouts.create_new_canvas_layout(
         db=db,
         campaign_id=campaign_id,
         view_id=canvas_layout_req.view_id,

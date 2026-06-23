@@ -1,5 +1,4 @@
 import logging
-from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -7,14 +6,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.auth.models import User
-from src.campaigns.constants import (
-    VIEW_LAYOUT_COLS_PER_ROW,
-    VIEW_LAYOUT_START_Y,
-    VIEW_LAYOUT_WINDOW_H,
-    VIEW_LAYOUT_WINDOW_W,
-)
-from src.campaigns.models import Campaign, CampaignUser, CanvasLayout
+from src.campaigns.constants import VIEW_LAYOUT_START_Y
+from src.campaigns.models import Campaign, CanvasLayout
 from src.config import get_settings
+from src.imagery.layouts import _layout_window_for, _sync_view_layouts
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
@@ -28,14 +23,13 @@ from src.imagery.models import (
 )
 from src.imagery.schemas import (
     BasemapCreate,
-    CanvasLayoutCreate,
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
     ImageryViewCreate,
 )
+from src.imagery.tile_urls import _slice_viz_params, update_collection_viz_params
 from src.tiling import providers
-from src.tiling.router import build_viz_query_string
 
 logger = logging.getLogger(__name__)
 
@@ -1105,19 +1099,6 @@ def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:
 # ============================================================================
 
 
-def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
-    """Per-visualization params for a slice, applying the cover override when present.
-
-    Reads from the collection's CollectionVizConfig rows.
-    """
-    for vc in stac.collection.viz_configs if stac.collection else []:
-        if vc.name == viz_name:
-            if is_cover and vc.cover_render_params:
-                return vc.cover_render_params
-            return vc.render_params or {}
-    return {}
-
-
 def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float]) -> int:
     """Re-register every stac_browser collection in a campaign with a new bbox.
 
@@ -1205,127 +1186,6 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
                 updated += 1
 
     return updated
-
-
-def update_collection_viz_params(
-    db: Session,
-    collection_id: int,
-    viz_by_name: dict[str, dict] | None = None,
-    cover_viz_by_name: dict[str, dict] | None = None,
-) -> None:
-    """Rebuild tile URLs with new per-visualization params (no STAC re-search needed).
-
-    viz_by_name: { "True Color": {assets: [...], rescale: ...}, "NDVI": {...} }
-    cover_viz_by_name: optional overrides for cover slice (same shape)
-
-    Updates the collection's CollectionVizConfig rows and reconstructs the
-    query-string portion of all SliceTileUrl rows.
-    """
-    from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
-    if not viz_by_name:
-        return
-
-    collection = db.execute(
-        select(ImageryCollection).where(ImageryCollection.id == collection_id)
-    ).scalar_one_or_none()
-    if not collection or not collection.stac_config:
-        return
-
-    # Keep CollectionVizConfig rows in sync with the rebaked params.
-    existing_viz_configs = {
-        row.name: row
-        for row in db.execute(
-            select(CollectionVizConfig).where(CollectionVizConfig.collection_id == collection_id)
-        )
-        .scalars()
-        .all()
-    }
-    for i, (name, params) in enumerate(viz_by_name.items()):
-        cover_render = (
-            (cover_viz_by_name or {}).get(name) if collection.has_dedicated_cover else None
-        )
-        if name in existing_viz_configs:
-            row = existing_viz_configs[name]
-            row.display_order = i
-            row.render_params = params
-            row.cover_render_params = cover_render
-        else:
-            db.add(
-                CollectionVizConfig(
-                    collection_id=collection_id,
-                    name=name,
-                    display_order=i,
-                    render_params=params,
-                    cover_render_params=cover_render,
-                )
-            )
-    # Remove rows for names no longer present.
-    for name, row in existing_viz_configs.items():
-        if name not in viz_by_name:
-            db.delete(row)
-
-    db.flush()
-
-    slices = (
-        db.execute(
-            select(ImagerySlice)
-            .where(ImagerySlice.collection_id == collection.id)
-            .order_by(ImagerySlice.display_order)
-        )
-        .scalars()
-        .all()
-    )
-
-    for sl_idx, sl in enumerate(slices):
-        is_cover = collection.has_dedicated_cover and sl_idx == collection.cover_slice_index
-
-        # A visualization added after this collection was first registered has no
-        # tile URL row yet. Clone one from any sibling on the same slice (same
-        # provider / mosaic) so every viz becomes switchable - the rebuild loop
-        # below then bakes its own params into the cloned URL.
-        existing_names = {tu.visualization_name for tu in sl.tile_urls}
-        template = sl.tile_urls[0] if sl.tile_urls else None
-        if template is not None:
-            for name in viz_by_name:
-                if name in existing_names:
-                    continue
-                clone = SliceTileUrl(
-                    slice_id=sl.id,
-                    visualization_name=name,
-                    tile_url=template.tile_url,
-                    tile_provider=template.tile_provider,
-                    mosaic_id=template.mosaic_id,
-                )
-                db.add(clone)
-                sl.tile_urls.append(clone)
-
-        for tu in sl.tile_urls:
-            # Pick params for this specific visualization; skip if name is unknown.
-            if is_cover and cover_viz_by_name and tu.visualization_name in cover_viz_by_name:
-                params = cover_viz_by_name[tu.visualization_name]
-            elif tu.visualization_name in viz_by_name:
-                params = viz_by_name[tu.visualization_name]
-            else:
-                continue
-
-            if tu.tile_provider == "mpc":
-                viz_qs = build_viz_query_string(params, for_mpc=True)
-                parsed = urlparse(tu.tile_url)
-                existing = parse_qs(parsed.query, keep_blank_values=True)
-                kept = {
-                    k: v[0] for k, v in existing.items() if k in ("collection", "pixel_selection")
-                }
-                new_qs = urlencode(list(kept.items()))
-                if viz_qs:
-                    new_qs = f"{new_qs}&{viz_qs}" if new_qs else viz_qs
-                tu.tile_url = urlunparse(parsed._replace(query=new_qs))
-            elif tu.tile_provider and tu.mosaic_id:
-                # Hosted tiler: rebuild the absolute URL with the new viz params (no re-search).
-                tiler = providers.resolve_tiler(tu.tile_provider)
-                tu.tile_url = providers.build_tile_url("hosted", tu.mosaic_id, params, tiler=tiler)
-
-    db.flush()
 
 
 def refresh_collection_imagery(
@@ -1418,90 +1278,6 @@ def _create_basemaps(
     return created
 
 
-def _layout_window_for(slot: int, base_y: int) -> dict:
-    """Return a layout item dict for a given linear slot (0-indexed) and base y."""
-    return {
-        "x": (slot % VIEW_LAYOUT_COLS_PER_ROW) * VIEW_LAYOUT_WINDOW_W,
-        "y": base_y + (slot // VIEW_LAYOUT_COLS_PER_ROW) * VIEW_LAYOUT_WINDOW_H,
-        "w": VIEW_LAYOUT_WINDOW_W,
-        "h": VIEW_LAYOUT_WINDOW_H,
-    }
-
-
-def _layout_bottom(layout_data: list | None) -> int:
-    """Lowest occupied grid row (max y+h) across the items, 0 when empty."""
-    return max(
-        (int(it.get("y", 0)) + int(it.get("h", 0)) for it in (layout_data or [])),
-        default=0,
-    )
-
-
-def _sync_view_layouts(
-    db: Session,
-    view_id: int,
-    campaign_id: int,
-    window_collection_ids: set[int],
-    added_collection_ids: list[int],
-) -> None:
-    """Reconcile every canvas_layout for a view against its current windows.
-
-    ``window_collection_ids`` is the full set of collections currently shown as
-    windows in the view. Any layout item for a collection outside that set is
-    dropped - this is what removes the slots of deleted collections (or ones
-    toggled off), so they no longer reserve grid space or push new windows below
-    a source that no longer exists. Items kept hold their positions (gaps are
-    fine for react-grid-layout).
-
-    ``added_collection_ids`` are freshly-added windows; they're appended below
-    everything already on the grid. We only append the *new* ones (not the full
-    window set) so a window a user has personally hidden - present in the view
-    but absent from their layout - stays hidden.
-    """
-    valid = {str(cid) for cid in window_collection_ids}
-
-    # The page chrome (main map / controls / minimap / timeseries) lives in the
-    # view_id=NULL "main" layout and shares the same grid as the windows on the
-    # client. New windows must clear it, so index each user's chrome bottom (with
-    # the campaign default as the fallback for users without a personal main).
-    main_layouts = (
-        db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-            )
-        )
-        .scalars()
-        .all()
-    )
-    chrome_bottom_by_user = {ml.user_id: _layout_bottom(ml.layout_data) for ml in main_layouts}
-    default_chrome_bottom = chrome_bottom_by_user.get(None, VIEW_LAYOUT_START_Y)
-
-    layouts = (
-        db.execute(select(CanvasLayout).where(CanvasLayout.view_id == view_id)).scalars().all()
-    )
-    for layout in layouts:
-        original = layout.layout_data or []
-        items = [it for it in original if it.get("i") in valid]
-        present = {it.get("i") for it in items}
-        to_add = [cid for cid in added_collection_ids if str(cid) not in present]
-        if to_add:
-            chrome_bottom = chrome_bottom_by_user.get(layout.user_id, default_chrome_bottom)
-            # Stack new windows below both the kept windows and the page chrome,
-            # so they never overlap an existing item in the merged grid.
-            base_y = max(
-                max(
-                    (int(it.get("y", 0)) + int(it.get("h", 0)) for it in items),
-                    default=VIEW_LAYOUT_START_Y,
-                ),
-                chrome_bottom,
-            )
-            for offset, cid in enumerate(to_add):
-                items.append({"i": str(cid), **_layout_window_for(offset, base_y)})
-        if items != original:
-            layout.layout_data = items
-            flag_modified(layout, "layout_data")
-
-
 def _create_views(
     db: Session,
     campaign_id: int,
@@ -1589,159 +1365,6 @@ def _create_views(
         created.append(view)
 
     return created
-
-
-# ============================================================================
-# Canvas Layout Management
-# ============================================================================
-
-
-def create_new_canvas_layout(
-    db: Session,
-    campaign_id: int,
-    layout_data: CanvasLayoutCreate,
-    user_id: UUID,
-    view_id: int | None = None,
-    should_be_default: bool = False,
-) -> dict:
-    """Create or update canvas layouts for a view."""
-
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if not campaign:
-        raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
-
-    if view_id is not None:
-        view = db.execute(
-            select(ImageryView).where(
-                ImageryView.id == view_id, ImageryView.campaign_id == campaign_id
-            )
-        ).scalar_one_or_none()
-        if not view:
-            raise HTTPException(
-                status_code=404, detail=f"View {view_id} not found in campaign {campaign_id}"
-            )
-
-    if should_be_default:
-        has_admin_access = db.execute(
-            select(CampaignUser).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id == user_id,
-                CampaignUser.is_admin,
-            )
-        ).scalar_one_or_none()
-        if not has_admin_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only campaign admins can modify default layouts",
-            )
-
-    result = {}
-
-    if should_be_default:
-        existing_main_layout = db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-                CanvasLayout.is_default,
-                CanvasLayout.user_id.is_(None),
-            )
-        ).scalar_one_or_none()
-        if not existing_main_layout:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Default main canvas layout not found for campaign {campaign_id}",
-            )
-
-        existing_main_layout.layout_data = layout_data.main_layout_data
-        flag_modified(existing_main_layout, "layout_data")
-        result["main_layout"] = existing_main_layout
-
-        if layout_data.view_layout_data is not None:
-            if view_id is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="view_id is required when providing view_layout_data",
-                )
-
-            existing_view_layout = db.execute(
-                select(CanvasLayout).where(
-                    CanvasLayout.campaign_id == campaign_id,
-                    CanvasLayout.view_id == view_id,
-                    CanvasLayout.is_default,
-                    CanvasLayout.user_id.is_(None),
-                )
-            ).scalar_one_or_none()
-            if not existing_view_layout:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Default canvas layout not found for view {view_id}",
-                )
-
-            existing_view_layout.layout_data = layout_data.view_layout_data
-            flag_modified(existing_view_layout, "layout_data")
-            result["view_layout"] = existing_view_layout
-    else:
-        main_layout = db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.user_id == user_id,
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-            )
-        ).scalar_one_or_none()
-
-        if main_layout:
-            main_layout.layout_data = layout_data.main_layout_data
-            flag_modified(main_layout, "layout_data")
-        else:
-            main_layout = CanvasLayout(
-                user_id=user_id,
-                campaign_id=campaign_id,
-                view_id=None,
-                layout_data=layout_data.main_layout_data,
-                is_default=False,
-            )
-            db.add(main_layout)
-
-        result["main_layout"] = main_layout
-
-        if layout_data.view_layout_data is not None:
-            if view_id is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="view_id is required when providing view_layout_data",
-                )
-
-            view_layout = db.execute(
-                select(CanvasLayout).where(
-                    CanvasLayout.user_id == user_id,
-                    CanvasLayout.campaign_id == campaign_id,
-                    CanvasLayout.view_id == view_id,
-                )
-            ).scalar_one_or_none()
-
-            if view_layout:
-                view_layout.layout_data = layout_data.view_layout_data
-                flag_modified(view_layout, "layout_data")
-            else:
-                view_layout = CanvasLayout(
-                    user_id=user_id,
-                    campaign_id=campaign_id,
-                    view_id=view_id,
-                    layout_data=layout_data.view_layout_data,
-                    is_default=False,
-                )
-                db.add(view_layout)
-
-            result["view_layout"] = view_layout
-
-    db.commit()
-
-    if "main_layout" in result:
-        db.refresh(result["main_layout"])
-    if "view_layout" in result:
-        db.refresh(result["view_layout"])
-
-    return result
 
 
 # ============================================================================

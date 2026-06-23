@@ -17,17 +17,19 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
+from src.annotation.io import (
+    _build_annotation_records,
+    build_annotations_export,
+    build_annotations_geojson_export,
+    create_annotation_tasks_from_csv,
+    create_annotations_from_geojson,
+)
 from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
-    _build_annotation_records,
     add_annotation_for_task,
-    build_annotations_export,
-    build_annotations_geojson_export,
     claim_task_for_user,
     create_annotation,
-    create_annotation_tasks_from_csv,
-    create_annotations_from_geojson,
     delete_annotation,
     update_annotation,
 )
@@ -844,7 +846,7 @@ class TestExportAnnotatorCount:
 
     def _records(self, annotations, *, merge=False):
         with patch(
-            "src.annotation.service._compute_task_status_for_export",
+            "src.annotation.io._compute_task_status_for_export",
             return_value="done",
         ):
             records, _ = _build_annotation_records(
@@ -1000,11 +1002,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.service._fetch_annotations_with_context",
+                "src.annotation.io._fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.service._compute_task_status_for_export",
+                "src.annotation.io._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1014,11 +1016,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.service._fetch_annotations_with_context",
+                "src.annotation.io._fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.service._compute_task_status_for_export",
+                "src.annotation.io._compute_task_status_for_export",
                 return_value="done",
             ),
         ):

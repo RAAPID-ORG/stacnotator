@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
 from src.auth.models import User
-from src.campaigns import service
+from src.campaigns import assignments, service, statistics
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -168,7 +168,7 @@ def get_campaign_users(
     up the current user's admin / reviewer flags on load, and review mode
     already surfaces other annotators anyway, so the list isn't sensitive.
     """
-    users = service.get_campaign_users_with_roles(db, campaign_id)
+    users = assignments.get_campaign_users_with_roles(db, campaign_id)
     return CampaignUsersResponse(campaign_id=campaign.id, users=users)
 
 
@@ -315,7 +315,7 @@ def assign_tasks_to_users(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing."""
-    return service.assign_tasks_to_users(db, campaign_id, req)
+    return assignments.assign_tasks_to_users(db, campaign_id, req)
 
 
 @router.delete(
@@ -330,7 +330,7 @@ def unassign_user_from_task(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Remove a user's assignment from a specific task."""
-    service.unassign_user_from_task(db, campaign_id, task_id, user_id)
+    assignments.unassign_user_from_task(db, campaign_id, task_id, user_id)
     return {"message": f"Successfully unassigned user from task {task_id}"}
 
 
@@ -350,7 +350,7 @@ def batch_unassign_tasks(
     If `user_ids` is provided, only those users are unassigned from each task.
     Otherwise, all users are unassigned from each task in `task_ids`.
     """
-    deleted = service.unassign_users_from_tasks(db, campaign_id, req.task_ids, req.user_ids)
+    deleted = assignments.unassign_users_from_tasks(db, campaign_id, req.task_ids, req.user_ids)
     return {"message": f"Successfully removed {deleted} assignment(s)"}
 
 
@@ -380,7 +380,7 @@ def assign_reviewers(
                 status_code=400,
                 detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required",
             )
-        service.assign_reviewers_percentage(
+        assignments.assign_reviewers_percentage(
             db, campaign_id, req.percentage, req.num_reviewers, req.reviewer_ids
         )
         return {"message": f"Successfully assigned reviewers to {req.percentage}% of tasks"}
@@ -390,7 +390,7 @@ def assign_reviewers(
             raise HTTPException(
                 status_code=400, detail="For 'manual' pattern, manual_assignments is required"
             )
-        created = service.assign_reviewers_manual(db, campaign_id, req.manual_assignments)
+        created = assignments.assign_reviewers_manual(db, campaign_id, req.manual_assignments)
         return {"message": f"Successfully assigned {created} reviewer(s)"}
 
     elif req.pattern == "fixed":
@@ -399,7 +399,7 @@ def assign_reviewers(
                 status_code=400,
                 detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required",
             )
-        service.assign_reviewers_fixed(
+        assignments.assign_reviewers_fixed(
             db, campaign_id, req.num_tasks, req.fixed_num_reviewers, req.reviewer_ids
         )
         return {"message": f"Successfully assigned reviewers to {req.num_tasks} tasks"}
@@ -441,7 +441,7 @@ def export_task_assignments(
     - `users.csv`: the campaign's members with roles, so the admin knows which
       emails are valid to use in the assignee/reviewer columns.
     """
-    assignments_df, users_df = service.build_task_assignments_export(db, campaign)
+    assignments_df, users_df = assignments.build_task_assignments_export(db, campaign)
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -483,7 +483,7 @@ async def import_task_assignments(
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
     contents = await file.read()
-    result = service.import_task_assignments(db, campaign.id, contents)
+    result = assignments.import_task_assignments(db, campaign.id, contents)
     return ImportTaskAssignmentsResult(**result)
 
 
@@ -523,4 +523,4 @@ def get_campaign_statistics_endpoint(
         - Label distribution
         - Agreement with majority vote
     """
-    return service.get_campaign_statistics(campaign_id, db)
+    return statistics.get_campaign_statistics(campaign_id, db)
