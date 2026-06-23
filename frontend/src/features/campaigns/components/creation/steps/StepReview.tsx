@@ -12,7 +12,7 @@ export const StepReview = ({
 }) => {
   // Collect all error messages across steps for the summary
   const allErrors: string[] = [];
-  const stepNames = STEP_CONFIG[form.mode as 'tasks' | 'open'].map((s) => s.name);
+  const stepNames = STEP_CONFIG[form.mode].map((s) => s.name);
 
   const stepResults = [
     validation.campaign,

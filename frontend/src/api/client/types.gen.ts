@@ -244,7 +244,7 @@ export type AnnotationTaskAssignmentOut = {
     /**
      * Status
      */
-    status: string;
+    status: 'pending' | 'done' | 'skipped';
     /**
      * Is Review
      */
@@ -292,7 +292,7 @@ export type AnnotationTaskOut = {
     /**
      * Task Status
      */
-    task_status?: string;
+    task_status?: 'pending' | 'partial' | 'done' | 'skipped' | 'conflicting';
     geometry: GeometryOut;
     /**
      * Assignments
@@ -441,7 +441,7 @@ export type AssignReviewersRequest = {
     /**
      * Pattern
      */
-    pattern: string;
+    pattern: 'percentage' | 'manual' | 'fixed';
     /**
      * Percentage
      */
@@ -701,7 +701,7 @@ export type CampaignCreate = {
     /**
      * Mode
      */
-    mode: string;
+    mode: 'tasks' | 'open';
     /**
      * Is Public
      */
@@ -771,7 +771,7 @@ export type CampaignOut = {
     /**
      * Mode
      */
-    mode: string;
+    mode: 'tasks' | 'open';
     /**
      * Is Public
      */
@@ -830,7 +830,7 @@ export type CampaignOutFull = {
     /**
      * Mode
      */
-    mode: string;
+    mode: 'tasks' | 'open';
     /**
      * Is Public
      */
@@ -1214,7 +1214,6 @@ export type DeleteAnnotationTasksRequest = {
  * EmbeddingYearUpdateResponse
  *
  * Response after updating the embedding year.
- * Includes a summary of re-computation if embeddings were regenerated.
  */
 export type EmbeddingYearUpdateResponse = {
     /**
@@ -1225,12 +1224,6 @@ export type EmbeddingYearUpdateResponse = {
      * Embeddings Recomputed
      */
     embeddings_recomputed: boolean;
-    /**
-     * Summary
-     */
-    summary?: {
-        [key: string]: unknown;
-    } | null;
 };
 
 /**
@@ -2029,7 +2022,7 @@ export type UserOut = {
     /**
      * Display Name
      */
-    display_name: string;
+    display_name?: string | null;
 };
 
 /**
@@ -2285,7 +2278,7 @@ export type CampaignOutWritable = {
     /**
      * Mode
      */
-    mode: string;
+    mode: 'tasks' | 'open';
     /**
      * Is Public
      */
@@ -2344,7 +2337,7 @@ export type CampaignOutFullWritable = {
     /**
      * Mode
      */
-    mode: string;
+    mode: 'tasks' | 'open';
     /**
      * Is Public
      */

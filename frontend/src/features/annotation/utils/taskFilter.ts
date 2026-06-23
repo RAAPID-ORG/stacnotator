@@ -64,16 +64,16 @@ export const applyTaskFilter = (
         selectedUserIds.length > 0 &&
         assignments.some((a) => {
           if (!selectedUserIds.includes(a.user_id)) return false;
-          if (!filter.statuses.includes(a.status as TaskStatus)) return false;
+          if (!filter.statuses.includes(a.status)) return false;
           if (a.claimed_at != null && a.status === 'pending') return false; // pending soft claim
           return true;
         });
       const matchesUnassigned =
         wantUnassigned &&
         isClaimable(task) &&
-        filter.statuses.includes(task.task_status as TaskStatus);
+        filter.statuses.includes(task.task_status ?? 'pending');
       if (!matchesUser && !matchesUnassigned) return false;
-    } else if (!filter.statuses.includes(task.task_status as TaskStatus)) {
+    } else if (!filter.statuses.includes(task.task_status ?? 'pending')) {
       return false;
     }
 

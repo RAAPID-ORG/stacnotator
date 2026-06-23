@@ -1159,7 +1159,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     if (!isOpen) return;
 
     const { visibleTasks, taskFilter, setTaskFilter } = useTaskStore.getState();
-    const mode = (campaign?.mode ?? 'tasks') as 'tasks' | 'open';
+    const mode = campaign?.mode ?? 'tasks';
 
     if (mode === 'tasks' && visibleTasks.length === 0) {
       // Save the current filter so we can restore it when the tour closes

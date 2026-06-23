@@ -68,8 +68,8 @@ export function countTasksByStatus(
     skipped: 0,
   };
   for (const t of tasks) {
-    const s = t.task_status as TaskStatus;
-    if (s in counts) counts[s]++;
+    const s = t.task_status;
+    if (s !== undefined && s in counts) counts[s]++;
   }
   return counts;
 }

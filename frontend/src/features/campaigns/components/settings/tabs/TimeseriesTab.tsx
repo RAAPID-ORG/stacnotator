@@ -17,7 +17,7 @@ interface Props {
   saving: boolean;
   campaignName: string;
   imagery: ImagerySourceOut[];
-  campaignMode: string;
+  campaignMode: 'tasks' | 'open';
   campaignSettings?: CampaignSettingsOut;
 }
 
@@ -48,7 +48,7 @@ export const TimeseriesTab: React.FC<Props> = ({
           form={
             {
               name: campaignName,
-              mode: campaignMode as 'tasks' | 'open',
+              mode: campaignMode,
               settings: campaignSettings ?? ({} as CampaignSettingsOut),
               imagery_editor_state: null,
               timeseries_configs: newTimeseries,

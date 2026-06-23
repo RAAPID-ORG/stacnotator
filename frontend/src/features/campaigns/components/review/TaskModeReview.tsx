@@ -8,7 +8,6 @@ import {
   formatTaskStatus,
   getTaskStatusColor,
 } from '~/shared/utils/taskStatus';
-import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import Statistics from './Statistics';
@@ -416,7 +415,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                 <tbody>
                   {filteredTasks.map((task) => {
                     const latLon = extractCentroidFromWKT(task.geometry.geometry);
-                    const taskStatus = task.task_status as TaskStatus;
+                    const taskStatus = task.task_status ?? 'pending';
                     const assignments = task.assignments || [];
                     const annotations = task.annotations || [];
                     const isAssignedToMe =

@@ -203,7 +203,7 @@ def create_campaign(
     Args:
         db: Database session
         name: Campaign name
-        mode: Campaign mode (e.g., 'tasks' or 'open-world')
+        mode: Campaign mode ('tasks' or 'open')
         settings: Campaign configuration settings
         user_id: ID of user to set as admin
         imagery_editor_state: Optional imagery editor state to persist

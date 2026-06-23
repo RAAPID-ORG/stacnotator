@@ -70,7 +70,7 @@ class AnnotationOut(AnnotationFromTaskOut):
 
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
-    status: str
+    status: Literal["pending", "done", "skipped"]
     is_review: bool = False
     claimed_at: datetime | None = None
     user_email: str | None = None
@@ -131,7 +131,9 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
-    task_status: str = TASK_STATUS_PENDING
+    task_status: Literal["pending", "partial", "done", "skipped", "conflicting"] = (
+        TASK_STATUS_PENDING
+    )
     geometry: GeometryOut
     assignments: list[AnnotationTaskAssignmentOut] | None
     annotations: list[AnnotationFromTaskOut]

@@ -5,6 +5,7 @@ import {
   claimAnnotationTask,
   deleteAnnotation,
   validateAnnotationSubmission,
+  type AnnotationTaskAssignmentOut,
   type AnnotationTaskOut,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
@@ -264,10 +265,14 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             annotations: task.annotations.filter((a) => a.id !== userAnnotation!.id),
             assignments: (task.assignments || []).map((a) =>
               a.user_id === currentUserId
-                ? { ...a, status: result?.assignment_status ?? 'pending' }
+                ? {
+                    ...a,
+                    status: (result?.assignment_status ??
+                      'pending') as AnnotationTaskAssignmentOut['status'],
+                  }
                 : a
             ),
-            task_status: result?.task_status ?? 'pending',
+            task_status: (result?.task_status ?? 'pending') as AnnotationTaskOut['task_status'],
           };
           set({
             allTasks: replaceTaskInList(allTasks, updatedTask),
@@ -334,10 +339,15 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           annotations: updatedAnnotations,
           assignments: (task.assignments || []).map((a) =>
             a.user_id === currentUserId
-              ? { ...a, status: submitResult?.assignment_status ?? 'pending' }
+              ? {
+                  ...a,
+                  status: (submitResult?.assignment_status ??
+                    'pending') as AnnotationTaskAssignmentOut['status'],
+                }
               : a
           ),
-          task_status: submitResult?.task_status ?? task.task_status,
+          task_status: (submitResult?.task_status ??
+            task.task_status) as AnnotationTaskOut['task_status'],
         };
 
         const updatedVisible = replaceTaskInList(visibleTasks, updatedTask);

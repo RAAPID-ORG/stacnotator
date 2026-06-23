@@ -7,7 +7,6 @@ import {
   getTaskStatusColor,
   formatTaskStatus,
 } from '~/shared/utils/taskStatus';
-import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 
@@ -251,9 +250,9 @@ export const AnnotationTasksTable = ({
                   <td className="px-3 py-2">
                     <div className="group relative inline-block">
                       <span
-                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(task.task_status as TaskStatus)}`}
+                        className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize cursor-help ${getTaskStatusColor(task.task_status ?? 'pending')}`}
                       >
-                        {formatTaskStatus(task.task_status as TaskStatus)}
+                        {formatTaskStatus(task.task_status ?? 'pending')}
                       </span>
                       {/* Tooltip showing per-user status */}
                       {task.assignments && task.assignments.length > 0 && (

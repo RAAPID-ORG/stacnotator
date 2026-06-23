@@ -3,7 +3,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
 import { formatTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
-import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { useLeafletMap } from '../review/useLeafletMap';
 
@@ -34,7 +33,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       if (!centroid) return;
       const coords: [number, number] = [centroid.lat, centroid.lon];
 
-      const taskStatus = task.task_status as TaskStatus;
+      const taskStatus = task.task_status ?? 'pending';
       const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';
 
       const icon = L.divIcon({
@@ -71,7 +70,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
   const taskCounts = tasks.reduce(
     (acc, task) => {
-      const status = task.task_status as TaskStatus;
+      const status = task.task_status ?? 'pending';
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     },

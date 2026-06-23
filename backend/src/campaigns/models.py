@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -25,7 +26,7 @@ class Campaign(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    mode: Mapped[str | None] = mapped_column(String(20), nullable=False)  # tasks or open-world
+    mode: Mapped[str] = mapped_column(String(20), nullable=False)  # tasks or open
     is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     # Mosaic registration status: pending, registering, ready, failed
     registration_status: Mapped[str] = mapped_column(
@@ -154,7 +155,7 @@ class CanvasLayout(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    user_id: Mapped[int | None] = mapped_column(
+    user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -197,7 +198,7 @@ class CampaignUser(Base):
     __table_args__ = ({"schema": "data"},)
 
     # Composite primary key
-    user_id: Mapped[int] = mapped_column(
+    user_id: Mapped[UUID] = mapped_column(
         ForeignKey("auth.users.id", ondelete="CASCADE"),
         primary_key=True,
     )
