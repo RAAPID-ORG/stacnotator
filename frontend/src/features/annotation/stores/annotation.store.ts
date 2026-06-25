@@ -3,6 +3,7 @@ import {
   createAnnotationOpenmode,
   updateAnnotationOpenmode,
   deleteAnnotation as deleteAnnotationApi,
+  batchDeleteAnnotations as batchDeleteAnnotationsApi,
   getAllAnnotationsForCampaign,
   type AnnotationOut,
 } from '~/api/client';
@@ -18,8 +19,10 @@ interface OpenAnnotationStore {
   isSaving: boolean;
   /** Index into the annotations array sorted by updated_at for prev/next navigation. -1 = no selection */
   currentAnnotationIndex: number;
-  /** ID of the annotation currently selected in edit mode (mirrors DrawingLayer state). */
+  /** ID of the annotation currently selected in edit mode (mirrors DrawingLayer state). Null when zero or multiple are selected. */
   selectedAnnotationId: number | null;
+  /** All annotation ids currently selected in edit mode (single or multi-select). */
+  selectedAnnotationIds: number[];
   /** Label ids that prev/next navigation is restricted to. Empty = navigate all labels. */
   navigationLabelFilter: number[];
 
@@ -36,7 +39,9 @@ interface OpenAnnotationStore {
     flagComment: string | null
   ) => Promise<void>;
   deleteAnnotation: (annotationId: number) => Promise<void>;
+  batchDeleteAnnotations: (annotationIds: number[]) => Promise<void>;
   setSelectedAnnotationId: (id: number | null) => void;
+  setSelectedAnnotationIds: (ids: number[]) => void;
   /** Navigate to previous annotation (older by updated_at) */
   goToPreviousAnnotation: () => AnnotationOut | null;
   /** Navigate to next annotation (newer by updated_at) */
@@ -61,6 +66,7 @@ const initialState = {
   isSaving: false,
   currentAnnotationIndex: -1,
   selectedAnnotationId: null as number | null,
+  selectedAnnotationIds: [] as number[],
   navigationLabelFilter: [] as number[],
 };
 
@@ -208,6 +214,32 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     }
   },
 
+  batchDeleteAnnotations: async (annotationIds) => {
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign || annotationIds.length === 0) return;
+
+    set({ isSaving: true });
+    try {
+      const response = await batchDeleteAnnotationsApi({
+        path: { campaign_id: campaign.id },
+        body: { annotation_ids: annotationIds },
+      });
+      const deletedCount = response.data?.deleted_count ?? annotationIds.length;
+      const idSet = new Set(annotationIds);
+      set((s) => ({
+        annotations: s.annotations.filter((a) => !idSet.has(a.id)),
+        isSaving: false,
+        currentAnnotationIndex: -1,
+        selectedAnnotationId: null,
+        selectedAnnotationIds: [],
+      }));
+      useLayoutStore.getState().showAlert(`Deleted ${deletedCount} annotation(s)`, 'success');
+    } catch (error) {
+      handleError(error, 'Failed to delete annotations');
+      set({ isSaving: false });
+    }
+  },
+
   getSortedAnnotations: () => {
     const { annotations, navigationLabelFilter } = get();
     const visible =
@@ -274,7 +306,11 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
 
   setCurrentAnnotationIndex: (index) => set({ currentAnnotationIndex: index }),
 
-  setSelectedAnnotationId: (id) => set({ selectedAnnotationId: id }),
+  setSelectedAnnotationId: (id) =>
+    set({ selectedAnnotationId: id, selectedAnnotationIds: id === null ? [] : [id] }),
+
+  setSelectedAnnotationIds: (ids) =>
+    set({ selectedAnnotationIds: ids, selectedAnnotationId: ids.length === 1 ? ids[0] : null }),
 
   reset: () => set(initialState),
 }));

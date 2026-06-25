@@ -5,15 +5,20 @@ import {
   MOCK_CAMPAIGN_OPEN_MODE_NO_TS,
   OPEN_ANN_CENTER,
   OPEN_ANN_NE_FLAGGED,
+  OPEN_ANN_SW_POLYGON,
   OPEN_MODE_CENTER,
 } from './fixtures/mock-data';
 import {
   assertCoordsMatch,
+  boxSelectWholeCanvas,
   clickMapAt,
   clickMapCenter,
+  ctrlClickMapCenter,
   drawPolygon,
+  fitAllAnnotations,
   getMinimapCenter,
   parseWkt,
+  waitForBatchDelete,
   waitForCreate,
   waitForDelete,
   waitForMinimapCenter,
@@ -404,6 +409,84 @@ test.describe('Deleting annotations', () => {
     expect(del).toBeTruthy();
     await expect(counter(annotationPage)).toContainText('2');
     await expect(controls(annotationPage)).not.toContainText('Selected annotation #');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multi-select & delete-key (edit mode)
+// ---------------------------------------------------------------------------
+
+const editControls = (page: Page) => page.locator('[data-testid="edit-controls"]');
+
+test.describe('Multi-select and delete key', () => {
+  test.beforeEach(async ({ annotationPage, api }) => {
+    await loadOpenMode(annotationPage, api);
+  });
+
+  test('Shift+drag box-selects every annotation and shows the count', async ({ annotationPage }) => {
+    await annotationPage.keyboard.press('e');
+    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await boxSelectWholeCanvas(annotationPage);
+    await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
+  });
+
+  test('Ctrl+click removes a feature from a box selection', async ({ annotationPage }) => {
+    await annotationPage.keyboard.press('e');
+    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await boxSelectWholeCanvas(annotationPage);
+    await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
+
+    // The centre annotation (OPEN_ANN_CENTER) toggles out of the selection.
+    await ctrlClickMapCenter(annotationPage);
+    await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '2');
+  });
+
+  test('Delete key on a box selection batch-deletes all selected annotations', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('e');
+    await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
+    await boxSelectWholeCanvas(annotationPage);
+    await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '3');
+
+    await Promise.all([
+      waitForBatchDelete(annotationPage),
+      annotationPage.keyboard.press('Delete'),
+    ]);
+
+    const post = api.requests.find(
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations/batch-delete'),
+    );
+    expect(post).toBeTruthy();
+    expect([...(post!.body.annotation_ids as number[])].sort((a, b) => a - b)).toEqual([
+      OPEN_ANN_CENTER.id,
+      OPEN_ANN_NE_FLAGGED.id,
+      OPEN_ANN_SW_POLYGON.id,
+    ]);
+
+    // All annotations gone -> the Navigate block (and its counter) is removed.
+    await expect(counter(annotationPage)).toHaveCount(0);
+    await expect(editControls(annotationPage)).toHaveCount(0);
+  });
+
+  test('Delete key on a single selection issues a single DELETE', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('e');
+    await clickMapCenter(annotationPage);
+    await expect(editControls(annotationPage)).toHaveAttribute('data-selected-count', '1');
+
+    await Promise.all([waitForDelete(annotationPage), annotationPage.keyboard.press('Delete')]);
+
+    const del = api.requests.find(
+      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`),
+    );
+    expect(del).toBeTruthy();
+    expect(api.requests.some((r) => r.pathname.endsWith('/annotations/batch-delete'))).toBe(false);
+    await expect(counter(annotationPage)).toContainText('2');
+    await expect(editControls(annotationPage)).toHaveCount(0);
   });
 });
 

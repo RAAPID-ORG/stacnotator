@@ -15,8 +15,10 @@
  *   annotate mode - Draw interaction active for the geometry matching
  *                   selectedLabel; finishes -> saveAnnotation -> re-render
  *   edit mode     - Select + Modify + Translate active; clicking a feature
- *                   selects it; ESC cancels (restores saved geometry);
- *                   ✓ button commits the edited geometry; 🗑 button deletes
+ *                   selects it; Ctrl+click toggles features in/out of a
+ *                   multi-selection; Shift+drag box-selects; ESC cancels
+ *                   (restores saved geometry); Delete/Backspace removes the
+ *                   selection; ✓ button commits the edited geometry; 🗑 deletes
  *   timeseries    - timeseries-probe click handler
  */
 
@@ -24,15 +26,20 @@ import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import OLMap from 'ol/Map';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { Draw, Modify, Select, Snap, Translate } from 'ol/interaction';
-import { click as clickCondition, altKeyOnly } from 'ol/events/condition';
+import { Draw, Modify, Select, Snap, Translate, DragBox } from 'ol/interaction';
+import {
+  click as clickCondition,
+  altKeyOnly,
+  shiftKeyOnly,
+  platformModifierKeyOnly,
+} from 'ol/events/condition';
 import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
+import { createEmpty, extend as extendExtent, isEmpty } from 'ol/extent';
 import { toLonLat } from 'ol/proj';
 import { hexToRgba, ANNOTATION_LAYER_Z_INDEX } from './mapUtils';
 import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
-import type { SelectEvent } from 'ol/interaction/Select';
 import type { DrawEvent } from 'ol/interaction/Draw';
 
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
@@ -128,7 +135,8 @@ const DrawingLayer = ({
   const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
   const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
   const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);
-  const setSelectedAnnotationId = useAnnotationStore((state) => state.setSelectedAnnotationId);
+  const batchDeleteAnnotations = useAnnotationStore((state) => state.batchDeleteAnnotations);
+  const setSelectedAnnotationIds = useAnnotationStore((state) => state.setSelectedAnnotationIds);
   const styleOverrides = usePreferencesStore((state) => state.annotationStyles);
   const showAnnotations = useMapStore((state) => state.showAnnotations);
 
@@ -159,6 +167,7 @@ const DrawingLayer = ({
   const selectInteractionRef = useRef<Select | null>(null);
   const translateInteractionRef = useRef<Translate | null>(null);
   const snapInteractionRef = useRef<Snap | null>(null);
+  const dragBoxInteractionRef = useRef<DragBox | null>(null);
   // Track active tool in a ref so OL event callbacks always see the latest value
   const activeToolRef = useRef(activeTool);
   activeToolRef.current = activeTool;
@@ -168,12 +177,12 @@ const DrawingLayer = ({
   onTimeseriesClickRef.current = onTimeseriesClick;
 
   // React state (drives inline edit controls overlay)
-  /** OL feature currently selected for editing */
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  /** Pixel coords [x, y] of the top-right of the selected feature's bounding box */
+  /** OL features currently selected for editing (annotation ids as strings). */
+  const [selectedFeatureIds, setSelectedFeatureIds] = useState<string[]>([]);
+  /** Pixel coords [x, y] of the top-right of the selection's bounding box */
   const [editControlsPos, setEditControlsPos] = useState<{ x: number; y: number } | null>(null);
-  /** Saved geometry snapshot for ESC rollback */
-  const originalGeometryRef = useRef<GeoJSON.Geometry | null>(null);
+  /** Saved geometry snapshots (annotationId -> geometry) for ESC rollback */
+  const originalGeometriesRef = useRef<Map<number, GeoJSON.Geometry>>(new Map());
 
   // Timeseries probe marker (OL Overlay)
   // We use a simple DOM element positioned via map.getPixelFromCoordinate rather
@@ -264,33 +273,31 @@ const DrawingLayer = ({
 
   const refreshEditControlsPos = useCallback(() => {
     const source = sourceRef.current;
-    if (!source || !selectedFeatureId) {
+    if (!source || selectedFeatureIds.length === 0) {
       setEditControlsPos(null);
       return;
     }
 
-    const feature = source
-      .getFeatures()
-      .find((f) => String(f.get(PROP_ANNOTATION_ID)) === selectedFeatureId);
-    if (!feature) {
+    const selected = new Set(selectedFeatureIds);
+    const union = createEmpty();
+    for (const feature of source.getFeatures()) {
+      if (!selected.has(String(feature.get(PROP_ANNOTATION_ID)))) continue;
+      const extent = feature.getGeometry()?.getExtent();
+      if (extent) extendExtent(union, extent);
+    }
+    if (isEmpty(union)) {
       setEditControlsPos(null);
       return;
     }
 
-    const extent = feature.getGeometry()?.getExtent();
-    if (!extent) {
-      setEditControlsPos(null);
-      return;
-    }
-
-    // top-right corner of the bounding box -> screen pixels
-    const pixel = map.getPixelFromCoordinate([extent[2], extent[3]]);
+    // top-right corner of the combined bounding box -> screen pixels
+    const pixel = map.getPixelFromCoordinate([union[2], union[3]]);
     if (!pixel) {
       setEditControlsPos(null);
       return;
     }
     setEditControlsPos({ x: pixel[0] + 10, y: pixel[1] - 5 });
-  }, [map, selectedFeatureId]);
+  }, [map, selectedFeatureIds]);
 
   // Keep the ref up-to-date every render so stale closures always reach the latest version
   refreshEditControlsPosRef.current = refreshEditControlsPos;
@@ -300,9 +307,9 @@ const DrawingLayer = ({
   //   - vertex drag (pointermove fires every frame during any pointer drag)
   //   - translate drag (same)
   useEffect(() => {
-    if (!selectedFeatureId) return;
+    if (selectedFeatureIds.length === 0) return;
     // pointermove fires on every mouse-move including during vertex drags,
-    // keeping the buttons locked to the feature bounding box in real time.
+    // keeping the buttons locked to the selection bounding box in real time.
     const handler = () => refreshEditControlsPosRef.current();
     map.on('pointermove', handler as unknown as () => void);
     map.on('moveend', handler);
@@ -310,11 +317,41 @@ const DrawingLayer = ({
       map.un('pointermove', handler as unknown as () => void);
       map.un('moveend', handler);
     };
-  }, [map, selectedFeatureId]);
+  }, [map, selectedFeatureIds]);
 
   useEffect(() => {
     refreshEditControlsPos();
-  }, [selectedFeatureId, refreshEditControlsPos]);
+  }, [selectedFeatureIds, refreshEditControlsPos]);
+
+  // Reset all selection state (React, store mirror and the rollback snapshots).
+  const clearSelection = useCallback(() => {
+    setSelectedFeatureIds([]);
+    setSelectedAnnotationIds([]);
+    setEditControlsPos(null);
+    originalGeometriesRef.current = new Map();
+  }, [setSelectedAnnotationIds]);
+
+  // Mirror the OL Select feature collection into React/store state and snapshot
+  // the selected geometries for ESC rollback. Called whenever the selection set
+  // changes - click, ctrl+click toggle and shift+drag box selection.
+  const syncSelectionRef = useRef<() => void>(() => {});
+  const syncSelection = useCallback(() => {
+    const select = selectInteractionRef.current;
+    if (!select) return;
+    const features = select.getFeatures().getArray();
+    const ids: string[] = [];
+    const snapshots = new Map<number, GeoJSON.Geometry>();
+    for (const feature of features) {
+      const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
+      ids.push(String(annotationId));
+      const geometry = olFeatureToGeoJSONGeometry(feature);
+      if (geometry) snapshots.set(annotationId, geometry);
+    }
+    originalGeometriesRef.current = snapshots;
+    setSelectedFeatureIds(ids);
+    setSelectedAnnotationIds(features.map((f) => f.get(PROP_ANNOTATION_ID) as number));
+  }, [setSelectedAnnotationIds]);
+  syncSelectionRef.current = syncSelection;
 
   // 3. Manage interactions based on activeTool
   const removeAllInteractions = useCallback(() => {
@@ -324,18 +361,16 @@ const DrawingLayer = ({
       selectInteractionRef,
       translateInteractionRef,
       snapInteractionRef,
+      dragBoxInteractionRef,
     ].forEach((ref) => {
       if (ref.current) {
         map.removeInteraction(ref.current);
         ref.current = null;
       }
     });
-    setSelectedFeatureId(null);
-    setSelectedAnnotationId(null);
-    setEditControlsPos(null);
-    originalGeometryRef.current = null;
+    clearSelection();
     map.getTargetElement()?.style.setProperty('cursor', '');
-  }, [map, setSelectedAnnotationId]);
+  }, [map, clearSelection]);
 
   // 3a. Draw interaction (annotate mode)
   const setupDrawInteraction = useCallback(() => {
@@ -418,8 +453,12 @@ const DrawingLayer = ({
     const source = sourceRef.current;
     if (!source) return;
 
+    // Plain click replaces the selection; Ctrl/Cmd+click toggles a feature in or
+    // out of the current selection (multi-select).
     const select = new Select({
       condition: clickCondition,
+      toggleCondition: platformModifierKeyOnly,
+      multi: false,
       layers: [vectorLayerRef.current!],
       style: (feature) => {
         const labelId = feature.get(PROP_LABEL_ID) as number;
@@ -432,20 +471,24 @@ const DrawingLayer = ({
       },
     });
 
-    select.on('select', (evt: SelectEvent) => {
-      const selectedFeatures = evt.selected;
-      if (selectedFeatures.length === 0) {
-        setSelectedFeatureId(null);
-        setSelectedAnnotationId(null);
-        originalGeometryRef.current = null;
-        return;
+    select.on('select', () => {
+      syncSelectionRef.current();
+    });
+
+    // Shift+drag draws a selection box; every feature it covers is added to the
+    // current selection (additive, so it composes with prior clicks).
+    const dragBox = new DragBox({ condition: shiftKeyOnly });
+    dragBox.on('boxend', () => {
+      const boxExtent = dragBox.getGeometry().getExtent();
+      const collection = select.getFeatures();
+      const alreadySelected = new Set(collection.getArray());
+      for (const feature of source.getFeaturesInExtent(boxExtent)) {
+        const geometry = feature.getGeometry();
+        if (geometry && geometry.intersectsExtent(boxExtent) && !alreadySelected.has(feature)) {
+          collection.push(feature);
+        }
       }
-      const feature = selectedFeatures[0];
-      const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
-      // Snapshot current geometry for ESC rollback
-      originalGeometryRef.current = olFeatureToGeoJSONGeometry(feature);
-      setSelectedFeatureId(String(annotationId));
-      setSelectedAnnotationId(annotationId);
+      syncSelectionRef.current();
     });
 
     // Alt+drag moves the whole selected feature; normal drag edits vertices.
@@ -470,11 +513,13 @@ const DrawingLayer = ({
 
     // Insertion order matters: Select first, then Translate, then Modify (highest priority).
     map.addInteraction(select);
+    map.addInteraction(dragBox);
     map.addInteraction(translate);
     map.addInteraction(modify);
     map.addInteraction(snap);
 
     selectInteractionRef.current = select;
+    dragBoxInteractionRef.current = dragBox;
     modifyInteractionRef.current = modify;
     translateInteractionRef.current = translate;
     snapInteractionRef.current = snap;
@@ -492,7 +537,7 @@ const DrawingLayer = ({
     return () => {
       map.un('pointermove', handlePointerMove as unknown as () => void);
     };
-  }, [map, extendedLabels, setSelectedAnnotationId, styleForLabel]); // refreshEditControlsPos intentionally omitted - called via stable ref
+  }, [map, extendedLabels, styleForLabel]); // refreshEditControlsPos/syncSelection intentionally omitted - called via stable refs
 
   // 3d. Timeseries click handler
   const setupTimeseriesInteraction = useCallback(() => {
@@ -551,9 +596,9 @@ const DrawingLayer = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [activeTool]);
 
-  // 4. ESC key: cancel edit and roll back
+  // 4. ESC key: cancel edit and roll back every selected feature's geometry
   useEffect(() => {
-    if (!selectedFeatureId || activeTool !== 'edit') return;
+    if (selectedFeatureIds.length === 0 || activeTool !== 'edit') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -563,14 +608,13 @@ const DrawingLayer = ({
       const select = selectInteractionRef.current;
       if (!source || !select) return;
 
-      const feature = source
-        .getFeatures()
-        .find((f) => String(f.get(PROP_ANNOTATION_ID)) === selectedFeatureId);
-
-      if (feature && originalGeometryRef.current) {
-        // Restore the saved geometry
+      const snapshots = originalGeometriesRef.current;
+      for (const feature of source.getFeatures()) {
+        const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
+        const original = snapshots.get(annotationId);
+        if (!original) continue;
         try {
-          const restored = geoJsonFormat.readGeometry(originalGeometryRef.current, {
+          const restored = geoJsonFormat.readGeometry(original, {
             featureProjection: 'EPSG:3857',
           }) as Geometry;
           feature.setGeometry(restored);
@@ -580,25 +624,24 @@ const DrawingLayer = ({
       }
 
       select.getFeatures().clear();
-      setSelectedFeatureId(null);
-      setSelectedAnnotationId(null);
-      setEditControlsPos(null);
-      originalGeometryRef.current = null;
+      clearSelection();
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFeatureId, activeTool, setSelectedAnnotationId]);
+  }, [selectedFeatureIds, activeTool, clearSelection]);
 
   // 5. Edit control handlers (confirm / delete)
   const handleConfirmEdit = useCallback(async () => {
     const source = sourceRef.current;
     const select = selectInteractionRef.current;
-    if (!source || !select || !selectedFeatureId) return;
+    // Geometry editing is a single-feature operation; the confirm button is only
+    // shown when exactly one feature is selected.
+    if (!source || !select || selectedFeatureIds.length !== 1) return;
 
     const feature = source
       .getFeatures()
-      .find((f) => String(f.get(PROP_ANNOTATION_ID)) === selectedFeatureId);
+      .find((f) => String(f.get(PROP_ANNOTATION_ID)) === selectedFeatureIds[0]);
 
     if (feature) {
       const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
@@ -613,60 +656,85 @@ const DrawingLayer = ({
     }
 
     select.getFeatures().clear();
-    setSelectedFeatureId(null);
-    setSelectedAnnotationId(null);
-    setEditControlsPos(null);
-    originalGeometryRef.current = null;
-  }, [selectedFeatureId, updateAnnotationGeometry, setSelectedAnnotationId]);
+    clearSelection();
+  }, [selectedFeatureIds, updateAnnotationGeometry, clearSelection]);
 
-  const handleDeleteAnnotation = useCallback(async () => {
-    const source = sourceRef.current;
-    const select = selectInteractionRef.current;
-    if (!source || !select || !selectedFeatureId) return;
+  // Delete the current selection. One annotation -> single delete; many ->
+  // batch delete. Clears selection first so the now-stale OL features unbind
+  // cleanly before the store sync removes them.
+  const handleDeleteSelection = useCallback(async () => {
+    const ids = selectedFeatureIds.map(Number).filter((n) => Number.isFinite(n));
+    if (ids.length === 0) return;
 
-    const feature = source
-      .getFeatures()
-      .find((f) => String(f.get(PROP_ANNOTATION_ID)) === selectedFeatureId);
+    selectInteractionRef.current?.getFeatures().clear();
+    clearSelection();
 
-    if (feature) {
-      const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
-      await deleteAnnotation(annotationId);
+    if (ids.length === 1) {
+      await deleteAnnotation(ids[0]);
+    } else {
+      await batchDeleteAnnotations(ids);
     }
+  }, [selectedFeatureIds, deleteAnnotation, batchDeleteAnnotations, clearSelection]);
 
-    select.getFeatures().clear();
-    setSelectedFeatureId(null);
-    setSelectedAnnotationId(null);
-    setEditControlsPos(null);
-    originalGeometryRef.current = null;
-  }, [selectedFeatureId, deleteAnnotation, setSelectedAnnotationId]);
+  // 6. Delete / Backspace key: delete the selected annotation(s)
+  useEffect(() => {
+    if (activeTool !== 'edit' || selectedFeatureIds.length === 0) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      void handleDeleteSelection();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool, selectedFeatureIds, handleDeleteSelection]);
 
   // Render
   // The map canvas is owned by the parent; we only render the floating edit controls.
-  return editControlsPos && selectedFeatureId && activeTool === 'edit' ? (
+  return editControlsPos && selectedFeatureIds.length > 0 && activeTool === 'edit' ? (
     <div
-      className="absolute z-[1000] flex gap-1 pointer-events-none"
+      data-testid="edit-controls"
+      data-selected-count={selectedFeatureIds.length}
+      className="absolute z-[1000] flex items-center gap-1 pointer-events-none"
       style={{ left: editControlsPos.x, top: editControlsPos.y }}
     >
-      <button
-        onClick={handleConfirmEdit}
-        className="pointer-events-auto p-1.5 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-all hover:scale-110 cursor-pointer"
-        title="Confirm edits (Enter)"
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
+      {selectedFeatureIds.length > 1 && (
+        <span className="pointer-events-none px-1.5 py-0.5 text-[11px] font-semibold leading-none bg-neutral-800 text-white rounded-full shadow-lg">
+          {selectedFeatureIds.length}
+        </span>
+      )}
+      {selectedFeatureIds.length === 1 && (
+        <button
+          onClick={handleConfirmEdit}
+          className="pointer-events-auto p-1.5 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-all hover:scale-110 cursor-pointer"
+          title="Confirm edits (Enter)"
         >
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-      </button>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+        </button>
+      )}
       <button
-        onClick={handleDeleteAnnotation}
+        data-testid="edit-delete-btn"
+        onClick={handleDeleteSelection}
         className="pointer-events-auto p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-all hover:scale-110 cursor-pointer"
-        title="Delete annotation (Delete)"
+        title={
+          selectedFeatureIds.length > 1
+            ? `Delete ${selectedFeatureIds.length} annotations (Delete)`
+            : 'Delete annotation (Delete)'
+        }
       >
         <svg
           width="16"
