@@ -16,6 +16,7 @@ from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
 from src.database import SessionLocal
+from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
 from src.tiling.router import router as tiling_router
@@ -42,6 +43,10 @@ def _validate_production_config() -> None:
         return
     if s.TILER_TOKEN_SECRET == "dev-tiler-secret-change-in-production":
         raise RuntimeError("TILER_TOKEN_SECRET must be changed from the dev default in production")
+    if s.APIKEY_ENCRYPTION_SECRET == "dev-apikey-secret-change-in-production":
+        raise RuntimeError(
+            "APIKEY_ENCRYPTION_SECRET must be changed from the dev default in production"
+        )
     if (
         s.AUTH_PROVIDER == "firebase"
         and not s.FIREBASE_CREDENTIALS_PATH
@@ -181,5 +186,6 @@ app.include_router(annotations_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
+app.include_router(imagery_proxy_router, prefix="/api")
 app.include_router(tiling_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

@@ -18,6 +18,9 @@ import type { CatalogBrowserPreset } from './CatalogBrowser';
 import { BulkApplyModal } from './BulkApplyModal';
 import type { BulkFocus } from './BulkApplyModal';
 import type { ImageryController } from './controller';
+import { ApiKeyField } from './ApiKeyField';
+import { isRealId } from './draftSync';
+import { setSourceApiKey } from '~/api/client';
 
 interface SourceEditorProps {
   source: ImagerySource;
@@ -98,6 +101,13 @@ export const SourceEditor = ({
 
   const vizNames = source.visualizations.map((v) => v.name);
   const hasStac = source.collections.some((c) => c.data.type === 'stac_browser');
+  // A manual collection URL using {api_key} means this source needs a server-side provider key.
+  const sourceNeedsApiKey = source.collections.some(
+    (c) =>
+      c.data.type === 'manual' &&
+      (c.data.vizUrls.some((u) => u.url.includes('{api_key}')) ||
+        c.slices.some((sl) => sl.vizUrls?.some((u) => u.url.includes('{api_key}'))))
+  );
   const updateSource = (patch: Partial<ImagerySource>) => controller.updateSource(source.id, patch);
 
   const handleRemoveSource = async () => {
@@ -279,6 +289,27 @@ export const SourceEditor = ({
             placeholder="Source name…"
           />
         </div>
+
+        {sourceNeedsApiKey && (
+          <div className="space-y-1">
+            <label className="text-xs text-neutral-700 font-medium flex items-center gap-1">
+              Provider API key
+              <Tooltip text="A manual collection URL in this source uses {api_key}. Save imagery, then set the key here - it is stored encrypted server-side and attached when tiles are proxied through the backend (never exposed to annotators)." />
+            </label>
+            <ApiKeyField
+              persisted={controller.campaignId != null && isRealId(source.id)}
+              hasApiKey={source.hasApiKey}
+              onSave={async (value) => {
+                if (controller.campaignId == null) return false;
+                const { error } = await setSourceApiKey({
+                  path: { campaign_id: controller.campaignId, source_id: Number(source.id) },
+                  body: { value },
+                });
+                return !error;
+              }}
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">

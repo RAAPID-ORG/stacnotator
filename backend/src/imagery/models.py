@@ -35,6 +35,9 @@ class ImagerySource(Base):
     crosshair_hex6: Mapped[str] = mapped_column(String(6), server_default="ff0000", nullable=False)
     default_zoom: Mapped[int] = mapped_column(SmallInteger, server_default="14", nullable=False)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    # AES-256-GCM ciphertext of the provider API key substituted into this source's
+    # {api_key} tile-URL templates. Decrypted only by the backend tile proxy.
+    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_sources")  # noqa: F821
     visualizations: Mapped[list["VisualizationTemplate"]] = relationship(
@@ -47,6 +50,10 @@ class ImagerySource(Base):
         cascade="all, delete-orphan",
         order_by="ImageryCollection.display_order",
     )
+
+    @property
+    def has_api_key(self) -> bool:
+        return self.encrypted_api_key is not None
 
 
 class VisualizationTemplate(Base):
@@ -223,8 +230,15 @@ class Basemap(Base):
     # upscales the deepest tile instead of requesting "no data" placeholders.
     # Null = unlimited (no cap on tile requests).
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    # AES-256-GCM ciphertext of the provider API key substituted into this basemap's
+    # {api_key} URL template. Decrypted only by the backend tile proxy.
+    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="basemaps")  # noqa: F821
+
+    @property
+    def has_api_key(self) -> bool:
+        return self.encrypted_api_key is not None
 
 
 class ImageryView(Base):

@@ -9,6 +9,7 @@ from src.auth.models import User
 from src.campaigns.constants import VIEW_LAYOUT_START_Y
 from src.campaigns.models import Campaign, CanvasLayout
 from src.config import get_settings
+from src.crypto import encrypt
 from src.imagery.layouts import _layout_window_for, _sync_view_layouts
 from src.imagery.models import (
     Basemap,
@@ -32,6 +33,24 @@ from src.imagery.tile_urls import _slice_viz_params, update_collection_viz_param
 from src.tiling import providers
 
 logger = logging.getLogger(__name__)
+
+
+def set_basemap_api_key(db: Session, campaign_id: int, basemap_id: int, value: str) -> Basemap:
+    """Store the AES-256-GCM-encrypted provider key for a basemap (campaign-scoped lookup)."""
+    basemap = db.get(Basemap, basemap_id)
+    if basemap is None or basemap.campaign_id != campaign_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Basemap not found")
+    basemap.encrypted_api_key = encrypt(value)
+    return basemap
+
+
+def set_source_api_key(db: Session, campaign_id: int, source_id: int, value: str) -> ImagerySource:
+    """Store the AES-256-GCM-encrypted provider key for an imagery source."""
+    source = db.get(ImagerySource, source_id)
+    if source is None or source.campaign_id != campaign_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
+    source.encrypted_api_key = encrypt(value)
+    return source
 
 
 def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:

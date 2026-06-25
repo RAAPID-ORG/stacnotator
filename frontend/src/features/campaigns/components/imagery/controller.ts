@@ -29,6 +29,9 @@ export interface ImageryController {
   readonly campaignBbox: number[] | null;
   readonly mode: ControllerMode;
   readonly pending: boolean;
+  /** Persisted-mode campaign id (undefined in draft/wizard mode, where entities aren't saved
+   *  yet). Used by the API-key controls, which act on persisted basemaps/sources only. */
+  readonly campaignId?: number;
 
   /** Persisted mode only: true when local state differs from server truth. */
   readonly isDirty: boolean;
@@ -310,6 +313,7 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     defaultZoom: src.default_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
+    hasApiKey: src.has_api_key,
   };
 }
 
@@ -359,7 +363,13 @@ export interface PersistedControllerOptions {
   campaignId: number;
   imagery: ImagerySourceOut[];
   views: ImageryViewOut[];
-  basemaps?: { id?: number; name: string; url: string; max_native_zoom?: number | null }[];
+  basemaps?: {
+    id?: number;
+    name: string;
+    url: string;
+    max_native_zoom?: number | null;
+    has_api_key?: boolean;
+  }[];
   campaignBbox?: number[] | null;
   /** Called after any mutation succeeds so the parent can refetch. */
   refetch?: () => void;
@@ -382,6 +392,7 @@ export function usePersistedController({
         name: b.name,
         url: b.url,
         maxNativeZoom: b.max_native_zoom ?? undefined,
+        hasApiKey: b.has_api_key,
       })),
     }),
     [imagery, views, basemaps]
@@ -463,6 +474,7 @@ export function usePersistedController({
       mode: 'persisted',
       pending,
       isDirty,
+      campaignId,
       save,
       discard,
 

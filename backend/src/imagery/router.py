@@ -10,6 +10,8 @@ from src.database import get_db
 from src.imagery import layouts, service
 from src.imagery.schemas import (
     AllowedTilersOut,
+    ApiKeyStatusOut,
+    ApiKeyUpdate,
     CanvasLayoutCreateRequest,
     ImageryEditorStateCreate,
     TilerOption,
@@ -130,3 +132,31 @@ def refresh_collection_imagery(
     result = service.refresh_collection_imagery(db, collection_id, bbox)
     db.commit()
     return result
+
+
+@router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)
+def set_basemap_api_key(
+    campaign_id: int,
+    basemap_id: int,
+    body: ApiKeyUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Store an encrypted provider API key for a basemap (campaign admin only). Write-only."""
+    service.set_basemap_api_key(db, campaign_id, basemap_id, body.value)
+    db.commit()
+    return ApiKeyStatusOut(has_api_key=True)
+
+
+@router.put("/{campaign_id}/imagery/sources/{source_id}/key", response_model=ApiKeyStatusOut)
+def set_source_api_key(
+    campaign_id: int,
+    source_id: int,
+    body: ApiKeyUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Store an encrypted provider API key for an imagery source (campaign admin only)."""
+    service.set_source_api_key(db, campaign_id, source_id, body.value)
+    db.commit()
+    return ApiKeyStatusOut(has_api_key=True)

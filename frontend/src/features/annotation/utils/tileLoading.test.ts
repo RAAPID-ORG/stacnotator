@@ -1,60 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { crossOriginFor, isSelfHostedTiler, substituteApiKeys } from './tileLoading';
-
-describe('substituteApiKeys', () => {
-  it('substitutes {api_key} with the stored value', () => {
-    const url =
-      'https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key={api_key}';
-    expect(substituteApiKeys(url, { api_key: 'PLtest123' })).toBe(
-      'https://tiles.planet.com/basemaps/v1/planet-tiles/global_monthly_2024_01_mosaic/gmap/{z}/{x}/{y}.png?api_key=PLtest123'
-    );
-  });
-
-  it('leaves OL tile coord placeholders untouched', () => {
-    const url = 'https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}';
-    const result = substituteApiKeys(url, { api_key: 'abc' });
-    expect(result).toContain('{z}');
-    expect(result).toContain('{x}');
-    expect(result).toContain('{y}');
-    expect(result).toBe('https://tiles.example.com/{z}/{x}/{y}.png?api_key=abc');
-  });
-
-  it('leaves subdomain placeholder {a-c} untouched', () => {
-    const url = 'https://{a-c}.tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}';
-    const result = substituteApiKeys(url, { api_key: 'abc' });
-    expect(result).toContain('{a-c}');
-    expect(result).toBe('https://{a-c}.tiles.example.com/{z}/{x}/{y}.png?api_key=abc');
-  });
-
-  it('leaves Bing quadkey placeholder {q} untouched', () => {
-    const url = 'https://tiles.example.com/a{q}.jpeg?g=1&key={api_key}';
-    const result = substituteApiKeys(url, { api_key: 'abc' });
-    expect(result).toContain('{q}');
-    expect(result).toBe('https://tiles.example.com/a{q}.jpeg?g=1&key=abc');
-  });
-
-  it('leaves {api_key} in place when the key store is empty', () => {
-    const url = 'https://tiles.example.com/{z}/{x}/{y}.png?api_key={api_key}';
-    expect(substituteApiKeys(url, {})).toBe(url);
-  });
-
-  it('returns a URL with no placeholders unchanged regardless of key store', () => {
-    const url = 'https://tiles.openstreetmap.org/{z}/{x}/{y}.png';
-    expect(substituteApiKeys(url, { api_key: 'abc' })).toBe(url);
-  });
-
-  it('substitutes {api_key} when it appears multiple times', () => {
-    const url = 'https://tiles.example.com/{z}/{x}/{y}.png?a={api_key}&b={api_key}';
-    expect(substituteApiKeys(url, { api_key: 'VAL' })).toBe(
-      'https://tiles.example.com/{z}/{x}/{y}.png?a=VAL&b=VAL'
-    );
-  });
-
-  it('leaves an unrecognised placeholder in place when no matching key is stored', () => {
-    const url = 'https://tiles.example.com/{z}/{x}/{y}.png?token={unknown}';
-    expect(substituteApiKeys(url, {})).toBe(url);
-  });
-});
+import { crossOriginFor, crossOriginForTile, isSelfHostedTiler } from './tileLoading';
 
 describe('isSelfHostedTiler / crossOriginFor', () => {
   it('treats any provider that is not "mpc"/null as one of our tilers', () => {
@@ -70,5 +15,22 @@ describe('isSelfHostedTiler / crossOriginFor', () => {
     expect(crossOriginFor('mpc')).toBe('anonymous');
     expect(crossOriginFor(null)).toBe('anonymous');
     expect(crossOriginFor(undefined)).toBe('anonymous');
+  });
+});
+
+describe('crossOriginForTile', () => {
+  it('is credentialed for our backend key-proxy URLs', () => {
+    const basemap = '/api/7/imagery/basemaps/3/tiles/{z}/{x}/{y}';
+    const slice = '/api/7/imagery/slices/9/tiles/True%20Color/{z}/{x}/{y}';
+    expect(crossOriginForTile(basemap, null)).toBe('use-credentials');
+    expect(crossOriginForTile(slice, null)).toBe('use-credentials');
+  });
+
+  it('is credentialed for self-hosted tilers and anonymous for MPC/public', () => {
+    expect(crossOriginForTile('https://tiler/searches/x/tiles/1/2/3.png', 'planet')).toBe(
+      'use-credentials'
+    );
+    expect(crossOriginForTile('https://mpc/tiles/1/2/3', 'mpc')).toBe('anonymous');
+    expect(crossOriginForTile('https://osm/1/2/3.png', null)).toBe('anonymous');
   });
 });

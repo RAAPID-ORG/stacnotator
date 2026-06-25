@@ -9,6 +9,7 @@ import {
   computeExtentGeoJSON,
 } from '~/shared/utils/utility';
 import { isSelfHostedTiler } from '../utils/tileLoading';
+import { isProxiedTileUrl, resolveSliceTileUrl } from '../utils/proxyTile';
 import { sliceView, resolveSliceIndex } from '../utils/sliceView';
 import { ensureTilerSession } from '~/api/tilerToken';
 
@@ -124,7 +125,10 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     () => activeSlice?.tile_urls.find((t) => t.visualization_name === activeVizName) ?? null,
     [activeSlice, activeVizName]
   );
-  const tileUrl = activeEntry?.tile_url ?? '';
+  const tileUrl =
+    activeEntry && campaign?.id != null && activeSlice?.id != null
+      ? resolveSliceTileUrl(campaign.id, activeSlice.id, activeEntry)
+      : '';
   const tileProvider = activeEntry?.tile_provider ?? null;
   const loading = !activeSlice || !tileUrl;
 
@@ -215,7 +219,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     if (!latLon) return null;
     const entry = slices[sliceIdx]?.tile_urls.find((t) => t.visualization_name === activeVizName);
     if (!entry?.tile_url) return null;
-    const base = entry.tile_url;
+    const sliceId = slices[sliceIdx]?.id;
+    const base =
+      campaign?.id != null && sliceId != null
+        ? resolveSliceTileUrl(campaign.id, sliceId, entry)
+        : entry.tile_url;
     const z = Math.round(defaultZoom);
     const n = Math.pow(2, z);
     const x = Math.floor(((latLon.lon + 180) / 360) * n);
@@ -244,10 +252,11 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
 
     // Resolves true when the tile is empty (no content / not found). Our tilers return
     // 204 for an empty tile; auth is via the cookie (credentials: 'include').
-    const selfHosted = isSelfHostedTiler(tileProvider);
     const probeEmpty = async (url: string): Promise<boolean> => {
+      // Self-hosted tilers and our key-proxy both need the tiler cookie; MPC/public don't.
+      const credentialed = isSelfHostedTiler(tileProvider) || isProxiedTileUrl(url);
       let resp: Response;
-      if (selfHosted) {
+      if (credentialed) {
         await ensureTilerSession();
         resp = await fetch(url, {
           mode: 'cors',
@@ -257,7 +266,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
       } else {
         resp = await fetch(url, { mode: 'cors', credentials: 'omit', signal: controller.signal });
       }
-      return resp.status === 204 || (!selfHosted && !resp.ok);
+      return resp.status === 204 || (!credentialed && !resp.ok);
     };
 
     (async () => {

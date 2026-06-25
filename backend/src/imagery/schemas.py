@@ -96,6 +96,9 @@ class ImagerySourceOut(BaseModel):
     display_order: int
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
+    # Whether an encrypted provider API key is configured (drives the admin UI). The key
+    # value/ciphertext is never serialized.
+    has_api_key: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -105,8 +108,19 @@ class BasemapOut(BaseModel):
     name: str
     url: str
     max_native_zoom: int | None = None
+    has_api_key: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ApiKeyUpdate(BaseModel):
+    """Write-only provider API key value (campaign-admin sets it; never read back)."""
+
+    value: str = Field(min_length=1)
+
+
+class ApiKeyStatusOut(BaseModel):
+    has_api_key: bool
 
 
 class ViewCollectionRefItem(BaseModel):
