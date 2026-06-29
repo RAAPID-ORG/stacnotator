@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
+import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
+
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
