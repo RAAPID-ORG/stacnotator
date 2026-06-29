@@ -1264,10 +1264,6 @@ export type CustomMapCreate = {
     cog_url: string;
     render_config: RenderConfig;
     /**
-     * Opacity
-     */
-    opacity?: number;
-    /**
      * Max Native Zoom
      */
     max_native_zoom?: number | null;
@@ -1294,10 +1290,6 @@ export type CustomMapOut = {
      */
     cog_url: string;
     render_config: RenderConfig;
-    /**
-     * Opacity
-     */
-    opacity: number;
     /**
      * Max Native Zoom
      */
@@ -1339,10 +1331,6 @@ export type CustomMapUpdate = {
      */
     cog_url?: string | null;
     render_config?: RenderConfig | null;
-    /**
-     * Opacity
-     */
-    opacity?: number | null;
     /**
      * Max Native Zoom
      */

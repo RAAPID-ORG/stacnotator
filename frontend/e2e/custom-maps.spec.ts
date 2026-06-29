@@ -8,7 +8,6 @@ const READY_MAP = {
   name: 'Test Map',
   cog_url: 'https://example.com/pred.tif',
   render_config: { mode: 'continuous', band: 1, colormap_name: 'viridis', rescale: [0, 1] },
-  opacity: 100,
   max_native_zoom: null,
   status: 'ready',
   status_error: null,
