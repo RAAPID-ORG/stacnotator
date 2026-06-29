@@ -262,6 +262,20 @@ class AnnotationsExtentOut(BaseModel):
     bbox: tuple[float, float, float, float] | None = None
 
 
+class AnnotationNavItem(BaseModel):
+    """Lightweight annotation descriptor for cursor-based open-mode navigation.
+
+    Carries only what prev/next needs - identity, label (for filtering) and a
+    bbox to fly the map to - never the full geometry, which is fetched by id
+    when the annotation is actually opened for editing.
+    """
+
+    id: int
+    label_id: int | None
+    updated_at: datetime
+    bbox: tuple[float, float, float, float]
+
+
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 

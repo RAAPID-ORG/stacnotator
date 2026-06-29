@@ -681,6 +681,57 @@ def get_annotation_ids_in_bbox(
     return list(rows)
 
 
+def get_annotation_navigation_batch(
+    db: Session,
+    campaign_id: int,
+    label_ids: list[int] | None,
+    cursor_updated_at: datetime | None,
+    cursor_id: int | None,
+    limit: int,
+) -> list[dict]:
+    """Return a newest-first batch of lightweight annotation nav items.
+
+    Keyset (cursor) pagination on ``(updated_at, id)`` descending: pass the last
+    item the client holds as the cursor to get the next older batch; omit the
+    cursor to start from the newest. ``label_ids`` restricts to those labels
+    (None/empty = all). Backs server-side prev/next without loading the whole
+    campaign, returning each annotation's bbox so the map can fly to it.
+    """
+    clauses = ["a.campaign_id = :campaign_id"]
+    params: dict = {"campaign_id": campaign_id, "limit": limit}
+    if label_ids:
+        clauses.append("a.label_id = ANY(:label_ids)")
+        params["label_ids"] = label_ids
+    if cursor_updated_at is not None and cursor_id is not None:
+        clauses.append("(a.updated_at, a.id) < (:cursor_updated_at, :cursor_id)")
+        params["cursor_updated_at"] = cursor_updated_at
+        params["cursor_id"] = cursor_id
+
+    sql = text(
+        f"""
+        SELECT a.id, a.label_id, a.updated_at,
+               ST_XMin(env) AS minx, ST_YMin(env) AS miny,
+               ST_XMax(env) AS maxx, ST_YMax(env) AS maxy
+        FROM data.annotations a
+        JOIN data.annotation_geometries g ON g.id = a.geometry_id
+        CROSS JOIN LATERAL (SELECT ST_Envelope(g.geometry) AS env) e
+        WHERE {" AND ".join(clauses)}
+        ORDER BY a.updated_at DESC, a.id DESC
+        LIMIT :limit
+        """
+    )
+    rows = db.execute(sql, params).mappings()
+    return [
+        {
+            "id": r["id"],
+            "label_id": r["label_id"],
+            "updated_at": r["updated_at"],
+            "bbox": (float(r["minx"]), float(r["miny"]), float(r["maxx"]), float(r["maxy"])),
+        }
+        for r in rows
+    ]
+
+
 def get_campaign_annotations_extent(
     db: Session,
     campaign_id: int,

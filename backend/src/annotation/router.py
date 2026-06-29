@@ -1,8 +1,9 @@
 import io
 import json
 import logging
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from src.annotation import io as annotation_io
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
+    AnnotationNavItem,
     AnnotationOut,
     AnnotationsExtentOut,
     AnnotationTaskListOut,
@@ -495,6 +497,36 @@ def get_annotations_extent(
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
     bbox = service.get_campaign_annotations_extent(db, campaign.id)
     return AnnotationsExtentOut(bbox=bbox)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/navigation",
+    response_model=list[AnnotationNavItem],
+)
+def get_annotation_navigation(
+    campaign_id: int,
+    label_ids: list[int] | None = Query(default=None),
+    cursor_updated_at: datetime | None = None,
+    cursor_id: int | None = None,
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[AnnotationNavItem]:
+    """Return a newest-first batch of annotation nav items for prev/next.
+
+    Pass the last held item as ``cursor_updated_at``/``cursor_id`` to page to
+    older annotations; omit to start from the newest. ``label_ids`` restricts
+    navigation to those labels.
+    """
+    items = service.get_annotation_navigation_batch(
+        db,
+        campaign.id,
+        label_ids=label_ids,
+        cursor_updated_at=cursor_updated_at,
+        cursor_id=cursor_id,
+        limit=limit,
+    )
+    return [AnnotationNavItem(**item) for item in items]
 
 
 @router.get(

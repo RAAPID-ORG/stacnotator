@@ -163,6 +163,39 @@ export type AnnotationFromTaskOut = {
 };
 
 /**
+ * AnnotationNavItem
+ *
+ * Lightweight annotation descriptor for cursor-based open-mode navigation.
+ *
+ * Carries only what prev/next needs - identity, label (for filtering) and a
+ * bbox to fly the map to - never the full geometry, which is fetched by id
+ * when the annotation is actually opened for editing.
+ */
+export type AnnotationNavItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label Id
+     */
+    label_id: number | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Bbox
+     */
+    bbox: [
+        number,
+        number,
+        number,
+        number
+    ];
+};
+
+/**
  * AnnotationOut
  */
 export type AnnotationOut = {
@@ -373,6 +406,24 @@ export type AnnotationUpdate = {
      * Imagery End Date
      */
     imagery_end_date?: string | null;
+};
+
+/**
+ * AnnotationsExtentOut
+ *
+ * Bounding box of a campaign's annotations as [minx, miny, maxx, maxy] in
+ * EPSG:4326, or null when the campaign has no annotations.
+ */
+export type AnnotationsExtentOut = {
+    /**
+     * Bbox
+     */
+    bbox?: [
+        number,
+        number,
+        number,
+        number
+    ] | null;
 };
 
 /**
@@ -816,6 +867,10 @@ export type CampaignOut = {
     registration_errors?: Array<{
         [key: string]: unknown;
     }> | null;
+    /**
+     * Annotations Version
+     */
+    annotations_version?: number;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -875,6 +930,10 @@ export type CampaignOutFull = {
     registration_errors?: Array<{
         [key: string]: unknown;
     }> | null;
+    /**
+     * Annotations Version
+     */
+    annotations_version?: number;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -2327,6 +2386,10 @@ export type CampaignOutWritable = {
     registration_errors?: Array<{
         [key: string]: unknown;
     }> | null;
+    /**
+     * Annotations Version
+     */
+    annotations_version?: number;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -2386,6 +2449,10 @@ export type CampaignOutFullWritable = {
     registration_errors?: Array<{
         [key: string]: unknown;
     }> | null;
+    /**
+     * Annotations Version
+     */
+    annotations_version?: number;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -4135,6 +4202,40 @@ export type DeleteAnnotationResponses = {
 
 export type DeleteAnnotationResponse = DeleteAnnotationResponses[keyof DeleteAnnotationResponses];
 
+export type GetAnnotationData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Annotation Id
+         */
+        annotation_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/{annotation_id}';
+};
+
+export type GetAnnotationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationError = GetAnnotationErrors[keyof GetAnnotationErrors];
+
+export type GetAnnotationResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationOut;
+};
+
+export type GetAnnotationResponse = GetAnnotationResponses[keyof GetAnnotationResponses];
+
 export type BatchDeleteAnnotationsData = {
     body: BatchDeleteAnnotationsRequest;
     path: {
@@ -4262,6 +4363,162 @@ export type GetAllAnnotationsForCampaignResponses = {
 };
 
 export type GetAllAnnotationsForCampaignResponse = GetAllAnnotationsForCampaignResponses[keyof GetAllAnnotationsForCampaignResponses];
+
+export type GetAnnotationTileData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Z
+         */
+        z: number;
+        /**
+         * X
+         */
+        x: number;
+        /**
+         * Y
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/tiles/{z}/{x}/{y}.pbf';
+};
+
+export type GetAnnotationTileErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationTileError = GetAnnotationTileErrors[keyof GetAnnotationTileErrors];
+
+export type GetAnnotationTileResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type GetAnnotationIdsInBboxData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query: {
+        /**
+         * Bbox
+         */
+        bbox: string;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/ids';
+};
+
+export type GetAnnotationIdsInBboxErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationIdsInBboxError = GetAnnotationIdsInBboxErrors[keyof GetAnnotationIdsInBboxErrors];
+
+export type GetAnnotationIdsInBboxResponses = {
+    /**
+     * Response Getannotationidsinbbox
+     *
+     * Successful Response
+     */
+    200: Array<number>;
+};
+
+export type GetAnnotationIdsInBboxResponse = GetAnnotationIdsInBboxResponses[keyof GetAnnotationIdsInBboxResponses];
+
+export type GetAnnotationsExtentData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/extent';
+};
+
+export type GetAnnotationsExtentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationsExtentError = GetAnnotationsExtentErrors[keyof GetAnnotationsExtentErrors];
+
+export type GetAnnotationsExtentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AnnotationsExtentOut;
+};
+
+export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
+
+export type GetAnnotationNavigationData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: {
+        /**
+         * Label Ids
+         */
+        label_ids?: Array<number> | null;
+        /**
+         * Cursor Updated At
+         */
+        cursor_updated_at?: string | null;
+        /**
+         * Cursor Id
+         */
+        cursor_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/campaigns/{campaign_id}/annotations/navigation';
+};
+
+export type GetAnnotationNavigationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationNavigationError = GetAnnotationNavigationErrors[keyof GetAnnotationNavigationErrors];
+
+export type GetAnnotationNavigationResponses = {
+    /**
+     * Response Getannotationnavigation
+     *
+     * Successful Response
+     */
+    200: Array<AnnotationNavItem>;
+};
+
+export type GetAnnotationNavigationResponse = GetAnnotationNavigationResponses[keyof GetAnnotationNavigationResponses];
 
 export type GetTimeseriesForCampaignData = {
     body?: never;
