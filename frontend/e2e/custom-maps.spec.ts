@@ -45,8 +45,13 @@ test.describe('custom map overlay', () => {
     const toggle = annotationPage.getByTestId('custom-map-toggle');
     await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    await expect(annotationPage.getByTestId('custom-map-legend')).toBeVisible();
+
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await expect(annotationPage.getByTestId('custom-map-legend')).toBeHidden();
 
     const opacity = annotationPage.getByTestId('custom-map-opacity');
     await opacity.fill('40');
