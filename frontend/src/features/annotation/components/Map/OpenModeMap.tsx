@@ -36,6 +36,7 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
+import { useCustomMapLayer } from './useCustomMapLayer';
 
 interface OpenModeMapProps {
   campaign: CampaignOutFull;
@@ -109,6 +110,8 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       onLayersChange,
       preloadDepth: 2,
     });
+
+    useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
 
     // Imperative handle: fitAnnotations
 

@@ -102,6 +102,14 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           toggleViewSync();
           break;
+        case 'm': {
+          const { activeCustomMapId, showCustomMap, setShowCustomMap } = useMapStore.getState();
+          if (activeCustomMapId != null) {
+            e.preventDefault();
+            setShowCustomMap(!showCustomMap);
+          }
+          break;
+        }
         case 'i': {
           e.preventDefault();
           const mapState = useMapStore.getState();
