@@ -206,9 +206,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
 
-      // Load open mode annotations
+      // Open-mode annotations are served as vector tiles in the viewport, not
+      // loaded upfront. Seed the tile cache-busting version from the campaign.
       if (campaign.mode === 'open') {
-        await useAnnotationStore.getState().loadAnnotations(campaignId);
+        useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
       }
     } catch (error) {
       handleError(error, 'Failed to load campaign');

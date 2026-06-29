@@ -26,18 +26,13 @@ import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import OLMap from 'ol/Map';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { Draw, Modify, Select, Snap, Translate, DragBox } from 'ol/interaction';
-import {
-  click as clickCondition,
-  altKeyOnly,
-  shiftKeyOnly,
-  platformModifierKeyOnly,
-} from 'ol/events/condition';
+import { Draw, Modify, Snap, Translate, DragBox } from 'ol/interaction';
+import { altKeyOnly, shiftKeyOnly } from 'ol/events/condition';
 import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
 import { createEmpty, extend as extendExtent, isEmpty } from 'ol/extent';
 import { toLonLat } from 'ol/proj';
-import { hexToRgba, ANNOTATION_LAYER_Z_INDEX } from './mapUtils';
+import { hexToRgba, ANNOTATION_LAYER_Z_INDEX, ANNOTATION_TILE_LAYER_FLAG } from './mapUtils';
 import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 import type { DrawEvent } from 'ol/interaction/Draw';
@@ -56,6 +51,7 @@ import {
 } from '../../utils/annotationStyle';
 import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
+import { getAnnotation as getAnnotationApi, getAnnotationIdsInBbox } from '~/api/client';
 
 const PROP_ANNOTATION_ID = 'annotationId';
 const PROP_LABEL_ID = 'labelId';
@@ -130,13 +126,13 @@ const DrawingLayer = ({
   onTimeseriesClick,
 }: DrawingLayerProps) => {
   // Store
-  const annotations = useAnnotationStore((state) => state.annotations);
   const campaign = useCampaignStore((state) => state.campaign);
   const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
   const updateAnnotationGeometry = useAnnotationStore((state) => state.updateAnnotationGeometry);
   const deleteAnnotation = useAnnotationStore((state) => state.deleteAnnotation);
   const batchDeleteAnnotations = useAnnotationStore((state) => state.batchDeleteAnnotations);
   const setSelectedAnnotationIds = useAnnotationStore((state) => state.setSelectedAnnotationIds);
+  const setEditingId = useAnnotationStore((state) => state.setEditingId);
   const styleOverrides = usePreferencesStore((state) => state.annotationStyles);
   const showAnnotations = useMapStore((state) => state.showAnnotations);
 
@@ -164,7 +160,6 @@ const DrawingLayer = ({
   const vectorLayerRef = useRef<VectorLayer<VectorSource<OLFeature<Geometry>>> | null>(null);
   const drawInteractionRef = useRef<Draw | null>(null);
   const modifyInteractionRef = useRef<Modify | null>(null);
-  const selectInteractionRef = useRef<Select | null>(null);
   const translateInteractionRef = useRef<Translate | null>(null);
   const snapInteractionRef = useRef<Snap | null>(null);
   const dragBoxInteractionRef = useRef<DragBox | null>(null);
@@ -214,57 +209,9 @@ const DrawingLayer = ({
     vectorLayerRef.current?.setVisible(showAnnotations);
   }, [showAnnotations]);
 
-  // 2. Sync annotation features from store into VectorSource
-  useEffect(() => {
-    const source = sourceRef.current;
-    if (!source) return;
-
-    // Build a Set of annotation IDs currently on the source for O(1) lookup
-    const existing = new Map<number, OLFeature<Geometry>>();
-    for (const feature of source.getFeatures()) {
-      const id = feature.get(PROP_ANNOTATION_ID) as number;
-      existing.set(id, feature);
-    }
-
-    const incomingIds = new Set<number>();
-
-    for (const annotation of annotations) {
-      const geoJSON = convertWKTToGeoJSON(annotation.geometry.geometry);
-      if (!geoJSON) continue;
-
-      incomingIds.add(annotation.id);
-      const label = extendedLabels.find((l) => l.id === annotation.label_id);
-      const style = styleForLabel(
-        label ?? { id: annotation.label_id ?? -1, color: '#3b82f6', geometry_type: 'polygon' }
-      );
-
-      if (existing.has(annotation.id)) {
-        const existingFeature = existing.get(annotation.id)!;
-        const newGeom = geoJsonFormat.readGeometry(geoJSON, {
-          featureProjection: 'EPSG:3857',
-        }) as Geometry;
-        existingFeature.setGeometry(newGeom);
-        existingFeature.setStyle(buildStyle(style, false, false));
-      } else {
-        // Add new feature
-        const feature = geoJsonFormat.readFeature(
-          { type: 'Feature', geometry: geoJSON, properties: {} },
-          { featureProjection: 'EPSG:3857' }
-        ) as OLFeature<Geometry>;
-        feature.set(PROP_ANNOTATION_ID, annotation.id);
-        feature.set(PROP_LABEL_ID, annotation.label_id);
-        feature.setStyle(buildStyle(style, false, false));
-        source.addFeature(feature);
-      }
-    }
-
-    // Remove features that are no longer in the store
-    for (const [id, feature] of existing) {
-      if (!incomingIds.has(id)) {
-        source.removeFeature(feature);
-      }
-    }
-  }, [annotations, extendedLabels, styleForLabel]);
+  // 2. Existing annotations render via the read-only vector-tile layer (see
+  // useAnnotationTileLayer). The VectorSource here holds only the transient
+  // feature(s) being drawn or geometry-edited; nothing is synced into it.
 
   // Helper: recompute edit controls position
   // Kept in a ref so interaction callbacks (modifyend, translateend) always
@@ -325,40 +272,62 @@ const DrawingLayer = ({
 
   // Reset all selection state (React, store mirror and the rollback snapshots).
   const clearSelection = useCallback(() => {
+    sourceRef.current?.clear();
     setSelectedFeatureIds([]);
     setSelectedAnnotationIds([]);
+    setEditingId(null);
     setEditControlsPos(null);
     originalGeometriesRef.current = new Map();
-  }, [setSelectedAnnotationIds]);
+  }, [setSelectedAnnotationIds, setEditingId]);
 
-  // Mirror the OL Select feature collection into React/store state and snapshot
-  // the selected geometries for ESC rollback. Called whenever the selection set
-  // changes - click, ctrl+click toggle and shift+drag box selection.
-  const syncSelectionRef = useRef<() => void>(() => {});
-  const syncSelection = useCallback(() => {
-    const select = selectInteractionRef.current;
-    if (!select) return;
-    const features = select.getFeatures().getArray();
-    const ids: string[] = [];
-    const snapshots = new Map<number, GeoJSON.Geometry>();
-    for (const feature of features) {
-      const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
-      ids.push(String(annotationId));
-      const geometry = olFeatureToGeoJSONGeometry(feature);
-      if (geometry) snapshots.set(annotationId, geometry);
-    }
-    originalGeometriesRef.current = snapshots;
-    setSelectedFeatureIds(ids);
-    setSelectedAnnotationIds(features.map((f) => f.get(PROP_ANNOTATION_ID) as number));
-  }, [setSelectedAnnotationIds]);
-  syncSelectionRef.current = syncSelection;
+  // Pull one annotation's full-resolution geometry into the edit source and
+  // start editing it. The tile layer renders this id transparent (via the
+  // editingId style variable) while the editable feature here owns it.
+  const beginEditAnnotation = useCallback(
+    async (annotationId: number) => {
+      const source = sourceRef.current;
+      if (!source || campaignId === null) return;
+      try {
+        const response = await getAnnotationApi({
+          path: { campaign_id: campaignId, annotation_id: annotationId },
+        });
+        const annotation = response.data;
+        if (!annotation) return;
+        const geoJSON = convertWKTToGeoJSON(annotation.geometry.geometry);
+        if (!geoJSON) return;
+
+        source.clear();
+        const label = extendedLabels.find((l) => l.id === annotation.label_id);
+        const style = styleForLabel(
+          label ?? { id: annotation.label_id ?? -1, color: '#3b82f6', geometry_type: 'polygon' }
+        );
+        const feature = geoJsonFormat.readFeature(
+          { type: 'Feature', geometry: geoJSON, properties: {} },
+          { featureProjection: 'EPSG:3857' }
+        ) as OLFeature<Geometry>;
+        feature.set(PROP_ANNOTATION_ID, annotationId);
+        feature.set(PROP_LABEL_ID, annotation.label_id);
+        feature.setStyle(buildStyle(style, true, false));
+        source.addFeature(feature);
+
+        originalGeometriesRef.current = new Map([[annotationId, geoJSON]]);
+        setEditingId(annotationId);
+        setSelectedAnnotationIds([annotationId]);
+        setSelectedFeatureIds([String(annotationId)]);
+      } catch (err) {
+        handleError(err, 'Failed to open annotation for editing');
+      }
+    },
+    [campaignId, extendedLabels, styleForLabel, setEditingId, setSelectedAnnotationIds]
+  );
+  const beginEditAnnotationRef = useRef(beginEditAnnotation);
+  beginEditAnnotationRef.current = beginEditAnnotation;
 
   // 3. Manage interactions based on activeTool
   const removeAllInteractions = useCallback(() => {
     [
       drawInteractionRef,
       modifyInteractionRef,
-      selectInteractionRef,
       translateInteractionRef,
       snapInteractionRef,
       dragBoxInteractionRef,
@@ -398,10 +367,21 @@ const DrawingLayer = ({
         return;
       }
 
-      // Remove the transient feature - will be replaced by store reload
-      source.removeFeature(feature);
-
-      await saveAnnotation(geoJSON, selectedLabelRef.current.id);
+      const saved = await saveAnnotation(geoJSON, selectedLabelRef.current.id);
+      // No-flicker handoff: keep the just-drawn feature painted until the
+      // refreshed tiles (bumped tileVersion -> source.refresh) repaint, then drop
+      // it so the tile representation takes over without a visible gap.
+      if (saved) {
+        map.once('rendercomplete', () => {
+          try {
+            source.removeFeature(feature);
+          } catch {
+            /* already gone */
+          }
+        });
+      } else {
+        source.removeFeature(feature);
+      }
     });
 
     map.addInteraction(draw);
@@ -448,96 +428,92 @@ const DrawingLayer = ({
     };
   }, [map, selectedLabel, saveAnnotation]);
 
-  // 3c. Edit interaction (select + modify + translate)
+  // 3c. Edit interaction (tile click -> single edit; shift-box -> multi-select)
   const setupEditInteractions = useCallback(() => {
     const source = sourceRef.current;
     if (!source) return;
 
-    // Plain click replaces the selection; Ctrl/Cmd+click toggles a feature in or
-    // out of the current selection (multi-select).
-    const select = new Select({
-      condition: clickCondition,
-      toggleCondition: platformModifierKeyOnly,
-      multi: false,
-      layers: [vectorLayerRef.current!],
-      style: (feature) => {
-        const labelId = feature.get(PROP_LABEL_ID) as number;
-        const label = extendedLabels.find((l) => l.id === labelId);
-        return buildStyle(
-          styleForLabel(label ?? { id: labelId, color: '#3b82f6', geometry_type: 'polygon' }),
-          true,
-          false
-        );
-      },
-    });
-
-    select.on('select', () => {
-      syncSelectionRef.current();
-    });
-
-    // Shift+drag draws a selection box; every feature it covers is added to the
-    // current selection (additive, so it composes with prior clicks).
-    const dragBox = new DragBox({ condition: shiftKeyOnly });
-    dragBox.on('boxend', () => {
-      const boxExtent = dragBox.getGeometry().getExtent();
-      const collection = select.getFeatures();
-      const alreadySelected = new Set(collection.getArray());
-      for (const feature of source.getFeaturesInExtent(boxExtent)) {
-        const geometry = feature.getGeometry();
-        if (geometry && geometry.intersectsExtent(boxExtent) && !alreadySelected.has(feature)) {
-          collection.push(feature);
-        }
+    // Plain click hit-tests the read-only tile layer; the clicked annotation is
+    // fetched at full resolution and opened for vertex/translate editing.
+    const handleClick = (evt: { pixel: number[]; originalEvent: MouseEvent }) => {
+      if (activeToolRef.current !== 'edit' || evt.originalEvent.shiftKey) return;
+      const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f, {
+        layerFilter: (l) => l.get(ANNOTATION_TILE_LAYER_FLAG) === true,
+        hitTolerance: 4,
+      });
+      if (!hit) {
+        clearSelection();
+        return;
       }
-      syncSelectionRef.current();
+      const id = (hit.getId() ?? hit.get(PROP_ANNOTATION_ID)) as number | undefined;
+      if (id != null) void beginEditAnnotationRef.current(id);
+    };
+    map.on('click', handleClick as unknown as () => void);
+
+    // Shift+drag selects every annotation intersecting the box for bulk delete.
+    // Ids come from the backend (geometry never leaves the server); the highlight
+    // is drawn by the tile highlight overlay from selectedAnnotationIds.
+    const dragBox = new DragBox({ condition: shiftKeyOnly });
+    dragBox.on('boxend', async () => {
+      if (campaignId === null) return;
+      const ext = dragBox.getGeometry().getExtent();
+      const [minLon, minLat] = toLonLat([ext[0], ext[1]]);
+      const [maxLon, maxLat] = toLonLat([ext[2], ext[3]]);
+      const cornerPixel = map.getPixelFromCoordinate([ext[2], ext[3]]);
+      try {
+        const response = await getAnnotationIdsInBbox({
+          path: { campaign_id: campaignId },
+          query: { bbox: `${minLon},${minLat},${maxLon},${maxLat}` },
+        });
+        const ids = response.data ?? [];
+        source.clear();
+        setEditingId(null);
+        originalGeometriesRef.current = new Map();
+        setSelectedAnnotationIds(ids);
+        setSelectedFeatureIds(ids.map(String));
+        setEditControlsPos(
+          cornerPixel && ids.length > 0 ? { x: cornerPixel[0] + 10, y: cornerPixel[1] - 5 } : null
+        );
+      } catch (err) {
+        handleError(err, 'Box selection failed');
+      }
     });
 
-    // Alt+drag moves the whole selected feature; normal drag edits vertices.
-    // Translate is added BEFORE Modify so OL (reverse-priority) gives Modify
-    // the first chance to handle pointer events - vertex handles win.
-    const translate = new Translate({
-      features: select.getFeatures(),
-      condition: altKeyOnly,
-    });
-    translate.on('translateend', () => {
-      refreshEditControlsPosRef.current();
-    });
-
-    // Modify handles vertex drag, edge insertion and Delete-key vertex removal.
-    // Added AFTER Translate -> processed FIRST by OL.
-    const modify = new Modify({ features: select.getFeatures() });
-    modify.on('modifyend', () => {
-      refreshEditControlsPosRef.current();
-    });
-
+    // Modify (vertex drag/insert/delete) and Translate (alt-drag) act on the
+    // single feature held in the edit source.
+    const translate = new Translate({ layers: [vectorLayerRef.current!], condition: altKeyOnly });
+    translate.on('translateend', () => refreshEditControlsPosRef.current());
+    const modify = new Modify({ source });
+    modify.on('modifyend', () => refreshEditControlsPosRef.current());
     const snap = new Snap({ source });
 
-    // Insertion order matters: Select first, then Translate, then Modify (highest priority).
-    map.addInteraction(select);
     map.addInteraction(dragBox);
     map.addInteraction(translate);
     map.addInteraction(modify);
     map.addInteraction(snap);
 
-    selectInteractionRef.current = select;
     dragBoxInteractionRef.current = dragBox;
     modifyInteractionRef.current = modify;
     translateInteractionRef.current = translate;
     snapInteractionRef.current = snap;
 
-    // Hover styling - pointer over feature body, crosshair over vertex handles
+    // Hover cursor over an existing tile feature or the edit feature.
     const handlePointerMove = (evt: { dragging: boolean; pixel: number[] }) => {
       if (evt.dragging) return;
-      const features = map.getFeaturesAtPixel(evt.pixel, {
-        layerFilter: (l) => l === vectorLayerRef.current,
+      const hit = map.forEachFeatureAtPixel(evt.pixel, () => true, {
+        layerFilter: (l) =>
+          l.get(ANNOTATION_TILE_LAYER_FLAG) === true || l === vectorLayerRef.current,
+        hitTolerance: 4,
       });
-      map.getTargetElement()?.style.setProperty('cursor', features.length > 0 ? 'pointer' : '');
+      map.getTargetElement()?.style.setProperty('cursor', hit ? 'pointer' : '');
     };
     map.on('pointermove', handlePointerMove as unknown as () => void);
 
     return () => {
+      map.un('click', handleClick as unknown as () => void);
       map.un('pointermove', handlePointerMove as unknown as () => void);
     };
-  }, [map, extendedLabels, styleForLabel]); // refreshEditControlsPos/syncSelection intentionally omitted - called via stable refs
+  }, [map, campaignId, clearSelection, setEditingId, setSelectedAnnotationIds]);
 
   // 3d. Timeseries click handler
   const setupTimeseriesInteraction = useCallback(() => {
@@ -596,34 +572,14 @@ const DrawingLayer = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [activeTool]);
 
-  // 4. ESC key: cancel edit and roll back every selected feature's geometry
+  // 4. ESC key: cancel the in-progress edit. The edit feature is discarded and
+  // editingId cleared, so the tile layer paints the unedited annotation again.
   useEffect(() => {
     if (selectedFeatureIds.length === 0 || activeTool !== 'edit') return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
-
-      const source = sourceRef.current;
-      const select = selectInteractionRef.current;
-      if (!source || !select) return;
-
-      const snapshots = originalGeometriesRef.current;
-      for (const feature of source.getFeatures()) {
-        const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
-        const original = snapshots.get(annotationId);
-        if (!original) continue;
-        try {
-          const restored = geoJsonFormat.readGeometry(original, {
-            featureProjection: 'EPSG:3857',
-          }) as Geometry;
-          feature.setGeometry(restored);
-        } catch {
-          // fall through - feature will reload from store on next annotation update
-        }
-      }
-
-      select.getFeatures().clear();
       clearSelection();
     };
 
@@ -634,10 +590,9 @@ const DrawingLayer = ({
   // 5. Edit control handlers (confirm / delete)
   const handleConfirmEdit = useCallback(async () => {
     const source = sourceRef.current;
-    const select = selectInteractionRef.current;
     // Geometry editing is a single-feature operation; the confirm button is only
     // shown when exactly one feature is selected.
-    if (!source || !select || selectedFeatureIds.length !== 1) return;
+    if (!source || selectedFeatureIds.length !== 1) return;
 
     const feature = source
       .getFeatures()
@@ -647,26 +602,30 @@ const DrawingLayer = ({
       const annotationId = feature.get(PROP_ANNOTATION_ID) as number;
       const geoJSON = olFeatureToGeoJSONGeometry(feature);
       if (geoJSON) {
+        // Preserve label/comment - the PUT only changes geometry. Prefer the
+        // fetched detail; fall back to the feature's labelId.
+        const detail = useAnnotationStore.getState().selectedAnnotationDetail;
         try {
-          await updateAnnotationGeometry(annotationId, geoJSON);
+          await updateAnnotationGeometry(annotationId, geoJSON, {
+            labelId: detail?.label_id ?? (feature.get(PROP_LABEL_ID) as number | null) ?? null,
+            comment: detail?.comment ?? null,
+          });
         } catch (err) {
           handleError(err, 'Failed to save geometry update');
         }
       }
     }
 
-    select.getFeatures().clear();
     clearSelection();
   }, [selectedFeatureIds, updateAnnotationGeometry, clearSelection]);
 
   // Delete the current selection. One annotation -> single delete; many ->
-  // batch delete. Clears selection first so the now-stale OL features unbind
-  // cleanly before the store sync removes them.
+  // batch delete. Clears selection first so the edit feature unbinds before the
+  // tiles refresh.
   const handleDeleteSelection = useCallback(async () => {
     const ids = selectedFeatureIds.map(Number).filter((n) => Number.isFinite(n));
     if (ids.length === 0) return;
 
-    selectInteractionRef.current?.getFeatures().clear();
     clearSelection();
 
     if (ids.length === 1) {

@@ -4,8 +4,10 @@ import {
   updateAnnotationOpenmode,
   deleteAnnotation as deleteAnnotationApi,
   batchDeleteAnnotations as batchDeleteAnnotationsApi,
-  getAllAnnotationsForCampaign,
+  getAnnotation as getAnnotationApi,
+  getAnnotationNavigation,
   type AnnotationOut,
+  type AnnotationNavItem,
 } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -13,26 +15,49 @@ import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 import { resolveActiveImagerySnapshot } from '../utils/imagerySnapshot';
 import { useCampaignStore } from './campaign.store';
 
-interface OpenAnnotationStore {
-  annotations: AnnotationOut[];
-  isLoadingAnnotations: boolean;
-  isSaving: boolean;
-  /** Index into the annotations array sorted by updated_at for prev/next navigation. -1 = no selection */
-  currentAnnotationIndex: number;
-  /** ID of the annotation currently selected in edit mode (mirrors DrawingLayer state). Null when zero or multiple are selected. */
-  selectedAnnotationId: number | null;
-  /** All annotation ids currently selected in edit mode (single or multi-select). */
-  selectedAnnotationIds: number[];
-  /** Label ids that prev/next navigation is restricted to. Empty = navigate all labels. */
-  navigationLabelFilter: number[];
+const NAV_BATCH_SIZE = 10;
 
-  loadAnnotations: (campaignId: number) => Promise<void>;
+interface OpenAnnotationStore {
+  isSaving: boolean;
+
+  /** Cache-busting key appended to annotation tile URLs. Initialised from the
+   * campaign payload and bumped locally on every successful mutation. */
+  tileVersion: number;
+  /** Annotation currently open for single-feature geometry editing. The tile
+   * layer renders this id transparent so the editable layer owns it. */
+  editingId: number | null;
+
+  /** Single selection (null when zero or multiple selected). */
+  selectedAnnotationId: number | null;
+  /** All ids selected in edit mode (single or multi-select). */
+  selectedAnnotationIds: number[];
+  /** Full record of the single selected annotation, fetched by id for the
+   * controls panel (label, flags, comment). Null when 0 or many selected. */
+  selectedAnnotationDetail: AnnotationOut | null;
+
+  /** Label ids prev/next navigation is restricted to. Empty = all labels. */
+  navigationLabelFilter: number[];
+  /** Accumulated newest-first navigation buffer (lightweight items, no geometry). */
+  navBuffer: AnnotationNavItem[];
+  /** Position within navBuffer. -1 = nothing navigated yet. */
+  currentAnnotationIndex: number;
+  /** True once the server has no older items beyond the buffer. */
+  navExhausted: boolean;
+
+  setCampaignVersion: (version: number) => void;
+  bumpTileVersion: () => void;
+  setEditingId: (id: number | null) => void;
+
   saveAnnotation: (
     geometry: GeoJSON.Geometry,
     labelId: number,
     comment?: string | null
   ) => Promise<AnnotationOut | null>;
-  updateAnnotationGeometry: (annotationId: number, geometry: GeoJSON.Geometry) => Promise<void>;
+  updateAnnotationGeometry: (
+    annotationId: number,
+    geometry: GeoJSON.Geometry,
+    meta: { labelId: number | null; comment: string | null }
+  ) => Promise<void>;
   updateAnnotationFlags: (
     annotationId: number,
     flagged: boolean,
@@ -40,51 +65,62 @@ interface OpenAnnotationStore {
   ) => Promise<void>;
   deleteAnnotation: (annotationId: number) => Promise<void>;
   batchDeleteAnnotations: (annotationIds: number[]) => Promise<void>;
+
   setSelectedAnnotationId: (id: number | null) => void;
   setSelectedAnnotationIds: (ids: number[]) => void;
-  /** Navigate to previous annotation (older by updated_at) */
-  goToPreviousAnnotation: () => AnnotationOut | null;
-  /** Navigate to next annotation (newer by updated_at) */
-  goToNextAnnotation: () => AnnotationOut | null;
-  /**
-   * Get the list navigation steps through: annotations restricted to
-   * navigationLabelFilter (when set) and sorted by updated_at descending.
-   */
-  getSortedAnnotations: () => AnnotationOut[];
-  /** Restrict prev/next navigation to the given label ids (empty = all). Resets position. */
+
+  goToPreviousAnnotation: () => Promise<AnnotationNavItem | null>;
+  goToNextAnnotation: () => Promise<AnnotationNavItem | null>;
   setNavigationLabelFilter: (labelIds: number[]) => void;
-  /** Toggle a single label id in the navigation filter. Resets position. */
   toggleNavigationLabel: (labelId: number) => void;
-  /** Set current annotation index directly */
-  setCurrentAnnotationIndex: (index: number) => void;
+
   reset: () => void;
 }
 
 const initialState = {
-  annotations: [] as AnnotationOut[],
-  isLoadingAnnotations: false,
   isSaving: false,
-  currentAnnotationIndex: -1,
+  tileVersion: 0,
+  editingId: null as number | null,
   selectedAnnotationId: null as number | null,
   selectedAnnotationIds: [] as number[],
+  selectedAnnotationDetail: null as AnnotationOut | null,
   navigationLabelFilter: [] as number[],
+  navBuffer: [] as AnnotationNavItem[],
+  currentAnnotationIndex: -1,
+  navExhausted: false,
 };
+
+async function fetchNavBatch(
+  campaignId: number,
+  labelIds: number[],
+  cursor: AnnotationNavItem | undefined
+): Promise<AnnotationNavItem[]> {
+  const response = await getAnnotationNavigation({
+    path: { campaign_id: campaignId },
+    query: {
+      label_ids: labelIds.length > 0 ? labelIds : undefined,
+      cursor_updated_at: cursor?.updated_at,
+      cursor_id: cursor?.id,
+      limit: NAV_BATCH_SIZE,
+    },
+  });
+  return response.data ?? [];
+}
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
   ...initialState,
 
-  loadAnnotations: async (campaignId) => {
-    set({ isLoadingAnnotations: true });
-    try {
-      const response = await getAllAnnotationsForCampaign({
-        path: { campaign_id: campaignId },
-      });
-      set({ annotations: response.data || [], isLoadingAnnotations: false });
-    } catch (error) {
-      handleError(error, 'Failed to load annotations');
-      set({ isLoadingAnnotations: false });
-    }
-  },
+  setCampaignVersion: (version) =>
+    set({
+      tileVersion: version,
+      navBuffer: [],
+      currentAnnotationIndex: -1,
+      navExhausted: false,
+    }),
+
+  bumpTileVersion: () => set((s) => ({ tileVersion: s.tileVersion + 1 })),
+
+  setEditingId: (id) => set({ editingId: id }),
 
   saveAnnotation: async (geometry, labelId, comment = null) => {
     const campaign = useCampaignStore.getState().campaign;
@@ -105,10 +141,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       });
 
       const annotation = response.data!;
-      set((s) => ({
-        annotations: [...s.annotations, annotation],
-        isSaving: false,
-      }));
+      set((s) => ({ isSaving: false, tileVersion: s.tileVersion + 1 }));
       useLayoutStore.getState().showAlert('Annotation saved successfully', 'success');
       return annotation;
     } catch (error) {
@@ -118,37 +151,29 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     }
   },
 
-  updateAnnotationGeometry: async (annotationId, geometry) => {
+  updateAnnotationGeometry: async (annotationId, geometry, meta) => {
     const campaign = useCampaignStore.getState().campaign;
     if (!campaign) return;
-
-    const annotation = get().annotations.find((a) => a.id === annotationId);
-    if (!annotation) return;
 
     set({ isSaving: true });
     try {
       const wktGeometry = convertGeoJSONToWKT(geometry);
-      const response = await updateAnnotationOpenmode({
+      await updateAnnotationOpenmode({
         path: { campaign_id: campaign.id, annotation_id: annotationId },
         body: {
-          label_id: annotation.label_id,
-          comment: annotation.comment,
+          label_id: meta.labelId,
+          comment: meta.comment,
           geometry_wkt: wktGeometry,
           is_authoritative: null,
           ...resolveActiveImagerySnapshot(),
         },
       });
-
-      const updated = response.data!;
-      set((s) => ({
-        annotations: s.annotations.map((a) => (a.id === annotationId ? updated : a)),
-        isSaving: false,
-      }));
+      set((s) => ({ isSaving: false, tileVersion: s.tileVersion + 1 }));
       useLayoutStore.getState().showAlert('Annotation updated successfully', 'success');
     } catch (error) {
       handleError(error, 'Failed to update annotation');
       set({ isSaving: false });
-      throw error; // Re-throw for rollback handling
+      throw error;
     }
   },
 
@@ -156,24 +181,24 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     const campaign = useCampaignStore.getState().campaign;
     if (!campaign) return;
 
-    const annotation = get().annotations.find((a) => a.id === annotationId);
-    if (!annotation) return;
-
-    // Optimistic update so the UI reflects the toggle immediately.
-    set((s) => ({
-      annotations: s.annotations.map((a) =>
-        a.id === annotationId
-          ? { ...a, flagged_for_review: flagged, flag_comment: flagged ? flagComment : null }
-          : a
-      ),
-    }));
+    const detail = get().selectedAnnotationDetail;
+    // Optimistically reflect the toggle on the cached detail.
+    if (detail && detail.id === annotationId) {
+      set({
+        selectedAnnotationDetail: {
+          ...detail,
+          flagged_for_review: flagged,
+          flag_comment: flagged ? flagComment : null,
+        },
+      });
+    }
 
     try {
       const response = await updateAnnotationOpenmode({
         path: { campaign_id: campaign.id, annotation_id: annotationId },
         body: {
-          label_id: annotation.label_id,
-          comment: annotation.comment,
+          label_id: detail?.label_id ?? null,
+          comment: detail?.comment ?? null,
           geometry_wkt: null,
           is_authoritative: null,
           flagged_for_review: flagged,
@@ -182,13 +207,13 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       });
       const updated = response.data!;
       set((s) => ({
-        annotations: s.annotations.map((a) => (a.id === annotationId ? updated : a)),
+        selectedAnnotationDetail:
+          s.selectedAnnotationDetail?.id === annotationId ? updated : s.selectedAnnotationDetail,
+        tileVersion: s.tileVersion + 1,
       }));
     } catch (error) {
-      // Roll back on failure.
-      set((s) => ({
-        annotations: s.annotations.map((a) => (a.id === annotationId ? annotation : a)),
-      }));
+      // Roll back to the server's truth by refetching.
+      void get().setSelectedAnnotationId(annotationId);
       handleError(error, 'Failed to update flag');
     }
   },
@@ -203,9 +228,12 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
         path: { campaign_id: campaign.id, annotation_id: annotationId },
       });
       set((s) => ({
-        annotations: s.annotations.filter((a) => a.id !== annotationId),
         isSaving: false,
-        currentAnnotationIndex: -1,
+        tileVersion: s.tileVersion + 1,
+        editingId: s.editingId === annotationId ? null : s.editingId,
+        selectedAnnotationId: null,
+        selectedAnnotationIds: [],
+        selectedAnnotationDetail: null,
       }));
       useLayoutStore.getState().showAlert('Annotation deleted successfully', 'success');
     } catch (error) {
@@ -225,13 +253,13 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
         body: { annotation_ids: annotationIds },
       });
       const deletedCount = response.data?.deleted_count ?? annotationIds.length;
-      const idSet = new Set(annotationIds);
       set((s) => ({
-        annotations: s.annotations.filter((a) => !idSet.has(a.id)),
         isSaving: false,
-        currentAnnotationIndex: -1,
+        tileVersion: s.tileVersion + 1,
+        editingId: null,
         selectedAnnotationId: null,
         selectedAnnotationIds: [],
+        selectedAnnotationDetail: null,
       }));
       useLayoutStore.getState().showAlert(`Deleted ${deletedCount} annotation(s)`, 'success');
     } catch (error) {
@@ -240,77 +268,90 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     }
   },
 
-  getSortedAnnotations: () => {
-    const { annotations, navigationLabelFilter } = get();
-    const visible =
-      navigationLabelFilter.length === 0
-        ? annotations
-        : annotations.filter(
-            (a) => a.label_id !== null && navigationLabelFilter.includes(a.label_id)
-          );
-    return [...visible].sort((a, b) => {
-      const aDate = a.updated_at || a.created_at;
-      const bDate = b.updated_at || b.created_at;
-      return new Date(bDate).getTime() - new Date(aDate).getTime();
+  setSelectedAnnotationId: (id) => {
+    set({
+      selectedAnnotationId: id,
+      selectedAnnotationIds: id === null ? [] : [id],
+      selectedAnnotationDetail: null,
     });
+    if (id === null) return;
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign) return;
+    // Fetch the full record for the controls panel without blocking selection.
+    void getAnnotationApi({ path: { campaign_id: campaign.id, annotation_id: id } })
+      .then((response) => {
+        if (response.data && get().selectedAnnotationId === id) {
+          set({ selectedAnnotationDetail: response.data });
+        }
+      })
+      .catch(() => {
+        /* panel detail is best-effort */
+      });
+  },
+
+  setSelectedAnnotationIds: (ids) => {
+    const single = ids.length === 1 ? ids[0] : null;
+    if (single !== null) {
+      get().setSelectedAnnotationId(single);
+    } else {
+      set({
+        selectedAnnotationIds: ids,
+        selectedAnnotationId: null,
+        selectedAnnotationDetail: null,
+      });
+    }
+  },
+
+  goToNextAnnotation: async () => {
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign) return null;
+
+    const { currentAnnotationIndex, navExhausted } = get();
+    let { navBuffer } = get();
+    const atEnd = currentAnnotationIndex + 1 >= navBuffer.length;
+    if (atEnd && !navExhausted) {
+      const cursor = navBuffer[navBuffer.length - 1];
+      const batch = await fetchNavBatch(campaign.id, get().navigationLabelFilter, cursor);
+      navBuffer = [...navBuffer, ...batch];
+      set({ navBuffer, navExhausted: batch.length < NAV_BATCH_SIZE });
+    }
+
+    navBuffer = get().navBuffer;
+    if (navBuffer.length === 0) return null;
+    const nextIndex = Math.min(currentAnnotationIndex + 1, navBuffer.length - 1);
+    set({ currentAnnotationIndex: nextIndex });
+    const item = navBuffer[nextIndex];
+    get().setSelectedAnnotationId(item.id);
+    return item;
+  },
+
+  goToPreviousAnnotation: async () => {
+    const { navBuffer, currentAnnotationIndex } = get();
+    if (navBuffer.length === 0) return null;
+    const prevIndex = Math.max(currentAnnotationIndex - 1, 0);
+    set({ currentAnnotationIndex: prevIndex });
+    const item = navBuffer[prevIndex];
+    get().setSelectedAnnotationId(item.id);
+    return item;
   },
 
   setNavigationLabelFilter: (labelIds) =>
-    set({ navigationLabelFilter: labelIds, currentAnnotationIndex: -1 }),
+    set({
+      navigationLabelFilter: labelIds,
+      navBuffer: [],
+      currentAnnotationIndex: -1,
+      navExhausted: false,
+    }),
 
   toggleNavigationLabel: (labelId) =>
     set((s) => ({
       navigationLabelFilter: s.navigationLabelFilter.includes(labelId)
         ? s.navigationLabelFilter.filter((id) => id !== labelId)
         : [...s.navigationLabelFilter, labelId],
+      navBuffer: [],
       currentAnnotationIndex: -1,
+      navExhausted: false,
     })),
-
-  goToPreviousAnnotation: () => {
-    const sorted = get().getSortedAnnotations();
-    if (sorted.length === 0) return null;
-    const { currentAnnotationIndex } = get();
-    // Previous = newer in the list (lower index when sorted newest-first)
-    let newIndex: number;
-    if (currentAnnotationIndex < 0) {
-      // No selection yet -> start at the first (newest)
-      newIndex = 0;
-    } else if (currentAnnotationIndex <= 0) {
-      // Already at the start -> wrap to end
-      newIndex = sorted.length - 1;
-    } else {
-      newIndex = currentAnnotationIndex - 1;
-    }
-    set({ currentAnnotationIndex: newIndex });
-    return sorted[newIndex] ?? null;
-  },
-
-  goToNextAnnotation: () => {
-    const sorted = get().getSortedAnnotations();
-    if (sorted.length === 0) return null;
-    const { currentAnnotationIndex } = get();
-    // Next = older in the list (higher index when sorted newest-first)
-    let newIndex: number;
-    if (currentAnnotationIndex < 0) {
-      // No selection yet -> start at the first (newest)
-      newIndex = 0;
-    } else if (currentAnnotationIndex >= sorted.length - 1) {
-      // Already at the end -> wrap to start
-      newIndex = 0;
-    } else {
-      newIndex = currentAnnotationIndex + 1;
-    }
-    set({ currentAnnotationIndex: newIndex });
-    return sorted[newIndex] ?? null;
-  },
-
-  setCurrentAnnotationIndex: (index) => set({ currentAnnotationIndex: index }),
-
-  setSelectedAnnotationId: (id) =>
-    set({ selectedAnnotationId: id, selectedAnnotationIds: id === null ? [] : [id] }),
-
-  setSelectedAnnotationIds: (ids) =>
-    set({ selectedAnnotationIds: ids, selectedAnnotationId: ids.length === 1 ? ids[0] : null }),
 
   reset: () => set(initialState),
 }));

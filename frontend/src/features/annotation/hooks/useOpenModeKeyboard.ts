@@ -197,21 +197,18 @@ export const useOpenModeKeyboard = () => {
           break;
         case 'w':
           e.preventDefault();
-          goToPreviousAnnotation();
-          triggerFitAnnotations();
+          void goToPreviousAnnotation().then(() => triggerFitAnnotations());
           break;
         case 's':
           e.preventDefault();
-          goToNextAnnotation();
-          triggerFitAnnotations();
+          void goToNextAnnotation().then(() => triggerFitAnnotations());
           break;
         case 'f': {
           e.preventDefault();
           const annStore = useAnnotationStore.getState();
           const id = annStore.selectedAnnotationId;
-          if (id == null) break;
-          const ann = annStore.annotations.find((a) => a.id === id);
-          if (!ann) break;
+          const ann = annStore.selectedAnnotationDetail;
+          if (id == null || !ann) break;
           annStore.updateAnnotationFlags(id, !ann.flagged_for_review, ann.flag_comment);
           break;
         }

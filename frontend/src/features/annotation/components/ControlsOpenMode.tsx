@@ -117,7 +117,6 @@ const OpenModeControls = () => {
   // Whether the navigation label-filter dropdown is open
   const [navFilterOpen, setNavFilterOpen] = useState(false);
   const navFilterRef = useRef<HTMLDivElement>(null);
-  const annotations = useAnnotationStore((s) => s.annotations);
   const currentAnnotationIndex = useAnnotationStore((s) => s.currentAnnotationIndex);
   const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
   const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
@@ -125,12 +124,9 @@ const OpenModeControls = () => {
   const toggleNavigationLabel = useAnnotationStore((s) => s.toggleNavigationLabel);
   const setNavigationLabelFilter = useAnnotationStore((s) => s.setNavigationLabelFilter);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
-  const selectedAnnotationId = useAnnotationStore((s) => s.selectedAnnotationId);
   const updateAnnotationFlags = useAnnotationStore((s) => s.updateAnnotationFlags);
-  const selectedAnnotation =
-    selectedAnnotationId !== null
-      ? (annotations.find((a) => a.id === selectedAnnotationId) ?? null)
-      : null;
+  // The single selected annotation's full record, fetched by id for this panel.
+  const selectedAnnotation = useAnnotationStore((s) => s.selectedAnnotationDetail);
   // Local draft for the flag comment textarea so the user can type without
   // hammering the API on each keystroke. Pushed to the server on blur or
   // when the toggle changes.
@@ -161,14 +157,6 @@ const OpenModeControls = () => {
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
-
-  // Number of annotations prev/next navigation will step through, given the
-  // active label filter (empty filter = all annotations).
-  const navigableCount =
-    navigationLabelFilter.length === 0
-      ? annotations.length
-      : annotations.filter((a) => a.label_id !== null && navigationLabelFilter.includes(a.label_id))
-          .length;
 
   const handleToolSelect = (tool: OpenModeTool) => {
     setActiveTool(tool);
@@ -614,7 +602,7 @@ const OpenModeControls = () => {
         )}
 
         {/* Annotation Navigation */}
-        {annotations.length > 0 && (
+        {campaign && (
           <div className="flex flex-col gap-1.5 w-full">
             <div className="flex items-center justify-between gap-1.5">
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
@@ -704,8 +692,9 @@ const OpenModeControls = () => {
             <div className="flex gap-1.5">
               <button
                 onClick={() => {
-                  const ann = goToPreviousAnnotation();
-                  if (ann) triggerFitAnnotations();
+                  void goToPreviousAnnotation().then((ann) => {
+                    if (ann) triggerFitAnnotations();
+                  });
                 }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
                 title="Previous annotation (older)"
@@ -724,8 +713,9 @@ const OpenModeControls = () => {
               </button>
               <button
                 onClick={() => {
-                  const ann = goToNextAnnotation();
-                  if (ann) triggerFitAnnotations();
+                  void goToNextAnnotation().then((ann) => {
+                    if (ann) triggerFitAnnotations();
+                  });
                 }}
                 className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
                 title="Next annotation (newer)"
@@ -746,10 +736,8 @@ const OpenModeControls = () => {
 
             <p className="text-[10px] text-neutral-400 text-center tabular-nums">
               {currentAnnotationIndex >= 0
-                ? `${currentAnnotationIndex + 1} / ${navigableCount}`
-                : `${navigableCount} annotation${navigableCount !== 1 ? 's' : ''}${
-                    navigationLabelFilter.length > 0 ? ' (filtered)' : ''
-                  }`}
+                ? `#${currentAnnotationIndex + 1}${navigationLabelFilter.length > 0 ? ' (filtered)' : ''}`
+                : `Prev / Next${navigationLabelFilter.length > 0 ? ' (filtered)' : ''}`}
             </p>
           </div>
         )}

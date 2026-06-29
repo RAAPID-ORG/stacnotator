@@ -12,8 +12,7 @@ import ControlsOpenMode from './ControlsOpenMode';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { useAnnotationStore } from '../stores/annotation.store';
-import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
+import { extractCentroidFromWKT, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -137,29 +136,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       ] as [number, number, number, number])
     : null;
 
-  // Annotation dots for the minimap (open mode only).
-  const annotations = useAnnotationStore((s) => s.annotations);
-  const annotationDots = useMemo(() => {
-    if (!isOpenMode) return undefined;
-    return annotations
-      .map((ann) => {
-        const geojson = convertWKTToGeoJSON(ann.geometry.geometry);
-        if (!geojson) return null;
-        const coords =
-          geojson.type === 'Point'
-            ? [geojson.coordinates as [number, number]]
-            : geojson.type === 'Polygon'
-              ? (geojson.coordinates as number[][][])[0]
-              : geojson.type === 'LineString'
-                ? (geojson.coordinates as number[][])
-                : [];
-        if (coords.length === 0) return null;
-        const sumLon = coords.reduce((s, c) => s + (c as number[])[0], 0);
-        const sumLat = coords.reduce((s, c) => s + (c as number[])[1], 0);
-        return { lat: sumLat / coords.length, lon: sumLon / coords.length };
-      })
-      .filter((d): d is { lat: number; lon: number } => d !== null);
-  }, [isOpenMode, annotations]);
+  // Minimap annotation dots are omitted in open mode: with viewport vector
+  // tiling the client no longer holds every annotation, and plotting hundreds
+  // of thousands of dots would not be useful anyway.
+  const annotationDots = undefined;
 
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
