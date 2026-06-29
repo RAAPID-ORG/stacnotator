@@ -25,6 +25,9 @@ interface MapStore {
   selectedLayerIndex: number;
   showBasemap: boolean;
   selectedBasemapId: string | null;
+  activeCustomMapId: number | null;
+  customMapOpacity: number;
+  showCustomMap: boolean;
   // Per-source memory so cycling I → static → back to a source restores the
   // last collection + visualization the user was on, instead of resetting to
   // the first slice / first viz.
@@ -68,6 +71,9 @@ interface MapStore {
   setSelectedLayerIndex: (index: number) => void;
   setShowBasemap: (show: boolean) => void;
   setSelectedBasemapId: (id: string | null) => void;
+  setActiveCustomMapId: (id: number | null) => void;
+  setCustomMapOpacity: (opacity: number) => void;
+  setShowCustomMap: (show: boolean) => void;
   recordSourceState: (sourceId: number, collectionId: number, layerIndex: number) => void;
 
   setMapCenter: (center: [number, number]) => void;
@@ -106,6 +112,9 @@ interface ViewSnapshot {
   collectionSliceIndices: Record<number, number>;
   emptySlices: Record<string, true>;
   selectedLayerIndex: number;
+  activeCustomMapId: number | null;
+  customMapOpacity: number;
+  showCustomMap: boolean;
 }
 
 const initialState = {
@@ -120,6 +129,9 @@ const initialState = {
   selectedLayerIndex: 0,
   showBasemap: false,
   selectedBasemapId: null as string | null,
+  activeCustomMapId: null as number | null,
+  customMapOpacity: 100,
+  showCustomMap: true,
   lastSourceState: {} as Record<number, { collectionId: number; layerIndex: number }>,
 
   currentMapCenter: null as [number, number] | null,
@@ -191,6 +203,9 @@ export const useMapStore = create<MapStore>((set) => ({
           collectionSliceIndices: { ...s.collectionSliceIndices },
           emptySlices: { ...s.emptySlices },
           selectedLayerIndex: s.selectedLayerIndex,
+          activeCustomMapId: s.activeCustomMapId,
+          customMapOpacity: s.customMapOpacity,
+          showCustomMap: s.showCustomMap,
         },
       },
     }));
@@ -208,6 +223,9 @@ export const useMapStore = create<MapStore>((set) => ({
           collectionSliceIndices: snap.collectionSliceIndices,
           emptySlices: snap.emptySlices,
           selectedLayerIndex: snap.selectedLayerIndex,
+          activeCustomMapId: snap.activeCustomMapId,
+          customMapOpacity: snap.customMapOpacity,
+          showCustomMap: snap.showCustomMap,
         };
       }
       return {
@@ -215,6 +233,9 @@ export const useMapStore = create<MapStore>((set) => ({
         activeSliceIndex: coverIndexFor(fallbackCollectionId),
         collectionSliceIndices: {},
         emptySlices: {},
+        activeCustomMapId: null,
+        customMapOpacity: 100,
+        showCustomMap: true,
       };
     });
   },
@@ -222,6 +243,9 @@ export const useMapStore = create<MapStore>((set) => ({
   setSelectedLayerIndex: (index) => set({ selectedLayerIndex: index, showBasemap: false }),
   setShowBasemap: (show) => set({ showBasemap: show }),
   setSelectedBasemapId: (id) => set({ selectedBasemapId: id }),
+  setActiveCustomMapId: (id) => set({ activeCustomMapId: id }),
+  setCustomMapOpacity: (opacity) => set({ customMapOpacity: opacity }),
+  setShowCustomMap: (show) => set({ showCustomMap: show }),
 
   recordSourceState: (sourceId, collectionId, layerIndex) =>
     set((s) => ({
