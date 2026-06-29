@@ -21,6 +21,7 @@ export class LayerManager {
   private layers: Layer[] = [];
   private map: OLMap;
   private activeLayerId = '';
+  private overlayLayerId: string | null = null;
 
   // Busy/idle tracking for the active layer's tile source
   private busyListenerKeys: EventsKey[] = [];
@@ -103,6 +104,37 @@ export class LayerManager {
 
     // Re-attach busy listeners to the new active layer
     this._attachBusyListeners();
+  }
+
+  // Overlay layer slot
+
+  setOverlayLayer(layer: Layer | null) {
+    if (this.overlayLayerId && (!layer || layer.id !== this.overlayLayerId)) {
+      const prev = this._findOLLayer(this.overlayLayerId);
+      if (prev) prev.setVisible(false);
+      this.overlayLayerId = null;
+    }
+    if (!layer) return;
+    if (!this.layers.some((l) => l.id === layer.id)) {
+      this.registerLayer(layer);
+      const ol = this._findOLLayer(layer.id);
+      if (ol) ol.setZIndex(1000);
+    }
+    const ol = this._findOLLayer(layer.id);
+    if (ol) ol.setVisible(true);
+    this.overlayLayerId = layer.id;
+  }
+
+  setOverlayVisible(visible: boolean) {
+    if (!this.overlayLayerId) return;
+    const ol = this._findOLLayer(this.overlayLayerId);
+    if (ol) ol.setVisible(visible);
+  }
+
+  setOverlayOpacity(opacity: number) {
+    if (!this.overlayLayerId) return;
+    const ol = this._findOLLayer(this.overlayLayerId);
+    if (ol) ol.setOpacity(opacity);
   }
 
   // Busy/idle tracking API
