@@ -27,7 +27,6 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("cog_url", sa.Text(), nullable=False),
         sa.Column("render_config", postgresql.JSONB(), nullable=False),
-        sa.Column("opacity", sa.SmallInteger(), server_default="100", nullable=False),
         sa.Column("max_native_zoom", sa.SmallInteger(), nullable=True),
         sa.Column("mosaic_id", sa.String(length=64), nullable=True),
         sa.Column("tile_url", sa.Text(), nullable=True),

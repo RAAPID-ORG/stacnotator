@@ -21,7 +21,6 @@ class CustomMap(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     cog_url: Mapped[str] = mapped_column(Text, nullable=False)
     render_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    opacity: Mapped[int] = mapped_column(SmallInteger, server_default="100", nullable=False)
     max_native_zoom: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     mosaic_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tile_url: Mapped[str | None] = mapped_column(Text, nullable=True)

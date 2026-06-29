@@ -22,7 +22,6 @@ def _map_obj(**kw):
         name="m",
         cog_url="https://x/y.tif",
         render_config=CONT,
-        opacity=100,
         max_native_zoom=None,
         status="registering",
         status_error=None,
