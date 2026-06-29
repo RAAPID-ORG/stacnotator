@@ -2,7 +2,7 @@ import io
 import json
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
     AnnotationOut,
+    AnnotationsExtentOut,
     AnnotationTaskListOut,
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
@@ -23,6 +24,7 @@ from src.annotation.schemas import (
     KnnValidationStatusOut,
     ValidateLabelSubmissionsResponse,
 )
+from src.annotation.tiles import InvalidBBoxError, InvalidTileError, parse_bbox
 from src.auth.dependencies import require_approved_user, require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -429,3 +431,84 @@ def get_all_annotations_for_campaign(
         campaign_id=campaign.id,
     )
     return annotations
+
+
+# ============================================================================
+# Open-Mode Tiled View
+#
+# Serve open-mode annotations as vector tiles for the viewport instead of
+# loading the whole campaign upfront. The literal-path routes below are
+# declared before the `{annotation_id}` route so they are not shadowed by it.
+# ============================================================================
+
+
+@router.get("/campaigns/{campaign_id}/annotations/tiles/{z}/{x}/{y}.pbf")
+def get_annotation_tile(
+    campaign_id: int,
+    z: int,
+    x: int,
+    y: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> Response:
+    """Return one Mapbox Vector Tile of a campaign's annotations.
+
+    Each feature carries only ``annotation_id`` and ``label_id``; the frontend
+    styles by label and fetches full geometry by id when a feature is edited.
+    """
+    try:
+        tile = service.render_annotation_tile(db, campaign.id, z, x, y)
+    except InvalidTileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=tile,
+        media_type="application/vnd.mapbox-vector-tile",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@router.get("/campaigns/{campaign_id}/annotations/ids", response_model=list[int])
+def get_annotation_ids_in_bbox(
+    campaign_id: int,
+    bbox: str,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[int]:
+    """Return ids of annotations intersecting ``bbox`` (``minx,miny,maxx,maxy``
+    in EPSG:4326). Backs box/multi-select against the tiled display."""
+    try:
+        minx, miny, maxx, maxy = parse_bbox(bbox)
+    except InvalidBBoxError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return service.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/extent",
+    response_model=AnnotationsExtentOut,
+)
+def get_annotations_extent(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationsExtentOut:
+    """Return the bounding box of a campaign's annotations for fit-to-bounds."""
+    bbox = service.get_campaign_annotations_extent(db, campaign.id)
+    return AnnotationsExtentOut(bbox=bbox)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/{annotation_id}",
+    response_model=AnnotationOut,
+)
+def get_annotation(
+    campaign_id: int,
+    annotation_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> AnnotationOut:
+    """Fetch one annotation's full-resolution geometry for click-to-edit."""
+    annotation = service.get_annotation_by_id(db, annotation_id, campaign.id)
+    if annotation is None:
+        raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
+    return annotation

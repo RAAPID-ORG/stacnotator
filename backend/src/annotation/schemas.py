@@ -255,6 +255,13 @@ class AnnotationCreate(BaseModel):
     imagery_end_date: str | None = None
 
 
+class AnnotationsExtentOut(BaseModel):
+    """Bounding box of a campaign's annotations as [minx, miny, maxx, maxy] in
+    EPSG:4326, or null when the campaign has no annotations."""
+
+    bbox: tuple[float, float, float, float] | None = None
+
+
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 
