@@ -37,7 +37,9 @@ import type { CampaignOutFull } from '~/api/client';
 const DEFAULT_FILL = 'rgba(120,120,120,0.2)';
 const DEFAULT_STROKE = 'rgba(120,120,120,1)';
 
-const PROP_ANNOTATION_ID = 'annotationId';
+// MVT feature property names emitted by the backend (ST_AsMVT column aliases).
+const TILE_PROP_ID = 'annotation_id';
+const TILE_PROP_LABEL = 'label_id';
 const HIGHLIGHT_Z_INDEX = ANNOTATION_LAYER_Z_INDEX + 1;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -67,7 +69,7 @@ function createAnnotationTileSource(
   campaignId: number,
   getVersion: () => number
 ): VectorTileSource {
-  const format = new MVT({ idProperty: PROP_ANNOTATION_ID });
+  const format = new MVT({ idProperty: TILE_PROP_ID });
   const source = new VectorTileSource({
     format,
     tileGrid: createXYZ({ maxZoom: 22 }),
@@ -128,7 +130,7 @@ export function createAnnotationDisplayLayer(
     style: (feature: FeatureLike) => {
       const id = feature.getId();
       if (id != null && id === useAnnotationStore.getState().editingId) return undefined;
-      const labelId = (feature.get('labelId') as number | null) ?? -1;
+      const labelId = (feature.get(TILE_PROP_LABEL) as number | null) ?? -1;
       const cached = styleCache.get(labelId);
       if (cached) return cached;
       const s = styleByLabel.get(labelId);
@@ -164,7 +166,7 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
       source: createAnnotationTileSource(campaign.id, getVersion),
       zIndex: HIGHLIGHT_Z_INDEX,
       style: (feature: FeatureLike) => {
-        const id = feature.getId() ?? feature.get(PROP_ANNOTATION_ID);
+        const id = feature.getId() ?? feature.get(TILE_PROP_ID);
         const selected = useAnnotationStore.getState().selectedAnnotationIds;
         if (id == null || !selected.includes(id as number)) return undefined;
         return new Style({

@@ -232,10 +232,9 @@ const DrawingLayer = ({
       const extent = feature.getGeometry()?.getExtent();
       if (extent) extendExtent(union, extent);
     }
-    if (isEmpty(union)) {
-      setEditControlsPos(null);
-      return;
-    }
+    // Multi-select (box) lives in the tile layer, not the edit source, so there
+    // is nothing to recompute from - keep the position set at boxend.
+    if (isEmpty(union)) return;
 
     // top-right corner of the combined bounding box -> screen pixels
     const pixel = map.getPixelFromCoordinate([union[2], union[3]]);
