@@ -5,7 +5,7 @@ export function CustomMapLegend({ customMaps }: { customMaps: CustomMapOut[] }) 
   const activeCustomMapId = useMapStore((s) => s.activeCustomMapId);
   const showCustomMap = useMapStore((s) => s.showCustomMap);
 
-  const cm = customMaps.find((m) => m.id === activeCustomMapId);
+  const cm = customMaps.find((m) => m.id === activeCustomMapId && m.status === 'ready');
   if (!cm || !showCustomMap || cm.render_config.mode !== 'categorical') return null;
 
   return (

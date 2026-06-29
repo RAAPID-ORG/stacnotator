@@ -13,10 +13,8 @@ class RenderConfig(BaseModel):
     mode: Literal["continuous", "categorical"]
     band: int = 1
     nodata: float | None = None
-    # continuous
     colormap_name: str | None = None
     rescale: tuple[float, float] | None = None
-    # categorical
     entries: list[CategoricalEntry] | None = None
 
 

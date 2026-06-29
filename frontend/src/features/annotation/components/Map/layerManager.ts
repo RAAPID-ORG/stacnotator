@@ -106,8 +106,6 @@ export class LayerManager {
     this._attachBusyListeners();
   }
 
-  // Overlay layer slot
-
   setOverlayLayer(layer: Layer | null) {
     if (this.overlayLayerId && (!layer || layer.id !== this.overlayLayerId)) {
       const prev = this._findOLLayer(this.overlayLayerId);
@@ -117,11 +115,12 @@ export class LayerManager {
     if (!layer) return;
     if (!this.layers.some((l) => l.id === layer.id)) {
       this.registerLayer(layer);
-      const ol = this._findOLLayer(layer.id);
-      if (ol) ol.setZIndex(1000);
     }
     const ol = this._findOLLayer(layer.id);
-    if (ol) ol.setVisible(true);
+    if (ol) {
+      ol.setZIndex(1000);
+      ol.setVisible(true);
+    }
     this.overlayLayerId = layer.id;
   }
 

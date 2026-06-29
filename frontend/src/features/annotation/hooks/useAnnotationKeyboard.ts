@@ -447,7 +447,6 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           useMapStore.getState().toggleViewSync();
           break;
 
-        // Toggle custom map overlay visibility
         case 'm':
         case 'M': {
           const { activeCustomMapId, showCustomMap, setShowCustomMap } = useMapStore.getState();
