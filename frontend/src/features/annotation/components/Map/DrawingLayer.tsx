@@ -437,6 +437,12 @@ const DrawingLayer = ({
     // fetched at full resolution and opened for vertex/translate editing.
     const handleClick = (evt: { pixel: number[]; originalEvent: MouseEvent }) => {
       if (activeToolRef.current !== 'edit' || evt.originalEvent.shiftKey) return;
+      // Clicking inside the feature currently being edited must not cancel it.
+      const onEditFeature = map.forEachFeatureAtPixel(evt.pixel, () => true, {
+        layerFilter: (l) => l === vectorLayerRef.current,
+        hitTolerance: 4,
+      });
+      if (onEditFeature) return;
       const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f, {
         layerFilter: (l) => l.get(ANNOTATION_TILE_LAYER_FLAG) === true,
         hitTolerance: 4,
