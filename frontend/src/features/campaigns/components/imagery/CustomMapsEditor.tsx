@@ -291,6 +291,24 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
               data-testid="custom-map-url"
               className="font-mono text-[11px]"
             />
+            <ul
+              data-testid="custom-map-url-help"
+              className="mt-1.5 space-y-0.5 text-[11px] text-neutral-500 leading-snug list-disc list-inside"
+            >
+              <li>
+                Must be a{' '}
+                <strong className="font-medium text-neutral-600">
+                  Cloud-Optimized GeoTIFF (COG)
+                </strong>{' '}
+                — internally tiled with overviews; a plain GeoTIFF will render slowly.
+              </li>
+              <li>Single-band raster (e.g. a class map or probability layer).</li>
+              <li>Reachable by the tiler — a public URL, or one that includes a SAS token.</li>
+              <li>
+                Not validated automatically — an invalid or non-COG file may fail to register or
+                render slowly.
+              </li>
+            </ul>
           </div>
 
           <div>
