@@ -24,10 +24,9 @@ export function useCustomMapLayer(lm: LayerManager | null, customMaps: CustomMap
         urlTemplate: cm.tile_url!,
         crossOrigin: 'use-credentials',
         maxZoom: cm.max_native_zoom ?? undefined,
-        opacity: opacity / 100,
       })
     );
-  }, [lm, customMaps, activeId, opacity]);
+  }, [lm, customMaps, activeId]);
 
   useEffect(() => {
     lm?.setOverlayVisible(show);
