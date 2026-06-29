@@ -22,7 +22,14 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
           { value: '', label: 'No map' },
           ...ready.map((m) => ({ value: m.id, label: m.name })),
         ]}
-        onChange={(v) => setActiveCustomMapId(v === '' ? null : Number(v))}
+        onChange={(v) => {
+          if (v === '') {
+            setActiveCustomMapId(null);
+            return;
+          }
+          setActiveCustomMapId(Number(v));
+          setShowCustomMap(true);
+        }}
         title="Select overlay map"
       />
       {active && (

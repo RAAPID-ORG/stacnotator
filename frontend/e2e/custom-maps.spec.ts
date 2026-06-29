@@ -16,7 +16,21 @@ const READY_MAP = {
   display_order: 0,
 };
 
-const CAMPAIGN_WITH_MAP = { ...MOCK_CAMPAIGN, custom_maps: [READY_MAP] };
+const READY_MAP_2 = {
+  id: 2,
+  campaign_id: MOCK_CAMPAIGN.id,
+  name: 'Test Map 2',
+  cog_url: 'https://example.com/pred2.tif',
+  render_config: { mode: 'continuous', band: 1, colormap_name: 'viridis', rescale: [0, 1] },
+  max_native_zoom: null,
+  status: 'ready',
+  status_error: null,
+  tile_url: 'https://tiles.example.com/custom2/{z}/{x}/{y}.png',
+  mosaic_id: 'search-2',
+  display_order: 1,
+};
+
+const CAMPAIGN_WITH_MAP = { ...MOCK_CAMPAIGN, custom_maps: [READY_MAP, READY_MAP_2] };
 
 async function reloadWithCustomMap(page: Page): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
@@ -56,5 +70,34 @@ test.describe('custom map overlay', () => {
     const opacity = annotationPage.getByTestId('custom-map-opacity');
     await opacity.fill('40');
     await expect(opacity).toHaveValue('40');
+  });
+
+  test('shift+m cycles to the next map; m hides then re-enters the same map', async ({
+    annotationPage,
+  }) => {
+    await reloadWithCustomMap(annotationPage);
+
+    const selectTrigger = annotationPage.locator('button[title="Select overlay map"]');
+    await selectTrigger.click();
+    await annotationPage
+      .locator('div.rounded-lg.shadow-lg button')
+      .filter({ hasText: 'Test Map' })
+      .first()
+      .click();
+
+    const legend = annotationPage.getByTestId('custom-map-legend');
+    await expect(legend).toBeVisible();
+
+    await annotationPage.locator('body').click();
+    await annotationPage.keyboard.press('Shift+M');
+    await expect(selectTrigger).toContainText('Test Map 2');
+    await expect(legend).toBeVisible();
+
+    await annotationPage.keyboard.press('m');
+    await expect(legend).toBeHidden();
+
+    await annotationPage.keyboard.press('m');
+    await expect(legend).toBeVisible();
+    await expect(selectTrigger).toContainText('Test Map 2');
   });
 });

@@ -10,6 +10,7 @@ import {
   computeCycleSource,
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
+import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -449,11 +450,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
         case 'm':
         case 'M': {
-          const { activeCustomMapId, showCustomMap, setShowCustomMap } = useMapStore.getState();
-          if (activeCustomMapId != null) {
-            e.preventDefault();
-            setShowCustomMap(!showCustomMap);
-          }
+          e.preventDefault();
+          const maps = campaign?.custom_maps ?? [];
+          if (e.shiftKey) cycleCustomMap(maps);
+          else toggleCustomMap(maps);
           break;
         }
 
@@ -496,6 +496,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       digitBuffer.current = '';
     };
   }, [
+    campaign,
     isSubmitting,
     isNavigating,
     commentInputRef,
