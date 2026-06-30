@@ -166,6 +166,12 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
 
     // Highlight overlay: own MVT source (tiles are browser-cached so no extra
     // network), canvas-rendered so the style fn can read the live selection Set.
+    // Selection keeps the label colour and is emphasised with a thicker stroke
+    // (no recolour), drawn on top of the display layer.
+    const styleByLabel = new Map<number, TileLabelStyle>(
+      resolveTileLabelStyles(campaign, styleOverrides).map((s) => [s.id, s])
+    );
+    const highlightCache = new Map<number, Style>();
     const highlight = new VectorTileLayer({
       source: createAnnotationTileSource(campaign.id, getVersion),
       zIndex: HIGHLIGHT_Z_INDEX,
@@ -173,12 +179,26 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
       updateWhileInteracting: true,
       style: (feature: FeatureLike) => {
         const id = feature.getId() ?? feature.get(TILE_PROP_ID);
-        const selected = useAnnotationStore.getState().selectedAnnotationIds;
-        if (id == null || !selected.includes(id as number)) return undefined;
-        return new Style({
-          stroke: new Stroke({ color: 'rgba(37,99,235,1)', width: 3 }),
-          fill: new Fill({ color: 'rgba(37,99,235,0.25)' }),
+        const state = useAnnotationStore.getState();
+        // The actively-edited feature is drawn (with vertices) by the edit layer.
+        if (
+          id == null ||
+          id === state.editingId ||
+          !state.selectedAnnotationIds.includes(id as number)
+        )
+          return undefined;
+        const labelId = (feature.get(TILE_PROP_LABEL) as number | null) ?? -1;
+        const cached = highlightCache.get(labelId);
+        if (cached) return cached;
+        const s = styleByLabel.get(labelId);
+        const style = new Style({
+          stroke: new Stroke({
+            color: s?.strokeColor ?? DEFAULT_STROKE,
+            width: (s?.strokeWidth ?? 2) + 3,
+          }),
         });
+        highlightCache.set(labelId, style);
+        return style;
       },
     });
     highlight.setVisible(useMapStore.getState().showAnnotations);
@@ -208,6 +228,7 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
   const editingId = useAnnotationStore((s) => s.editingId);
   useEffect(() => {
     displayRef.current?.changed();
+    highlightRef.current?.changed();
   }, [editingId]);
 
   // Re-evaluate the highlight overlay when the multi-selection changes.
