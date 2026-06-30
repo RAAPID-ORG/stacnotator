@@ -19,7 +19,7 @@ import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import { IconFlag } from '~/shared/ui/Icons';
-import type { SortOption, UserInfo } from './types';
+import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
 interface OpenModeReviewProps {
@@ -433,7 +433,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 <label className="text-sm font-medium text-neutral-700">Sort by:</label>
                 <select
                   value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  onChange={(e) => {
+                    if (isSortOption(e.target.value)) setSortOption(e.target.value);
+                  }}
                   className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
                 >
                   <option value="default">Default</option>

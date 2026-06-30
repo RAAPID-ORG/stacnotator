@@ -4,8 +4,8 @@ import { IconPlus } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { InfoPopover } from '~/shared/ui/InfoPopover';
 import { MonthPicker } from '~/shared/ui/MonthPicker';
-import { fetchCatalogs, fetchCollections, searchItems } from '~/api/stacBrowser';
-import type { StacCatalog, StacCollection, StacItem, StacAssetInfo } from '~/api/stacBrowser';
+import { listCatalogs, getCollections, search } from '~/api/client';
+import type { StacCatalogOut, StacCollectionOut, StacItemOut, AssetInfo } from '~/api/client';
 import type {
   CollectionItem,
   ImagerySlice,
@@ -13,7 +13,7 @@ import type {
   NamedVizParams,
   ItemSortOption,
 } from './types';
-import { createId, emptyVizParams } from './types';
+import { createId, emptyVizParams, isItemSortOption } from './types';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
@@ -166,12 +166,12 @@ export const CatalogBrowser = ({
   initialAdvanced = false,
 }: CatalogBrowserProps) => {
   const [step, setStep] = useState<Step>('catalog');
-  const [catalogs, setCatalogs] = useState<StacCatalog[]>([]);
-  const [collections, setCollections] = useState<StacCollection[]>([]);
-  const [items, setItems] = useState<StacItem[]>([]);
+  const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
+  const [collections, setCollections] = useState<StacCollectionOut[]>([]);
+  const [items, setItems] = useState<StacItemOut[]>([]);
 
-  const [selectedCatalog, setSelectedCatalog] = useState<StacCatalog | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<StacCollection | null>(null);
+  const [selectedCatalog, setSelectedCatalog] = useState<StacCatalogOut | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<StacCollectionOut | null>(null);
 
   const [query, setQuery] = useState('');
   const [customCatalogUrl, setCustomCatalogUrl] = useState('');
@@ -307,13 +307,13 @@ export const CatalogBrowser = ({
     { name: 'True Color', vizParams: emptyVizParams() },
   ]);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
-  const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+  const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
 
   // Load catalogs on mount (skip if preset provided)
   useEffect(() => {
     if (preset) {
       // Auto-navigate: set MPC as catalog, fetch collection details, jump to configure
-      const mpcCatalog: StacCatalog = {
+      const mpcCatalog: StacCatalogOut = {
         id: 'mpc',
         title: 'Microsoft Planetary Computer',
         url: MPC_API_URL,
@@ -324,8 +324,10 @@ export const CatalogBrowser = ({
       setSelectedCatalog(mpcCatalog);
       setLoading(true);
       // Fetch full collection list to get item_assets metadata
-      fetchCollections(MPC_API_URL)
-        .then((cols) => {
+      getCollections({ query: { catalog_url: MPC_API_URL } })
+        .then(({ data, error }) => {
+          if (error) throw new Error('Failed to fetch collections');
+          const cols = data!;
           const match = cols.find((c) => c.id === preset.stacCollectionId);
           const col = match || {
             id: preset.stacCollectionId,
@@ -369,14 +371,17 @@ export const CatalogBrowser = ({
       return;
     }
     setLoading(true);
-    fetchCatalogs()
-      .then(setCatalogs)
+    listCatalogs()
+      .then(({ data, error }) => {
+        if (error) throw new Error('Failed to fetch catalogs');
+        setCatalogs(data!);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const selectCatalog = (cat: StacCatalog) => {
+  const selectCatalog = (cat: StacCatalogOut) => {
     if (cat.auth_required) return;
     setSelectedCatalog(cat);
     setStep('collection');
@@ -384,15 +389,23 @@ export const CatalogBrowser = ({
     setCollections([]);
     setLoading(true);
     setError('');
-    fetchCollections(cat.url)
-      .then(setCollections)
+    getCollections({ query: { catalog_url: cat.url } })
+      .then(({ data, error }) => {
+        if (error) {
+          const detail =
+            (error as { detail?: unknown })?.detail ??
+            (typeof error === 'string' ? error : JSON.stringify(error));
+          throw new Error(`Failed to fetch collections: ${detail}`);
+        }
+        setCollections(data!);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
 
   const loadCustomCatalog = () => {
     if (!customCatalogUrl.trim()) return;
-    const cat: StacCatalog = {
+    const cat: StacCatalogOut = {
       id: 'custom',
       title: customCatalogUrl,
       url: customCatalogUrl.trim(),
@@ -455,7 +468,7 @@ export const CatalogBrowser = ({
     return vizs;
   };
 
-  const selectCollection = (col: StacCollection) => {
+  const selectCollection = (col: StacCollectionOut) => {
     setSelectedCollection(col);
     setStep('configure');
     setQuery('');
@@ -512,14 +525,17 @@ export const CatalogBrowser = ({
       const bbox = campaignBbox || undefined;
       const dtRange =
         startDate && endDate ? `${startDate}-01T00:00:00Z/${endDate}-28T23:59:59Z` : undefined;
-      const result = await searchItems({
-        catalog_url: selectedCatalog.url,
-        collection_id: selectedCollection.id,
-        bbox,
-        datetime_range: dtRange,
-        limit: 200,
+      const { data, error } = await search({
+        body: {
+          catalog_url: selectedCatalog.url,
+          collection_id: selectedCollection.id,
+          bbox: bbox ?? null,
+          datetime_range: dtRange ?? null,
+          limit: 200,
+        },
       });
-      setItems(result.items);
+      if (error) throw new Error('Search failed');
+      setItems(data!.items);
     } catch (e: unknown) {
       setError(extractErrorMessage(e, 'Search failed'));
     } finally {
@@ -739,7 +755,7 @@ export const CatalogBrowser = ({
     return result;
   };
 
-  const selectItem = (item: StacItem) => {
+  const selectItem = (item: StacItemOut) => {
     if (!selectedCatalog || !selectedCollection) return;
     const col: CollectionItem = {
       id: createId(),
@@ -861,7 +877,7 @@ export const CatalogBrowser = ({
   const providedCatalogs = catalogs.filter((c) => c.provided);
   const stacIndexCatalogs = catalogs.filter((c) => !c.provided);
 
-  const renderCatalogCard = (cat: StacCatalog) => (
+  const renderCatalogCard = (cat: StacCatalogOut) => (
     <div key={cat.id} className="flex items-start gap-1.5">
       <button
         type="button"
@@ -913,7 +929,7 @@ export const CatalogBrowser = ({
     collections,
     query,
     (c) => [c.title, c.id],
-    (c) => [c.description, ...c.keywords]
+    (c) => [c.description, ...(c.keywords ?? [])]
   );
 
   const preview = (() => {
@@ -1124,14 +1140,14 @@ export const CatalogBrowser = ({
                                   </td>
                                 </tr>
                               )}
-                              {col.keywords.length > 0 && (
+                              {(col.keywords?.length ?? 0) > 0 && (
                                 <tr className="border-t border-neutral-100">
                                   <td className="py-1 pr-2 text-neutral-500 font-medium whitespace-nowrap align-top">
                                     Keywords
                                   </td>
                                   <td className="py-1">
-                                    {col.keywords.slice(0, 8).join(', ')}
-                                    {col.keywords.length > 8 ? '...' : ''}
+                                    {(col.keywords ?? []).slice(0, 8).join(', ')}
+                                    {(col.keywords?.length ?? 0) > 8 ? '...' : ''}
                                   </td>
                                 </tr>
                               )}
@@ -1264,7 +1280,9 @@ export const CatalogBrowser = ({
                         <Select
                           size="sm"
                           value={itemSort}
-                          onChange={(e) => setItemSort(e.target.value as ItemSortOption)}
+                          onChange={(e) => {
+                            if (isItemSortOption(e.target.value)) setItemSort(e.target.value);
+                          }}
                         >
                           <option value="date_desc">Date (newest first)</option>
                           <option value="date_asc">Date (oldest first)</option>
@@ -1758,8 +1776,8 @@ const CoverSliceSection = ({
 };
 
 interface CoverSliceAdvancedPanelProps {
-  selectedCollection: StacCollection;
-  availableAssets: Record<string, StacAssetInfo>;
+  selectedCollection: StacCollectionOut;
+  availableAssets: Record<string, AssetInfo>;
   coverVisualizations: NamedVizParams[];
   setCoverVisualizations: React.Dispatch<React.SetStateAction<NamedVizParams[]>>;
   activeCoverVizIndex: number;

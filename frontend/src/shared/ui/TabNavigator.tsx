@@ -1,24 +1,24 @@
 import React from 'react';
 
-export type TabItem = {
-  id: string;
+export type TabItem<T extends string = string> = {
+  id: T;
   label: React.ReactNode;
   disabled?: boolean;
 };
 
-interface TabNavigatorProps {
-  items: TabItem[];
-  activeId: string;
-  onChange: (id: string) => void;
+interface TabNavigatorProps<T extends string> {
+  items: TabItem<T>[];
+  activeId: T;
+  onChange: (id: T) => void;
   className?: string;
 }
 
-export const TabNavigator: React.FC<TabNavigatorProps> = ({
+export function TabNavigator<T extends string = string>({
   items,
   activeId,
   onChange,
   className,
-}) => {
+}: TabNavigatorProps<T>) {
   return (
     <div
       role="tablist"
@@ -44,6 +44,6 @@ export const TabNavigator: React.FC<TabNavigatorProps> = ({
       ))}
     </div>
   );
-};
+}
 
 export default TabNavigator;

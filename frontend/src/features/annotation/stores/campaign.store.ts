@@ -163,10 +163,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const pinnedValid = windowRefs.some((r) => r.collection_id === pinnedStart);
       const activeCollectionId = (pinnedValid ? pinnedStart : windowRefs[0]?.collection_id) ?? null;
 
-      const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
-        campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-      const viewLayout = (firstView?.personal_canvas_layout?.layout_data ||
-        firstView?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+      const mainLayout: Layout =
+        campaign.personal_main_canvas_layout?.layout_data ||
+        campaign.default_main_canvas_layout?.layout_data ||
+        [];
+      const viewLayout: Layout | undefined =
+        firstView?.personal_canvas_layout?.layout_data ||
+        firstView?.default_canvas_layout?.layout_data;
       const mergedLayout = buildMergedLayout(mainLayout, viewLayout, firstView);
 
       // Map initial state for open mode
@@ -227,10 +230,12 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const view = campaign.imagery_views.find((v) => v.id === id);
 
     // Update layout
-    const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
-      campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-    const viewLayout = (view?.personal_canvas_layout?.layout_data ||
-      view?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+    const mainLayout: Layout =
+      campaign.personal_main_canvas_layout?.layout_data ||
+      campaign.default_main_canvas_layout?.layout_data ||
+      [];
+    const viewLayout: Layout | undefined =
+      view?.personal_canvas_layout?.layout_data || view?.default_canvas_layout?.layout_data;
     const mergedLayout = buildMergedLayout(mainLayout, viewLayout, view);
 
     // Save current view's map state before switching

@@ -1,6 +1,6 @@
 import type { NamedVizParams, VizParams } from './types';
 import { emptyVizParams } from './types';
-import type { StacAssetInfo } from '~/api/stacBrowser';
+import type { AssetInfo } from '~/api/client';
 import { IconPlus, IconTrash } from '~/shared/ui/Icons';
 import { Input } from '~/shared/ui/forms';
 import { VizConfigPanel } from './VizConfigPanel';
@@ -10,7 +10,7 @@ interface VizTabsProps {
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
   collectionId: string;
-  availableAssets: Record<string, StacAssetInfo>;
+  availableAssets: Record<string, AssetInfo>;
   showCompositing: boolean;
   onParamsChange: (index: number, params: VizParams) => void;
   /** When provided, a "Visualization Name" input is shown and tab names are editable. */

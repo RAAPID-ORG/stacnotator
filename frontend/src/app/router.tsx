@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
+  type LoaderFunctionArgs,
+  redirect,
   Route,
   RouterProvider,
 } from 'react-router-dom';
@@ -42,6 +44,15 @@ const RouteFallback = () => (
   </div>
 );
 
+// The :campaignId segment comes from the (untrusted) URL. Validate it once here
+// so every campaign page can read a real id - an absent/non-numeric param is
+// treated as not-found and redirected to the list.
+const requireCampaignId = ({ params }: LoaderFunctionArgs) => {
+  const id = Number(params.campaignId);
+  if (!Number.isInteger(id) || id <= 0) throw redirect('/campaigns');
+  return null;
+};
+
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
@@ -57,30 +68,32 @@ const router = createBrowserRouter(
           </Suspense>
         }
       />
-      <Route
-        path="campaigns/:campaignId/annotate"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <AnnotationPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="campaigns/:campaignId/settings"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <CampaignSettingsPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="campaigns/:campaignId/annotations"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <ReviewPage />
-          </Suspense>
-        }
-      />
+      <Route path="campaigns/:campaignId" loader={requireCampaignId}>
+        <Route
+          path="annotate"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AnnotationPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CampaignSettingsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="annotations"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ReviewPage />
+            </Suspense>
+          }
+        />
+      </Route>
       <Route
         path="settings"
         element={

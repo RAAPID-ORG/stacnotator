@@ -10,6 +10,10 @@ class StacCatalogOut(BaseModel):
     summary: str
     is_mpc: bool
     auth_required: bool
+    # Set for our platform tiler catalogs; picking a collection auto-targets this tiler.
+    tiler_name: str | None = None
+    # True for catalogs we provide (MPC + platform tiler catalogs), false for external.
+    provided: bool = False
 
 
 class BandInfo(BaseModel):
@@ -39,6 +43,7 @@ class StacCollectionOut(BaseModel):
     spatial_extent: list[float] | None = None
     keywords: list[str] = []
     item_assets: dict[str, AssetInfo] = {}
+    has_cloud_cover: bool = False
 
 
 class SearchRequest(BaseModel):

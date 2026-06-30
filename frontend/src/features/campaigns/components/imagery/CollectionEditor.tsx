@@ -14,9 +14,7 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
-import { fetchCollections } from '~/api/stacBrowser';
-import type { StacAssetInfo } from '~/api/stacBrowser';
-import { listTilers, type TilerOption } from '~/api/client';
+import { getCollections, listTilers, type AssetInfo, type TilerOption } from '~/api/client';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -35,7 +33,7 @@ export const CollectionEditor = ({
   inModal,
 }: CollectionEditorProps) => {
   const [expanded, setExpanded] = useState(true);
-  const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+  const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
@@ -170,10 +168,10 @@ export const CollectionEditor = ({
     const sb = collection.data;
     if (!sb.catalogUrl || !sb.stacCollectionId) return;
     let cancelled = false;
-    fetchCollections(sb.catalogUrl)
-      .then((cols) => {
-        if (cancelled) return;
-        const match = cols.find((c) => c.id === sb.stacCollectionId);
+    getCollections({ query: { catalog_url: sb.catalogUrl } })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const match = data.find((c) => c.id === sb.stacCollectionId);
         if (match?.item_assets) setAvailableAssets(match.item_assets);
         setHasCloudCover(match?.has_cloud_cover ?? false);
       })
