@@ -16,6 +16,7 @@ import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import { IconFlag } from '~/shared/ui/Icons';
+import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
 
@@ -500,7 +501,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                     {hasComment && (
                                       <>
                                         <span className="text-neutral-400">|</span>
-                                        <span className="relative group cursor-help">
+                                        <Tooltip text={ann.comment ?? ''}>
                                           <svg
                                             className="w-3.5 h-3.5"
                                             fill="none"
@@ -514,15 +515,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                               d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                                             />
                                           </svg>
-                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 pointer-events-none">
-                                            <div className="bg-neutral-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-lg">
-                                              <div className="whitespace-pre-wrap">
-                                                {ann.comment}
-                                              </div>
-                                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900"></div>
-                                            </div>
-                                          </div>
-                                        </span>
+                                        </Tooltip>
                                       </>
                                     )}
                                   </div>
