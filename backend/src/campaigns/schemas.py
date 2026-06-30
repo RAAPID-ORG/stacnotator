@@ -5,7 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 from src.auth.schemas import UserOut
-from src.custommaps.schemas import CustomMapOut
+from src.custom_maps.schemas import CustomMapOut
 from src.imagery.schemas import (
     BasemapOut,
     CanvasLayoutOut,

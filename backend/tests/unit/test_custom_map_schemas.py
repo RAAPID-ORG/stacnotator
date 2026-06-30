@@ -1,4 +1,4 @@
-from src.custommaps.schemas import CustomMapCreate
+from src.custom_maps.schemas import CustomMapCreate
 
 
 def test_continuous_create_valid():

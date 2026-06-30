@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_approved_user
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
-from src.custommaps import service
-from src.custommaps.schemas import CustomMapCreate, CustomMapOut, CustomMapUpdate
+from src.custom_maps import service
+from src.custom_maps.schemas import CustomMapCreate, CustomMapOut, CustomMapUpdate
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute
 

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from src.custommaps.render import ASSET_KEY, build_viz_params
+from src.custom_maps.render import ASSET_KEY, build_viz_params
 
 
 def test_continuous_params():

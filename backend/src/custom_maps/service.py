@@ -4,9 +4,9 @@ import threading
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.custommaps.models import CustomMap
-from src.custommaps.render import build_viz_params
-from src.custommaps.schemas import CustomMapCreate, CustomMapUpdate
+from src.custom_maps.models import CustomMap
+from src.custom_maps.render import build_viz_params
+from src.custom_maps.schemas import CustomMapCreate, CustomMapUpdate
 from src.database import SessionLocal
 from src.tiling.providers import build_tile_url, register_cog_on_tiler, resolve_tiler
 

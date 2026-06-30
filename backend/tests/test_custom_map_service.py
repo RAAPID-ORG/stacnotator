@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
-from src.custommaps import service
-from src.custommaps.models import CustomMap
-from src.custommaps.schemas import CustomMapUpdate
+from src.custom_maps import service
+from src.custom_maps.models import CustomMap
+from src.custom_maps.schemas import CustomMapUpdate
 
 CONT = {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]}
 
