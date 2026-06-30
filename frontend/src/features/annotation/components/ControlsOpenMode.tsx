@@ -490,43 +490,10 @@ const OpenModeControls = () => {
         {activeTool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
             <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit Tool</span>
-            <div className="text-[11px] text-neutral-600 flex flex-col gap-1 leading-relaxed">
-              <p>Click a geometry to select it and show its vertices.</p>
-              <p>
-                Drag a <strong>vertex</strong> to move it.
-              </p>
-              <p>
-                Click an <strong>edge midpoint</strong> to insert a new vertex.
-              </p>
-              <p>
-                Hold{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Alt
-                </kbd>{' '}
-                + drag to move the whole feature.
-              </p>
-              <p>
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Ctrl
-                </kbd>{' '}
-                + click or{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Shift
-                </kbd>{' '}
-                + drag to select multiple.
-              </p>
-              <p className="text-neutral-500">
-                Press{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Delete
-                </kbd>{' '}
-                to remove the selection, or{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Esc
-                </kbd>{' '}
-                to cancel.
-              </p>
-            </div>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Click a geometry to edit its vertices. See <strong>Shortcuts</strong> below for all
+              edit gestures.
+            </p>
 
             {selectedAnnotation && (
               <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
@@ -603,91 +570,88 @@ const OpenModeControls = () => {
 
         {/* Annotation Navigation */}
         {campaign && (
-          <div className="flex flex-col gap-1.5 w-full">
+          <div className="flex flex-col gap-1.5 w-full" ref={navFilterRef}>
             <div className="flex items-center justify-between gap-1.5">
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
 
               {/* Label filter: small icon + dropdown restricting which labels prev/next steps through. */}
               {extendedLabels.length > 0 && (
-                <div className="relative flex-shrink-0" ref={navFilterRef}>
-                  <button
-                    onClick={() => setNavFilterOpen((o) => !o)}
-                    title="Filter navigation by label"
-                    aria-expanded={navFilterOpen}
-                    className={`relative flex items-center justify-center p-0.5 rounded transition-colors cursor-pointer ${
-                      navFilterOpen || navigationLabelFilter.length > 0
-                        ? 'text-brand-700'
-                        : 'text-neutral-400 hover:text-neutral-700'
-                    }`}
-                  >
-                    <IconFilter className="w-3.5 h-3.5" />
-                    {navigationLabelFilter.length > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[13px] h-[13px] px-0.5 flex items-center justify-center rounded-full bg-brand-600 text-white text-[9px] font-semibold tabular-nums">
-                        {navigationLabelFilter.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {navFilterOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-20 w-44 max-h-56 overflow-y-auto bg-white border border-neutral-200 rounded-md shadow-lg p-1">
-                      <div className="flex items-center justify-between px-1.5 py-1">
-                        <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
-                          Filter by label
-                        </span>
-                        {navigationLabelFilter.length > 0 && (
-                          <button
-                            onClick={() => setNavigationLabelFilter([])}
-                            className="text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      {extendedLabels.map((label) => {
-                        const active = navigationLabelFilter.includes(label.id);
-                        return (
-                          <button
-                            key={label.id}
-                            onClick={() => toggleNavigationLabel(label.id)}
-                            className={`w-full flex items-center gap-2 px-1.5 py-1.5 rounded text-[11px] font-medium text-left transition-colors cursor-pointer ${
-                              active
-                                ? 'bg-brand-50 text-brand-700'
-                                : 'text-neutral-700 hover:bg-neutral-100'
-                            }`}
-                          >
-                            <span
-                              className="w-3 h-3 flex items-center justify-center rounded-sm border flex-shrink-0"
-                              style={{
-                                backgroundColor: active ? label.color : 'transparent',
-                                borderColor: label.color,
-                              }}
-                            >
-                              {active && (
-                                <svg
-                                  width="9"
-                                  height="9"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="white"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className="flex-1 min-w-0 truncate">
-                              {capitalizeFirst(label.name)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                <button
+                  onClick={() => setNavFilterOpen((o) => !o)}
+                  title="Filter navigation by label"
+                  aria-expanded={navFilterOpen}
+                  className={`relative flex-shrink-0 flex items-center justify-center p-0.5 rounded transition-colors cursor-pointer ${
+                    navFilterOpen || navigationLabelFilter.length > 0
+                      ? 'text-brand-700'
+                      : 'text-neutral-400 hover:text-neutral-700'
+                  }`}
+                >
+                  <IconFilter className="w-3.5 h-3.5" />
+                  {navigationLabelFilter.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[13px] h-[13px] px-0.5 flex items-center justify-center rounded-full bg-brand-600 text-white text-[9px] font-semibold tabular-nums">
+                      {navigationLabelFilter.length}
+                    </span>
                   )}
-                </div>
+                </button>
               )}
             </div>
+
+            {/* Inline label filter: expands within the panel so it is never clipped. */}
+            {extendedLabels.length > 0 && navFilterOpen && (
+              <div className="w-full max-h-56 overflow-y-auto bg-neutral-50 border border-neutral-200 rounded-md p-1">
+                <div className="flex items-center justify-between px-1.5 py-1">
+                  <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
+                    Filter by label
+                  </span>
+                  {navigationLabelFilter.length > 0 && (
+                    <button
+                      onClick={() => setNavigationLabelFilter([])}
+                      className="text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {extendedLabels.map((label) => {
+                  const active = navigationLabelFilter.includes(label.id);
+                  return (
+                    <button
+                      key={label.id}
+                      onClick={() => toggleNavigationLabel(label.id)}
+                      className={`w-full flex items-center gap-2 px-1.5 py-1.5 rounded text-[11px] font-medium text-left transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-brand-50 text-brand-700'
+                          : 'text-neutral-700 hover:bg-neutral-100'
+                      }`}
+                    >
+                      <span
+                        className="w-3 h-3 flex items-center justify-center rounded-sm border flex-shrink-0"
+                        style={{
+                          backgroundColor: active ? label.color : 'transparent',
+                          borderColor: label.color,
+                        }}
+                      >
+                        {active && (
+                          <svg
+                            width="9"
+                            height="9"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="flex-1 min-w-0 truncate">{capitalizeFirst(label.name)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="flex gap-1.5">
               <button
@@ -767,9 +731,33 @@ const OpenModeControls = () => {
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Select / edit (edit tool)</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Click
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Insert vertex</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Click edge
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
               <span>Move feature</span>
               <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
                 Alt+drag
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Multi-select</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Shift+drag
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Delete selection</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Del
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">

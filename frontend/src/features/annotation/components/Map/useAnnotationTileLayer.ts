@@ -127,6 +127,10 @@ export function createAnnotationDisplayLayer(
   const layer = new VectorTileLayer({
     source: createAnnotationTileSource(campaign.id, getVersion),
     zIndex: ANNOTATION_LAYER_Z_INDEX,
+    // Re-render during zoom/pan so strokes stay crisp instead of the prior
+    // zoom level's tiles being scaled up (which makes polygons "pulse").
+    updateWhileAnimating: true,
+    updateWhileInteracting: true,
     style: (feature: FeatureLike) => {
       const id = feature.getId();
       if (id != null && id === useAnnotationStore.getState().editingId) return undefined;
@@ -165,6 +169,8 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
     const highlight = new VectorTileLayer({
       source: createAnnotationTileSource(campaign.id, getVersion),
       zIndex: HIGHLIGHT_Z_INDEX,
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
       style: (feature: FeatureLike) => {
         const id = feature.getId() ?? feature.get(TILE_PROP_ID);
         const selected = useAnnotationStore.getState().selectedAnnotationIds;
