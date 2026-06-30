@@ -8,6 +8,7 @@ import {
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AppLayout } from '~/features/layout/components/AppLayout';
+import { NotFoundPage, RouteErrorBoundary } from './RouteError';
 
 // Heavy routes are code-split so the initial bundle (Home + Campaigns list)
 // doesn't include OpenLayers, Chart.js, react-markdown, etc.
@@ -46,7 +47,7 @@ const RouteFallback = () => (
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="/" element={<AppLayout />}>
+    <Route path="/" element={<AppLayout />} errorElement={<RouteErrorBoundary />}>
       <Route index element={<HomePage />} />
       <Route path="campaigns" element={<CampaignsPage />} />
       <Route
@@ -89,6 +90,8 @@ const router = createBrowserRouter(
           </Suspense>
         }
       />
+      {/* Unmatched paths render a friendly 404 within the layout. */}
+      <Route path="*" element={<NotFoundPage />} />
     </Route>
   )
 );
