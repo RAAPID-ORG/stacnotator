@@ -193,11 +193,14 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         isCampaignAdmin,
       });
 
-      // Initialize sibling stores
+      // Initialize sibling stores. The centre crosshair is on by default for
+      // task mode (point placement) but off for open mode, where free-form
+      // drawing doesn't need it; the user can still toggle it with O.
       useMapStore.setState({
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
+        showCrosshair: campaign.mode !== 'open',
       });
       // Use the action (not setState) so the reducer resolves the default
       // collection's cover_slice_index into activeSliceIndex.
