@@ -36,11 +36,12 @@ const defaultForm = (): FormState => ({
 });
 
 interface StatusBadgeProps {
-  map: CustomMapOut;
+  status: CustomMapOut['status'];
+  statusError?: CustomMapOut['status_error'];
 }
 
-const StatusBadge = ({ map }: StatusBadgeProps) => {
-  if (map.status === 'registering') {
+const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
+  if (status === 'registering') {
     return (
       <span className="flex items-center gap-1.5 text-xs text-blue-700">
         <Spinner size="xs" />
@@ -48,17 +49,17 @@ const StatusBadge = ({ map }: StatusBadgeProps) => {
       </span>
     );
   }
-  if (map.status === 'ready') {
+  if (status === 'ready') {
     return (
       <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
         Ready
       </span>
     );
   }
-  if (map.status === 'failed') {
+  if (status === 'failed') {
     const errMsg =
-      map.status_error && typeof map.status_error === 'object' && 'error' in map.status_error
-        ? String((map.status_error as { error: unknown }).error)
+      statusError && typeof statusError === 'object' && 'error' in statusError
+        ? String((statusError as { error: unknown }).error)
         : 'Processing failed';
     return (
       <span
@@ -71,7 +72,7 @@ const StatusBadge = ({ map }: StatusBadgeProps) => {
   }
   return (
     <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-      {map.status}
+      {status}
     </span>
   );
 };
@@ -231,7 +232,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 <p className="text-sm font-medium text-neutral-900 truncate">{m.name}</p>
                 <p className="text-xs text-neutral-500 truncate font-mono">{m.cog_url}</p>
               </div>
-              <StatusBadge map={m} />
+              <StatusBadge status={m.status} statusError={m.status_error} />
               <IconButton
                 tone="danger"
                 onClick={() => handleDelete(m.id)}
