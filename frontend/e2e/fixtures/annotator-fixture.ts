@@ -186,6 +186,9 @@ export const test = base.extend<AnnotatorFixtures>({
     // Reset per page setup so each test starts from the same baseline.
     let openAnnotations: any[] = MOCK_OPEN_ANNOTATIONS.map((a) => ({ ...a }));
     let nextOpenAnnotationId = 9100;
+    // Fixed bbox covering the mock open-mode annotations (near 30.5, 50.5),
+    // used by the extent / navigation tile-metadata mocks.
+    const openAnnotationsBbox = (): [number, number, number, number] => [30.4, 50.4, 30.6, 50.6];
 
     // Mock API routes
     // IMPORTANT: Playwright checks routes in LIFO order (last registered = highest priority).
@@ -387,6 +390,56 @@ export const test = base.extend<AnnotatorFixtures>({
       const before = openAnnotations.length;
       openAnnotations = openAnnotations.filter((a) => !ids.has(a.id));
       await route.fulfill({ json: { deleted_count: before - openAnnotations.length } });
+    });
+
+    // --- Open-mode viewport vector tiles -----------------------------------
+    // Annotations are served as MVT tiles + lightweight metadata endpoints
+    // instead of one load-all call. Registered after the generic annotation
+    // routes so these specific paths win (Playwright matches most-recent-first).
+
+    // GET annotation tiles -> empty MVT (mock mode renders no real tiles).
+    await page.route('**/api/campaigns/*/annotations/tiles/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/vnd.mapbox-vector-tile', body: '' });
+    });
+
+    // GET annotations extent -> bbox spanning the mock annotations.
+    await page.route('**/api/campaigns/*/annotations/extent', async (route) => {
+      await route.fulfill({ json: { bbox: openAnnotationsBbox() } });
+    });
+
+    // GET annotation ids in bbox -> every mock annotation (box-select selects all).
+    await page.route('**/api/campaigns/*/annotations/ids*', async (route) => {
+      api.requests.push({
+        method: 'GET',
+        url: route.request().url(),
+        pathname: new URL(route.request().url()).pathname,
+        body: null,
+        pathParams: extractPathParams(new URL(route.request().url()).pathname),
+      });
+      await route.fulfill({ json: openAnnotations.map((a) => a.id) });
+    });
+
+    // GET navigation batch -> mock annotations newest-first as nav items.
+    await page.route('**/api/campaigns/*/annotations/navigation*', async (route) => {
+      const items = [...openAnnotations]
+        .reverse()
+        .map((a) => ({
+          id: a.id,
+          label_id: a.label_id ?? null,
+          updated_at: a.updated_at ?? '2024-01-01T00:00:00Z',
+          bbox: openAnnotationsBbox(),
+        }));
+      await route.fulfill({ json: items });
+    });
+
+    // GET one annotation by id (click-to-edit fetch).
+    await page.route('**/api/campaigns/*/annotations/*', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const pathname = new URL(route.request().url()).pathname;
+      const annId = Number(extractPathParams(pathname).annotation_id);
+      const found = openAnnotations.find((a) => a.id === annId);
+      if (!found) return route.fulfill({ status: 404, json: { detail: 'not found' } });
+      await route.fulfill({ json: found });
     });
 
     // GET /api/campaigns/:id/:taskId/validate  (KNN validation)

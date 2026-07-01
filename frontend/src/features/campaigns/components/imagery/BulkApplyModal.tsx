@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Modal } from '~/shared/ui/Modal';
 import { Button } from '~/shared/ui/forms';
-import { fetchCollections } from '~/api/stacBrowser';
-import type { StacAssetInfo } from '~/api/stacBrowser';
+import { getCollections } from '~/api/client';
+import type { AssetInfo } from '~/api/client';
 import type {
   CollectionItem,
   ImagerySource,
@@ -207,7 +207,7 @@ interface BulkApplyModalProps {
 }
 
 export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApplyModalProps) => {
-  const [availableAssets, setAvailableAssets] = useState<Record<string, StacAssetInfo>>({});
+  const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
 
   const cols = stacCols(source);
@@ -221,10 +221,10 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
     const d = sbData(first);
     if (!d.catalogUrl || !d.stacCollectionId) return;
     let cancelled = false;
-    fetchCollections(d.catalogUrl)
-      .then((all) => {
-        if (cancelled) return;
-        const match = all.find((c) => c.id === d.stacCollectionId);
+    getCollections({ query: { catalog_url: d.catalogUrl } })
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const match = data.find((c) => c.id === d.stacCollectionId);
         if (match?.item_assets) setAvailableAssets(match.item_assets);
         setHasCloudCover(match?.has_cloud_cover ?? false);
       })
@@ -277,7 +277,7 @@ interface VizFocusProps {
   controller: ImageryController;
   name: string;
   collectionId: string;
-  availableAssets: Record<string, StacAssetInfo>;
+  availableAssets: Record<string, AssetInfo>;
   showCompositing: boolean;
   hasCover: boolean;
   onClose: () => void;

@@ -16,6 +16,8 @@ from src.tiling import registry
 from src.tiling.schemas import (
     SearchRequest,
     SearchResponse,
+    StacCatalogOut,
+    StacCollectionOut,
 )
 from src.tiling.stac_client import list_collections as _list_collections
 from src.tiling.stac_client import search_items
@@ -114,7 +116,7 @@ def _assert_catalog_url_safe(catalog_url: str) -> None:
             raise HTTPException(status_code=403, detail=_INTERNAL_IP_ERROR)
 
 
-@router.get("/catalogs")
+@router.get("/catalogs", response_model=list[StacCatalogOut])
 async def list_catalogs(user: User = Depends(require_approved_user)):
     """Browsable catalogs: the user's platform tiler catalogs first, then public ones
     (MPC + StacIndex). Platform catalogs carry ``tiler_name`` so the wizard auto-targets
@@ -199,7 +201,7 @@ async def _public_catalogs() -> list[dict]:
     return filtered
 
 
-@router.get("/collections")
+@router.get("/collections", response_model=list[StacCollectionOut])
 def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
     """List collections from a STAC API catalog, with a 1h cache.
 

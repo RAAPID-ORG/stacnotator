@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -7,10 +6,10 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { TaskModeReview } from '../components/review/TaskModeReview';
 import { OpenModeReview } from '../components/review/OpenModeReview';
+import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
 
 export const ReviewPage = () => {
-  const { campaignId } = useParams<{ campaignId: string }>();
-  const numericCampaignId = Number(campaignId);
+  const campaignId = useCampaignIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,11 +27,10 @@ export const ReviewPage = () => {
   }, [campaign, campaignId, setBreadcrumbs]);
 
   useEffect(() => {
-    if (!campaignId || Number.isNaN(numericCampaignId)) return;
     const load = async () => {
       try {
         setLoading(true);
-        const campaignRes = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        const campaignRes = await getCampaign({ path: { campaign_id: campaignId } });
         setCampaign(campaignRes.data!);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
@@ -41,7 +39,7 @@ export const ReviewPage = () => {
       }
     };
     load();
-  }, [campaignId, numericCampaignId]);
+  }, [campaignId]);
 
   if (loading) {
     return (
@@ -60,8 +58,8 @@ export const ReviewPage = () => {
   }
 
   if (campaign.mode === 'open') {
-    return <OpenModeReview campaign={campaign} campaignId={numericCampaignId} />;
+    return <OpenModeReview campaign={campaign} campaignId={campaignId} />;
   }
 
-  return <TaskModeReview campaign={campaign} campaignId={numericCampaignId} />;
+  return <TaskModeReview campaign={campaign} campaignId={campaignId} />;
 };

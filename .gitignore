@@ -127,4 +127,5 @@ coverage/
 test-results/
 playwright-report/
 
+.superpowers/
 docs/superpowers/

@@ -460,8 +460,8 @@ export const AnnotationToolbar = () => {
     if (!confirmed) return;
 
     // Merge main + view layouts (view layout is always created by the backend)
-    const mainLayout = campaign.default_main_canvas_layout!.layout_data as Layout;
-    const viewLayout = (selectedView?.default_canvas_layout?.layout_data ?? []) as Layout;
+    const mainLayout = campaign.default_main_canvas_layout!.layout_data;
+    const viewLayout = selectedView?.default_canvas_layout?.layout_data ?? [];
     const mergedLayout: Layout = [...mainLayout, ...viewLayout];
 
     resetLayout(mergedLayout);
