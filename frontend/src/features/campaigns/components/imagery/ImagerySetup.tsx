@@ -4,6 +4,7 @@ import { SourcesTab } from './SourcesTab';
 import { ViewLayoutTab } from './ViewLayoutTab';
 import { BasemapList } from './BasemapList';
 import { CustomMapsEditor } from './CustomMapsEditor';
+import { VectorLayersEditor } from './VectorLayersEditor';
 import { SourceEditor } from './SourceEditor';
 
 export type ImagerySetupSections = 'sources-only' | 'view-layout-only' | 'all';
@@ -52,6 +53,10 @@ export const ImagerySetup = ({
 
       {(sections === 'sources-only' || sections === 'all') && controller.campaignId != null && (
         <CustomMapsEditor campaignId={controller.campaignId} />
+      )}
+
+      {(sections === 'sources-only' || sections === 'all') && controller.campaignId != null && (
+        <VectorLayersEditor campaignId={controller.campaignId} />
       )}
 
       {editingSource && (

@@ -81,6 +81,12 @@ class Campaign(Base):
         cascade="all, delete-orphan",
         order_by="CustomMap.display_order",
     )
+    vector_layers: Mapped[list["VectorLayer"]] = relationship(  # noqa: F821
+        "VectorLayer",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="VectorLayer.display_order",
+    )
     imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
         "ImageryView",
         back_populates="campaign",

@@ -880,6 +880,10 @@ export type CampaignOut = {
      */
     custom_maps?: Array<CustomMapOut>;
     /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
+    /**
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
@@ -946,6 +950,10 @@ export type CampaignOutFull = {
      * Custom Maps
      */
     custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
     /**
      * Time Series
      */
@@ -2469,6 +2477,88 @@ export type ValidationError = {
 };
 
 /**
+ * VectorLayerCreate
+ */
+export type VectorLayerCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer?: string | null;
+    /**
+     * Color
+     */
+    color?: string;
+};
+
+/**
+ * VectorLayerOut
+ */
+export type VectorLayerOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer: string | null;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Display Order
+     */
+    display_order: number;
+};
+
+/**
+ * VectorLayerUpdate
+ */
+export type VectorLayerUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url?: string | null;
+    /**
+     * Source Layer
+     */
+    source_layer?: string | null;
+    /**
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Display Order
+     */
+    display_order?: number | null;
+};
+
+/**
  * ViewCollectionRefCreate
  */
 export type ViewCollectionRefCreate = {
@@ -2666,6 +2756,10 @@ export type CampaignOutWritable = {
      */
     custom_maps?: Array<CustomMapOut>;
     /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
+    /**
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
@@ -2732,6 +2826,10 @@ export type CampaignOutFullWritable = {
      * Custom Maps
      */
     custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
     /**
      * Time Series
      */
@@ -5445,3 +5543,133 @@ export type UpdateCustomMapResponses = {
 };
 
 export type UpdateCustomMapResponse = UpdateCustomMapResponses[keyof UpdateCustomMapResponses];
+
+export type ListVectorLayersData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers';
+};
+
+export type ListVectorLayersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVectorLayersError = ListVectorLayersErrors[keyof ListVectorLayersErrors];
+
+export type ListVectorLayersResponses = {
+    /**
+     * Response Listvectorlayers
+     *
+     * Successful Response
+     */
+    200: Array<VectorLayerOut>;
+};
+
+export type ListVectorLayersResponse = ListVectorLayersResponses[keyof ListVectorLayersResponses];
+
+export type CreateVectorLayerData = {
+    body: VectorLayerCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers';
+};
+
+export type CreateVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVectorLayerError = CreateVectorLayerErrors[keyof CreateVectorLayerErrors];
+
+export type CreateVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VectorLayerOut;
+};
+
+export type CreateVectorLayerResponse = CreateVectorLayerResponses[keyof CreateVectorLayerResponses];
+
+export type DeleteVectorLayerData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
+};
+
+export type DeleteVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVectorLayerError = DeleteVectorLayerErrors[keyof DeleteVectorLayerErrors];
+
+export type DeleteVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVectorLayerResponse = DeleteVectorLayerResponses[keyof DeleteVectorLayerResponses];
+
+export type UpdateVectorLayerData = {
+    body: VectorLayerUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
+};
+
+export type UpdateVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVectorLayerError = UpdateVectorLayerErrors[keyof UpdateVectorLayerErrors];
+
+export type UpdateVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VectorLayerOut;
+};
+
+export type UpdateVectorLayerResponse = UpdateVectorLayerResponses[keyof UpdateVectorLayerResponses];

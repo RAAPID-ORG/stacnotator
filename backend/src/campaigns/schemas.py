@@ -14,6 +14,7 @@ from src.imagery.schemas import (
     ImageryViewOut,
 )
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
+from src.vector_layers.schemas import VectorLayerOut
 
 
 # ============================================================================
@@ -111,6 +112,7 @@ class CampaignOut(BaseModel):
     imagery_views: list[ImageryViewOut]
     basemaps: list[BasemapOut]
     custom_maps: list[CustomMapOut] = []
+    vector_layers: list[VectorLayerOut] = []
     time_series: list[TimeSeriesOut]
 
     model_config = ConfigDict(from_attributes=True)
@@ -186,6 +188,7 @@ class CampaignOutFull(CampaignOut):
             "imagery_views": views_list,
             "basemaps": obj.basemaps,
             "custom_maps": obj.custom_maps,
+            "vector_layers": obj.vector_layers,
         }
 
         instance = cls.model_validate(base_data)

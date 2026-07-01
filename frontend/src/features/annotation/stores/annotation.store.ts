@@ -40,6 +40,9 @@ interface OpenAnnotationStore {
     labelId: number,
     comment?: string | null
   ) => Promise<AnnotationOut | null>;
+  /** Create many annotations from vector features in one go (box-label). Returns
+   * the number saved. Bumps the tile version once and shows a single toast. */
+  saveAnnotationsBatch: (geometries: GeoJSON.Geometry[], labelId: number) => Promise<number>;
   updateAnnotationGeometry: (
     annotationId: number,
     geometry: GeoJSON.Geometry,
@@ -104,6 +107,40 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       set({ isSaving: false });
       return null;
     }
+  },
+
+  saveAnnotationsBatch: async (geometries, labelId) => {
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign || geometries.length === 0) return 0;
+
+    set({ isSaving: true });
+    const snapshot = resolveActiveImagerySnapshot();
+    let saved = 0;
+    try {
+      for (const geometry of geometries) {
+        try {
+          await createAnnotationOpenmode({
+            path: { campaign_id: campaign.id },
+            body: {
+              label_id: labelId,
+              comment: null,
+              geometry_wkt: convertGeoJSONToWKT(geometry),
+              confidence: null,
+              ...snapshot,
+            },
+          });
+          saved += 1;
+        } catch (error) {
+          handleError(error, 'Failed to save one annotation');
+        }
+      }
+    } finally {
+      set((s) => ({ isSaving: false, tileVersion: s.tileVersion + 1 }));
+    }
+    if (saved > 0) {
+      useLayoutStore.getState().showAlert(`Labeled ${saved} feature(s)`, 'success');
+    }
+    return saved;
   },
 
   updateAnnotationGeometry: async (annotationId, geometry, meta) => {

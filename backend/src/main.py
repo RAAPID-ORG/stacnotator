@@ -25,6 +25,7 @@ from src.sampling_design.router import router as sampling_design_router
 from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
 from src.utils import generate_unique_id, initialize_earth_engine
+from src.vector_layers.router import router as vector_layers_router
 
 settings = get_settings()
 
@@ -198,4 +199,5 @@ app.include_router(imagery_router, prefix="/api")
 app.include_router(imagery_proxy_router, prefix="/api")
 app.include_router(tiling_router, prefix="/api")
 app.include_router(custom_maps_router, prefix="/api")
+app.include_router(vector_layers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

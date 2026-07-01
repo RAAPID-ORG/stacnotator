@@ -30,11 +30,13 @@ import type { Layer } from './Layer';
 import { PAN_DISTANCE_PIXELS, ZOOM_ANIMATION_MS, PAN_ANIMATION_MS } from './mapUtils';
 
 import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
-import { useMapStore } from '../../stores/map.store';
+import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
 import { useCustomMapLayer } from './useCustomMapLayer';
+import { useVectorLayers } from './useVectorLayers';
 import { useAnnotationTileLayer } from './useAnnotationTileLayer';
+import VectorLabelLayer from './VectorLabelLayer';
 
 // Furthest the open-mode map may zoom out (~regional / tens-of-km view). Kept a
 // few levels below per-field detail so users can pull back for context, but not
@@ -56,7 +58,7 @@ interface OpenModeMapProps {
   activeLayerId?: string;
   onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
   selectedLabel: ExtendedLabel | null;
-  activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
+  activeTool: AnnotationTool;
   magicWandActive: boolean;
   onTimeseriesClick?: (lat: number, lon: number) => void;
   refocusTrigger?: number;
@@ -117,6 +119,9 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
     });
 
     useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
+    // Mount enabled PMTiles vector layers (managed directly on the OL map).
+    const enabledVectorLayerIds = useMapStore((s) => s.enabledVectorLayerIds);
+    useVectorLayers(olMap, campaign.vector_layers ?? [], enabledVectorLayerIds);
     // Mount the read-only annotation vector-tile display + highlight layers.
     useAnnotationTileLayer(olMap, campaign);
 
@@ -333,6 +338,16 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
             activeTool={activeTool}
             magicWandActive={magicWandActive}
             onTimeseriesClick={onTimeseriesClick}
+          />
+        )}
+
+        {/* PMTiles vector-layer hover highlight + label-by-click interactions */}
+        {olMap && (
+          <VectorLabelLayer
+            map={olMap}
+            activeTool={activeTool}
+            selectedLabel={selectedLabel}
+            hasEnabledLayers={enabledVectorLayerIds.length > 0}
           />
         )}
 
