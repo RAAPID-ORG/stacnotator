@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactGridLayout, { getCompactor, type Layout, type LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -10,8 +10,10 @@ import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
 import { useCampaignStore } from '../stores/campaign.store';
+import { useAnnotationStore } from '../stores/annotation.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
+import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { extractCentroidFromWKT, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
@@ -136,10 +138,29 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       ] as [number, number, number, number])
     : null;
 
-  // Minimap annotation dots are omitted in open mode: with viewport vector
-  // tiling the client no longer holds every annotation, and plotting hundreds
-  // of thousands of dots would not be useful anyway.
-  const annotationDots = undefined;
+  // Minimap annotation overview: the client no longer holds every annotation
+  // (viewport vector tiling), so we fetch a coarse server-aggregated density
+  // grid and show it as indicators. Refetched when annotations change
+  // (tileVersion bump) so the overview tracks edits.
+  const tileVersion = useAnnotationStore((s) => s.tileVersion);
+  const [annotationDensity, setAnnotationDensity] = useState<AnnotationDensityCell[]>([]);
+  useEffect(() => {
+    if (campaign?.mode !== 'open') {
+      setAnnotationDensity([]);
+      return;
+    }
+    let cancelled = false;
+    void getAnnotationDensity({ path: { campaign_id: campaign.id } })
+      .then((res) => {
+        if (!cancelled) setAnnotationDensity(res.data ?? []);
+      })
+      .catch(() => {
+        /* minimap overview is best-effort */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign?.id, campaign?.mode, tileVersion]);
 
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
@@ -437,7 +458,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
               }
               fitBbox={campaign?.mode === 'tasks'}
-              annotationDots={annotationDots}
+              annotationDensity={annotationDensity}
             />
           </div>
 

@@ -63,6 +63,30 @@ export type AnnotationCreate = {
 };
 
 /**
+ * AnnotationDensityCell
+ *
+ * One aggregated grid cell for the minimap distribution overview: the
+ * cell centre (EPSG:4326) and how many annotation centroids fall in it.
+ *
+ * Lets the minimap show where annotations are as lightweight indicators
+ * without shipping every geometry - the count drives shading/size.
+ */
+export type AnnotationDensityCell = {
+    /**
+     * Lon
+     */
+    lon: number;
+    /**
+     * Lat
+     */
+    lat: number;
+    /**
+     * Count
+     */
+    count: number;
+};
+
+/**
  * AnnotationFromTaskCreate
  */
 export type AnnotationFromTaskCreate = {
@@ -4554,6 +4578,38 @@ export type GetAnnotationsExtentResponses = {
 };
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
+
+export type GetAnnotationDensityData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/density';
+};
+
+export type GetAnnotationDensityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAnnotationDensityError = GetAnnotationDensityErrors[keyof GetAnnotationDensityErrors];
+
+export type GetAnnotationDensityResponses = {
+    /**
+     * Response Getannotationdensity
+     *
+     * Successful Response
+     */
+    200: Array<AnnotationDensityCell>;
+};
+
+export type GetAnnotationDensityResponse = GetAnnotationDensityResponses[keyof GetAnnotationDensityResponses];
 
 export type GetTimeseriesForCampaignData = {
     body?: never;

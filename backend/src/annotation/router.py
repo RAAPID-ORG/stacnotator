@@ -11,6 +11,7 @@ from src.annotation import embeddings_service, service
 from src.annotation import io as annotation_io
 from src.annotation.schemas import (
     AnnotationCreate,
+    AnnotationDensityCell,
     AnnotationFromTaskCreate,
     AnnotationOut,
     AnnotationsExtentOut,
@@ -495,6 +496,20 @@ def get_annotations_extent(
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
     bbox = service.get_campaign_annotations_extent(db, campaign.id)
     return AnnotationsExtentOut(bbox=bbox)
+
+
+@router.get(
+    "/campaigns/{campaign_id}/annotations/density",
+    response_model=list[AnnotationDensityCell],
+)
+def get_annotation_density(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> list[AnnotationDensityCell]:
+    """Return a coarse grid of annotation counts for the minimap overview."""
+    cells = service.get_annotation_density(db, campaign.id)
+    return [AnnotationDensityCell(**cell) for cell in cells]
 
 
 @router.get(

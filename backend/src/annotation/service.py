@@ -706,6 +706,44 @@ def get_campaign_annotations_extent(
     return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
 
 
+def get_annotation_density(
+    db: Session,
+    campaign_id: int,
+    target_cells: int = 48,
+) -> list[dict]:
+    """Aggregate a campaign's annotation centroids into a coarse grid for the
+    minimap distribution overview.
+
+    The grid is sized so the campaign's wider extent spans ~``target_cells``
+    cells; each returned cell carries its centre (EPSG:4326) and the count of
+    annotations in it. One indexed pass, tiny payload - independent of how many
+    annotations exist, so it scales where per-feature dots would not.
+    """
+    extent = get_campaign_annotations_extent(db, campaign_id)
+    if extent is None:
+        return []
+    minx, miny, maxx, maxy = extent
+    span = max(maxx - minx, maxy - miny)
+    grid = span / target_cells if span > 0 else 0.01
+
+    sql = text(
+        """
+        SELECT floor(ST_X(c) / :grid) * :grid + :grid / 2 AS lon,
+               floor(ST_Y(c) / :grid) * :grid + :grid / 2 AS lat,
+               count(*) AS n
+        FROM (
+            SELECT ST_Centroid(g.geometry) AS c
+            FROM data.annotations a
+            JOIN data.annotation_geometries g ON g.id = a.geometry_id
+            WHERE a.campaign_id = :campaign_id
+        ) AS pts
+        GROUP BY 1, 2
+        """
+    )
+    rows = db.execute(sql, {"campaign_id": campaign_id, "grid": grid}).all()
+    return [{"lon": float(r[0]), "lat": float(r[1]), "count": int(r[2])} for r in rows]
+
+
 def delete_annotation(
     db: Session,
     annotation_id: int,

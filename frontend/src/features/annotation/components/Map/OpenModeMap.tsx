@@ -35,6 +35,13 @@ import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
 import { useAnnotationTileLayer } from './useAnnotationTileLayer';
 
+// Furthest the open-mode map may zoom out (~regional / tens-of-km view). Kept a
+// few levels below per-field detail so users can pull back for context, but not
+// so far that the map hits the downsampled, feature-dense low-zoom tiles. The
+// wider distribution is served by the minimap density indicators. Lower this
+// (e.g. 7) to allow zooming out further.
+const OPEN_MODE_MIN_ZOOM = 8;
+
 interface OpenModeMapProps {
   campaign: CampaignOutFull;
   initialCenter: [number, number];
@@ -263,6 +270,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
         <BaseMap
           center={initialCenter}
           zoom={initialZoom}
+          minZoom={OPEN_MODE_MIN_ZOOM}
           onMapReady={(map) => {
             mapRef.current = map;
             setOlMap(map);

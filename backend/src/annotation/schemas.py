@@ -262,6 +262,18 @@ class AnnotationsExtentOut(BaseModel):
     bbox: tuple[float, float, float, float] | None = None
 
 
+class AnnotationDensityCell(BaseModel):
+    """One aggregated grid cell for the minimap distribution overview: the
+    cell centre (EPSG:4326) and how many annotation centroids fall in it.
+
+    Lets the minimap show where annotations are as lightweight indicators
+    without shipping every geometry - the count drives shading/size."""
+
+    lon: float
+    lat: float
+    count: int
+
+
 class BatchDeleteAnnotationsRequest(BaseModel):
     annotation_ids: list[int]
 
