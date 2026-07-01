@@ -30,7 +30,6 @@ import type { Layer } from './Layer';
 import { PAN_DISTANCE_PIXELS, ZOOM_ANIMATION_MS, PAN_ANIMATION_MS } from './mapUtils';
 
 import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
-import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
@@ -135,11 +134,6 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
         });
         return true;
       };
-
-      const store = useAnnotationStore.getState();
-      const { currentAnnotationIndex, navBuffer } = store;
-      const target = currentAnnotationIndex >= 0 ? navBuffer[currentAnnotationIndex] : undefined;
-      if (target && fitBbox4326(target.bbox, 100)) return;
 
       try {
         const response = await getAnnotationsExtent({ path: { campaign_id: campaign.id } });

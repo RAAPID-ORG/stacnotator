@@ -5,17 +5,13 @@ import {
   deleteAnnotation as deleteAnnotationApi,
   batchDeleteAnnotations as batchDeleteAnnotationsApi,
   getAnnotation as getAnnotationApi,
-  getAnnotationNavigation,
   type AnnotationOut,
-  type AnnotationNavItem,
 } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 import { resolveActiveImagerySnapshot } from '../utils/imagerySnapshot';
 import { useCampaignStore } from './campaign.store';
-
-const NAV_BATCH_SIZE = 10;
 
 interface OpenAnnotationStore {
   isSaving: boolean;
@@ -34,15 +30,6 @@ interface OpenAnnotationStore {
   /** Full record of the single selected annotation, fetched by id for the
    * controls panel (label, flags, comment). Null when 0 or many selected. */
   selectedAnnotationDetail: AnnotationOut | null;
-
-  /** Label ids prev/next navigation is restricted to. Empty = all labels. */
-  navigationLabelFilter: number[];
-  /** Accumulated newest-first navigation buffer (lightweight items, no geometry). */
-  navBuffer: AnnotationNavItem[];
-  /** Position within navBuffer. -1 = nothing navigated yet. */
-  currentAnnotationIndex: number;
-  /** True once the server has no older items beyond the buffer. */
-  navExhausted: boolean;
 
   setCampaignVersion: (version: number) => void;
   bumpTileVersion: () => void;
@@ -69,11 +56,6 @@ interface OpenAnnotationStore {
   setSelectedAnnotationId: (id: number | null) => void;
   setSelectedAnnotationIds: (ids: number[]) => void;
 
-  goToPreviousAnnotation: () => Promise<AnnotationNavItem | null>;
-  goToNextAnnotation: () => Promise<AnnotationNavItem | null>;
-  setNavigationLabelFilter: (labelIds: number[]) => void;
-  toggleNavigationLabel: (labelId: number) => void;
-
   reset: () => void;
 }
 
@@ -84,39 +66,12 @@ const initialState = {
   selectedAnnotationId: null as number | null,
   selectedAnnotationIds: [] as number[],
   selectedAnnotationDetail: null as AnnotationOut | null,
-  navigationLabelFilter: [] as number[],
-  navBuffer: [] as AnnotationNavItem[],
-  currentAnnotationIndex: -1,
-  navExhausted: false,
 };
-
-async function fetchNavBatch(
-  campaignId: number,
-  labelIds: number[],
-  cursor: AnnotationNavItem | undefined
-): Promise<AnnotationNavItem[]> {
-  const response = await getAnnotationNavigation({
-    path: { campaign_id: campaignId },
-    query: {
-      label_ids: labelIds.length > 0 ? labelIds : undefined,
-      cursor_updated_at: cursor?.updated_at,
-      cursor_id: cursor?.id,
-      limit: NAV_BATCH_SIZE,
-    },
-  });
-  return response.data ?? [];
-}
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
   ...initialState,
 
-  setCampaignVersion: (version) =>
-    set({
-      tileVersion: version,
-      navBuffer: [],
-      currentAnnotationIndex: -1,
-      navExhausted: false,
-    }),
+  setCampaignVersion: (version) => set({ tileVersion: version }),
 
   bumpTileVersion: () => set((s) => ({ tileVersion: s.tileVersion + 1 })),
 
@@ -301,57 +256,6 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       });
     }
   },
-
-  goToNextAnnotation: async () => {
-    const campaign = useCampaignStore.getState().campaign;
-    if (!campaign) return null;
-
-    const { currentAnnotationIndex, navExhausted } = get();
-    let { navBuffer } = get();
-    const atEnd = currentAnnotationIndex + 1 >= navBuffer.length;
-    if (atEnd && !navExhausted) {
-      const cursor = navBuffer[navBuffer.length - 1];
-      const batch = await fetchNavBatch(campaign.id, get().navigationLabelFilter, cursor);
-      navBuffer = [...navBuffer, ...batch];
-      set({ navBuffer, navExhausted: batch.length < NAV_BATCH_SIZE });
-    }
-
-    navBuffer = get().navBuffer;
-    if (navBuffer.length === 0) return null;
-    const nextIndex = Math.min(currentAnnotationIndex + 1, navBuffer.length - 1);
-    set({ currentAnnotationIndex: nextIndex });
-    const item = navBuffer[nextIndex];
-    get().setSelectedAnnotationId(item.id);
-    return item;
-  },
-
-  goToPreviousAnnotation: async () => {
-    const { navBuffer, currentAnnotationIndex } = get();
-    if (navBuffer.length === 0) return null;
-    const prevIndex = Math.max(currentAnnotationIndex - 1, 0);
-    set({ currentAnnotationIndex: prevIndex });
-    const item = navBuffer[prevIndex];
-    get().setSelectedAnnotationId(item.id);
-    return item;
-  },
-
-  setNavigationLabelFilter: (labelIds) =>
-    set({
-      navigationLabelFilter: labelIds,
-      navBuffer: [],
-      currentAnnotationIndex: -1,
-      navExhausted: false,
-    }),
-
-  toggleNavigationLabel: (labelId) =>
-    set((s) => ({
-      navigationLabelFilter: s.navigationLabelFilter.includes(labelId)
-        ? s.navigationLabelFilter.filter((id) => id !== labelId)
-        : [...s.navigationLabelFilter, labelId],
-      navBuffer: [],
-      currentAnnotationIndex: -1,
-      navExhausted: false,
-    })),
 
   reset: () => set(initialState),
 }));

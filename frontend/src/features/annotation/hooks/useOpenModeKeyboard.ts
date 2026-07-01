@@ -30,8 +30,6 @@ export const useOpenModeKeyboard = () => {
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
-  const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
-  const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   useEffect(() => {
@@ -195,14 +193,6 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           toggleGuide();
           break;
-        case 'w':
-          e.preventDefault();
-          void goToPreviousAnnotation().then(() => triggerFitAnnotations());
-          break;
-        case 's':
-          e.preventDefault();
-          void goToNextAnnotation().then(() => triggerFitAnnotations());
-          break;
         case 'f': {
           e.preventDefault();
           const annStore = useAnnotationStore.getState();
@@ -225,8 +215,6 @@ export const useOpenModeKeyboard = () => {
     setTimeseriesPoint,
     triggerFitAnnotations,
     toggleViewSync,
-    goToPreviousAnnotation,
-    goToNextAnnotation,
     toggleGuide,
   ]);
 };

@@ -21,7 +21,6 @@ import {
   waitForBatchDelete,
   waitForCreate,
   waitForDelete,
-  waitForMinimapCenter,
   waitForUpdate,
 } from './fixtures/imagery-helpers';
 
@@ -54,7 +53,6 @@ async function loadOpenMode(
 }
 
 const tool = (page: Page, title: string) => page.locator(`[title="${title}"]`);
-const counter = (page: Page) => page.locator('[data-tour="controls"] p.tabular-nums');
 const controls = (page: Page) => page.locator('[data-tour="controls"]');
 const ACTIVE = /bg-brand-50/;
 
@@ -244,7 +242,7 @@ test.describe('Creating annotations', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Load, display & navigate existing annotations
+// Load & display existing annotations
 // ---------------------------------------------------------------------------
 
 // NOTE: open-mode annotations now render as MVT vector tiles served by the
@@ -253,59 +251,6 @@ test.describe('Creating annotations', () => {
 // which the mocked E2E backend cannot produce (no real tile data). These flows
 // are verified end-to-end against a real backend instead; making them run here
 // needs a real-backend E2E harness (follow-up). Skipped until then.
-test.describe.skip('Navigating existing annotations', () => {
-  test.beforeEach(async ({ annotationPage, api }) => {
-    await loadOpenMode(annotationPage, api);
-  });
-
-  test('counter shows the total before any navigation', async ({ annotationPage }) => {
-    await expect(counter(annotationPage)).toHaveText('3 annotations');
-  });
-
-  test('S advances and wraps; W goes back and wraps', async ({ annotationPage }) => {
-    await annotationPage.keyboard.press('s');
-    await expect(counter(annotationPage)).toHaveText('1 / 3');
-    await annotationPage.keyboard.press('s');
-    await expect(counter(annotationPage)).toHaveText('2 / 3');
-    await annotationPage.keyboard.press('s');
-    await expect(counter(annotationPage)).toHaveText('3 / 3');
-    await annotationPage.keyboard.press('s');
-    await expect(counter(annotationPage)).toHaveText('1 / 3'); // wrap
-
-    await annotationPage.keyboard.press('w');
-    await expect(counter(annotationPage)).toHaveText('3 / 3'); // wrap back
-  });
-
-  test('navigation re-centres the map onto the selected annotation', async ({ annotationPage }) => {
-    // Newest-first sort -> first S selects the NE flagged annotation.
-    await annotationPage.keyboard.press('s');
-    await waitForMinimapCenter(
-      annotationPage,
-      parseWkt(OPEN_ANN_NE_FLAGGED.geometry.geometry),
-      'after S -> NE annotation',
-    );
-  });
-
-  test('Space fits all annotations, re-centring near the collective centroid', async ({
-    annotationPage,
-  }) => {
-    // Pan the main map away first.
-    const box = await annotationPage.locator('[data-tour="main-map"] canvas').first().boundingBox();
-    const cx = box!.x + box!.width / 2;
-    const cy = box!.y + box!.height / 2;
-    await annotationPage.mouse.move(cx, cy);
-    await annotationPage.mouse.down();
-    await annotationPage.mouse.move(cx - 200, cy - 200, { steps: 8 });
-    await annotationPage.mouse.up();
-    const moved = await getMinimapCenter(annotationPage);
-
-    await annotationPage.keyboard.press(' ');
-    // Fitting all annotations brings the centre back near the bbox centre.
-    await waitForMinimapCenter(annotationPage, OPEN_MODE_CENTER, 'after Space fit-all', 0.2);
-    const fitted = await getMinimapCenter(annotationPage);
-    expect(Math.abs(fitted.lon - moved.lon)).toBeGreaterThan(0); // it moved
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Editing geometry (PUT)
@@ -411,7 +356,6 @@ test.describe.skip('Deleting annotations', () => {
       (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`),
     );
     expect(del).toBeTruthy();
-    await expect(counter(annotationPage)).toContainText('2');
     await expect(controls(annotationPage)).not.toContainText('Selected annotation #');
   });
 });
@@ -469,8 +413,7 @@ test.describe.skip('Multi-select and delete key', () => {
       OPEN_ANN_SW_POLYGON.id,
     ]);
 
-    // All annotations gone -> the Navigate block (and its counter) is removed.
-    await expect(counter(annotationPage)).toHaveCount(0);
+    // All annotations gone -> the edit controls are removed.
     await expect(editControls(annotationPage)).toHaveCount(0);
   });
 
@@ -489,7 +432,6 @@ test.describe.skip('Multi-select and delete key', () => {
     );
     expect(del).toBeTruthy();
     expect(api.requests.some((r) => r.pathname.endsWith('/annotations/batch-delete'))).toBe(false);
-    await expect(counter(annotationPage)).toContainText('2');
     await expect(editControls(annotationPage)).toHaveCount(0);
   });
 });
@@ -530,13 +472,8 @@ test.describe.skip('Flag for review', () => {
     annotationPage,
     api,
   }) => {
-    // Navigate to the flagged NE annotation so it is centred, then select it.
-    await annotationPage.keyboard.press('s');
-    await waitForMinimapCenter(
-      annotationPage,
-      parseWkt(OPEN_ANN_NE_FLAGGED.geometry.geometry),
-      'centre on flagged annotation',
-    );
+    // Select the flagged NE annotation by clicking its rendered tile (needs the
+    // real-backend harness to produce tile data; see the note above).
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
