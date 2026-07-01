@@ -163,39 +163,6 @@ export type AnnotationFromTaskOut = {
 };
 
 /**
- * AnnotationNavItem
- *
- * Lightweight annotation descriptor for cursor-based open-mode navigation.
- *
- * Carries only what prev/next needs - identity, label (for filtering) and a
- * bbox to fly the map to - never the full geometry, which is fetched by id
- * when the annotation is actually opened for editing.
- */
-export type AnnotationNavItem = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Label Id
-     */
-    label_id: number | null;
-    /**
-     * Updated At
-     */
-    updated_at: string;
-    /**
-     * Bbox
-     */
-    bbox: [
-        number,
-        number,
-        number,
-        number
-    ];
-};
-
-/**
  * AnnotationOut
  */
 export type AnnotationOut = {
@@ -4587,55 +4554,6 @@ export type GetAnnotationsExtentResponses = {
 };
 
 export type GetAnnotationsExtentResponse = GetAnnotationsExtentResponses[keyof GetAnnotationsExtentResponses];
-
-export type GetAnnotationNavigationData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: {
-        /**
-         * Label Ids
-         */
-        label_ids?: Array<number> | null;
-        /**
-         * Cursor Updated At
-         */
-        cursor_updated_at?: string | null;
-        /**
-         * Cursor Id
-         */
-        cursor_id?: number | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-    };
-    url: '/api/campaigns/{campaign_id}/annotations/navigation';
-};
-
-export type GetAnnotationNavigationErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAnnotationNavigationError = GetAnnotationNavigationErrors[keyof GetAnnotationNavigationErrors];
-
-export type GetAnnotationNavigationResponses = {
-    /**
-     * Response Getannotationnavigation
-     *
-     * Successful Response
-     */
-    200: Array<AnnotationNavItem>;
-};
-
-export type GetAnnotationNavigationResponse = GetAnnotationNavigationResponses[keyof GetAnnotationNavigationResponses];
 
 export type GetTimeseriesForCampaignData = {
     body?: never;
