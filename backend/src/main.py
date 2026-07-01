@@ -64,6 +64,12 @@ def _validate_production_config() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_production_config()
+    # Sync routes and their sync `get_db` cleanup share this pool; if it saturates,
+    # cleanup is starved and connections leak. Size it above the DB pool so cleanup
+    # always has a thread. DB concurrency stays capped by the (small) DB pool.
+    from anyio import to_thread
+
+    to_thread.current_default_thread_limiter().total_tokens = settings.THREAD_POOL_MAX
     initialize_earth_engine()
     yield
 

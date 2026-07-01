@@ -28,6 +28,7 @@ from src.annotation.tiles import build_mvt_query
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
 from src.campaigns.service import is_authoritative_reviewer
+from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -638,8 +639,12 @@ def render_annotation_tile(
     """Render one MVT tile of a campaign's annotations as protobuf bytes.
 
     Returns an empty tile (zero-length bytes) when no geometry falls in the
-    tile, which OpenLayers treats as an empty tile.
+    tile, which OpenLayers treats as an empty tile. Zoom levels below
+    ``ANNOTATION_TILE_MIN_ZOOM`` also return empty without touching the DB, so a
+    whole-country view of dense parcels can't trigger a multi-MB, CPU-heavy query.
     """
+    if z < get_settings().ANNOTATION_TILE_MIN_ZOOM:
+        return b""
     sql, params = build_mvt_query(z=z, x=x, y=y, campaign_id=campaign_id)
     tile = db.execute(text(sql), params).scalar_one()
     return bytes(tile) if tile is not None else b""

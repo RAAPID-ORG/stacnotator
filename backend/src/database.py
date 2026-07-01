@@ -26,8 +26,13 @@ engine = create_engine(
     max_overflow=settings.DB_MAX_OVERFLOW,
     pool_recycle=240,
     pool_pre_ping=True,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
     connect_args={
         "application_name": "stacnotator-backend",
+        # Postgres-side backstop: reap a session left idle-in-transaction (e.g. a
+        # dependency whose cleanup was skipped under load) so the pooled connection
+        # returns to service instead of wedging the pool permanently.
+        "options": f"-c idle_in_transaction_session_timeout={settings.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS}",
         "keepalives": 1,
         "keepalives_idle": 30,
         "keepalives_interval": 10,
