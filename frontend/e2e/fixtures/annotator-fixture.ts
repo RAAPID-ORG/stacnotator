@@ -70,6 +70,10 @@ function extractPathParams(pathname: string): Record<string, string> {
       ['campaign_id', 'annotation_id'],
     ],
     [
+      /^\/api\/campaigns\/(\d+)\/annotations\/batch-delete$/,
+      ['campaign_id'],
+    ],
+    [
       /^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/,
       ['campaign_id', 'annotation_id'],
     ],
@@ -364,6 +368,25 @@ export const test = base.extend<AnnotatorFixtures>({
       const annId = Number(extractPathParams(pathname).annotation_id);
       openAnnotations = openAnnotations.filter((a) => a.id !== annId);
       await route.fulfill({ json: makeDeleteResponse() });
+    });
+
+    // POST /api/campaigns/:id/annotations/batch-delete  (open mode: multi-delete)
+    // Registered after the single-delete route so it wins LIFO for this path.
+    await page.route('**/api/campaigns/*/annotations/batch-delete', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      const body = await parseBody(route);
+      const pathname = new URL(route.request().url()).pathname;
+      api.requests.push({
+        method: 'POST',
+        url: route.request().url(),
+        pathname,
+        body,
+        pathParams: extractPathParams(pathname),
+      });
+      const ids = new Set<number>((body?.annotation_ids ?? []) as number[]);
+      const before = openAnnotations.length;
+      openAnnotations = openAnnotations.filter((a) => !ids.has(a.id));
+      await route.fulfill({ json: { deleted_count: before - openAnnotations.length } });
     });
 
     // GET /api/campaigns/:id/:taskId/validate  (KNN validation)

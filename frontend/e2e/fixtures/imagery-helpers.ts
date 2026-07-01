@@ -157,6 +157,12 @@ export async function clickMapCenter(page: Page): Promise<void> {
   await mainCanvas(page).click();
 }
 
+/** Ctrl/Cmd+click the centre of the main map (edit-mode multi-select toggle).
+ *  OL reads platformModifierKeyOnly: Ctrl on Linux/Windows (CI), Meta on macOS. */
+export async function ctrlClickMapCenter(page: Page): Promise<void> {
+  await mainCanvas(page).click({ modifiers: ['ControlOrMeta'] });
+}
+
 /** Click at an (dx, dy) pixel offset from the main map centre. */
 export async function clickMapAt(page: Page, dx: number, dy: number): Promise<void> {
   const box = await mainCanvas(page).boundingBox();
@@ -194,6 +200,36 @@ export const waitForUpdate = (page: Page) =>
   page.waitForResponse((r) => /\/annotations\/\d+\/update$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT', { timeout: 8000 });
 export const waitForDelete = (page: Page) =>
   page.waitForResponse((r) => /\/annotations\/\d+$/.test(new URL(r.url()).pathname) && r.request().method() === 'DELETE', { timeout: 8000 });
+export const waitForBatchDelete = (page: Page) =>
+  page.waitForResponse((r) => new URL(r.url()).pathname.endsWith('/annotations/batch-delete') && r.request().method() === 'POST', { timeout: 8000 });
+
+/**
+ * Fit all annotations into the viewport (Space) and wait for the view to settle
+ * near the given centre. The default open-mode view is zoomed in tight, so this
+ * is required before any whole-canvas box select is expected to reach them all.
+ */
+export async function fitAllAnnotations(
+  page: Page,
+  center: { lat: number; lon: number },
+): Promise<void> {
+  await page.keyboard.press(' ');
+  await waitForMinimapCenter(page, center, 'fit all annotations', 0.3);
+}
+
+/**
+ * Shift+drag a selection box across the whole main-map canvas (edit mode
+ * box-select). Inset a few px so the drag stays inside the canvas bounds.
+ */
+export async function boxSelectWholeCanvas(page: Page): Promise<void> {
+  const box = await mainCanvas(page).boundingBox();
+  if (!box) throw new Error('main map canvas has no bounding box');
+  await page.keyboard.down('Shift');
+  await page.mouse.move(box.x + 4, box.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4, { steps: 12 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+}
 
 export function assertTilesFetchedForTask(
   requests: CapturedRequest[],

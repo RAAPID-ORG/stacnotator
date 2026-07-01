@@ -7,20 +7,7 @@
  */
 import type ImageTile from 'ol/ImageTile';
 import { ensureTilerSession } from '~/api/tilerToken';
-
-// OL-native placeholders that must not be replaced by substituteApiKeys.
-const OL_PLACEHOLDERS = new Set(['z', 'x', 'y', 'a-c', 'a-d', 'q', 's', '-1', '0', '1', '2', '3']);
-
-/**
- * Substitute non-OL `{name}` placeholders in a URL template with values from
- * the provided key map. OL's own placeholders ({z}, {x}, {y}, etc.) are left
- * untouched so OL can resolve them per-tile as normal.
- */
-export function substituteApiKeys(url: string, keys: Record<string, string>): string {
-  return url.replace(/\{([^{}]+)\}/g, (match, name: string) =>
-    OL_PLACEHOLDERS.has(name) ? match : (keys[name] ?? match)
-  );
-}
+import { isProxiedTileUrl } from './proxyTile';
 
 /**
  * True for one of our titiler-pgstac tilers (cookie auth required). `tile_provider` is
@@ -33,6 +20,17 @@ export function isSelfHostedTiler(provider?: string | null): boolean {
 /** crossOrigin for an OL tile source: credentialed for our tilers, anonymous otherwise. */
 export function crossOriginFor(provider?: string | null): 'anonymous' | 'use-credentials' {
   return isSelfHostedTiler(provider) ? 'use-credentials' : 'anonymous';
+}
+
+/**
+ * crossOrigin for a resolved tile URL: credentialed for our self-hosted tilers AND for our
+ * backend key-proxy URLs (both authenticate via the tiler cookie); anonymous for MPC/public.
+ */
+export function crossOriginForTile(
+  url: string,
+  provider?: string | null
+): 'anonymous' | 'use-credentials' {
+  return isProxiedTileUrl(url) || isSelfHostedTiler(provider) ? 'use-credentials' : 'anonymous';
 }
 
 /**

@@ -67,7 +67,9 @@ export class XYZLayer extends Layer {
       crossOrigin: this.crossOrigin,
       cacheSize: 512,
       transition: 150,
-      ...(this.layerType === 'imagery'
+      // Imagery, and any credentialed source (self-hosted tiler or our key-proxy, incl.
+      // proxied basemaps), load via the cookie-refreshing loader.
+      ...(this.layerType === 'imagery' || this.crossOrigin === 'use-credentials'
         ? {
             tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
           }

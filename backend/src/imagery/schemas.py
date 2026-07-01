@@ -28,10 +28,14 @@ class ImagerySliceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class NamedVizParamsOut(BaseModel):
+class CollectionVizConfigOut(BaseModel):
+    """Per-collection, per-visualization render params (new authoritative representation)."""
+
+    id: int
     name: str
-    viz_params: dict | None = None
-    cover_viz_params: dict | None = None
+    display_order: int
+    render_params: dict
+    cover_render_params: dict | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -41,11 +45,7 @@ class CollectionStacConfigOut(BaseModel):
     stac_collection_id: str | None = None
     # API name `tiler`, ORM column `tile_provider`. null => default tiler.
     tiler: str | None = Field(default=None, validation_alias="tile_provider")
-    # Legacy first-viz blobs, kept for backward compat.
-    viz_params: dict | None = None
-    cover_viz_params: dict | None = None
-    # Authoritative per-visualization params (NULL for legacy rows).
-    visualizations: list[NamedVizParamsOut] | None = None
+    viz_configs: list[CollectionVizConfigOut] = []
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
@@ -96,6 +96,9 @@ class ImagerySourceOut(BaseModel):
     display_order: int
     visualizations: list[VisualizationTemplateOut]
     collections: list[ImageryCollectionOut]
+    # Whether an encrypted provider API key is configured (drives the admin UI). The key
+    # value/ciphertext is never serialized.
+    has_api_key: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -105,8 +108,19 @@ class BasemapOut(BaseModel):
     name: str
     url: str
     max_native_zoom: int | None = None
+    has_api_key: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ApiKeyUpdate(BaseModel):
+    """Write-only provider API key value (campaign-admin sets it; never read back)."""
+
+    value: str = Field(min_length=1)
+
+
+class ApiKeyStatusOut(BaseModel):
+    has_api_key: bool
 
 
 class ViewCollectionRefItem(BaseModel):

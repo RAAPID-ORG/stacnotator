@@ -18,7 +18,7 @@
 
 import { createXYZ } from 'ol/tilegrid';
 import { transformExtent } from 'ol/proj';
-import { crossOriginFor, ensureSessionFor } from '../../utils/tileLoading';
+import { crossOriginForTile, ensureSessionFor } from '../../utils/tileLoading';
 
 // Num consecutive tile-load errs to consider group (slice) empty/nodata.
 export const EMPTY_TILE_THRESHOLD = 4;
@@ -187,7 +187,7 @@ export class TilePreloader {
         this.groupStats.set(job.groupId, { errors: 0, successes: 0, emptyFired: false });
       }
 
-      const crossOrigin = crossOriginFor(job.tileProvider);
+      const crossOrigin = crossOriginForTile(job.urlTemplate, job.tileProvider);
       const urls = tileUrlsForExtent(job.urlTemplate, job.extent, job.zoom);
       for (const url of urls) {
         if (this.preloaded.has(url)) continue;

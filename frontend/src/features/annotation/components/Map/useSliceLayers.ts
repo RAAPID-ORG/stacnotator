@@ -3,8 +3,8 @@ import type { LayerManager } from './layerManager';
 import { XYZLayer } from './Layer';
 import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
-import { crossOriginFor, substituteApiKeys } from '../../utils/tileLoading';
-import { useApiKeyStore } from '../../stores/apiKey.store';
+import { crossOriginForTile } from '../../utils/tileLoading';
+import { resolveBasemapUrl, resolveSliceTileUrl } from '../../utils/proxyTile';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 
@@ -60,7 +60,6 @@ export function useSliceLayers({
   const showBasemap = useMapStore((s) => s.showBasemap);
   const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
-  const apiKeys = useApiKeyStore((s) => s.keys);
 
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -194,17 +193,13 @@ export function useSliceLayers({
 
       for (const source of campaign.imagery_sources) {
         for (const collection of source.collections) {
-          const collectionKeyValue = apiKeys[`collection:${collection.id}`];
           for (let si = 0; si < collection.slices.length; si++) {
             const slice = collection.slices[si];
             for (const tileUrl of slice.tile_urls) {
               const layerId = makeLayerId(collection.id, si, tileUrl.visualization_name);
               if (lm.getLayerById(layerId)) continue;
 
-              const resolvedUrl = substituteApiKeys(
-                tileUrl.tile_url,
-                collectionKeyValue ? { api_key: collectionKeyValue } : {}
-              );
+              const resolvedUrl = resolveSliceTileUrl(campaign.id, slice.id, tileUrl);
 
               newLayers.push(
                 new XYZLayer({
@@ -213,7 +208,7 @@ export function useSliceLayers({
                   layerType: 'imagery',
                   urlTemplate: resolvedUrl,
                   preload: preloadDepth,
-                  crossOrigin: crossOriginFor(tileUrl.tile_provider),
+                  crossOrigin: crossOriginForTile(resolvedUrl, tileUrl.tile_provider),
                 })
               );
             }
@@ -224,19 +219,21 @@ export function useSliceLayers({
       if (newLayers.length > 0) lm.registerLayers(newLayers);
       activateCorrectLayer(lm);
     },
-    [campaign, activateCorrectLayer, preloadDepth, apiKeys]
+    [campaign, activateCorrectLayer, preloadDepth]
   );
 
   const initLayers = useCallback(
     (lm: LayerManager) => {
       // Register basemaps from backend
+      const campaignId = campaign?.id;
       const basemaps = (campaign?.basemaps ?? []).map((b) => {
-        const keyValue = apiKeys[`basemap:${b.id}`];
+        const url = campaignId != null ? resolveBasemapUrl(campaignId, b) : b.url;
         return new XYZLayer({
           id: `basemap-${b.id}`,
           name: b.name,
           layerType: 'basemap',
-          urlTemplate: substituteApiKeys(b.url, keyValue ? { api_key: keyValue } : {}),
+          urlTemplate: url,
+          crossOrigin: crossOriginForTile(url, null),
           attribution: getBasemapAttribution(b.url),
           maxZoom: b.max_native_zoom ?? undefined,
         });
@@ -252,7 +249,7 @@ export function useSliceLayers({
 
       syncLayers(lm);
     },
-    [syncLayers, campaign?.basemaps, setLayers, setActiveLayerId, onLayersChange, apiKeys]
+    [syncLayers, campaign?.id, campaign?.basemaps, setLayers, setActiveLayerId, onLayersChange]
   );
 
   // Re-sync when view changes

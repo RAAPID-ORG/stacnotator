@@ -26,7 +26,7 @@ import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore } from '../../stores/map.store';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { crossOriginFor, tileLoadImagery } from '../../utils/tileLoading';
+import { crossOriginForTile, tileLoadImagery } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
 interface WindowMapProps {
@@ -121,7 +121,7 @@ const WindowMap = ({
 
     const source = new XYZ({
       url: tileUrl,
-      crossOrigin: crossOriginFor(tileProvider),
+      crossOrigin: crossOriginForTile(tileUrl, tileProvider),
       cacheSize: 256,
       transition: 0,
       tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,
@@ -232,7 +232,7 @@ const WindowMap = ({
 
     const source = new XYZ({
       url: tileUrl,
-      crossOrigin: crossOriginFor(tileProvider),
+      crossOrigin: crossOriginForTile(tileUrl, tileProvider),
       cacheSize: 256,
       transition: 0,
       tileLoadFunction: tileLoadImagery as unknown as (tile: unknown, src: string) => void,

@@ -10,7 +10,7 @@ import type {
   ImageryViewOut,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { basemapToBackend, collectionToBackend, isRealId, sourceToBackend } from './draftSync';
+import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
 import type {
   Basemap,
   CollectionItem,
@@ -29,6 +29,9 @@ export interface ImageryController {
   readonly campaignBbox: number[] | null;
   readonly mode: ControllerMode;
   readonly pending: boolean;
+  /** Persisted-mode campaign id (undefined in draft/wizard mode, where entities aren't saved
+   *  yet). Used by the API-key controls, which act on persisted basemaps/sources only. */
+  readonly campaignId?: number;
 
   /** Persisted mode only: true when local state differs from server truth. */
   readonly isDirty: boolean;
@@ -253,13 +256,12 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
 
   let data: StacBrowserCollectionData | ManualCollectionData;
   if (isStacBrowser && sc) {
-    // Prefer the authoritative per-visualization list. Legacy rows (written
-    // before that column existed) only have the single viz_params blob - spread
-    // it across the source's viz names as a best-effort fallback. Either way we
-    // emit one named entry per source viz so a roundtrip-save keeps name parity.
+    // One viz_config row per named visualization; cover params are stored only
+    // when the collection has a dedicated cover.
+    const vizConfigs = sc.viz_configs ?? [];
+    const byName = new Map(vizConfigs.map((vc) => [vc.name, vc]));
     const namesForViz = sourceVizNames.length > 0 ? sourceVizNames : ['Default'];
-    const perViz = sc.visualizations ?? null;
-    const byName = new Map((perViz ?? []).map((v) => [v.name, v]));
+    const hasDedicatedCover = col.has_dedicated_cover ?? false;
     data = {
       type: 'stac_browser',
       catalogUrl: sc.catalog_url ?? '',
@@ -268,32 +270,16 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
       tiler: sc.tiler ?? null,
       mode: 'mosaic',
       maxCloudCover: sc.max_cloud_cover ?? undefined,
-      visualizations:
-        perViz && perViz.length > 0
-          ? namesForViz.map((name) => ({
-              name,
-              vizParams: vizParamsToFrontend(byName.get(name)?.viz_params ?? sc.viz_params),
-            }))
-          : sc.viz_params
-            ? namesForViz.map((name) => ({
-                name,
-                vizParams: vizParamsToFrontend(sc.viz_params),
-              }))
-            : [],
-      coverVisualizations:
-        perViz && perViz.some((v) => v.cover_viz_params)
-          ? namesForViz.map((name) => ({
-              name,
-              vizParams: vizParamsToFrontend(
-                byName.get(name)?.cover_viz_params ?? sc.cover_viz_params
-              ),
-            }))
-          : sc.cover_viz_params
-            ? namesForViz.map((name) => ({
-                name,
-                vizParams: vizParamsToFrontend(sc.cover_viz_params),
-              }))
-            : undefined,
+      visualizations: namesForViz.map((name) => ({
+        name,
+        vizParams: vizParamsToFrontend(byName.get(name)?.render_params),
+      })),
+      coverVisualizations: hasDedicatedCover
+        ? namesForViz.map((name) => ({
+            name,
+            vizParams: vizParamsToFrontend(byName.get(name)?.cover_render_params),
+          }))
+        : undefined,
       searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
       coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
       vizUrls,
@@ -327,6 +313,7 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
     defaultZoom: src.default_zoom,
     visualizations: src.visualizations.map((v) => ({ name: v.name })),
     collections: src.collections.map((col) => mapCollectionOutToFe(col, vizNames)),
+    hasApiKey: src.has_api_key,
   };
 }
 
@@ -376,16 +363,16 @@ export interface PersistedControllerOptions {
   campaignId: number;
   imagery: ImagerySourceOut[];
   views: ImageryViewOut[];
-  basemaps?: { id?: number; name: string; url: string; max_native_zoom?: number | null }[];
+  basemaps?: {
+    id?: number;
+    name: string;
+    url: string;
+    max_native_zoom?: number | null;
+    has_api_key?: boolean;
+  }[];
   campaignBbox?: number[] | null;
   /** Called after any mutation succeeds so the parent can refetch. */
   refetch?: () => void;
-}
-
-/** Deep-equal for plain JSON-shaped state (no functions, no class instances).
- *  Key order is stable because we always build objects via the same literals. */
-function eq(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function usePersistedController({
@@ -405,6 +392,7 @@ export function usePersistedController({
         name: b.name,
         url: b.url,
         maxNativeZoom: b.max_native_zoom ?? undefined,
+        hasApiKey: b.has_api_key,
       })),
     }),
     [imagery, views, basemaps]
@@ -486,6 +474,7 @@ export function usePersistedController({
       mode: 'persisted',
       pending,
       isDirty,
+      campaignId,
       save,
       discard,
 

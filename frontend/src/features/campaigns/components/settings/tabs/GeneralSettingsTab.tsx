@@ -172,11 +172,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       });
 
       if (data?.embeddings_recomputed) {
-        const s = data.summary;
-        showAlert(
-          `Embeddings recomputed for ${embeddingYear}: ${s?.created ?? 0} created, ${s?.skipped ?? 0} skipped, ${s?.failed ?? 0} failed`,
-          'success'
-        );
+        showAlert(`Embeddings recomputed for ${embeddingYear}`, 'success');
       } else {
         showAlert('Embedding year updated', 'success');
       }

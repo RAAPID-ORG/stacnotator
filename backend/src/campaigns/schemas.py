@@ -98,7 +98,7 @@ class CampaignOut(BaseModel):
     id: int
     name: str
     created_at: datetime
-    mode: str
+    mode: Literal["tasks", "open"]
     is_public: bool = False
     registration_status: str = "ready"
     embedding_status: str = "ready"
@@ -115,7 +115,7 @@ class CampaignOut(BaseModel):
 
 class CampaignCreate(BaseModel):
     name: str
-    mode: str
+    mode: Literal["tasks", "open"]
     is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
@@ -252,12 +252,10 @@ class UpdateCampaignLabelsRequest(BaseModel):
 
 
 class EmbeddingYearUpdateResponse(BaseModel):
-    """Response after updating the embedding year.
-    Includes a summary of re-computation if embeddings were regenerated."""
+    """Response after updating the embedding year."""
 
     embedding_year: int | None
     embeddings_recomputed: bool
-    summary: dict | None = None
 
 
 class AssignTasksToUsersRequest(BaseModel):
@@ -297,7 +295,7 @@ class AssignReviewersRequest(BaseModel):
     tasks that already meet the target.
     """
 
-    pattern: str  # 'percentage', 'manual', 'fixed'
+    pattern: Literal["percentage", "manual", "fixed"]
 
     # For 'percentage' pattern
     percentage: float | None = None  # Percentage of already-assigned tasks to review (0-100)

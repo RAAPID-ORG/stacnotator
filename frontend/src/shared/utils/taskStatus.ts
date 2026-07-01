@@ -47,13 +47,6 @@ export function getTaskStatusColor(status: TaskStatus): string {
 }
 
 /**
- * Get user completion badge color
- */
-export function getUserStatusColor(completed: boolean): string {
-  return completed ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
-}
-
-/**
  * Format task status for display
  */
 export function formatTaskStatus(status: TaskStatus): string {
@@ -75,8 +68,8 @@ export function countTasksByStatus(
     skipped: 0,
   };
   for (const t of tasks) {
-    const s = t.task_status as TaskStatus;
-    if (s in counts) counts[s]++;
+    const s = t.task_status;
+    if (s !== undefined && s in counts) counts[s]++;
   }
   return counts;
 }
@@ -107,33 +100,4 @@ export function getUserTaskStatuses(
   });
 
   return statusMap;
-}
-
-/**
- * Check if current user has completed a task (with a labeled annotation)
- */
-export function hasUserCompletedTask(task: AnnotationTaskOut, userId: string): boolean {
-  const annotations = task.annotations || [];
-  return annotations.some((a) => a.created_by_user_id === userId && a.label_id != null);
-}
-
-/**
- * Get current user's assignment status for a task
- */
-export function getUserAssignmentStatus(
-  task: AnnotationTaskOut,
-  userId: string
-): 'not-assigned' | 'pending' | 'completed' | 'skipped' {
-  const assignments = task.assignments || [];
-  const assignment = assignments.find((a) => a.user_id === userId);
-
-  if (!assignment) {
-    return 'not-assigned';
-  }
-
-  if (assignment.status === 'skipped') {
-    return 'skipped';
-  }
-
-  return hasUserCompletedTask(task, userId) ? 'completed' : 'pending';
 }

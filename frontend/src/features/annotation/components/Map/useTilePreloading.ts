@@ -17,6 +17,7 @@ import type { PreloadJob } from './tilePreloader';
 import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { resolveSliceTileUrl } from '../../utils/proxyTile';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { usePreferencesStore, type PreloadMode } from '../../stores/preferences.store';
 import { isMobileNow } from '~/shared/utils/useIsMobile';
@@ -140,7 +141,7 @@ function buildCoverSliceJobs(
       const tileUrlEntry = slice.tile_urls[0];
       if (!tileUrlEntry) continue;
 
-      const resolvedUrl = tileUrlEntry.tile_url;
+      const resolvedUrl = resolveSliceTileUrl(campaign.id, slice.id, tileUrlEntry);
 
       jobs.push({
         priority: getPriority(collection.id),
@@ -233,7 +234,7 @@ export function useTilePreloading({
         const tileUrlEntry = nextSlice.tile_urls[0];
         if (!tileUrlEntry) continue;
 
-        const resolvedUrl = tileUrlEntry.tile_url;
+        const resolvedUrl = resolveSliceTileUrl(camp.id, nextSlice.id, tileUrlEntry);
 
         // Determine priority from prefix
         const isDefault = collectionId === activeCollectionIdRef.current;

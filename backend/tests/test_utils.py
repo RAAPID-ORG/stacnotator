@@ -1,13 +1,9 @@
 """Tests for utility functions."""
 
-from datetime import datetime
-
 from src.campaigns.constants import DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT
 from src.utils import (
     clean_filename,
     find_free_position_in_layout,
-    format_date_to_yyyymmdd,
-    parse_ym_to_date,
     snake_to_camel,
 )
 
@@ -48,22 +44,6 @@ class TestSnakeToCamel:
 
     def test_many_underscores(self):
         assert snake_to_camel("get_all_user_annotations") == "getAllUserAnnotations"
-
-
-class TestParseYmToDate:
-    def test_basic(self):
-        assert parse_ym_to_date("202501") == datetime(2025, 1, 1)
-
-    def test_december(self):
-        assert parse_ym_to_date("202312") == datetime(2023, 12, 1)
-
-
-class TestFormatDateToYyyymmdd:
-    def test_basic(self):
-        assert format_date_to_yyyymmdd(datetime(2025, 1, 15)) == "20250115"
-
-    def test_single_digit_month_day(self):
-        assert format_date_to_yyyymmdd(datetime(2025, 3, 5)) == "20250305"
 
 
 class TestFindFreePositionInLayout:

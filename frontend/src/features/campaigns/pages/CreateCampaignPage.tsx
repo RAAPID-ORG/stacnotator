@@ -166,7 +166,7 @@ export const CreateCampaignPage = () => {
         </header>
 
         <div className="mb-6">
-          <StepIndicator step={step} mode={form.mode as 'tasks' | 'open'} onStepClick={setStep} />
+          <StepIndicator step={step} mode={form.mode} onStepClick={setStep} />
         </div>
 
         <div className="surface">

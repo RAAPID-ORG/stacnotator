@@ -73,15 +73,3 @@ export function validateColorFormula(input: string): string | null {
   }
   return null;
 }
-
-/** Validates a single-band `min,max` rescale (used by custom maps). */
-export function validateRescale(input: string): string | null {
-  const s = input.trim();
-  if (!s) return null;
-  const parts = s.split(',').map((p) => p.trim());
-  if (parts.length !== 2) return 'Format must be "min,max" (single band).';
-  const [lo, hi] = parts.map(Number);
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return 'Both values must be numbers.';
-  if (lo >= hi) return 'Min must be less than max.';
-  return null;
-}

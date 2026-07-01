@@ -17,17 +17,19 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
+from src.annotation.io import (
+    _build_annotation_records,
+    build_annotations_export,
+    build_annotations_geojson_export,
+    create_annotation_tasks_from_csv,
+    create_annotations_from_geojson,
+)
 from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTaskAssignment
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
-    _build_annotation_records,
     add_annotation_for_task,
-    build_annotations_export,
-    build_annotations_geojson_export,
     claim_task_for_user,
     create_annotation,
-    create_annotation_tasks_from_csv,
-    create_annotations_from_geojson,
     delete_annotation,
     update_annotation,
 )
@@ -37,6 +39,13 @@ def _mock_db():
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
     return db
+
+
+def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
+    """Return a MagicMock campaign whose label set contains the given ids."""
+    campaign = MagicMock()
+    campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
+    return campaign
 
 
 def _make_task(task_id=1, campaign_id=1, geometry_id=10):
@@ -73,6 +82,7 @@ class TestAddAnnotationForTask:
 
     def test_create_new_annotation_with_label(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -109,6 +119,7 @@ class TestAddAnnotationForTask:
 
     def test_create_with_assignment_marks_done(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         assignment = _make_assignment(task_id=task.id, user_id=user_id)
@@ -136,6 +147,7 @@ class TestAddAnnotationForTask:
 
     def test_update_existing_annotation(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
@@ -179,6 +191,7 @@ class TestAddAnnotationForTask:
 
     def test_update_existing_with_assignment_marks_done(self):
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
         existing = _make_annotation(task_id=task.id, user_id=user_id, label_id=1)
@@ -239,6 +252,7 @@ class TestAddAnnotationForTask:
         """A user with the authoritative-reviewer flag can create a fresh
         authoritative annotation, even with no assignment on the task."""
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -267,6 +281,7 @@ class TestAddAnnotationForTask:
         non-reviewer user can still label normally. The first scalar lookup
         should be the existing-annotation query, not a CampaignUser query."""
         db = _mock_db()
+        db.get.return_value = _make_campaign()
         user_id = uuid4()
         task = _make_task()
 
@@ -292,7 +307,7 @@ class TestCreateAnnotation:
     def test_creates_geometry_then_annotation_with_user_payload(self):
         db = _mock_db()
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 42
 
         # Have flush() populate the geometry id the way the real DB would,
@@ -329,7 +344,7 @@ class TestCreateAnnotation:
 
     def test_persists_imagery_snapshot(self):
         db = _mock_db()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -353,7 +368,7 @@ class TestCreateAnnotation:
     def test_annotation_has_no_task_link(self):
         db = _mock_db()
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -371,7 +386,7 @@ class TestCreateAnnotation:
         db = _mock_db()
         db.commit.side_effect = Exception("DB error")
         user_id = uuid4()
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
 
         payload = AnnotationCreate(
@@ -677,13 +692,13 @@ class TestPublicCampaignAnnotationOwnership:
     """Ensure users in public campaigns can only edit/delete their own annotations."""
 
     def _make_public_campaign(self):
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
         campaign.is_public = True
         return campaign
 
     def _make_private_campaign(self):
-        campaign = MagicMock()
+        campaign = _make_campaign()
         campaign.id = 1
         campaign.is_public = False
         return campaign
@@ -831,7 +846,7 @@ class TestExportAnnotatorCount:
 
     def _records(self, annotations, *, merge=False):
         with patch(
-            "src.annotation.service._compute_task_status_for_export",
+            "src.annotation.io._compute_task_status_for_export",
             return_value="done",
         ):
             records, _ = _build_annotation_records(
@@ -987,11 +1002,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.service._fetch_annotations_with_context",
+                "src.annotation.io._fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.service._compute_task_status_for_export",
+                "src.annotation.io._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1001,11 +1016,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.service._fetch_annotations_with_context",
+                "src.annotation.io._fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.service._compute_task_status_for_export",
+                "src.annotation.io._compute_task_status_for_export",
                 return_value="done",
             ),
         ):

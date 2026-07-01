@@ -57,8 +57,9 @@ def _fake_post(monkeypatch, payload):
     monkeypatch.setattr(
         providers.httpx,
         "post",
-        lambda url, json, headers, timeout: captured.update(url=url, json=json, headers=headers)
-        or _Resp(),
+        lambda url, json, headers, timeout: (
+            captured.update(url=url, json=json, headers=headers) or _Resp()
+        ),
     )
     return captured
 

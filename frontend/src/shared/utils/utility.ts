@@ -93,30 +93,6 @@ export const extractLatLonFromWKT = (wkt: string): LatLon | null => {
 };
 
 /**
- * Convert a string to a URL-friendly key (slug)
- * - Converts to lowercase
- * - Removes diacritics/accents
- * - Replaces non-alphanumeric characters with hyphens
- * - Removes leading/trailing hyphens
- * @param name - The string to convert
- * @returns URL-friendly slug
- * @example
- * name_to_key('Hello World!') // Returns 'hello-world'
- * name_to_key('Café Münchën') // Returns 'cafe-munchen'
- */
-export const name_to_key = (name: string): string => {
-  return (
-    name
-      .toLowerCase()
-      .trim()
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'item'
-  );
-};
-
-/**
  * Parse a date string (YYYYMMDD or YYYY-MM-DD format)
  */
 const parseDate = (dateStr: string): Date => {
@@ -127,116 +103,6 @@ const parseDate = (dateStr: string): Date => {
     return new Date(year, month, day);
   }
   return new Date(dateStr);
-};
-
-/**
- * Format a Date object to YYYYMMDD string
- */
-const formatDateYYYYMMDD = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}${month}${day}`;
-};
-
-/**
- * Format a date string for display (YYYYMMDD to YYYY-MM-DD)
- */
-const formatDateForDisplay = (dateStr: string): string => {
-  if (/^\d{8}$/.test(dateStr)) {
-    return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-  }
-  return dateStr;
-};
-
-/**
- * Add a duration to a date based on unit
- */
-const addDuration = (date: Date, interval: number, unit: string): Date => {
-  const result = new Date(date);
-
-  switch (unit.toLowerCase()) {
-    case 'day':
-    case 'days':
-      result.setDate(result.getDate() + interval);
-      break;
-    case 'week':
-    case 'weeks':
-      result.setDate(result.getDate() + interval * 7);
-      break;
-    case 'month':
-    case 'months':
-      result.setMonth(result.getMonth() + interval);
-      break;
-    case 'year':
-    case 'years':
-      result.setFullYear(result.getFullYear() + interval);
-      break;
-    default:
-      result.setDate(result.getDate() + interval);
-  }
-
-  return result;
-};
-
-/**
- * Format a date range for display
- */
-const formatDateRange = (start: string, end: string): string => {
-  const startDisplay = formatDateForDisplay(start);
-  const endDisplay = formatDateForDisplay(end);
-  if (startDisplay === endDisplay) {
-    return startDisplay;
-  }
-  return `${startDisplay} - ${endDisplay}`;
-};
-
-/**
- * Compute time slices within a window
- */
-export const computeTimeSlices = (
-  windowStartDate: string,
-  windowEndDate: string,
-  slicingInterval: number | null,
-  slicingUnit: string | null
-): TimeSlice[] => {
-  if (!slicingInterval || !slicingUnit) {
-    return [
-      {
-        index: 0,
-        startDate: windowStartDate,
-        endDate: windowEndDate,
-        label: formatDateRange(windowStartDate, windowEndDate),
-      },
-    ];
-  }
-
-  const slices: TimeSlice[] = [];
-  const start = parseDate(windowStartDate);
-  const end = parseDate(windowEndDate);
-
-  let currentStart = new Date(start);
-  let index = 0;
-
-  while (currentStart < end) {
-    const currentEnd = addDuration(new Date(currentStart), slicingInterval, slicingUnit);
-    const sliceEnd = currentEnd > end ? end : currentEnd;
-
-    const startDateStr = formatDateYYYYMMDD(currentStart);
-    const endDateStr = formatDateYYYYMMDD(sliceEnd);
-
-    slices.push({
-      index,
-      startDate: startDateStr,
-      endDate: endDateStr,
-      label: formatSliceLabel(startDateStr, endDateStr, slicingUnit, index),
-    });
-
-    currentStart = new Date(sliceEnd);
-    index++;
-  }
-
-  return slices;
 };
 
 /**
@@ -346,20 +212,6 @@ export const formatWindowLabel = (
       }
       return `${MONTH_ABBREV[startMonth]} ${startDay}, ${startYear} - ${MONTH_ABBREV[endMonth]} ${endDay}, ${endYear}`;
   }
-};
-
-/**
- * Format YYYYMM to display
- */
-export const formatYearMonth = (yyyymm: string): string => {
-  if (!yyyymm || yyyymm.length < 6) return yyyymm;
-
-  const year = yyyymm.substring(0, 4);
-  const monthIndex = parseInt(yyyymm.substring(4, 6), 10) - 1;
-
-  if (monthIndex < 0 || monthIndex > 11) return yyyymm;
-
-  return `${MONTH_ABBREV[monthIndex]} ${year}`;
 };
 
 /**

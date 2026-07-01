@@ -8,18 +8,18 @@ from fastapi import HTTPException
 
 from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
-from src.campaigns.models import CampaignUser
-from src.campaigns.schemas import AssignTasksToUsersRequest
-from src.campaigns.service import (
-    _calculate_krippendorff_alpha,
-    _calculate_pairwise_agreement,
+from src.campaigns.assignments import (
     _distribute_evenly,
     _distribute_fixed,
-    add_users_to_campaign_bulk,
     assign_reviewers_fixed,
     assign_reviewers_manual,
     assign_reviewers_percentage,
     assign_tasks_to_users,
+)
+from src.campaigns.models import CampaignUser
+from src.campaigns.schemas import AssignTasksToUsersRequest
+from src.campaigns.service import (
+    add_users_to_campaign_bulk,
     delete_campaign,
     demote_admin,
     list_campaigns_with_user_roles,
@@ -28,6 +28,10 @@ from src.campaigns.service import (
     update_campaign_bbox,
     update_campaign_name,
     update_campaign_visibility,
+)
+from src.campaigns.statistics import (
+    _calculate_krippendorff_alpha,
+    _calculate_pairwise_agreement,
 )
 
 
@@ -214,6 +218,7 @@ class TestDemoteAdmin:
         result_mock = MagicMock()
         result_mock.rowcount = 0
         db.execute.return_value = result_mock
+        db.scalar.return_value = None  # user is not an admin — guard passes through
 
         with pytest.raises(HTTPException) as exc_info:
             demote_admin(db, 1, uuid4())
@@ -226,6 +231,7 @@ class TestRemoveUserFromCampaign:
         result_mock = MagicMock()
         result_mock.rowcount = 0
         db.execute.return_value = result_mock
+        db.scalar.return_value = None  # user is not a member — guard passes through
 
         with pytest.raises(HTTPException) as exc_info:
             remove_user_from_campaign(db, 1, uuid4())
@@ -363,7 +369,7 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
@@ -388,7 +394,7 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(db, 1, percentage=100, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
@@ -414,7 +420,7 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(
                 db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
             )
@@ -447,7 +453,7 @@ class TestAssignReviewersPercentage:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(
                 db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
             )
@@ -507,7 +513,7 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_fixed(db, 1, num_tasks=2, num_reviewers=1, reviewer_ids=[u1])
 
         added = [c.args[0] for c in db.add.call_args_list]
@@ -536,7 +542,7 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_fixed(
                 db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
             )
@@ -568,7 +574,7 @@ class TestAssignReviewersFixed:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_fixed(
                 db, 1, num_tasks=3, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
             )
@@ -604,7 +610,7 @@ class TestReviewerTopUp:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(
                 db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2, r3]
             )
@@ -634,7 +640,7 @@ class TestReviewerTopUp:
             ],
         )
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             assign_reviewers_percentage(
                 db, 1, percentage=100, num_reviewers=2, reviewer_ids=[annotator, r1, r2]
             )
@@ -674,7 +680,7 @@ class TestAssignReviewersManual:
         )
         db.execute.return_value.all.return_value = []  # _filter_new_pairs: no existing pairs
 
-        with patch("src.campaigns.service._seed_assignment_status", return_value={}):
+        with patch("src.campaigns.assignments._seed_assignment_status", return_value={}):
             created = assign_reviewers_manual(db, 1, {10: [u1], 20: [u2]})
 
         added = [c.args[0] for c in db.add.call_args_list]

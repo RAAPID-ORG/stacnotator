@@ -8,7 +8,7 @@ class UserOut(BaseModel):
 
     id: UUID
     email: str
-    display_name: str
+    display_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

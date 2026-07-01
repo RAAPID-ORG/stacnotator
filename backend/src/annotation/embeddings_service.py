@@ -186,52 +186,6 @@ def store_embedding(
     return row
 
 
-def get_embeddings_by_campaign(db: Session, campaign_id: int) -> list[EmbeddingRow]:
-    """Return all embeddings for tasks within a campaign."""
-    stmt = (
-        select(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .where(AnnotationTask.campaign_id == campaign_id)
-    )
-    return list(db.scalars(stmt).all())
-
-
-def get_num_embeddings_with_label(
-    db: Session,
-    campaign_id: int,
-    label_id: int | None = None,
-) -> int:
-    """Count embeddings linked to annotations that have a label set.
-
-    If label_id is given, only count embeddings whose annotation carries
-    that specific label. Otherwise count all labeled embeddings in the
-    campaign.
-    """
-    stmt = (
-        select(func.count(func.distinct(EmbeddingRow.id)))
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
-        .where(
-            AnnotationTask.campaign_id == campaign_id,
-            Annotation.label_id.isnot(None),
-        )
-    )
-    if label_id is not None:
-        stmt = stmt.where(Annotation.label_id == label_id)
-    return db.scalar(stmt) or 0
-
-
-def get_embeddings_by_label(db: Session, campaign_id: int, label_id: int) -> list[EmbeddingRow]:
-    """Return all embeddings for a specific label within a campaign."""
-    stmt = (
-        select(EmbeddingRow)
-        .join(AnnotationTask, AnnotationTask.id == EmbeddingRow.annotation_task_id)
-        .join(Annotation, Annotation.annotation_task_id == AnnotationTask.id)
-        .where(AnnotationTask.campaign_id == campaign_id, Annotation.label_id == label_id)
-    )
-    return list(db.scalars(stmt).all())
-
-
 def find_nearest_labeled_embeddings(
     db: Session,
     campaign_id: int,

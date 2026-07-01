@@ -109,6 +109,8 @@ export interface ImagerySource {
   defaultZoom: number;
   visualizations: VisualizationOption[];
   collections: CollectionItem[];
+  /** Whether a provider API key is configured server-side (persisted sources only). */
+  hasApiKey?: boolean;
 }
 
 export interface ViewCollectionRef {
@@ -129,6 +131,8 @@ export interface Basemap {
   url: string;
   /** Deepest zoom the provider actually serves. Past this, OL upscales the deepest tile instead of fetching "no data". Undefined = no cap. */
   maxNativeZoom?: number;
+  /** Whether a provider API key is configured server-side (persisted basemaps only). */
+  hasApiKey?: boolean;
 }
 
 export interface ImageryStepState {
@@ -226,12 +230,6 @@ export function resolveCollection(
   const collection = source.collections.find((c) => c.id === ref.collectionId);
   if (!collection) return null;
   return { source, collection };
-}
-
-export function allCollectionsFlat(
-  sources: ImagerySource[]
-): { source: ImagerySource; collection: CollectionItem }[] {
-  return sources.flatMap((s) => s.collections.map((c) => ({ source: s, collection: c })));
 }
 
 export function swap<T>(arr: T[], i: number, j: number): T[] {

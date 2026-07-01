@@ -30,3 +30,12 @@ def mint(
         "campaigns": [str(c) for c in campaigns],
     }
     return jwt.encode(payload, get_settings().TILER_TOKEN_SECRET, algorithm=ALGORITHM)
+
+
+def verify(token: str) -> dict:
+    """Decode and validate a tile-access token (signature + expiry).
+
+    Raises ``jwt.InvalidTokenError`` (incl. ``ExpiredSignatureError``) on any failure.
+    Used by the tile-proxy to authorize browser tile requests from the ``tiler_token`` cookie.
+    """
+    return jwt.decode(token, get_settings().TILER_TOKEN_SECRET, algorithms=[ALGORITHM])

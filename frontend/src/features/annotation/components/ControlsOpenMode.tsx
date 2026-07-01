@@ -517,8 +517,22 @@ const OpenModeControls = () => {
                 </kbd>{' '}
                 + drag to move the whole feature.
               </p>
+              <p>
+                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
+                  Ctrl
+                </kbd>{' '}
+                + click or{' '}
+                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
+                  Shift
+                </kbd>{' '}
+                + drag to select multiple.
+              </p>
               <p className="text-neutral-500">
-                Save, delete, or press{' '}
+                Press{' '}
+                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
+                  Delete
+                </kbd>{' '}
+                to remove the selection, or{' '}
                 <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
                   Esc
                 </kbd>{' '}

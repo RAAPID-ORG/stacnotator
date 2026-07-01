@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
@@ -70,7 +70,7 @@ class AnnotationOut(AnnotationFromTaskOut):
 
 class AnnotationTaskAssignmentOut(BaseModel):
     user_id: UUID
-    status: str
+    status: Literal["pending", "done", "skipped"]
     is_review: bool = False
     claimed_at: datetime | None = None
     user_email: str | None = None
@@ -131,7 +131,9 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
-    task_status: str = TASK_STATUS_PENDING
+    task_status: Literal["pending", "partial", "done", "skipped", "conflicting"] = (
+        TASK_STATUS_PENDING
+    )
     geometry: GeometryOut
     assignments: list[AnnotationTaskAssignmentOut] | None
     annotations: list[AnnotationFromTaskOut]
@@ -212,15 +214,10 @@ class AnnotationTaskListOut(BaseModel):
     tasks: list[AnnotationTaskOut]
 
 
-class AnnotationsListOut(BaseModel):
-    campaign_id: int
-    annotations: list[AnnotationOut]
-
-
 class AnnotationFromTaskCreate(BaseModel):
     label_id: int | None
     comment: str | None
-    confidence: int | None
+    confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
     flag_comment: str | None = None
@@ -249,7 +246,7 @@ class AnnotationCreate(BaseModel):
     label_id: int
     comment: str | None
     geometry_wkt: str  # Geometry in WKT format
-    confidence: int | None
+    confidence: int | None = Field(default=None, ge=0, le=10)
     flagged_for_review: bool | None = None
     flag_comment: str | None = None
     imagery_slice_id: int | None = None
@@ -270,7 +267,7 @@ class AnnotationUpdate(BaseModel):
     label_id: int | None
     comment: str | None
     geometry_wkt: str | None  # Geometry in WKT format
-    confidence: int | None = None
+    confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None
     flagged_for_review: bool | None = None
     flag_comment: str | None = None

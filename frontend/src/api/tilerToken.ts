@@ -11,14 +11,23 @@ import { getTilerToken as refreshTilerCookie } from './client';
 
 let cookieExpiry = 0;
 let inflight: Promise<void> | null = null;
+// The campaign id the current cookie was last minted for. The cookie is a snapshot of the
+// user's campaigns at mint time, so entering a campaign we haven't minted for since (just
+// created / just joined) needs a re-mint, else the tiler 403s on that campaign's tiles.
+let mintedForCampaign: string | null = null;
 
 // Refresh 60s before actual expiry to avoid races.
 const REFRESH_BUFFER_S = 60;
 
-/** Ensure a fresh tiler cookie is set. Cheap/cached while the current cookie is valid. */
-export async function ensureTilerSession(): Promise<void> {
+/** Ensure a fresh tiler cookie is set. Cheap/cached while the current cookie is valid.
+ *  Pass `campaignId` on campaign entry to also re-mint when switching to a campaign not
+ *  covered by the current cookie. Many windows entering the same campaign dedupe to one
+ *  mint (via inflight + mintedForCampaign). */
+export async function ensureTilerSession(campaignId?: string): Promise<void> {
   const now = Date.now() / 1000;
-  if (now < cookieExpiry - REFRESH_BUFFER_S) {
+  const stale = now >= cookieExpiry - REFRESH_BUFFER_S;
+  const campaignChanged = campaignId != null && campaignId !== mintedForCampaign;
+  if (!stale && !campaignChanged) {
     return;
   }
   if (inflight) return inflight;
@@ -31,6 +40,7 @@ export async function ensureTilerSession(): Promise<void> {
         throw new Error('Failed to refresh tiler session');
       }
       cookieExpiry = Date.now() / 1000 + body.expires_in;
+      if (campaignId != null) mintedForCampaign = campaignId;
     } finally {
       inflight = null;
     }
@@ -42,4 +52,5 @@ export async function ensureTilerSession(): Promise<void> {
 export function clearTilerSession(): void {
   cookieExpiry = 0;
   inflight = null;
+  mintedForCampaign = null;
 }

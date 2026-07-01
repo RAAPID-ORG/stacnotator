@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
 import { formatTaskStatus, TASK_STATUS_CONFIG } from '~/shared/utils/taskStatus';
-import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { useLeafletMap } from '../review/useLeafletMap';
 
 interface TaskLocationsMapProps {
   tasks: AnnotationTaskOut[];
@@ -17,56 +17,8 @@ interface TaskLocationsMapProps {
 }
 
 export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox }) => {
-  const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const [mapReady, setMapReady] = useState(false);
-
-  // Initialize map
-  useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-
-    const map = L.map(containerRef.current, {
-      center: [(bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2],
-      zoom: 10,
-      zoomControl: true,
-      attributionControl: true,
-    });
-
-    // Add CartoDB basemap
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="http://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: ['a', 'b', 'c', 'd'],
-      maxZoom: 19,
-    }).addTo(map);
-
-    // Fit to bbox
-    const bounds = L.latLngBounds([bbox.south, bbox.west], [bbox.north, bbox.east]);
-    map.fitBounds(bounds, { padding: [20, 20] });
-
-    // Add bbox rectangle
-    L.rectangle(bounds, {
-      color: '#326247',
-      weight: 2,
-      fillOpacity: 0.05,
-      dashArray: '5, 5',
-    }).addTo(map);
-
-    // Create markers layer group
-    markersLayerRef.current = L.layerGroup().addTo(map);
-
-    mapRef.current = map;
-    setMapReady(true);
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        setMapReady(false);
-      }
-    };
-  }, [bbox.west, bbox.south, bbox.east, bbox.north]);
+  const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
 
   // Update markers when tasks change
   useEffect(() => {
@@ -81,7 +33,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       if (!centroid) return;
       const coords: [number, number] = [centroid.lat, centroid.lon];
 
-      const taskStatus = task.task_status as TaskStatus;
+      const taskStatus = task.task_status ?? 'pending';
       const statusColor = TASK_STATUS_CONFIG[taskStatus]?.color ?? '#6B7280';
 
       const icon = L.divIcon({
@@ -113,11 +65,12 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
 
       markersLayerRef.current?.addLayer(marker);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mapRef/markersLayerRef are stable refs returned from useLeafletMap
   }, [tasks, mapReady]);
 
   const taskCounts = tasks.reduce(
     (acc, task) => {
-      const status = task.task_status as TaskStatus;
+      const status = task.task_status ?? 'pending';
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     },

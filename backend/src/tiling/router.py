@@ -1,8 +1,10 @@
-import hashlib
-import json
+import contextlib
+import ipaddress
 import logging
+import socket
 import time
-from urllib.parse import urlencode
+from collections import OrderedDict
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,13 +14,11 @@ from src.auth.dependencies import require_approved_user
 from src.auth.models import User
 from src.tiling import registry
 from src.tiling.schemas import (
-    MosaicRegisterRequest,
-    MosaicRegisterResponse,
     SearchRequest,
     SearchResponse,
 )
-from src.tiling.stac_client import get_client, search_items
 from src.tiling.stac_client import list_collections as _list_collections
+from src.tiling.stac_client import search_items
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
@@ -40,8 +40,78 @@ _catalogs_cache: dict = {"data": None, "expires": 0}
 # Per-catalog_url collections cache. MPC's /collections can time out for
 # 20+ seconds - cache aggressively and serve stale on upstream failure so
 # one bad upstream response doesn't block the user.
-_collections_cache: dict[str, dict] = {}
+_COLLECTIONS_CACHE_MAX = 256
+_collections_cache: OrderedDict[str, dict] = OrderedDict()
 COLLECTIONS_CACHE_TTL = 86400  # 1 day
+
+
+def _cache_set(key: str, value: dict) -> None:
+    if key in _collections_cache:
+        _collections_cache.move_to_end(key)
+    _collections_cache[key] = value
+    while len(_collections_cache) > _COLLECTIONS_CACHE_MAX:
+        _collections_cache.popitem(last=False)
+
+
+def _cache_get(key: str) -> dict | None:
+    return _collections_cache.get(key)
+
+
+_INTERNAL_IP_ERROR = "Catalog URL host is not permitted"
+
+
+def _trusted_catalog_origins() -> frozenset[str]:
+    """Origins always allowed regardless of resolved IP (trusted config)."""
+    origins: set[str] = set()
+    candidate_urls = [MPC_API_URL]
+    with contextlib.suppress(Exception):
+        candidate_urls += [
+            t.stac_url for t in registry.all_tilers() if getattr(t, "stac_url", None)
+        ]
+    for u in candidate_urls:
+        p = urlparse(u)
+        origins.add(f"{p.scheme}://{p.netloc}".rstrip("/"))
+    return frozenset(origins)
+
+
+def _is_internal_ip(ip_str: str) -> bool:
+    addr = ipaddress.ip_address(ip_str)
+    return (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    )
+
+
+def _assert_catalog_url_safe(catalog_url: str) -> None:
+    """Block SSRF: reject catalog URLs whose host resolves to an internal address.
+
+    Public hosts are allowed (browsing arbitrary public STAC catalogs is a core
+    feature). Trusted configured origins (MPC, configured tilers) are always allowed.
+    """
+    parsed = urlparse(catalog_url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Catalog URL must be http or https")
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="Catalog URL has no host")
+
+    origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    if origin in _trusted_catalog_origins():
+        return
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as e:
+        raise HTTPException(status_code=400, detail="Catalog host could not be resolved") from e
+
+    for info in infos:
+        if _is_internal_ip(info[4][0]):
+            raise HTTPException(status_code=403, detail=_INTERNAL_IP_ERROR)
 
 
 @router.get("/catalogs")
@@ -136,8 +206,9 @@ def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
     Serves stale data on upstream failure so a transient MPC timeout
     doesn't block the user.
     """
+    _assert_catalog_url_safe(catalog_url)
     now = time.time()
-    entry = _collections_cache.get(catalog_url)
+    entry = _cache_get(catalog_url)
     if entry and now < entry["expires"]:
         age = now - (entry["expires"] - COLLECTIONS_CACHE_TTL)
         logger.info(
@@ -172,13 +243,14 @@ def get_collections(catalog_url: str = Query(..., description="STAC API URL")):
         len(data),
         elapsed,
     )
-    _collections_cache[catalog_url] = {"data": data, "expires": now + COLLECTIONS_CACHE_TTL}
+    _cache_set(catalog_url, {"data": data, "expires": now + COLLECTIONS_CACHE_TTL})
     return data
 
 
 @router.post("/search", response_model=SearchResponse)
 def search(request: SearchRequest):
     """Search STAC items in a catalog collection."""
+    _assert_catalog_url_safe(request.catalog_url)
     try:
         items = search_items(
             catalog_url=request.catalog_url,
@@ -290,158 +362,6 @@ def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> st
 
     max_items = viz_params.get("max_items")
     if max_items is not None:
-        parts.append(("max_items", str(min(int(max_items), 10))))
+        parts.append(("max_items", str(max(1, min(int(max_items), 10)))))
 
     return urlencode(parts)
-
-
-def _extract_cloud_cover_from_filter(cql_filter: dict) -> float | None:
-    """Extract eo:cloud_cover limit from a CQL2 filter tree, if present."""
-    op = cql_filter.get("op", "")
-    args = cql_filter.get("args", [])
-
-    # Direct: {"op": "<=", "args": [{"property": "eo:cloud_cover"}, 90]}
-    if (
-        op == "<="
-        and len(args) == 2
-        and isinstance(args[0], dict)
-        and args[0].get("property") == "eo:cloud_cover"
-    ):
-        return float(args[1])
-
-    # Wrapped in "or" with isNull (our pattern):
-    # {"op": "or", "args": [{"op": "isNull", ...}, {"op": "<=", ...}]}
-    if op == "or":
-        for arg in args:
-            result = _extract_cloud_cover_from_filter(arg)
-            if result is not None:
-                return result
-
-    # Inside "and":
-    if op == "and":
-        for arg in args:
-            result = _extract_cloud_cover_from_filter(arg)
-            if result is not None:
-                return result
-
-    return None
-
-
-def register_mosaic_sync(
-    catalog_url: str,
-    collection_id: str,
-    bbox: list[float] | None,
-    datetime_range: str,
-    max_items: int = 500,
-    search_query: dict | None = None,
-) -> dict:
-    """Register a mosaic from STAC search results (sync version).
-
-    search_query is the CQL2-JSON query built by the frontend.
-    Returns dict with mosaic_id, item_count, assets, item_refs.
-    Raises ValueError if no items found.
-    """
-    client = get_client(catalog_url)
-
-    # Check if the catalog supports CQL2 filtering
-    try:
-        conforms_to = (
-            client.conforms_to()
-            if callable(getattr(client, "conforms_to", None))
-            else (getattr(client, "conforms_to", None) or [])
-        )
-    except Exception:
-        conforms_to = []
-    supports_filter = any("filter" in c.lower() for c in (conforms_to or []))
-
-    search_kwargs: dict = {
-        "max_items": max_items,
-        "collections": (search_query or {}).get("collections", [collection_id]),
-    }
-    if bbox:
-        search_kwargs["bbox"] = bbox
-    if datetime_range:
-        search_kwargs["datetime"] = datetime_range
-
-    cql_filter = (search_query or {}).get("filter")
-    if cql_filter and supports_filter:
-        search_kwargs["filter"] = cql_filter
-        search_kwargs["filter_lang"] = "cql2-json"
-    elif cql_filter and not supports_filter:
-        # Fallback: extract cloud cover from CQL2 filter into STAC query extension
-        cloud_limit = _extract_cloud_cover_from_filter(cql_filter)
-        if cloud_limit is not None:
-            search_kwargs["query"] = {"eo:cloud_cover": {"lte": cloud_limit}}
-
-    # Pass sortby if provided (STAC API Sort Extension)
-    sortby = (search_query or {}).get("sortby")
-    if sortby:
-        search_kwargs["sortby"] = sortby
-
-    search = client.search(**search_kwargs)
-    items = list(search.items())
-
-    if not items:
-        raise HTTPException(
-            status_code=400, detail=f"No items found for {collection_id} in {datetime_range}"
-        )
-
-    item_refs = []
-    for item in items:
-        href = item.get_self_href()
-        item_bbox = list(item.bbox) if item.bbox else None
-        item_dt = item.datetime.isoformat() if item.datetime else None
-        cloud_cover = item.properties.get("eo:cloud_cover")
-        if href and item_bbox:
-            item_refs.append(
-                {
-                    "href": href,
-                    "bbox": item_bbox,
-                    "id": item.id,
-                    "datetime": item_dt,
-                    "cloud_cover": cloud_cover,
-                    "stac_item": item.to_dict(),
-                }
-            )
-
-    if not item_refs:
-        raise HTTPException(status_code=400, detail="No items with valid self_href and bbox")
-
-    sample_item = items[0]
-    assets_info = {}
-    for key, asset in sample_item.assets.items():
-        assets_info[key] = {
-            "title": asset.title or key,
-            "type": asset.media_type or "",
-            "roles": asset.roles or [],
-        }
-
-    key_data = json.dumps(
-        {
-            "catalog_url": catalog_url,
-            "collection_id": collection_id,
-            "bbox": bbox,
-            "datetime_range": datetime_range,
-        },
-        sort_keys=True,
-    )
-    mosaic_id = hashlib.sha256(key_data.encode()).hexdigest()[:16]
-
-    return {
-        "mosaic_id": mosaic_id,
-        "item_count": len(item_refs),
-        "assets": assets_info,
-        "item_refs": item_refs,
-    }
-
-
-@router.post("/mosaic/register", response_model=MosaicRegisterResponse)
-def register_mosaic(request: MosaicRegisterRequest):
-    """Create a mosaic from STAC search results for a single time window."""
-    return register_mosaic_sync(
-        catalog_url=request.catalog_url,
-        collection_id=request.collection_id,
-        bbox=request.bbox,
-        datetime_range=request.datetime_range,
-        max_items=request.max_items or 500,
-    )

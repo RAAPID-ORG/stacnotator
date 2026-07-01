@@ -1,6 +1,5 @@
 @import 'tailwindcss';
 @import 'leaflet/dist/leaflet.css';
-@import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
 
 /* `mobile:` matches touch devices regardless of orientation - phones in
    landscape still get the compact UI. `desktop:` is its inverse. Prefer these
