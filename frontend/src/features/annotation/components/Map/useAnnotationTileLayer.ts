@@ -43,6 +43,12 @@ const TILE_PROP_LABEL = 'label_id';
 const HIGHLIGHT_Z_INDEX = ANNOTATION_LAYER_Z_INDEX + 1;
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
 
+// Don't request annotation tiles when zoomed out: a whole-region view of dense
+// campaigns is a multi-MB, CPU-heavy MVT query. The backend also floors this
+// (ANNOTATION_TILE_MIN_ZOOM), so the layer is hidden below it either way; this just
+// avoids firing empty requests. OL's `minZoom` is exclusive, hence the -1.
+const ANNOTATION_TILE_MIN_ZOOM = 11;
+
 /** Resolve each campaign label to the paint the tiles use, honouring overrides. */
 function resolveTileLabelStyles(
   campaign: CampaignOutFull,
@@ -127,6 +133,7 @@ export function createAnnotationDisplayLayer(
   const layer = new VectorTileLayer({
     source: createAnnotationTileSource(campaign.id, getVersion),
     zIndex: ANNOTATION_LAYER_Z_INDEX,
+    minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
     // Re-render during zoom/pan so strokes stay crisp instead of the prior
     // zoom level's tiles being scaled up (which makes polygons "pulse").
     updateWhileAnimating: true,

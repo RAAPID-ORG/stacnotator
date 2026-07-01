@@ -40,6 +40,23 @@ class Settings(BaseSettings):
     # the Postgres server's max_connections. Lower these on small DB SKUs.
     DB_POOL_SIZE: int = 15
     DB_MAX_OVERFLOW: int = 20
+    # Fail a request fast if no pooled connection frees up in this many seconds,
+    # instead of hanging (and piling up) when the DB is saturated.
+    DB_POOL_TIMEOUT: int = 10
+    # Postgres reaps a connection left idle-in-transaction this long (ms), so a
+    # leaked session self-heals back into the pool instead of wedging it forever.
+    DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = 15000
+
+    # AnyIO threadpool size for sync routes. Must exceed (DB_POOL_SIZE +
+    # DB_MAX_OVERFLOW) so a sync `get_db` dependency's cleanup is never starved of a
+    # thread under load (which leaks the connection). The DB pool — not this — stays
+    # the hard cap on concurrent DB work, keeping small/burstable DBs safe.
+    THREAD_POOL_MAX: int = 96
+
+    # Below this zoom the annotation MVT endpoint returns an empty tile instead of
+    # encoding thousands of features (a whole-country view of dense parcels is a
+    # multi-MB, multi-hundred-ms query). Keeps low-zoom panning cheap and bounded.
+    ANNOTATION_TILE_MIN_ZOOM: int = 11
 
     ENVIRONMENT: str = "development"  # "development" | "production"
 
