@@ -66,24 +66,14 @@ export const CreateCampaignPage = () => {
     [validation]
   );
 
-  const currentStepConfig =
-    form.mode === 'tasks' || form.mode === 'open'
-      ? ([
-          { name: 'Campaign', component: 'StepCampaign' },
-          { name: 'Settings', component: 'StepSettings' },
-          { name: 'Imagery', component: 'StepImagery' },
-          { name: 'Annotation Views', component: 'StepViewLayout' },
-          { name: 'Time Series', component: 'StepAddTimeseries' },
-          { name: 'Create', component: 'StepReview' },
-        ] as const)
-      : ([
-          { name: 'Campaign', component: 'StepCampaign' },
-          { name: 'Settings', component: 'StepSettings' },
-          { name: 'Imagery', component: 'StepImagery' },
-          { name: 'Annotation Views', component: 'StepViewLayout' },
-          { name: 'Time Series', component: 'StepAddTimeseries' },
-          { name: 'Create', component: 'StepReview' },
-        ] as const);
+  const currentStepConfig = [
+    { name: 'Campaign', component: 'StepCampaign' },
+    { name: 'Settings', component: 'StepSettings' },
+    { name: 'Imagery', component: 'StepImagery' },
+    { name: 'Annotation Views', component: 'StepViewLayout' },
+    { name: 'Time Series', component: 'StepAddTimeseries' },
+    { name: 'Create', component: 'StepReview' },
+  ] as const;
 
   const totalSteps = currentStepConfig.length;
 

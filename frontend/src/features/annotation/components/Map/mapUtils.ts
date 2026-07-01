@@ -9,6 +9,9 @@ export const IMAGERY_CACHE_SIZE = 128;
 export const BASEMAP_CACHE_SIZE = 512;
 export const EXTENT_LAYER_Z_INDEX = 5;
 export const ANNOTATION_LAYER_Z_INDEX = 10;
+/** Marker set on the read-only annotation tile display layer so the editing
+ * layer's pointer hit-tests can target it. */
+export const ANNOTATION_TILE_LAYER_FLAG = 'isAnnotationTileLayer';
 
 export function createCrosshairElement(color: string = DEFAULT_CROSSHAIR_COLOR): HTMLDivElement {
   const half = CROSSHAIR_SIZE / 2;

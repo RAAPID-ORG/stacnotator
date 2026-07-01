@@ -10,11 +10,7 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-interface AnnotationDot {
-  lat: number;
-  lon: number;
-}
+import type { AnnotationDensityCell } from '~/api/client';
 
 interface MiniMapProps {
   center: [number, number]; // [lat, lon]
@@ -24,8 +20,10 @@ interface MiniMapProps {
   onViewportDrag?: (lat: number, lon: number) => void;
   /** When true (task mode), fit the campaign bbox on the minimap instead of the viewport. */
   fitBbox?: boolean;
-  /** Annotation locations to show as dots (open mode only). */
-  annotationDots?: AnnotationDot[];
+  /** Aggregated annotation density grid to show where annotations are (open
+   * mode). Each cell is drawn as an indicator scaled by its count, so the
+   * overview scales regardless of how many annotations exist. */
+  annotationDensity?: AnnotationDensityCell[];
 }
 
 // Custom icon for the center marker
@@ -239,9 +237,13 @@ const MiniMap: React.FC<MiniMapProps> = ({
   visibleBounds,
   onViewportDrag,
   fitBbox,
-  annotationDots,
+  annotationDensity,
 }) => {
   const [west, south, east, north] = bbox;
+  // Log-scaled radius so a few dense cells don't dwarf the sparse ones.
+  const maxLogCount = annotationDensity?.length
+    ? Math.max(...annotationDensity.map((c) => Math.log1p(c.count)))
+    : 0;
   // Prefer viewport center over campaign bbox center
   const mapCenter: [number, number] = visibleBounds
     ? [(visibleBounds[1] + visibleBounds[3]) / 2, (visibleBounds[0] + visibleBounds[2]) / 2]
@@ -320,20 +322,24 @@ const MiniMap: React.FC<MiniMapProps> = ({
           <ClickToPan onViewportDrag={onViewportDrag} visibleBounds={visibleBounds} />
         )}
 
-        {/* Annotation dots (open mode) */}
-        {annotationDots?.map((dot, i) => (
-          <CircleMarker
-            key={i}
-            center={[dot.lat, dot.lon]}
-            radius={3}
-            pathOptions={{
-              color: 'rgb(220, 80, 60)',
-              fillColor: 'rgb(220, 80, 60)',
-              fillOpacity: 0.7,
-              weight: 1,
-            }}
-          />
-        ))}
+        {/* Annotation density indicators (open mode): one marker per grid
+            cell, sized and shaded by how many annotations it holds. */}
+        {annotationDensity?.map((cell, i) => {
+          const t = maxLogCount > 0 ? Math.log1p(cell.count) / maxLogCount : 0;
+          return (
+            <CircleMarker
+              key={i}
+              center={[cell.lat, cell.lon]}
+              radius={2 + t * 6}
+              pathOptions={{
+                color: 'rgb(220, 80, 60)',
+                fillColor: 'rgb(220, 80, 60)',
+                fillOpacity: 0.25 + t * 0.5,
+                weight: 0,
+              }}
+            />
+          );
+        })}
 
         {/* Center marker (only in task mode when no visible bounds) */}
         {!visibleBounds && <Marker position={center} icon={circleIcon} />}

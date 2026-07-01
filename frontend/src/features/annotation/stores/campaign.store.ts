@@ -163,10 +163,13 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const pinnedValid = windowRefs.some((r) => r.collection_id === pinnedStart);
       const activeCollectionId = (pinnedValid ? pinnedStart : windowRefs[0]?.collection_id) ?? null;
 
-      const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
-        campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-      const viewLayout = (firstView?.personal_canvas_layout?.layout_data ||
-        firstView?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+      const mainLayout: Layout =
+        campaign.personal_main_canvas_layout?.layout_data ||
+        campaign.default_main_canvas_layout?.layout_data ||
+        [];
+      const viewLayout: Layout | undefined =
+        firstView?.personal_canvas_layout?.layout_data ||
+        firstView?.default_canvas_layout?.layout_data;
       const mergedLayout = buildMergedLayout(mainLayout, viewLayout, firstView);
 
       // Map initial state for open mode
@@ -193,11 +196,14 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         isCampaignAdmin,
       });
 
-      // Initialize sibling stores
+      // Initialize sibling stores. The centre crosshair is on by default for
+      // task mode (point placement) but off for open mode, where free-form
+      // drawing doesn't need it; the user can still toggle it with O.
       useMapStore.setState({
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
+        showCrosshair: campaign.mode !== 'open',
       });
       // Use the action (not setState) so the reducer resolves the default
       // collection's cover_slice_index into activeSliceIndex.
@@ -206,9 +212,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
 
-      // Load open mode annotations
+      // Open-mode annotations are served as vector tiles in the viewport, not
+      // loaded upfront. Seed the tile cache-busting version from the campaign.
       if (campaign.mode === 'open') {
-        await useAnnotationStore.getState().loadAnnotations(campaignId);
+        useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
       }
     } catch (error) {
       handleError(error, 'Failed to load campaign');
@@ -223,10 +230,12 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const view = campaign.imagery_views.find((v) => v.id === id);
 
     // Update layout
-    const mainLayout = (campaign.personal_main_canvas_layout?.layout_data ||
-      campaign.default_main_canvas_layout?.layout_data) as unknown as Layout;
-    const viewLayout = (view?.personal_canvas_layout?.layout_data ||
-      view?.default_canvas_layout?.layout_data) as unknown as Layout | undefined;
+    const mainLayout: Layout =
+      campaign.personal_main_canvas_layout?.layout_data ||
+      campaign.default_main_canvas_layout?.layout_data ||
+      [];
+    const viewLayout: Layout | undefined =
+      view?.personal_canvas_layout?.layout_data || view?.default_canvas_layout?.layout_data;
     const mergedLayout = buildMergedLayout(mainLayout, viewLayout, view);
 
     // Save current view's map state before switching

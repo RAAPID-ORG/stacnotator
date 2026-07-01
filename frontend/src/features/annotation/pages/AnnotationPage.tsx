@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
@@ -9,6 +9,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { hasSeenTour, usePreferencesStore } from '../stores/preferences.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
+import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
@@ -18,7 +19,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
 
 export const AnnotationPage = () => {
-  const { campaignId } = useParams<{ campaignId: string }>();
+  const campaignId = useCampaignIdParam();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -35,7 +36,6 @@ export const AnnotationPage = () => {
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
-  const showAlert = useLayoutStore((state) => state.showAlert);
   const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
@@ -49,19 +49,12 @@ export const AnnotationPage = () => {
 
   const showContent = hasBeenReady;
 
-  const campaignIdNumber = Number(campaignId);
-
   // Keyboard shortcuts
   useAnnotationKeyboard({ commentInputRef });
   useOpenModeKeyboard();
 
   // Load campaign
   useEffect(() => {
-    if (!campaignId || Number.isNaN(campaignIdNumber)) {
-      showAlert('Invalid campaign ID', 'error');
-      return;
-    }
-
     const taskIdParam = searchParams.get('task');
     const reviewParam = searchParams.get('review');
     const initialTaskId = taskIdParam ? Number(taskIdParam) : undefined;
@@ -76,7 +69,7 @@ export const AnnotationPage = () => {
     const loadData = async () => {
       try {
         await loadCampaign(
-          campaignIdNumber,
+          campaignId,
           initialTaskId && !Number.isNaN(initialTaskId) ? initialTaskId : undefined,
           isReviewMode
         );
@@ -97,7 +90,7 @@ export const AnnotationPage = () => {
       useMapStore.getState().reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaignIdNumber]);
+  }, [campaignId]);
 
   // Breadcrumbs
   useEffect(() => {

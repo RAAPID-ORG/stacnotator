@@ -1,4 +1,4 @@
-import type { ItemSortOption } from './types';
+import { isItemSortOption, type ItemSortOption } from './types';
 import { Select } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { StacQueryEditor } from './StacQueryEditor';
@@ -55,7 +55,9 @@ export const CoverSearchParams = ({
         <Select
           size="sm"
           value={itemSort}
-          onChange={(e) => onItemSortChange(e.target.value as ItemSortOption)}
+          onChange={(e) => {
+            if (isItemSortOption(e.target.value)) onItemSortChange(e.target.value);
+          }}
         >
           <option value="date_desc">Date (newest first)</option>
           <option value="date_asc">Date (oldest first)</option>

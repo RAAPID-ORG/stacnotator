@@ -1,7 +1,7 @@
 """add custom_maps table
 
 Revision ID: t1custommaps
-Revises: q5apikeyenc
+Revises: t2annotver
 Create Date: 2026-06-29 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "t1custommaps"
-down_revision: str | Sequence[str] | None = "q5apikeyenc"
+down_revision: str | Sequence[str] | None = "t2annotver"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

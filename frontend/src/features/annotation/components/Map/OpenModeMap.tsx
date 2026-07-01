@@ -20,9 +20,8 @@ import {
 } from 'react';
 import type OLMap from 'ol/Map';
 import Overlay from 'ol/Overlay';
-import { fromLonLat, toLonLat } from 'ol/proj';
-import { createEmpty, extend, isEmpty } from 'ol/extent';
-import { GeoJSON as OLGeoJSON } from 'ol/format';
+import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
+import { isEmpty } from 'ol/extent';
 
 import BaseMap from './BaseMap';
 import DrawingLayer from './DrawingLayer';
@@ -30,13 +29,19 @@ import { LayerManager } from './layerManager';
 import type { Layer } from './Layer';
 import { PAN_DISTANCE_PIXELS, ZOOM_ANIMATION_MS, PAN_ANIMATION_MS } from './mapUtils';
 
-import type { CampaignOutFull } from '~/api/client';
-import { convertWKTToGeoJSON } from '~/shared/utils/utility';
-import { useAnnotationStore } from '../../stores/annotation.store';
+import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
 import { useCustomMapLayer } from './useCustomMapLayer';
+import { useAnnotationTileLayer } from './useAnnotationTileLayer';
+
+// Furthest the open-mode map may zoom out (~regional / tens-of-km view). Kept a
+// few levels below per-field detail so users can pull back for context, but not
+// so far that the map hits the downsampled, feature-dense low-zoom tiles. The
+// wider distribution is served by the minimap density indicators. Lower this
+// (e.g. 7) to allow zooming out further.
+const OPEN_MODE_MIN_ZOOM = 8;
 
 interface OpenModeMapProps {
   campaign: CampaignOutFull;
@@ -112,73 +117,41 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
     });
 
     useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
+    // Mount the read-only annotation vector-tile display + highlight layers.
+    useAnnotationTileLayer(olMap, campaign);
 
     // Imperative handle: fitAnnotations
-
-    const geoJsonFormat = useRef(new OLGeoJSON());
-
-    const doFitAnnotations = useCallback(() => {
+    //
+    // When navigating to a specific annotation, fit to that nav item's bbox.
+    // Otherwise fit to the whole campaign's extent (fetched on demand, never by
+    // loading every geometry into the client).
+    const doFitAnnotations = useCallback(async () => {
       const map = mapRef.current;
       if (!map) return;
 
-      const store = useAnnotationStore.getState();
-      const { currentAnnotationIndex } = store;
+      const fitBbox4326 = (
+        bbox: [number, number, number, number],
+        padding: number,
+        maxZoom = 18
+      ) => {
+        const ext = transformExtent(bbox, 'EPSG:4326', 'EPSG:3857');
+        if (isEmpty(ext)) return false;
+        map.getView().fit(ext, {
+          padding: [padding, padding, padding, padding],
+          maxZoom,
+          duration: 400,
+        });
+        return true;
+      };
 
-      // If navigating to a specific annotation, fit only that one
-      if (currentAnnotationIndex >= 0) {
-        const sorted = store.getSortedAnnotations();
-        const target = sorted[currentAnnotationIndex];
-        if (target) {
-          const geoJSON = convertWKTToGeoJSON(target.geometry.geometry);
-          if (geoJSON) {
-            try {
-              const geom = geoJsonFormat.current.readGeometry(geoJSON, {
-                featureProjection: 'EPSG:3857',
-              });
-              const ext = geom.getExtent();
-              if (!isEmpty(ext)) {
-                map.getView().fit(ext, {
-                  padding: [100, 100, 100, 100],
-                  maxZoom: 18,
-                  duration: 400,
-                });
-                return;
-              }
-            } catch {
-              // fall through to fit all
-            }
-          }
-        }
+      try {
+        const response = await getAnnotationsExtent({ path: { campaign_id: campaign.id } });
+        const bbox = response.data?.bbox;
+        if (bbox) fitBbox4326(bbox, 60);
+      } catch {
+        // no annotations / fit unavailable
       }
-
-      const annotations = store.annotations;
-      if (annotations.length === 0) return;
-
-      const combined = createEmpty();
-      let hasExtent = false;
-
-      for (const ann of annotations) {
-        const geoJSON = convertWKTToGeoJSON(ann.geometry.geometry);
-        if (!geoJSON) continue;
-        try {
-          const geom = geoJsonFormat.current.readGeometry(geoJSON, {
-            featureProjection: 'EPSG:3857',
-          });
-          extend(combined, geom.getExtent());
-          hasExtent = true;
-        } catch {
-          // skip malformed geometry
-        }
-      }
-
-      if (!hasExtent || isEmpty(combined)) return;
-
-      map.getView().fit(combined, {
-        padding: [60, 60, 60, 60],
-        maxZoom: 18,
-        duration: 400,
-      });
-    }, []);
+    }, [campaign.id]);
 
     useImperativeHandle(
       ref,
@@ -299,6 +272,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
         <BaseMap
           center={initialCenter}
           zoom={initialZoom}
+          minZoom={OPEN_MODE_MIN_ZOOM}
           onMapReady={(map) => {
             mapRef.current = map;
             setOlMap(map);

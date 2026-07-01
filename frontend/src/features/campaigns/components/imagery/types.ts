@@ -52,7 +52,10 @@ export interface NamedVizParams {
   vizParams: VizParams;
 }
 
-export type ItemSortOption = 'date_desc' | 'date_asc' | 'cloud_cover_asc';
+export const ITEM_SORT_OPTIONS = ['date_desc', 'date_asc', 'cloud_cover_asc'] as const;
+export type ItemSortOption = (typeof ITEM_SORT_OPTIONS)[number];
+export const isItemSortOption = (v: string): v is ItemSortOption =>
+  (ITEM_SORT_OPTIONS as readonly string[]).includes(v);
 
 export interface StacBrowserCollectionData {
   type: 'stac_browser';

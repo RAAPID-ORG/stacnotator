@@ -9,23 +9,18 @@ import Overlay from 'ol/Overlay';
 import { fromLonLat } from 'ol/proj';
 import { defaults as defaultInteractions, MouseWheelZoom } from 'ol/interaction';
 import { platformModifierKeyOnly } from 'ol/events/condition';
-import { Style, Fill, Stroke, Circle as CircleStyle } from 'ol/style';
+import { Style, Fill, Stroke } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
 import type OLFeature from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 import 'ol/ol.css';
-import {
-  createCrosshairElement,
-  updateCrosshairColor,
-  hexToRgba,
-  EXTENT_LAYER_Z_INDEX,
-} from './mapUtils';
+import { createCrosshairElement, updateCrosshairColor, EXTENT_LAYER_Z_INDEX } from './mapUtils';
 
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore } from '../../stores/map.store';
-import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
-import { convertWKTToGeoJSON } from '~/shared/utils/utility';
+import { usePreferencesStore } from '../../stores/preferences.store';
+import { createAnnotationDisplayLayer } from './useAnnotationTileLayer';
 import { crossOriginForTile, tileLoadImagery } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
@@ -65,8 +60,6 @@ interface WindowMapProps {
 }
 
 const geoJsonFormat = new OLGeoJSON();
-const PROP_ANNOTATION_ID = 'annotationId';
-const PROP_LABEL_ID = 'labelId';
 
 const ZOOM_HINT = 'Ctrl/⌘ + scroll to zoom';
 
@@ -97,10 +90,12 @@ const WindowMap = ({
     onEmptyTilesRef.current = onEmptyTiles;
   }, [onEmptyTiles]);
 
-  // Annotation vector layer
-  const annotations = useAnnotationStore((state) => state.annotations);
+  // Annotations render via the shared read-only vector-tile display layer.
   const campaign = useCampaignStore((state) => state.campaign);
-  const annotationSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
+  const annotationStyleOverrides = usePreferencesStore((state) => state.annotationStyles);
+  const annotationTileLayerRef = useRef<ReturnType<typeof createAnnotationDisplayLayer> | null>(
+    null
+  );
   const extentSourceRef = useRef<VectorSource<OLFeature<Geometry>> | null>(null);
 
   // Wheel zoom is gated behind the platform modifier so plain scroll pages the
@@ -148,13 +143,16 @@ const WindowMap = ({
     });
     tileLayerRef.current = tileLayer;
 
-    // Annotation vector layer - read-only, synced from store
-    const annotationSource = new VectorSource<OLFeature<Geometry>>();
-    annotationSourceRef.current = annotationSource;
-    const annotationLayer = new VectorLayer({
-      source: annotationSource,
-      zIndex: 10,
-    });
+    // Annotations: read-only vector-tile display layer (same tiles as the main
+    // map). Built only once campaign data is available.
+    const annotationLayer = campaign
+      ? createAnnotationDisplayLayer(
+          campaign,
+          annotationStyleOverrides,
+          () => useAnnotationStore.getState().tileVersion
+        )
+      : null;
+    annotationTileLayerRef.current = annotationLayer;
 
     // Sample extent vector layer
     const extentSource = new VectorSource<OLFeature<Geometry>>();
@@ -170,7 +168,7 @@ const WindowMap = ({
 
     const map = new OLMap({
       target: containerRef.current,
-      layers: [tileLayer, annotationLayer, extentLayer],
+      layers: [tileLayer, ...(annotationLayer ? [annotationLayer] : []), extentLayer],
       maxTilesLoading: 4, // small - windows only load what's visible, main map gets priority
       view: new View({
         center: fromLonLat([initialCenter[1], initialCenter[0]]),
@@ -216,7 +214,7 @@ const WindowMap = ({
       map.setTarget(undefined);
       mapRef.current = null;
       tileLayerRef.current = null;
-      annotationSourceRef.current = null;
+      annotationTileLayerRef.current = null;
       extentSourceRef.current = null;
       overlayRef.current = null;
       overlayElRef.current = null;
@@ -298,68 +296,17 @@ const WindowMap = ({
     });
   }, [follow]);
 
-  // Sync annotations into the vector source
-  // Incremental update - same pattern as DrawingLayer - to avoid flicker.
+  // Refresh the window's annotation tiles after an edit (bumped tileVersion).
+  const tileVersion = useAnnotationStore((state) => state.tileVersion);
   useEffect(() => {
-    const source = annotationSourceRef.current;
-    if (!source) return;
+    annotationTileLayerRef.current?.getSource()?.refresh();
+  }, [tileVersion]);
 
-    const extendedLabels = campaign ? extendLabelsWithMetadata(campaign.settings.labels) : [];
-
-    const existing = new Map<number, OLFeature<Geometry>>();
-    for (const f of source.getFeatures()) {
-      existing.set(f.get(PROP_ANNOTATION_ID) as number, f);
-    }
-
-    const incomingIds = new Set<number>();
-
-    for (const ann of annotations) {
-      const geoJSON = convertWKTToGeoJSON(ann.geometry.geometry);
-      if (!geoJSON) continue;
-
-      incomingIds.add(ann.id);
-      const label = extendedLabels.find((l) => l.id === ann.label_id);
-      const color = label?.color ?? '#3b82f6';
-      const isLine = label?.geometry_type === 'line';
-      const fillOpacity = 0.2;
-      const style = new Style({
-        fill: new Fill({ color: hexToRgba(color, fillOpacity) }),
-        stroke: new Stroke({ color, width: isLine ? 3 : 2 }),
-        image: new CircleStyle({
-          radius: 6,
-          fill: new Fill({ color: hexToRgba(color, 0.85) }),
-          stroke: new Stroke({ color: '#fff', width: 2 }),
-        }),
-      });
-
-      if (existing.has(ann.id)) {
-        const feat = existing.get(ann.id)!;
-        const existingGeom = geoJsonFormat.writeFeatureObject(feat, {
-          featureProjection: 'EPSG:3857',
-        });
-        if (JSON.stringify(existingGeom.geometry) !== JSON.stringify(geoJSON)) {
-          const newGeom = geoJsonFormat.readGeometry(geoJSON, {
-            featureProjection: 'EPSG:3857',
-          }) as Geometry;
-          feat.setGeometry(newGeom);
-        }
-        feat.setStyle(style);
-      } else {
-        const feat = geoJsonFormat.readFeature(
-          { type: 'Feature', geometry: geoJSON, properties: {} },
-          { featureProjection: 'EPSG:3857' }
-        ) as OLFeature<Geometry>;
-        feat.set(PROP_ANNOTATION_ID, ann.id);
-        feat.set(PROP_LABEL_ID, ann.label_id);
-        feat.setStyle(style);
-        source.addFeature(feat);
-      }
-    }
-
-    for (const [id, feat] of existing) {
-      if (!incomingIds.has(id)) source.removeFeature(feat);
-    }
-  }, [annotations, campaign]);
+  // Re-render when the edited feature changes so the window hides the same id.
+  const editingId = useAnnotationStore((state) => state.editingId);
+  useEffect(() => {
+    annotationTileLayerRef.current?.changed();
+  }, [editingId]);
 
   // Refocus to task center + initial zoom
   useEffect(() => {

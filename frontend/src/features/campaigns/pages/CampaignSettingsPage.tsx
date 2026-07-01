@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TaskAssignmentModal,
   type BulkAssignIntent,
@@ -18,6 +18,7 @@ import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/Ge
 import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
 import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
+import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
@@ -52,10 +53,22 @@ import {
   updateCampaignBbox,
 } from '~/api/client';
 
+const SETTINGS_TABS = [
+  'general',
+  'imagery',
+  'tasks',
+  'users',
+  'timeseries',
+  'annotations',
+] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+const isSettingsTab = (t: string | null): t is SettingsTab =>
+  (SETTINGS_TABS as readonly string[]).includes(t ?? '');
+
 export const CampaignSettingsPage = () => {
-  const { campaignId } = useParams<{ campaignId: string }>();
+  const campaignId = useCampaignIdParam();
   const navigate = useNavigate();
-  const numericCampaignId = Number(campaignId);
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,22 +76,9 @@ export const CampaignSettingsPage = () => {
   // Allow deep-linking into a specific tab via ?tab=tasks (used by the
   // "set up tasks" CTA on the annotator empty state).
   const [searchParams] = useSearchParams();
-  const initialTab = (() => {
-    const t = searchParams.get('tab');
-    if (
-      t === 'general' ||
-      t === 'imagery' ||
-      t === 'tasks' ||
-      t === 'users' ||
-      t === 'timeseries' ||
-      t === 'annotations'
-    )
-      return t;
-    return 'general';
-  })();
-  const [activeTab, setActiveTab] = useState<
-    'general' | 'imagery' | 'tasks' | 'users' | 'timeseries' | 'annotations'
-  >(initialTab);
+  const tabParam = searchParams.get('tab');
+  const initialTab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'general';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   // Form states
   const [campaignName, setCampaignName] = useState('');
@@ -118,7 +118,7 @@ export const CampaignSettingsPage = () => {
   // reflects server truth (and the controller clears its dirty flag).
   const handleImageryChanged = useCallback(async () => {
     try {
-      const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+      const { data } = await getCampaign({ path: { campaign_id: campaignId } });
       if (data) {
         setCampaign(data);
         setImagery(data.imagery_sources);
@@ -126,10 +126,10 @@ export const CampaignSettingsPage = () => {
     } catch {
       /* silent refresh */
     }
-  }, [numericCampaignId]);
+  }, [campaignId]);
 
   const imageryController = usePersistedController({
-    campaignId: numericCampaignId,
+    campaignId: campaignId,
     imagery,
     views: campaign?.imagery_views ?? [],
     basemaps: campaign?.basemaps ?? [],
@@ -155,12 +155,10 @@ export const CampaignSettingsPage = () => {
 
   // Load campaign data (core data only)
   useEffect(() => {
-    if (!campaignId || Number.isNaN(numericCampaignId)) return;
-
     const loadCampaign = async () => {
       try {
         setLoading(true);
-        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
         setCampaign(data!);
         setCampaignName(data!.name);
         setImagery(data!.imagery_sources);
@@ -173,7 +171,7 @@ export const CampaignSettingsPage = () => {
     };
 
     loadCampaign();
-  }, [campaignId, numericCampaignId]);
+  }, [campaignId]);
 
   // Poll while any background work is in progress
   const isAnyRegistering =
@@ -183,7 +181,7 @@ export const CampaignSettingsPage = () => {
     if (!campaign || !isAnyRegistering) return;
     const interval = setInterval(async () => {
       try {
-        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
         if (data) {
           setCampaign(data);
           setImagery(data.imagery_sources);
@@ -206,7 +204,7 @@ export const CampaignSettingsPage = () => {
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [isAnyRegistering, numericCampaignId, showAlert]);
+  }, [isAnyRegistering, campaignId, showAlert]);
 
   // Lazy load annotation tasks when tasks tab is active
   useEffect(() => {
@@ -215,7 +213,7 @@ export const CampaignSettingsPage = () => {
     const loadTasks = async () => {
       try {
         const { data } = await getAllAnnotationTasks({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
         });
         setAnnotationTasks(data!.tasks);
       } catch (err) {
@@ -224,7 +222,7 @@ export const CampaignSettingsPage = () => {
     };
 
     loadTasks();
-  }, [activeTab, numericCampaignId, annotationTasks.length]);
+  }, [activeTab, campaignId, annotationTasks.length]);
 
   // Load campaign users when users or tasks tab is active.
   // Re-fetches every time the tab becomes active so changes made in the
@@ -235,7 +233,7 @@ export const CampaignSettingsPage = () => {
     const loadUsers = async () => {
       try {
         const { data } = await getCampaignUsers({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
         });
         setCampaignUsers(data!.users);
       } catch (err) {
@@ -244,14 +242,14 @@ export const CampaignSettingsPage = () => {
     };
 
     loadUsers();
-  }, [activeTab, numericCampaignId]);
+  }, [activeTab, campaignId]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
     try {
       setSaving(true);
       await updateCampaignName({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: { name: campaignName },
       });
 
@@ -272,7 +270,7 @@ export const CampaignSettingsPage = () => {
     try {
       setSaving(true);
       await updateCampaignBbox({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: {
           bbox_west: campaign.settings.bbox_west,
           bbox_east: campaign.settings.bbox_east,
@@ -289,7 +287,7 @@ export const CampaignSettingsPage = () => {
 
       // Reload campaign to revert changes on error
       try {
-        const { data } = await getCampaign({ path: { campaign_id: numericCampaignId } });
+        const { data } = await getCampaign({ path: { campaign_id: campaignId } });
         setCampaign(data!);
       } catch (reloadErr) {
         handleError(reloadErr, 'Failed to reload campaign after error', { showUser: false });
@@ -307,7 +305,7 @@ export const CampaignSettingsPage = () => {
 
       await deleteTimeseries({
         path: {
-          campaign_id: numericCampaignId,
+          campaign_id: campaignId,
           timeseries_id: deleteConfirm.timeseriesId,
         },
       });
@@ -330,7 +328,7 @@ export const CampaignSettingsPage = () => {
       setSaving(true);
 
       await deleteCampaign({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
 
       showAlert('Campaign deleted successfully', 'success');
@@ -353,12 +351,12 @@ export const CampaignSettingsPage = () => {
 
       if (name.endsWith('.geojson') || name.endsWith('.json')) {
         await ingestAnnotationTasksFromGeojson({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
           body: { file: taskFile } as never,
         });
       } else {
         await ingestAnnotationTasksFromCsv({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
           body: { file: taskFile } as never,
         });
       }
@@ -368,7 +366,7 @@ export const CampaignSettingsPage = () => {
 
       // Reload annotation tasks
       const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(tasksData!.tasks);
     } catch (err) {
@@ -381,7 +379,7 @@ export const CampaignSettingsPage = () => {
   const reloadAnnotationTasks = async () => {
     try {
       const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(data!.tasks);
     } catch (err) {
@@ -395,7 +393,7 @@ export const CampaignSettingsPage = () => {
     // Reload annotation tasks to show the new ones
     try {
       const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(tasksData!.tasks);
     } catch (err) {
@@ -415,7 +413,7 @@ export const CampaignSettingsPage = () => {
 
       const timeseriesToCreate = { timeseries: timeSeriesCleaned };
       const { data } = await createTimeseriesForCampaign({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: timeseriesToCreate,
       });
       setTimeseries([...timeseries, ...data!.new_items]);
@@ -431,13 +429,13 @@ export const CampaignSettingsPage = () => {
   const handleAssignSingleTask = async (taskId: number, userId: string) => {
     try {
       await assignTasksToUsers({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: { strategy: 'explicit', task_assignments: { [taskId]: [userId] } },
       });
 
       // Refresh tasks to get updated assignments
       const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(data!.tasks);
 
@@ -452,7 +450,7 @@ export const CampaignSettingsPage = () => {
     try {
       await unassignUserFromTask({
         path: {
-          campaign_id: numericCampaignId,
+          campaign_id: campaignId,
           task_id: taskId,
           user_id: userId,
         },
@@ -460,7 +458,7 @@ export const CampaignSettingsPage = () => {
 
       // Refresh tasks to get updated assignments
       const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(data!.tasks);
 
@@ -481,13 +479,13 @@ export const CampaignSettingsPage = () => {
           : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts };
 
       const { data } = await assignTasksToUsers({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body,
       });
 
       // Refresh tasks to get updated assignments
       const { data: tasksData } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(tasksData!.tasks);
 
@@ -507,7 +505,7 @@ export const CampaignSettingsPage = () => {
 
       if (pattern.type === 'percentage') {
         await assignReviewers({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
           body: {
             pattern: 'percentage',
             percentage: pattern.percentage,
@@ -521,7 +519,7 @@ export const CampaignSettingsPage = () => {
         );
       } else if (pattern.type === 'fixed') {
         await assignReviewers({
-          path: { campaign_id: numericCampaignId },
+          path: { campaign_id: campaignId },
           body: {
             pattern: 'fixed',
             num_tasks: pattern.numTasks,
@@ -537,7 +535,7 @@ export const CampaignSettingsPage = () => {
 
       // Refresh tasks to get updated assignments
       const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(data!.tasks);
 
@@ -560,12 +558,12 @@ export const CampaignSettingsPage = () => {
       setSaving(true);
 
       await batchUnassignTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: { task_ids: taskIds },
       });
 
       const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
       });
       setAnnotationTasks(data!.tasks);
 
@@ -588,7 +586,7 @@ export const CampaignSettingsPage = () => {
       setSaving(true);
 
       await deleteAnnotationTasks({
-        path: { campaign_id: numericCampaignId },
+        path: { campaign_id: campaignId },
         body: { task_ids: taskIds },
       });
 
@@ -773,17 +771,21 @@ export const CampaignSettingsPage = () => {
           <div className="surface">
             {/* Tab Navigation - inset into the top of the surface so the
                 tabs read as the surface's header, not a separate strip. */}
-            <TabNavigator
+            <TabNavigator<SettingsTab>
               items={[
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
-                ...(campaign?.mode !== 'open' ? [{ id: 'tasks', label: 'Annotation Tasks' }] : []),
-                ...(campaign?.mode === 'open' ? [{ id: 'annotations', label: 'Annotations' }] : []),
+                ...(campaign?.mode !== 'open'
+                  ? [{ id: 'tasks' as const, label: 'Annotation Tasks' }]
+                  : []),
+                ...(campaign?.mode === 'open'
+                  ? [{ id: 'annotations' as const, label: 'Annotations' }]
+                  : []),
                 { id: 'users', label: 'Users' },
               ]}
               activeId={activeTab}
-              onChange={(id) => setActiveTab(id as typeof activeTab)}
+              onChange={setActiveTab}
               className="!mb-0 !border-neutral-200 px-6"
             />
 
@@ -840,7 +842,7 @@ export const CampaignSettingsPage = () => {
                   handleUnassignTask={handleUnassignTask}
                   handleBatchUnassignTasks={handleBatchUnassignTasks}
                   handleDeleteTasks={handleDeleteTasks}
-                  campaignId={numericCampaignId}
+                  campaignId={campaignId}
                   campaignName={campaign.name}
                   onAssignmentsImported={reloadAnnotationTasks}
                   bbox={
@@ -858,7 +860,7 @@ export const CampaignSettingsPage = () => {
 
               {activeTab === 'annotations' && (
                 <ImportFeaturesSection
-                  campaignId={numericCampaignId}
+                  campaignId={campaignId}
                   labels={campaign!.settings.labels}
                   onSuccess={(msg) => showAlert(msg, 'success')}
                   onError={(msg) => showAlert(msg, 'error')}
@@ -867,7 +869,7 @@ export const CampaignSettingsPage = () => {
 
               {activeTab === 'users' && (
                 <UsersTab
-                  campaignId={numericCampaignId}
+                  campaignId={campaignId}
                   onError={(msg) => showAlert(msg, 'error')}
                   onSuccess={(msg) => showAlert(msg, 'success')}
                   campaignUsers={campaignUsers}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactGridLayout, { getCompactor, type Layout, type LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -10,10 +10,11 @@ import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
 import ControlsOpenMode from './ControlsOpenMode';
 import { useCampaignStore } from '../stores/campaign.store';
+import { useAnnotationStore } from '../stores/annotation.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
-import { useAnnotationStore } from '../stores/annotation.store';
-import { extractCentroidFromWKT, convertWKTToGeoJSON, type LatLon } from '~/shared/utils/utility';
+import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
+import { extractCentroidFromWKT, type LatLon } from '~/shared/utils/utility';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -137,29 +138,29 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       ] as [number, number, number, number])
     : null;
 
-  // Annotation dots for the minimap (open mode only).
-  const annotations = useAnnotationStore((s) => s.annotations);
-  const annotationDots = useMemo(() => {
-    if (!isOpenMode) return undefined;
-    return annotations
-      .map((ann) => {
-        const geojson = convertWKTToGeoJSON(ann.geometry.geometry);
-        if (!geojson) return null;
-        const coords =
-          geojson.type === 'Point'
-            ? [geojson.coordinates as [number, number]]
-            : geojson.type === 'Polygon'
-              ? (geojson.coordinates as number[][][])[0]
-              : geojson.type === 'LineString'
-                ? (geojson.coordinates as number[][])
-                : [];
-        if (coords.length === 0) return null;
-        const sumLon = coords.reduce((s, c) => s + (c as number[])[0], 0);
-        const sumLat = coords.reduce((s, c) => s + (c as number[])[1], 0);
-        return { lat: sumLat / coords.length, lon: sumLon / coords.length };
+  // Minimap annotation overview: the client no longer holds every annotation
+  // (viewport vector tiling), so we fetch a coarse server-aggregated density
+  // grid and show it as indicators. Refetched when annotations change
+  // (tileVersion bump) so the overview tracks edits.
+  const tileVersion = useAnnotationStore((s) => s.tileVersion);
+  const [annotationDensity, setAnnotationDensity] = useState<AnnotationDensityCell[]>([]);
+  useEffect(() => {
+    if (campaign?.mode !== 'open') {
+      setAnnotationDensity([]);
+      return;
+    }
+    let cancelled = false;
+    void getAnnotationDensity({ path: { campaign_id: campaign.id } })
+      .then((res) => {
+        if (!cancelled) setAnnotationDensity(res.data ?? []);
       })
-      .filter((d): d is { lat: number; lon: number } => d !== null);
-  }, [isOpenMode, annotations]);
+      .catch(() => {
+        /* minimap overview is best-effort */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign?.id, campaign?.mode, tileVersion]);
 
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
@@ -457,7 +458,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
               }
               fitBbox={campaign?.mode === 'tasks'}
-              annotationDots={annotationDots}
+              annotationDensity={annotationDensity}
             />
           </div>
 

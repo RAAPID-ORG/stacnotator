@@ -12,9 +12,13 @@ interface MapProps {
   onMapReady?: (map: OLMap) => void;
   center?: [number, number];
   zoom?: number;
+  /** Furthest the view may zoom out. Open mode caps this near Sentinel-2's
+   * usable resolution so the map never reaches the heavy, feature-dense
+   * low-zoom tiles (and imagery stays real rather than mush). */
+  minZoom?: number;
 }
 
-const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10 }: MapProps) => {
+const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10, minZoom }: MapProps) => {
   const mapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -44,6 +48,7 @@ const BaseMap = ({ onMapReady, center = [0, 0], zoom = 10 }: MapProps) => {
         // center is [lat, lon] in degrees - convert to Web Mercator [lon, lat]
         center: fromLonLat([center[1], center[0]]),
         zoom,
+        minZoom,
         maxZoom: 24, // allow zooming past basemap tile limits (tiles will stretch)
       }),
     });

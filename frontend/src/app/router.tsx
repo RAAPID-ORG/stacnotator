@@ -2,12 +2,15 @@ import { lazy, Suspense } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
+  type LoaderFunctionArgs,
+  redirect,
   Route,
   RouterProvider,
 } from 'react-router-dom';
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AppLayout } from '~/features/layout/components/AppLayout';
+import { NotFoundPage, RouteErrorBoundary } from './RouteError';
 
 // Heavy routes are code-split so the initial bundle (Home + Campaigns list)
 // doesn't include OpenLayers, Chart.js, react-markdown, etc.
@@ -42,11 +45,20 @@ const RouteFallback = () => (
   </div>
 );
 
+// The :campaignId segment comes from the (untrusted) URL. Validate it once here
+// so every campaign page can read a real id - an absent/non-numeric param is
+// treated as not-found and redirected to the list.
+const requireCampaignId = ({ params }: LoaderFunctionArgs) => {
+  const id = Number(params.campaignId);
+  if (!Number.isInteger(id) || id <= 0) throw redirect('/campaigns');
+  return null;
+};
+
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route path="/" element={<AppLayout />}>
+    <Route path="/" element={<AppLayout />} errorElement={<RouteErrorBoundary />}>
       <Route index element={<HomePage />} />
       <Route path="campaigns" element={<CampaignsPage />} />
       <Route
@@ -57,30 +69,32 @@ const router = createBrowserRouter(
           </Suspense>
         }
       />
-      <Route
-        path="campaigns/:campaignId/annotate"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <AnnotationPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="campaigns/:campaignId/settings"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <CampaignSettingsPage />
-          </Suspense>
-        }
-      />
-      <Route
-        path="campaigns/:campaignId/annotations"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <ReviewPage />
-          </Suspense>
-        }
-      />
+      <Route path="campaigns/:campaignId" loader={requireCampaignId}>
+        <Route
+          path="annotate"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AnnotationPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CampaignSettingsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="annotations"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <ReviewPage />
+            </Suspense>
+          }
+        />
+      </Route>
       <Route
         path="settings"
         element={
@@ -89,6 +103,8 @@ const router = createBrowserRouter(
           </Suspense>
         }
       />
+      {/* Unmatched paths render a friendly 404 within the layout. */}
+      <Route path="*" element={<NotFoundPage />} />
     </Route>
   )
 );

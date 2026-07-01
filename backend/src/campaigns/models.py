@@ -39,6 +39,11 @@ class Campaign(Base):
     # Errors from background registration (JSON array, null when no errors)
     registration_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
+    # Monotonic counter bumped on every annotation create/update/delete. Used as
+    # a cache-busting key in annotation vector-tile URLs so edits invalidate the
+    # affected tiles without a manual purge.
+    annotations_version: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
+
     # Relationships
     settings: Mapped["CampaignSettings"] = relationship(
         back_populates="campaign",

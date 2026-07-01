@@ -11,14 +11,6 @@ import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 
-/**
- * CampaignsOverviewPage shows every campaign the user can see as a single
- * calm list - no card grid. Rows hold the campaign name + a small status
- * pill on the left, and inline Annotate / Review / Settings actions on the
- * right that surface clearly. Filter and search live above the list as
- * page-level controls. The whole page sits on the warm canvas with one
- * elevated surface holding the list - same shape every other page uses.
- */
 export const CampaignsPage = () => {
   const navigate = useNavigate();
 
@@ -113,8 +105,6 @@ export const CampaignsPage = () => {
           </div>
         ) : (
           <>
-            {/* Filter + search bar - sits above the list as a quiet toolbar.
-                No card around it; just live on the canvas. */}
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <div className="inline-flex bg-white border border-neutral-200 rounded-md p-0.5 shadow-sm">
                 {(['all', 'mine', 'public'] as const).map((key) => (
@@ -142,7 +132,6 @@ export const CampaignsPage = () => {
               </div>
             </div>
 
-            {/* The list itself - one elevated surface, hairline divided rows */}
             <div className="surface">
               {filtered.length === 0 ? (
                 <div className="p-10 text-center text-sm text-neutral-500">
@@ -154,9 +143,9 @@ export const CampaignsPage = () => {
                     <MotionListItem key={campaign.id} index={index}>
                       <CampaignRow
                         campaign={campaign}
-                        onAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
-                        onReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
-                        onSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
+                        onOpenAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
+                        onOpenReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+                        onOpenSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
                       />
                     </MotionListItem>
                   ))}
@@ -170,19 +159,16 @@ export const CampaignsPage = () => {
   );
 };
 
-/** A single campaign row in the calm list. Click anywhere on the row to
- *  open the annotator (when accessible). Inline secondary actions surface
- *  on the right. */
 const CampaignRow = ({
   campaign,
-  onAnnotate,
-  onReview,
-  onSettings,
+  onOpenAnnotate,
+  onOpenReview,
+  onOpenSettings,
 }: {
   campaign: CampaignListItemOut;
-  onAnnotate: () => void;
-  onReview: () => void;
-  onSettings: () => void;
+  onOpenAnnotate: () => void;
+  onOpenReview: () => void;
+  onOpenSettings: () => void;
 }) => {
   const isMember = campaign.is_member ?? false;
   const isAdmin = campaign.is_admin ?? false;
@@ -192,13 +178,10 @@ const CampaignRow = ({
     campaign.registration_status === 'registering' || campaign.embedding_status === 'registering';
   const canAnnotate = canAccess && !isInitializing;
 
-  // Quiet meta line: role + access level
   const role = isAdmin ? 'Admin' : isMember ? 'Member' : isPublic ? 'Public' : 'No access';
 
-  // The whole row is clickable when accessible. Inner buttons stop
-  // propagation so settings + review work without bubbling to row click.
   const handleRowClick = () => {
-    if (canAnnotate) onAnnotate();
+    if (canAnnotate) onOpenAnnotate();
   };
 
   return (
@@ -212,11 +195,10 @@ const CampaignRow = ({
       onKeyDown={(e) => {
         if (canAnnotate && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          onAnnotate();
+          onOpenAnnotate();
         }
       }}
     >
-      {/* Left column: name + meta */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-neutral-900 truncate">
@@ -237,13 +219,11 @@ const CampaignRow = ({
         <p className="text-[11px] text-neutral-500 mt-0.5">{role}</p>
       </div>
 
-      {/* Right column: secondary actions. Stop propagation so row click only
-          fires for "annotate" (the primary). */}
       <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onReview();
+            onOpenReview();
           }}
           disabled={!canAccess}
           className="inline-flex items-center h-8 px-3 text-xs font-medium text-neutral-600 rounded-md hover:bg-neutral-100 disabled:text-neutral-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
@@ -255,7 +235,7 @@ const CampaignRow = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onSettings();
+              onOpenSettings();
             }}
             className="inline-flex items-center justify-center h-8 w-8 text-neutral-400 hover:text-neutral-700 rounded-md hover:bg-neutral-100 transition-colors"
             type="button"

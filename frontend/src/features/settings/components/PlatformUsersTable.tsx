@@ -13,11 +13,10 @@ export type PlatformUsersTableProps = {
   onRevokeAdmin: (userIds: string[]) => Promise<void>;
   onGrantVisitor: (userIds: string[]) => Promise<void>;
   onRevokeVisitor: (userIds: string[]) => Promise<void>;
-  /** All configured tilers (MPC + hosted). Each is a toggle; empty hides the column. */
-  allTilers?: string[];
-  onGrantTiler?: (userId: string, tilerName: string) => Promise<void>;
-  onRevokeTiler?: (userId: string, tilerName: string) => Promise<void>;
-  loading?: boolean;
+  allTilers: string[];
+  onGrantTiler: (userId: string, tilerName: string) => Promise<void>;
+  onRevokeTiler: (userId: string, tilerName: string) => Promise<void>;
+  loading: boolean;
 };
 
 type UserAction =
@@ -38,19 +37,18 @@ export const PlatformUsersTable = ({
   onRevokeAdmin,
   onGrantVisitor,
   onRevokeVisitor,
-  allTilers = [],
+  allTilers,
   onGrantTiler,
   onRevokeTiler,
-  loading = false,
+  loading,
 }: PlatformUsersTableProps) => {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [processingAction, setProcessingAction] = useState(false);
   const [togglingTiler, setTogglingTiler] = useState<Set<string>>(new Set());
 
-  const showTilerColumn = allTilers.length > 0 && !!onGrantTiler && !!onRevokeTiler;
+  const showTilerColumn = allTilers.length > 0;
 
   const toggleTiler = async (userId: string, tilerName: string, granted: boolean) => {
-    if (!onGrantTiler || !onRevokeTiler) return;
     const key = `${userId}:${tilerName}`;
     setTogglingTiler((prev) => new Set(prev).add(key));
     try {

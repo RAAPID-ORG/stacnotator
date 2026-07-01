@@ -31,8 +31,6 @@ export const useOpenModeKeyboard = () => {
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
   const toggleViewSync = useMapStore((s) => s.toggleViewSync);
-  const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
-  const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   useEffect(() => {
@@ -203,23 +201,12 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           toggleGuide();
           break;
-        case 'w':
-          e.preventDefault();
-          goToPreviousAnnotation();
-          triggerFitAnnotations();
-          break;
-        case 's':
-          e.preventDefault();
-          goToNextAnnotation();
-          triggerFitAnnotations();
-          break;
         case 'f': {
           e.preventDefault();
           const annStore = useAnnotationStore.getState();
           const id = annStore.selectedAnnotationId;
-          if (id == null) break;
-          const ann = annStore.annotations.find((a) => a.id === id);
-          if (!ann) break;
+          const ann = annStore.selectedAnnotationDetail;
+          if (id == null || !ann) break;
           annStore.updateAnnotationFlags(id, !ann.flagged_for_review, ann.flag_comment);
           break;
         }
@@ -236,8 +223,6 @@ export const useOpenModeKeyboard = () => {
     setTimeseriesPoint,
     triggerFitAnnotations,
     toggleViewSync,
-    goToPreviousAnnotation,
-    goToNextAnnotation,
     toggleGuide,
   ]);
 };

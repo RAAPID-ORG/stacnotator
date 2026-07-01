@@ -104,6 +104,7 @@ class CampaignOut(BaseModel):
     registration_status: str = "ready"
     embedding_status: str = "ready"
     registration_errors: list[dict] | None = None
+    annotations_version: int = 0
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
@@ -178,6 +179,7 @@ class CampaignOutFull(CampaignOut):
             "created_at": obj.created_at,
             "mode": obj.mode,
             "is_public": obj.is_public,
+            "annotations_version": obj.annotations_version,
             "settings": obj.settings,
             "time_series": obj.time_series,
             "imagery_sources": obj.imagery_sources,

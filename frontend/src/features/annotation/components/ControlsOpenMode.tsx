@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
@@ -11,7 +11,6 @@ import {
 } from '../utils/labelMetadata';
 import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
-import { IconFilter } from '~/shared/ui/Icons';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
 
@@ -114,23 +113,9 @@ const OpenModeControls = () => {
   const resetLabelStyle = usePreferencesStore((s) => s.resetLabelStyle);
   // Which label's inline style editor is currently expanded (null = none)
   const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
-  // Whether the navigation label-filter dropdown is open
-  const [navFilterOpen, setNavFilterOpen] = useState(false);
-  const navFilterRef = useRef<HTMLDivElement>(null);
-  const annotations = useAnnotationStore((s) => s.annotations);
-  const currentAnnotationIndex = useAnnotationStore((s) => s.currentAnnotationIndex);
-  const goToPreviousAnnotation = useAnnotationStore((s) => s.goToPreviousAnnotation);
-  const goToNextAnnotation = useAnnotationStore((s) => s.goToNextAnnotation);
-  const navigationLabelFilter = useAnnotationStore((s) => s.navigationLabelFilter);
-  const toggleNavigationLabel = useAnnotationStore((s) => s.toggleNavigationLabel);
-  const setNavigationLabelFilter = useAnnotationStore((s) => s.setNavigationLabelFilter);
-  const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
-  const selectedAnnotationId = useAnnotationStore((s) => s.selectedAnnotationId);
   const updateAnnotationFlags = useAnnotationStore((s) => s.updateAnnotationFlags);
-  const selectedAnnotation =
-    selectedAnnotationId !== null
-      ? (annotations.find((a) => a.id === selectedAnnotationId) ?? null)
-      : null;
+  // The single selected annotation's full record, fetched by id for this panel.
+  const selectedAnnotation = useAnnotationStore((s) => s.selectedAnnotationDetail);
   // Local draft for the flag comment textarea so the user can type without
   // hammering the API on each keystroke. Pushed to the server on blur or
   // when the toggle changes.
@@ -138,18 +123,6 @@ const OpenModeControls = () => {
   useEffect(() => {
     setEditFlagCommentDraft(selectedAnnotation?.flag_comment ?? '');
   }, [selectedAnnotation?.id, selectedAnnotation?.flag_comment]);
-
-  // Close the navigation filter dropdown when clicking outside of it.
-  useEffect(() => {
-    if (!navFilterOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (navFilterRef.current && !navFilterRef.current.contains(e.target as Node)) {
-        setNavFilterOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [navFilterOpen]);
 
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
@@ -161,14 +134,6 @@ const OpenModeControls = () => {
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
-
-  // Number of annotations prev/next navigation will step through, given the
-  // active label filter (empty filter = all annotations).
-  const navigableCount =
-    navigationLabelFilter.length === 0
-      ? annotations.length
-      : annotations.filter((a) => a.label_id !== null && navigationLabelFilter.includes(a.label_id))
-          .length;
 
   const handleToolSelect = (tool: OpenModeTool) => {
     setActiveTool(tool);
@@ -502,43 +467,10 @@ const OpenModeControls = () => {
         {activeTool === 'edit' && (
           <div className="flex flex-col gap-2 w-full">
             <span className="font-semibold text-neutral-700 text-xs tracking-wide">Edit Tool</span>
-            <div className="text-[11px] text-neutral-600 flex flex-col gap-1 leading-relaxed">
-              <p>Click a geometry to select it and show its vertices.</p>
-              <p>
-                Drag a <strong>vertex</strong> to move it.
-              </p>
-              <p>
-                Click an <strong>edge midpoint</strong> to insert a new vertex.
-              </p>
-              <p>
-                Hold{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Alt
-                </kbd>{' '}
-                + drag to move the whole feature.
-              </p>
-              <p>
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Ctrl
-                </kbd>{' '}
-                + click or{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Shift
-                </kbd>{' '}
-                + drag to select multiple.
-              </p>
-              <p className="text-neutral-500">
-                Press{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Delete
-                </kbd>{' '}
-                to remove the selection, or{' '}
-                <kbd className="px-1 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono">
-                  Esc
-                </kbd>{' '}
-                to cancel.
-              </p>
-            </div>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Click a geometry to edit its vertices. See <strong>Shortcuts</strong> below for all
+              edit gestures.
+            </p>
 
             {selectedAnnotation && (
               <div className="flex flex-col gap-1.5 pt-2 border-t border-neutral-200">
@@ -613,147 +545,6 @@ const OpenModeControls = () => {
           </div>
         )}
 
-        {/* Annotation Navigation */}
-        {annotations.length > 0 && (
-          <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex items-center justify-between gap-1.5">
-              <span className="font-semibold text-neutral-700 text-xs tracking-wide">Navigate</span>
-
-              {/* Label filter: small icon + dropdown restricting which labels prev/next steps through. */}
-              {extendedLabels.length > 0 && (
-                <div className="relative flex-shrink-0" ref={navFilterRef}>
-                  <button
-                    onClick={() => setNavFilterOpen((o) => !o)}
-                    title="Filter navigation by label"
-                    aria-expanded={navFilterOpen}
-                    className={`relative flex items-center justify-center p-0.5 rounded transition-colors cursor-pointer ${
-                      navFilterOpen || navigationLabelFilter.length > 0
-                        ? 'text-brand-700'
-                        : 'text-neutral-400 hover:text-neutral-700'
-                    }`}
-                  >
-                    <IconFilter className="w-3.5 h-3.5" />
-                    {navigationLabelFilter.length > 0 && (
-                      <span className="absolute -top-1 -right-1 min-w-[13px] h-[13px] px-0.5 flex items-center justify-center rounded-full bg-brand-600 text-white text-[9px] font-semibold tabular-nums">
-                        {navigationLabelFilter.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {navFilterOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-20 w-44 max-h-56 overflow-y-auto bg-white border border-neutral-200 rounded-md shadow-lg p-1">
-                      <div className="flex items-center justify-between px-1.5 py-1">
-                        <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
-                          Filter by label
-                        </span>
-                        {navigationLabelFilter.length > 0 && (
-                          <button
-                            onClick={() => setNavigationLabelFilter([])}
-                            className="text-[10px] text-neutral-500 hover:text-neutral-700 underline cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      {extendedLabels.map((label) => {
-                        const active = navigationLabelFilter.includes(label.id);
-                        return (
-                          <button
-                            key={label.id}
-                            onClick={() => toggleNavigationLabel(label.id)}
-                            className={`w-full flex items-center gap-2 px-1.5 py-1.5 rounded text-[11px] font-medium text-left transition-colors cursor-pointer ${
-                              active
-                                ? 'bg-brand-50 text-brand-700'
-                                : 'text-neutral-700 hover:bg-neutral-100'
-                            }`}
-                          >
-                            <span
-                              className="w-3 h-3 flex items-center justify-center rounded-sm border flex-shrink-0"
-                              style={{
-                                backgroundColor: active ? label.color : 'transparent',
-                                borderColor: label.color,
-                              }}
-                            >
-                              {active && (
-                                <svg
-                                  width="9"
-                                  height="9"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="white"
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className="flex-1 min-w-0 truncate">
-                              {capitalizeFirst(label.name)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-1.5">
-              <button
-                onClick={() => {
-                  const ann = goToPreviousAnnotation();
-                  if (ann) triggerFitAnnotations();
-                }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
-                title="Previous annotation (older)"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-                <span>Prev</span>
-              </button>
-              <button
-                onClick={() => {
-                  const ann = goToNextAnnotation();
-                  if (ann) triggerFitAnnotations();
-                }}
-                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-[11px] font-medium bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300 transition-colors cursor-pointer"
-                title="Next annotation (newer)"
-              >
-                <span>Next</span>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-            </div>
-
-            <p className="text-[10px] text-neutral-400 text-center tabular-nums">
-              {currentAnnotationIndex >= 0
-                ? `${currentAnnotationIndex + 1} / ${navigableCount}`
-                : `${navigableCount} annotation${navigableCount !== 1 ? 's' : ''}${
-                    navigationLabelFilter.length > 0 ? ' (filtered)' : ''
-                  }`}
-            </p>
-          </div>
-        )}
-
         {/* Keyboard Shortcuts Help */}
         <div className="pt-2 border-t border-neutral-200 w-full">
           <span className="font-semibold text-neutral-700 text-[11px]">Shortcuts</span>
@@ -779,9 +570,33 @@ const OpenModeControls = () => {
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Select / edit (edit tool)</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Click
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Insert vertex</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Click edge
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
               <span>Move feature</span>
               <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
                 Alt+drag
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Multi-select</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Shift+drag
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Delete selection</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Del
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">
