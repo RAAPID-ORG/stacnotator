@@ -38,21 +38,25 @@ class Campaign:
         )
         return samples_frame(feature_collection)
 
-    def update_samples(self, training_set: pd.DataFrame) -> pd.DataFrame:
+    def update_samples(
+        self, training_set: pd.DataFrame, exclude: pd.DataFrame | None = None
+    ) -> pd.DataFrame:
         """Return ``training_set`` extended with samples annotated since it was fetched.
 
         Rows are matched by ``annotation_id``; columns you added to the training
-        set (features, embeddings, ...) are preserved.
+        set (features, embeddings, ...) are preserved. Rows whose ids appear in
+        ``exclude`` (e.g. a held-out test set) are never appended.
         """
-        if not training_set.empty and "annotation_id" not in training_set.columns:
-            raise ValueError(
-                "training_set has no 'annotation_id' column - update_samples only works "
-                "with frames produced by get_samples() (merged exports are not supported)."
-            )
+        known_ids = pd.concat(
+            [
+                _annotation_ids(training_set, "training_set"),
+                _annotation_ids(exclude, "exclude"),
+            ]
+        )
         fetched = self.get_samples()
+        new_rows = fetched[~fetched["annotation_id"].isin(known_ids)]
         if training_set.empty:
-            return fetched
-        new_rows = fetched[~fetched["annotation_id"].isin(training_set["annotation_id"])]
+            return new_rows.reset_index(drop=True)
         if new_rows.empty:
             return training_set.copy()
         return pd.concat([training_set, new_rows], ignore_index=True)
@@ -97,3 +101,14 @@ class Campaign:
 
     def __repr__(self) -> str:
         return f"Campaign(id={self.id}, name={self.name!r}, mode={self.mode!r})"
+
+
+def _annotation_ids(frame: pd.DataFrame | None, name: str) -> pd.Series:
+    if frame is None or frame.empty:
+        return pd.Series(dtype="Int64")
+    if "annotation_id" not in frame.columns:
+        raise ValueError(
+            f"{name} has no 'annotation_id' column - update_samples only works "
+            "with frames produced by get_samples() (merged exports are not supported)."
+        )
+    return frame["annotation_id"]

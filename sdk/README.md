@@ -59,13 +59,15 @@ to one agreed row (the server rejects the export if annotators conflict).
 ```python
 import stacnotator as snt
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 campaign = snt.campaign(42)
-train = campaign.get_samples()
+samples = campaign.get_samples()
+train, test = train_test_split(samples, test_size=0.2, random_state=42)
 
 while True:
-    X, y = featurize(train)                     # your features, e.g. from lat/lon + rasters
-    model = RandomForestClassifier().fit(X, y)
+    model = RandomForestClassifier().fit(*featurize(train))
+    score = model.score(*featurize(test))       # test set stays fixed across iterations
 
     predictions_url = export_predictions_cog(model)   # your inference + COG upload
     campaign.register_pred_layer(
@@ -74,18 +76,21 @@ while True:
     )
 
     wait_for_annotators()
-    train = campaign.update_samples(train)      # appends only newly annotated samples
+    train = campaign.update_samples(train, exclude=test)   # only train grows
 ```
 
 `update_samples(train)` re-fetches the campaign and appends rows whose `annotation_id` is not
 in `train` yet; columns you added yourself (features, embeddings, split flags) survive, and new
-rows get NA there. `register_pred_layer` shows your prediction COG as an overlay to annotators;
-without a `name` it auto-numbers (`prediction-1`, `prediction-2`, ...), and `mlops_link` ties
-the layer to the experiment that produced it. `campaign.pred_layers()` lists what's registered.
+rows get NA there. Anything passed as `exclude` (here the held-out test set) is never appended,
+so the split stays clean while train grows. `register_pred_layer` shows your prediction COG as
+an overlay to annotators; without a `name` it auto-numbers (`prediction-1`, `prediction-2`,
+...), and `mlops_link` ties the layer to the experiment that produced it.
+`campaign.pred_layers()` lists what's registered.
 
 ## PyTorch
 
-A DataFrame drops straight into a `Dataset`:
+A DataFrame drops straight into a `Dataset`. In the future we will link this up with efficient dataloaders for
+the raster data from STAC catalogs for the RISE pipeline.
 
 ```python
 import torch
@@ -116,7 +121,7 @@ snt.campaigns()           # DataFrame: id, name, created_at, is_admin, is_member
 snt.campaign(id)          # -> Campaign
 
 Campaign.get_samples(merge_on_agreement=False)      # -> DataFrame
-Campaign.update_samples(train)                      # -> train + new rows
+Campaign.update_samples(train, exclude=None)        # -> train + new rows (exclude stays out)
 Campaign.register_pred_layer(cog_url, name=None, mlops_link=None,
                              rescale=(0.0, 1.0), colormap="viridis")
 Campaign.pred_layers()                              # -> DataFrame
@@ -135,3 +140,8 @@ uv run pytest          # or from the repo root: make test-sdk
 uv run mypy
 uv run ruff check src tests
 ```
+
+## TODOs and improvement ideas
+
+- Version Datasets
+- Provide the actual data loading capabilities for the raster data which is STAC

@@ -86,6 +86,26 @@ def test_update_samples_appends_only_new_annotations():
 
 
 @responses.activate
+def test_update_samples_exclude_keeps_held_out_test_set_out():
+    campaign = make_campaign()
+    responses.get(
+        f"{BASE}/api/campaigns/42/export-annotations-geojson",
+        json=geojson(point_feature(1), point_feature(2)),
+    )
+    samples = campaign.get_samples()
+    train, test = samples.iloc[[0]], samples.iloc[[1]]
+    responses.get(
+        f"{BASE}/api/campaigns/42/export-annotations-geojson",
+        json=geojson(point_feature(1), point_feature(2), point_feature(3)),
+    )
+
+    updated = campaign.update_samples(train, exclude=test)
+
+    assert updated["annotation_id"].tolist() == [1, 3]
+    assert test["annotation_id"].tolist() == [2]
+
+
+@responses.activate
 def test_update_samples_without_new_rows_returns_equal_frame():
     campaign = make_campaign()
     responses.get(
