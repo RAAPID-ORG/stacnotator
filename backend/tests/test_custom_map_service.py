@@ -1,8 +1,10 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.custom_maps import service
 from src.custom_maps.models import CustomMap
-from src.custom_maps.schemas import CustomMapUpdate
+from src.custom_maps.schemas import CustomMapCreate, CustomMapUpdate
 
 CONT = {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]}
 
@@ -26,8 +28,9 @@ def test_run_registration_bakes_tile_url(monkeypatch):
     monkeypatch.setattr(
         service,
         "build_tile_url",
-        lambda *a,
-        **k: "https://tiler.test/searches/search-9/tiles/WebMercatorQuad/{z}/{x}/{y}.png?assets=data",
+        lambda *a, **k: (
+            "https://tiler.test/searches/search-9/tiles/WebMercatorQuad/{z}/{x}/{y}.png?assets=data"
+        ),
     )
 
     service.run_registration(MagicMock(), cm)
@@ -68,6 +71,7 @@ def test_update_reregisters_when_cog_url_changes(monkeypatch):
 def test_update_name_only_does_not_reregister(monkeypatch):
     cm = _cm(status="ready")
     monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
 
@@ -76,3 +80,25 @@ def test_update_name_only_does_not_reregister(monkeypatch):
     assert cm.name == "renamed"
     assert cm.status == "ready"
     assert spawned == []
+
+
+def test_create_with_taken_name_raises(monkeypatch):
+    monkeypatch.setattr(service, "_name_taken", lambda *a, **k: True)
+
+    with pytest.raises(service.DuplicateCustomMapName):
+        service.create_custom_map(
+            MagicMock(),
+            5,
+            CustomMapCreate(name="m", cog_url="https://x/y.tif", render_config=CONT),
+        )
+
+
+def test_rename_to_taken_name_raises(monkeypatch):
+    cm = _cm(status="ready")
+    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_name_taken", lambda *a, **k: True)
+
+    with pytest.raises(service.DuplicateCustomMapName):
+        service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(name="other"))
+
+    assert cm.name == "m"

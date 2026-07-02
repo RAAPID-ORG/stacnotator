@@ -98,3 +98,30 @@ def test_campaign_out_exposes_custom_maps_field():
     from src.campaigns.schemas import CampaignOut
 
     assert "custom_maps" in CampaignOut.model_fields
+
+
+def test_create_duplicate_name_returns_409(client, monkeypatch):
+    _override_auth()
+
+    def duplicate(db, cid, payload):
+        raise service.DuplicateCustomMapName()
+
+    monkeypatch.setattr(service, "create_custom_map", duplicate)
+    body = {
+        "name": "cropland",
+        "cog_url": "https://x/y.tif",
+        "render_config": {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]},
+    }
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=body)
+    assert r.status_code == 409
+
+
+def test_rename_to_duplicate_returns_409(client, monkeypatch):
+    _override_auth()
+
+    def duplicate(db, cid, map_id, payload):
+        raise service.DuplicateCustomMapName()
+
+    monkeypatch.setattr(service, "update_custom_map", duplicate)
+    r = client.patch(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps/1", json={"name": "cropland"})
+    assert r.status_code == 409

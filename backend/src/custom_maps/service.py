@@ -13,6 +13,17 @@ from src.tiling.providers import build_tile_url, register_cog_on_tiler, resolve_
 logger = logging.getLogger(__name__)
 
 
+class DuplicateCustomMapName(Exception):
+    pass
+
+
+def _name_taken(db: Session, campaign_id: int, name: str, exclude_id: int | None = None) -> bool:
+    query = select(CustomMap.id).where(CustomMap.campaign_id == campaign_id, CustomMap.name == name)
+    if exclude_id is not None:
+        query = query.where(CustomMap.id != exclude_id)
+    return db.execute(query).first() is not None
+
+
 def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
     cm = CustomMap(
         campaign_id=campaign_id,
@@ -60,6 +71,8 @@ def _spawn_registration(map_id: int) -> None:
 
 
 def create_custom_map(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
+    if _name_taken(db, campaign_id, payload.name):
+        raise DuplicateCustomMapName(payload.name)
     cm = _insert(db, campaign_id, payload)
     _spawn_registration(cm.id)
     return cm
@@ -88,6 +101,12 @@ def update_custom_map(
     if cm is None:
         return None
     data = payload.model_dump(exclude_unset=True)
+    if (
+        "name" in data
+        and data["name"] != cm.name
+        and _name_taken(db, campaign_id, data["name"], exclude_id=map_id)
+    ):
+        raise DuplicateCustomMapName(data["name"])
     needs_reregister = False
     if "render_config" in data and data["render_config"] is not None:
         old_band = (cm.render_config or {}).get("band", 1)

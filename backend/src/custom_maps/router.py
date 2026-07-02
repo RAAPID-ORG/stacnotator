@@ -36,7 +36,12 @@ def create_custom_map(
     campaign: Campaign = Depends(require_campaign_admin),
     db: Session = Depends(get_db),
 ):
-    return service.create_custom_map(db, campaign_id, payload)
+    try:
+        return service.create_custom_map(db, campaign_id, payload)
+    except service.DuplicateCustomMapName as exc:
+        raise HTTPException(
+            status_code=409, detail="A custom map with this name already exists"
+        ) from exc
 
 
 @router.patch("/{map_id}", response_model=CustomMapOut)
@@ -47,7 +52,12 @@ def update_custom_map(
     campaign: Campaign = Depends(require_campaign_admin),
     db: Session = Depends(get_db),
 ):
-    cm = service.update_custom_map(db, campaign_id, map_id, payload)
+    try:
+        cm = service.update_custom_map(db, campaign_id, map_id, payload)
+    except service.DuplicateCustomMapName as exc:
+        raise HTTPException(
+            status_code=409, detail="A custom map with this name already exists"
+        ) from exc
     if cm is None:
         raise HTTPException(status_code=404, detail="Custom map not found")
     return cm

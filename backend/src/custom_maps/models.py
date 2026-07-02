@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, SmallInteger, String, Text, func
+from sqlalchemy import ForeignKey, Integer, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
@@ -12,7 +12,10 @@ class CustomMap(Base):
     """A campaign-scoped single-band prediction map (COG) rendered as an overlay."""
 
     __tablename__ = "custom_maps"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "name", name="uq_custom_maps_campaign_name"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(
