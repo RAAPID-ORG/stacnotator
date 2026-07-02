@@ -227,7 +227,10 @@ test-backend: ## Run backend unit tests (local, requires uv)
 test-e2e: ## Run frontend E2E tests (local, requires playwright)
 	cd frontend && npx playwright test
 
-test: test-backend test-e2e ## Run all tests (local)
+test-sdk: ## Run Python SDK tests (local, requires uv)
+	cd sdk && uv run pytest -q
+
+test: test-backend test-sdk test-e2e ## Run all tests (local)
 
 ###################################################
 # Dockerised Tests  (CI/CD-ready)
@@ -247,7 +250,10 @@ lint-backend: ## Run ruff linter on backend
 lint-frontend: ## Run eslint on frontend
 	cd frontend && npx eslint src/
 
-lint: lint-backend lint-frontend ## Run all linters
+lint-sdk: ## Run ruff linter on the Python SDK
+	cd sdk && uv run ruff check src/ tests/
+
+lint: lint-backend lint-frontend lint-sdk ## Run all linters
 
 format-check-backend: ## Check backend formatting
 	cd backend && uv run ruff format --check src/
@@ -255,7 +261,10 @@ format-check-backend: ## Check backend formatting
 format-check-frontend: ## Check frontend formatting
 	cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"
 
-format-check: format-check-backend format-check-frontend ## Check all formatting
+format-check-sdk: ## Check SDK formatting
+	cd sdk && uv run ruff format --check src/ tests/
+
+format-check: format-check-backend format-check-frontend format-check-sdk ## Check all formatting
 
 typecheck-backend: ## Run mypy on backend
 	cd backend && uv run mypy src/ --config-file pyproject.toml
@@ -263,7 +272,10 @@ typecheck-backend: ## Run mypy on backend
 typecheck-frontend: ## Run tsc --noEmit on frontend
 	cd frontend && npx tsc --noEmit
 
-typecheck: typecheck-backend typecheck-frontend ## Run all type checkers
+typecheck-sdk: ## Run mypy on the Python SDK
+	cd sdk && uv run mypy
+
+typecheck: typecheck-backend typecheck-frontend typecheck-sdk ## Run all type checkers
 
 ci-check: test lint format-check typecheck ## Run all CI checks locally
 ci-check-docker: test-docker lint format-check typecheck ## Run all CI checks (tests in Docker)
