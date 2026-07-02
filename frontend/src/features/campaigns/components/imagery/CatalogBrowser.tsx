@@ -543,16 +543,18 @@ export const CatalogBrowser = ({
     }
   };
 
-  // Auto-search in single-item mode only (to list items for the user to pick).
-  // Mosaic mode relies on collection metadata (item_assets) and must never hit
-  // the STAC search endpoint - if metadata is missing, we surface an error.
+  // One initial search when landing on a collection in single-item mode, so the
+  // list isn't empty. Deliberately NOT keyed on the date range or other filters:
+  // editing those must not fire a search on every change (each one can be a slow
+  // crawl of a static catalog). The user re-runs with the explicit Search button.
+  // Mosaic mode relies on collection metadata (item_assets) and never hits search.
   useEffect(() => {
     if (step !== 'configure' || !selectedCatalog || !selectedCollection) return;
     if (mode !== 'single-item') return;
     if (!startDate || !endDate) return;
     doSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, mode, startDate, endDate, selectedCatalog?.url, selectedCollection?.id]);
+  }, [step, mode, selectedCatalog?.url, selectedCollection?.id]);
 
   const addVisualization = () => {
     const newViz = { name: `Viz ${visualizations.length + 1}`, vizParams: emptyVizParams() };
@@ -1428,23 +1430,26 @@ export const CatalogBrowser = ({
                   </div>
                 )}
 
+                {/* Explicit search trigger: filters only take effect on click, so
+                    editing the date range doesn't fire a search on every change. */}
+                {mode === 'single-item' && (
+                  <button
+                    type="button"
+                    onClick={doSearch}
+                    disabled={loading || !startDate || !endDate}
+                    className="w-full py-2 rounded-md bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                  >
+                    {loading ? 'Searching…' : 'Search items'}
+                  </button>
+                )}
+
                 {/* Item results (single-item mode only) */}
                 {mode === 'single-item' && items.length > 0 && (
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-neutral-700 font-medium">
-                        Select an item
-                        <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={doSearch}
-                        disabled={loading}
-                        className="text-[11px] text-brand-600 hover:text-brand-800 cursor-pointer disabled:opacity-50"
-                      >
-                        {loading ? 'Searching...' : 'Refresh'}
-                      </button>
-                    </div>
+                    <label className="text-xs text-neutral-700 font-medium">
+                      Select an item
+                      <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
+                    </label>
                     {items.length >= 200 && (
                       <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
                         Showing the maximum of 200 items. Narrow the date range to see all results.

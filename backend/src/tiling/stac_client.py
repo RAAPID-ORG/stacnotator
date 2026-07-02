@@ -1,11 +1,14 @@
 """pystac_client wrapper with MPC signing support."""
 
+import concurrent.futures
 import logging
 import time
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
+import httpx
 import planetary_computer as pc
+import pystac
 import pystac_client
 
 logger = logging.getLogger(__name__)
@@ -236,20 +239,30 @@ def _search_via_api(
     return [_simplify_item(item) for item in client.search(**search_kwargs).items()]
 
 
-def _search_via_walk(
-    client: pystac_client.Client,
+MAX_STATIC_FETCH_WORKERS = 32
+
+
+def _fetch_item(http: httpx.Client, href: str) -> pystac.Item | None:
+    """Fetch and parse a single static-catalog item file. None on any failure."""
+    try:
+        resp = http.get(href)
+        resp.raise_for_status()
+        return pystac.Item.from_dict(resp.json())
+    except Exception:
+        logger.debug("failed to fetch static item %s", href, exc_info=True)
+        return None
+
+
+def _walk_items_sequential(
+    collection: pystac.Collection,
     collection_id: str,
+    start: datetime | None,
+    end: datetime | None,
     bbox: list[float] | None,
-    datetime_range: str | None,
     limit: int,
 ) -> list[dict]:
-    """Static-catalog fallback: walk the collection's item links (no /search endpoint),
-    filtering by bbox/datetime client-side, the way a catalog browser crawls."""
-    collection = client.get_collection(collection_id)
-    if collection is None:
-        return []
-
-    start, end = parse_datetime_range(datetime_range)
+    """Fallback for nested catalogs (items reached via child subcatalogs): let pystac
+    crawl recursively. Sequential, so only used when there are no direct item links."""
     results: list[dict] = []
     scanned = 0
     for item in collection.get_items(recursive=True):
@@ -261,6 +274,72 @@ def _search_via_walk(
                 collection_id,
             )
             break
+        if not bbox_intersects(item.bbox, bbox):
+            continue
+        if not datetime_in_range(item.datetime, start, end):
+            continue
+        results.append(_simplify_item(item))
+        if len(results) >= limit:
+            break
+    return results
+
+
+def _search_via_walk(
+    client: pystac_client.Client,
+    collection_id: str,
+    bbox: list[float] | None,
+    datetime_range: str | None,
+    limit: int,
+) -> list[dict]:
+    """Static-catalog fallback: no /search endpoint, so read the collection's item
+    links and fetch the item files, filtering by bbox/datetime client-side (what a
+    catalog browser does). Item files are fetched in parallel - the links live in
+    collection.json but each item is a separate file, so a serial walk is slow.
+    Collections that nest items under child subcatalogs fall back to a pystac crawl.
+    """
+    collection = client.get_collection(collection_id)
+    if collection is None:
+        return []
+
+    start, end = parse_datetime_range(datetime_range)
+
+    item_hrefs = [
+        href for link in collection.get_links(rel="item") if (href := link.get_absolute_href())
+    ]
+    has_children = bool(collection.get_links(rel="child"))
+    if not item_hrefs:
+        # Items are nested under subcatalogs (or none) - crawl recursively via pystac.
+        return _walk_items_sequential(collection, collection_id, start, end, bbox, limit)
+    if has_children:
+        logger.info(
+            "search_items: collection %s has both direct items and child catalogs; "
+            "only the direct items are searched",
+            collection_id,
+        )
+
+    # Without a filter we only need the first `limit` items; with one, scan more
+    # (bounded) since matches can be anywhere. Either way, fetch in parallel.
+    filtered = bool(bbox) or start is not None or end is not None
+    hrefs = item_hrefs[: STATIC_SCAN_CAP if filtered else limit]
+
+    items: list[pystac.Item | None] = [None] * len(hrefs)
+    limits = httpx.Limits(
+        max_connections=MAX_STATIC_FETCH_WORKERS, max_keepalive_connections=MAX_STATIC_FETCH_WORKERS
+    )
+    # One pooled client shared across the workers so connections (and TLS handshakes)
+    # are reused instead of one fresh connection per item.
+    with (
+        httpx.Client(timeout=15, follow_redirects=True, limits=limits) as http,
+        concurrent.futures.ThreadPoolExecutor(max_workers=MAX_STATIC_FETCH_WORKERS) as pool,
+    ):
+        fetched = pool.map(lambda href: _fetch_item(http, href), hrefs)
+        for idx, item in zip(range(len(hrefs)), fetched, strict=True):
+            items[idx] = item
+
+    results: list[dict] = []
+    for item in items:  # preserve the collection's item order
+        if item is None:
+            continue
         if not bbox_intersects(item.bbox, bbox):
             continue
         if not datetime_in_range(item.datetime, start, end):
