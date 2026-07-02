@@ -1373,6 +1373,10 @@ export type CustomMapCreate = {
      * Max Native Zoom
      */
     max_native_zoom?: number | null;
+    /**
+     * Mlops Url
+     */
+    mlops_url?: string | null;
 };
 
 /**
@@ -1422,6 +1426,10 @@ export type CustomMapOut = {
      * Display Order
      */
     display_order: number;
+    /**
+     * Mlops Url
+     */
+    mlops_url: string | null;
 };
 
 /**
@@ -1445,6 +1453,10 @@ export type CustomMapUpdate = {
      * Display Order
      */
     display_order?: number | null;
+    /**
+     * Mlops Url
+     */
+    mlops_url?: string | null;
 };
 
 /**
