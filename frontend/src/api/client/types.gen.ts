@@ -1929,6 +1929,10 @@ export type SearchRequest = {
      * Limit
      */
     limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
 };
 
 /**
@@ -1943,6 +1947,10 @@ export type SearchResponse = {
      * Count
      */
     count: number;
+    /**
+     * Next Offset
+     */
+    next_offset?: number | null;
 };
 
 /**

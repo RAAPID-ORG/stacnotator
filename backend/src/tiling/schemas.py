@@ -52,6 +52,8 @@ class SearchRequest(BaseModel):
     bbox: list[float] | None = None
     datetime_range: str | None = None
     limit: int = 50
+    # Cursor for paging static catalogs: resume the item-link crawl from here.
+    offset: int = 0
 
 
 class StacItemOut(BaseModel):
@@ -68,3 +70,6 @@ class StacItemOut(BaseModel):
 class SearchResponse(BaseModel):
     items: list[StacItemOut]
     count: int
+    # Next crawl offset for a static catalog when more items remain; null when the
+    # results are complete (STAC-API catalogs are server-filtered and never paged).
+    next_offset: int | None = None
