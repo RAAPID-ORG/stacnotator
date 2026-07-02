@@ -9,9 +9,6 @@ dependencies = [
     "pandas>=2.0",
 ]
 
-[project.scripts]
-stacnotator = "stacnotator.cli:main"
-
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -38,9 +35,6 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "UP", "B", "SIM", "T20"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/stacnotator/cli.py" = ["T201"]
 
 [tool.mypy]
 strict = true

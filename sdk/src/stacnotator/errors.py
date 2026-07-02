@@ -4,9 +4,7 @@ class StacnotatorError(Exception):
 
 class NotLoggedInError(StacnotatorError):
     def __init__(self) -> None:
-        super().__init__(
-            "Not logged in. Run `stacnotator login <url>` or `stacnotator.login(url)` first."
-        )
+        super().__init__("Not logged in. Run `stacnotator.login(url)` first.")
 
 
 class AuthenticationError(StacnotatorError):

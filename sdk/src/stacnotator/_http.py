@@ -32,7 +32,7 @@ class Http:
             response = self._send(method, path, **kwargs)
             if response.status_code == 401:
                 raise AuthenticationError(
-                    "Authentication failed - please log in again (`stacnotator login <url>`)."
+                    "Authentication failed - please log in again (`stacnotator.login(url)`)."
                 )
         if not response.ok:
             raise ApiError(response.status_code, _error_detail(response))

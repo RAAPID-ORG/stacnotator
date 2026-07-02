@@ -64,7 +64,7 @@ class FirebaseTokenProvider:
         if not response.ok:
             raise AuthenticationError(
                 "Your saved login is no longer valid - please log in again "
-                "(`stacnotator login <url>`)."
+                "(`stacnotator.login(url)`)."
             )
         payload = response.json()
         self._id_token = payload["id_token"]

@@ -26,8 +26,8 @@ export function SdkAuthPage() {
           <h1 className="text-2xl font-semibold text-neutral-900 mb-3">Invalid SDK login link</h1>
           <p className="text-neutral-600">
             This page authorizes the STACNotator Python SDK and can only hand credentials to a local
-            process on your own machine. Start the login from the SDK with{' '}
-            <code className="text-sm bg-neutral-100 px-1 rounded">stacnotator login</code>.
+            process on your own machine. Start the login from Python with{' '}
+            <code className="text-sm bg-neutral-100 px-1 rounded">stacnotator.login(url)</code>.
           </p>
         </div>
       </div>
@@ -57,7 +57,7 @@ export function SdkAuthPage() {
           without a password.
         </p>
         <p className="text-sm text-neutral-500 mb-8">
-          Only continue if you just ran <code>stacnotator login</code> yourself.
+          Only continue if you just ran <code>stacnotator.login(...)</code> yourself.
         </p>
         {failed && (
           <p className="text-sm text-red-600 mb-4">
