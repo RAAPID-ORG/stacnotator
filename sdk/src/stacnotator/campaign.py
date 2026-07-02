@@ -38,5 +38,24 @@ class Campaign:
         )
         return samples_frame(feature_collection)
 
+    def update_samples(self, training_set: pd.DataFrame) -> pd.DataFrame:
+        """Return ``training_set`` extended with samples annotated since it was fetched.
+
+        Rows are matched by ``annotation_id``; columns you added to the training
+        set (features, embeddings, ...) are preserved.
+        """
+        if not training_set.empty and "annotation_id" not in training_set.columns:
+            raise ValueError(
+                "training_set has no 'annotation_id' column - update_samples only works "
+                "with frames produced by get_samples() (merged exports are not supported)."
+            )
+        fetched = self.get_samples()
+        if training_set.empty:
+            return fetched
+        new_rows = fetched[~fetched["annotation_id"].isin(training_set["annotation_id"])]
+        if new_rows.empty:
+            return training_set.copy()
+        return pd.concat([training_set, new_rows], ignore_index=True)
+
     def __repr__(self) -> str:
         return f"Campaign(id={self.id}, name={self.name!r}, mode={self.mode!r})"
