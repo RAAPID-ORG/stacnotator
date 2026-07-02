@@ -35,6 +35,9 @@ const ReviewPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('src/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const SdkAuthPage = lazy(() =>
+  import('~/features/auth/pages/SdkAuthPage').then((m) => ({ default: m.SdkAuthPage }))
+);
 
 // Inline, calm fallback - sits within the AppLayout outlet so the sidebar
 // and breadcrumbs stay visible. A small spinner is less jarring than a
@@ -100,6 +103,14 @@ const router = createBrowserRouter(
         element={
           <Suspense fallback={<RouteFallback />}>
             <SettingsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="sdk-auth"
+        element={
+          <Suspense fallback={<RouteFallback />}>
+            <SdkAuthPage />
           </Suspense>
         }
       />
