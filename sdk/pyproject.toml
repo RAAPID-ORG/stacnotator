@@ -43,11 +43,6 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "T20"]
 "src/stacnotator/cli.py" = ["T201"]
 
 [tool.mypy]
-python_version = "3.10"
 strict = true
 mypy_path = "src"
 packages = ["stacnotator"]
-
-[[tool.mypy.overrides]]
-module = "pandas"
-follow_imports = "normal"
