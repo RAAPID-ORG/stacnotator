@@ -28,6 +28,7 @@ def _map_obj(**kw):
         tile_url=None,
         mosaic_id=None,
         display_order=0,
+        mlops_url=None,
     )
     base.update(kw)
     return SimpleNamespace(**base)

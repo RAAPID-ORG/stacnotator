@@ -20,3 +20,20 @@ def test_categorical_create_valid():
         },
     )
     assert m.render_config.entries[0].label == "crop"
+
+
+def test_mlops_url_round_trips_and_defaults_to_none():
+    bare = CustomMapCreate(
+        name="preds",
+        cog_url="https://example.com/pred.tif",
+        render_config={"mode": "continuous", "rescale": [0, 1]},
+    )
+    assert bare.mlops_url is None
+
+    linked = CustomMapCreate(
+        name="preds",
+        cog_url="https://example.com/pred.tif",
+        render_config={"mode": "continuous", "rescale": [0, 1]},
+        mlops_url="https://mlflow.example.com/#/experiments/7",
+    )
+    assert linked.mlops_url == "https://mlflow.example.com/#/experiments/7"

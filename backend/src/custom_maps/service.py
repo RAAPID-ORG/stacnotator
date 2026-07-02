@@ -20,6 +20,7 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
         cog_url=payload.cog_url,
         render_config=payload.render_config.model_dump(mode="json"),
         max_native_zoom=payload.max_native_zoom,
+        mlops_url=payload.mlops_url,
         status="registering",
     )
     db.add(cm)
@@ -95,7 +96,7 @@ def update_custom_map(
     if "cog_url" in data and data["cog_url"] != cm.cog_url:
         cm.cog_url = data["cog_url"]
         needs_reregister = True
-    for field in ("name", "max_native_zoom", "display_order"):
+    for field in ("name", "max_native_zoom", "display_order", "mlops_url"):
         if field in data:
             setattr(cm, field, data[field])
     if needs_reregister:

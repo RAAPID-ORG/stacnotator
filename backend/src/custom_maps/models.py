@@ -27,6 +27,7 @@ class CustomMap(Base):
     status: Mapped[str] = mapped_column(String(16), server_default="registering", nullable=False)
     status_error: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
+    mlops_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

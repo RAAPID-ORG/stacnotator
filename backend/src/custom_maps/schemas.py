@@ -23,6 +23,7 @@ class CustomMapCreate(BaseModel):
     cog_url: str = Field(min_length=1)
     render_config: RenderConfig
     max_native_zoom: int | None = Field(default=None, ge=0, le=24)
+    mlops_url: str | None = None
 
 
 class CustomMapUpdate(BaseModel):
@@ -31,6 +32,7 @@ class CustomMapUpdate(BaseModel):
     render_config: RenderConfig | None = None
     max_native_zoom: int | None = Field(default=None, ge=0, le=24)
     display_order: int | None = None
+    mlops_url: str | None = None
 
 
 class CustomMapOut(BaseModel):
@@ -47,3 +49,4 @@ class CustomMapOut(BaseModel):
     tile_url: str | None
     mosaic_id: str | None
     display_order: int
+    mlops_url: str | None
