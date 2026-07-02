@@ -473,6 +473,62 @@ def create_annotation(
         raise HTTPException(status_code=400, detail="Failed to create annotation") from e
 
 
+def create_annotations_bulk(
+    db: Session,
+    campaign: Campaign,
+    annotations_create: list[AnnotationCreate],
+    user_id: UUID,
+) -> int:
+    """
+    Create many standalone annotations in a single transaction.
+
+    Used when labelling many vector features at once (e.g. box-selecting features
+    from a PMTiles layer): one request and one ``annotations_version`` bump instead
+    of one round trip per feature. Returns the number of annotations created.
+    """
+    if not annotations_create:
+        return 0
+
+    # Validate the distinct labels once rather than per-annotation.
+    for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:
+        validate_label_id(campaign, label_id)
+
+    try:
+        geometries = [
+            AnnotationGeometry(geometry=f"SRID=4326;{a.geometry_wkt}") for a in annotations_create
+        ]
+        db.add_all(geometries)
+        db.flush()  # assign geometry ids
+
+        annotations = [
+            Annotation(
+                geometry_id=geometry.id,
+                label_id=a.label_id,
+                comment=a.comment,
+                campaign_id=campaign.id,
+                created_by_user_id=user_id,
+                confidence=a.confidence,
+                annotation_task_id=None,  # Standalone annotations
+                flagged_for_review=a.flagged_for_review or False,
+                flag_comment=a.flag_comment if a.flagged_for_review else None,
+                imagery_slice_id=a.imagery_slice_id,
+                imagery_source_name=a.imagery_source_name,
+                imagery_start_date=a.imagery_start_date,
+                imagery_end_date=a.imagery_end_date,
+            )
+            for a, geometry in zip(annotations_create, geometries, strict=True)
+        ]
+        db.add_all(annotations)
+        bump_campaign_annotations_version(db, campaign.id)
+        db.commit()
+        return len(annotations)
+
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to bulk-create annotations")
+        raise HTTPException(status_code=400, detail="Failed to create annotations") from e
+
+
 def update_annotation(
     db: Session,
     annotation_id: int,

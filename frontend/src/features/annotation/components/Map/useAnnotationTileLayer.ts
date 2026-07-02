@@ -157,133 +157,78 @@ export function createAnnotationDisplayLayer(
   return layer;
 }
 
-/** Highlight overlay: own MVT source (tiles are browser-cached so no extra
- * network), canvas-rendered so the style fn can read the live selection Set.
- * Selection keeps the label colour and is emphasised with a thicker stroke
- * (no recolour), drawn on top of the display layer. */
-function createAnnotationHighlightLayer(
-  campaign: CampaignOutFull,
-  overrides: StyleOverrides,
-  getVersion: () => number
-): VectorTileLayer {
-  const styleByLabel = new Map<number, TileLabelStyle>(
-    resolveTileLabelStyles(campaign, overrides).map((s) => [s.id, s])
-  );
-  const highlightCache = new Map<number, Style>();
-  return new VectorTileLayer({
-    source: createAnnotationTileSource(campaign.id, getVersion),
-    zIndex: HIGHLIGHT_Z_INDEX,
-    updateWhileAnimating: true,
-    updateWhileInteracting: true,
-    style: (feature: FeatureLike) => {
-      const id = feature.getId() ?? feature.get(TILE_PROP_ID);
-      const state = useAnnotationStore.getState();
-      // The actively-edited feature is drawn (with vertices) by the edit layer.
-      if (
-        id == null ||
-        id === state.editingId ||
-        !state.selectedAnnotationIds.includes(id as number)
-      )
-        return undefined;
-      const labelId = (feature.get(TILE_PROP_LABEL) as number | null) ?? -1;
-      const cached = highlightCache.get(labelId);
-      if (cached) return cached;
-      const s = styleByLabel.get(labelId);
-      const style = new Style({
-        stroke: new Stroke({
-          color: s?.strokeColor ?? DEFAULT_STROKE,
-          width: (s?.strokeWidth ?? 2) + 3,
-        }),
-      });
-      highlightCache.set(labelId, style);
-      return style;
-    },
-  });
-}
-
-/** Build the display + highlight layer pair for the current tile version. */
-function buildAnnotationLayers(
-  campaign: CampaignOutFull,
-  overrides: StyleOverrides,
-  getVersion: () => number,
-  visible: boolean
-): { display: VectorTileLayer; highlight: VectorTileLayer } {
-  const display = createAnnotationDisplayLayer(campaign, overrides, getVersion);
-  const highlight = createAnnotationHighlightLayer(campaign, overrides, getVersion);
-  display.setVisible(visible);
-  highlight.setVisible(visible);
-  return { display, highlight };
-}
-
 export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutFull | null): void {
   const displayRef = useRef<VectorTileLayer | null>(null);
   const highlightRef = useRef<VectorTileLayer | null>(null);
-  // Every annotation layer currently on the map. During a version hot-swap the
-  // outgoing pair lingers until the incoming pair has painted, so more than one
-  // pair can be present briefly; this is the authoritative cleanup list.
-  const allLayersRef = useRef<VectorTileLayer[]>([]);
-  // The last tile version we (re)built layers for, so the swap effect ignores
-  // both the initial mount and the version a fresh build already reflects.
-  const builtVersionRef = useRef(0);
 
+  // Build the layers once per (map, campaign, style overrides).
   const styleOverrides = usePreferencesStore((s) => s.annotationStyles);
-  const getVersion = () => useAnnotationStore.getState().tileVersion;
-
-  // Build (and rebuild on campaign / style change).
   useEffect(() => {
     if (!map || !campaign) return;
 
-    const { display, highlight } = buildAnnotationLayers(
-      campaign,
-      styleOverrides,
-      getVersion,
-      useMapStore.getState().showAnnotations
+    const getVersion = () => useAnnotationStore.getState().tileVersion;
+
+    const display = createAnnotationDisplayLayer(campaign, styleOverrides, getVersion);
+    display.setVisible(useMapStore.getState().showAnnotations);
+
+    // Highlight overlay: own MVT source (tiles are browser-cached so no extra
+    // network), canvas-rendered so the style fn can read the live selection Set.
+    // Selection keeps the label colour and is emphasised with a thicker stroke
+    // (no recolour), drawn on top of the display layer.
+    const styleByLabel = new Map<number, TileLabelStyle>(
+      resolveTileLabelStyles(campaign, styleOverrides).map((s) => [s.id, s])
     );
+    const highlightCache = new Map<number, Style>();
+    const highlight = new VectorTileLayer({
+      source: createAnnotationTileSource(campaign.id, getVersion),
+      zIndex: HIGHLIGHT_Z_INDEX,
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
+      style: (feature: FeatureLike) => {
+        const id = feature.getId() ?? feature.get(TILE_PROP_ID);
+        const state = useAnnotationStore.getState();
+        // The actively-edited feature is drawn (with vertices) by the edit layer.
+        if (
+          id == null ||
+          id === state.editingId ||
+          !state.selectedAnnotationIds.includes(id as number)
+        )
+          return undefined;
+        const labelId = (feature.get(TILE_PROP_LABEL) as number | null) ?? -1;
+        const cached = highlightCache.get(labelId);
+        if (cached) return cached;
+        const s = styleByLabel.get(labelId);
+        const style = new Style({
+          stroke: new Stroke({
+            color: s?.strokeColor ?? DEFAULT_STROKE,
+            width: (s?.strokeWidth ?? 2) + 3,
+          }),
+        });
+        highlightCache.set(labelId, style);
+        return style;
+      },
+    });
+    highlight.setVisible(useMapStore.getState().showAnnotations);
+
     map.addLayer(display);
     map.addLayer(highlight);
     displayRef.current = display;
     highlightRef.current = highlight;
-    allLayersRef.current = [display, highlight];
-    builtVersionRef.current = useAnnotationStore.getState().tileVersion;
 
     return () => {
-      for (const layer of allLayersRef.current) map.removeLayer(layer);
-      allLayersRef.current = [];
+      map.removeLayer(display);
+      map.removeLayer(highlight);
       displayRef.current = null;
       highlightRef.current = null;
     };
   }, [map, campaign, styleOverrides]);
 
-  // Reload on version change via a double-buffered hot-swap. VectorTileSource
-  // has no interim-tile support, so refresh()/re-keying both blank every tile
-  // before the reload lands — a full-layer flash that looks like all annotations
-  // changed. Instead build a fresh pair at the new version and keep the current
-  // pair on screen until the new tiles have painted (rendercomplete), then drop
-  // the old pair. Existing annotations never disappear; only changed tiles move.
+  // Refresh tiles when the version changes (after an edit).
   const tileVersion = useAnnotationStore((s) => s.tileVersion);
   useEffect(() => {
-    if (!map || !campaign) return;
-    if (tileVersion === builtVersionRef.current) return;
-    builtVersionRef.current = tileVersion;
-
-    const { display, highlight } = buildAnnotationLayers(
-      campaign,
-      styleOverrides,
-      getVersion,
-      useMapStore.getState().showAnnotations
-    );
-    const outgoing = allLayersRef.current;
-    map.addLayer(display);
-    map.addLayer(highlight);
-    allLayersRef.current = [...outgoing, display, highlight];
-    displayRef.current = display;
-    highlightRef.current = highlight;
-
-    map.once('rendercomplete', () => {
-      for (const layer of outgoing) map.removeLayer(layer);
-      allLayersRef.current = allLayersRef.current.filter((l) => !outgoing.includes(l));
-    });
-  }, [map, campaign, tileVersion, styleOverrides]);
+    displayRef.current?.getSource()?.refresh();
+    highlightRef.current?.getSource()?.refresh();
+  }, [tileVersion]);
 
   // Re-render the display layer when the edited feature changes so its style fn
   // hides/reveals the right id.
@@ -299,10 +244,10 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
     highlightRef.current?.changed();
   }, [selectedIds]);
 
-  // Toggle every current layer with the global annotation visibility switch
-  // (there may be two pairs mid-swap).
+  // Toggle both layers with the global annotation visibility switch.
   const showAnnotations = useMapStore((s) => s.showAnnotations);
   useEffect(() => {
-    for (const layer of allLayersRef.current) layer.setVisible(showAnnotations);
+    displayRef.current?.setVisible(showAnnotations);
+    highlightRef.current?.setVisible(showAnnotations);
   }, [showAnnotations]);
 }

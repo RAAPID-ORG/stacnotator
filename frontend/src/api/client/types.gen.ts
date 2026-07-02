@@ -649,6 +649,26 @@ export type BasemapOut = {
 };
 
 /**
+ * BatchCreateAnnotationsRequest
+ */
+export type BatchCreateAnnotationsRequest = {
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationCreate>;
+};
+
+/**
+ * BatchCreateAnnotationsResponse
+ */
+export type BatchCreateAnnotationsResponse = {
+    /**
+     * Created Count
+     */
+    created_count: number;
+};
+
+/**
  * BatchDeleteAnnotationsRequest
  */
 export type BatchDeleteAnnotationsRequest = {
@@ -4495,6 +4515,36 @@ export type CreateAnnotationOpenmodeResponses = {
 };
 
 export type CreateAnnotationOpenmodeResponse = CreateAnnotationOpenmodeResponses[keyof CreateAnnotationOpenmodeResponses];
+
+export type BatchCreateAnnotationsData = {
+    body: BatchCreateAnnotationsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/batch-create';
+};
+
+export type BatchCreateAnnotationsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BatchCreateAnnotationsError = BatchCreateAnnotationsErrors[keyof BatchCreateAnnotationsErrors];
+
+export type BatchCreateAnnotationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchCreateAnnotationsResponse;
+};
+
+export type BatchCreateAnnotationsResponse2 = BatchCreateAnnotationsResponses[keyof BatchCreateAnnotationsResponses];
 
 export type UpdateAnnotationOpenmodeData = {
     body: AnnotationUpdate;

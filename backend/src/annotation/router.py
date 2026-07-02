@@ -19,6 +19,8 @@ from src.annotation.schemas import (
     AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
+    BatchCreateAnnotationsRequest,
+    BatchCreateAnnotationsResponse,
     BatchDeleteAnnotationsRequest,
     BatchDeleteAnnotationsResponse,
     ClaimTaskResponse,
@@ -261,6 +263,30 @@ def create_annotation_openmode(
     )
 
     return annotation
+
+
+@router.post(
+    "/campaigns/{campaign_id}/annotations/batch-create",
+    response_model=BatchCreateAnnotationsResponse,
+)
+def batch_create_annotations(
+    campaign_id: int,
+    req: BatchCreateAnnotationsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    campaign: Campaign = Depends(require_campaign_access),
+) -> BatchCreateAnnotationsResponse:
+    """
+    Create many standalone annotations in one call (e.g. labelling many vector
+    features at once), in a single transaction with one annotations-version bump.
+    """
+    created = service.create_annotations_bulk(
+        db=db,
+        campaign=campaign,
+        annotations_create=req.annotations,
+        user_id=user.id,
+    )
+    return BatchCreateAnnotationsResponse(created_count=created)
 
 
 @router.put(

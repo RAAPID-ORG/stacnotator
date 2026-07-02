@@ -4,6 +4,7 @@ import {
   updateAnnotationOpenmode,
   deleteAnnotation as deleteAnnotationApi,
   batchDeleteAnnotations as batchDeleteAnnotationsApi,
+  batchCreateAnnotations as batchCreateAnnotationsApi,
   getAnnotation as getAnnotationApi,
   type AnnotationOut,
 } from '~/api/client';
@@ -114,33 +115,33 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     if (!campaign || geometries.length === 0) return 0;
 
     set({ isSaving: true });
-    const snapshot = resolveActiveImagerySnapshot();
-    let saved = 0;
     try {
-      for (const geometry of geometries) {
-        try {
-          await createAnnotationOpenmode({
-            path: { campaign_id: campaign.id },
-            body: {
-              label_id: labelId,
-              comment: null,
-              geometry_wkt: convertGeoJSONToWKT(geometry),
-              confidence: null,
-              ...snapshot,
-            },
-          });
-          saved += 1;
-        } catch (error) {
-          handleError(error, 'Failed to save one annotation');
-        }
-      }
-    } finally {
+      const snapshot = resolveActiveImagerySnapshot();
+      // One request + one transaction for the whole set, rather than a POST per
+      // feature - labelling hundreds of vector features stays fast.
+      const response = await batchCreateAnnotationsApi({
+        path: { campaign_id: campaign.id },
+        body: {
+          annotations: geometries.map((geometry) => ({
+            label_id: labelId,
+            comment: null,
+            geometry_wkt: convertGeoJSONToWKT(geometry),
+            confidence: null,
+            ...snapshot,
+          })),
+        },
+      });
+      const created = response.data?.created_count ?? 0;
       set((s) => ({ isSaving: false, tileVersion: s.tileVersion + 1 }));
+      if (created > 0) {
+        useLayoutStore.getState().showAlert(`Labeled ${created} feature(s)`, 'success');
+      }
+      return created;
+    } catch (error) {
+      handleError(error, 'Failed to label features');
+      set({ isSaving: false });
+      return 0;
     }
-    if (saved > 0) {
-      useLayoutStore.getState().showAlert(`Labeled ${saved} feature(s)`, 'success');
-    }
-    return saved;
   },
 
   updateAnnotationGeometry: async (annotationId, geometry, meta) => {
