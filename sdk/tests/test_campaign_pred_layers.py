@@ -90,6 +90,58 @@ def test_default_name_uses_increasing_counter():
 
 
 @responses.activate
+def test_default_name_skips_taken_names():
+    campaign = make_campaign()
+    responses.get(
+        f"{BASE}/api/campaigns/42/custom-maps",
+        json=[existing_layer(1, "prediction-1"), existing_layer(2, "prediction-3")],
+    )
+    responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
+
+    campaign.register_pred_layer("https://blob/preds.tif")
+
+    assert posted_body()["name"] == "prediction-4"
+
+
+@responses.activate
+def test_categorical_classes_build_legend_entries():
+    campaign = make_campaign()
+    responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
+    responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
+
+    campaign.register_pred_layer(
+        "https://blob/preds.tif",
+        classes={1: "Crop", 0: "Non-crop"},
+    )
+
+    config = posted_body()["render_config"]
+    assert config["mode"] == "categorical"
+    assert [e["value"] for e in config["entries"]] == [0, 1]
+    assert [e["label"] for e in config["entries"]] == ["Non-crop", "Crop"]
+    colors = [e["color"] for e in config["entries"]]
+    assert len(set(colors)) == 2
+    assert all(c.startswith("#") for c in colors)
+
+
+@responses.activate
+def test_categorical_classes_with_explicit_colors():
+    campaign = make_campaign()
+    responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
+    responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
+
+    campaign.register_pred_layer(
+        "https://blob/preds.tif",
+        classes={0: ("Non-crop", "#d95f02"), 1: ("Crop", "#1b9e77")},
+    )
+
+    entries = posted_body()["render_config"]["entries"]
+    assert entries == [
+        {"value": 0, "label": "Non-crop", "color": "#d95f02"},
+        {"value": 1, "label": "Crop", "color": "#1b9e77"},
+    ]
+
+
+@responses.activate
 def test_pred_layers_dataframe():
     campaign = make_campaign()
     responses.get(

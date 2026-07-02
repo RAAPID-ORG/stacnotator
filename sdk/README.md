@@ -82,10 +82,24 @@ while True:
 `update_samples(train)` re-fetches the campaign and appends rows whose `annotation_id` is not
 in `train` yet; columns you added yourself (features, embeddings, split flags) survive, and new
 rows get NA there. Anything passed as `exclude` (here the held-out test set) is never appended,
-so the split stays clean while train grows. `register_pred_layer` shows your prediction COG as
-an overlay to annotators; without a `name` it auto-numbers (`prediction-1`, `prediction-2`,
-...), and `mlops_link` ties the layer to the experiment that produced it.
-`campaign.pred_layers()` lists what's registered.
+so the split stays clean while train grows.
+
+`register_pred_layer` shows your prediction COG as an overlay to annotators. Names are unique
+per campaign (a duplicate raises `ApiError` 409); without a `name` it auto-numbers
+(`prediction-1`, `prediction-2`, ...) and skips names that are already taken. `mlops_link`
+ties the layer to the experiment that produced it, and `campaign.pred_layers()` lists what's
+registered.
+
+Most prediction tasks are categorical, so pass `classes` to render discrete values with an
+in-app legend instead of a continuous colormap:
+
+```python
+campaign.register_pred_layer(
+    "https://blob/crop_mask.tif",
+    classes={0: "Non-crop", 1: "Crop"},                      # colors auto-assigned
+    # classes={0: ("Non-crop", "#d95f02"), 1: ("Crop", "#1b9e77")}  # or explicit
+)
+```
 
 ## PyTorch
 
@@ -123,7 +137,8 @@ snt.campaign(id)          # -> Campaign
 Campaign.get_samples(merge_on_agreement=False)      # -> DataFrame
 Campaign.update_samples(train, exclude=None)        # -> train + new rows (exclude stays out)
 Campaign.register_pred_layer(cog_url, name=None, mlops_link=None,
-                             rescale=(0.0, 1.0), colormap="viridis")
+                             rescale=(0.0, 1.0), colormap="viridis",
+                             classes=None)       # {value: label} -> categorical + legend
 Campaign.pred_layers()                              # -> DataFrame
 Campaign.labels                                     # {label_id: name}
 ```
@@ -145,3 +160,4 @@ uv run ruff check src tests
 
 - Version Datasets
 - Provide the actual data loading capabilities for the raster data which is STAC
+- Link up more strongly with MLFlow (Add a MLOps interface, and concrete implementation for MLFlow) to automate a lot of the process

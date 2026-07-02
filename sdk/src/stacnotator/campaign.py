@@ -68,25 +68,35 @@ class Campaign:
         mlops_link: str | None = None,
         rescale: tuple[float, float] = (0.0, 1.0),
         colormap: str = "viridis",
+        classes: dict[int, str | tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Register a prediction COG as a map overlay on this campaign.
 
-        Registration continues asynchronously on the server; the returned layer
-        starts in status "registering".
+        Pass ``classes`` for categorical predictions: ``{value: label}`` (colors
+        auto-assigned, shown as a legend to annotators) or ``{value: (label,
+        "#rrggbb")}``. Without it the layer renders continuously with ``rescale``
+        and ``colormap``. Layer names are unique per campaign; registration
+        continues asynchronously on the server and the returned layer starts in
+        status "registering".
         """
-        existing = self._list_pred_layers()
+        existing_names = {layer["name"] for layer in self._list_pred_layers()}
+        render_config = (
+            _categorical_render_config(classes)
+            if classes
+            else {
+                "mode": "continuous",
+                "band": 1,
+                "colormap_name": colormap,
+                "rescale": list(rescale),
+            }
+        )
         result: dict[str, Any] = self._http.post(
             f"/campaigns/{self.id}/custom-maps",
             json={
-                "name": name or f"prediction-{len(existing) + 1}",
+                "name": name or _next_prediction_name(existing_names),
                 "cog_url": cog_url,
                 "mlops_url": mlops_link,
-                "render_config": {
-                    "mode": "continuous",
-                    "band": 1,
-                    "colormap_name": colormap,
-                    "rescale": list(rescale),
-                },
+                "render_config": render_config,
             },
         )
         return result
@@ -101,6 +111,36 @@ class Campaign:
 
     def __repr__(self) -> str:
         return f"Campaign(id={self.id}, name={self.name!r}, mode={self.mode!r})"
+
+
+_CLASS_COLORS = (
+    "#1b9e77",
+    "#d95f02",
+    "#7570b3",
+    "#e7298a",
+    "#66a61e",
+    "#e6ab02",
+    "#a6761d",
+    "#666666",
+)
+
+
+def _next_prediction_name(existing_names: set[str]) -> str:
+    n = len(existing_names) + 1
+    while f"prediction-{n}" in existing_names:
+        n += 1
+    return f"prediction-{n}"
+
+
+def _categorical_render_config(classes: dict[int, str | tuple[str, str]]) -> dict[str, Any]:
+    entries = []
+    for i, (value, spec) in enumerate(sorted(classes.items())):
+        if isinstance(spec, tuple):
+            label, color = spec
+        else:
+            label, color = spec, _CLASS_COLORS[i % len(_CLASS_COLORS)]
+        entries.append({"value": int(value), "label": label, "color": color})
+    return {"mode": "categorical", "band": 1, "entries": entries}
 
 
 def _annotation_ids(frame: pd.DataFrame | None, name: str) -> pd.Series:
