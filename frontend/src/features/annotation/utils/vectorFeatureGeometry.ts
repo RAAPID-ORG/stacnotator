@@ -46,3 +46,19 @@ export function featureLikeToGeoJSON4326(feature: FeatureLike): GeoJSON.Geometry
   const geom = featureLikeToGeometry(feature);
   return geom ? olGeometryToGeoJSON4326(geom) : null;
 }
+
+/**
+ * Stable per-feature key so a feature that spans several vector tiles is only
+ * counted once when box-selecting. MVT feature ids are stable across tiles, so
+ * prefer them (namespaced per layer, since ids are only unique within a layer).
+ * Falls back to a rounded geometry-extent key when the source carries no ids.
+ */
+export function featureDedupeKey(
+  layerId: unknown,
+  id: string | number | undefined,
+  geom: Geometry
+): string {
+  if (id !== undefined) return `${layerId}:id:${id}`;
+  const e = geom.getExtent();
+  return `${layerId}:geom:${geom.getType()}:${e.map((n) => Math.round(n)).join(',')}`;
+}

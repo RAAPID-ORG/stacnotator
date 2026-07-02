@@ -223,11 +223,23 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
     };
   }, [map, campaign, styleOverrides]);
 
-  // Refresh tiles when the version changes (after an edit).
+  // Reload tiles when the version changes (after an edit). Change the source
+  // *key* rather than calling refresh(): refresh() clears the tile cache, so
+  // every annotation blanks out and repaints (a jarring full-layer flash that
+  // looks like everything changed). Re-keying re-requests tiles while keeping
+  // the already-loaded ones on screen as interim tiles, so only the genuinely
+  // changed tiles update and there is no flash.
   const tileVersion = useAnnotationStore((s) => s.tileVersion);
   useEffect(() => {
-    displayRef.current?.getSource()?.refresh();
-    highlightRef.current?.getSource()?.refresh();
+    const key = String(tileVersion);
+    // Re-set the (unchanged) tile URL function with a new key. setTileUrlFunction
+    // is the public path to setKey(): it re-requests tiles while keeping the
+    // loaded ones as interim, so the layer updates without a blank flash.
+    const rekey = (source: VectorTileSource | undefined) => {
+      if (source) source.setTileUrlFunction(source.getTileUrlFunction(), key);
+    };
+    rekey(displayRef.current?.getSource() ?? undefined);
+    rekey(highlightRef.current?.getSource() ?? undefined);
   }, [tileVersion]);
 
   // Re-render the display layer when the edited feature changes so its style fn

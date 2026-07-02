@@ -29,11 +29,12 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import type { AnnotationTool } from '../../stores/map.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
+  featureDedupeKey,
   featureLikeToGeoJSON4326,
   featureLikeToGeometry,
   olGeometryToGeoJSON4326,
 } from '../../utils/vectorFeatureGeometry';
-import { VECTOR_HIGHLIGHT_Z_INDEX, VECTOR_LAYER_FLAG } from './mapUtils';
+import { VECTOR_HIGHLIGHT_Z_INDEX, VECTOR_LAYER_FLAG, VECTOR_LAYER_ID_PROP } from './mapUtils';
 
 const HIT_TOLERANCE = 3;
 
@@ -47,12 +48,6 @@ export interface VectorLabelLayerProps {
   activeTool: AnnotationTool;
   selectedLabel: ExtendedLabel | null;
   hasEnabledLayers: boolean;
-}
-
-/** Rough identity key so a feature spanning several tiles is only counted once. */
-function geometryKey(geom: Geometry): string {
-  const e = geom.getExtent();
-  return `${geom.getType()}:${e.map((n) => Math.round(n)).join(',')}`;
 }
 
 const VectorLabelLayer = ({
@@ -152,10 +147,11 @@ const VectorLabelLayer = ({
       const seen = new Set<string>();
       const geometries: GeoJSON.Geometry[] = [];
       for (const layer of layers) {
+        const layerId = layer.get(VECTOR_LAYER_ID_PROP);
         for (const feature of layer.getFeaturesInExtent(extent)) {
           const geom = featureLikeToGeometry(feature as FeatureLike);
           if (!geom || !geom.intersectsExtent(extent)) continue;
-          const key = geometryKey(geom);
+          const key = featureDedupeKey(layerId, (feature as FeatureLike).getId(), geom);
           if (seen.has(key)) continue;
           seen.add(key);
           const geoJSON = olGeometryToGeoJSON4326(geom);
