@@ -21,7 +21,7 @@ _INT_COLUMNS = ("annotation_id", "task_id", "label_id", "confidence")
 def samples_frame(feature_collection: dict[str, Any]) -> pd.DataFrame:
     """Flatten an annotations GeoJSON export into one labeled sample per row.
 
-    Geometries are kept verbatim in the ``geometry`` column; ``lat``/``lon``
+    Geometries are kept unchanged in the ``geometry`` column; ``lat``/``lon``
     are only filled for point samples - how to reduce polygons/boxes is the
     consumer's call. Features without a label are skip-markers, and features
     without geometry cannot be trained on - both are dropped.

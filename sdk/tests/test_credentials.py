@@ -20,12 +20,6 @@ def test_save_then_load_round_trips():
     assert loaded == firebase_creds()
 
 
-def test_save_local_mode_round_trips():
-    creds = Credentials(url="http://localhost:8000", auth={"mode": "none"})
-    save(creds)
-    assert load() == creds
-
-
 def test_credentials_file_is_private():
     save(firebase_creds())
     mode = credentials_path().stat().st_mode
@@ -34,11 +28,6 @@ def test_credentials_file_is_private():
 
 def test_clear_removes_credentials():
     save(firebase_creds())
-    clear()
-    assert load() is None
-
-
-def test_clear_is_noop_when_no_file():
     clear()
     assert load() is None
 

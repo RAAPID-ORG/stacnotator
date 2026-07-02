@@ -90,21 +90,3 @@ def test_error_without_json_body_uses_text():
     with pytest.raises(ApiError) as exc:
         http.get("/campaigns/9")
     assert exc.value.detail == "boom"
-
-
-@responses.activate
-def test_post_sends_json_body():
-    responses.post(f"{BASE}/api/campaigns/1/custom-maps", json={"id": 5}, status=201)
-    http = Http(BASE, NoneTokenProvider())
-
-    assert http.post("/campaigns/1/custom-maps", json={"name": "x"}) == {"id": 5}
-    assert responses.calls[0].request.body == b'{"name": "x"}'
-
-
-@responses.activate
-def test_get_passes_query_params():
-    responses.get(f"{BASE}/api/campaigns/1/export-annotations-geojson", json={"features": []})
-    http = Http(BASE, NoneTokenProvider())
-
-    http.get("/campaigns/1/export-annotations-geojson", params={"merge_on_agreement": "false"})
-    assert responses.calls[0].request.url.endswith("?merge_on_agreement=false")

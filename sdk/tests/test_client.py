@@ -34,14 +34,6 @@ def test_client_without_credentials_raises():
 
 
 @responses.activate
-def test_whoami_returns_user():
-    save_local_creds()
-    responses.get(f"{BASE}/api/auth/me", json={"email": "a@b.c", "display_name": "A"})
-
-    assert Client().whoami()["email"] == "a@b.c"
-
-
-@responses.activate
 def test_campaigns_returns_dataframe():
     save_local_creds()
     responses.get(

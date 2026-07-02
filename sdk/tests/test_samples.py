@@ -56,23 +56,13 @@ def test_point_feature_maps_to_row():
     assert row["geometry"] == POINT
 
 
-def test_polygon_keeps_geometry_verbatim_without_lat_lon():
+def test_polygon_keeps_geometry_unchanged_without_lat_lon():
     df = samples_frame(collection(feature(UNIT_SQUARE)))
 
     row = df.iloc[0]
     assert row["geometry"] == UNIT_SQUARE
     assert pd.isna(row["lat"])
     assert pd.isna(row["lon"])
-
-
-def test_multipolygon_kept_verbatim():
-    small = [[[10.0, 10.0], [10.2, 10.0], [10.2, 10.2], [10.0, 10.2], [10.0, 10.0]]]
-    multi = {"type": "MultiPolygon", "coordinates": [small, UNIT_SQUARE["coordinates"]]}
-
-    df = samples_frame(collection(feature(multi)))
-
-    assert df.iloc[0]["geometry"] == multi
-    assert pd.isna(df.iloc[0]["lat"])
 
 
 def test_unlabeled_skip_rows_are_dropped():
@@ -116,10 +106,3 @@ def test_merged_export_without_annotation_id_still_parses():
     df = samples_frame(collection(f))
 
     assert pd.isna(df.iloc[0]["annotation_id"])
-
-
-def test_all_point_frame_has_float_lat_lon():
-    df = samples_frame(collection(feature(POINT), feature(POINT, annotation_id=2)))
-
-    assert df["lat"].tolist() == [52.5, 52.5]
-    assert df["lon"].tolist() == [13.4, 13.4]

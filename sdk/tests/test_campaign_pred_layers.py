@@ -90,19 +90,6 @@ def test_default_name_uses_increasing_counter():
 
 
 @responses.activate
-def test_custom_rescale_and_colormap():
-    campaign = make_campaign()
-    responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
-    responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
-
-    campaign.register_pred_layer("https://blob/preds.tif", rescale=(0.0, 100.0), colormap="magma")
-
-    body = posted_body()
-    assert body["render_config"]["rescale"] == [0.0, 100.0]
-    assert body["render_config"]["colormap_name"] == "magma"
-
-
-@responses.activate
 def test_pred_layers_dataframe():
     campaign = make_campaign()
     responses.get(

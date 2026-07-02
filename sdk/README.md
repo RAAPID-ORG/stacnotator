@@ -1,6 +1,6 @@
 # stacnotator-sdk
 
-Python library for active learning with [STACNotator](../README.md) campaign labels — pull
+Python library for active learning with [STACNotator](../README.md) campaign labels: pull
 annotated samples into a `pandas.DataFrame`, grow your training set as annotators work, and
 push prediction maps back into the annotation UI.
 
@@ -23,7 +23,7 @@ snt.login("https://your-stacnotator.example.org")
 `login` opens your browser on the STACNotator app, where you approve the SDK once. The handoff
 only ever targets `127.0.0.1`, and credentials are cached in
 `~/.config/stacnotator/credentials.json` (chmod 600, override the directory with
-`STACNOTATOR_CONFIG_DIR`). Subsequent sessions reuse the cache — call `snt.logout()` to drop it.
+`STACNOTATOR_CONFIG_DIR`). Subsequent sessions reuse the cache; call `snt.logout()` to drop it.
 Against a local dev backend (`AUTH_PROVIDER=local`) no browser is needed; `login` detects that
 and just works.
 
@@ -40,16 +40,16 @@ df = campaign.get_samples()
 
 | column | meaning |
 | --- | --- |
-| `annotation_id` | stable id — the key `update_samples` de-duplicates on |
+| `annotation_id` | stable id, the key `update_samples` de-duplicates on |
 | `task_id` | predefined task the label answers (NA for open-mode annotations) |
 | `lat`, `lon` | filled for point samples; NA for polygons/boxes |
 | `label_id`, `label` | class id and resolved name |
-| `confidence` | annotator-reported 0–10 (NA if unset) |
+| `confidence` | annotator-reported 0-10 (NA if unset) |
 | `annotator` | annotator email |
 | `created_at` | tz-aware timestamp |
-| `geometry` | the verbatim GeoJSON geometry |
+| `geometry` | the unchanged GeoJSON geometry |
 
-Geometries are **never** reduced for you — polygon and box samples keep their full geometry and
+Geometries are **never** reduced for you: polygon and box samples keep their full geometry and
 it is up to you whether to rasterize, take centroids, or sample within them. Skipped tasks
 (no label) are excluded. `get_samples(merge_on_agreement=True)` collapses multi-annotator tasks
 to one agreed row (the server rejects the export if annotators conflict).
@@ -78,7 +78,7 @@ while True:
 ```
 
 `update_samples(train)` re-fetches the campaign and appends rows whose `annotation_id` is not
-in `train` yet — columns you added yourself (features, embeddings, split flags) survive, and new
+in `train` yet; columns you added yourself (features, embeddings, split flags) survive, and new
 rows get NA there. `register_pred_layer` shows your prediction COG as an overlay to annotators;
 without a `name` it auto-numbers (`prediction-1`, `prediction-2`, ...), and `mlops_link` ties
 the layer to the experiment that produced it. `campaign.pred_layers()` lists what's registered.
