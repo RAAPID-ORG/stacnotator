@@ -169,6 +169,9 @@ export const CatalogBrowser = ({
   const [catalogs, setCatalogs] = useState<StacCatalogOut[]>([]);
   const [collections, setCollections] = useState<StacCollectionOut[]>([]);
   const [items, setItems] = useState<StacItemOut[]>([]);
+  // Paging cursor for static catalogs; null means no more items to load.
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [selectedCatalog, setSelectedCatalog] = useState<StacCatalogOut | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<StacCollectionOut | null>(null);
@@ -517,9 +520,14 @@ export const CatalogBrowser = ({
     }
   };
 
-  const doSearch = async () => {
+  // One page of items. offset=0 starts a fresh search (replaces the list); a
+  // positive offset is a "load more" that appends and advances the cursor. Static
+  // catalogs page through their item links; STAC APIs return everything at once
+  // (next_offset stays null), so "load more" simply never shows.
+  const doSearch = async (offset = 0) => {
     if (!selectedCatalog || !selectedCollection) return;
-    setLoading(true);
+    if (offset > 0) setLoadingMore(true);
+    else setLoading(true);
     setError('');
     try {
       const bbox = campaignBbox || undefined;
@@ -531,23 +539,22 @@ export const CatalogBrowser = ({
           collection_id: selectedCollection.id,
           bbox: bbox ?? null,
           datetime_range: dtRange ?? null,
-          limit: 200,
+          limit: 30,
+          offset,
         },
       });
       if (error) throw new Error('Search failed');
-      setItems(data!.items);
+      setItems((prev) => (offset > 0 ? [...prev, ...data!.items] : data!.items));
+      setNextOffset(data!.next_offset ?? null);
     } catch (e: unknown) {
       setError(extractErrorMessage(e, 'Search failed'));
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
-  // One initial search when landing on a collection in single-item mode, so the
-  // list isn't empty. Deliberately NOT keyed on the date range or other filters:
-  // editing those must not fire a search on every change (each one can be a slow
-  // crawl of a static catalog). The user re-runs with the explicit Search button.
-  // Mosaic mode relies on collection metadata (item_assets) and never hits search.
+  // One initial search when landing on a collection in single-item mode, so the list isn't empty.
   useEffect(() => {
     if (step !== 'configure' || !selectedCatalog || !selectedCollection) return;
     if (mode !== 'single-item') return;
@@ -1435,7 +1442,7 @@ export const CatalogBrowser = ({
                 {mode === 'single-item' && (
                   <button
                     type="button"
-                    onClick={doSearch}
+                    onClick={() => doSearch(0)}
                     disabled={loading || !startDate || !endDate}
                     className="w-full py-2 rounded-md bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
                   >
@@ -1450,11 +1457,6 @@ export const CatalogBrowser = ({
                       Select an item
                       <span className="ml-1 font-normal text-neutral-400">({items.length})</span>
                     </label>
-                    {items.length >= 200 && (
-                      <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                        Showing the maximum of 200 items. Narrow the date range to see all results.
-                      </div>
-                    )}
                     <div className="space-y-1 max-h-60 overflow-y-auto">
                       {items.map((item) => (
                         <button
@@ -1479,6 +1481,16 @@ export const CatalogBrowser = ({
                         </button>
                       ))}
                     </div>
+                    {nextOffset !== null && (
+                      <button
+                        type="button"
+                        onClick={() => doSearch(nextOffset)}
+                        disabled={loadingMore}
+                        className="w-full py-1.5 rounded-md border border-neutral-300 text-xs text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 cursor-pointer transition-colors"
+                      >
+                        {loadingMore ? 'Loading…' : 'Load more'}
+                      </button>
+                    )}
                   </div>
                 )}
                 {mode === 'single-item' && items.length === 0 && loading && (

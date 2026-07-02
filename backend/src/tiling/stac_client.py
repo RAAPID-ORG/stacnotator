@@ -319,70 +319,71 @@ def _walk_items_sequential(
     return results
 
 
+# Per-request ceiling on item files fetched during a static crawl. When a filter is
+# sparse we return a cursor after this many rather than scanning the whole catalog, so
+# each page stays responsive and the caller pages on with "load more".
+STATIC_PAGE_FETCH_BUDGET = 96
+
+
 def _search_via_walk(
     client: pystac_client.Client,
     collection_id: str,
     bbox: list[float] | None,
     datetime_range: str | None,
     limit: int,
-) -> list[dict]:
+    offset: int,
+) -> tuple[list[dict], int | None]:
     """Static-catalog fallback: no /search endpoint, so read the collection's item
-    links and fetch the item files, filtering by bbox/datetime client-side (what a
-    catalog browser does). Item files are fetched in parallel - the links live in
-    collection.json but each item is a separate file, so a serial walk is slow.
-    Collections that nest items under child subcatalogs fall back to a pystac crawl.
+    links and crawl them a page at a time from `offset`, fetching each page's item
+    files in parallel and filtering by bbox/datetime client-side (what a catalog
+    browser does). Returns (items, next_offset); next_offset is the link index to
+    resume from, or None when the collection is exhausted. Collections that nest
+    items under child subcatalogs fall back to a (non-paged) pystac crawl.
     """
     collection = client.get_collection(collection_id)
     if collection is None:
-        return []
+        return [], None
 
     start, end = parse_datetime_range(datetime_range)
-
     item_hrefs = [
         href for link in collection.get_links(rel="item") if (href := link.get_absolute_href())
     ]
-    has_children = bool(collection.get_links(rel="child"))
     if not item_hrefs:
         # Items are nested under subcatalogs (or none) - crawl recursively via pystac.
-        return _walk_items_sequential(collection, collection_id, start, end, bbox, limit)
-    if has_children:
-        logger.info(
-            "search_items: collection %s has both direct items and child catalogs; "
-            "only the direct items are searched",
-            collection_id,
-        )
+        return _walk_items_sequential(collection, collection_id, start, end, bbox, limit), None
 
-    # Without a filter we only need the first `limit` items; with one, scan more
-    # (bounded) since matches can be anywhere. Either way, fetch in parallel.
-    filtered = bool(bbox) or start is not None or end is not None
-    hrefs = item_hrefs[: STATIC_SCAN_CAP if filtered else limit]
-
-    items: list[pystac.Item | None] = [None] * len(hrefs)
+    total = len(item_hrefs)
+    results: list[dict] = []
+    idx = max(offset, 0)
+    fetched = 0
     limits = httpx.Limits(
         max_connections=MAX_STATIC_FETCH_WORKERS, max_keepalive_connections=MAX_STATIC_FETCH_WORKERS
     )
-    # One pooled client shared across the workers so connections (and TLS handshakes)
-    # are reused instead of one fresh connection per item.
+    # One pooled client reused across the whole crawl (connection + TLS reuse).
     with (
         httpx.Client(timeout=15, follow_redirects=True, limits=limits) as http,
         concurrent.futures.ThreadPoolExecutor(max_workers=MAX_STATIC_FETCH_WORKERS) as pool,
     ):
-        fetched = pool.map(lambda href: _fetch_item(http, href), hrefs)
-        for idx, item in zip(range(len(hrefs)), fetched, strict=True):
-            items[idx] = item
+        while idx < total and len(results) < limit and fetched < STATIC_PAGE_FETCH_BUDGET:
+            window = item_hrefs[idx : idx + MAX_STATIC_FETCH_WORKERS]
+            page = list(pool.map(lambda href: _fetch_item(http, href), window))
+            consumed = 0
+            for item in page:  # preserve the collection's item order
+                consumed += 1
+                if item is None:
+                    continue
+                if not bbox_intersects(item.bbox, bbox):
+                    continue
+                if not datetime_in_range(item.datetime, start, end):
+                    continue
+                results.append(_simplify_item(item))
+                if len(results) >= limit:
+                    break
+            idx += consumed
+            fetched += consumed
 
-    results: list[dict] = []
-    for item in items:  # preserve the collection's item order
-        if item is None:
-            continue
-        if not bbox_intersects(item.bbox, bbox):
-            continue
-        if not datetime_in_range(item.datetime, start, end):
-            continue
-        results.append(_simplify_item(item))
-        if len(results) >= limit:
-            break
-    return results
+    next_offset = idx if idx < total else None
+    return results, next_offset
 
 
 def search_items(
@@ -391,14 +392,16 @@ def search_items(
     bbox: list[float] | None = None,
     datetime_range: str | None = None,
     limit: int = 50,
-) -> list[dict]:
-    """Search STAC items and return simplified results.
+    offset: int = 0,
+) -> tuple[list[dict], int | None]:
+    """Search STAC items and return (items, next_offset).
 
-    STAC API catalogs (advertising ITEM_SEARCH) use the /search endpoint. Static
-    catalogs (e.g. an S3-hosted catalog.json with no search endpoint) fall back to
-    walking the collection's item links, filtered client-side.
+    STAC API catalogs (advertising ITEM_SEARCH) use the /search endpoint and are never
+    paged (next_offset is None). Static catalogs (e.g. an S3-hosted catalog.json with no
+    search endpoint) crawl the collection's item links a page at a time and return a
+    cursor so the caller can load more.
     """
     client = get_client(catalog_url)
     if _conforms_to_item_search(client):
-        return _search_via_api(client, collection_id, bbox, datetime_range, limit)
-    return _search_via_walk(client, collection_id, bbox, datetime_range, limit)
+        return _search_via_api(client, collection_id, bbox, datetime_range, limit), None
+    return _search_via_walk(client, collection_id, bbox, datetime_range, limit, offset)

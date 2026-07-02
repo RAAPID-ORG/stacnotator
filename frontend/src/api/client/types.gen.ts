@@ -649,6 +649,26 @@ export type BasemapOut = {
 };
 
 /**
+ * BatchCreateAnnotationsRequest
+ */
+export type BatchCreateAnnotationsRequest = {
+    /**
+     * Annotations
+     */
+    annotations: Array<AnnotationCreate>;
+};
+
+/**
+ * BatchCreateAnnotationsResponse
+ */
+export type BatchCreateAnnotationsResponse = {
+    /**
+     * Created Count
+     */
+    created_count: number;
+};
+
+/**
  * BatchDeleteAnnotationsRequest
  */
 export type BatchDeleteAnnotationsRequest = {
@@ -876,6 +896,14 @@ export type CampaignOut = {
      */
     basemaps: Array<BasemapOut>;
     /**
+     * Custom Maps
+     */
+    custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
+    /**
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
@@ -938,6 +966,14 @@ export type CampaignOutFull = {
      * Basemaps
      */
     basemaps: Array<BasemapOut>;
+    /**
+     * Custom Maps
+     */
+    custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
     /**
      * Time Series
      */
@@ -1179,6 +1215,24 @@ export type CanvasLayoutOut = {
 };
 
 /**
+ * CategoricalEntry
+ */
+export type CategoricalEntry = {
+    /**
+     * Value
+     */
+    value: number;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Label
+     */
+    label?: string;
+};
+
+/**
  * ClaimTaskResponse
  *
  * Response from soft-claiming a task.
@@ -1300,6 +1354,97 @@ export type CollectionVizConfigOut = {
     cover_render_params?: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * CustomMapCreate
+ */
+export type CustomMapCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Cog Url
+     */
+    cog_url: string;
+    render_config: RenderConfig;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+};
+
+/**
+ * CustomMapOut
+ */
+export type CustomMapOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Cog Url
+     */
+    cog_url: string;
+    render_config: RenderConfig;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Status Error
+     */
+    status_error: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Tile Url
+     */
+    tile_url: string | null;
+    /**
+     * Mosaic Id
+     */
+    mosaic_id: string | null;
+    /**
+     * Display Order
+     */
+    display_order: number;
+};
+
+/**
+ * CustomMapUpdate
+ */
+export type CustomMapUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Cog Url
+     */
+    cog_url?: string | null;
+    render_config?: RenderConfig | null;
+    /**
+     * Max Native Zoom
+     */
+    max_native_zoom?: number | null;
+    /**
+     * Display Order
+     */
+    display_order?: number | null;
 };
 
 /**
@@ -1728,6 +1873,39 @@ export type PairwiseAgreement = {
 };
 
 /**
+ * RenderConfig
+ */
+export type RenderConfig = {
+    /**
+     * Mode
+     */
+    mode: 'continuous' | 'categorical';
+    /**
+     * Band
+     */
+    band?: number;
+    /**
+     * Nodata
+     */
+    nodata?: number | null;
+    /**
+     * Colormap Name
+     */
+    colormap_name?: string | null;
+    /**
+     * Rescale
+     */
+    rescale?: [
+        number,
+        number
+    ] | null;
+    /**
+     * Entries
+     */
+    entries?: Array<CategoricalEntry> | null;
+};
+
+/**
  * SearchRequest
  */
 export type SearchRequest = {
@@ -1751,6 +1929,10 @@ export type SearchRequest = {
      * Limit
      */
     limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
 };
 
 /**
@@ -1765,6 +1947,10 @@ export type SearchResponse = {
      * Count
      */
     count: number;
+    /**
+     * Next Offset
+     */
+    next_offset?: number | null;
 };
 
 /**
@@ -2319,6 +2505,88 @@ export type ValidationError = {
 };
 
 /**
+ * VectorLayerCreate
+ */
+export type VectorLayerCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer?: string | null;
+    /**
+     * Color
+     */
+    color?: string;
+};
+
+/**
+ * VectorLayerOut
+ */
+export type VectorLayerOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Campaign Id
+     */
+    campaign_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url: string;
+    /**
+     * Source Layer
+     */
+    source_layer: string | null;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Display Order
+     */
+    display_order: number;
+};
+
+/**
+ * VectorLayerUpdate
+ */
+export type VectorLayerUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Pmtiles Url
+     */
+    pmtiles_url?: string | null;
+    /**
+     * Source Layer
+     */
+    source_layer?: string | null;
+    /**
+     * Color
+     */
+    color?: string | null;
+    /**
+     * Display Order
+     */
+    display_order?: number | null;
+};
+
+/**
  * ViewCollectionRefCreate
  */
 export type ViewCollectionRefCreate = {
@@ -2512,6 +2780,14 @@ export type CampaignOutWritable = {
      */
     basemaps: Array<BasemapOut>;
     /**
+     * Custom Maps
+     */
+    custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
+    /**
      * Time Series
      */
     time_series: Array<TimeSeriesOut>;
@@ -2574,6 +2850,14 @@ export type CampaignOutFullWritable = {
      * Basemaps
      */
     basemaps: Array<BasemapOut>;
+    /**
+     * Custom Maps
+     */
+    custom_maps?: Array<CustomMapOut>;
+    /**
+     * Vector Layers
+     */
+    vector_layers?: Array<VectorLayerOut>;
     /**
      * Time Series
      */
@@ -4240,6 +4524,36 @@ export type CreateAnnotationOpenmodeResponses = {
 
 export type CreateAnnotationOpenmodeResponse = CreateAnnotationOpenmodeResponses[keyof CreateAnnotationOpenmodeResponses];
 
+export type BatchCreateAnnotationsData = {
+    body: BatchCreateAnnotationsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/annotations/batch-create';
+};
+
+export type BatchCreateAnnotationsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BatchCreateAnnotationsError = BatchCreateAnnotationsErrors[keyof BatchCreateAnnotationsErrors];
+
+export type BatchCreateAnnotationsResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchCreateAnnotationsResponse;
+};
+
+export type BatchCreateAnnotationsResponse2 = BatchCreateAnnotationsResponses[keyof BatchCreateAnnotationsResponses];
+
 export type UpdateAnnotationOpenmodeData = {
     body: AnnotationUpdate;
     path: {
@@ -5157,3 +5471,263 @@ export type SearchResponses = {
 };
 
 export type SearchResponse2 = SearchResponses[keyof SearchResponses];
+
+export type ListCustomMapsData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/custom-maps';
+};
+
+export type ListCustomMapsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCustomMapsError = ListCustomMapsErrors[keyof ListCustomMapsErrors];
+
+export type ListCustomMapsResponses = {
+    /**
+     * Response Listcustommaps
+     *
+     * Successful Response
+     */
+    200: Array<CustomMapOut>;
+};
+
+export type ListCustomMapsResponse = ListCustomMapsResponses[keyof ListCustomMapsResponses];
+
+export type CreateCustomMapData = {
+    body: CustomMapCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/custom-maps';
+};
+
+export type CreateCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCustomMapError = CreateCustomMapErrors[keyof CreateCustomMapErrors];
+
+export type CreateCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    201: CustomMapOut;
+};
+
+export type CreateCustomMapResponse = CreateCustomMapResponses[keyof CreateCustomMapResponses];
+
+export type DeleteCustomMapData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
+};
+
+export type DeleteCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteCustomMapError = DeleteCustomMapErrors[keyof DeleteCustomMapErrors];
+
+export type DeleteCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteCustomMapResponse = DeleteCustomMapResponses[keyof DeleteCustomMapResponses];
+
+export type UpdateCustomMapData = {
+    body: CustomMapUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Map Id
+         */
+        map_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/custom-maps/{map_id}';
+};
+
+export type UpdateCustomMapErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCustomMapError = UpdateCustomMapErrors[keyof UpdateCustomMapErrors];
+
+export type UpdateCustomMapResponses = {
+    /**
+     * Successful Response
+     */
+    200: CustomMapOut;
+};
+
+export type UpdateCustomMapResponse = UpdateCustomMapResponses[keyof UpdateCustomMapResponses];
+
+export type ListVectorLayersData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers';
+};
+
+export type ListVectorLayersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListVectorLayersError = ListVectorLayersErrors[keyof ListVectorLayersErrors];
+
+export type ListVectorLayersResponses = {
+    /**
+     * Response Listvectorlayers
+     *
+     * Successful Response
+     */
+    200: Array<VectorLayerOut>;
+};
+
+export type ListVectorLayersResponse = ListVectorLayersResponses[keyof ListVectorLayersResponses];
+
+export type CreateVectorLayerData = {
+    body: VectorLayerCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers';
+};
+
+export type CreateVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateVectorLayerError = CreateVectorLayerErrors[keyof CreateVectorLayerErrors];
+
+export type CreateVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    201: VectorLayerOut;
+};
+
+export type CreateVectorLayerResponse = CreateVectorLayerResponses[keyof CreateVectorLayerResponses];
+
+export type DeleteVectorLayerData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
+};
+
+export type DeleteVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteVectorLayerError = DeleteVectorLayerErrors[keyof DeleteVectorLayerErrors];
+
+export type DeleteVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteVectorLayerResponse = DeleteVectorLayerResponses[keyof DeleteVectorLayerResponses];
+
+export type UpdateVectorLayerData = {
+    body: VectorLayerUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * Layer Id
+         */
+        layer_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/vector-layers/{layer_id}';
+};
+
+export type UpdateVectorLayerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateVectorLayerError = UpdateVectorLayerErrors[keyof UpdateVectorLayerErrors];
+
+export type UpdateVectorLayerResponses = {
+    /**
+     * Successful Response
+     */
+    200: VectorLayerOut;
+};
+
+export type UpdateVectorLayerResponse = UpdateVectorLayerResponses[keyof UpdateVectorLayerResponses];

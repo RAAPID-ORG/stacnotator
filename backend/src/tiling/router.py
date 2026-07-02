@@ -264,14 +264,15 @@ def search(request: SearchRequest):
     """Search STAC items in a catalog collection."""
     _assert_catalog_url_safe(request.catalog_url)
     try:
-        items = search_items(
+        items, next_offset = search_items(
             catalog_url=request.catalog_url,
             collection_id=request.collection_id,
             bbox=request.bbox,
             datetime_range=request.datetime_range,
             limit=request.limit,
+            offset=request.offset,
         )
-        return {"items": items, "count": len(items)}
+        return {"items": items, "count": len(items), "next_offset": next_offset}
     except Exception as e:
         logger.error("STAC search failed: %s", e)
         raise HTTPException(status_code=502, detail="Search failed") from e
