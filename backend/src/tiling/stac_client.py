@@ -36,6 +36,36 @@ def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     return pystac_client.Client.open(catalog_url, **kwargs)
 
 
+def _asset_defs_from_item(item: pystac.Item) -> dict:
+    """Build wizard `item_assets` entries from a real item's assets. Used when a
+    collection doesn't declare `item_assets` (common for static catalogs), so the
+    mosaic wizard still has assets/bands to configure a visualization from."""
+    result: dict = {}
+    for key, asset in item.assets.items():
+        eo_bands = (asset.extra_fields or {}).get("eo:bands") or []
+        result[key] = {
+            "title": asset.title or key,
+            "type": asset.media_type or "",
+            "roles": asset.roles or [],
+            "bands": [
+                {"name": b.get("name", f"b{i + 1}"), "description": b.get("description")}
+                for i, b in enumerate(eo_bands)
+            ],
+        }
+    return result
+
+
+def _sample_item_assets(col) -> dict:
+    """Fetch a single item from a collection and derive its assets. Empty on failure.
+    One extra request, only taken when the collection declares no `item_assets`."""
+    try:
+        item = next(iter(col.get_items()), None)
+    except Exception:
+        logger.debug("could not sample an item from collection %s", getattr(col, "id", "?"))
+        return {}
+    return _asset_defs_from_item(item) if item is not None else {}
+
+
 def list_collections(catalog_url: str) -> list[dict]:
     """List collections from a STAC API catalog."""
     t_open = time.time()
@@ -80,6 +110,11 @@ def list_collections(catalog_url: str) -> list[dict]:
                     for i, b in enumerate(eo_bands)
                 ],
             }
+
+        # Static catalogs often omit collection-level item_assets; sample one item so
+        # the mosaic wizard still has assets to configure a visualization from.
+        if not item_assets:
+            item_assets = _sample_item_assets(col)
 
         # Detect eo:cloud_cover support:
         # 1. Check summaries (some catalogs declare it explicitly)
