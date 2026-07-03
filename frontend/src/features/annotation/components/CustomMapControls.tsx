@@ -7,8 +7,6 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
   const setActiveCustomMapId = useMapStore((s) => s.setActiveCustomMapId);
   const showCustomMap = useMapStore((s) => s.showCustomMap);
   const setShowCustomMap = useMapStore((s) => s.setShowCustomMap);
-  const customMapOpacity = useMapStore((s) => s.customMapOpacity);
-  const setCustomMapOpacity = useMapStore((s) => s.setCustomMapOpacity);
 
   const ready = customMaps.filter((m) => m.status === 'ready');
   if (ready.length === 0) return null;
@@ -77,16 +75,6 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
               <path d="M2 12l8 5 8-5" opacity="0.5" />
             </svg>
           </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={customMapOpacity}
-            data-testid="custom-map-opacity"
-            onChange={(e) => setCustomMapOpacity(Number(e.target.value))}
-            title="Overlay opacity"
-            className="w-16 accent-brand-500 cursor-pointer"
-          />
         </>
       )}
     </div>

@@ -43,7 +43,9 @@ async function reloadWithCustomMap(page: Page): Promise<void> {
 }
 
 test.describe('custom map overlay', () => {
-  test('select map, then toggle overlay visibility and adjust opacity', async ({ annotationPage }) => {
+  test('select map, then toggle overlay visibility and adjust opacity', async ({
+    annotationPage,
+  }) => {
     await reloadWithCustomMap(annotationPage);
 
     const controls = annotationPage.getByTestId('custom-map-controls');
@@ -62,14 +64,17 @@ test.describe('custom map overlay', () => {
 
     await expect(annotationPage.getByTestId('custom-map-legend')).toBeVisible();
 
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-
-    await expect(annotationPage.getByTestId('custom-map-legend')).toBeHidden();
-
+    // The opacity slider lives inside the legend panel.
     const opacity = annotationPage.getByTestId('custom-map-opacity');
     await opacity.fill('40');
     await expect(opacity).toHaveValue('40');
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    // Hiding the overlay hides the legend and its opacity slider with it.
+    await expect(annotationPage.getByTestId('custom-map-legend')).toBeHidden();
+    await expect(opacity).toBeHidden();
   });
 
   test('shift+m cycles to the next map; m hides then re-enters the same map', async ({
