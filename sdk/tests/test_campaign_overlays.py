@@ -29,7 +29,7 @@ def existing_layer(layer_id, name):
 
 
 def created_layer(**overrides):
-    layer = existing_layer(9, "prediction-1")
+    layer = existing_layer(9, "overlay-1")
     layer.update(status="registering", tile_url=None, mosaic_id=None, **overrides)
     return layer
 
@@ -55,7 +55,7 @@ def test_register_with_explicit_name_and_mlops_link():
         status=201,
     )
 
-    layer = campaign.register_pred_layer(
+    layer = campaign.register_overlay(
         "https://blob/preds_v3.tif",
         name="preds v3",
         mlops_link="https://mlflow/#/experiments/7",
@@ -80,13 +80,13 @@ def test_default_name_uses_increasing_counter():
     campaign = make_campaign()
     responses.get(
         f"{BASE}/api/campaigns/42/custom-maps",
-        json=[existing_layer(1, "prediction-1"), existing_layer(2, "some custom overlay")],
+        json=[existing_layer(1, "overlay-1"), existing_layer(2, "some custom overlay")],
     )
     responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
 
-    campaign.register_pred_layer("https://blob/preds.tif")
+    campaign.register_overlay("https://blob/preds.tif")
 
-    assert posted_body()["name"] == "prediction-3"
+    assert posted_body()["name"] == "overlay-3"
     assert posted_body()["mlops_url"] is None
 
 
@@ -95,13 +95,13 @@ def test_default_name_skips_taken_names():
     campaign = make_campaign()
     responses.get(
         f"{BASE}/api/campaigns/42/custom-maps",
-        json=[existing_layer(1, "prediction-1"), existing_layer(2, "prediction-3")],
+        json=[existing_layer(1, "overlay-1"), existing_layer(2, "overlay-3")],
     )
     responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
 
-    campaign.register_pred_layer("https://blob/preds.tif")
+    campaign.register_overlay("https://blob/preds.tif")
 
-    assert posted_body()["name"] == "prediction-4"
+    assert posted_body()["name"] == "overlay-4"
 
 
 @responses.activate
@@ -110,7 +110,7 @@ def test_categorical_classes_build_legend_entries():
     responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
     responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
 
-    campaign.register_pred_layer(
+    campaign.register_overlay(
         "https://blob/preds.tif",
         classes={1: "Crop", 0: "Non-crop"},
     )
@@ -130,7 +130,7 @@ def test_categorical_classes_with_explicit_colors():
     responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
     responses.post(f"{BASE}/api/campaigns/42/custom-maps", json=created_layer(), status=201)
 
-    campaign.register_pred_layer(
+    campaign.register_overlay(
         "https://blob/preds.tif",
         classes={0: ("Non-crop", "#d95f02"), 1: ("Crop", "#1b9e77")},
     )
@@ -143,25 +143,25 @@ def test_categorical_classes_with_explicit_colors():
 
 
 @responses.activate
-def test_pred_layers_dataframe():
+def test_overlays_dataframe():
     campaign = make_campaign()
     responses.get(
         f"{BASE}/api/campaigns/42/custom-maps",
-        json=[existing_layer(1, "prediction-1")],
+        json=[existing_layer(1, "overlay-1")],
     )
 
-    df = campaign.pred_layers()
+    df = campaign.overlays()
 
     assert list(df.columns) == ["id", "name", "cog_url", "status", "mlops_url", "tile_url"]
-    assert df.loc[0, "name"] == "prediction-1"
+    assert df.loc[0, "name"] == "overlay-1"
 
 
 @responses.activate
-def test_pred_layers_empty_keeps_columns():
+def test_overlays_empty_keeps_columns():
     campaign = make_campaign()
     responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
 
-    df = campaign.pred_layers()
+    df = campaign.overlays()
 
     assert df.empty
     assert list(df.columns) == ["id", "name", "cog_url", "status", "mlops_url", "tile_url"]
@@ -172,4 +172,4 @@ def test_register_rejects_local_file_paths():
     campaign = make_campaign()
 
     with pytest.raises(ValueError, match="local path"):
-        campaign.register_pred_layer("/home/me/predictions.tif")
+        campaign.register_overlay("/home/me/predictions.tif")

@@ -2,7 +2,7 @@
 
 Python library for active learning with [STACNotator](../README.md) campaign labels: pull
 annotated samples into a `pandas.DataFrame`, grow your training set as annotators work, and
-push prediction maps back into the annotation UI.
+push prediction rasters back into the annotation UI as overlay layers.
 
 The library is notebook-first: no CLI, no config files to write, no passwords in code.
 For a runnable end-to-end walkthrough (train on lat/lon, predict over the campaign extent,
@@ -77,7 +77,7 @@ while True:
     score = model.score(*featurize(test))       # test set stays fixed across iterations
 
     predictions_url = export_predictions_cog(model)   # your inference + COG upload
-    campaign.register_pred_layer(
+    campaign.register_overlay(
         predictions_url,
         mlops_link="https://mlflow.example.org/#/experiments/7",
     )
@@ -91,17 +91,17 @@ in `train` yet; columns you added yourself (features, embeddings, split flags) s
 rows get NA there. Anything passed as `exclude` (here the held-out test set) is never appended,
 so the split stays clean while train grows.
 
-`register_pred_layer` shows your prediction COG as an overlay to annotators. Names are unique
+`register_overlay` shows your prediction COG as an overlay to annotators. Names are unique
 per campaign (a duplicate raises `ApiError` 409); without a `name` it auto-numbers
-(`prediction-1`, `prediction-2`, ...) and skips names that are already taken. `mlops_link`
-ties the layer to the experiment that produced it, and `campaign.pred_layers()` lists what's
+(`overlay-1`, `overlay-2`, ...) and skips names that are already taken. `mlops_link`
+ties the layer to the experiment that produced it, and `campaign.overlays()` lists what's
 registered.
 
 Most prediction tasks are categorical, so pass `classes` to render discrete values with an
 in-app legend instead of a continuous colormap:
 
 ```python
-campaign.register_pred_layer(
+campaign.register_overlay(
     "https://blob/crop_mask.tif",
     classes={0: "Non-crop", 1: "Crop"},                      # colors auto-assigned
     # classes={0: ("Non-crop", "#d95f02"), 1: ("Crop", "#1b9e77")}  # or explicit
@@ -143,10 +143,10 @@ snt.campaign(id)          # -> Campaign
 
 Campaign.get_samples(merge_on_agreement=False)      # -> DataFrame
 Campaign.update_samples(train, exclude=None)        # -> train + new rows (exclude stays out)
-Campaign.register_pred_layer(cog_url, name=None, mlops_link=None,
+Campaign.register_overlay(cog_url, name=None, mlops_link=None,
                              rescale=(0.0, 1.0), colormap="viridis",
                              classes=None)       # {value: label} -> categorical + legend
-Campaign.pred_layers()                              # -> DataFrame
+Campaign.overlays()                              # -> DataFrame
 Campaign.labels                                     # {label_id: name}
 ```
 

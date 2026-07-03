@@ -72,7 +72,7 @@ class Campaign:
             return training_set.copy()
         return pd.concat([training_set, new_rows], ignore_index=True)
 
-    def register_pred_layer(
+    def register_overlay(
         self,
         cog_url: str,
         name: str | None = None,
@@ -81,13 +81,13 @@ class Campaign:
         colormap: str = "viridis",
         classes: dict[int, str | tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
-        """Register a prediction COG as a map overlay on this campaign.
+        """Register a COG (e.g. model predictions) as an overlay layer on this campaign.
 
-        Pass ``classes`` for categorical predictions: ``{value: label}`` (colors
+        Pass ``classes`` for categorical rasters: ``{value: label}`` (colors
         auto-assigned, shown as a legend to annotators) or ``{value: (label,
-        "#rrggbb")}``. Without it the layer renders continuously with ``rescale``
-        and ``colormap``. Layer names are unique per campaign; registration
-        continues asynchronously on the server and the returned layer starts in
+        "#rrggbb")}``. Without it the overlay renders continuously with ``rescale``
+        and ``colormap``. Overlay names are unique per campaign; registration
+        continues asynchronously on the server and the returned overlay starts in
         status "registering".
         """
         if not cog_url.startswith(("http://", "https://")):
@@ -96,7 +96,7 @@ class Campaign:
                 f"path: {cog_url!r}. Upload the COG (or serve it, e.g. `python -m "
                 "http.server`) and pass its URL."
             )
-        existing_names = {layer["name"] for layer in self._list_pred_layers()}
+        existing_names = {layer["name"] for layer in self._list_overlays()}
         render_config = (
             _categorical_render_config(classes)
             if classes
@@ -110,7 +110,7 @@ class Campaign:
         result: dict[str, Any] = self._http.post(
             f"/campaigns/{self.id}/custom-maps",
             json={
-                "name": name or _next_prediction_name(existing_names),
+                "name": name or _next_overlay_name(existing_names),
                 "cog_url": cog_url,
                 "mlops_url": mlops_link,
                 "render_config": render_config,
@@ -118,11 +118,11 @@ class Campaign:
         )
         return result
 
-    def pred_layers(self) -> pd.DataFrame:
+    def overlays(self) -> pd.DataFrame:
         columns = ["id", "name", "cog_url", "status", "mlops_url", "tile_url"]
-        return pd.DataFrame(self._list_pred_layers(), columns=columns)
+        return pd.DataFrame(self._list_overlays(), columns=columns)
 
-    def _list_pred_layers(self) -> list[dict[str, Any]]:
+    def _list_overlays(self) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = self._http.get(f"/campaigns/{self.id}/custom-maps")
         return result
 
@@ -142,11 +142,11 @@ _CLASS_COLORS = (
 )
 
 
-def _next_prediction_name(existing_names: set[str]) -> str:
+def _next_overlay_name(existing_names: set[str]) -> str:
     n = len(existing_names) + 1
-    while f"prediction-{n}" in existing_names:
+    while f"overlay-{n}" in existing_names:
         n += 1
-    return f"prediction-{n}"
+    return f"overlay-{n}"
 
 
 def _categorical_render_config(classes: dict[int, str | tuple[str, str]]) -> dict[str, Any]:

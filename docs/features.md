@@ -135,7 +135,7 @@ Post-creation editing via settings page:
 - **Browser-based login** - `stacnotator.login(url)` opens the app's `/sdk-auth` page, which hands a refresh token to a loopback-only local callback; no passwords in code. Local-auth backends are detected and need no login.
 - **`campaign.get_samples()`** - all labeled annotations as a DataFrame (lat/lon for points, unchanged GeoJSON geometry for everything else, resolved label names).
 - **`campaign.update_samples(train)`** - appends newly annotated samples to an existing training set (deduped by `annotation_id`, user-added columns preserved).
-- **`campaign.register_pred_layer(cog_url, ...)`** - registers a prediction COG as a custom-map overlay, with auto-numbered names and an optional `mlops_link` (e.g. MLflow experiment).
+- **`campaign.register_overlay(cog_url, ...)`** - registers a COG (e.g. model predictions) as an overlay layer, with auto-numbered names and an optional `mlops_link` (e.g. MLflow experiment).
 
 See `sdk/README.md` for the full API and active-learning loop examples.
 
