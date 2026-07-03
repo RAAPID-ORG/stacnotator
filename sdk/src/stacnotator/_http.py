@@ -36,7 +36,15 @@ class Http:
                 )
         if not response.ok:
             raise ApiError(response.status_code, _error_detail(response))
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise ApiError(
+                response.status_code,
+                f"Expected JSON from {response.url} but got "
+                f"'{response.headers.get('Content-Type', 'unknown')}'. "
+                "This does not look like the STACNotator API URL.",
+            ) from exc
 
     def _send(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         headers = {}

@@ -101,9 +101,18 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 
 def _backend_accepts_unauthenticated(url: str) -> bool:
     try:
-        return requests.get(f"{url}/api/auth/me", timeout=10).ok
+        response = requests.get(f"{url}/api/auth/me", timeout=10)
     except requests.RequestException as exc:
         raise AuthenticationError(f"Could not reach {url}: {exc}") from exc
+    if not response.ok:
+        return False
+    try:
+        response.json()
+    except ValueError:
+        # An SPA dev server answers every path with index.html and status 200;
+        # only a JSON body proves we reached an API that accepts us.
+        return False
+    return True
 
 
 def _wait_for_browser_handoff(server: _CallbackServer, timeout: float) -> dict[str, str]:
@@ -120,6 +129,7 @@ def _wait_for_browser_handoff(server: _CallbackServer, timeout: float) -> dict[s
 
 
 def _credentials_from_handoff(url: str, fields: dict[str, str]) -> Credentials:
+    api_url = (fields.get("api_url") or url).rstrip("/")
     if fields.get("mode") == "firebase":
         api_key, refresh_token = fields.get("api_key"), fields.get("refresh_token")
         if not api_key or not refresh_token:
@@ -127,17 +137,18 @@ def _credentials_from_handoff(url: str, fields: dict[str, str]) -> Credentials:
         creds = Credentials(
             url=url,
             auth={"mode": "firebase", "api_key": api_key, "refresh_token": refresh_token},
+            api_url=api_url,
         )
         _validate(creds)
         return creds
-    return Credentials(url=url, auth={"mode": "none"})
+    return Credentials(url=url, auth={"mode": "none"}, api_url=api_url)
 
 
 def _validate(creds: Credentials) -> None:
     provider = FirebaseTokenProvider(creds.auth["api_key"], creds.auth["refresh_token"])
     token = provider.id_token()
     response = requests.get(
-        f"{creds.url}/api/auth/me",
+        f"{creds.api_url or creds.url}/api/auth/me",
         headers={"Authorization": f"Bearer {token}"},
         timeout=30,
     )
@@ -159,7 +170,7 @@ def login_via_browser(
     """
     url = url.rstrip("/")
     if _backend_accepts_unauthenticated(url):
-        return Credentials(url=url, auth={"mode": "none"})
+        return Credentials(url=url, auth={"mode": "none"}, api_url=url)
 
     server = _CallbackServer(("127.0.0.1", 0), _CallbackHandler)
     port = server.server_address[1]

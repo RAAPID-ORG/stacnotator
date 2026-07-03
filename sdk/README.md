@@ -25,6 +25,8 @@ import stacnotator as snt
 snt.login("https://your-stacnotator.example.org")
 ```
 
+Pass the app URL (the one you open in the browser); the login handoff tells the SDK where the
+API lives, which is a different host in most deployments.
 `login` opens your browser on the STACNotator app, where you approve the SDK once. The handoff
 only ever targets `127.0.0.1`, and credentials are cached in
 `~/.config/stacnotator/credentials.json` (chmod 600, override the directory with

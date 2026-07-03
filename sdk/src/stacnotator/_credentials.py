@@ -9,6 +9,9 @@ from typing import Any
 class Credentials:
     url: str
     auth: dict[str, Any]
+    # Where /api lives. In split deployments (static frontend + separate API host)
+    # this differs from the app url the user logged in with.
+    api_url: str | None = None
 
 
 def credentials_path() -> Path:
@@ -29,7 +32,7 @@ def load() -> Credentials | None:
     if not path.exists():
         return None
     data = json.loads(path.read_text())
-    return Credentials(url=data["url"], auth=data["auth"])
+    return Credentials(url=data["url"], auth=data["auth"], api_url=data.get("api_url"))
 
 
 def clear() -> None:

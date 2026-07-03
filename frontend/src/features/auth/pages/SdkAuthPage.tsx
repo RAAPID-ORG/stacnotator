@@ -3,14 +3,20 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '~/shared/ui/forms';
 import { IS_LOCAL_AUTH } from '~/features/auth';
 import { firebaseAuth } from '~/features/auth/adapters/firebase/firebaseApp';
-import { isAllowedSdkCallback, submitHandoff, type SdkHandoff } from '../utils/sdkCallback';
+import {
+  apiBaseUrl,
+  isAllowedSdkCallback,
+  submitHandoff,
+  type SdkHandoff,
+} from '../utils/sdkCallback';
 
 function buildHandoff(): SdkHandoff | null {
-  if (IS_LOCAL_AUTH) return { mode: 'local' };
+  const apiUrl = apiBaseUrl(import.meta.env.VITE_API_BASE_URL ?? '', window.location.origin);
+  if (IS_LOCAL_AUTH) return { mode: 'local', apiUrl };
   const user = firebaseAuth?.currentUser;
   const apiKey = firebaseAuth?.app.options.apiKey;
   if (!user || !apiKey) return null;
-  return { mode: 'firebase', apiKey, refreshToken: user.refreshToken };
+  return { mode: 'firebase', apiKey, refreshToken: user.refreshToken, apiUrl };
 }
 
 export function SdkAuthPage() {

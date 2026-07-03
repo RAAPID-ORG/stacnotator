@@ -124,7 +124,7 @@ def test_module_level_login_and_campaign(monkeypatch):
     user = stacnotator.login(BASE)
 
     assert user["email"] == "local@localhost"
-    assert load() == Credentials(url=BASE, auth={"mode": "none"})
+    assert load() == Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE)
     assert stacnotator.campaign(42).name == "Crop mapping"
 
     stacnotator.logout()
@@ -138,3 +138,11 @@ def test_campaign_rejects_non_integer_id():
 
     with pytest.raises(ValueError, match="snt.campaigns"):
         Client().campaign(None)
+
+
+@responses.activate
+def test_client_uses_api_url_for_requests():
+    save(Credentials(url=BASE, auth={"mode": "none"}, api_url="https://api.example.org"))
+    responses.get("https://api.example.org/api/auth/me", json={"email": "a@b.c"})
+
+    assert Client().whoami()["email"] == "a@b.c"

@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { isAllowedSdkCallback } from './sdkCallback';
+import { apiBaseUrl, isAllowedSdkCallback } from './sdkCallback';
+
+describe('apiBaseUrl', () => {
+  it('keeps an absolute API base', () => {
+    expect(apiBaseUrl('http://localhost:8000', 'http://localhost:5173')).toBe(
+      'http://localhost:8000'
+    );
+    expect(apiBaseUrl('https://api.example.org/', 'https://app.example.org')).toBe(
+      'https://api.example.org'
+    );
+  });
+
+  it('resolves an empty or relative base to the app origin', () => {
+    expect(apiBaseUrl('', 'https://app.example.org')).toBe('https://app.example.org');
+    expect(apiBaseUrl('/', 'https://app.example.org')).toBe('https://app.example.org');
+  });
+});
 
 describe('isAllowedSdkCallback', () => {
   it('accepts loopback callback urls with any port', () => {

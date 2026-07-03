@@ -13,16 +13,28 @@ export function isAllowedSdkCallback(raw: string): boolean {
 }
 
 export type SdkHandoff =
-  | { mode: 'local' }
-  | { mode: 'firebase'; apiKey: string; refreshToken: string };
+  | { mode: 'local'; apiUrl: string }
+  | { mode: 'firebase'; apiKey: string; refreshToken: string; apiUrl: string };
+
+// The app and the API are different origins in dev (5173 vs 8000) and in
+// production (static web app vs container app), so the page must tell the SDK
+// where /api actually lives. Relative or empty bases resolve to the app origin.
+export function apiBaseUrl(configuredBase: string, appOrigin: string): string {
+  return new URL(configuredBase || '/', appOrigin).toString().replace(/\/$/, '');
+}
 
 // A top-level form POST (not fetch) so the tab navigates to the SDK's
 // "login complete" page and no CORS preflight is involved.
 export function submitHandoff(callbackUrl: string, handoff: SdkHandoff): void {
   const fields: Record<string, string> =
     handoff.mode === 'local'
-      ? { mode: 'local' }
-      : { mode: 'firebase', api_key: handoff.apiKey, refresh_token: handoff.refreshToken };
+      ? { mode: 'local', api_url: handoff.apiUrl }
+      : {
+          mode: 'firebase',
+          api_key: handoff.apiKey,
+          refresh_token: handoff.refreshToken,
+          api_url: handoff.apiUrl,
+        };
 
   const form = document.createElement('form');
   form.method = 'POST';

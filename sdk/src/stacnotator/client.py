@@ -33,7 +33,7 @@ class Client:
                 creds = _credentials.Credentials(url=url, auth={"mode": "none"})
         if creds is None:
             raise NotLoggedInError()
-        self._http = Http(creds.url, _token_provider(creds))
+        self._http = Http(creds.api_url or creds.url, _token_provider(creds))
 
     def whoami(self) -> dict[str, Any]:
         result: dict[str, Any] = self._http.get("/auth/me")

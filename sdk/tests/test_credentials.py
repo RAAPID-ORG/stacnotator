@@ -1,3 +1,4 @@
+import json
 import stat
 
 from stacnotator._credentials import Credentials, clear, credentials_path, load, save
@@ -34,3 +35,21 @@ def test_clear_removes_credentials():
 
 def test_path_honors_config_dir_env(isolated_config_dir):
     assert credentials_path().parent == isolated_config_dir
+
+
+def test_api_url_round_trips_and_is_optional():
+    creds = Credentials(
+        url="https://app.example.org", auth={"mode": "none"}, api_url="https://api.example.org"
+    )
+    save(creds)
+    assert load() == creds
+
+
+def test_legacy_file_without_api_url_loads():
+    save(firebase_creds())
+    path = credentials_path()
+    data = json.loads(path.read_text())
+    del data["api_url"]
+    path.write_text(json.dumps(data))
+
+    assert load().api_url is None

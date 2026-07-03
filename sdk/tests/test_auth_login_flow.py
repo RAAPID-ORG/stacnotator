@@ -10,17 +10,32 @@ from stacnotator._credentials import Credentials
 from stacnotator.errors import AuthenticationError
 
 BASE = "https://app.example.org"
+API = "https://api.example.org"
 
 
 @responses.activate
-def test_local_mode_backend_skips_browser():
+def test_backend_url_with_local_auth_skips_browser():
     responses.get(f"{BASE}/api/auth/me", json={"email": "local@localhost"})
     opened = []
 
     creds = login_via_browser(BASE, open_browser=opened.append)
 
-    assert creds == Credentials(url=BASE, auth={"mode": "none"})
+    assert creds == Credentials(url=BASE, auth={"mode": "none"}, api_url=BASE)
     assert opened == []
+
+
+@responses.activate
+def test_spa_html_response_is_not_mistaken_for_open_backend():
+    """A frontend dev server answers every path with index.html and status 200.
+
+    That must not be read as "no auth needed" - the browser flow has to run.
+    """
+    responses.get(f"{BASE}/api/auth/me", body="<!doctype html><html></html>", status=200)
+    open_browser = browser_that_submits({"mode": "local", "api_url": API})
+
+    creds = login_via_browser(BASE, open_browser=open_browser, timeout=10)
+
+    assert creds == Credentials(url=BASE, auth={"mode": "none"}, api_url=API)
 
 
 def browser_that_submits(fields):
@@ -41,15 +56,15 @@ def browser_that_submits(fields):
 
 
 @responses.activate
-def test_firebase_flow_returns_validated_credentials():
+def test_firebase_flow_returns_credentials_validated_against_api_url():
     responses.get(f"{BASE}/api/auth/me", json={"detail": "Authentication required"}, status=401)
     responses.post(
         SECURETOKEN_URL,
         json={"id_token": "id-1", "refresh_token": "r-token", "expires_in": "3600"},
     )
-    responses.get(f"{BASE}/api/auth/me", json={"email": "a@b.c"})
+    responses.get(f"{API}/api/auth/me", json={"email": "a@b.c"})
     open_browser = browser_that_submits(
-        {"mode": "firebase", "api_key": "AIzaKey", "refresh_token": "r-token"}
+        {"mode": "firebase", "api_key": "AIzaKey", "refresh_token": "r-token", "api_url": API}
     )
 
     creds = login_via_browser(BASE, open_browser=open_browser, timeout=10)
@@ -57,9 +72,21 @@ def test_firebase_flow_returns_validated_credentials():
     assert creds == Credentials(
         url=BASE,
         auth={"mode": "firebase", "api_key": "AIzaKey", "refresh_token": "r-token"},
+        api_url=API,
     )
     authorized_call = responses.calls[-1]
+    assert authorized_call.request.url.startswith(API)
     assert authorized_call.request.headers["Authorization"] == "Bearer id-1"
+
+
+@responses.activate
+def test_handoff_without_api_url_falls_back_to_app_url():
+    responses.get(f"{BASE}/api/auth/me", json={"detail": "nope"}, status=401)
+    open_browser = browser_that_submits({"mode": "local"})
+
+    creds = login_via_browser(BASE, open_browser=open_browser, timeout=10)
+
+    assert creds.api_url == BASE
 
 
 @responses.activate

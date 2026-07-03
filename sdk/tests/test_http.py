@@ -90,3 +90,12 @@ def test_error_without_json_body_uses_text():
     with pytest.raises(ApiError) as exc:
         http.get("/campaigns/9")
     assert exc.value.detail == "boom"
+
+
+@responses.activate
+def test_non_json_success_body_raises_clear_error():
+    responses.get(f"{BASE}/api/auth/me", body="<!doctype html>", status=200)
+    http = Http(BASE, NoneTokenProvider())
+
+    with pytest.raises(ApiError, match="API URL"):
+        http.get("/auth/me")
