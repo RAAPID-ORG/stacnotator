@@ -30,6 +30,17 @@ class Campaign:
         settings = self._data.get("settings") or {}
         return {int(label["id"]): label["name"] for label in settings.get("labels") or []}
 
+    @property
+    def extent(self) -> tuple[float, float, float, float]:
+        """Campaign bounding box as (west, south, east, north)."""
+        settings = self._data["settings"]
+        return (
+            float(settings["bbox_west"]),
+            float(settings["bbox_south"]),
+            float(settings["bbox_east"]),
+            float(settings["bbox_north"]),
+        )
+
     def get_samples(self, merge_on_agreement: bool = False) -> pd.DataFrame:
         """All labeled samples of this campaign as lat/lon/label rows."""
         feature_collection = self._http.get(

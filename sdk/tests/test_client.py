@@ -19,7 +19,11 @@ CAMPAIGN_PAYLOAD = {
         "labels": [
             {"id": 1, "name": "Maize", "geometry_type": "point"},
             {"id": 2, "name": "Other", "geometry_type": "point"},
-        ]
+        ],
+        "bbox_west": -10.0,
+        "bbox_south": 35.0,
+        "bbox_east": 10.0,
+        "bbox_north": 55.0,
     },
 }
 
@@ -82,6 +86,7 @@ def test_campaign_builds_campaign_object():
     assert campaign.name == "Crop mapping"
     assert campaign.mode == "open"
     assert campaign.labels == {1: "Maize", 2: "Other"}
+    assert campaign.extent == (-10.0, 35.0, 10.0, 55.0)
 
 
 @responses.activate

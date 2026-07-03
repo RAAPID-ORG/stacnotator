@@ -5,6 +5,9 @@ annotated samples into a `pandas.DataFrame`, grow your training set as annotator
 push prediction maps back into the annotation UI.
 
 The library is notebook-first: no CLI, no config files to write, no passwords in code.
+For a runnable end-to-end walkthrough (train on lat/lon, predict over the campaign extent,
+write a COG, register it with a legend, grow the training set), see
+[`examples/active-learning-demo.ipynb`](examples/active-learning-demo.ipynb).
 
 ## Install
 
