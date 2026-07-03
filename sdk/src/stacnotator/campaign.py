@@ -90,6 +90,12 @@ class Campaign:
         continues asynchronously on the server and the returned layer starts in
         status "registering".
         """
+        if not cog_url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"cog_url must be an http(s) URL the tile server can fetch, got a local "
+                f"path: {cog_url!r}. Upload the COG (or serve it, e.g. `python -m "
+                "http.server`) and pass its URL."
+            )
         existing_names = {layer["name"] for layer in self._list_pred_layers()}
         render_config = (
             _categorical_render_config(classes)

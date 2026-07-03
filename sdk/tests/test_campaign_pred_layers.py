@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import responses
 
 from stacnotator._credentials import Credentials, save
@@ -164,3 +165,11 @@ def test_pred_layers_empty_keeps_columns():
 
     assert df.empty
     assert list(df.columns) == ["id", "name", "cog_url", "status", "mlops_url", "tile_url"]
+
+
+@responses.activate
+def test_register_rejects_local_file_paths():
+    campaign = make_campaign()
+
+    with pytest.raises(ValueError, match="local path"):
+        campaign.register_pred_layer("/home/me/predictions.tif")
