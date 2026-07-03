@@ -131,3 +131,10 @@ def test_module_level_login_and_campaign(monkeypatch):
     assert load() is None
     with pytest.raises(NotLoggedInError):
         stacnotator.whoami()
+
+
+def test_campaign_rejects_non_integer_id():
+    save_local_creds()
+
+    with pytest.raises(ValueError, match="snt.campaigns"):
+        Client().campaign(None)

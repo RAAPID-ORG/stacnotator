@@ -44,6 +44,11 @@ class Client:
         return pd.DataFrame(items, columns=_CAMPAIGN_LIST_COLUMNS)
 
     def campaign(self, campaign_id: int) -> Campaign:
+        if not isinstance(campaign_id, int) or isinstance(campaign_id, bool):
+            raise ValueError(
+                f"campaign_id must be an integer, got {campaign_id!r}. "
+                "List your campaigns with snt.campaigns()."
+            )
         return Campaign(self._http, self._http.get(f"/campaigns/{campaign_id}"))
 
 
