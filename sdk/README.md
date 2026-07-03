@@ -108,6 +108,19 @@ campaign.register_overlay(
 )
 ```
 
+Vector data (field boundaries, reference polygons, ...) registers as a PMTiles overlay - the
+browser reads the file directly via range requests, so it is usable immediately and needs no
+tile server. Annotators toggle vector overlays in open mode:
+
+```python
+campaign.register_vector_overlay(
+    "https://blob/field_boundaries.pmtiles",
+    source_layer="fields",        # one MVT layer from the file; omit to render all
+    color="#ff9900",
+)
+campaign.vector_overlays()        # id, name, pmtiles_url, source_layer, color
+```
+
 ## PyTorch
 
 A DataFrame drops straight into a `Dataset`. In the future we will link this up with efficient dataloaders for
@@ -147,6 +160,9 @@ Campaign.register_overlay(cog_url, name=None, mlops_link=None,
                              rescale=(0.0, 1.0), colormap="viridis",
                              classes=None)       # {value: label} -> categorical + legend
 Campaign.overlays()                              # -> DataFrame
+Campaign.register_vector_overlay(pmtiles_url, name=None,
+                             source_layer=None, color="#3b82f6")
+Campaign.vector_overlays()                       # -> DataFrame
 Campaign.labels                                     # {label_id: name}
 ```
 

@@ -90,12 +90,7 @@ class Campaign:
         continues asynchronously on the server and the returned overlay starts in
         status "registering".
         """
-        if not cog_url.startswith(("http://", "https://")):
-            raise ValueError(
-                f"cog_url must be an http(s) URL the tile server can fetch, got a local "
-                f"path: {cog_url!r}. Upload the COG (or serve it, e.g. `python -m "
-                "http.server`) and pass its URL."
-            )
+        _require_http_url(cog_url, "cog_url")
         existing_names = {layer["name"] for layer in self._list_overlays()}
         render_config = (
             _categorical_render_config(classes)
@@ -110,7 +105,7 @@ class Campaign:
         result: dict[str, Any] = self._http.post(
             f"/campaigns/{self.id}/custom-maps",
             json={
-                "name": name or _next_overlay_name(existing_names),
+                "name": name or _next_name(existing_names, "overlay"),
                 "cog_url": cog_url,
                 "mlops_url": mlops_link,
                 "render_config": render_config,
@@ -122,8 +117,43 @@ class Campaign:
         columns = ["id", "name", "cog_url", "status", "mlops_url", "tile_url"]
         return pd.DataFrame(self._list_overlays(), columns=columns)
 
+    def register_vector_overlay(
+        self,
+        pmtiles_url: str,
+        name: str | None = None,
+        source_layer: str | None = None,
+        color: str = "#3b82f6",
+    ) -> dict[str, Any]:
+        """Register a PMTiles vector file as an overlay layer on this campaign.
+
+        Vector overlays are read by the browser directly (HTTP range requests), so
+        there is no registration lifecycle - the layer is usable immediately.
+        Annotators toggle them in open mode. ``source_layer`` picks one MVT layer
+        from the file; omitted, every layer is rendered.
+        """
+        _require_http_url(pmtiles_url, "pmtiles_url")
+        existing_names = {layer["name"] for layer in self._list_vector_overlays()}
+        result: dict[str, Any] = self._http.post(
+            f"/campaigns/{self.id}/vector-layers",
+            json={
+                "name": name or _next_name(existing_names, "vector-overlay"),
+                "pmtiles_url": pmtiles_url,
+                "source_layer": source_layer,
+                "color": color,
+            },
+        )
+        return result
+
+    def vector_overlays(self) -> pd.DataFrame:
+        columns = ["id", "name", "pmtiles_url", "source_layer", "color"]
+        return pd.DataFrame(self._list_vector_overlays(), columns=columns)
+
     def _list_overlays(self) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = self._http.get(f"/campaigns/{self.id}/custom-maps")
+        return result
+
+    def _list_vector_overlays(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = self._http.get(f"/campaigns/{self.id}/vector-layers")
         return result
 
     def __repr__(self) -> str:
@@ -142,11 +172,19 @@ _CLASS_COLORS = (
 )
 
 
-def _next_overlay_name(existing_names: set[str]) -> str:
+def _require_http_url(url: str, param: str) -> None:
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(
+            f"{param} must be an http(s) URL, got a local path: {url!r}. Upload the "
+            "file (or serve it, e.g. `python -m http.server`) and pass its URL."
+        )
+
+
+def _next_name(existing_names: set[str], prefix: str) -> str:
     n = len(existing_names) + 1
-    while f"overlay-{n}" in existing_names:
+    while f"{prefix}-{n}" in existing_names:
         n += 1
-    return f"overlay-{n}"
+    return f"{prefix}-{n}"
 
 
 def _categorical_render_config(classes: dict[int, str | tuple[str, str]]) -> dict[str, Any]:

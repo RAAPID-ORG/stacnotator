@@ -173,3 +173,98 @@ def test_register_rejects_local_file_paths():
 
     with pytest.raises(ValueError, match="local path"):
         campaign.register_overlay("/home/me/predictions.tif")
+
+
+def vector_layer(layer_id, name):
+    return {
+        "id": layer_id,
+        "campaign_id": 42,
+        "name": name,
+        "pmtiles_url": f"https://blob/layer_{layer_id}.pmtiles",
+        "source_layer": None,
+        "color": "#3b82f6",
+        "display_order": 0,
+    }
+
+
+def posted_vector_body():
+    post_call = next(c for c in responses.calls if c.request.method == "POST")
+    return json.loads(post_call.request.body)
+
+
+@responses.activate
+def test_register_vector_overlay_posts_payload():
+    campaign = make_campaign()
+    responses.get(f"{BASE}/api/campaigns/42/vector-layers", json=[])
+    responses.post(
+        f"{BASE}/api/campaigns/42/vector-layers",
+        json=vector_layer(3, "field boundaries"),
+        status=201,
+    )
+
+    layer = campaign.register_vector_overlay(
+        "https://blob/fields.pmtiles",
+        name="field boundaries",
+        source_layer="fields",
+        color="#ff0000",
+    )
+
+    body = posted_vector_body()
+    assert body == {
+        "name": "field boundaries",
+        "pmtiles_url": "https://blob/fields.pmtiles",
+        "source_layer": "fields",
+        "color": "#ff0000",
+    }
+    assert layer["id"] == 3
+
+
+@responses.activate
+def test_register_vector_overlay_default_name_skips_taken():
+    campaign = make_campaign()
+    responses.get(
+        f"{BASE}/api/campaigns/42/vector-layers",
+        json=[vector_layer(1, "vector-overlay-1"), vector_layer(2, "vector-overlay-3")],
+    )
+    responses.post(
+        f"{BASE}/api/campaigns/42/vector-layers",
+        json=vector_layer(4, "vector-overlay-4"),
+        status=201,
+    )
+
+    campaign.register_vector_overlay("https://blob/fields.pmtiles")
+
+    assert posted_vector_body()["name"] == "vector-overlay-4"
+
+
+@responses.activate
+def test_register_vector_overlay_rejects_local_paths():
+    campaign = make_campaign()
+
+    with pytest.raises(ValueError, match="local path"):
+        campaign.register_vector_overlay("/home/me/fields.pmtiles")
+
+
+@responses.activate
+def test_vector_overlays_dataframe():
+    campaign = make_campaign()
+    responses.get(
+        f"{BASE}/api/campaigns/42/vector-layers",
+        json=[vector_layer(1, "field boundaries")],
+    )
+
+    df = campaign.vector_overlays()
+
+    assert list(df.columns) == ["id", "name", "pmtiles_url", "source_layer", "color"]
+    assert df.loc[0, "name"] == "field boundaries"
+
+
+@responses.activate
+def test_vector_overlays_empty_keeps_columns():
+    campaign = make_campaign()
+    responses.get(f"{BASE}/api/campaigns/42/vector-layers", json=[])
+
+    df = campaign.vector_overlays()
+
+    assert df.empty
+    assert list(df.columns) == ["id", "name", "pmtiles_url", "source_layer", "color"]
