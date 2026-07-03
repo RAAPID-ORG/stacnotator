@@ -11,8 +11,10 @@ write a COG, register it with a legend, grow the training set), see
 
 ## Install
 
+Not published to PyPI yet; install from a checkout of this repo:
+
 ```bash
-pip install stacnotator-sdk        # from a checkout: pip install ./sdk
+pip install ./sdk                  # from the repo root
 ```
 
 ## Login
