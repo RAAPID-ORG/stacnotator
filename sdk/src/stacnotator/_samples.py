@@ -51,6 +51,8 @@ def samples_frame(feature_collection: dict[str, Any]) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=SAMPLE_COLUMNS)
     for column in _INT_COLUMNS:
         df[column] = df[column].astype("Int64")
+    for column in ("lat", "lon"):
+        df[column] = df[column].astype("float64")
     df["created_at"] = pd.to_datetime(df["created_at"], utc=True, format="ISO8601")
     return df
 

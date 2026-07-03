@@ -63,6 +63,8 @@ def test_polygon_keeps_geometry_unchanged_without_lat_lon():
     assert row["geometry"] == UNIT_SQUARE
     assert pd.isna(row["lat"])
     assert pd.isna(row["lon"])
+    assert df["lat"].dtype == "float64"
+    assert df["lon"].dtype == "float64"
 
 
 def test_unlabeled_skip_rows_are_dropped():
