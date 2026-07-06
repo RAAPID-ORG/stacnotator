@@ -124,13 +124,7 @@ class Campaign:
         source_layer: str | None = None,
         color: str = "#3b82f6",
     ) -> dict[str, Any]:
-        """Register a PMTiles vector file as an overlay layer on this campaign.
-
-        Vector overlays are read by the browser directly (HTTP range requests), so
-        there is no registration lifecycle - the layer is usable immediately.
-        Annotators toggle them in open mode. ``source_layer`` picks one MVT layer
-        from the file; omitted, every layer is rendered.
-        """
+        """Register a PMTiles vector file as an overlay layer on this campaign."""
         _require_http_url(pmtiles_url, "pmtiles_url")
         existing_names = {layer["name"] for layer in self._list_vector_overlays()}
         result: dict[str, Any] = self._http.post(

@@ -121,6 +121,31 @@ campaign.register_vector_overlay(
 campaign.vector_overlays()        # id, name, pmtiles_url, source_layer, color
 ```
 
+## File utils: COGs and PMTiles
+
+Overlays need web-ready files: rasters as Cloud-Optimized GeoTIFFs, vectors as PMTiles.
+`stacnotator.utils` converts the outputs pipelines typically produce. The geo dependencies
+are an extra: `pip install './sdk[utils]'`.
+
+```python
+from stacnotator import utils
+
+utils.to_cog("predictions.tif")                      # plain GeoTIFF -> predictions.cog.tif
+utils.merge_to_cog("chips/", "predictions.tif")      # folder of inference tiles -> ONE COG
+utils.to_pmtiles("fields.gpkg")                      # GeoJSON/GPKG/Shapefile/... -> fields.pmtiles
+```
+
+`merge_to_cog` writes each chip into its window of the output, so memory stays flat even for
+tens of thousands of chips, and the result has real overviews (fast at every zoom). Overview
+resampling defaults to `nearest` (right for class rasters); pass `resampling="average"` for
+continuous data. `to_pmtiles` accepts anything GDAL reads and takes `layer`, `min_zoom`,
+`max_zoom`. Upload the produced file and register it:
+
+```python
+campaign.register_overlay(upload(utils.merge_to_cog("chips/", "run42.tif")), classes=campaign.labels)
+campaign.register_vector_overlay(upload(utils.to_pmtiles("fields.gpkg")))
+```
+
 ## PyTorch
 
 A DataFrame drops straight into a `Dataset`. In the future we will link this up with efficient dataloaders for
@@ -163,6 +188,10 @@ Campaign.overlays()                              # -> DataFrame
 Campaign.register_vector_overlay(pmtiles_url, name=None,
                              source_layer=None, color="#3b82f6")
 Campaign.vector_overlays()                       # -> DataFrame
+
+utils.to_cog(src, dst=None, resampling="nearest")            # -> Path
+utils.merge_to_cog(sources, dst, resampling="nearest")       # folder/list of chips -> Path
+utils.to_pmtiles(src, dst=None, layer=None, min_zoom=0, max_zoom=14)  # -> Path
 Campaign.labels                                     # {label_id: name}
 ```
 

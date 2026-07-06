@@ -9,6 +9,13 @@ dependencies = [
     "pandas>=2.0",
 ]
 
+[project.optional-dependencies]
+utils = [
+    "rasterio>=1.3",
+    "rio-cogeo>=5.0",
+    "pyogrio>=0.9",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -17,6 +24,9 @@ dev = [
     "mypy>=1.13",
     "pandas-stubs>=2.0",
     "types-requests>=2.31",
+    "rasterio>=1.3",
+    "rio-cogeo>=5.0",
+    "pyogrio>=0.9",
 ]
 
 [build-system]
@@ -40,3 +50,7 @@ select = ["E", "W", "F", "I", "UP", "B", "SIM", "T20"]
 strict = true
 mypy_path = "src"
 packages = ["stacnotator"]
+
+[[tool.mypy.overrides]]
+module = ["rasterio.*", "rio_cogeo.*", "pyogrio.*"]
+ignore_missing_imports = true
