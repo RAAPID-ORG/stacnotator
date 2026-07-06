@@ -124,8 +124,7 @@ campaign.vector_overlays()        # id, name, pmtiles_url, source_layer, color
 ## File utils: COGs and PMTiles
 
 Overlays need web-ready files: rasters as Cloud-Optimized GeoTIFFs, vectors as PMTiles.
-`stacnotator.utils` converts the outputs pipelines typically produce. The geo dependencies
-are an extra: `pip install './sdk[utils]'`.
+`stacnotator.utils` converts the outputs pipelines typically produce.
 
 ```python
 from stacnotator import utils
