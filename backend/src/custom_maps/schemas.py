@@ -15,7 +15,9 @@ class RenderConfig(BaseModel):
     nodata: float | None = None
     colormap_name: str | None = None
     rescale: tuple[float, float] | None = None
-    entries: list[CategoricalEntry] | None = None
+    # Capped because the colormap is baked into every tile URL (uint8 class rasters
+    # cannot exceed 256 values anyway).
+    entries: list[CategoricalEntry] | None = Field(default=None, max_length=256)
 
 
 class CustomMapCreate(BaseModel):

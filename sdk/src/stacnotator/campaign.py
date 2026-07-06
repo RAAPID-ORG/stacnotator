@@ -1,3 +1,5 @@
+import colorsys
+from math import ceil
 from typing import Any
 
 import pandas as pd
@@ -91,7 +93,6 @@ class Campaign:
         status "registering".
         """
         _require_http_url(cog_url, "cog_url")
-        existing_names = {layer["name"] for layer in self._list_overlays()}
         render_config = (
             _categorical_render_config(classes)
             if classes
@@ -102,6 +103,7 @@ class Campaign:
                 "rescale": list(rescale),
             }
         )
+        existing_names = {layer["name"] for layer in self._list_overlays()}
         result: dict[str, Any] = self._http.post(
             f"/campaigns/{self.id}/custom-maps",
             json={
@@ -154,7 +156,8 @@ class Campaign:
         return f"Campaign(id={self.id}, name={self.name!r}, mode={self.mode!r})"
 
 
-_CLASS_COLORS = (
+# Colorblind-friendly qualitative palette (ColorBrewer Dark2) for small class counts.
+_CURATED_COLORS = (
     "#1b9e77",
     "#d95f02",
     "#7570b3",
@@ -164,6 +167,31 @@ _CLASS_COLORS = (
     "#a6761d",
     "#666666",
 )
+
+# Class rasters are typically uint8; this also bounds the colormap baked into tile URLs.
+MAX_CLASSES = 256
+
+
+def _class_colors(n: int) -> list[str]:
+    """``n`` distinguishable hex colors: curated for small n, generated beyond.
+
+    Generation spaces hues evenly and interleaves saturation/value bands so
+    hue-neighbors also differ in tone. Colors stay unique up to ``MAX_CLASSES``;
+    past ~40 classes true distinguishability is bounded by human vision, which
+    is what the legend labels are for.
+    """
+    if n <= len(_CURATED_COLORS):
+        return list(_CURATED_COLORS[:n])
+    bands = ((0.9, 0.85), (0.55, 0.95), (0.85, 0.55), (0.65, 0.7))
+    per_band = ceil(n / len(bands))
+    colors = []
+    for i in range(n):
+        band = i % len(bands)
+        hue = ((i // len(bands) + band / len(bands)) * (360 / per_band)) % 360 / 360
+        saturation, value = bands[band]
+        r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
+        colors.append(f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}")
+    return colors
 
 
 def _require_http_url(url: str, param: str) -> None:
@@ -182,12 +210,18 @@ def _next_name(existing_names: set[str], prefix: str) -> str:
 
 
 def _categorical_render_config(classes: dict[int, str | tuple[str, str]]) -> dict[str, Any]:
+    if len(classes) > MAX_CLASSES:
+        raise ValueError(
+            f"classes has {len(classes)} entries; at most {MAX_CLASSES} are supported "
+            "(class rasters are typically uint8)."
+        )
+    auto_colors = _class_colors(len(classes))
     entries = []
     for i, (value, spec) in enumerate(sorted(classes.items())):
         if isinstance(spec, tuple):
             label, color = spec
         else:
-            label, color = spec, _CLASS_COLORS[i % len(_CLASS_COLORS)]
+            label, color = spec, auto_colors[i]
         entries.append({"value": int(value), "label": label, "color": color})
     return {"mode": "categorical", "band": 1, "entries": entries}
 

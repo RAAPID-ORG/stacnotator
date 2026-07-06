@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from src.custom_maps.schemas import CustomMapCreate
 
 
@@ -37,3 +40,23 @@ def test_mlops_url_round_trips_and_defaults_to_none():
         mlops_url="https://mlflow.example.com/#/experiments/7",
     )
     assert linked.mlops_url == "https://mlflow.example.com/#/experiments/7"
+
+
+def test_categorical_entries_capped_at_256():
+    entries = [{"value": i, "color": "#ff0000", "label": str(i)} for i in range(256)]
+    ok = CustomMapCreate(
+        name="mask",
+        cog_url="https://example.com/mask.tif",
+        render_config={"mode": "categorical", "entries": entries},
+    )
+    assert len(ok.render_config.entries) == 256
+
+    with pytest.raises(ValidationError):
+        CustomMapCreate(
+            name="mask",
+            cog_url="https://example.com/mask.tif",
+            render_config={
+                "mode": "categorical",
+                "entries": entries + [{"value": 256, "color": "#ff0000", "label": "x"}],
+            },
+        )

@@ -268,3 +268,41 @@ def test_vector_overlays_empty_keeps_columns():
 
     assert df.empty
     assert list(df.columns) == ["id", "name", "pmtiles_url", "source_layer", "color"]
+
+
+def test_class_colors_curated_for_small_counts():
+    from stacnotator.campaign import _class_colors
+
+    colors = _class_colors(5)
+    assert colors == ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e"]
+
+
+def test_class_colors_distinguishable_for_many_classes():
+    from stacnotator.campaign import _class_colors
+
+    def rgb(color):
+        return tuple(int(color[i : i + 2], 16) for i in (1, 3, 5))
+
+    for n, floor in ((30, 70), (100, 20)):
+        colors = _class_colors(n)
+        assert len(set(colors)) == n
+        assert all(len(c) == 7 and c.startswith("#") for c in colors)
+        pairs = [(rgb(a), rgb(b)) for i, a in enumerate(colors) for b in colors[i + 1 :]]
+        min_dist = min(sum(abs(x - y) for x, y in zip(a, b, strict=True)) for a, b in pairs)
+        assert min_dist >= floor, f"n={n}: min pairwise distance {min_dist} < {floor}"
+
+
+def test_class_colors_unique_up_to_256():
+    from stacnotator.campaign import _class_colors
+
+    colors = _class_colors(256)
+    assert len(set(colors)) == 256
+
+
+@responses.activate
+def test_register_overlay_rejects_more_than_256_classes():
+    campaign = make_campaign()
+    classes = {i: f"class-{i}" for i in range(257)}
+
+    with pytest.raises(ValueError, match="256"):
+        campaign.register_overlay("https://blob/preds.tif", classes=classes)

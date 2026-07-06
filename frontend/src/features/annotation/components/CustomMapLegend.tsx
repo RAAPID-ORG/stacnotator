@@ -48,7 +48,10 @@ export function CustomMapLegend({ customMaps }: { customMaps: CustomMapOut[] }) 
       className="absolute bottom-2 right-2 rounded bg-white/90 p-2 text-xs shadow"
       data-testid="custom-map-legend"
     >
-      <LegendBody cm={cm} />
+      {/* Bounded height: long class lists scroll while the opacity slider stays put. */}
+      <div className="max-h-48 overflow-y-auto pr-1">
+        <LegendBody cm={cm} />
+      </div>
       <input
         type="range"
         min={0}

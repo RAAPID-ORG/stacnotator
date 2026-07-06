@@ -1,19 +1,17 @@
-"""File-conversion helpers for overlay data: proper COGs and PMTiles.
-
-These need the heavier geo stack, installed via the ``utils`` extra:
-``pip install 'stacnotator-sdk[utils]'``.
-"""
+"""File-conversion helpers for overlay data: proper COGs and PMTiles."""
 
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
 
-Resampling = Literal["nearest", "bilinear", "cubic", "average", "mode", "rms"]
+import rasterio
+from pyogrio import raw
+from rasterio.transform import from_origin
+from rasterio.windows import from_bounds as window_from_bounds
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
 
-_INSTALL_HINT = (
-    "this needs the geo dependencies of the 'utils' extra: "
-    "pip install 'stacnotator-sdk[utils]' (from a checkout: pip install './sdk[utils]')"
-)
+Resampling = Literal["nearest", "bilinear", "cubic", "average", "mode", "rms"]
 
 
 def to_cog(
@@ -25,12 +23,6 @@ def to_cog(
     are built: "nearest" suits class rasters, "average" continuous data).
     ``dst`` defaults to ``<src stem>.cog.tif`` next to the source.
     """
-    try:
-        from rio_cogeo.cogeo import cog_translate
-        from rio_cogeo.profiles import cog_profiles
-    except ImportError as exc:
-        raise ImportError(f"to_cog {_INSTALL_HINT}") from exc
-
     src = Path(src)
     dst = Path(dst) if dst else src.with_suffix(".cog.tif")
     profile: dict[str, Any] = cog_profiles.get("deflate")  # type: ignore[no-untyped-call]
@@ -57,13 +49,6 @@ def merge_to_cog(
     written into its window of the output, so memory stays flat no matter how
     many chips there are.
     """
-    try:
-        import rasterio
-        from rasterio.transform import from_origin
-        from rasterio.windows import from_bounds as window_from_bounds
-    except ImportError as exc:
-        raise ImportError(f"merge_to_cog {_INSTALL_HINT}") from exc
-
     paths = _expand_sources(sources)
     dst = Path(dst)
 
@@ -136,11 +121,6 @@ def to_pmtiles(
     ``campaign.register_vector_overlay``. ``layer`` names the tile layer (defaults
     to the source stem); raise ``max_zoom`` for very dense data.
     """
-    try:
-        from pyogrio import raw
-    except ImportError as exc:
-        raise ImportError(f"to_pmtiles {_INSTALL_HINT}") from exc
-
     src = Path(src)
     dst = Path(dst) if dst else src.with_suffix(".pmtiles")
 
