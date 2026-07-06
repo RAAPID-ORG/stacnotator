@@ -306,3 +306,11 @@ def test_register_overlay_rejects_more_than_256_classes():
 
     with pytest.raises(ValueError, match="256"):
         campaign.register_overlay("https://blob/preds.tif", classes=classes)
+
+
+@responses.activate
+def test_register_overlay_rejects_unsupported_colormap():
+    campaign = make_campaign()
+
+    with pytest.raises(ValueError, match="coolwarm.*viridis"):
+        campaign.register_overlay("https://blob/preds.tif", colormap="coolwarm")

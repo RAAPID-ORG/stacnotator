@@ -60,3 +60,20 @@ def test_categorical_entries_capped_at_256():
                 "entries": entries + [{"value": 256, "color": "#ff0000", "label": "x"}],
             },
         )
+
+
+def test_colormap_name_restricted_to_legend_supported_set():
+    for name in ("viridis", "plasma", "magma", "inferno", "rdylgn", "turbo", "cividis", "rdbu"):
+        m = CustomMapCreate(
+            name="m",
+            cog_url="https://example.com/p.tif",
+            render_config={"mode": "continuous", "colormap_name": name, "rescale": [0, 1]},
+        )
+        assert m.render_config.colormap_name == name
+
+    with pytest.raises(ValidationError):
+        CustomMapCreate(
+            name="m",
+            cog_url="https://example.com/p.tif",
+            render_config={"mode": "continuous", "colormap_name": "coolwarm", "rescale": [0, 1]},
+        )

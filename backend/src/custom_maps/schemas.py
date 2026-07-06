@@ -9,11 +9,19 @@ class CategoricalEntry(BaseModel):
     label: str = ""
 
 
+# The one set of colormaps supported end to end: the tiler renders them (rio-tiler
+# names) AND the frontend legend can draw their gradient. Growing this set means
+# adding stops in frontend customMapColormaps.ts too, or legends stop matching tiles.
+ColormapName = Literal[
+    "viridis", "plasma", "magma", "inferno", "cividis", "turbo", "rdylgn", "rdbu"
+]
+
+
 class RenderConfig(BaseModel):
     mode: Literal["continuous", "categorical"]
     band: int = 1
     nodata: float | None = None
-    colormap_name: str | None = None
+    colormap_name: ColormapName | None = None
     rescale: tuple[float, float] | None = None
     # Capped because the colormap is baked into every tile URL (uint8 class rasters
     # cannot exceed 256 values anyway).

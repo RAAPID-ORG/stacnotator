@@ -1903,7 +1903,7 @@ export type RenderConfig = {
     /**
      * Colormap Name
      */
-    colormap_name?: string | null;
+    colormap_name?: 'viridis' | 'plasma' | 'magma' | 'inferno' | 'cividis' | 'turbo' | 'rdylgn' | 'rdbu' | null;
     /**
      * Rescale
      */

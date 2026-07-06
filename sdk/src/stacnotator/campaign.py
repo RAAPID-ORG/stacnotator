@@ -1,11 +1,19 @@
 import colorsys
 from math import ceil
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 
 from stacnotator._http import Http
 from stacnotator._samples import samples_frame
+
+# Class rasters are typically uint8; this also bounds the colormap baked into tile URLs.
+MAX_CLASSES = 256
+
+# Colormaps the whole system supports: the tiler renders them AND the in-app
+# legend can draw their gradient. Mirrors the backend's ColormapName literal.
+COLORMAPS = ("viridis", "plasma", "magma", "inferno", "cividis", "turbo", "rdylgn", "rdbu")
+Colormap = Literal["viridis", "plasma", "magma", "inferno", "cividis", "turbo", "rdylgn", "rdbu"]
 
 
 class Campaign:
@@ -80,19 +88,25 @@ class Campaign:
         name: str | None = None,
         mlops_link: str | None = None,
         rescale: tuple[float, float] = (0.0, 1.0),
-        colormap: str = "viridis",
+        colormap: Colormap = "viridis",
         classes: dict[int, str | tuple[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Register a COG (e.g. model predictions) as an overlay layer on this campaign.
 
         Pass ``classes`` for categorical rasters: ``{value: label}`` (colors
         auto-assigned, shown as a legend to annotators) or ``{value: (label,
-        "#rrggbb")}``. Without it the overlay renders continuously with ``rescale``
-        and ``colormap``. Overlay names are unique per campaign; registration
-        continues asynchronously on the server and the returned overlay starts in
-        status "registering".
+        "#rrggbb")}``. Without it the overlay renders continuously: values in the
+        ``rescale`` range map onto ``colormap``, and annotators see that gradient
+        with min/mid/max ticks as the legend. Overlay names are unique per
+        campaign; registration continues asynchronously on the server and the
+        returned overlay starts in status "registering".
         """
         _require_http_url(cog_url, "cog_url")
+        if colormap not in COLORMAPS:
+            raise ValueError(
+                f"colormap {colormap!r} is not supported; the legend can render: "
+                f"{', '.join(COLORMAPS)}"
+            )
         render_config = (
             _categorical_render_config(classes)
             if classes
@@ -167,9 +181,6 @@ _CURATED_COLORS = (
     "#a6761d",
     "#666666",
 )
-
-# Class rasters are typically uint8; this also bounds the colormap baked into tile URLs.
-MAX_CLASSES = 256
 
 
 def _class_colors(n: int) -> list[str]:

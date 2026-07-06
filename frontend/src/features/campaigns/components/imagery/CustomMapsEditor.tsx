@@ -11,13 +11,26 @@ import {
   type CategoricalEntry,
 } from '~/api/client';
 
-const COLORMAPS = ['viridis', 'plasma', 'magma', 'inferno', 'rdylgn', 'turbo'] as const;
+const COLORMAPS = [
+  'viridis',
+  'plasma',
+  'magma',
+  'inferno',
+  'cividis',
+  'turbo',
+  'rdylgn',
+  'rdbu',
+] as const;
+
+type ColormapName = (typeof COLORMAPS)[number];
+
+const isColormapName = (value: string): value is ColormapName => COLORMAPS.some((c) => c === value);
 
 interface FormState {
   name: string;
   cog_url: string;
   mode: 'continuous' | 'categorical';
-  colormap_name: string;
+  colormap_name: ColormapName;
   rescale_min: string;
   rescale_max: string;
   entries: Array<{ value: string; color: string; label: string }>;
@@ -338,7 +351,10 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 <label className="block text-xs font-medium text-neutral-700 mb-1">Colormap</label>
                 <select
                   value={form.colormap_name}
-                  onChange={(e) => setForm((f) => ({ ...f, colormap_name: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (isColormapName(value)) setForm((f) => ({ ...f, colormap_name: value }));
+                  }}
                   className="w-full h-8 px-2.5 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15 transition-colors"
                 >
                   {COLORMAPS.map((c) => (

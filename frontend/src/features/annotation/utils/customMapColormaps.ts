@@ -5,6 +5,8 @@ const STOPS: Record<string, string[]> = {
   inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fca50a', '#fcffa4'],
   rdylgn: ['#a50026', '#f46d43', '#fee08b', '#d9ef8b', '#66bd63', '#006837'],
   turbo: ['#30123b', '#4145ab', '#4675ed', '#1ddfa3', '#a4fc3c', '#fb8022', '#7a0403'],
+  cividis: ['#00204d', '#00336f', '#39486b', '#7c7b78', '#bcaf6f', '#ffea46'],
+  rdbu: ['#67001f', '#d6604d', '#fddbc7', '#f7f7f7', '#d1e5f0', '#4393c3', '#053061'],
 };
 
 const GRAYSCALE = 'linear-gradient(to right, #000000, #ffffff)';
