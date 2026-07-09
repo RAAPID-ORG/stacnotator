@@ -19,6 +19,7 @@ class UserOutDetailed(UserOut):
     is_approved: bool
     is_visitor: bool
     is_admin: bool
+    is_internal: bool
     issuer: str
     external_uid: str
     display_name: str

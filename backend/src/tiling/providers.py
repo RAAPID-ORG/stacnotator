@@ -118,15 +118,22 @@ def ingest_on_tiler(
     return resp.json()["ingested"]
 
 
-def register_cog_on_tiler(tiler: TilerCfg, cog_url: str, campaign_id) -> str:
+def register_cog_on_tiler(
+    tiler: TilerCfg, cog_url: str, campaign_id, internal_storage: bool = False
+) -> str:
     """Register a single COG as a campaign-scoped pgstac search on the hosted tiler.
 
-    Returns the tiler search id, used to build the tile-URL template.
+    ``internal_storage`` marks the search so the tiler reads its assets with the managed
+    identity. Returns the tiler search id, used to build the tile-URL template.
     """
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(
         f"{_register_base(tiler)}/searches/register-cog",
-        json={"cog_url": cog_url, "campaign_id": str(campaign_id)},
+        json={
+            "cog_url": cog_url,
+            "campaign_id": str(campaign_id),
+            "internal_storage": internal_storage,
+        },
         headers={"Authorization": f"Bearer {token}"},
         timeout=60,
     )
@@ -134,14 +141,25 @@ def register_cog_on_tiler(tiler: TilerCfg, cog_url: str, campaign_id) -> str:
     return resp.json()["id"]
 
 
-def register_on_tiler(tiler: TilerCfg, search_body: dict, campaign_id) -> str:
+# Wire contract with the tiler (its `azure.ASSET_SIGNER_MANAGED_IDENTITY`): a search stamped
+# with this reads its assets via the tiler's Azure managed identity.
+ASSET_SIGNER_MANAGED_IDENTITY = "azure_managed_identity"
+
+
+def register_on_tiler(
+    tiler: TilerCfg, search_body: dict, campaign_id, internal_storage: bool = False
+) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 
     ``search_body`` must already have bbox/datetime resolved. We stamp the campaign id into
-    the search metadata (the tiler enforces campaign access from it) and authenticate with a
-    short-lived ``searches:write`` token. Returns the search id.
+    the search metadata (the tiler enforces campaign access from it), plus an ``asset_signer``
+    marker when the collection is internal storage, and authenticate with a short-lived
+    ``searches:write`` token. Returns the search id.
     """
-    body = {**search_body, "metadata": {"campaign_id": str(campaign_id)}}
+    metadata = {"campaign_id": str(campaign_id)}
+    if internal_storage:
+        metadata["asset_signer"] = ASSET_SIGNER_MANAGED_IDENTITY
+    body = {**search_body, "metadata": metadata}
     token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
     resp = httpx.post(
         f"{_register_base(tiler)}/searches/register",

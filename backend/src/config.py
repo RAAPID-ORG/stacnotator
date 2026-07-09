@@ -3,7 +3,7 @@ import os
 from functools import lru_cache
 from urllib.parse import quote_plus
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -84,11 +84,24 @@ class Settings(BaseSettings):
     TILER_COOKIE_SAMESITE: str = "lax"
     TILER_COOKIE_SECURE: bool = True
 
-    # tiler registry: name -> tiler.
-    # Set via the TILERS env var as JSON, e.g.
-    # TILERS='{"planet":{"url":"https://t1"},"external":{"url":"https://t2","allows_ingest":true}}'
-    TILERS: dict[str, TilerCfg] = {}
+    # tiler registry: name -> tiler. Stored as a raw string (like CORS_ORIGINS) so an empty
+    # TILERS env value means "no tilers" instead of a JSON-parse error - that's the default,
+    # single-machine deploy (db+backend+frontend, MPC only). Set the env to enable a tiler:
+    # TILERS='{"hosted":{"url":"https://t1","allows_ingest":true}}'
+    tilers_raw: str = Field(default="", validation_alias="TILERS")
     DEFAULT_TILER: str | None = None  # Tiler used when a collection doesn't name one.
+
+    @property
+    def TILERS(self) -> dict[str, TilerCfg]:
+        if not self.tilers_raw.strip():
+            return {}
+        return {name: TilerCfg(**cfg) for name, cfg in json.loads(self.tilers_raw).items()}
+
+    @field_validator("DEFAULT_TILER", mode="after")
+    @classmethod
+    def _blank_default_tiler_is_none(cls, v: str | None) -> str | None:
+        # `DEFAULT_TILER=` (empty) from compose means "no default", not the tiler named "".
+        return v or None
 
     EE_SERVICE_ACCOUNT: str | None = None
     EE_PRIVATE_KEY_PATH: str | None = None

@@ -83,6 +83,8 @@ export interface StacBrowserCollectionData {
   searchQuery?: Record<string, unknown>;
   /** Custom search query for cover slice (null/undefined = same as regular) */
   coverSearchQuery?: Record<string, unknown>;
+  /** Assets are in internal storage the tiler reads with its managed identity (internal users only). */
+  internalStorage?: boolean;
   vizUrls: VisualizationUrl[];
 }
 

@@ -470,6 +470,7 @@ def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> boo
         or existing.search_query != incoming.search_query
         or existing.cover_search_query != incoming.cover_search_query
         or existing.tile_provider != incoming.tiler
+        or existing.internal_storage != incoming.internal_storage
     )
 
 
@@ -568,6 +569,7 @@ def _update_collection_in_place(
                     cover_search_query=(
                         col_create.stac_config.cover_search_query if has_cover else None
                     ),
+                    internal_storage=col_create.stac_config.internal_storage,
                 )
             )
             needs_reregistration = True
@@ -576,6 +578,7 @@ def _update_collection_in_place(
                 needs_reregistration = True
             db_col.stac_config.tile_provider = col_create.stac_config.tiler
             db_col.stac_config.max_cloud_cover = col_create.stac_config.max_cloud_cover
+            db_col.stac_config.internal_storage = col_create.stac_config.internal_storage
             db_col.stac_config.search_query = col_create.stac_config.search_query
             db_col.stac_config.cover_search_query = (
                 col_create.stac_config.cover_search_query if has_cover else None
@@ -749,6 +752,7 @@ def _create_collection_record(
                 cover_search_query=(
                     col_create.stac_config.cover_search_query if has_cover else None
                 ),
+                internal_storage=col_create.stac_config.internal_storage,
             )
         )
         _upsert_viz_configs(db, collection.id, col_create.stac_config.visualizations, has_cover)
@@ -1092,7 +1096,9 @@ def _register_hosted_slice(stac, db_slice, bbox, search_query, campaign_id, tile
             stac.max_cloud_cover,
         )
     body = _resolved_search_body(search_query, bbox, db_slice)
-    return providers.register_on_tiler(tiler, body, campaign_id)
+    return providers.register_on_tiler(
+        tiler, body, campaign_id, internal_storage=stac.internal_storage
+    )
 
 
 def _inject_datetime_into_query(body: dict, start: str, end: str) -> None:

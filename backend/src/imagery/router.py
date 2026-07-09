@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,21 @@ router = APIRouter(
 )
 
 
+def _require_internal_for_internal_storage(
+    editor_state: ImageryEditorStateCreate, user: User
+) -> None:
+    """Only internal staff may point a collection at internal (managed-identity) storage."""
+    if user.is_internal:
+        return
+    for source in editor_state.sources:
+        for col in source.collections:
+            if col.stac_config and col.stac_config.internal_storage:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only internal users can mark imagery as internal storage",
+                )
+
+
 @router.get("/imagery/tilers", response_model=AllowedTilersOut)
 def list_tilers(user: User = Depends(require_approved_user)):
     """Tilers the current user may use."""
@@ -49,6 +64,7 @@ def create_imagery(
     db: Session = Depends(get_db),
 ):
     """Create imagery for a fresh campaign. Used by the campaign-create flow."""
+    _require_internal_for_internal_storage(editor_state, user)
     result = service.create_imagery_from_editor_state(
         db,
         campaign=campaign,
@@ -78,6 +94,7 @@ def save_imagery(
     """Upsert the campaign's full imagery editor state. Used by the settings
     edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, views, and basemaps in a single transaction."""
+    _require_internal_for_internal_storage(editor_state, user)
     result = service.save_imagery_editor_state(
         db,
         campaign=campaign,

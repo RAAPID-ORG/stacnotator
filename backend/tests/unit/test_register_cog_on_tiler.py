@@ -37,4 +37,15 @@ def test_register_cog_posts_and_returns_id(monkeypatch):
     assert captured["url"] == "https://tiler.test/searches/register-cog"
     assert captured["json"]["cog_url"] == "https://x/y.tif"
     assert captured["json"]["campaign_id"] == "42"
+    assert captured["json"]["internal_storage"] is False
     assert captured["headers"]["Authorization"] == "Bearer tok"
+
+
+def test_register_cog_forwards_internal_storage(monkeypatch):
+    monkeypatch.setattr(providers, "mint_tiler_token", lambda *a, **k: "tok")
+    monkeypatch.setattr(providers, "_register_base", lambda tiler: "https://tiler.test")
+    captured = _fake_post(monkeypatch, {"id": "s"})
+
+    providers.register_cog_on_tiler(TILER, "https://x/y.tif", 42, internal_storage=True)
+
+    assert captured["json"]["internal_storage"] is True

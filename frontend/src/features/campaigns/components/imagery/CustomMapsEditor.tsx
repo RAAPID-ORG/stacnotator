@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsInternal } from '~/features/account/account.store';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus } from '~/shared/ui/Icons';
@@ -35,6 +36,7 @@ interface FormState {
   rescale_max: string;
   entries: Array<{ value: string; color: string; label: string }>;
   max_native_zoom: string;
+  internal_storage: boolean;
 }
 
 const defaultForm = (): FormState => ({
@@ -46,6 +48,7 @@ const defaultForm = (): FormState => ({
   rescale_max: '1',
   entries: [{ value: '1', color: '#3b82f6', label: '' }],
   max_native_zoom: '',
+  internal_storage: false,
 });
 
 interface StatusBadgeProps {
@@ -95,6 +98,7 @@ interface CustomMapsEditorProps {
 }
 
 export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
+  const isInternal = useIsInternal();
   const [maps, setMaps] = useState<CustomMapOut[]>([]);
   const [form, setForm] = useState<FormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
@@ -169,6 +173,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
           cog_url: form.cog_url,
           render_config: renderConfig,
           max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
+          internal_storage: isInternal ? form.internal_storage : false,
         },
       });
       if (error) {
@@ -324,6 +329,27 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
               </li>
             </ul>
           </div>
+
+          {isInternal && (
+            <div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.internal_storage}
+                  onChange={(e) => setForm((f) => ({ ...f, internal_storage: e.target.checked }))}
+                  data-testid="custom-map-internal-storage"
+                />
+                <span className="text-xs text-neutral-700">
+                  <span className="font-medium">Hosted in internal storage</span>
+                  <span className="block text-[11px] text-neutral-500 leading-snug">
+                    Check this if the file lives in our own Azure storage, so the tiler reads it
+                    with its managed identity. Leave unchecked for public or AWS-hosted files.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           <div>
             <span className="block text-xs font-medium text-neutral-700 mb-1">Render mode</span>

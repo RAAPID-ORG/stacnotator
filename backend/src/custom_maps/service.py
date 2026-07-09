@@ -32,6 +32,7 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
         render_config=payload.render_config.model_dump(mode="json"),
         max_native_zoom=payload.max_native_zoom,
         mlops_url=payload.mlops_url,
+        internal_storage=payload.internal_storage,
         status="registering",
     )
     db.add(cm)
@@ -43,7 +44,9 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
 def run_registration(db: Session, cm: CustomMap) -> None:
     try:
         tiler = resolve_tiler(None)
-        search_id = register_cog_on_tiler(tiler, cm.cog_url, cm.campaign_id)
+        search_id = register_cog_on_tiler(
+            tiler, cm.cog_url, cm.campaign_id, internal_storage=cm.internal_storage
+        )
         viz_params = build_viz_params(cm.render_config)
         cm.tile_url = build_tile_url("hosted", search_id, viz_params, tiler=tiler)
         cm.mosaic_id = search_id
@@ -115,6 +118,9 @@ def update_custom_map(
     if "cog_url" in data and data["cog_url"] != cm.cog_url:
         cm.cog_url = data["cog_url"]
         needs_reregister = True
+    if "internal_storage" in data and data["internal_storage"] != cm.internal_storage:
+        cm.internal_storage = data["internal_storage"]
+        needs_reregister = True  # re-stamps the tiler search's asset_signer marker
     for field in ("name", "max_native_zoom", "display_order", "mlops_url"):
         if field in data:
             setattr(cm, field, data[field])

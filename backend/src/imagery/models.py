@@ -158,6 +158,9 @@ class CollectionStacConfig(Base):
     search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Custom search query override for cover slice only
     cover_search_query: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Assets live in internal storage the tiler reads with its managed identity. Only internal
+    # users may enable this (enforced in the router); drives the tiler's asset_signer marker.
+    internal_storage: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
 
     collection: Mapped["ImageryCollection"] = relationship(back_populates="stac_config")
 

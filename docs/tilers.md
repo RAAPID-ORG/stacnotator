@@ -21,6 +21,66 @@ There can be **many** hosted tilers (e.g. one on Azure, one on a GCP VM). Each i
 independent deployment with its **own pgstac** - data in one isn't in the other. This lets a
 tiler sit next to its data and serve any STAC catalog quickly.
 
+## Asset access (Layer 2): how the hosted tiler reads private COGs
+
+Routing (above) picks *which* tiler renders a collection. Separately, when the hosted tiler
+renders a tile it has to fetch the underlying COG bytes, and those usually sit in a **private**
+bucket. The STAC item stores only the bare, unsigned asset URL; the tiler signs a short-lived
+read URL per asset at render time, dispatched by host. This lives in the tiler repo
+(`src/tiler/signing.py`, `sign_asset`):
+
+| Asset host | How the tiler reads it | Credential used |
+|---|---|---|
+| **GCS** (`gs://`, `storage.googleapis.com`) | Keyless V4 signed URL via IAM `signBlob` (`gcp.py`). | The tiler's **GCP service account** (needs read on the bucket + `serviceAccountTokenCreator` on itself). |
+| **Azure Blob** (custom-map COGs) | Keyless read-only **user-delegation SAS** (`azure.py`), gated by the `azure:read` token scope. | The tiler's **Azure managed identity** (needs `Storage Blob Data Reader` on the owner's account, granted in Azure - not configured here). |
+| **MPC** (`planetarycomputer.microsoft.com` and its `*.blob.core.windows.net` data assets) | Short-lived SAS via `planetary_computer.sign`. | **None of the tiler's** - MPC's public token API, which only mints a SAS for accounts MPC manages. |
+| **Anything else** (e.g. public AWS `sentinel-cogs`) | Passed through unsigned; GDAL reads it directly. | None. |
+
+Key point: signing happens **server-side only** - the browser never receives the COG URL, the
+signed URL, or any storage credential. It sees only `/searches/{id}/tiles/...` from the tiler.
+
+### How the Azure managed-identity read is gated
+
+Three independent things must all hold before the tiler reads a blob with its identity. They sit
+on different axes, so none is redundant:
+
+- **Routing - is *this search's data* meant for the identity?** Custom-map searches are stamped
+  with a generic `asset_signer: "azure_managed_identity"` marker in their pgstac metadata (by the
+  tiler's `register_cog`). MPC/mosaic searches carry no marker. The auth middleware reads it per
+  request. This is what lets **one tiler serve both** MPC composites and custom maps: an MPC
+  search is unmarked, so its `*.blob.core.windows.net` assets stay on the `planetary_computer`
+  path even for an internal user - no host-based ambiguity.
+- **Authorization - may *this user* drive the identity?** The `azure:read` token scope, minted by
+  the backend only for `internal` users (`auth/router.get_tiler_token` + `User.is_internal`).
+- **What** the identity can actually read is then **Azure RBAC** - project admins grant it
+  `Storage Blob Data Reader` on their own accounts. Nothing is read that wasn't granted in Azure.
+
+The middleware combines routing + authorization into one per-request flag
+(`request_uses_azure_identity` = marked search AND `azure:read`) and surfaces it to the signer via
+a `ContextVar`; `AZURE_SIGNING_ENABLED` is a per-deployment kill switch. Because each request runs
+in its own task/context, the flag never leaks between concurrent users.
+
+### The residual risk we're accepting (for now)
+
+The signer still signs whatever asset URL is in the STAC item, with no check that the blob belongs
+to the campaign requesting the tile. What we've done is shrink the set of people who can *trigger*
+a managed-identity read to trusted, `internal` staff. So:
+
+> An `internal` user can register/view a custom map whose `cog_url` points at **any account the
+> tiler's identity has been granted**, including one meant for another project - and get it
+> rendered. Non-internal campaign admins cannot (their token lacks `azure:read`).
+
+That's an accepted trade-off: `internal` staff are first-party and already trusted broadly, and
+customer campaign admins - the untrusted-for-this parties - are locked out. Isolation *between*
+projects therefore rests on two things: granting the identity only the accounts you intend
+(RBAC), and trusting `internal` users. If projects ever need to be hard tenancy boundaries, the
+durable fix is per-campaign credentials (the tiler reads each project's storage with that
+project's own SAS/identity), which removes the shared deputy entirely.
+
+> Separately, `cog_url` is otherwise unvalidated, so an `internal` user can also make the tiler
+> issue GET requests to arbitrary hosts (SSRF from the tiler's network position). Host/scheme
+> allowlisting of `cog_url` on the backend is tracked separately.
+
 ## Tilers and their flags
 
 `backend/src/tiling/registry.py` is the single source of truth for which tilers exist. MPC and
@@ -86,6 +146,15 @@ there). In the future we might want to switch to asymetric keys.
    On Azure this is wired through `azure_deploy/deploy-app.sh` / GitHub Actions vars.
 3. Ingest data; grant the tiler to the relevant users if it isn't a default; then pick it on a
    collection (or browse its catalog).
+4. For asset signing, give the tiler read on **only** the data it serves and configure it
+   accordingly (see "Asset access" above):
+   - GCS: attach a service account with read on the prediction bucket; leave
+     `GCS_SIGNER_SERVICE_ACCOUNT` unset to auto-detect it.
+   - Azure: set `AZURE_SIGNING_ENABLED=true` on the custom-map tiler and have each project's admin
+     grant the tiler's managed identity `Storage Blob Data Reader` on their storage account. What's
+     readable is the union of those grants; who can trigger a read is the `azure:read` scope, minted
+     only for `internal` users. The `custom-maps` container and the apps managed identity are
+     provisioned in `raapid-infra` (`modules/project-capabilities/blob-storage`).
 
 The standalone tiler service lives in its own repo:
 [stacnotator-tiler](https://github.com/RAAPID-ORG/stacnotator-tiler) (see its README and

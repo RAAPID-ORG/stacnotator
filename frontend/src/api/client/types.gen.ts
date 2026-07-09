@@ -1284,6 +1284,10 @@ export type CollectionStacConfigCreate = {
     cover_search_query?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1322,6 +1326,10 @@ export type CollectionStacConfigOut = {
     cover_search_query?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1377,6 +1385,10 @@ export type CustomMapCreate = {
      * Mlops Url
      */
     mlops_url?: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1430,6 +1442,10 @@ export type CustomMapOut = {
      * Mlops Url
      */
     mlops_url: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage: boolean;
 };
 
 /**
@@ -1457,6 +1473,10 @@ export type CustomMapUpdate = {
      * Mlops Url
      */
     mlops_url?: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean | null;
 };
 
 /**
@@ -2450,6 +2470,10 @@ export type UserOutDetailed = {
      * Is Admin
      */
     is_admin: boolean;
+    /**
+     * Is Internal
+     */
+    is_internal: boolean;
     /**
      * Issuer
      */
