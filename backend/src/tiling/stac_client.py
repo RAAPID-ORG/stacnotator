@@ -1,10 +1,14 @@
 """pystac_client wrapper with MPC signing support."""
 
+import concurrent.futures
 import logging
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
+import httpx
 import planetary_computer as pc
+import pystac
 import pystac_client
 
 logger = logging.getLogger(__name__)
@@ -30,6 +34,36 @@ def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     if sign and _is_mpc(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
     return pystac_client.Client.open(catalog_url, **kwargs)
+
+
+def _asset_defs_from_item(item: pystac.Item) -> dict:
+    """Build wizard `item_assets` entries from a real item's assets. Used when a
+    collection doesn't declare `item_assets` (common for static catalogs), so the
+    mosaic wizard still has assets/bands to configure a visualization from."""
+    result: dict = {}
+    for key, asset in item.assets.items():
+        eo_bands = (asset.extra_fields or {}).get("eo:bands") or []
+        result[key] = {
+            "title": asset.title or key,
+            "type": asset.media_type or "",
+            "roles": asset.roles or [],
+            "bands": [
+                {"name": b.get("name", f"b{i + 1}"), "description": b.get("description")}
+                for i, b in enumerate(eo_bands)
+            ],
+        }
+    return result
+
+
+def _sample_item_assets(col) -> dict:
+    """Fetch a single item from a collection and derive its assets. Empty on failure.
+    One extra request, only taken when the collection declares no `item_assets`."""
+    try:
+        item = next(iter(col.get_items()), None)
+    except Exception:
+        logger.debug("could not sample an item from collection %s", getattr(col, "id", "?"))
+        return {}
+    return _asset_defs_from_item(item) if item is not None else {}
 
 
 def list_collections(catalog_url: str) -> list[dict]:
@@ -77,6 +111,11 @@ def list_collections(catalog_url: str) -> list[dict]:
                 ],
             }
 
+        # Static catalogs often omit collection-level item_assets; sample one item so
+        # the mosaic wizard still has assets to configure a visualization from.
+        if not item_assets:
+            item_assets = _sample_item_assets(col)
+
         # Detect eo:cloud_cover support:
         # 1. Check summaries (some catalogs declare it explicitly)
         # 2. Check stac_extensions for the EO extension
@@ -120,57 +159,249 @@ def list_collections(catalog_url: str) -> list[dict]:
     return results
 
 
+# When falling back to walking a static catalog, cap how many items we visit so a
+# huge catalog with a restrictive bbox can't crawl forever looking for `limit` hits.
+STATIC_SCAN_CAP = 2000
+
+
+def _simplify_item(item) -> dict:
+    """Reduce a pystac Item to the wizard's result shape."""
+    thumbnail = None
+    fallback = None
+    for thumb_key in ("rendered_preview", "thumbnail", "preview"):
+        if thumb_key not in item.assets:
+            continue
+        asset = item.assets[thumb_key]
+        media = (asset.media_type or "").lower()
+        if "png" in media or "jpeg" in media or "jpg" in media:
+            thumbnail = asset.href
+            break
+        if fallback is None:
+            fallback = asset.href
+    if not thumbnail:
+        thumbnail = fallback
+
+    assets_info = {}
+    for key, asset in item.assets.items():
+        assets_info[key] = {
+            "title": asset.title or key,
+            "type": asset.media_type or "",
+            "roles": asset.roles or [],
+        }
+
+    return {
+        "id": item.id,
+        "datetime": item.datetime.isoformat() if item.datetime else None,
+        "bbox": list(item.bbox) if item.bbox else None,
+        "geometry": item.geometry,
+        "properties": dict(item.properties),
+        "assets": assets_info,
+        "thumbnail": thumbnail,
+        "self_href": item.get_self_href(),
+    }
+
+
+def _to_utc(dt: datetime | None) -> datetime | None:
+    """Coerce a datetime to timezone-aware UTC so comparisons never mix naive/aware."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _parse_dt(value: str) -> datetime | None:
+    value = value.strip()
+    if not value or value == "..":
+        return None
+    try:
+        return _to_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
+    except ValueError:
+        return None
+
+
+def parse_datetime_range(datetime_range: str | None) -> tuple[datetime | None, datetime | None]:
+    """Parse a STAC datetime parameter into (start, end); either may be None (open)."""
+    if not datetime_range:
+        return (None, None)
+    parts = datetime_range.split("/")
+    if len(parts) == 1:
+        return (_parse_dt(parts[0]), None)
+    return (_parse_dt(parts[0]), _parse_dt(parts[1]))
+
+
+def bbox_intersects(item_bbox: list[float] | None, query_bbox: list[float] | None) -> bool:
+    """2D bbox intersection test. Missing boxes never exclude an item."""
+    if not query_bbox or not item_bbox:
+        return True
+
+    def _2d(b: list[float]) -> list[float]:
+        return [b[0], b[1], b[3], b[4]] if len(b) == 6 else [b[0], b[1], b[2], b[3]]
+
+    a, q = _2d(item_bbox), _2d(query_bbox)
+    return not (a[2] < q[0] or a[0] > q[2] or a[3] < q[1] or a[1] > q[3])
+
+
+def datetime_in_range(
+    item_dt: datetime | None, start: datetime | None, end: datetime | None
+) -> bool:
+    """Whether an item's datetime falls within [start, end]. Undated items are kept."""
+    if item_dt is None:
+        return True
+    item_dt = _to_utc(item_dt)
+    if start and item_dt < start:
+        return False
+    return not (end and item_dt > end)
+
+
+def _conforms_to_item_search(client: pystac_client.Client) -> bool:
+    try:
+        return client.conforms_to(pystac_client.ConformanceClasses.ITEM_SEARCH)
+    except Exception:
+        return False
+
+
+def _search_via_api(
+    client: pystac_client.Client,
+    collection_id: str,
+    bbox: list[float] | None,
+    datetime_range: str | None,
+    limit: int,
+) -> list[dict]:
+    search_kwargs: dict = {"collections": [collection_id], "max_items": limit}
+    if bbox:
+        search_kwargs["bbox"] = bbox
+    if datetime_range:
+        search_kwargs["datetime"] = datetime_range
+    return [_simplify_item(item) for item in client.search(**search_kwargs).items()]
+
+
+MAX_STATIC_FETCH_WORKERS = 32
+
+
+def _fetch_item(http: httpx.Client, href: str) -> pystac.Item | None:
+    """Fetch and parse a single static-catalog item file. None on any failure."""
+    try:
+        resp = http.get(href)
+        resp.raise_for_status()
+        return pystac.Item.from_dict(resp.json())
+    except Exception:
+        logger.debug("failed to fetch static item %s", href, exc_info=True)
+        return None
+
+
+def _walk_items_sequential(
+    collection: pystac.Collection,
+    collection_id: str,
+    start: datetime | None,
+    end: datetime | None,
+    bbox: list[float] | None,
+    limit: int,
+) -> list[dict]:
+    """Fallback for nested catalogs (items reached via child subcatalogs): let pystac
+    crawl recursively. Sequential, so only used when there are no direct item links."""
+    results: list[dict] = []
+    scanned = 0
+    for item in collection.get_items(recursive=True):
+        scanned += 1
+        if scanned > STATIC_SCAN_CAP:
+            logger.warning(
+                "search_items: hit static scan cap (%d) for collection %s; results may be partial",
+                STATIC_SCAN_CAP,
+                collection_id,
+            )
+            break
+        if not bbox_intersects(item.bbox, bbox):
+            continue
+        if not datetime_in_range(item.datetime, start, end):
+            continue
+        results.append(_simplify_item(item))
+        if len(results) >= limit:
+            break
+    return results
+
+
+# Per-request ceiling on item files fetched during a static crawl. When a filter is
+# sparse we return a cursor after this many rather than scanning the whole catalog, so
+# each page stays responsive and the caller pages on with "load more".
+STATIC_PAGE_FETCH_BUDGET = 96
+
+
+def _search_via_walk(
+    client: pystac_client.Client,
+    collection_id: str,
+    bbox: list[float] | None,
+    datetime_range: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict], int | None]:
+    """Static-catalog fallback: no /search endpoint, so read the collection's item
+    links and crawl them a page at a time from `offset`, fetching each page's item
+    files in parallel and filtering by bbox/datetime client-side (what a catalog
+    browser does). Returns (items, next_offset); next_offset is the link index to
+    resume from, or None when the collection is exhausted. Collections that nest
+    items under child subcatalogs fall back to a (non-paged) pystac crawl.
+    """
+    collection = client.get_collection(collection_id)
+    if collection is None:
+        return [], None
+
+    start, end = parse_datetime_range(datetime_range)
+    item_hrefs = [
+        href for link in collection.get_links(rel="item") if (href := link.get_absolute_href())
+    ]
+    if not item_hrefs:
+        # Items are nested under subcatalogs (or none) - crawl recursively via pystac.
+        return _walk_items_sequential(collection, collection_id, start, end, bbox, limit), None
+
+    total = len(item_hrefs)
+    results: list[dict] = []
+    idx = max(offset, 0)
+    fetched = 0
+    limits = httpx.Limits(
+        max_connections=MAX_STATIC_FETCH_WORKERS, max_keepalive_connections=MAX_STATIC_FETCH_WORKERS
+    )
+    # One pooled client reused across the whole crawl (connection + TLS reuse).
+    with (
+        httpx.Client(timeout=15, follow_redirects=True, limits=limits) as http,
+        concurrent.futures.ThreadPoolExecutor(max_workers=MAX_STATIC_FETCH_WORKERS) as pool,
+    ):
+        while idx < total and len(results) < limit and fetched < STATIC_PAGE_FETCH_BUDGET:
+            window = item_hrefs[idx : idx + MAX_STATIC_FETCH_WORKERS]
+            page = list(pool.map(lambda href: _fetch_item(http, href), window))
+            consumed = 0
+            for item in page:  # preserve the collection's item order
+                consumed += 1
+                if item is None:
+                    continue
+                if not bbox_intersects(item.bbox, bbox):
+                    continue
+                if not datetime_in_range(item.datetime, start, end):
+                    continue
+                results.append(_simplify_item(item))
+                if len(results) >= limit:
+                    break
+            idx += consumed
+            fetched += consumed
+
+    next_offset = idx if idx < total else None
+    return results, next_offset
+
+
 def search_items(
     catalog_url: str,
     collection_id: str,
     bbox: list[float] | None = None,
     datetime_range: str | None = None,
     limit: int = 50,
-) -> list[dict]:
-    """Search STAC items and return simplified results."""
+    offset: int = 0,
+) -> tuple[list[dict], int | None]:
+    """Search STAC items and return (items, next_offset).
+
+    STAC API catalogs (advertising ITEM_SEARCH) use the /search endpoint and are never
+    paged (next_offset is None). Static catalogs (e.g. an S3-hosted catalog.json with no
+    search endpoint) crawl the collection's item links a page at a time and return a
+    cursor so the caller can load more.
+    """
     client = get_client(catalog_url)
-    search_kwargs: dict = {"collections": [collection_id], "max_items": limit}
-    if bbox:
-        search_kwargs["bbox"] = bbox
-    if datetime_range:
-        search_kwargs["datetime"] = datetime_range
-
-    search = client.search(**search_kwargs)
-    results = []
-    for item in search.items():
-        thumbnail = None
-        fallback = None
-        for thumb_key in ("rendered_preview", "thumbnail", "preview"):
-            if thumb_key not in item.assets:
-                continue
-            asset = item.assets[thumb_key]
-            media = (asset.media_type or "").lower()
-            if "png" in media or "jpeg" in media or "jpg" in media:
-                thumbnail = asset.href
-                break
-            if fallback is None:
-                fallback = asset.href
-        if not thumbnail:
-            thumbnail = fallback
-
-        assets_info = {}
-        for key, asset in item.assets.items():
-            assets_info[key] = {
-                "title": asset.title or key,
-                "type": asset.media_type or "",
-                "roles": asset.roles or [],
-            }
-
-        results.append(
-            {
-                "id": item.id,
-                "datetime": item.datetime.isoformat() if item.datetime else None,
-                "bbox": list(item.bbox) if item.bbox else None,
-                "geometry": item.geometry,
-                "properties": dict(item.properties),
-                "assets": assets_info,
-                "thumbnail": thumbnail,
-                "self_href": item.get_self_href(),
-            }
-        )
-    return results
+    if _conforms_to_item_search(client):
+        return _search_via_api(client, collection_id, bbox, datetime_range, limit), None
+    return _search_via_walk(client, collection_id, bbox, datetime_range, limit, offset)

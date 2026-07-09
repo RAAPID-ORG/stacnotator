@@ -145,6 +145,31 @@ def _tiler_catalogs(user: User) -> list[dict]:
     return out
 
 
+def _map_stacindex_catalog(cat: dict) -> dict | None:
+    """Map one raw StacIndex catalog to our output shape, or None to skip it.
+
+    Skips non-API catalogs and the Planetary Computer (added explicitly as MPC).
+    Uses the stable string `slug` as the id: StacIndex's `id` is a numeric,
+    unstable value, and `_AUTH_REQUIRED_CATALOGS` matches on the slug.
+    """
+    if not cat.get("isApi"):
+        return None
+    url = cat.get("url", "")
+    if "planetarycomputer" in url:
+        return None
+    cat_id = cat.get("slug") or str(cat.get("id", ""))
+    return {
+        "id": cat_id,
+        "title": cat.get("title", ""),
+        "url": url,
+        "summary": cat.get("summary", ""),
+        "is_mpc": False,
+        "auth_required": cat_id in _AUTH_REQUIRED_CATALOGS,
+        "tiler_name": None,
+        "provided": False,
+    }
+
+
 async def _public_catalogs() -> list[dict]:
     """MPC + StacIndex API catalogs (user-independent), cached. Proxied via StacIndex."""
     now = time.time()
@@ -177,24 +202,9 @@ async def _public_catalogs() -> list[dict]:
     )
 
     for cat in all_catalogs:
-        if not cat.get("isApi"):
-            continue
-        url = cat.get("url", "")
-        if "planetarycomputer" in url:
-            continue
-        cat_id = cat.get("id") or cat.get("slug", "")
-        filtered.append(
-            {
-                "id": cat_id,
-                "title": cat.get("title", ""),
-                "url": url,
-                "summary": cat.get("summary", ""),
-                "is_mpc": False,
-                "auth_required": cat_id in _AUTH_REQUIRED_CATALOGS,
-                "tiler_name": None,
-                "provided": False,
-            }
-        )
+        mapped = _map_stacindex_catalog(cat)
+        if mapped is not None:
+            filtered.append(mapped)
 
     _catalogs_cache["data"] = filtered
     _catalogs_cache["expires"] = now + STACINDEX_CACHE_TTL
@@ -254,14 +264,15 @@ def search(request: SearchRequest):
     """Search STAC items in a catalog collection."""
     _assert_catalog_url_safe(request.catalog_url)
     try:
-        items = search_items(
+        items, next_offset = search_items(
             catalog_url=request.catalog_url,
             collection_id=request.collection_id,
             bbox=request.bbox,
             datetime_range=request.datetime_range,
             limit=request.limit,
+            offset=request.offset,
         )
-        return {"items": items, "count": len(items)}
+        return {"items": items, "count": len(items), "next_offset": next_offset}
     except Exception as e:
         logger.error("STAC search failed: %s", e)
         raise HTTPException(status_code=502, detail="Search failed") from e
