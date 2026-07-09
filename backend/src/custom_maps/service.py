@@ -13,6 +13,17 @@ from src.tiling.providers import build_tile_url, register_cog_on_tiler, resolve_
 logger = logging.getLogger(__name__)
 
 
+class DuplicateCustomMapName(Exception):
+    pass
+
+
+def _name_taken(db: Session, campaign_id: int, name: str, exclude_id: int | None = None) -> bool:
+    query = select(CustomMap.id).where(CustomMap.campaign_id == campaign_id, CustomMap.name == name)
+    if exclude_id is not None:
+        query = query.where(CustomMap.id != exclude_id)
+    return db.execute(query).first() is not None
+
+
 def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
     cm = CustomMap(
         campaign_id=campaign_id,
@@ -20,6 +31,8 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
         cog_url=payload.cog_url,
         render_config=payload.render_config.model_dump(mode="json"),
         max_native_zoom=payload.max_native_zoom,
+        mlops_url=payload.mlops_url,
+        internal_storage=payload.internal_storage,
         status="registering",
     )
     db.add(cm)
@@ -31,7 +44,9 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
 def run_registration(db: Session, cm: CustomMap) -> None:
     try:
         tiler = resolve_tiler(None)
-        search_id = register_cog_on_tiler(tiler, cm.cog_url, cm.campaign_id)
+        search_id = register_cog_on_tiler(
+            tiler, cm.cog_url, cm.campaign_id, internal_storage=cm.internal_storage
+        )
         viz_params = build_viz_params(cm.render_config)
         cm.tile_url = build_tile_url("hosted", search_id, viz_params, tiler=tiler)
         cm.mosaic_id = search_id
@@ -59,6 +74,8 @@ def _spawn_registration(map_id: int) -> None:
 
 
 def create_custom_map(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMap:
+    if _name_taken(db, campaign_id, payload.name):
+        raise DuplicateCustomMapName(payload.name)
     cm = _insert(db, campaign_id, payload)
     _spawn_registration(cm.id)
     return cm
@@ -87,6 +104,12 @@ def update_custom_map(
     if cm is None:
         return None
     data = payload.model_dump(exclude_unset=True)
+    if (
+        "name" in data
+        and data["name"] != cm.name
+        and _name_taken(db, campaign_id, data["name"], exclude_id=map_id)
+    ):
+        raise DuplicateCustomMapName(data["name"])
     needs_reregister = False
     if "render_config" in data and data["render_config"] is not None:
         old_band = (cm.render_config or {}).get("band", 1)
@@ -95,7 +118,10 @@ def update_custom_map(
     if "cog_url" in data and data["cog_url"] != cm.cog_url:
         cm.cog_url = data["cog_url"]
         needs_reregister = True
-    for field in ("name", "max_native_zoom", "display_order"):
+    if "internal_storage" in data and data["internal_storage"] != cm.internal_storage:
+        cm.internal_storage = data["internal_storage"]
+        needs_reregister = True  # re-stamps the tiler search's asset_signer marker
+    for field in ("name", "max_native_zoom", "display_order", "mlops_url"):
         if field in data:
             setattr(cm, field, data[field])
     if needs_reregister:

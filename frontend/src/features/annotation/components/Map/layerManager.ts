@@ -6,6 +6,7 @@ import type LayerRenderer from 'ol/renderer/Layer';
 import type OLLayer from 'ol/layer/Layer';
 import { listen, unlistenByKey } from 'ol/events';
 import type { EventsKey } from 'ol/events';
+import { OVERLAY_LAYER_Z_INDEX } from './mapUtils';
 
 /**
  * LayerManager - manages the OL layer registry and active layer switching.
@@ -118,7 +119,7 @@ export class LayerManager {
     }
     const ol = this._findOLLayer(layer.id);
     if (ol) {
-      ol.setZIndex(1000);
+      ol.setZIndex(OVERLAY_LAYER_Z_INDEX);
       ol.setVisible(true);
     }
     this.overlayLayerId = layer.id;

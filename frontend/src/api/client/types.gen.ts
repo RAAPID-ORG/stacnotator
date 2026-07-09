@@ -1284,6 +1284,10 @@ export type CollectionStacConfigCreate = {
     cover_search_query?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1322,6 +1326,10 @@ export type CollectionStacConfigOut = {
     cover_search_query?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1373,6 +1381,14 @@ export type CustomMapCreate = {
      * Max Native Zoom
      */
     max_native_zoom?: number | null;
+    /**
+     * Mlops Url
+     */
+    mlops_url?: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean;
 };
 
 /**
@@ -1422,6 +1438,14 @@ export type CustomMapOut = {
      * Display Order
      */
     display_order: number;
+    /**
+     * Mlops Url
+     */
+    mlops_url: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage: boolean;
 };
 
 /**
@@ -1445,6 +1469,14 @@ export type CustomMapUpdate = {
      * Display Order
      */
     display_order?: number | null;
+    /**
+     * Mlops Url
+     */
+    mlops_url?: string | null;
+    /**
+     * Internal Storage
+     */
+    internal_storage?: boolean | null;
 };
 
 /**
@@ -1891,7 +1923,7 @@ export type RenderConfig = {
     /**
      * Colormap Name
      */
-    colormap_name?: string | null;
+    colormap_name?: 'viridis' | 'plasma' | 'magma' | 'inferno' | 'cividis' | 'turbo' | 'rdylgn' | 'rdbu' | null;
     /**
      * Rescale
      */
@@ -2438,6 +2470,10 @@ export type UserOutDetailed = {
      * Is Admin
      */
     is_admin: boolean;
+    /**
+     * Is Internal
+     */
+    is_internal: boolean;
     /**
      * Issuer
      */

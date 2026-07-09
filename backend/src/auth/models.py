@@ -13,7 +13,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER, ROLE_VISITOR
+from src.auth.constants import (
+    ROLE_ADMIN,
+    ROLE_APPROVED,
+    ROLE_INTERNAL,
+    ROLE_USER,
+    ROLE_VISITOR,
+)
 from src.config import get_settings
 from src.database import Base
 
@@ -94,6 +100,11 @@ class User(Base):
         """Check if user has the admin role."""
         return any(r.role == ROLE_ADMIN for r in self.roles)
 
+    @property
+    def is_internal(self) -> bool:
+        """First-party staff. Admins are internal by definition."""
+        return self.is_admin or any(r.role == ROLE_INTERNAL for r in self.roles)
+
 
 class UserRole(Base):
     """
@@ -104,7 +115,8 @@ class UserRole(Base):
     __tablename__ = "user_roles"
     __table_args__ = (
         CheckConstraint(
-            f"role IN ('{ROLE_USER}', '{ROLE_APPROVED}', '{ROLE_VISITOR}', '{ROLE_ADMIN}')",
+            f"role IN ('{ROLE_USER}', '{ROLE_APPROVED}', '{ROLE_VISITOR}', "
+            f"'{ROLE_ADMIN}', '{ROLE_INTERNAL}')",
             name="user_roles_role_check",
         ),
         Index("user_roles_user_id_idx", "user_id"),

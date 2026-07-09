@@ -672,6 +672,18 @@ const OpenModeControls = () => {
               </kbd>
             </div>
             <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Toggle overlay</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                M
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
+              <span>Cycle overlays</span>
+              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
+                Shift+M
+              </kbd>
+            </div>
+            <div className="flex justify-between text-[11px] text-neutral-500">
               <span>Flag selected (edit tool)</span>
               <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
                 F

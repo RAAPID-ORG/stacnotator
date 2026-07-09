@@ -15,6 +15,7 @@ import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
 import { getCollections, listTilers, type AssetInfo, type TilerOption } from '~/api/client';
+import { useIsInternal } from '~/features/account/account.store';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
@@ -32,6 +33,7 @@ export const CollectionEditor = ({
   onRemove,
   inModal,
 }: CollectionEditorProps) => {
+  const isInternal = useIsInternal();
   const [expanded, setExpanded] = useState(true);
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
@@ -622,6 +624,26 @@ export const CollectionEditor = ({
                       />
                     </div>
                   </div>
+
+                  {isInternal && !sb.isMpc && (
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={sb.internalStorage ?? false}
+                        onChange={(e) => updateSb({ internalStorage: e.target.checked })}
+                        data-testid="collection-internal-storage"
+                      />
+                      <span className="text-xs text-neutral-700">
+                        <span className="font-medium">Hosted in internal storage</span>
+                        <span className="block text-[11px] text-neutral-500 leading-snug">
+                          Check this if the assets live in our own Azure storage, so the tiler reads
+                          them with its managed identity. Leave unchecked for public or AWS-hosted
+                          imagery.
+                        </span>
+                      </span>
+                    </label>
+                  )}
 
                   {!sb.isMpc && hostedTilers.length > 1 && (
                     <div className="pt-1">

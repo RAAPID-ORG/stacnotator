@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useIsInternal } from '~/features/account/account.store';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus } from '~/shared/ui/Icons';
@@ -11,17 +12,31 @@ import {
   type CategoricalEntry,
 } from '~/api/client';
 
-const COLORMAPS = ['viridis', 'plasma', 'magma', 'inferno', 'rdylgn', 'turbo'] as const;
+const COLORMAPS = [
+  'viridis',
+  'plasma',
+  'magma',
+  'inferno',
+  'cividis',
+  'turbo',
+  'rdylgn',
+  'rdbu',
+] as const;
+
+type ColormapName = (typeof COLORMAPS)[number];
+
+const isColormapName = (value: string): value is ColormapName => COLORMAPS.some((c) => c === value);
 
 interface FormState {
   name: string;
   cog_url: string;
   mode: 'continuous' | 'categorical';
-  colormap_name: string;
+  colormap_name: ColormapName;
   rescale_min: string;
   rescale_max: string;
   entries: Array<{ value: string; color: string; label: string }>;
   max_native_zoom: string;
+  internal_storage: boolean;
 }
 
 const defaultForm = (): FormState => ({
@@ -33,6 +48,7 @@ const defaultForm = (): FormState => ({
   rescale_max: '1',
   entries: [{ value: '1', color: '#3b82f6', label: '' }],
   max_native_zoom: '',
+  internal_storage: false,
 });
 
 interface StatusBadgeProps {
@@ -82,6 +98,7 @@ interface CustomMapsEditorProps {
 }
 
 export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
+  const isInternal = useIsInternal();
   const [maps, setMaps] = useState<CustomMapOut[]>([]);
   const [form, setForm] = useState<FormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +173,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
           cog_url: form.cog_url,
           render_config: renderConfig,
           max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
+          internal_storage: isInternal ? form.internal_storage : false,
         },
       });
       if (error) {
@@ -312,6 +330,27 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
             </ul>
           </div>
 
+          {isInternal && (
+            <div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.internal_storage}
+                  onChange={(e) => setForm((f) => ({ ...f, internal_storage: e.target.checked }))}
+                  data-testid="custom-map-internal-storage"
+                />
+                <span className="text-xs text-neutral-700">
+                  <span className="font-medium">Hosted in internal storage</span>
+                  <span className="block text-[11px] text-neutral-500 leading-snug">
+                    Check this if the file lives in our own Azure storage, so the tiler reads it
+                    with its managed identity. Leave unchecked for public or AWS-hosted files.
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
           <div>
             <span className="block text-xs font-medium text-neutral-700 mb-1">Render mode</span>
             <div className="flex gap-2">
@@ -338,7 +377,10 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 <label className="block text-xs font-medium text-neutral-700 mb-1">Colormap</label>
                 <select
                   value={form.colormap_name}
-                  onChange={(e) => setForm((f) => ({ ...f, colormap_name: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (isColormapName(value)) setForm((f) => ({ ...f, colormap_name: value }));
+                  }}
                   className="w-full h-8 px-2.5 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15 transition-colors"
                 >
                   {COLORMAPS.map((c) => (

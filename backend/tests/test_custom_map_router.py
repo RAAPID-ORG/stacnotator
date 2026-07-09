@@ -28,6 +28,8 @@ def _map_obj(**kw):
         tile_url=None,
         mosaic_id=None,
         display_order=0,
+        mlops_url=None,
+        internal_storage=False,
     )
     base.update(kw)
     return SimpleNamespace(**base)
@@ -38,9 +40,11 @@ def client():
     return TestClient(app)
 
 
-def _override_auth():
+def _override_auth(is_internal: bool = False):
     app.dependency_overrides[get_db] = lambda: MagicMock()
-    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id="u1")
+    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(
+        id="u1", is_internal=is_internal
+    )
     app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
     app.dependency_overrides[require_campaign_admin] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
     app.dependency_overrides[cm_router.bearer] = lambda: None
@@ -62,6 +66,32 @@ def test_create_returns_201_and_serialized_body(client, monkeypatch):
     assert r.status_code == 201, r.text
     assert r.json()["status"] == "registering"
     assert r.json()["render_config"]["mode"] == "continuous"
+
+
+_INTERNAL_BODY = {
+    "name": "preds",
+    "cog_url": "https://acct.blob.core.windows.net/custom-maps/x.tif",
+    "render_config": {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]},
+    "internal_storage": True,
+}
+
+
+def test_internal_storage_rejected_for_non_internal_user(client, monkeypatch):
+    _override_auth(is_internal=False)
+    monkeypatch.setattr(service, "create_custom_map", lambda db, cid, payload: _map_obj())
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=_INTERNAL_BODY)
+    assert r.status_code == 403, r.text
+    assert "internal" in r.json()["detail"]
+
+
+def test_internal_storage_allowed_for_internal_user(client, monkeypatch):
+    _override_auth(is_internal=True)
+    monkeypatch.setattr(
+        service, "create_custom_map", lambda db, cid, payload: _map_obj(internal_storage=True)
+    )
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=_INTERNAL_BODY)
+    assert r.status_code == 201, r.text
+    assert r.json()["internal_storage"] is True
 
 
 def test_list_returns_maps(client, monkeypatch):
@@ -97,3 +127,30 @@ def test_campaign_out_exposes_custom_maps_field():
     from src.campaigns.schemas import CampaignOut
 
     assert "custom_maps" in CampaignOut.model_fields
+
+
+def test_create_duplicate_name_returns_409(client, monkeypatch):
+    _override_auth()
+
+    def duplicate(db, cid, payload):
+        raise service.DuplicateCustomMapName()
+
+    monkeypatch.setattr(service, "create_custom_map", duplicate)
+    body = {
+        "name": "cropland",
+        "cog_url": "https://x/y.tif",
+        "render_config": {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]},
+    }
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=body)
+    assert r.status_code == 409
+
+
+def test_rename_to_duplicate_returns_409(client, monkeypatch):
+    _override_auth()
+
+    def duplicate(db, cid, map_id, payload):
+        raise service.DuplicateCustomMapName()
+
+    monkeypatch.setattr(service, "update_custom_map", duplicate)
+    r = client.patch(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps/1", json={"name": "cropland"})
+    assert r.status_code == 409

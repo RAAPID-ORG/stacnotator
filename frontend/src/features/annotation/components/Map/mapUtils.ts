@@ -7,9 +7,11 @@ export const ZOOM_ANIMATION_MS = 200;
 export const PAN_ANIMATION_MS = 150;
 export const IMAGERY_CACHE_SIZE = 128;
 export const BASEMAP_CACHE_SIZE = 512;
+// Stacking order (low to high): imagery/basemaps (0) -> prediction overlays ->
+// PMTiles vector layers -> annotation layers, so reference data never hides a
+// user's own annotations.
+export const OVERLAY_LAYER_Z_INDEX = 3;
 export const EXTENT_LAYER_Z_INDEX = 5;
-// PMTiles vector layers sit above imagery but below annotations so a user's own
-// annotations always render on top of the reference vector data.
 export const VECTOR_LAYER_Z_INDEX = 8;
 export const VECTOR_HIGHLIGHT_Z_INDEX = 9;
 export const ANNOTATION_LAYER_Z_INDEX = 10;

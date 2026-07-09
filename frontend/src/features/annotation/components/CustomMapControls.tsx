@@ -7,8 +7,6 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
   const setActiveCustomMapId = useMapStore((s) => s.setActiveCustomMapId);
   const showCustomMap = useMapStore((s) => s.showCustomMap);
   const setShowCustomMap = useMapStore((s) => s.setShowCustomMap);
-  const customMapOpacity = useMapStore((s) => s.customMapOpacity);
-  const setCustomMapOpacity = useMapStore((s) => s.setCustomMapOpacity);
 
   const ready = customMaps.filter((m) => m.status === 'ready');
   if (ready.length === 0) return null;
@@ -16,10 +14,28 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
 
   return (
     <div className="flex items-center gap-1" data-testid="custom-map-controls">
+      {/* Overlays are their own control, visually separated from the imagery selectors. */}
+      <div className="w-px h-3 bg-neutral-200 mx-0.5" />
       <HeaderSelect
+        icon={
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="opacity-40 shrink-0"
+          >
+            <polygon points="10,3 18,8 10,13 2,8" />
+            <path d="M2 12l8 5 8-5" opacity="0.5" />
+          </svg>
+        }
         value={activeCustomMapId ?? ''}
         options={[
-          { value: '', label: 'No map' },
+          { value: '', label: 'No overlay' },
           ...ready.map((m) => ({ value: m.id, label: m.name })),
         ]}
         onChange={(v) => {
@@ -59,16 +75,6 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
               <path d="M2 12l8 5 8-5" opacity="0.5" />
             </svg>
           </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={customMapOpacity}
-            data-testid="custom-map-opacity"
-            onChange={(e) => setCustomMapOpacity(Number(e.target.value))}
-            title="Overlay opacity"
-            className="w-16 accent-brand-500 cursor-pointer"
-          />
         </>
       )}
     </div>

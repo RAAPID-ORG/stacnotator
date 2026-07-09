@@ -73,6 +73,23 @@ def test_register_on_tiler_posts_search_with_campaign(monkeypatch):
     assert captured["headers"]["Authorization"].startswith("Bearer ")
 
 
+def test_register_on_tiler_stamps_asset_signer_for_internal_storage(monkeypatch):
+    captured = _fake_post(monkeypatch, {"id": "s"})
+    providers.register_on_tiler(
+        TILER, {"collections": ["c"]}, campaign_id=42, internal_storage=True
+    )
+    assert captured["json"]["metadata"] == {
+        "campaign_id": "42",
+        "asset_signer": "azure_managed_identity",
+    }
+
+
+def test_register_on_tiler_omits_marker_by_default(monkeypatch):
+    captured = _fake_post(monkeypatch, {"id": "s"})
+    providers.register_on_tiler(TILER, {"collections": ["c"]}, campaign_id=42)
+    assert "asset_signer" not in captured["json"]["metadata"]
+
+
 def test_ingest_on_tiler_posts_aoi(monkeypatch):
     captured = _fake_post(monkeypatch, {"collection": "sentinel-2-l2a", "ingested": 7})
     n = providers.ingest_on_tiler(

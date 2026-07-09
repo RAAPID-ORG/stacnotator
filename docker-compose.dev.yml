@@ -51,12 +51,18 @@ services:
       TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
       ENVIRONMENT: development
       LOG_LEVEL: debug
-      # No tiler runs locally by default, so the tiler registry is empty: only MPC
-      # imagery with first-valid compositing works (served directly by MPC). To use
-      # non-MPC catalogs or compositing/masking, run the tiler (see note below) and
-      # uncomment these to register it (the URL must be reachable from this container):
-      # TILERS: '{"hosted":{"url":"http://host.docker.internal:8000","allows_ingest":true}}'
-      # DEFAULT_TILER: hosted
+      # Hosted-tiler registry. EMPTY by default -> no tiler, so only MPC imagery works
+      # (served directly by MPC) and db+backend+frontend is enough. To use non-MPC catalogs,
+      # compositing/masking, or custom-map COG overlays, run the tiler (note below) on
+      # TILER_PORT=8083 and set these via env / a .env next to this file. `url` is what the
+      # browser loads tiles from; `internal_url` is how this container reaches the tiler (via
+      # the extra_hosts host-gateway alias). Example .env:
+      #   TILERS={"hosted":{"url":"http://localhost:8083","internal_url":"http://host.docker.internal:8083","allows_ingest":true}}
+      #   DEFAULT_TILER=hosted
+      TILERS: ${TILERS:-}
+      DEFAULT_TILER: ${DEFAULT_TILER:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Mount source code for hot reloading
       - ./backend/src:/app/src:ro
@@ -81,17 +87,71 @@ services:
     # Override command for development with hot reload
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
-  # No tiler service here. The tiler lives in its own repo
-  # (https://github.com/RAAPID-ORG/stacnotator-tiler) and isn't needed for local
-  # development: MPC imagery with first-valid compositing is served directly by
-  # Microsoft Planetary Computer, so db + backend + frontend is enough.
+  # --- Optional tiler (docker compose profile: "tiler") ---
+  # OFF by default: a plain `docker compose up` is db + backend + frontend, and MPC imagery
+  # is served directly by Microsoft, so no tiler is needed. Turn it on for non-MPC catalogs,
+  # compositing/masking, or custom-map / prediction COG overlays by setting COMPOSE_PROFILES=tiler
+  # (plus TILERS/DEFAULT_TILER pointing at it) in .env - then the same `docker compose up`
+  # brings up the tiler + its own pgstac, wired to the backend. See .env.example.
   #
-  # A tiler is only required for imagery from OUTSIDE MPC (custom STAC catalogs) or
-  # for compositing/masking (median/mean/NDVI-best, SCL masks). To use those
-  # locally, clone the tiler repo and `docker compose up` there (it brings up its
-  # own pgstac + tiler on :8000), then set TILERS + DEFAULT_TILER on the backend
-  # service above. Without that, the backend's tiler registry is empty and any
-  # non-MPC / compositing imagery is rejected at imagery-setup time.
+  # The image is built straight from the tiler's GitHub repo (main), so users who only cloned
+  # this repo don't need to check the tiler out - Docker fetches + builds it. Override
+  # TILER_CONTEXT with a local path to build your own checkout (e.g. ../stacnotator-tiler for
+  # dev, ./stacnotator-tiler in CI). Requires BuildKit (default in modern Docker).
+  tiler-db:
+    image: ghcr.io/stac-utils/pgstac:v0.9.5
+    profiles: ["tiler"]
+    container_name: tiler-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgis
+      PGUSER: postgres
+      PGDATABASE: postgis
+    volumes:
+      - tiler_pgstac_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - stacnotator-dev-network
+
+  tiler:
+    build:
+      context: ${TILER_CONTEXT:-https://github.com/RAAPID-ORG/stacnotator-tiler.git#main}
+    image: stacnotator-tiler:dev
+    profiles: ["tiler"]
+    container_name: tiler-dev
+    restart: unless-stopped
+    depends_on:
+      tiler-db:
+        condition: service_healthy
+    environment:
+      PGHOST: tiler-db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgis
+      # Shared with the backend so it can mint tiler tokens this tiler accepts. Same default.
+      TILER_TOKEN_SECRET: ${TILER_TOKEN_SECRET:-dev-tiler-secret-change-in-production}
+      TOKEN_TTL: 3600
+      # Browser fetches tiles cross-origin (app :5173 -> tiler :8083), so allow that origin.
+      CORS_ORIGINS: ${TILER_CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # Off for local; disk/public/MPC COGs need no signing. See the tiler repo for Azure.
+      AZURE_SIGNING_ENABLED: ${AZURE_SIGNING_ENABLED:-false}
+      # Allow POST /ingest so non-MPC STAC-API mosaics can be registered locally.
+      ALLOW_STAC_API_INGEST: ${ALLOW_STAC_API_INGEST:-true}
+    volumes:
+      # Serve custom COGs from disk: drop *.tif into $COG_DIR (default ./cogs) and register a
+      # custom map with cog_url=/data/cogs/<file>.tif. Read-only.
+      - ${COG_DIR:-./cogs}:/data/cogs:ro
+    ports:
+      - "${TILER_PORT:-8083}:8000"
+    networks:
+      - stacnotator-dev-network
 
   # Frontend (Development with Vite HMR)
   frontend:
@@ -136,6 +196,9 @@ volumes:
   postgres_data_dev:
     driver: local
   frontend_node_modules_dev:
+    driver: local
+  # pgstac data for the optional tiler (profile: tiler)
+  tiler_pgstac_data_dev:
     driver: local
 
 networks:

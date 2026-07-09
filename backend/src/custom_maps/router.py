@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
+from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.custom_maps import service
@@ -20,6 +21,15 @@ router = APIRouter(
 )
 
 
+def _require_internal_for_internal_storage(internal_storage: bool | None, user: User) -> None:
+    """Only internal staff may point a map at internal (managed-identity) storage."""
+    if internal_storage and not user.is_internal:
+        raise HTTPException(
+            status_code=403,
+            detail="Only internal users can mark a custom map as internal storage",
+        )
+
+
 @router.get("", response_model=list[CustomMapOut])
 def list_custom_maps(
     campaign_id: int,
@@ -34,9 +44,16 @@ def create_custom_map(
     campaign_id: int,
     payload: CustomMapCreate,
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    return service.create_custom_map(db, campaign_id, payload)
+    _require_internal_for_internal_storage(payload.internal_storage, user)
+    try:
+        return service.create_custom_map(db, campaign_id, payload)
+    except service.DuplicateCustomMapName as exc:
+        raise HTTPException(
+            status_code=409, detail="A custom map with this name already exists"
+        ) from exc
 
 
 @router.patch("/{map_id}", response_model=CustomMapOut)
@@ -45,9 +62,16 @@ def update_custom_map(
     map_id: int,
     payload: CustomMapUpdate,
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    cm = service.update_custom_map(db, campaign_id, map_id, payload)
+    _require_internal_for_internal_storage(payload.internal_storage, user)
+    try:
+        cm = service.update_custom_map(db, campaign_id, map_id, payload)
+    except service.DuplicateCustomMapName as exc:
+        raise HTTPException(
+            status_code=409, detail="A custom map with this name already exists"
+        ) from exc
     if cm is None:
         raise HTTPException(status_code=404, detail="Custom map not found")
     return cm

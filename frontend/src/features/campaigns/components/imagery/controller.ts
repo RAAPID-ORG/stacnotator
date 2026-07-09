@@ -282,6 +282,7 @@ function mapCollectionOutToFe(col: ImageryCollectionOut, sourceVizNames: string[
         : undefined,
       searchQuery: (sc.search_query as Record<string, unknown>) ?? undefined,
       coverSearchQuery: (sc.cover_search_query as Record<string, unknown>) ?? undefined,
+      internalStorage: sc.internal_storage ?? false,
       vizUrls,
     };
   } else {

@@ -49,6 +49,7 @@ class CollectionStacConfigOut(BaseModel):
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
+    internal_storage: bool = False
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -241,6 +242,7 @@ class CollectionStacConfigCreate(BaseModel):
     max_cloud_cover: float | None = None
     search_query: dict | None = None
     cover_search_query: dict | None = None
+    internal_storage: bool = False
 
 
 class ImageryCollectionCreate(BaseModel):
