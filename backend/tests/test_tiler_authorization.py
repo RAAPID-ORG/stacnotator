@@ -157,6 +157,16 @@ def test_authorize_ignores_non_stac_collections(settings):
     service._authorize_tilers(_user(), es)  # no raise
 
 
+def test_authorize_allows_null_tiler_when_no_default_configured(monkeypatch):
+    # MPC-only deployment (e.g. the dev stack): no hosted tiler configured, so a
+    # Planetary Computer preset with tiler=None resolves to no tiler. MPC tiles are
+    # served direct — there is nothing to authorize, so this must not 403.
+    s = SimpleNamespace(TILERS={}, DEFAULT_TILER=None)
+    monkeypatch.setattr(service, "get_settings", lambda: s)
+    monkeypatch.setattr(auth_models, "get_settings", lambda: s)
+    service._authorize_tilers(_user(("mpc",)), _editor_state(None))  # must not raise
+
+
 # --- admin grant validation -----------------------------------------------------
 
 

@@ -121,6 +121,7 @@ _CAMPAIGN_FULL_LOAD_OPTIONS = (
     selectinload(Campaign.canvas_layouts),
     selectinload(Campaign.time_series),
     selectinload(Campaign.basemaps),
+    selectinload(Campaign.custom_maps),
     selectinload(Campaign.imagery_sources).options(
         selectinload(ImagerySource.visualizations),
         selectinload(ImagerySource.collections).options(

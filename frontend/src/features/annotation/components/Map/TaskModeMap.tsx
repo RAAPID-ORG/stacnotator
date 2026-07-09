@@ -32,6 +32,7 @@ import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
+import { useCustomMapLayer } from './useCustomMapLayer';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
 import { useMapStore } from '../../stores/map.store';
@@ -114,6 +115,8 @@ const TaskModeMap = ({
     onReady,
     onLayersChange,
   });
+
+  useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
 
   // Tile preloading (task mode only) - tier is resolved inside the hook
   // from `usePreferencesStore.preloadMode` (persisted in localStorage).

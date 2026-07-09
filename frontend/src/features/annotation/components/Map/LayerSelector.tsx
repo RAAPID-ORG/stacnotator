@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 export interface Layer {
   name: string;
   id: string;
-  layerType: 'imagery' | 'basemap';
+  layerType: 'imagery' | 'basemap' | 'overlay';
 }
 
 interface LayerGroup {

@@ -15,6 +15,8 @@ import LayerSelector from './Map/LayerSelector';
 import type { Layer } from './Map/LayerSelector';
 import HeaderSelect from './Map/HeaderSelect';
 import { MobileSliceNav } from './MobileSliceNav';
+import { CustomMapControls } from './CustomMapControls';
+import { CustomMapLegend } from './CustomMapLegend';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
@@ -415,6 +417,8 @@ export const MainAnnotationsContainer = ({
                   );
                 })()}
 
+              <CustomMapControls customMaps={campaign.custom_maps ?? []} />
+
               {/* Divider */}
               <div className="w-px h-3 bg-neutral-200 mx-0.5" />
 
@@ -675,6 +679,7 @@ export const MainAnnotationsContainer = ({
           />
         )}
 
+        <CustomMapLegend customMaps={campaign.custom_maps ?? []} />
         <MobileSliceNav />
       </div>
     </div>

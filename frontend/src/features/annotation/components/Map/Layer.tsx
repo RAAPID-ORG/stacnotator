@@ -2,7 +2,7 @@ import TileLayer from 'ol/layer/Tile';
 import XYZ from 'ol/source/XYZ';
 import { tileLoadImagery } from '../../utils/tileLoading';
 
-export type LayerType = 'imagery' | 'basemap';
+export type LayerType = 'imagery' | 'basemap' | 'overlay';
 
 /** Bing-style quadkey: interleave x/y bits per zoom level into a base-4 string. */
 function tileXYZToQuadkey(x: number, y: number, z: number): string {
@@ -35,6 +35,7 @@ export class XYZLayer extends Layer {
   readonly maxZoom?: number;
   readonly preload?: number;
   readonly crossOrigin: 'anonymous' | 'use-credentials';
+  readonly opacity: number;
 
   constructor(params: {
     id: string;
@@ -48,6 +49,7 @@ export class XYZLayer extends Layer {
     preload?: number;
     /** Credentialed for our tilers (cookie auth); anonymous for MPC/public. Default anonymous. */
     crossOrigin?: 'anonymous' | 'use-credentials';
+    opacity?: number;
   }) {
     super(params.id, params.name, params.layerType);
     this.urlTemplate = params.urlTemplate;
@@ -56,6 +58,7 @@ export class XYZLayer extends Layer {
     this.maxZoom = params.maxZoom;
     this.preload = params.preload;
     this.crossOrigin = params.crossOrigin ?? 'anonymous';
+    this.opacity = params.opacity ?? 1;
   }
 
   asOLLayer() {
@@ -84,6 +87,7 @@ export class XYZLayer extends Layer {
     return new TileLayer({
       preload: this.preload ?? (this.layerType === 'imagery' ? 0 : 4),
       source,
+      opacity: this.opacity,
     });
   }
 }

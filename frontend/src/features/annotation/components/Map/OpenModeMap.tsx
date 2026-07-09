@@ -33,6 +33,7 @@ import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
 import { useMapStore } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
+import { useCustomMapLayer } from './useCustomMapLayer';
 import { useAnnotationTileLayer } from './useAnnotationTileLayer';
 
 // Furthest the open-mode map may zoom out (~regional / tens-of-km view). Kept a
@@ -115,6 +116,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       preloadDepth: 2,
     });
 
+    useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
     // Mount the read-only annotation vector-tile display + highlight layers.
     useAnnotationTileLayer(olMap, campaign);
 

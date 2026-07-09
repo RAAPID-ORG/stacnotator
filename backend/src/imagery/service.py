@@ -137,7 +137,7 @@ def _authorize_tilers(user: User, editor_state: ImageryEditorStateCreate) -> Non
                     status_code=400,
                     detail=f"Unknown tiler '{name}' for collection '{col.name}'",
                 )
-            if not user.can_use_tiler(name):
+            if name is not None and not user.can_use_tiler(name):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=(

@@ -5,6 +5,7 @@ import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
+import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -100,6 +101,13 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           toggleViewSync();
           break;
+        case 'm': {
+          e.preventDefault();
+          const maps = campaign?.custom_maps ?? [];
+          if (e.shiftKey) cycleCustomMap(maps);
+          else toggleCustomMap(maps);
+          break;
+        }
         case 'i': {
           e.preventDefault();
           const mapState = useMapStore.getState();

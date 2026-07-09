@@ -75,6 +75,12 @@ class Campaign(Base):
     basemaps: Mapped[list["Basemap"]] = relationship(  # noqa: F821
         "Basemap", back_populates="campaign", cascade="all, delete-orphan"
     )
+    custom_maps: Mapped[list["CustomMap"]] = relationship(  # noqa: F821
+        "CustomMap",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        order_by="CustomMap.display_order",
+    )
     imagery_views: Mapped[list["ImageryView"]] = relationship(  # noqa: F821
         "ImageryView",
         back_populates="campaign",

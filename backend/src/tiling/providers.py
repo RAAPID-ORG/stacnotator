@@ -118,6 +118,22 @@ def ingest_on_tiler(
     return resp.json()["ingested"]
 
 
+def register_cog_on_tiler(tiler: TilerCfg, cog_url: str, campaign_id) -> str:
+    """Register a single COG as a campaign-scoped pgstac search on the hosted tiler.
+
+    Returns the tiler search id, used to build the tile-URL template.
+    """
+    token = mint_tiler_token("backend", [], scope=["searches:write"], ttl=300)
+    resp = httpx.post(
+        f"{_register_base(tiler)}/searches/register-cog",
+        json={"cog_url": cog_url, "campaign_id": str(campaign_id)},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["id"]
+
+
 def register_on_tiler(tiler: TilerCfg, search_body: dict, campaign_id) -> str:
     """Register a search (CQL2 body) on a hosted titiler-pgstac tiler.
 

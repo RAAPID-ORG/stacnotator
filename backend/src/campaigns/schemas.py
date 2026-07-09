@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 from src.auth.schemas import UserOut
+from src.custom_maps.schemas import CustomMapOut
 from src.imagery.schemas import (
     BasemapOut,
     CanvasLayoutOut,
@@ -109,6 +110,7 @@ class CampaignOut(BaseModel):
     imagery_sources: list[ImagerySourceOut]
     imagery_views: list[ImageryViewOut]
     basemaps: list[BasemapOut]
+    custom_maps: list[CustomMapOut] = []
     time_series: list[TimeSeriesOut]
 
     model_config = ConfigDict(from_attributes=True)
@@ -183,6 +185,7 @@ class CampaignOutFull(CampaignOut):
             "imagery_sources": obj.imagery_sources,
             "imagery_views": views_list,
             "basemaps": obj.basemaps,
+            "custom_maps": obj.custom_maps,
         }
 
         instance = cls.model_validate(base_data)
