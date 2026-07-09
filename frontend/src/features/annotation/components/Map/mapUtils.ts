@@ -8,10 +8,18 @@ export const PAN_ANIMATION_MS = 150;
 export const IMAGERY_CACHE_SIZE = 128;
 export const BASEMAP_CACHE_SIZE = 512;
 export const EXTENT_LAYER_Z_INDEX = 5;
+// PMTiles vector layers sit above imagery but below annotations so a user's own
+// annotations always render on top of the reference vector data.
+export const VECTOR_LAYER_Z_INDEX = 8;
+export const VECTOR_HIGHLIGHT_Z_INDEX = 9;
 export const ANNOTATION_LAYER_Z_INDEX = 10;
 /** Marker set on the read-only annotation tile display layer so the editing
  * layer's pointer hit-tests can target it. */
 export const ANNOTATION_TILE_LAYER_FLAG = 'isAnnotationTileLayer';
+/** Marker set on PMTiles vector-tile layers so pointer hit-tests can target them. */
+export const VECTOR_LAYER_FLAG = 'isVectorLayer';
+/** Property on a vector-tile layer holding its backing VectorLayer id. */
+export const VECTOR_LAYER_ID_PROP = 'vectorLayerId';
 
 export function createCrosshairElement(color: string = DEFAULT_CROSSHAIR_COLOR): HTMLDivElement {
   const half = CROSSHAIR_SIZE / 2;

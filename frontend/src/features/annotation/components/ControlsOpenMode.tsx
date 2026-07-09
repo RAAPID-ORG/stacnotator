@@ -12,7 +12,7 @@ import {
 import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 
-type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries';
+type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
 
 /**
  * Tool definitions for open mode annotation
@@ -69,6 +69,26 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
       >
         <path d="M12 20h9" />
         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'labelvector',
+    label: 'Label vector',
+    shortcut: 'V',
+    icon: (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+        <line x1="7" y1="7" x2="7.01" y2="7" />
       </svg>
     ),
   },
@@ -130,7 +150,12 @@ const OpenModeControls = () => {
 
   // Filter tools based on campaign configuration
   const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
-  const availableTools = TOOLS.filter((tool) => tool.id !== 'timeseries' || hasTimeseries);
+  const hasVectorLayers = (campaign?.vector_layers?.length ?? 0) > 0;
+  const availableTools = TOOLS.filter(
+    (tool) =>
+      (tool.id !== 'timeseries' || hasTimeseries) && (tool.id !== 'labelvector' || hasVectorLayers)
+  );
+  const enabledVectorLayerIds = useMapStore((s) => s.enabledVectorLayerIds);
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
@@ -148,8 +173,9 @@ const OpenModeControls = () => {
   }; // Quick label selection for efficient workflow
   const handleLabelSelect = (label: ExtendedLabel) => {
     setSelectedLabelId(label.id);
-    // Auto-switch to annotate mode if not already there
-    if (activeTool !== 'annotate') {
+    // In label-vector mode the label applies to clicked features; keep that tool.
+    // Otherwise selecting a label starts drawing.
+    if (activeTool !== 'annotate' && activeTool !== 'labelvector') {
       setActiveTool('annotate');
     }
   };
@@ -235,8 +261,25 @@ const OpenModeControls = () => {
           </div>
         </div>
 
-        {/* Label Selection - show for annotate tool */}
-        {activeTool === 'annotate' && (
+        {/* Label-vector mode banner */}
+        {activeTool === 'labelvector' && (
+          <div className="p-2.5 bg-emerald-50 rounded border border-emerald-200 w-full">
+            <p className="text-[11px] text-emerald-800 font-medium mb-1">Label vector data</p>
+            {enabledVectorLayerIds.length === 0 ? (
+              <p className="text-[11px] text-amber-700">
+                Enable a vector layer from the header first, then pick a label below.
+              </p>
+            ) : (
+              <p className="text-[11px] text-emerald-700">
+                Pick a label, then click a vector feature to label it. Shift+drag a box to label
+                every feature inside it.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Label Selection - show for annotate & label-vector tools */}
+        {(activeTool === 'annotate' || activeTool === 'labelvector') && (
           <>
             <div className="flex flex-col gap-1.5 w-full">
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
@@ -448,7 +491,12 @@ const OpenModeControls = () => {
                 <p className="text-[11px] text-blue-600">
                   Type: {capitalizeFirst(selectedLabel.geometry_type)}
                 </p>
-                {selectedLabel.geometry_type === 'polygon' && magicWandEnabled[selectedLabel.id] ? (
+                {activeTool === 'labelvector' ? (
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Click a vector feature to apply this label, or Shift+drag a box for many.
+                  </p>
+                ) : selectedLabel.geometry_type === 'polygon' &&
+                  magicWandEnabled[selectedLabel.id] ? (
                   <p className="text-[11px] text-purple-600 mt-1 font-medium">
                     Magic wand active - click once to auto-generate polygon.
                   </p>

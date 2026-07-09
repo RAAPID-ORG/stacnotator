@@ -39,6 +39,7 @@ export const useOpenModeKeyboard = () => {
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
     const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
+    const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
 
     const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
@@ -61,13 +62,16 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
-      // Number keys 1-9: select label and switch to annotate
+      // Number keys 1-9: select label. In label-vector mode keep that tool so the
+      // label applies to clicked features; otherwise switch to annotate (draw).
       if (e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
           setSelectedLabelId(extendedLabels[index].id);
-          setActiveTool('annotate');
+          if (useMapStore.getState().activeTool !== 'labelvector') {
+            setActiveTool('annotate');
+          }
         }
         return;
       }
@@ -92,6 +96,12 @@ export const useOpenModeKeyboard = () => {
           if (!hasTimeseries) break;
           e.preventDefault();
           setActiveTool('timeseries');
+          break;
+        case 'v':
+          if (!hasVectorLayers) break;
+          e.preventDefault();
+          setActiveTool('labelvector');
+          setTimeseriesPoint(null);
           break;
         case 'x':
           e.preventDefault();

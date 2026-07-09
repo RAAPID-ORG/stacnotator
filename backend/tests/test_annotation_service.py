@@ -30,6 +30,7 @@ from src.annotation.service import (
     add_annotation_for_task,
     claim_task_for_user,
     create_annotation,
+    create_annotations_bulk,
     delete_annotation,
     update_annotation,
 )
@@ -398,6 +399,74 @@ class TestCreateAnnotation:
 
         assert exc_info.value.status_code == 400
         db.rollback.assert_called_once()
+
+
+class TestCreateAnnotationsBulk:
+    """Tests for creating many standalone annotations in one transaction."""
+
+    @staticmethod
+    def _flush_assigns_geom_ids(db):
+        # Emulate the DB assigning ids on flush so annotations can wire geometry_id.
+        state = {"next": 1000}
+
+        def _flush():
+            for call in db.add_all.call_args_list:
+                for obj in call.args[0]:
+                    if isinstance(obj, AnnotationGeometry) and obj.id is None:
+                        obj.id = state["next"]
+                        state["next"] += 1
+
+        db.flush.side_effect = _flush
+
+    def test_creates_one_geometry_and_annotation_per_item(self):
+        db = _mock_db()
+        self._flush_assigns_geom_ids(db)
+        campaign = _make_campaign()
+        campaign.id = 7
+        user_id = uuid4()
+
+        payloads = [
+            AnnotationCreate(label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None),
+            AnnotationCreate(label_id=2, comment=None, geometry_wkt="POINT(1 1)", confidence=None),
+            AnnotationCreate(label_id=1, comment=None, geometry_wkt="POINT(2 2)", confidence=None),
+        ]
+
+        count = create_annotations_bulk(db, campaign, payloads, user_id)
+
+        assert count == 3
+        added = [obj for call in db.add_all.call_args_list for obj in call.args[0]]
+        geoms = [o for o in added if isinstance(o, AnnotationGeometry)]
+        anns = [o for o in added if isinstance(o, Annotation)]
+        assert len(geoms) == 3
+        assert len(anns) == 3
+        # Each annotation is wired to a distinct flushed geometry id + the campaign/user.
+        assert all(a.geometry_id is not None for a in anns)
+        assert len({a.geometry_id for a in anns}) == 3
+        assert all(a.campaign_id == 7 for a in anns)
+        assert all(a.created_by_user_id == user_id for a in anns)
+        assert [a.label_id for a in anns] == [1, 2, 1]
+        db.commit.assert_called_once()
+
+    def test_empty_list_is_a_noop(self):
+        db = _mock_db()
+        assert create_annotations_bulk(db, _make_campaign(), [], uuid4()) == 0
+        db.add_all.assert_not_called()
+        db.commit.assert_not_called()
+
+    def test_rejects_unknown_label_before_writing(self):
+        db = _mock_db()
+        campaign = _make_campaign(label_ids=(1, 2))
+        payloads = [
+            AnnotationCreate(label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None),
+            AnnotationCreate(label_id=99, comment=None, geometry_wkt="POINT(1 1)", confidence=None),
+        ]
+
+        with pytest.raises(HTTPException) as exc_info:
+            create_annotations_bulk(db, campaign, payloads, uuid4())
+
+        assert exc_info.value.status_code == 400
+        db.add_all.assert_not_called()
+        db.commit.assert_not_called()
 
 
 class TestUpdateAnnotation:

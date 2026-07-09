@@ -17,6 +17,7 @@ import HeaderSelect from './Map/HeaderSelect';
 import { MobileSliceNav } from './MobileSliceNav';
 import { CustomMapControls } from './CustomMapControls';
 import { CustomMapLegend } from './CustomMapLegend';
+import { VectorLayerControls } from './VectorLayerControls';
 import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
@@ -418,6 +419,8 @@ export const MainAnnotationsContainer = ({
                 })()}
 
               <CustomMapControls customMaps={campaign.custom_maps ?? []} />
+
+              {!isTaskMode && <VectorLayerControls vectorLayers={campaign.vector_layers ?? []} />}
 
               {/* Divider */}
               <div className="w-px h-3 bg-neutral-200 mx-0.5" />

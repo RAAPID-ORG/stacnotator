@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { useCampaignStore } from './campaign.store';
 
+/** Tools available on the annotation map. `labelvector` is open-mode only: it
+ * labels features clicked/box-selected from PMTiles vector layers. */
+export type AnnotationTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
+
 /** Resolve a collection's cover slice index from the campaign store. Falls
  *  back to 0 if the collection isn't found (defensive). */
 const coverIndexFor = (collectionId: number | null): number => {
@@ -28,6 +32,8 @@ interface MapStore {
   activeCustomMapId: number | null;
   customMapOpacity: number;
   showCustomMap: boolean;
+  // PMTiles vector layers currently toggled on (several may be enabled at once).
+  enabledVectorLayerIds: number[];
   // Per-source memory so cycling I → static → back to a source restores the
   // last collection + visualization the user was on, instead of resetting to
   // the first slice / first viz.
@@ -52,7 +58,7 @@ interface MapStore {
   viewSyncEnabled: boolean;
 
   // Active tool
-  activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
+  activeTool: AnnotationTool;
   timeseriesPoint: { lat: number; lon: number } | null;
   probeTimeseriesPoint: { lat: number; lon: number } | null;
   // True when the chart has hidden the relevant datasets, so the map should
@@ -74,6 +80,9 @@ interface MapStore {
   setActiveCustomMapId: (id: number | null) => void;
   setCustomMapOpacity: (opacity: number) => void;
   setShowCustomMap: (show: boolean) => void;
+  setVectorLayerEnabled: (id: number, enabled: boolean) => void;
+  toggleVectorLayer: (id: number) => void;
+  setEnabledVectorLayerIds: (ids: number[]) => void;
   recordSourceState: (sourceId: number, collectionId: number, layerIndex: number) => void;
 
   setMapCenter: (center: [number, number]) => void;
@@ -96,7 +105,7 @@ interface MapStore {
   toggleCrosshair: () => void;
   toggleAnnotations: () => void;
 
-  setActiveTool: (tool: 'pan' | 'annotate' | 'edit' | 'timeseries') => void;
+  setActiveTool: (tool: AnnotationTool) => void;
   setTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeTimeseriesPoint: (point: { lat: number; lon: number } | null) => void;
   setProbeMarkerHidden: (hidden: boolean) => void;
@@ -132,6 +141,7 @@ const initialState = {
   activeCustomMapId: null as number | null,
   customMapOpacity: 100,
   showCustomMap: true,
+  enabledVectorLayerIds: [] as number[],
   lastSourceState: {} as Record<number, { collectionId: number; layerIndex: number }>,
 
   currentMapCenter: null as [number, number] | null,
@@ -246,6 +256,24 @@ export const useMapStore = create<MapStore>((set) => ({
   setActiveCustomMapId: (id) => set({ activeCustomMapId: id }),
   setCustomMapOpacity: (opacity) => set({ customMapOpacity: opacity }),
   setShowCustomMap: (show) => set({ showCustomMap: show }),
+
+  setVectorLayerEnabled: (id, enabled) =>
+    set((s) => {
+      const has = s.enabledVectorLayerIds.includes(id);
+      if (enabled === has) return s;
+      return {
+        enabledVectorLayerIds: enabled
+          ? [...s.enabledVectorLayerIds, id]
+          : s.enabledVectorLayerIds.filter((x) => x !== id),
+      };
+    }),
+  toggleVectorLayer: (id) =>
+    set((s) => ({
+      enabledVectorLayerIds: s.enabledVectorLayerIds.includes(id)
+        ? s.enabledVectorLayerIds.filter((x) => x !== id)
+        : [...s.enabledVectorLayerIds, id],
+    })),
+  setEnabledVectorLayerIds: (ids) => set({ enabledVectorLayerIds: ids }),
 
   recordSourceState: (sourceId, collectionId, layerIndex) =>
     set((s) => ({

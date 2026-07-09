@@ -282,6 +282,16 @@ class BatchDeleteAnnotationsResponse(BaseModel):
     deleted_count: int
 
 
+class BatchCreateAnnotationsRequest(BaseModel):
+    # Capped to keep a single request/transaction bounded; the frontend labels
+    # vector features in one call rather than one request per feature.
+    annotations: list[AnnotationCreate] = Field(max_length=5000)
+
+
+class BatchCreateAnnotationsResponse(BaseModel):
+    created_count: int
+
+
 class AnnotationUpdate(BaseModel):
     label_id: int | None
     comment: str | None

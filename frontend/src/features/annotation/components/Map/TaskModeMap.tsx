@@ -35,7 +35,7 @@ import { useSliceLayers } from './useSliceLayers';
 import { useCustomMapLayer } from './useCustomMapLayer';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
-import { useMapStore } from '../../stores/map.store';
+import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 
 interface TaskModeMapProps {
   campaign: CampaignOutFull;
@@ -54,7 +54,7 @@ interface TaskModeMapProps {
     bounds?: [number, number, number, number]
   ) => void;
   onReady?: () => void;
-  activeTool?: 'pan' | 'annotate' | 'edit' | 'timeseries';
+  activeTool?: AnnotationTool;
   onTimeseriesClick?: (lat: number, lon: number) => void;
   probePoint?: { lat: number; lon: number } | null;
 }

@@ -40,7 +40,7 @@ import type { DrawEvent } from 'ol/interaction/Draw';
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
-import { useMapStore } from '../../stores/map.store';
+import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import { usePreferencesStore } from '../../stores/preferences.store';
 import {
   resolveLabelStyle,
@@ -113,7 +113,7 @@ export interface DrawingLayerProps {
   /** The OL map instance owned by the parent (tile layers already added). */
   map: OLMap;
   selectedLabel: ExtendedLabel | null;
-  activeTool: 'pan' | 'annotate' | 'edit' | 'timeseries';
+  activeTool: AnnotationTool;
   magicWandActive: boolean;
   onTimeseriesClick?: (lat: number, lon: number) => void;
 }
