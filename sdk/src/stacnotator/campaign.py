@@ -252,6 +252,8 @@ def _as_feature_collection(data: "pd.DataFrame | dict[str, Any]") -> dict[str, A
     if isinstance(data, pd.DataFrame):
         if not {"lat", "lon"}.issubset(data.columns):
             raise ValueError("data needs 'lat' and 'lon' columns (WGS84 degrees)")
+        if data[["lat", "lon"]].isna().any().any():
+            raise ValueError("data has rows with missing lat/lon values")
         records = json.loads(data.to_json(orient="records"))
         return {
             "type": "FeatureCollection",

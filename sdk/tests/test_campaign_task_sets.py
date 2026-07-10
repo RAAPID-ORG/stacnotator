@@ -121,6 +121,16 @@ def test_upload_tasks_rejects_frame_without_coordinates():
         campaign.upload_tasks(pd.DataFrame({"x": [1]}), task_set="Default")
 
 
+def test_upload_tasks_rejects_nan_coordinates():
+    save(Credentials(url=BASE, auth={"mode": "none"}))
+    with responses.RequestsMock() as rsps:
+        rsps.get(f"{BASE}/api/campaigns/42", json=CAMPAIGN_PAYLOAD)
+        campaign = Client().campaign(42)
+    df = pd.DataFrame({"lat": [10.0, float("nan")], "lon": [20.0, 21.0]})
+    with pytest.raises(ValueError, match="missing lat/lon"):
+        campaign.upload_tasks(df, task_set="Default")
+
+
 @responses.activate
 def test_upload_tasks_accepts_feature_collection_dict():
     campaign = make_campaign()
