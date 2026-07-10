@@ -280,6 +280,9 @@ class AssignTasksToUsersRequest(BaseModel):
     user_task_counts: dict[UUID, int] | None = None
     task_assignments: dict[int, list[UUID]] | None = None
 
+    # Optional scope: restrict the distribution pool to one task set.
+    task_set_id: int | None = None
+
 
 class AssignTasksToUsersResult(BaseModel):
     total_assigned: int
@@ -316,6 +319,9 @@ class AssignReviewersRequest(BaseModel):
     # For 'fixed' pattern
     num_tasks: int | None = None  # Number of already-assigned tasks to review
     fixed_num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
+
+    # Optional scope: restrict the reviewable pool to one task set.
+    task_set_id: int | None = None
 
 
 class DeleteAnnotationTasksRequest(BaseModel):

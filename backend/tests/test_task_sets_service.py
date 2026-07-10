@@ -114,3 +114,23 @@ def test_task_set_create_rejects_blank_name():
 
 def test_task_set_create_strips_name():
     assert TaskSetCreate(name=" a ").name == "a"
+
+
+def test_eligible_task_ids_filters_by_set():
+    from src.campaigns import assignments
+
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [1, 2]
+    assignments._eligible_task_ids(db, campaign_id=10, task_set_id=7)
+    stmt = db.scalars.call_args.args[0]
+    assert "task_set_id" in str(stmt)
+
+
+def test_eligible_task_ids_without_set_has_no_set_clause():
+    from src.campaigns import assignments
+
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = []
+    assignments._eligible_task_ids(db, campaign_id=10)
+    stmt = db.scalars.call_args.args[0]
+    assert "task_set_id" not in str(stmt)

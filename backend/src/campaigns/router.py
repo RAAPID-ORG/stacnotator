@@ -320,6 +320,8 @@ def assign_tasks_to_users(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing."""
+    if req.task_set_id is not None:
+        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
     return assignments.assign_tasks_to_users(db, campaign_id, req)
 
 
@@ -379,6 +381,9 @@ def assign_reviewers(
     assignment, and each task is topped up to the requested number of reviewers
     rather than accumulating more on every call.
     """
+    if req.task_set_id is not None:
+        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
+
     if req.pattern == "percentage":
         if req.percentage is None or req.num_reviewers is None or req.reviewer_ids is None:
             raise HTTPException(
@@ -386,7 +391,12 @@ def assign_reviewers(
                 detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required",
             )
         assignments.assign_reviewers_percentage(
-            db, campaign_id, req.percentage, req.num_reviewers, req.reviewer_ids
+            db,
+            campaign_id,
+            req.percentage,
+            req.num_reviewers,
+            req.reviewer_ids,
+            task_set_id=req.task_set_id,
         )
         return {"message": f"Successfully assigned reviewers to {req.percentage}% of tasks"}
 
@@ -405,7 +415,12 @@ def assign_reviewers(
                 detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required",
             )
         assignments.assign_reviewers_fixed(
-            db, campaign_id, req.num_tasks, req.fixed_num_reviewers, req.reviewer_ids
+            db,
+            campaign_id,
+            req.num_tasks,
+            req.fixed_num_reviewers,
+            req.reviewer_ids,
+            task_set_id=req.task_set_id,
         )
         return {"message": f"Successfully assigned reviewers to {req.num_tasks} tasks"}
 
