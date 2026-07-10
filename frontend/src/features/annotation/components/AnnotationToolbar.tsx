@@ -381,7 +381,8 @@ export const AnnotationToolbar = () => {
   const [mergeOnAgreement, setMergeOnAgreement] = useState(false);
 
   // Conflict-aware merge toggle: any task in 'conflicting' status disables it.
-  // Task mode only - open mode never has tasks. Pulled directly from the store.
+  // The option itself is only offered in Tasks workMode below. Pulled directly
+  // from the store.
   const allTasks = useTaskStore((s) => s.allTasks);
   const hasConflicts = allTasks.some((t) => t.task_status === 'conflicting');
 
@@ -397,6 +398,8 @@ export const AnnotationToolbar = () => {
 
   // Get state from store
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
+  const setWorkMode = useCampaignStore((s) => s.setWorkMode);
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
@@ -577,6 +580,39 @@ export const AnnotationToolbar = () => {
       className="flex items-center justify-between px-2 desktop:px-4 py-1 bg-white border-b border-neutral-200 flex-shrink-0 gap-1"
     >
       <div className="flex items-center gap-0.5 desktop:gap-2">
+        {/* Work style switch: Tasks | Explore */}
+        <div
+          className="flex items-center rounded overflow-hidden border border-neutral-200"
+          data-testid="work-mode-switch"
+        >
+          <button
+            onClick={() => setWorkMode('tasks')}
+            disabled={allTasks.length === 0}
+            title={allTasks.length === 0 ? 'This campaign has no tasks yet' : undefined}
+            className={`px-2 desktop:px-3 py-1.5 text-sm font-medium transition-colors ${
+              workMode === 'tasks'
+                ? 'bg-brand-600 text-white'
+                : allTasks.length === 0
+                  ? 'text-neutral-300 cursor-not-allowed'
+                  : 'text-neutral-700 hover:bg-neutral-50'
+            }`}
+            type="button"
+          >
+            Tasks
+          </button>
+          <button
+            onClick={() => setWorkMode('explore')}
+            className={`px-2 desktop:px-3 py-1.5 text-sm font-medium transition-colors ${
+              workMode === 'explore'
+                ? 'bg-brand-600 text-white'
+                : 'text-neutral-700 hover:bg-neutral-50'
+            }`}
+            type="button"
+          >
+            Explore
+          </button>
+        </div>
+
         {/* Views Dropdown */}
         <div className="relative" ref={imageryDropdownRef} data-tour="imagery-selector">
           <button
@@ -630,7 +666,7 @@ export const AnnotationToolbar = () => {
         </div>
 
         {/* Task Filter Dropdown */}
-        {campaign.mode === 'tasks' && (
+        {workMode === 'tasks' && (
           <div className="relative" ref={taskFilterDropdownRef} data-tour="task-filter">
             <button
               onClick={() => setShowTaskFilterDropdown(!showTaskFilterDropdown)}
@@ -663,7 +699,7 @@ export const AnnotationToolbar = () => {
 
         {/* Review Mode Toggle (tasks mode only) + Navigate to Review Page (both modes) */}
         <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
-          {campaign.mode === 'tasks' && (
+          {workMode === 'tasks' && (
             <>
               {/* Toggle review mode on/off */}
               <button
@@ -731,7 +767,7 @@ export const AnnotationToolbar = () => {
                 d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
               />
             </svg>
-            {campaign.mode !== 'tasks' && <span>Review</span>}
+            {workMode !== 'tasks' && <span>Review</span>}
           </button>
         </div>
 
@@ -785,7 +821,7 @@ export const AnnotationToolbar = () => {
             open={showExportDropdown}
             className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-20 min-w-[240px] origin-top-left"
           >
-            {campaign?.mode === 'tasks' && (
+            {workMode === 'tasks' && (
               <label
                 className={`flex items-start gap-2 px-3 py-2 border-b border-neutral-200 ${
                   hasConflicts
@@ -1049,7 +1085,7 @@ export const AnnotationToolbar = () => {
             <div className="text-[11px] font-medium text-neutral-500 mb-2 uppercase tracking-wider">
               Keyboard shortcuts
             </div>
-            {campaign.mode === 'open' ? (
+            {workMode === 'explore' ? (
               <div className="space-y-1.5">
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
                   Tools

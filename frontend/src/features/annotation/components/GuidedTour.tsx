@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useCampaignStore } from '../stores/campaign.store';
+import { useCampaignStore, type WorkMode } from '../stores/campaign.store';
 import { useTaskStore, type TaskFilter } from '../stores/task.store';
 
 interface TourStep {
@@ -41,8 +41,8 @@ interface TourConfig {
   hasTimeseries: boolean;
 }
 
-const buildTourSteps = (campaignMode: 'tasks' | 'open', config: TourConfig): TourStep[] => {
-  if (campaignMode === 'open') {
+const buildTourSteps = (workMode: WorkMode, config: TourConfig): TourStep[] => {
+  if (workMode === 'explore') {
     return buildOpenModeSteps(config);
   }
   return buildTaskModeSteps(config);
@@ -642,10 +642,10 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
   // 1. Welcome
   {
     target: '[data-tour="toolbar"]',
-    title: 'Welcome to Open Mode!',
+    title: 'Welcome to Explore!',
     content: (
       <p>
-        In open mode you draw annotations directly on the map. This tour will guide you through the
+        In Explore you draw annotations directly on the map. This tour will guide you through the
         key features. Like task mode, almost every action has a keyboard shortcut.
       </p>
     ),
@@ -947,8 +947,8 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          The minimap gives you a bird&apos;s-eye overview of the campaign area. In open mode you
-          can <strong>drag the visible bounding box</strong> in the minimap to quickly navigate to a
+          The minimap gives you a bird&apos;s-eye overview of the campaign area. In Explore you can{' '}
+          <strong>drag the visible bounding box</strong> in the minimap to quickly navigate to a
           different part of the campaign area.
         </p>
         <p>
@@ -1086,7 +1086,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          You&apos;re ready to start annotating in open mode! STACNotator is designed to be{' '}
+          You&apos;re ready to start annotating in Explore! STACNotator is designed to be{' '}
           <strong>keyboard-first</strong> - here&apos;s your cheat-sheet:
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
@@ -1146,6 +1146,7 @@ interface GuidedTourProps {
 
 export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
   const [currentStep, setCurrentStep] = useState(0);
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [stepFulfilled, setStepFulfilled] = useState(false);
@@ -1159,9 +1160,8 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     if (!isOpen) return;
 
     const { visibleTasks, taskFilter, setTaskFilter } = useTaskStore.getState();
-    const mode = campaign?.mode ?? 'tasks';
 
-    if (mode === 'tasks' && visibleTasks.length === 0) {
+    if (workMode === 'tasks' && visibleTasks.length === 0) {
       // Save the current filter so we can restore it when the tour closes
       savedFilterRef.current = { ...taskFilter };
       // Broaden to all users, all statuses
@@ -1170,11 +1170,10 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
         statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
       });
     }
-  }, [isOpen, campaign?.mode]);
+  }, [isOpen, workMode]);
 
-  const mode = (campaign?.mode ?? 'tasks') as 'tasks' | 'open';
   const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
-  const steps = buildTourSteps(mode, { hasTimeseries });
+  const steps = buildTourSteps(workMode, { hasTimeseries });
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;
 

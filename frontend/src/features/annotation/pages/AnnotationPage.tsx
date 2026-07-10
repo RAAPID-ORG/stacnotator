@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useCampaignStore } from '../stores/campaign.store';
+import { useCampaignStore, type WorkMode } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
@@ -18,6 +18,10 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
 
+const WORK_MODES = ['tasks', 'explore'] as const;
+const isWorkMode = (value: string): value is WorkMode =>
+  (WORK_MODES as readonly string[]).includes(value);
+
 export const AnnotationPage = () => {
   const campaignId = useCampaignIdParam();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -29,6 +33,8 @@ export const AnnotationPage = () => {
   const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
   const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
+  const workMode = useCampaignStore((s) => s.workMode);
+  const setWorkMode = useCampaignStore((s) => s.setWorkMode);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const allTasks = useTaskStore((s) => s.allTasks);
   const tasksLoaded = useTaskStore((s) => s.tasksLoaded);
@@ -57,10 +63,14 @@ export const AnnotationPage = () => {
   useEffect(() => {
     const taskIdParam = searchParams.get('task');
     const reviewParam = searchParams.get('review');
+    const modeParam = searchParams.get('mode');
+    const taskSetParam = searchParams.get('taskSet');
     const initialTaskId = taskIdParam ? Number(taskIdParam) : undefined;
     const isReviewMode = reviewParam === 'true';
+    const initialWorkMode = modeParam && isWorkMode(modeParam) ? modeParam : undefined;
+    const initialTaskSetId = taskSetParam ? Number(taskSetParam) : undefined;
 
-    if (taskIdParam || reviewParam) {
+    if (taskIdParam || reviewParam || modeParam || taskSetParam) {
       setSearchParams({}, { replace: true });
     }
 
@@ -71,7 +81,9 @@ export const AnnotationPage = () => {
         await loadCampaign(
           campaignId,
           initialTaskId && !Number.isNaN(initialTaskId) ? initialTaskId : undefined,
-          isReviewMode
+          isReviewMode,
+          initialWorkMode,
+          initialTaskSetId && !Number.isNaN(initialTaskSetId) ? initialTaskSetId : undefined
         );
       } catch (error) {
         if (!cancelled) {
@@ -109,13 +121,21 @@ export const AnnotationPage = () => {
   const [autoTourChecked, setAutoTourChecked] = useState(false);
   useEffect(() => {
     if (!showContent || !campaign || autoTourChecked || !accountId) return;
-    const canTour = campaign.mode === 'open' || visibleTasks.length > 0;
+    const canTour = workMode === 'explore' || visibleTasks.length > 0;
     if (!canTour) return; // wait for tasks (task mode with empty visibleTasks)
     setAutoTourChecked(true);
     if (!hasSeenTour(accountId, campaign.id)) {
       setShowGuidedTour(true);
     }
-  }, [showContent, campaign, visibleTasks.length, accountId, autoTourChecked, setShowGuidedTour]);
+  }, [
+    showContent,
+    campaign,
+    workMode,
+    visibleTasks.length,
+    accountId,
+    autoTourChecked,
+    setShowGuidedTour,
+  ]);
 
   const markTourSeen = usePreferencesStore((s) => s.markTourSeen);
   const handleTourClose = () => {
@@ -188,17 +208,16 @@ export const AnnotationPage = () => {
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <AnnotationToolbar />
-      {campaign &&
-      ((campaign.mode == 'tasks' && visibleTasks.length > 0) || campaign.mode == 'open') ? (
+      {campaign && ((workMode === 'tasks' && visibleTasks.length > 0) || workMode === 'explore') ? (
         <Canvas commentInputRef={commentInputRef} />
-      ) : campaign?.mode === 'tasks' && !tasksLoaded ? (
+      ) : workMode === 'tasks' && !tasksLoaded ? (
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center max-w-md px-4">
-            {campaign?.mode === 'tasks' && allTasks.length === 0 ? (
+            {workMode === 'tasks' && allTasks.length === 0 ? (
               <>
                 <h2 className="text-base font-semibold text-neutral-900 mb-1.5">
                   No annotation tasks yet
@@ -207,13 +226,20 @@ export const AnnotationPage = () => {
                   This campaign has no tasks set up. Tasks define the points or polygons that
                   annotators will label.
                 </p>
-                {isCampaignAdmin ? (
-                  <Button onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}>
-                    Set up tasks in settings
+                <div className="flex items-center justify-center gap-2">
+                  {isCampaignAdmin && (
+                    <Button onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}>
+                      Set up tasks in settings
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={() => setWorkMode('explore')}>
+                    Switch to Explore
                   </Button>
-                ) : (
-                  <p className="text-xs text-neutral-500 italic">
-                    Ask a campaign admin to create tasks before you can start annotating.
+                </div>
+                {!isCampaignAdmin && (
+                  <p className="text-xs text-neutral-500 italic mt-3">
+                    Ask a campaign admin to create tasks, or switch to Explore to start annotating
+                    now.
                   </p>
                 )}
               </>
