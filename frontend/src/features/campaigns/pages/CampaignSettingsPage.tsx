@@ -215,7 +215,11 @@ export const CampaignSettingsPage = () => {
   }, [isAnyRegistering, campaignId, showAlert]);
 
   const reloadTaskSets = useCallback(async () => {
-    const { data } = await listTaskSets({ path: { campaign_id: campaignId } });
+    const { data, error } = await listTaskSets({ path: { campaign_id: campaignId } });
+    if (error) {
+      handleError(error, 'Failed to load task sets');
+      return;
+    }
     if (data) {
       setTaskSets(data);
       setSelectedUploadSetId((current) =>
