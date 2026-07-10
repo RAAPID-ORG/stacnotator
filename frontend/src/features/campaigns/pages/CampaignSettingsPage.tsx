@@ -380,6 +380,11 @@ export const CampaignSettingsPage = () => {
     );
   };
 
+  const scopedAnnotationTasks =
+    taskScope === 'all'
+      ? annotationTasks
+      : annotationTasks.filter((t) => t.task_set_id === taskScope);
+
   const handleUploadAnnotationTasks = async () => {
     if (!taskFile || taskScope === 'all') return;
     try {
@@ -566,10 +571,12 @@ export const CampaignSettingsPage = () => {
     try {
       setSaving(true);
 
-      const body =
-        intent.strategy === 'even'
+      const body = {
+        ...(intent.strategy === 'even'
           ? { strategy: 'even' as const, user_ids: intent.userIds }
-          : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts };
+          : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts }),
+        ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
+      };
 
       const { data } = await assignTasksToUsers({
         path: { campaign_id: campaignId },
@@ -604,6 +611,7 @@ export const CampaignSettingsPage = () => {
             percentage: pattern.percentage,
             num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
+            ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
           },
         });
         showAlert(
@@ -618,6 +626,7 @@ export const CampaignSettingsPage = () => {
             num_tasks: pattern.numTasks,
             fixed_num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
+            ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
           },
         });
         showAlert(
@@ -999,7 +1008,7 @@ export const CampaignSettingsPage = () => {
       <TaskAssignmentModal
         isOpen={showAssignmentModal}
         onClose={() => setShowAssignmentModal(false)}
-        tasks={annotationTasks}
+        tasks={scopedAnnotationTasks}
         campaignUsers={campaignUsers}
         onAssign={handleBulkAssignTasks}
       />
@@ -1009,7 +1018,7 @@ export const CampaignSettingsPage = () => {
         onClose={() => setShowReviewerModal(false)}
         campaignUsers={campaignUsers}
         onAssign={handleAssignReviewers}
-        totalTasks={annotationTasks.length}
+        totalTasks={scopedAnnotationTasks.length}
       />
 
       <DeleteCampaignDialog
