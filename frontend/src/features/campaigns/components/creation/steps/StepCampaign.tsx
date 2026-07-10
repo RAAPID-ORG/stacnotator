@@ -39,7 +39,11 @@ export const StepCampaign = ({
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm font-medium text-neutral-900">Campaign Mode</p>
+        <p className="text-sm font-medium text-neutral-900">Default work style</p>
+        <p className="text-sm text-neutral-600">
+          Every campaign supports both task-by-task labeling and free exploration - annotators can
+          switch between them anytime from the annotation view. Pick which one opens by default.
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start space-x-3 cursor-pointer">
@@ -54,7 +58,7 @@ export const StepCampaign = ({
             <div className="flex-1">
               <div className="font-medium text-sm text-neutral-900">Tasks</div>
               <div className="text-sm text-neutral-600">
-                Predefined list of sampled locations that should be annotated.
+                Start on a predefined list of sampled locations that need annotating.
               </div>
             </div>
           </label>
@@ -69,10 +73,10 @@ export const StepCampaign = ({
               className="mt-1 text-brand-700 focus:ring-brand-600"
             />
             <div className="flex-1">
-              <div className="font-medium text-sm text-neutral-900">Open</div>
+              <div className="font-medium text-sm text-neutral-900">Explore</div>
               <div className="text-sm text-neutral-600">
-                Imagery that can be navigated open-world like and annotations such as polygons can
-                be placed manually.
+                Start by navigating imagery open-world like and placing annotations such as polygons
+                manually.
               </div>
             </div>
           </label>

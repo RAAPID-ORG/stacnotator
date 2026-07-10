@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -8,11 +8,21 @@ import { TaskModeReview } from '../components/review/TaskModeReview';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
 
+type ReviewScope = 'tasks' | 'all';
+
+const pillCls = (active: boolean) =>
+  `px-3 h-8 rounded-full text-sm border transition-colors ${
+    active
+      ? 'bg-brand-600 text-white border-brand-600'
+      : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+  }`;
+
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
+  const [scope, setScope] = useState<ReviewScope | null>(null);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 
@@ -57,9 +67,32 @@ export const ReviewPage = () => {
     );
   }
 
-  if (campaign.mode === 'open') {
-    return <OpenModeReview campaign={campaign} campaignId={campaignId} />;
-  }
+  const effectiveScope: ReviewScope = scope ?? (campaign.mode === 'open' ? 'all' : 'tasks');
 
-  return <TaskModeReview campaign={campaign} campaignId={campaignId} />;
+  return (
+    <Fragment>
+      <div className="w-full max-w-[80rem] mx-auto px-6 pt-4 flex items-center gap-2">
+        <button
+          type="button"
+          className={pillCls(effectiveScope === 'tasks')}
+          onClick={() => setScope('tasks')}
+        >
+          Tasks
+        </button>
+        <button
+          type="button"
+          className={pillCls(effectiveScope === 'all')}
+          onClick={() => setScope('all')}
+        >
+          All annotations
+        </button>
+      </div>
+
+      {effectiveScope === 'all' ? (
+        <OpenModeReview campaign={campaign} campaignId={campaignId} />
+      ) : (
+        <TaskModeReview campaign={campaign} campaignId={campaignId} />
+      )}
+    </Fragment>
+  );
 };

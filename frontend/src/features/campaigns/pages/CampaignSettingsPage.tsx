@@ -902,12 +902,8 @@ export const CampaignSettingsPage = () => {
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
-                ...(campaign?.mode !== 'open'
-                  ? [{ id: 'tasks' as const, label: 'Annotation Tasks' }]
-                  : []),
-                ...(campaign?.mode === 'open'
-                  ? [{ id: 'annotations' as const, label: 'Annotations' }]
-                  : []),
+                { id: 'tasks', label: 'Annotation Tasks' },
+                { id: 'annotations', label: 'Annotations' },
                 { id: 'users', label: 'Users' },
               ]}
               activeId={activeTab}

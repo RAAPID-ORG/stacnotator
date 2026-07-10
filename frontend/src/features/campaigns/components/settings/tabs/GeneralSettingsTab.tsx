@@ -260,45 +260,42 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         </Button>
       </section>
 
-      {/* Sample Extent - task mode only */}
-      {campaign.mode === 'tasks' && (
-        <section className={sectionCls}>
-          <div>
-            <h2 className="section-heading">Sample extent</h2>
-            <p className="section-description">
-              Defines the exact size of a sample point. If lat/lon is the exact coordinate, the
-              sample extent defines the dimensions around this centroid that constitute the actual
-              sample. This helps to have a shared understanding of which area / pixels belong to a
-              sample point. Leave empty if tasks were uploaded as polygons or if no extent should be
-              visualized.
-            </p>
-          </div>
-          <div className="flex gap-3 items-end">
-            <Field
-              label="Extent (meters)"
-              error={!extentValid ? 'Must be a positive number' : undefined}
-              className="w-56"
-            >
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={sampleExtent}
-                onChange={(e) => setSampleExtent(e.target.value)}
-                disabled={savingExtent}
-                placeholder="e.g. 100"
-                invalid={!extentValid}
-              />
-            </Field>
-            <Button
-              onClick={handleSaveExtent}
-              disabled={savingExtent || !extentChanged || !extentValid}
-            >
-              {savingExtent ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </section>
-      )}
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Sample extent</h2>
+          <p className="section-description">
+            Defines the exact size of a sample point. If lat/lon is the exact coordinate, the sample
+            extent defines the dimensions around this centroid that constitute the actual sample.
+            This helps to have a shared understanding of which area / pixels belong to a sample
+            point. Leave empty if tasks were uploaded as polygons or if no extent should be
+            visualized.
+          </p>
+        </div>
+        <div className="flex gap-3 items-end">
+          <Field
+            label="Extent (meters)"
+            error={!extentValid ? 'Must be a positive number' : undefined}
+            className="w-56"
+          >
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={sampleExtent}
+              onChange={(e) => setSampleExtent(e.target.value)}
+              disabled={savingExtent}
+              placeholder="e.g. 100"
+              invalid={!extentValid}
+            />
+          </Field>
+          <Button
+            onClick={handleSaveExtent}
+            disabled={savingExtent || !extentChanged || !extentValid}
+          >
+            {savingExtent ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </section>
 
       <section className={sectionCls}>
         <div>
@@ -312,7 +309,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <LabelsEditor
           value={labelsDraft}
           onChange={setLabelsDraft}
-          showGeometryType={campaign.mode === 'open'}
+          showGeometryType
           disableDelete
         />
         <div className="flex items-center gap-3 mt-3">

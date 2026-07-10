@@ -88,8 +88,8 @@ export const HomePage = () => {
               body="Per-pixel NDVI history from Sentinel-2 and MODIS, cloud-masked by Cloud Score+ and SCL. Customisable spectral indices on the roadmap."
             />
             <Feature
-              title="Two annotation modes"
-              body="Task mode for predefined points and polygons that need labeling. Open mode for free-form drawing on imagery you navigate yourself."
+              title="Two work styles, one campaign"
+              body="Work task-by-task through predefined points and polygons, or switch to Explore for free-form drawing on imagery you navigate yourself - switchable anytime while annotating."
             />
           </dl>
         </section>
