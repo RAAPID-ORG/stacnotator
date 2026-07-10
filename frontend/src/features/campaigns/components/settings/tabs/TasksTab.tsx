@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
@@ -16,7 +16,9 @@ import type {
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
-  annotationTasks: AnnotationTaskOut[];
+  // Already filtered to the active scope by the page (single source of truth).
+  scopedTasks: AnnotationTaskOut[];
+  totalTasks: number;
   campaignUsers: CampaignUserOut[];
   taskFile: File | null;
   setTaskFile: (f: File | null) => void;
@@ -49,7 +51,8 @@ interface Props {
 }
 
 export const TasksTab: React.FC<Props> = ({
-  annotationTasks,
+  scopedTasks,
+  totalTasks,
   campaignUsers,
   taskFile,
   setTaskFile,
@@ -79,15 +82,6 @@ export const TasksTab: React.FC<Props> = ({
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
-  // Stable identity matters: TaskLocationsMap rebuilds all Leaflet markers when
-  // this array changes, so it must only change on scope switches or data reloads.
-  const scopedTasks = useMemo(
-    () =>
-      taskScope === 'all'
-        ? annotationTasks
-        : annotationTasks.filter((t) => t.task_set_id === taskScope),
-    [annotationTasks, taskScope]
-  );
 
   const addTasksSection = (
     <section className={sectionCls}>
@@ -205,7 +199,6 @@ export const TasksTab: React.FC<Props> = ({
           taskSets={taskSets}
           onMoveTasks={onMoveTasks}
           onCreateSet={onCreateSetScoped}
-          hideSetColumn={taskScope !== 'all'}
         />
       ) : (
         <p className="text-sm text-neutral-500">
@@ -223,7 +216,7 @@ export const TasksTab: React.FC<Props> = ({
         <TaskScopeBar
           scope={taskScope}
           taskSets={taskSets}
-          totalTasks={annotationTasks.length}
+          totalTasks={totalTasks}
           onSelect={onSelectScope}
           onCreateSet={onCreateSetScoped}
           onRenameSet={onRenameTaskSet}
@@ -231,7 +224,7 @@ export const TasksTab: React.FC<Props> = ({
         />
       </section>
 
-      {annotationTasks.length > 0 && bbox && (
+      {totalTasks > 0 && bbox && (
         <section className="mb-6">
           <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
         </section>
@@ -239,7 +232,7 @@ export const TasksTab: React.FC<Props> = ({
 
       {taskScope !== 'all' && addTasksSection}
 
-      {taskScope === 'all' && annotationTasks.length > 0 && (
+      {taskScope === 'all' && totalTasks > 0 && (
         <TaskAssignmentsExportImport
           campaignId={campaignId}
           campaignName={campaignName}

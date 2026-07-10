@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut, TaskSetOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import {
@@ -23,7 +23,6 @@ interface AnnotationTasksTableProps {
   taskSets?: TaskSetOut[];
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   onCreateSet?: (name: string) => Promise<number | null>;
-  hideSetColumn?: boolean;
 }
 
 export const AnnotationTasksTable = ({
@@ -38,7 +37,6 @@ export const AnnotationTasksTable = ({
   taskSets = [],
   onMoveTasks,
   onCreateSet,
-  hideSetColumn = false,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -76,7 +74,9 @@ export const AnnotationTasksTable = ({
   }, [tasks]);
 
   const setNames = new Map(taskSets.map((s) => [s.id, s.name]));
-  const visibleRows = tasks;
+  // The Set column only informs when the rows span more than one set (scoped
+  // views and single-set campaigns pass a homogeneous list).
+  const hideSetColumn = useMemo(() => new Set(tasks.map((t) => t.task_set_id)).size <= 1, [tasks]);
 
   const handleToggleTask = (taskId: number) => {
     setSelectedTasks((prev) => {
@@ -91,10 +91,10 @@ export const AnnotationTasksTable = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedTasks.size === visibleRows.length) {
+    if (selectedTasks.size === tasks.length) {
       setSelectedTasks(new Set());
     } else {
-      setSelectedTasks(new Set(visibleRows.map((t) => t.id)));
+      setSelectedTasks(new Set(tasks.map((t) => t.id)));
     }
   };
 
@@ -230,7 +230,7 @@ export const AnnotationTasksTable = ({
                 <th className="px-3 py-2 text-left">
                   <input
                     type="checkbox"
-                    checked={selectedTasks.size === visibleRows.length && visibleRows.length > 0}
+                    checked={selectedTasks.size === tasks.length && tasks.length > 0}
                     onChange={handleSelectAll}
                     className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                   />
@@ -258,7 +258,7 @@ export const AnnotationTasksTable = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {visibleRows.map((task) => {
+            {tasks.map((task) => {
               const latLon = extractCentroidFromWKT(task.geometry.geometry);
               const isAssigning = assigningTaskId === task.id;
               return (

@@ -364,9 +364,10 @@ export const CampaignSettingsPage = () => {
   };
 
   const taskSetParam = searchParams.get('taskSet');
+  const requestedSetId = taskSetParam !== null ? Number(taskSetParam) : null;
   const taskScope: TaskScope =
-    taskSetParam !== null && taskSets.some((s) => s.id === Number(taskSetParam))
-      ? Number(taskSetParam)
+    requestedSetId !== null && taskSets.some((s) => s.id === requestedSetId)
+      ? requestedSetId
       : 'all';
 
   const handleSelectScope = (scope: TaskScope) => {
@@ -386,6 +387,23 @@ export const CampaignSettingsPage = () => {
         ? annotationTasks
         : annotationTasks.filter((t) => t.task_set_id === taskScope),
     [annotationTasks, taskScope]
+  );
+
+  // The scope's request-body fragment for server-side pool selection.
+  const taskScopeBody = taskScope !== 'all' ? { task_set_id: taskScope } : {};
+
+  // Stable identity so TaskLocationsMap's memo is effective across page renders.
+  const taskMapBbox = useMemo(
+    () =>
+      campaign
+        ? {
+            west: campaign.settings.bbox_west,
+            south: campaign.settings.bbox_south,
+            east: campaign.settings.bbox_east,
+            north: campaign.settings.bbox_north,
+          }
+        : undefined,
+    [campaign]
   );
 
   const handleUploadAnnotationTasks = async () => {
@@ -580,7 +598,7 @@ export const CampaignSettingsPage = () => {
         ...(intent.strategy === 'even'
           ? { strategy: 'even' as const, user_ids: intent.userIds }
           : { strategy: 'fixed_per_user' as const, user_task_counts: intent.userTaskCounts }),
-        ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
+        ...taskScopeBody,
       };
 
       const { data } = await assignTasksToUsers({
@@ -616,7 +634,7 @@ export const CampaignSettingsPage = () => {
             percentage: pattern.percentage,
             num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
-            ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
+            ...taskScopeBody,
           },
         });
         showAlert(
@@ -631,7 +649,7 @@ export const CampaignSettingsPage = () => {
             num_tasks: pattern.numTasks,
             fixed_num_reviewers: pattern.reviewersPerTask,
             reviewer_ids: pattern.reviewerIds,
-            ...(taskScope !== 'all' ? { task_set_id: taskScope } : {}),
+            ...taskScopeBody,
           },
         });
         showAlert(
@@ -936,7 +954,8 @@ export const CampaignSettingsPage = () => {
 
               {activeTab === 'tasks' && (
                 <TasksTab
-                  annotationTasks={annotationTasks}
+                  scopedTasks={scopedAnnotationTasks}
+                  totalTasks={annotationTasks.length}
                   campaignUsers={campaignUsers}
                   taskFile={taskFile}
                   setTaskFile={setTaskFile}
@@ -960,16 +979,7 @@ export const CampaignSettingsPage = () => {
                   onRenameTaskSet={handleRenameTaskSet}
                   onDeleteTaskSet={handleDeleteTaskSet}
                   onMoveTasks={handleMoveTasks}
-                  bbox={
-                    campaign
-                      ? {
-                          west: campaign.settings.bbox_west,
-                          south: campaign.settings.bbox_south,
-                          east: campaign.settings.bbox_east,
-                          north: campaign.settings.bbox_north,
-                        }
-                      : undefined
-                  }
+                  bbox={taskMapBbox}
                 />
               )}
 
