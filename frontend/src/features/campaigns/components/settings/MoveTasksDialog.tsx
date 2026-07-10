@@ -7,24 +7,44 @@ interface Props {
   taskSets: TaskSetOut[];
   numTasks: number;
   onMove: (taskSetId: number) => Promise<void>;
+  onCreateSet: (name: string) => Promise<number | null>;
   onCancel: () => void;
 }
 
-export const MoveTasksDialog = ({ isOpen, taskSets, numTasks, onMove, onCancel }: Props) => {
+export const MoveTasksDialog = ({
+  isOpen,
+  taskSets,
+  numTasks,
+  onMove,
+  onCreateSet,
+  onCancel,
+}: Props) => {
   const [targetId, setTargetId] = useState<number | ''>('');
+  const [newSetName, setNewSetName] = useState('');
   const [moving, setMoving] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) setTargetId('');
+    if (!isOpen) {
+      setTargetId('');
+      setNewSetName('');
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const trimmedNewSetName = newSetName.trim();
+  const canMove = targetId !== '' || trimmedNewSetName !== '';
+
   const handleMove = async () => {
-    if (targetId === '') return;
     setMoving(true);
     try {
-      await onMove(targetId);
+      if (trimmedNewSetName !== '') {
+        const createdId = await onCreateSet(trimmedNewSetName);
+        if (createdId === null) return;
+        await onMove(createdId);
+      } else if (targetId !== '') {
+        await onMove(targetId);
+      }
     } finally {
       setMoving(false);
     }
@@ -41,7 +61,10 @@ export const MoveTasksDialog = ({ isOpen, taskSets, numTasks, onMove, onCancel }
         </h3>
         <select
           value={targetId}
-          onChange={(e) => setTargetId(Number(e.target.value))}
+          onChange={(e) => {
+            setTargetId(Number(e.target.value));
+            setNewSetName('');
+          }}
           className="w-full h-9 px-2 border border-neutral-300 rounded-md text-sm bg-white"
           data-testid="move-target-set"
         >
@@ -54,11 +77,27 @@ export const MoveTasksDialog = ({ isOpen, taskSets, numTasks, onMove, onCancel }
             </option>
           ))}
         </select>
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-neutral-200" />
+          <span className="text-xs text-neutral-500">or create a new set</span>
+          <div className="h-px flex-1 bg-neutral-200" />
+        </div>
+        <input
+          type="text"
+          value={newSetName}
+          onChange={(e) => {
+            setNewSetName(e.target.value);
+            setTargetId('');
+          }}
+          placeholder="New set name"
+          className="w-full h-9 px-2 border border-neutral-300 rounded-md text-sm bg-white"
+          data-testid="move-new-set-name"
+        />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onCancel} disabled={moving}>
             Cancel
           </Button>
-          <Button onClick={handleMove} disabled={targetId === '' || moving}>
+          <Button onClick={handleMove} disabled={!canMove || moving}>
             {moving ? 'Moving…' : 'Move'}
           </Button>
         </div>

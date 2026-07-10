@@ -37,6 +37,7 @@ interface Props {
   selectedUploadSetId: number | null;
   setSelectedUploadSetId: (id: number) => void;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
+  onCreateSetForMove?: (name: string) => Promise<number | null>;
   bbox?: {
     west: number;
     south: number;
@@ -70,6 +71,7 @@ export const TasksTab: React.FC<Props> = ({
   selectedUploadSetId,
   setSelectedUploadSetId,
   onMoveTasks,
+  onCreateSetForMove,
   bbox,
 }) => {
   const sectionCls =
@@ -239,6 +241,7 @@ export const TasksTab: React.FC<Props> = ({
             onDeleteTasks={handleDeleteTasks}
             taskSets={taskSets}
             onMoveTasks={onMoveTasks}
+            onCreateSet={onCreateSetForMove}
           />
         ) : (
           <p className="text-sm text-neutral-500">

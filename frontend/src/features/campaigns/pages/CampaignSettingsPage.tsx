@@ -424,6 +424,21 @@ export const CampaignSettingsPage = () => {
     }
   };
 
+  const handleCreateSetForMove = async (name: string): Promise<number | null> => {
+    try {
+      const { data, error } = await createTaskSet({
+        path: { campaign_id: campaignId },
+        body: { name },
+      });
+      if (error) throw error;
+      await reloadTaskSets();
+      return data?.id ?? null;
+    } catch (err) {
+      handleError(err, 'Failed to create task set');
+      return null;
+    }
+  };
+
   const handleRenameTaskSet = async (id: number, name: string) => {
     try {
       const { error } = await renameTaskSet({
@@ -669,6 +684,7 @@ export const CampaignSettingsPage = () => {
 
       // Remove deleted tasks from local state
       setAnnotationTasks((tasks) => tasks.filter((task) => !taskIds.includes(task.id)));
+      await reloadTaskSets();
 
       showAlert(`${taskIds.length} task(s) deleted successfully`, 'success');
     } catch (err) {
@@ -929,6 +945,7 @@ export const CampaignSettingsPage = () => {
                   selectedUploadSetId={selectedUploadSetId}
                   setSelectedUploadSetId={setSelectedUploadSetId}
                   onMoveTasks={handleMoveTasks}
+                  onCreateSetForMove={handleCreateSetForMove}
                   bbox={
                     campaign
                       ? {

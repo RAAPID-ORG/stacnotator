@@ -22,6 +22,7 @@ interface AnnotationTasksTableProps {
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
   taskSets?: TaskSetOut[];
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
+  onCreateSet?: (name: string) => Promise<number | null>;
 }
 
 export const AnnotationTasksTable = ({
@@ -35,6 +36,7 @@ export const AnnotationTasksTable = ({
   onDeleteTasks,
   taskSets = [],
   onMoveTasks,
+  onCreateSet,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -492,6 +494,7 @@ export const AnnotationTasksTable = ({
           setSelectedTasks(new Set());
           setShowMoveDialog(false);
         }}
+        onCreateSet={async (name) => (onCreateSet ? onCreateSet(name) : null)}
         onCancel={() => setShowMoveDialog(false)}
       />
     </div>
