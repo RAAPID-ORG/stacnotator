@@ -536,6 +536,10 @@ export type AssignReviewersRequest = {
      * Fixed Num Reviewers
      */
     fixed_num_reviewers?: number | null;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
 };
 
 /**
@@ -568,6 +572,10 @@ export type AssignTasksToUsersRequest = {
     task_assignments?: {
         [key: string]: Array<string>;
     } | null;
+    /**
+     * Task Set Id
+     */
+    task_set_id?: number | null;
 };
 
 /**
