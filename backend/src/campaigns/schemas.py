@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from src.auth.schemas import UserOut
 from src.custom_maps.schemas import CustomMapOut
@@ -373,3 +373,27 @@ class CampaignStatistics(BaseModel):
     krippendorff_alpha: float | None  # Overall inter-annotator agreement (0-1)
     annotators: list[AnnotatorInfo]
     pairwise_agreements: list[PairwiseAgreement]
+
+
+class TaskSetOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    num_tasks: int
+    num_labeled: int
+
+
+class TaskSetCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class TaskSetRename(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class MoveTasksToSetRequest(BaseModel):
+    task_ids: list[int]
+
+
+class MoveTasksToSetResult(BaseModel):
+    num_moved: int

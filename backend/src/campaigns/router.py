@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
 from src.auth.models import User
-from src.campaigns import assignments, service, statistics
+from src.campaigns import assignments, service, statistics, task_sets
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -26,6 +26,9 @@ from src.campaigns.schemas import (
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
+    TaskSetCreate,
+    TaskSetOut,
+    TaskSetRename,
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignGuideRequest,
@@ -424,6 +427,56 @@ def delete_annotation_tasks(
     """Delete multiple annotation tasks from a campaign"""
     deleted_count = service.delete_annotation_tasks(db, campaign_id, req.task_ids)
     return {"message": f"Successfully deleted {deleted_count} task(s)"}
+
+
+@router.get("/{campaign_id}/task-sets", response_model=list[TaskSetOut])
+def list_task_sets(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Task sets of a campaign with per-set task counts (member-accessible)."""
+    return task_sets.list_task_sets_with_stats(db, campaign.id)
+
+
+@router.post("/{campaign_id}/task-sets", response_model=TaskSetOut, status_code=201)
+def create_task_set(
+    campaign_id: int,
+    req: TaskSetCreate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    created = task_sets.create_task_set(db, campaign.id, req.name)
+    return TaskSetOut(
+        id=created.id,
+        name=created.name,
+        created_at=created.created_at,
+        num_tasks=0,
+        num_labeled=0,
+    )
+
+
+@router.patch("/{campaign_id}/task-sets/{task_set_id}", response_model=TaskSetOut)
+def rename_task_set(
+    campaign_id: int,
+    task_set_id: int,
+    req: TaskSetRename,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    task_sets.rename_task_set(db, campaign.id, task_set_id, req.name)
+    stats = task_sets.list_task_sets_with_stats(db, campaign.id)
+    return next(s for s in stats if s["id"] == task_set_id)
+
+
+@router.delete("/{campaign_id}/task-sets/{task_set_id}", status_code=204)
+def delete_task_set(
+    campaign_id: int,
+    task_set_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    task_sets.delete_task_set(db, campaign.id, task_set_id)
 
 
 @router.get("/{campaign_id}/export-task-assignments")
