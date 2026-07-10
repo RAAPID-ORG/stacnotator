@@ -155,7 +155,7 @@ export const CampaignSettingsPage = () => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}/annotate` },
+        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}` },
         { label: 'Settings' },
       ]);
     }

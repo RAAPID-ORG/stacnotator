@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
+import {
+  getCampaign,
+  listAllCampaigns,
+  listTaskSets,
+  type CampaignOut,
+  type TaskSetOut,
+} from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Button } from '~/shared/ui/forms';
@@ -17,6 +23,7 @@ export const CampaignOverviewPage = () => {
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -34,12 +41,17 @@ export const CampaignOverviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, taskSetsRes] = await Promise.all([
+        const [campaignRes, taskSetsRes, campaignsListRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
+          listAllCampaigns(),
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
+        // CampaignOut has no is_admin flag; the campaigns list endpoint does,
+        // so we cross-reference it here rather than adding a backend field.
+        const listEntry = campaignsListRes.data?.items.find((c) => c.id === campaignId);
+        setIsAdmin(listEntry?.is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {
@@ -65,7 +77,6 @@ export const CampaignOverviewPage = () => {
     );
   }
 
-  const setsWithTasks = taskSets.filter((set) => set.num_tasks > 0);
   const createdDate = new Date(campaign.created_at).toLocaleDateString();
 
   return (
@@ -83,13 +94,15 @@ export const CampaignOverviewPage = () => {
             >
               Review
             </Button>
-            <Button
-              variant="secondary"
-              leading={<IconGear className="w-4 h-4" />}
-              onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
-            >
-              Settings
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                leading={<IconGear className="w-4 h-4" />}
+                onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
+              >
+                Settings
+              </Button>
+            )}
           </div>
         </header>
 
@@ -115,7 +128,7 @@ export const CampaignOverviewPage = () => {
 
         <section>
           <h2 className="section-heading mb-3">Task sets</h2>
-          {setsWithTasks.length === 0 ? (
+          {taskSets.length === 0 ? (
             <div className="surface">
               <div className="surface-section text-center py-12">
                 <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
@@ -123,19 +136,23 @@ export const CampaignOverviewPage = () => {
                 </div>
                 <p className="text-sm text-neutral-800 font-medium mb-1">No tasks yet</p>
                 <p className="text-sm text-neutral-500 mb-4">
-                  Set up task sets to guide annotators through specific locations.
+                  {isAdmin
+                    ? 'Set up task sets to guide annotators through specific locations.'
+                    : 'An admin can add task sets in Settings.'}
                 </p>
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}
-                >
-                  Go to Settings
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}
+                  >
+                    Go to Settings
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {setsWithTasks.map((set, index) => (
+              {taskSets.map((set, index) => (
                 <MotionListItem key={set.id} index={index}>
                   <TaskSetCard
                     taskSet={set}
@@ -154,8 +171,8 @@ export const CampaignOverviewPage = () => {
 };
 
 const TaskSetCard = ({ taskSet, onOpen }: { taskSet: TaskSetOut; onOpen: () => void }) => {
-  const percent =
-    taskSet.num_tasks > 0 ? Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100) : 0;
+  const isEmpty = taskSet.num_tasks === 0;
+  const percent = isEmpty ? 0 : Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100);
   const createdDate = new Date(taskSet.created_at).toLocaleDateString();
 
   return (
@@ -172,13 +189,13 @@ const TaskSetCard = ({ taskSet, onOpen }: { taskSet: TaskSetOut; onOpen: () => v
             />
           </div>
           <p className="text-xs text-neutral-500 mt-1.5">
-            {taskSet.num_labeled} of {taskSet.num_tasks} labeled
+            {isEmpty ? 'No tasks yet' : `${taskSet.num_labeled} of ${taskSet.num_tasks} labeled`}
           </p>
         </div>
 
         <div className="mt-4 flex-1 flex items-end">
-          <Button variant="secondary" onClick={onOpen} className="w-full">
-            {taskSet.num_labeled === 0 ? 'Start' : 'Continue'}
+          <Button variant="secondary" onClick={onOpen} className="w-full" disabled={isEmpty}>
+            {isEmpty ? 'No tasks' : taskSet.num_labeled === 0 ? 'Start' : 'Continue'}
           </Button>
         </div>
       </div>

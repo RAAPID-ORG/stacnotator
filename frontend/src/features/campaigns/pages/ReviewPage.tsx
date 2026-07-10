@@ -30,7 +30,7 @@ export const ReviewPage = () => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}/annotate` },
+        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}` },
         { label: 'Review' },
       ]);
     }
