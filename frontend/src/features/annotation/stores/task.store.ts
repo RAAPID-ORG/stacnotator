@@ -43,7 +43,11 @@ interface TaskStore {
   skipConfirmDisabled: boolean;
 
   // Actions
-  loadTasks: (campaignId: number, initialTaskId?: number) => Promise<void>;
+  loadTasks: (
+    campaignId: number,
+    initialTaskId?: number,
+    initialTaskSetId?: number
+  ) => Promise<void>;
   submitAnnotation: (
     labelId: number | null,
     comment: string,
@@ -167,14 +171,22 @@ export const useTaskStore = create<TaskStore>((set, get) => {
   return {
     ...initialState,
 
-    loadTasks: async (campaignId, initialTaskId) => {
+    loadTasks: async (campaignId, initialTaskId, initialTaskSetId) => {
       const [tasksRes, setsRes] = await Promise.all([
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
         listTaskSets({ path: { campaign_id: campaignId } }),
       ]);
       const allTasks = tasksRes.data!.tasks;
+      const taskSets = setsRes.data ?? [];
       const currentUserId = useAccountStore.getState().account?.id;
       const campaign = useCampaignStore.getState().campaign;
+
+      // Only seed the filter from a deep-linked task set if it still exists;
+      // a stale/removed id falls through to the usual seeding below.
+      const seededTaskSetId =
+        initialTaskSetId !== undefined && taskSets.some((s) => s.id === initialTaskSetId)
+          ? initialTaskSetId
+          : null;
 
       let taskFilter: TaskFilter;
       let visibleTasks: AnnotationTaskOut[];
@@ -186,7 +198,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
-          taskSetId: get().taskFilter.taskSetId ?? null,
+          taskSetId: seededTaskSetId ?? get().taskFilter.taskSetId ?? null,
         };
         ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
           allTasks,
@@ -208,11 +220,16 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // rather than every pending task, so tasks already handed off to a
         // reviewer don't linger in the default view.
         const showAll = campaign?.is_public;
-        taskFilter = pendingFilter(showAll || !currentUserId ? [UNASSIGNED] : [currentUserId]);
+        taskFilter = {
+          ...pendingFilter(showAll || !currentUserId ? [UNASSIGNED] : [currentUserId]),
+          taskSetId: seededTaskSetId,
+        };
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
 
         // Progressive fallback so the user always lands on a task when work
-        // exists: mine -> unassigned -> all.
+        // exists: mine -> unassigned -> all. These fallbacks broaden the
+        // search, so they drop back to no task-set filter rather than
+        // re-applying the deep-linked one.
         if (visibleTasks.length === 0 && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED]);
           ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
@@ -227,7 +244,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
       set({
         allTasks,
-        taskSets: setsRes.data ?? [],
+        taskSets,
         visibleTasks,
         taskFilter,
         currentTaskIndex,
