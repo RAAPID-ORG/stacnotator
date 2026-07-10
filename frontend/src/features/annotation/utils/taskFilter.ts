@@ -39,6 +39,7 @@ export interface TaskFilter {
   statuses: TaskStatus[];
   selectedConfidences: number[];
   flaggedOnly: boolean;
+  taskSetId: number | null;
 }
 
 export interface FilteredTasks {
@@ -56,6 +57,8 @@ export const applyTaskFilter = (
   const selectedUserIds = filter.assignedTo.filter((id) => id !== UNASSIGNED);
 
   const visibleTasks = allTasks.filter((task) => {
+    if (filter.taskSetId !== null && task.task_set_id !== filter.taskSetId) return false;
+
     const assignments = task.assignments || [];
     const annotations = task.annotations || [];
 

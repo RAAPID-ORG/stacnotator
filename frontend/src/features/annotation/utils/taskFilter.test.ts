@@ -14,6 +14,7 @@ const mineFilter: TaskFilter = {
   statuses: ['pending'],
   selectedConfidences: [],
   flaggedOnly: false,
+  taskSetId: null,
 };
 
 describe('applyTaskFilter — claims vs assignments', () => {
@@ -50,5 +51,44 @@ describe('applyTaskFilter — claims vs assignments', () => {
     expect(applyTaskFilter(tasks, mineFilter).visibleTasks).toEqual([]);
     const poolFilter = { ...mineFilter, assignedTo: [UNASSIGNED] } as TaskFilter;
     expect(applyTaskFilter(tasks, poolFilter).visibleTasks.map((t) => t.id)).toEqual([2]);
+  });
+});
+
+describe('applyTaskFilter — task sets', () => {
+  const inSet = (id: number, task_set_id: number) =>
+    ({
+      id,
+      task_set_id,
+      task_status: 'pending',
+      assignments: [],
+      annotations: [],
+    }) as unknown as AnnotationTaskOut;
+
+  const allFilter: TaskFilter = {
+    assignedTo: [],
+    statuses: ['pending'],
+    selectedConfidences: [],
+    flaggedOnly: false,
+    taskSetId: null,
+  };
+
+  it('taskSetId null shows tasks from every set', () => {
+    const tasks = [inSet(1, 10), inSet(2, 20)];
+    expect(applyTaskFilter(tasks, allFilter).visibleTasks.map((t) => t.id)).toEqual([1, 2]);
+  });
+
+  it('taskSetId narrows to that set only', () => {
+    const tasks = [inSet(1, 10), inSet(2, 20)];
+    const filter = { ...allFilter, taskSetId: 20 };
+    expect(applyTaskFilter(tasks, filter).visibleTasks.map((t) => t.id)).toEqual([2]);
+  });
+
+  it('set filter composes with status filter', () => {
+    const tasks = [
+      inSet(1, 10),
+      { ...inSet(2, 10), task_status: 'done' } as unknown as AnnotationTaskOut,
+    ];
+    const filter = { ...allFilter, taskSetId: 10 };
+    expect(applyTaskFilter(tasks, filter).visibleTasks.map((t) => t.id)).toEqual([1]);
   });
 });

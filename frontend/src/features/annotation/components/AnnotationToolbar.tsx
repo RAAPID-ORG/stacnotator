@@ -46,6 +46,7 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
   const campaign = useCampaignStore((s) => s.campaign);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const allTasks = useTaskStore((s) => s.allTasks);
+  const taskSets = useTaskStore((s) => s.taskSets);
   const taskFilter = useTaskStore((s) => s.taskFilter);
   const setTaskFilter = useTaskStore((s) => s.setTaskFilter);
   const currentUser = useAccountStore((state) => state.account);
@@ -240,6 +241,51 @@ const TaskFilterPanel = ({ onClose: _onClose }: { onClose: () => void }) => {
             ))}
           </div>
         </div>
+
+        {/* Task Set Section */}
+        {taskSets.length > 1 && (
+          <div className="border-t border-neutral-200 pt-3" data-testid="task-set-picker">
+            <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+              Task set
+            </div>
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer">
+                <input
+                  type="radio"
+                  checked={taskFilter.taskSetId === null}
+                  onChange={() => setTaskFilter({ taskSetId: null })}
+                  className="accent-brand-500"
+                />
+                <span className="text-neutral-900">All sets</span>
+              </label>
+              {taskSets.map((set) => {
+                const total = allTasks.filter((t) => t.task_set_id === set.id).length;
+                const done = allTasks.filter(
+                  (t) =>
+                    t.task_set_id === set.id &&
+                    ['done', 'skipped'].includes(t.task_status ?? 'pending')
+                ).length;
+                return (
+                  <label
+                    key={set.id}
+                    className="flex items-center gap-2 px-2 py-1 text-sm hover:bg-neutral-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      checked={taskFilter.taskSetId === set.id}
+                      onChange={() => setTaskFilter({ taskSetId: set.id })}
+                      className="accent-brand-500"
+                    />
+                    <span className="flex-1 truncate text-neutral-900">{set.name}</span>
+                    <span className="text-xs text-neutral-400 tabular-nums">
+                      {done}/{total}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {isReviewMode && (
           <div className="border-t border-neutral-200 pt-3">

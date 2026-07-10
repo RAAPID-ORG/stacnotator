@@ -5,8 +5,10 @@ import {
   claimAnnotationTask,
   deleteAnnotation,
   validateAnnotationSubmission,
+  listTaskSets,
   type AnnotationTaskAssignmentOut,
   type AnnotationTaskOut,
+  type TaskSetOut,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -23,6 +25,7 @@ interface TaskStore {
   // State
   allTasks: AnnotationTaskOut[];
   visibleTasks: AnnotationTaskOut[];
+  taskSets: TaskSetOut[];
   currentTaskIndex: number;
   taskFilter: TaskFilter;
   isSubmitting: boolean;
@@ -132,12 +135,14 @@ const NAVIGATION_DEBOUNCE_MS = 500;
 const initialState = {
   allTasks: [] as AnnotationTaskOut[],
   visibleTasks: [] as AnnotationTaskOut[],
+  taskSets: [] as TaskSetOut[],
   currentTaskIndex: 0,
   taskFilter: {
     assignedTo: [] as string[],
     statuses: ['pending' as TaskStatus],
     selectedConfidences: [] as number[],
     flaggedOnly: false,
+    taskSetId: null as number | null,
   },
   isSubmitting: false,
   isNavigating: false,
@@ -163,7 +168,10 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     ...initialState,
 
     loadTasks: async (campaignId, initialTaskId) => {
-      const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
+      const [tasksRes, setsRes] = await Promise.all([
+        getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+        listTaskSets({ path: { campaign_id: campaignId } }),
+      ]);
       const allTasks = tasksRes.data!.tasks;
       const currentUserId = useAccountStore.getState().account?.id;
       const campaign = useCampaignStore.getState().campaign;
@@ -178,6 +186,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId: get().taskFilter.taskSetId ?? null,
         };
         ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
           allTasks,
@@ -190,6 +199,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId: null,
         });
 
         // Users with their own assignments start on those. Everyone else
@@ -217,6 +227,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
       set({
         allTasks,
+        taskSets: setsRes.data ?? [],
         visibleTasks,
         taskFilter,
         currentTaskIndex,
@@ -413,6 +424,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId: currentFilter.taskSetId ?? null,
         };
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
       } else {
