@@ -305,7 +305,7 @@ def create_annotations_from_geojson(
     user_id: UUID,
 ) -> int:
     """
-    Bulk-import existing features as standalone open-mode annotations.
+    Bulk-import existing features as standalone annotations (no task).
 
     Each Feature becomes one annotation owned by the uploading admin. The
     label is read from the ``stacnotator_label_id`` property (round-trips with
@@ -316,11 +316,6 @@ def create_annotations_from_geojson(
     Returns:
         Number of annotations created
     """
-    if campaign.mode != "open":
-        raise HTTPException(
-            status_code=400,
-            detail="Features can only be imported into open-mode campaigns",
-        )
 
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(

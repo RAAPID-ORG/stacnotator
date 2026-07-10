@@ -234,7 +234,7 @@ async def ingest_annotations_from_geojson(
     file: UploadFile = File(...),
 ):
     """
-    Bulk-import existing features as standalone annotations (open mode only).
+    Bulk-import existing features as standalone annotations (no task assignment).
 
     Each feature becomes one annotation owned by the uploading admin. The label
     is read from the ``stacnotator_label_id`` property and must be a label of

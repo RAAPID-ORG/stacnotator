@@ -1543,14 +1543,26 @@ class TestCreateAnnotationsFromGeojson:
         assert all(r["created_by_user_id"] == user_id for r in annotation_records)
         assert all(r["campaign_id"] == 1 for r in annotation_records)
 
-    def test_rejects_non_open_campaign(self):
+    def test_tasks_campaign_imports_successfully(self):
+        """Tasks-mode campaigns can now import standalone annotations (no task assignment)."""
         db = MagicMock()
-        with pytest.raises(HTTPException) as exc:
-            create_annotations_from_geojson(
-                db, self._campaign(mode="tasks"), self._fc([self._feature(1)]), uuid4()
-            )
-        assert exc.value.status_code == 400
-        db.commit.assert_not_called()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
+            MagicMock(),  # annotation insert
+        ]
+        user_id = uuid4()
+        contents = self._fc([self._feature(1), self._feature("2")])
+
+        num = create_annotations_from_geojson(db, self._campaign(mode="tasks"), contents, user_id)
+
+        assert num == 2
+        db.commit.assert_called_once()
+        # Verify annotations are inserted with no task assignment
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert [r["label_id"] for r in annotation_records] == [1, 2]
+        assert all(r["annotation_task_id"] is None for r in annotation_records)
+        assert all(r["created_by_user_id"] == user_id for r in annotation_records)
+        assert all(r["campaign_id"] == 1 for r in annotation_records)
 
     def test_rejects_missing_label(self):
         db = MagicMock()
