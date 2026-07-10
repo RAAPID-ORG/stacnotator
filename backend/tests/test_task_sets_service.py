@@ -4,9 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from src.campaigns import task_sets
 from src.campaigns.models import TaskSet
+from src.campaigns.schemas import TaskSetCreate
 
 
 def make_set(set_id=1, campaign_id=10, name="Default"):
@@ -95,3 +97,20 @@ def test_move_tasks_updates_and_commits():
     assert moved == 2
     db.execute.assert_called_once()
     db.commit.assert_called_once()
+
+
+def test_move_tasks_reports_distinct_count_for_duplicate_ids():
+    db = MagicMock()
+    db.get.return_value = make_set()
+    db.scalars.return_value.all.return_value = [5]  # only task 5 exists in the campaign
+    moved = task_sets.move_tasks_to_set(db, campaign_id=10, task_set_id=1, task_ids=[5, 5])
+    assert moved == 1
+
+
+def test_task_set_create_rejects_blank_name():
+    with pytest.raises(ValidationError):
+        TaskSetCreate(name="  ")
+
+
+def test_task_set_create_strips_name():
+    assert TaskSetCreate(name=" a ").name == "a"

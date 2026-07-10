@@ -123,4 +123,4 @@ def move_tasks_to_set(db: Session, campaign_id: int, task_set_id: int, task_ids:
         .values(task_set_id=task_set_id)
     )
     db.commit()
-    return len(task_ids)
+    return len(found)
