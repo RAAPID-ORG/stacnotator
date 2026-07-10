@@ -98,11 +98,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   // assigned/worked/review tasks, and claiming the next task releases this one.
   const currentTaskId = currentTask?.id ?? null;
   useEffect(() => {
-    if (currentTaskId == null) return;
+    if (workMode !== 'tasks' || currentTaskId == null) return;
     void claimCurrentTask();
     const renew = setInterval(() => void claimCurrentTask(), CLAIM_RENEW_MS);
     return () => clearInterval(renew);
-  }, [currentTaskId, claimCurrentTask]);
+  }, [workMode, currentTaskId, claimCurrentTask]);
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
@@ -303,7 +303,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 : activeSourceVizName || 'Layer'}
             </span>
           )}
-          {activeClaim && (
+          {!isOpenMode && activeClaim && (
             <span
               className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${
                 claimedByMe ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'

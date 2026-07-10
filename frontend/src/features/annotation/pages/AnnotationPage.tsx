@@ -109,10 +109,10 @@ export const AnnotationPage = () => {
     if (campaign) {
       setBreadcrumbs([
         { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name) },
+        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}` },
       ]);
     }
-  }, [campaign, setBreadcrumbs]);
+  }, [campaign, campaignId, setBreadcrumbs]);
 
   // Auto-show the guided tour the first time this user opens this campaign.
   // For task-mode we wait until visibleTasks > 0 so the tour can actually

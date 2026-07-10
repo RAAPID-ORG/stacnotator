@@ -360,7 +360,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Map controls
         case ' ':
           e.preventDefault();
-          triggerRefocus();
+          if (tasksActive) triggerRefocus();
           break;
         case 'o':
         case 'O':
@@ -449,19 +449,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'g':
         case 'G':
           e.preventDefault();
-          toggleGuide();
+          if (tasksActive) toggleGuide();
           break;
 
         // Toggle view sync
         case 'l':
         case 'L':
           e.preventDefault();
-          useMapStore.getState().toggleViewSync();
+          if (tasksActive) useMapStore.getState().toggleViewSync();
           break;
 
         case 'm':
         case 'M': {
           e.preventDefault();
+          if (!tasksActive) break;
           const maps = campaign?.custom_maps ?? [];
           if (e.shiftKey) cycleCustomMap(maps);
           else toggleCustomMap(maps);
@@ -472,6 +473,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'i':
         case 'I':
           e.preventDefault();
+          if (!tasksActive) break;
           if (e.shiftKey) {
             cycleVisualization();
           } else {

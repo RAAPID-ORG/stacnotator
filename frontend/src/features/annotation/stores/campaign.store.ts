@@ -235,6 +235,20 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // Load tasks
       await useTaskStore.getState().loadTasks(campaignId, initialTaskId, initialTaskSetId);
 
+      // Zero-task campaigns have nothing to claim in Tasks mode - seed
+      // straight into Explore instead, unless the caller (deep link/session
+      // restore) explicitly asked for a mode.
+      if (initialWorkMode === undefined && useTaskStore.getState().allTasks.length === 0) {
+        get().setWorkMode('explore');
+        useMapStore.setState({
+          currentMapCenter: [
+            (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
+            (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
+          ],
+          currentMapZoom: campaign.imagery_sources[0]?.default_zoom ?? DEFAULT_MAP_ZOOM,
+        });
+      }
+
       // Explore annotations are served as vector tiles in the viewport, not
       // loaded upfront. Seed the tile cache-busting version from the campaign
       // for every campaign, since Explore can be entered from any of them.
@@ -278,7 +292,10 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   },
 
   setWorkMode: (mode) => {
-    set({ workMode: mode });
+    // Entering Explore also drops any lingering review-mode flag - review is
+    // a Tasks-only concept, so carrying it over would trap the UI in it with
+    // no way back short of a reload.
+    set({ workMode: mode, ...(mode === 'explore' ? { isReviewMode: false } : {}) });
     // Mirrors the load-time seeding: crosshair on for Tasks (point
     // placement), off for Explore (free-form drawing).
     useMapStore.setState({ showCrosshair: mode === 'tasks' });

@@ -646,7 +646,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <p>
         In Explore you draw annotations directly on the map. This tour will guide you through the
-        key features. Like task mode, almost every action has a keyboard shortcut.
+        key features. Like Tasks mode, almost every action has a keyboard shortcut.
       </p>
     ),
     placement: 'bottom',
@@ -831,7 +831,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     title: 'Main Map',
     content: (
       <p>
-        This is your drawing canvas. Use the tools (<kbd className="tour-kbd">V</kbd>,{' '}
+        This is your drawing canvas. Use the tools (<kbd className="tour-kbd">P</kbd>,{' '}
         <kbd className="tour-kbd">R</kbd>, <kbd className="tour-kbd">E</kbd>
         {hasTimeseries ? (
           <>
@@ -877,7 +877,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
     content: (
       <div className="space-y-2">
         <p>
-          <kbd className="tour-kbd">V</kbd> = Pan &nbsp;
+          <kbd className="tour-kbd">P</kbd> = Pan &nbsp;
           <kbd className="tour-kbd">R</kbd> = Annotate &nbsp;
           <kbd className="tour-kbd">E</kbd> = Edit
           {hasTimeseries ? (
@@ -886,12 +886,12 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
             </>
           ) : null}
         </p>
-        <p className="text-sm text-neutral-500 italic">Try pressing V or R now.</p>
+        <p className="text-sm text-neutral-500 italic">Try pressing P or R now.</p>
       </div>
     ),
     placement: 'bottom',
-    requiredKeys: hasTimeseries ? ['v', 'r', 'e', 't'] : ['v', 'r', 'e'],
-    requiredKeyLabel: hasTimeseries ? 'V, R, E, or T' : 'V, R, or E',
+    requiredKeys: hasTimeseries ? ['p', 'r', 'e', 't'] : ['p', 'r', 'e'],
+    requiredKeyLabel: hasTimeseries ? 'P, R, E, or T' : 'P, R, or E',
   },
 
   // 12. Navigate annotations
@@ -1091,7 +1091,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
         </p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
           <span className="text-neutral-600">Pan tool</span>
-          <kbd className="tour-kbd text-center">V</kbd>
+          <kbd className="tour-kbd text-center">P</kbd>
           <span className="text-neutral-600">Annotate tool</span>
           <kbd className="tour-kbd text-center">R</kbd>
           <span className="text-neutral-600">Edit tool</span>
