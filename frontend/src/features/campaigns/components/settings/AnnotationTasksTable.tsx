@@ -23,6 +23,7 @@ interface AnnotationTasksTableProps {
   taskSets?: TaskSetOut[];
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   onCreateSet?: (name: string) => Promise<number | null>;
+  hideSetColumn?: boolean;
 }
 
 export const AnnotationTasksTable = ({
@@ -37,6 +38,7 @@ export const AnnotationTasksTable = ({
   taskSets = [],
   onMoveTasks,
   onCreateSet,
+  hideSetColumn = false,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -45,7 +47,6 @@ export const AnnotationTasksTable = ({
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
-  const [setFilter, setSetFilter] = useState<number | 'all'>('all');
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -64,8 +65,7 @@ export const AnnotationTasksTable = ({
   }, [showUserSelectForTask]);
 
   const setNames = new Map(taskSets.map((s) => [s.id, s.name]));
-  const visibleRows =
-    setFilter === 'all' ? tasks : tasks.filter((t) => t.task_set_id === setFilter);
+  const visibleRows = tasks;
 
   const handleToggleTask = (taskId: number) => {
     setSelectedTasks((prev) => {
@@ -154,24 +154,6 @@ export const AnnotationTasksTable = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-xs text-neutral-500">
             {selectedTasks.size > 0 && <span>{selectedTasks.size} selected</span>}
-            {taskSets.length > 1 && (
-              <select
-                value={setFilter === 'all' ? 'all' : String(setFilter)}
-                onChange={(e) => {
-                  setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value));
-                  setSelectedTasks(new Set());
-                }}
-                className="h-8 px-2 border border-neutral-300 rounded-md text-sm bg-white"
-                data-testid="table-set-filter"
-              >
-                <option value="all">All sets</option>
-                {taskSets.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {onDeleteTasks && (
@@ -246,9 +228,11 @@ export const AnnotationTasksTable = ({
               <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Annotation #
               </th>
-              <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                Set
-              </th>
+              {!hideSetColumn && (
+                <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                  Set
+                </th>
+              )}
               <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Status
               </th>
@@ -286,9 +270,11 @@ export const AnnotationTasksTable = ({
                   <td className="px-3 py-2 text-neutral-900 font-medium tabular-nums">
                     {task.annotation_number}
                   </td>
-                  <td className="px-3 py-2 text-neutral-600 text-xs">
-                    {setNames.get(task.task_set_id) ?? '-'}
-                  </td>
+                  {!hideSetColumn && (
+                    <td className="px-3 py-2 text-neutral-600 text-xs">
+                      {setNames.get(task.task_set_id) ?? '-'}
+                    </td>
+                  )}
                   <td className="px-3 py-2">
                     <div className="group relative inline-block">
                       <span

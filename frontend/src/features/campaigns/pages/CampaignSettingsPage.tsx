@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { TaskScope } from '~/features/campaigns/components/settings/TaskScopeBar';
 import {
   TaskAssignmentModal,
   type BulkAssignIntent,
@@ -81,7 +82,7 @@ export const CampaignSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   // Allow deep-linking into a specific tab via ?tab=tasks (used by the
   // "set up tasks" CTA on the annotator empty state).
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const initialTab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -91,7 +92,6 @@ export const CampaignSettingsPage = () => {
   const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
   const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [selectedUploadSetId, setSelectedUploadSetId] = useState<number | null>(null);
   const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
   const [uploadingTasks, setUploadingTasks] = useState(false);
@@ -222,9 +222,6 @@ export const CampaignSettingsPage = () => {
     }
     if (data) {
       setTaskSets(data);
-      setSelectedUploadSetId((current) =>
-        current !== null && data.some((s) => s.id === current) ? current : (data[0]?.id ?? null)
-      );
     }
   }, [campaignId]);
 
@@ -366,8 +363,25 @@ export const CampaignSettingsPage = () => {
     }
   };
 
+  const taskSetParam = searchParams.get('taskSet');
+  const taskScope: TaskScope =
+    taskSetParam !== null && taskSets.some((s) => s.id === Number(taskSetParam))
+      ? Number(taskSetParam)
+      : 'all';
+
+  const handleSelectScope = (scope: TaskScope) => {
+    setSearchParams(
+      (params) => {
+        if (scope === 'all') params.delete('taskSet');
+        else params.set('taskSet', String(scope));
+        return params;
+      },
+      { replace: true }
+    );
+  };
+
   const handleUploadAnnotationTasks = async () => {
-    if (!taskFile || selectedUploadSetId === null) return;
+    if (!taskFile || taskScope === 'all') return;
     try {
       setUploadingTasks(true);
       const name = taskFile.name.toLowerCase();
@@ -375,12 +389,12 @@ export const CampaignSettingsPage = () => {
       if (name.endsWith('.geojson') || name.endsWith('.json')) {
         await ingestAnnotationTasksFromGeojson({
           path: { campaign_id: campaignId },
-          body: { file: taskFile, task_set_id: selectedUploadSetId } as never,
+          body: { file: taskFile, task_set_id: taskScope } as never,
         });
       } else {
         await ingestAnnotationTasksFromCsv({
           path: { campaign_id: campaignId },
-          body: { file: taskFile, task_set_id: selectedUploadSetId } as never,
+          body: { file: taskFile, task_set_id: taskScope } as never,
         });
       }
 
@@ -411,20 +425,7 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  const handleCreateTaskSet = async (name: string) => {
-    try {
-      const { error } = await createTaskSet({
-        path: { campaign_id: campaignId },
-        body: { name },
-      });
-      if (error) throw error;
-      await reloadTaskSets();
-    } catch (err) {
-      handleError(err, 'Failed to create task set');
-    }
-  };
-
-  const handleCreateSetForMove = async (name: string): Promise<number | null> => {
+  const handleCreateTaskSet = async (name: string): Promise<number | null> => {
     try {
       const { data, error } = await createTaskSet({
         path: { campaign_id: campaignId },
@@ -939,13 +940,12 @@ export const CampaignSettingsPage = () => {
                   campaignName={campaign.name}
                   onAssignmentsImported={reloadAnnotationTasks}
                   taskSets={taskSets}
-                  onCreateTaskSet={handleCreateTaskSet}
+                  taskScope={taskScope}
+                  onSelectScope={handleSelectScope}
+                  onCreateSetScoped={handleCreateTaskSet}
                   onRenameTaskSet={handleRenameTaskSet}
                   onDeleteTaskSet={handleDeleteTaskSet}
-                  selectedUploadSetId={selectedUploadSetId}
-                  setSelectedUploadSetId={setSelectedUploadSetId}
                   onMoveTasks={handleMoveTasks}
-                  onCreateSetForMove={handleCreateSetForMove}
                   bbox={
                     campaign
                       ? {

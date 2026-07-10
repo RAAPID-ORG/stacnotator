@@ -3,7 +3,11 @@ import { TaskGenerationSection } from '~/features/campaigns/components/settings/
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
-import { TaskSetsSection } from '~/features/campaigns/components/settings/TaskSetsSection';
+import {
+  TaskScopeBar,
+  type TaskScope,
+} from '~/features/campaigns/components/settings/TaskScopeBar';
+import { TaskSetHeader } from '~/features/campaigns/components/settings/TaskSetHeader';
 import type {
   AnnotationTaskOut,
   CampaignUserOut,
@@ -31,13 +35,12 @@ interface Props {
   campaignName: string;
   onAssignmentsImported: () => Promise<void>;
   taskSets: TaskSetOut[];
-  onCreateTaskSet: (name: string) => Promise<void>;
+  taskScope: TaskScope;
+  onSelectScope: (scope: TaskScope) => void;
+  onCreateSetScoped: (name: string) => Promise<number | null>;
   onRenameTaskSet: (id: number, name: string) => Promise<void>;
   onDeleteTaskSet: (id: number) => Promise<void>;
-  selectedUploadSetId: number | null;
-  setSelectedUploadSetId: (id: number) => void;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
-  onCreateSetForMove?: (name: string) => Promise<number | null>;
   bbox?: {
     west: number;
     south: number;
@@ -45,6 +48,8 @@ interface Props {
     north: number;
   };
 }
+
+const doneStatuses = new Set(['done', 'skipped']);
 
 export const TasksTab: React.FC<Props> = ({
   annotationTasks,
@@ -65,156 +70,188 @@ export const TasksTab: React.FC<Props> = ({
   campaignName,
   onAssignmentsImported,
   taskSets,
-  onCreateTaskSet,
+  taskScope,
+  onSelectScope,
+  onCreateSetScoped,
   onRenameTaskSet,
   onDeleteTaskSet,
-  selectedUploadSetId,
-  setSelectedUploadSetId,
   onMoveTasks,
-  onCreateSetForMove,
   bbox,
 }) => {
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
-  return (
-    <div id="tab-tasks" role="tabpanel">
-      {/* Task Locations Map - shown above the form sections, no card wrapper */}
-      {annotationTasks.length > 0 && bbox && (
-        <section className="mb-6">
-          <TaskLocationsMap tasks={annotationTasks} bbox={bbox} />
-        </section>
+  const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
+  const scopedTasks =
+    taskScope === 'all'
+      ? annotationTasks
+      : annotationTasks.filter((t) => t.task_set_id === taskScope);
+  const scopedDone = scopedTasks.filter((t) => doneStatuses.has(t.task_status ?? 'pending')).length;
+
+  const addTasksSection = (
+    <section className={sectionCls}>
+      <div>
+        <h2 className="section-heading">Add annotation tasks</h2>
+        <p className="section-description">
+          Tasks define the points or polygons annotators will label. Upload existing locations or
+          generate them with random/grid sampling into <strong>{scopedSet?.name}</strong>.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          onClick={() => {
+            if (taskFile === null) {
+              setTaskFile(new File([], ''));
+            }
+          }}
+          className={`text-left px-4 py-3 rounded-lg border transition-colors ${
+            taskFile !== null
+              ? 'bg-brand-50 text-brand-800 border-brand-400'
+              : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+          }`}
+          type="button"
+        >
+          <div className="text-sm font-medium">Upload file</div>
+          <div className="text-xs text-neutral-500 mt-0.5">Upload tasks from CSV or GeoJSON</div>
+        </button>
+        <button
+          onClick={() => setTaskFile(null)}
+          className={`text-left px-4 py-3 rounded-lg border transition-colors ${
+            taskFile === null
+              ? 'bg-brand-50 text-brand-800 border-brand-400'
+              : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+          }`}
+          type="button"
+        >
+          <div className="text-sm font-medium">Generate via sampling</div>
+          <div className="text-xs text-neutral-500 mt-0.5">
+            Create tasks using random or grid sampling
+          </div>
+        </button>
+      </div>
+
+      {taskFile !== null && (
+        <div className="space-y-3">
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
+            <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
+            preserved and shown as sample extents during annotation. For Points you may want to
+            specify the sample extent (bbox size around the point) under the General Settings tab.
+            The id <strong>must be unique within your whole campaign and must be numeric.</strong>
+          </p>
+          <div className="flex gap-3 items-center">
+            <label
+              className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
+                uploadingTasks
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer hover:border-neutral-400'
+              }`}
+            >
+              <input
+                type="file"
+                accept=".csv,.geojson,.json"
+                onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
+                disabled={uploadingTasks}
+                className="sr-only"
+              />
+              <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
+                Choose file
+              </span>
+              <span className="text-xs text-neutral-500 truncate">
+                {taskFile && taskFile.size > 0 ? taskFile.name : 'No file selected'}
+              </span>
+            </label>
+            <Button
+              onClick={handleUploadAnnotationTasks}
+              disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
+            >
+              Upload
+            </Button>
+          </div>
+        </div>
       )}
 
-      <section className={sectionCls}>
-        <div>
-          <h2 className="section-heading">Task sets</h2>
-          <p className="section-description">
-            Group tasks into sets to upload, track, and assign them independently.
-          </p>
-        </div>
-        <TaskSetsSection
+      {taskFile === null && taskScope !== 'all' && (
+        <TaskGenerationSection
+          campaignId={campaignId}
+          taskSetId={taskScope}
+          onTasksGenerated={handleTasksGenerated}
+          onError={onTaskGenerationError}
+        />
+      )}
+    </section>
+  );
+
+  const tasksTable = (
+    <section className={sectionCls}>
+      <div>
+        <h2 className="section-heading">
+          Annotation tasks{' '}
+          <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
+        </h2>
+      </div>
+      {scopedTasks.length > 0 ? (
+        <AnnotationTasksTable
+          tasks={scopedTasks}
+          campaignUsers={campaignUsers}
+          onAssignTasks={handleAssignSingleTask}
+          onUnassignTask={handleUnassignTask}
+          onOpenBulkAssign={onOpenBulkAssign}
+          onOpenReviewerAssign={onOpenReviewerAssign}
+          onBatchUnassignTasks={handleBatchUnassignTasks}
+          onDeleteTasks={handleDeleteTasks}
           taskSets={taskSets}
-          tasks={annotationTasks}
-          onCreate={onCreateTaskSet}
-          onRename={onRenameTaskSet}
-          onDelete={onDeleteTaskSet}
+          onMoveTasks={onMoveTasks}
+          onCreateSet={onCreateSetScoped}
+          hideSetColumn={taskScope !== 'all'}
+        />
+      ) : (
+        <p className="text-sm text-neutral-500">
+          {taskScope === 'all'
+            ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
+            : 'No tasks in this set yet. Upload a file or generate tasks above.'}
+        </p>
+      )}
+    </section>
+  );
+
+  return (
+    <div id="tab-tasks" role="tabpanel">
+      <section className="mb-6">
+        <TaskScopeBar
+          scope={taskScope}
+          taskSets={taskSets}
+          totalTasks={annotationTasks.length}
+          onSelect={onSelectScope}
+          onCreateSet={onCreateSetScoped}
         />
       </section>
 
-      <section className={sectionCls}>
-        <div>
-          <h2 className="section-heading">Add annotation tasks</h2>
-          <p className="section-description">
-            Tasks define the points or polygons annotators will label. Upload existing locations or
-            generate them with random/grid sampling.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-neutral-700" htmlFor="upload-target-set">
-            Target task set
-          </label>
-          <select
-            id="upload-target-set"
-            value={selectedUploadSetId ?? ''}
-            onChange={(e) => setSelectedUploadSetId(Number(e.target.value))}
-            className="h-8 px-2 border border-neutral-300 rounded-md text-sm bg-white"
-            data-testid="upload-target-set"
-          >
-            {taskSets.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            onClick={() => {
-              if (taskFile === null) {
-                setTaskFile(new File([], ''));
-              }
+      {taskScope !== 'all' && scopedSet && (
+        <section className="mb-6">
+          <TaskSetHeader
+            set={scopedSet}
+            doneCount={scopedDone}
+            onRename={onRenameTaskSet}
+            onDelete={async (id) => {
+              await onDeleteTaskSet(id);
+              onSelectScope('all');
             }}
-            className={`text-left px-4 py-3 rounded-lg border transition-colors ${
-              taskFile !== null
-                ? 'bg-brand-50 text-brand-800 border-brand-400'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-            }`}
-            type="button"
-          >
-            <div className="text-sm font-medium">Upload file</div>
-            <div className="text-xs text-neutral-500 mt-0.5">Upload tasks from CSV or GeoJSON</div>
-          </button>
-          <button
-            onClick={() => setTaskFile(null)}
-            className={`text-left px-4 py-3 rounded-lg border transition-colors ${
-              taskFile === null
-                ? 'bg-brand-50 text-brand-800 border-brand-400'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-            }`}
-            type="button"
-          >
-            <div className="text-sm font-medium">Generate via sampling</div>
-            <div className="text-xs text-neutral-500 mt-0.5">
-              Create tasks using random or grid sampling
-            </div>
-          </button>
-        </div>
-
-        {taskFile !== null && (
-          <div className="space-y-3">
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Upload a <strong>CSV</strong> (<code>id,lon,lat</code>) for point locations, or a{' '}
-              <strong>GeoJSON</strong> file with Point / Polygon features. Polygon geometries are
-              preserved and shown as sample extents during annotation. For Points you may want to
-              specify the sample extent (bbox size around the point) under the General Settings tab.
-              The id <strong>must be unique within your whole campaign and must be numeric.</strong>
-            </p>
-            <div className="flex gap-3 items-center">
-              <label
-                className={`flex-1 flex items-center gap-3 h-9 px-1 pr-3 border border-neutral-300 rounded-md bg-white transition-colors ${
-                  uploadingTasks
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'cursor-pointer hover:border-neutral-400'
-                }`}
-              >
-                <input
-                  type="file"
-                  accept=".csv,.geojson,.json"
-                  onChange={(e) => setTaskFile(e.target.files?.[0] || new File([], ''))}
-                  disabled={uploadingTasks}
-                  className="sr-only"
-                />
-                <span className="inline-flex items-center h-7 px-3 rounded text-xs font-medium bg-neutral-100 text-neutral-700 shrink-0">
-                  Choose file
-                </span>
-                <span className="text-xs text-neutral-500 truncate">
-                  {taskFile && taskFile.size > 0 ? taskFile.name : 'No file selected'}
-                </span>
-              </label>
-              <Button
-                onClick={handleUploadAnnotationTasks}
-                disabled={!taskFile || taskFile.size === 0 || uploadingTasks}
-              >
-                Upload
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {taskFile === null && (
-          <TaskGenerationSection
-            campaignId={campaignId}
-            taskSetId={selectedUploadSetId}
-            onTasksGenerated={handleTasksGenerated}
-            onError={onTaskGenerationError}
+            canDelete={taskSets.length > 1}
           />
-        )}
-      </section>
+        </section>
+      )}
 
-      {annotationTasks.length > 0 && (
+      {scopedTasks.length > 0 && bbox && (
+        <section className="mb-6">
+          <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
+        </section>
+      )}
+
+      {taskScope !== 'all' && addTasksSection}
+
+      {taskScope === 'all' && annotationTasks.length > 0 && (
         <TaskAssignmentsExportImport
           campaignId={campaignId}
           campaignName={campaignName}
@@ -222,33 +259,7 @@ export const TasksTab: React.FC<Props> = ({
         />
       )}
 
-      <section className={sectionCls}>
-        <div>
-          <h2 className="section-heading">
-            Annotation tasks{' '}
-            <span className="text-neutral-400 font-normal">({annotationTasks.length})</span>
-          </h2>
-        </div>
-        {annotationTasks.length > 0 ? (
-          <AnnotationTasksTable
-            tasks={annotationTasks}
-            campaignUsers={campaignUsers}
-            onAssignTasks={handleAssignSingleTask}
-            onUnassignTask={handleUnassignTask}
-            onOpenBulkAssign={onOpenBulkAssign}
-            onOpenReviewerAssign={onOpenReviewerAssign}
-            onBatchUnassignTasks={handleBatchUnassignTasks}
-            onDeleteTasks={handleDeleteTasks}
-            taskSets={taskSets}
-            onMoveTasks={onMoveTasks}
-            onCreateSet={onCreateSetForMove}
-          />
-        ) : (
-          <p className="text-sm text-neutral-500">
-            No annotation tasks yet. Upload a file or generate tasks using sampling above.
-          </p>
-        )}
-      </section>
+      {tasksTable}
     </div>
   );
 };
