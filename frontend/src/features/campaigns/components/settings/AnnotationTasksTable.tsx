@@ -155,9 +155,10 @@ export const AnnotationTasksTable = ({
             {taskSets.length > 1 && (
               <select
                 value={setFilter === 'all' ? 'all' : String(setFilter)}
-                onChange={(e) =>
-                  setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                }
+                onChange={(e) => {
+                  setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value));
+                  setSelectedTasks(new Set());
+                }}
                 className="h-8 px-2 border border-neutral-300 rounded-md text-sm bg-white"
                 data-testid="table-set-filter"
               >

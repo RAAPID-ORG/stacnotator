@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TaskSetOut } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
@@ -13,6 +13,10 @@ interface Props {
 export const MoveTasksDialog = ({ isOpen, taskSets, numTasks, onMove, onCancel }: Props) => {
   const [targetId, setTargetId] = useState<number | ''>('');
   const [moving, setMoving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) setTargetId('');
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
