@@ -9,8 +9,6 @@ interface Props {
   onMove: (taskSetId: number) => Promise<void>;
   onCreateSet: (name: string) => Promise<number | null>;
   onCancel: () => void;
-  // The set the admin is currently scoped into; moving there is a no-op, so hide it.
-  excludeSetId?: number;
 }
 
 export const MoveTasksDialog = ({
@@ -20,7 +18,6 @@ export const MoveTasksDialog = ({
   onMove,
   onCreateSet,
   onCancel,
-  excludeSetId,
 }: Props) => {
   const [targetId, setTargetId] = useState<number | ''>('');
   const [newSetName, setNewSetName] = useState('');
@@ -74,13 +71,11 @@ export const MoveTasksDialog = ({
           <option value="" disabled>
             Select target set
           </option>
-          {taskSets
-            .filter((s) => s.id !== excludeSetId)
-            .map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.num_tasks} tasks)
-              </option>
-            ))}
+          {taskSets.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name} ({s.num_tasks} tasks)
+            </option>
+          ))}
         </select>
         <div className="flex items-center gap-2">
           <div className="h-px flex-1 bg-neutral-200" />

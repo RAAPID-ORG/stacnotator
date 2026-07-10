@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnnotationTaskOut } from '~/api/client';
@@ -16,7 +16,7 @@ interface TaskLocationsMapProps {
   };
 }
 
-export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox }) => {
+export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(({ tasks, bbox }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { mapRef, markersLayerRef, mapReady } = useLeafletMap(containerRef, bbox);
 
@@ -110,4 +110,6 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = ({ tasks, bbox 
       `}</style>
     </div>
   );
-};
+});
+
+TaskLocationsMap.displayName = 'TaskLocationsMap';

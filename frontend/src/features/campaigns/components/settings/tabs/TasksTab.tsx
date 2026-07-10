@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
@@ -7,7 +7,6 @@ import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import { TaskSetHeader } from '~/features/campaigns/components/settings/TaskSetHeader';
 import type {
   AnnotationTaskOut,
   CampaignUserOut,
@@ -49,8 +48,6 @@ interface Props {
   };
 }
 
-const doneStatuses = new Set(['done', 'skipped']);
-
 export const TasksTab: React.FC<Props> = ({
   annotationTasks,
   campaignUsers,
@@ -82,11 +79,15 @@ export const TasksTab: React.FC<Props> = ({
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
   const scopedSet = taskScope === 'all' ? undefined : taskSets.find((s) => s.id === taskScope);
-  const scopedTasks =
-    taskScope === 'all'
-      ? annotationTasks
-      : annotationTasks.filter((t) => t.task_set_id === taskScope);
-  const scopedDone = scopedTasks.filter((t) => doneStatuses.has(t.task_status ?? 'pending')).length;
+  // Stable identity matters: TaskLocationsMap rebuilds all Leaflet markers when
+  // this array changes, so it must only change on scope switches or data reloads.
+  const scopedTasks = useMemo(
+    () =>
+      taskScope === 'all'
+        ? annotationTasks
+        : annotationTasks.filter((t) => t.task_set_id === taskScope),
+    [annotationTasks, taskScope]
+  );
 
   const addTasksSection = (
     <section className={sectionCls}>
@@ -193,7 +194,6 @@ export const TasksTab: React.FC<Props> = ({
       </div>
       {scopedTasks.length > 0 ? (
         <AnnotationTasksTable
-          key={String(taskScope)}
           tasks={scopedTasks}
           campaignUsers={campaignUsers}
           onAssignTasks={handleAssignSingleTask}
@@ -206,7 +206,6 @@ export const TasksTab: React.FC<Props> = ({
           onMoveTasks={onMoveTasks}
           onCreateSet={onCreateSetScoped}
           hideSetColumn={taskScope !== 'all'}
-          excludeMoveTargetId={taskScope === 'all' ? undefined : taskScope}
         />
       ) : (
         <p className="text-sm text-neutral-500">
@@ -227,25 +226,12 @@ export const TasksTab: React.FC<Props> = ({
           totalTasks={annotationTasks.length}
           onSelect={onSelectScope}
           onCreateSet={onCreateSetScoped}
+          onRenameSet={onRenameTaskSet}
+          onDeleteSet={onDeleteTaskSet}
         />
       </section>
 
-      {taskScope !== 'all' && scopedSet && (
-        <section className="mb-6">
-          <TaskSetHeader
-            set={scopedSet}
-            doneCount={scopedDone}
-            onRename={onRenameTaskSet}
-            onDelete={async (id) => {
-              const deleted = await onDeleteTaskSet(id);
-              if (deleted) onSelectScope('all');
-            }}
-            canDelete={taskSets.length > 1}
-          />
-        </section>
-      )}
-
-      {scopedTasks.length > 0 && bbox && (
+      {annotationTasks.length > 0 && bbox && (
         <section className="mb-6">
           <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
         </section>

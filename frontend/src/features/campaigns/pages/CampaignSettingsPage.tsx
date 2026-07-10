@@ -380,10 +380,13 @@ export const CampaignSettingsPage = () => {
     );
   };
 
-  const scopedAnnotationTasks =
-    taskScope === 'all'
-      ? annotationTasks
-      : annotationTasks.filter((t) => t.task_set_id === taskScope);
+  const scopedAnnotationTasks = useMemo(
+    () =>
+      taskScope === 'all'
+        ? annotationTasks
+        : annotationTasks.filter((t) => t.task_set_id === taskScope),
+    [annotationTasks, taskScope]
+  );
 
   const handleUploadAnnotationTasks = async () => {
     if (!taskFile || taskScope === 'all') return;

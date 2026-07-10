@@ -24,7 +24,6 @@ interface AnnotationTasksTableProps {
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   onCreateSet?: (name: string) => Promise<number | null>;
   hideSetColumn?: boolean;
-  excludeMoveTargetId?: number;
 }
 
 export const AnnotationTasksTable = ({
@@ -40,7 +39,6 @@ export const AnnotationTasksTable = ({
   onMoveTasks,
   onCreateSet,
   hideSetColumn = false,
-  excludeMoveTargetId,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -65,6 +63,17 @@ export const AnnotationTasksTable = ({
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showUserSelectForTask]);
+
+  // Selected ids must never outlive the rows on screen: scope switches and data
+  // reloads swap the tasks prop, and batch actions act on raw ids server-side.
+  useEffect(() => {
+    setSelectedTasks((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(tasks.map((t) => t.id));
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [tasks]);
 
   const setNames = new Map(taskSets.map((s) => [s.id, s.name]));
   const visibleRows = tasks;
@@ -476,7 +485,6 @@ export const AnnotationTasksTable = ({
       <MoveTasksDialog
         isOpen={showMoveDialog}
         taskSets={taskSets}
-        excludeSetId={excludeMoveTargetId}
         numTasks={selectedTasks.size}
         onMove={async (taskSetId) => {
           if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
