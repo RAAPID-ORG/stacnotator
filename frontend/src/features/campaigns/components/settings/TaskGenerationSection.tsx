@@ -11,6 +11,7 @@ interface SamplingStrategyConfig {
 
 interface TaskGenerationSectionProps {
   campaignId: number;
+  taskSetId: number | null;
   onTasksGenerated: (response: GenerateTasksResponse) => void;
   onError: (message: string) => void;
 }
@@ -28,6 +29,7 @@ const SAMPLING_STRATEGIES = [
 
 export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
   campaignId,
+  taskSetId,
   onTasksGenerated,
   onError,
 }) => {
@@ -62,6 +64,11 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       return;
     }
 
+    if (taskSetId === null) {
+      onError('Select a task set first');
+      return;
+    }
+
     try {
       setGenerating(true);
 
@@ -75,6 +82,7 @@ export const TaskGenerationSection: React.FC<TaskGenerationSectionProps> = ({
       // Build the request body
       const requestBody: Record<string, unknown> = {
         strategy: JSON.stringify(strategy),
+        task_set_id: taskSetId,
       };
 
       // Only include region_file if not using campaign bbox

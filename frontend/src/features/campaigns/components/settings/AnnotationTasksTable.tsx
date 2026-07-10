@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
+import type { AnnotationTaskOut, CampaignUserOut, TaskSetOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import {
   countTasksByStatus,
@@ -9,6 +9,7 @@ import {
 } from '~/shared/utils/taskStatus';
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
 
 interface AnnotationTasksTableProps {
   tasks: AnnotationTaskOut[];
@@ -19,6 +20,8 @@ interface AnnotationTasksTableProps {
   onOpenReviewerAssign?: () => void;
   onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
+  taskSets?: TaskSetOut[];
+  onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
 }
 
 export const AnnotationTasksTable = ({
@@ -30,6 +33,8 @@ export const AnnotationTasksTable = ({
   onOpenReviewerAssign,
   onBatchUnassignTasks,
   onDeleteTasks,
+  taskSets = [],
+  onMoveTasks,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -38,6 +43,8 @@ export const AnnotationTasksTable = ({
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
+  const [setFilter, setSetFilter] = useState<number | 'all'>('all');
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -54,6 +61,10 @@ export const AnnotationTasksTable = ({
     }
   }, [showUserSelectForTask]);
 
+  const setNames = new Map(taskSets.map((s) => [s.id, s.name]));
+  const visibleRows =
+    setFilter === 'all' ? tasks : tasks.filter((t) => t.task_set_id === setFilter);
+
   const handleToggleTask = (taskId: number) => {
     setSelectedTasks((prev) => {
       const newSet = new Set(prev);
@@ -67,10 +78,10 @@ export const AnnotationTasksTable = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedTasks.size === tasks.length) {
+    if (selectedTasks.size === visibleRows.length) {
       setSelectedTasks(new Set());
     } else {
-      setSelectedTasks(new Set(tasks.map((t) => t.id)));
+      setSelectedTasks(new Set(visibleRows.map((t) => t.id)));
     }
   };
 
@@ -139,8 +150,25 @@ export const AnnotationTasksTable = ({
 
       {onOpenBulkAssign && (
         <div className="flex items-center justify-between">
-          <div className="text-xs text-neutral-500">
+          <div className="flex items-center gap-3 text-xs text-neutral-500">
             {selectedTasks.size > 0 && <span>{selectedTasks.size} selected</span>}
+            {taskSets.length > 1 && (
+              <select
+                value={setFilter === 'all' ? 'all' : String(setFilter)}
+                onChange={(e) =>
+                  setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                }
+                className="h-8 px-2 border border-neutral-300 rounded-md text-sm bg-white"
+                data-testid="table-set-filter"
+              >
+                <option value="all">All sets</option>
+                {taskSets.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {onDeleteTasks && (
@@ -173,6 +201,11 @@ export const AnnotationTasksTable = ({
                 {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
               </Button>
             )}
+            {onMoveTasks && taskSets.length > 1 && (
+              <Button onClick={() => setShowMoveDialog(true)} disabled={selectedTasks.size === 0}>
+                Move to set
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={onOpenBulkAssign}
@@ -201,7 +234,7 @@ export const AnnotationTasksTable = ({
                 <th className="px-3 py-2 text-left">
                   <input
                     type="checkbox"
-                    checked={selectedTasks.size === tasks.length && tasks.length > 0}
+                    checked={selectedTasks.size === visibleRows.length && visibleRows.length > 0}
                     onChange={handleSelectAll}
                     className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                   />
@@ -209,6 +242,9 @@ export const AnnotationTasksTable = ({
               )}
               <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Annotation #
+              </th>
+              <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                Set
               </th>
               <th className="px-3 py-2 text-left text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                 Status
@@ -224,7 +260,7 @@ export const AnnotationTasksTable = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {tasks.map((task) => {
+            {visibleRows.map((task) => {
               const latLon = extractCentroidFromWKT(task.geometry.geometry);
               const isAssigning = assigningTaskId === task.id;
               return (
@@ -246,6 +282,9 @@ export const AnnotationTasksTable = ({
                   )}
                   <td className="px-3 py-2 text-neutral-900 font-medium tabular-nums">
                     {task.annotation_number}
+                  </td>
+                  <td className="px-3 py-2 text-neutral-600 text-xs">
+                    {setNames.get(task.task_set_id) ?? '-'}
                   </td>
                   <td className="px-3 py-2">
                     <div className="group relative inline-block">
@@ -441,6 +480,18 @@ export const AnnotationTasksTable = ({
         isLoading={isBatchUnassigning}
         onConfirm={handleBatchUnassignSelected}
         onCancel={() => setConfirmBatchUnassign(false)}
+      />
+
+      <MoveTasksDialog
+        isOpen={showMoveDialog}
+        taskSets={taskSets}
+        numTasks={selectedTasks.size}
+        onMove={async (taskSetId) => {
+          if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
+          setSelectedTasks(new Set());
+          setShowMoveDialog(false);
+        }}
+        onCancel={() => setShowMoveDialog(false)}
       />
     </div>
   );

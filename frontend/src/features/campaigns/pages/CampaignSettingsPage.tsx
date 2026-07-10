@@ -46,6 +46,7 @@ import {
   createTaskSet,
   renameTaskSet,
   deleteTaskSet,
+  moveTasksToSet,
   type AnnotationTaskOut,
   type CampaignOut,
   type CampaignUserOut,
@@ -441,6 +442,20 @@ export const CampaignSettingsPage = () => {
       await Promise.all([reloadTaskSets(), reloadAnnotationTasks()]);
     } catch (err) {
       handleError(err, 'Failed to delete task set');
+    }
+  };
+
+  const handleMoveTasks = async (taskIds: number[], taskSetId: number) => {
+    try {
+      const { error } = await moveTasksToSet({
+        path: { campaign_id: campaignId, task_set_id: taskSetId },
+        body: { task_ids: taskIds },
+      });
+      if (error) throw error;
+      await Promise.all([reloadAnnotationTasks(), reloadTaskSets()]);
+      showAlert(`Moved ${taskIds.length} task(s)`, 'success');
+    } catch (err) {
+      handleError(err, 'Failed to move tasks');
     }
   };
 
@@ -909,6 +924,7 @@ export const CampaignSettingsPage = () => {
                   onDeleteTaskSet={handleDeleteTaskSet}
                   selectedUploadSetId={selectedUploadSetId}
                   setSelectedUploadSetId={setSelectedUploadSetId}
+                  onMoveTasks={handleMoveTasks}
                   bbox={
                     campaign
                       ? {

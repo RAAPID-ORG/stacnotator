@@ -36,6 +36,7 @@ interface Props {
   onDeleteTaskSet: (id: number) => Promise<void>;
   selectedUploadSetId: number | null;
   setSelectedUploadSetId: (id: number) => void;
+  onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   bbox?: {
     west: number;
     south: number;
@@ -66,8 +67,9 @@ export const TasksTab: React.FC<Props> = ({
   onCreateTaskSet,
   onRenameTaskSet,
   onDeleteTaskSet,
-  selectedUploadSetId: _selectedUploadSetId,
-  setSelectedUploadSetId: _setSelectedUploadSetId,
+  selectedUploadSetId,
+  setSelectedUploadSetId,
+  onMoveTasks,
   bbox,
 }) => {
   const sectionCls =
@@ -105,6 +107,25 @@ export const TasksTab: React.FC<Props> = ({
             Tasks define the points or polygons annotators will label. Upload existing locations or
             generate them with random/grid sampling.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-neutral-700" htmlFor="upload-target-set">
+            Target task set
+          </label>
+          <select
+            id="upload-target-set"
+            value={selectedUploadSetId ?? ''}
+            onChange={(e) => setSelectedUploadSetId(Number(e.target.value))}
+            className="h-8 px-2 border border-neutral-300 rounded-md text-sm bg-white"
+            data-testid="upload-target-set"
+          >
+            {taskSets.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -184,6 +205,7 @@ export const TasksTab: React.FC<Props> = ({
         {taskFile === null && (
           <TaskGenerationSection
             campaignId={campaignId}
+            taskSetId={selectedUploadSetId}
             onTasksGenerated={handleTasksGenerated}
             onError={onTaskGenerationError}
           />
@@ -215,6 +237,8 @@ export const TasksTab: React.FC<Props> = ({
             onOpenReviewerAssign={onOpenReviewerAssign}
             onBatchUnassignTasks={handleBatchUnassignTasks}
             onDeleteTasks={handleDeleteTasks}
+            taskSets={taskSets}
+            onMoveTasks={onMoveTasks}
           />
         ) : (
           <p className="text-sm text-neutral-500">
