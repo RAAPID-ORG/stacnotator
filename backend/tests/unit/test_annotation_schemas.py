@@ -28,6 +28,7 @@ def _make_task_out_with_computed_status(assignments_data, annotations_data) -> A
         return AnnotationTaskOut(
             id=1,
             annotation_number=1,
+            task_set_id=1,
             geometry={"id": 1, "geometry": object()},
             assignments=assignments_data,
             annotations=annotations_data,

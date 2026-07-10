@@ -131,6 +131,7 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
+    task_set_id: int
     task_status: Literal["pending", "partial", "done", "skipped", "conflicting"] = (
         TASK_STATUS_PENDING
     )

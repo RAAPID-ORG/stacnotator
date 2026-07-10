@@ -36,6 +36,7 @@ def create_annotation_tasks_from_csv(
     db: Session,
     campaign_id: int,
     contents: bytes,
+    task_set_id: int,
 ) -> None:
     """
     Create annotation tasks from uploaded CSV file.
@@ -52,6 +53,7 @@ def create_annotation_tasks_from_csv(
         db: Database session
         campaign_id: ID of campaign to create tasks for
         contents: CSV file contents as bytes
+        task_set_id: ID of task set to assign created tasks to
 
     Raises:
         HTTPException: If file is too large, invalid format, or validation fails
@@ -156,6 +158,7 @@ def create_annotation_tasks_from_csv(
                 "campaign_id": campaign_id,
                 "geometry_id": geometry_id,
                 "raw_source_data": row["raw_source_data"],
+                "task_set_id": task_set_id,
             }
             for geometry_id, (_, row) in zip(geometry_ids, df.iterrows(), strict=True)
         ]
@@ -181,6 +184,7 @@ def create_annotation_tasks_from_geojson(
     db: Session,
     campaign_id: int,
     contents: bytes,
+    task_set_id: int,
 ) -> int:
     """
     Create annotation tasks from an uploaded GeoJSON file.
@@ -193,6 +197,7 @@ def create_annotation_tasks_from_geojson(
         db: Database session
         campaign_id: ID of campaign to create tasks for
         contents: GeoJSON file contents as bytes
+        task_set_id: ID of task set to assign created tasks to
 
     Returns:
         Number of tasks created
@@ -276,6 +281,7 @@ def create_annotation_tasks_from_geojson(
                 "campaign_id": campaign_id,
                 "geometry_id": gid,
                 "raw_source_data": rd,
+                "task_set_id": task_set_id,
             }
             for i, (gid, rd) in enumerate(zip(geometry_ids, raw_data, strict=True))
         ]

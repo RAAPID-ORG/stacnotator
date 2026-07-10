@@ -685,7 +685,7 @@ class TestCreateAnnotationTasksFromCSV:
         huge = b"x" * (21 * 1024 * 1024)
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=huge)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=huge, task_set_id=1)
 
         assert exc_info.value.status_code == 413
 
@@ -693,7 +693,7 @@ class TestCreateAnnotationTasksFromCSV:
         db = _mock_db()
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=b"")
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=b"", task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -702,7 +702,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"name,value\nfoo,1\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "columns" in exc_info.value.detail.lower()
@@ -712,7 +712,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,20.0\n1,11.0,21.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "duplicate" in exc_info.value.detail.lower()
@@ -722,7 +722,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,200.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "longitude" in exc_info.value.detail.lower()
@@ -732,7 +732,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,95.0,10.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "latitude" in exc_info.value.detail.lower()
@@ -742,7 +742,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n ,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -752,7 +752,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n\x80\x81,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
 

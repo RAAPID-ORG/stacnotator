@@ -2,7 +2,7 @@ import io
 import json
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ from src.auth.dependencies import require_approved_user, require_authenticated_u
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute, clean_filename
 
@@ -189,12 +190,14 @@ async def ingest_annotation_tasks_from_csv(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
+    task_set_id: int = Form(...),
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
+    require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents)
+    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
@@ -202,6 +205,7 @@ async def ingest_annotation_tasks_from_geojson(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
+    task_set_id: int = Form(...),
 ):
     """
     Ingest annotation tasks from a GeoJSON file.
@@ -214,8 +218,11 @@ async def ingest_annotation_tasks_from_geojson(
     if not (fname.endswith(".geojson") or fname.endswith(".json")):
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
+    require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    num_created = annotation_io.create_annotation_tasks_from_geojson(db, campaign.id, contents)
+    num_created = annotation_io.create_annotation_tasks_from_geojson(
+        db, campaign.id, contents, task_set_id
+    )
     return {"num_tasks_created": num_created}
 
 

@@ -24,6 +24,7 @@ def _make_task(assignments, annotations, task_id=1):
     return AnnotationTaskOut(
         id=task_id,
         annotation_number=1,
+        task_set_id=1,
         geometry={"id": 1, "geometry": WKTElement("POINT(0 0)", srid=4326)},
         assignments=assignments,
         annotations=[
