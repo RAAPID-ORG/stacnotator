@@ -42,6 +42,10 @@ import {
   deleteAnnotationTasks,
   deleteCampaign,
   deleteTimeseries,
+  listTaskSets,
+  createTaskSet,
+  renameTaskSet,
+  deleteTaskSet,
   type AnnotationTaskOut,
   type CampaignOut,
   type CampaignUserOut,
@@ -49,6 +53,7 @@ import {
   type TimeSeriesCreate,
   type TimeSeriesOut,
   type GenerateTasksResponse,
+  type TaskSetOut,
   updateCampaignName,
   updateCampaignBbox,
 } from '~/api/client';
@@ -84,6 +89,8 @@ export const CampaignSettingsPage = () => {
   const [campaignName, setCampaignName] = useState('');
   const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
   const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
+  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
+  const [selectedUploadSetId, setSelectedUploadSetId] = useState<number | null>(null);
   const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
   const [uploadingTasks, setUploadingTasks] = useState(false);
@@ -206,6 +213,16 @@ export const CampaignSettingsPage = () => {
     return () => clearInterval(interval);
   }, [isAnyRegistering, campaignId, showAlert]);
 
+  const reloadTaskSets = useCallback(async () => {
+    const { data } = await listTaskSets({ path: { campaign_id: campaignId } });
+    if (data) {
+      setTaskSets(data);
+      setSelectedUploadSetId((current) =>
+        current !== null && data.some((s) => s.id === current) ? current : (data[0]?.id ?? null)
+      );
+    }
+  }, [campaignId]);
+
   // Lazy load annotation tasks when tasks tab is active
   useEffect(() => {
     if (activeTab !== 'tasks' || annotationTasks.length > 0) return;
@@ -216,13 +233,14 @@ export const CampaignSettingsPage = () => {
           path: { campaign_id: campaignId },
         });
         setAnnotationTasks(data!.tasks);
+        await reloadTaskSets();
       } catch (err) {
         handleError(err, 'Failed to load annotation tasks');
       }
     };
 
     loadTasks();
-  }, [activeTab, campaignId, annotationTasks.length]);
+  }, [activeTab, campaignId, annotationTasks.length, reloadTaskSets]);
 
   // Load campaign users when users or tasks tab is active.
   // Re-fetches every time the tab becomes active so changes made in the
@@ -344,7 +362,7 @@ export const CampaignSettingsPage = () => {
   };
 
   const handleUploadAnnotationTasks = async () => {
-    if (!taskFile) return;
+    if (!taskFile || selectedUploadSetId === null) return;
     try {
       setUploadingTasks(true);
       const name = taskFile.name.toLowerCase();
@@ -352,12 +370,12 @@ export const CampaignSettingsPage = () => {
       if (name.endsWith('.geojson') || name.endsWith('.json')) {
         await ingestAnnotationTasksFromGeojson({
           path: { campaign_id: campaignId },
-          body: { file: taskFile } as never,
+          body: { file: taskFile, task_set_id: selectedUploadSetId } as never,
         });
       } else {
         await ingestAnnotationTasksFromCsv({
           path: { campaign_id: campaignId },
-          body: { file: taskFile } as never,
+          body: { file: taskFile, task_set_id: selectedUploadSetId } as never,
         });
       }
 
@@ -369,6 +387,7 @@ export const CampaignSettingsPage = () => {
         path: { campaign_id: campaignId },
       });
       setAnnotationTasks(tasksData!.tasks);
+      await reloadTaskSets();
     } catch (err) {
       handleError(err, 'Failed to upload annotation tasks');
     } finally {
@@ -387,6 +406,44 @@ export const CampaignSettingsPage = () => {
     }
   };
 
+  const handleCreateTaskSet = async (name: string) => {
+    try {
+      const { error } = await createTaskSet({
+        path: { campaign_id: campaignId },
+        body: { name },
+      });
+      if (error) throw error;
+      await reloadTaskSets();
+    } catch (err) {
+      handleError(err, 'Failed to create task set');
+    }
+  };
+
+  const handleRenameTaskSet = async (id: number, name: string) => {
+    try {
+      const { error } = await renameTaskSet({
+        path: { campaign_id: campaignId, task_set_id: id },
+        body: { name },
+      });
+      if (error) throw error;
+      await reloadTaskSets();
+    } catch (err) {
+      handleError(err, 'Failed to rename task set');
+    }
+  };
+
+  const handleDeleteTaskSet = async (id: number) => {
+    try {
+      const { error } = await deleteTaskSet({
+        path: { campaign_id: campaignId, task_set_id: id },
+      });
+      if (error) throw error;
+      await Promise.all([reloadTaskSets(), reloadAnnotationTasks()]);
+    } catch (err) {
+      handleError(err, 'Failed to delete task set');
+    }
+  };
+
   const handleTasksGenerated = async (response: GenerateTasksResponse) => {
     showAlert(`${response.num_tasks_created} tasks generated successfully`, 'success');
 
@@ -396,6 +453,7 @@ export const CampaignSettingsPage = () => {
         path: { campaign_id: campaignId },
       });
       setAnnotationTasks(tasksData!.tasks);
+      await reloadTaskSets();
     } catch (err) {
       handleError(err, 'Failed to reload annotation tasks', { showUser: false });
     }
@@ -845,6 +903,12 @@ export const CampaignSettingsPage = () => {
                   campaignId={campaignId}
                   campaignName={campaign.name}
                   onAssignmentsImported={reloadAnnotationTasks}
+                  taskSets={taskSets}
+                  onCreateTaskSet={handleCreateTaskSet}
+                  onRenameTaskSet={handleRenameTaskSet}
+                  onDeleteTaskSet={handleDeleteTaskSet}
+                  selectedUploadSetId={selectedUploadSetId}
+                  setSelectedUploadSetId={setSelectedUploadSetId}
                   bbox={
                     campaign
                       ? {

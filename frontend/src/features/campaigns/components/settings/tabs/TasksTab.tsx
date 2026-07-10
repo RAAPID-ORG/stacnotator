@@ -3,7 +3,13 @@ import { TaskGenerationSection } from '~/features/campaigns/components/settings/
 import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
-import type { AnnotationTaskOut, CampaignUserOut, GenerateTasksResponse } from '~/api/client';
+import { TaskSetsSection } from '~/features/campaigns/components/settings/TaskSetsSection';
+import type {
+  AnnotationTaskOut,
+  CampaignUserOut,
+  GenerateTasksResponse,
+  TaskSetOut,
+} from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
@@ -24,6 +30,12 @@ interface Props {
   campaignId: number;
   campaignName: string;
   onAssignmentsImported: () => Promise<void>;
+  taskSets: TaskSetOut[];
+  onCreateTaskSet: (name: string) => Promise<void>;
+  onRenameTaskSet: (id: number, name: string) => Promise<void>;
+  onDeleteTaskSet: (id: number) => Promise<void>;
+  selectedUploadSetId: number | null;
+  setSelectedUploadSetId: (id: number) => void;
   bbox?: {
     west: number;
     south: number;
@@ -50,6 +62,12 @@ export const TasksTab: React.FC<Props> = ({
   campaignId,
   campaignName,
   onAssignmentsImported,
+  taskSets,
+  onCreateTaskSet,
+  onRenameTaskSet,
+  onDeleteTaskSet,
+  selectedUploadSetId: _selectedUploadSetId,
+  setSelectedUploadSetId: _setSelectedUploadSetId,
   bbox,
 }) => {
   const sectionCls =
@@ -63,6 +81,22 @@ export const TasksTab: React.FC<Props> = ({
           <TaskLocationsMap tasks={annotationTasks} bbox={bbox} />
         </section>
       )}
+
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Task sets</h2>
+          <p className="section-description">
+            Group tasks into sets to upload, track, and assign them independently.
+          </p>
+        </div>
+        <TaskSetsSection
+          taskSets={taskSets}
+          tasks={annotationTasks}
+          onCreate={onCreateTaskSet}
+          onRename={onRenameTaskSet}
+          onDelete={onDeleteTaskSet}
+        />
+      </section>
 
       <section className={sectionCls}>
         <div>
