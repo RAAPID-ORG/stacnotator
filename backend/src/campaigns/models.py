@@ -1,7 +1,18 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -98,6 +109,36 @@ class Campaign(Base):
         foreign_keys="[CanvasLayout.campaign_id]",
         back_populates="campaign",
         cascade="all, delete-orphan",
+    )
+    task_sets: Mapped[list["TaskSet"]] = relationship(
+        "TaskSet",
+        cascade="all, delete-orphan",
+    )
+
+
+class TaskSet(Base):
+    """
+    A named group of annotation tasks within a campaign. Every task belongs to
+    exactly one set; services enforce that a campaign keeps at least one set.
+    """
+
+    __tablename__ = "task_sets"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "name"),
+        Index("idx_task_sets_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(
+        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=False),
+        server_default=func.current_timestamp(),
+        nullable=False,
     )
 
 

@@ -56,6 +56,7 @@ class AnnotationTask(Base):
     __table_args__ = (
         Index("idx_task_items_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
+        Index("idx_annotation_tasks_task_set_id", "task_set_id"),
         {"schema": "data"},
     )
 
@@ -80,6 +81,11 @@ class AnnotationTask(Base):
 
     geometry_id: Mapped[int] = mapped_column(
         ForeignKey("data.annotation_geometries.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+    task_set_id: Mapped[int] = mapped_column(
+        ForeignKey("data.task_sets.id", ondelete="CASCADE"),
         nullable=False,
     )
 
