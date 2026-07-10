@@ -20,10 +20,12 @@ from src.campaigns.models import (
     CampaignSettings,
     CampaignUser,
     CanvasLayout,
+    TaskSet,
 )
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
 )
+from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
@@ -183,6 +185,8 @@ def create_campaign(
     campaign = Campaign(name=name, mode=mode, is_public=is_public)
     db.add(campaign)
     db.flush()  # Get campaign.id
+
+    db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
 
     # Create default main canvas layout for the campaign
     default_layout = CanvasLayout(

@@ -876,3 +876,36 @@ class TestAssignTasksToUsers:
         with pytest.raises(HTTPException) as exc_info:
             assign_tasks_to_users(db, 1, req)
         assert exc_info.value.status_code == 400
+
+
+def test_create_campaign_creates_default_task_set(sample_settings_data, sample_user_id):
+    from unittest.mock import MagicMock, patch
+
+    from src.campaigns import service
+    from src.campaigns.models import TaskSet
+    from src.campaigns.schemas import CampaignSettingsCreate
+    from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+
+    db = MagicMock()
+    mock_settings = MagicMock()
+    mock_settings.embedding_year = None
+
+    def mock_refresh(obj):
+        obj.settings = mock_settings
+
+    db.refresh.side_effect = mock_refresh
+
+    with patch("src.campaigns.service.get_campaign_full"):
+        service.create_campaign(
+            db,
+            name="c",
+            mode="tasks",
+            settings=CampaignSettingsCreate(**sample_settings_data),
+            user_id=sample_user_id,
+        )
+
+    added_task_sets = [
+        call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], TaskSet)
+    ]
+    assert len(added_task_sets) == 1
+    assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME
