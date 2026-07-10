@@ -26,6 +26,8 @@ from src.campaigns.schemas import (
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
+    MoveTasksToSetRequest,
+    MoveTasksToSetResult,
     TaskSetCreate,
     TaskSetOut,
     TaskSetRename,
@@ -477,6 +479,22 @@ def delete_task_set(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     task_sets.delete_task_set(db, campaign.id, task_set_id)
+
+
+@router.post(
+    "/{campaign_id}/task-sets/{task_set_id}/move-tasks",
+    response_model=MoveTasksToSetResult,
+)
+def move_tasks_to_set(
+    campaign_id: int,
+    task_set_id: int,
+    req: MoveTasksToSetRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Move tasks (batched) into the given task set. All ids must belong to the campaign."""
+    num_moved = task_sets.move_tasks_to_set(db, campaign.id, task_set_id, req.task_ids)
+    return MoveTasksToSetResult(num_moved=num_moved)
 
 
 @router.get("/{campaign_id}/export-task-assignments")
