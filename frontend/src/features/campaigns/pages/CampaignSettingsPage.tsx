@@ -458,15 +458,17 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  const handleDeleteTaskSet = async (id: number) => {
+  const handleDeleteTaskSet = async (id: number): Promise<boolean> => {
     try {
       const { error } = await deleteTaskSet({
         path: { campaign_id: campaignId, task_set_id: id },
       });
       if (error) throw error;
       await Promise.all([reloadTaskSets(), reloadAnnotationTasks()]);
+      return true;
     } catch (err) {
       handleError(err, 'Failed to delete task set');
+      return false;
     }
   };
 

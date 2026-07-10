@@ -39,7 +39,7 @@ interface Props {
   onSelectScope: (scope: TaskScope) => void;
   onCreateSetScoped: (name: string) => Promise<number | null>;
   onRenameTaskSet: (id: number, name: string) => Promise<void>;
-  onDeleteTaskSet: (id: number) => Promise<void>;
+  onDeleteTaskSet: (id: number) => Promise<boolean>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   bbox?: {
     west: number;
@@ -193,6 +193,7 @@ export const TasksTab: React.FC<Props> = ({
       </div>
       {scopedTasks.length > 0 ? (
         <AnnotationTasksTable
+          key={String(taskScope)}
           tasks={scopedTasks}
           campaignUsers={campaignUsers}
           onAssignTasks={handleAssignSingleTask}
@@ -205,6 +206,7 @@ export const TasksTab: React.FC<Props> = ({
           onMoveTasks={onMoveTasks}
           onCreateSet={onCreateSetScoped}
           hideSetColumn={taskScope !== 'all'}
+          excludeMoveTargetId={taskScope === 'all' ? undefined : taskScope}
         />
       ) : (
         <p className="text-sm text-neutral-500">
@@ -235,8 +237,8 @@ export const TasksTab: React.FC<Props> = ({
             doneCount={scopedDone}
             onRename={onRenameTaskSet}
             onDelete={async (id) => {
-              await onDeleteTaskSet(id);
-              onSelectScope('all');
+              const deleted = await onDeleteTaskSet(id);
+              if (deleted) onSelectScope('all');
             }}
             canDelete={taskSets.length > 1}
           />

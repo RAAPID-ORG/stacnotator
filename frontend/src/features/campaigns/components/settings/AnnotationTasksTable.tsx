@@ -24,6 +24,7 @@ interface AnnotationTasksTableProps {
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   onCreateSet?: (name: string) => Promise<number | null>;
   hideSetColumn?: boolean;
+  excludeMoveTargetId?: number;
 }
 
 export const AnnotationTasksTable = ({
@@ -39,6 +40,7 @@ export const AnnotationTasksTable = ({
   onMoveTasks,
   onCreateSet,
   hideSetColumn = false,
+  excludeMoveTargetId,
 }: AnnotationTasksTableProps) => {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [assigningTaskId, setAssigningTaskId] = useState<number | null>(null);
@@ -474,6 +476,7 @@ export const AnnotationTasksTable = ({
       <MoveTasksDialog
         isOpen={showMoveDialog}
         taskSets={taskSets}
+        excludeSetId={excludeMoveTargetId}
         numTasks={selectedTasks.size}
         onMove={async (taskSetId) => {
           if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
