@@ -24,6 +24,11 @@ const AnnotationPage = lazy(() =>
     default: m.AnnotationPage,
   }))
 );
+const CampaignOverviewPage = lazy(() =>
+  import('~/features/campaigns/pages/CampaignOverviewPage').then((m) => ({
+    default: m.CampaignOverviewPage,
+  }))
+);
 const CampaignSettingsPage = lazy(() =>
   import('~/features/campaigns/pages/CampaignSettingsPage').then((m) => ({
     default: m.CampaignSettingsPage,
@@ -73,6 +78,14 @@ const router = createBrowserRouter(
         }
       />
       <Route path="campaigns/:campaignId" loader={requireCampaignId}>
+        <Route
+          index
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CampaignOverviewPage />
+            </Suspense>
+          }
+        />
         <Route
           path="annotate"
           element={

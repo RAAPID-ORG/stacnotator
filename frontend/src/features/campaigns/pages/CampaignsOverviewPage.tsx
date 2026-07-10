@@ -143,7 +143,7 @@ export const CampaignsPage = () => {
                     <MotionListItem key={campaign.id} index={index}>
                       <CampaignRow
                         campaign={campaign}
-                        onOpenAnnotate={() => navigate(`/campaigns/${campaign.id}/annotate`)}
+                        onOpen={() => navigate(`/campaigns/${campaign.id}`)}
                         onOpenReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
                         onOpenSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
                       />
@@ -161,12 +161,12 @@ export const CampaignsPage = () => {
 
 const CampaignRow = ({
   campaign,
-  onOpenAnnotate,
+  onOpen,
   onOpenReview,
   onOpenSettings,
 }: {
   campaign: CampaignListItemOut;
-  onOpenAnnotate: () => void;
+  onOpen: () => void;
   onOpenReview: () => void;
   onOpenSettings: () => void;
 }) => {
@@ -176,26 +176,26 @@ const CampaignRow = ({
   const canAccess = isMember || isPublic;
   const isInitializing =
     campaign.registration_status === 'registering' || campaign.embedding_status === 'registering';
-  const canAnnotate = canAccess && !isInitializing;
+  const canOpen = canAccess && !isInitializing;
 
   const role = isAdmin ? 'Admin' : isMember ? 'Member' : isPublic ? 'Public' : 'No access';
 
   const handleRowClick = () => {
-    if (canAnnotate) onOpenAnnotate();
+    if (canOpen) onOpen();
   };
 
   return (
     <li
       className={`group flex items-center gap-4 px-5 py-4 transition-colors ${
-        canAnnotate ? 'cursor-pointer hover:bg-neutral-50/60' : 'cursor-default'
+        canOpen ? 'cursor-pointer hover:bg-neutral-50/60' : 'cursor-default'
       }`}
       onClick={handleRowClick}
-      role={canAnnotate ? 'button' : undefined}
-      tabIndex={canAnnotate ? 0 : undefined}
+      role={canOpen ? 'button' : undefined}
+      tabIndex={canOpen ? 0 : undefined}
       onKeyDown={(e) => {
-        if (canAnnotate && (e.key === 'Enter' || e.key === ' ')) {
+        if (canOpen && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault();
-          onOpenAnnotate();
+          onOpen();
         }
       }}
     >
