@@ -424,7 +424,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
-          taskSetId: currentFilter.taskSetId ?? null,
+          taskSetId: null,
         };
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
       } else {
