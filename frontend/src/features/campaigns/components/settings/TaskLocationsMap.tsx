@@ -78,7 +78,7 @@ export const TaskLocationsMap: React.FC<TaskLocationsMapProps> = memo(({ tasks, 
   );
 
   return (
-    <div className="bg-white rounded-lg border border-neutral-300 p-6">
+    <div>
       <h2 className="text-lg font-semibold text-neutral-900 mb-4">
         Task Locations ({tasks.length} total)
       </h2>

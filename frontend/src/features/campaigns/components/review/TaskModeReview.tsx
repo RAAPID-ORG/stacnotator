@@ -349,9 +349,9 @@ export const TaskModeReview = ({
         {/* Statistics */}
         {!embedded && tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
-        {/* Filters - inside the page surface, no nested card */}
-        <div className="surface surface-unclipped">
-          <div className="px-5 py-4 space-y-3">
+        {/* Filters - embedded (tasks page) sits flat on the page; standalone keeps its own surface */}
+        <div className={embedded ? undefined : 'surface surface-unclipped'}>
+          <div className={embedded ? 'space-y-3' : 'px-5 py-4 space-y-3'}>
             <div className="flex items-center gap-2">
               {headerSlot ?? <h3 className="section-heading">Filters & search</h3>}
               <button
@@ -677,7 +677,13 @@ export const TaskModeReview = ({
           )}
 
           {filteredTasks.length === 0 ? (
-            <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
+            <div
+              className={
+                embedded
+                  ? 'text-center py-12'
+                  : 'text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm'
+              }
+            >
               <svg
                 className="w-12 h-12 text-neutral-400 mx-auto mb-4"
                 fill="none"
@@ -695,7 +701,13 @@ export const TaskModeReview = ({
               <p className="text-neutral-500 text-sm">Try adjusting your filter criteria</p>
             </div>
           ) : (
-            <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
+            <div
+              className={
+                embedded
+                  ? 'overflow-x-auto'
+                  : 'overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white'
+              }
+            >
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className={tableHeadRowCls}>

@@ -209,7 +209,7 @@ export const TasksTab: React.FC<Props> = ({
 
   return (
     <div id="tab-tasks" role="tabpanel">
-      <section className="mb-6">
+      <section className={sectionCls}>
         <TaskScopeBar
           scope={taskScope}
           taskSets={taskSets}
@@ -222,7 +222,7 @@ export const TasksTab: React.FC<Props> = ({
       </section>
 
       {totalTasks > 0 && bbox && (
-        <section className="mb-6">
+        <section className={sectionCls}>
           <TaskLocationsMap tasks={scopedTasks} bbox={bbox} />
         </section>
       )}
