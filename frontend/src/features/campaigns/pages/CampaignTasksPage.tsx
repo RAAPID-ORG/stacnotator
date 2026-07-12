@@ -5,6 +5,7 @@ import {
   TaskAssignmentModal,
   type BulkAssignIntent,
 } from '~/features/campaigns/components/settings/TaskAssignmentModal';
+import { AssignSelectedModal } from '~/features/campaigns/components/settings/AssignSelectedModal';
 import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
@@ -55,6 +56,7 @@ export const CampaignTasksPage = () => {
   const [uploadingTasks, setUploadingTasks] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
+  const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -296,6 +298,34 @@ export const CampaignTasksPage = () => {
     }
   };
 
+  const handleAssignSelected = async (mapping: Record<number, string[]>) => {
+    try {
+      setSaving(true);
+
+      const { data } = await assignTasksToUsers({
+        path: { campaign_id: campaignId },
+        body: {
+          strategy: 'explicit',
+          task_assignments: Object.fromEntries(Object.entries(mapping)),
+        },
+      });
+
+      const { data: tasksData } = await getAllAnnotationTasks({
+        path: { campaign_id: campaignId },
+      });
+      setAnnotationTasks(tasksData!.tasks);
+      await reloadTaskSets();
+
+      showAlert(`${data!.total_assigned} task(s) assigned`, 'success');
+      setAssignSelectedTaskIds([]);
+    } catch (err) {
+      handleError(err, 'Failed to assign selected tasks');
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAssignReviewers = async (pattern: AssignmentPattern) => {
     try {
       setSaving(true);
@@ -438,6 +468,7 @@ export const CampaignTasksPage = () => {
                 onTaskGenerationError={(msg) => showAlert(msg, 'error')}
                 onOpenBulkAssign={() => setShowAssignmentModal(true)}
                 onOpenReviewerAssign={() => setShowReviewerModal(true)}
+                onAssignSelected={setAssignSelectedTaskIds}
                 handleBatchUnassignTasks={handleBatchUnassignTasks}
                 handleDeleteTasks={handleDeleteTasks}
                 campaignId={campaignId}
@@ -466,6 +497,15 @@ export const CampaignTasksPage = () => {
         tasks={scopedAnnotationTasks}
         campaignUsers={campaignUsers}
         onAssign={handleBulkAssignTasks}
+      />
+
+      <AssignSelectedModal
+        isOpen={assignSelectedTaskIds.length > 0}
+        numTasks={assignSelectedTaskIds.length}
+        campaignUsers={campaignUsers}
+        taskIds={assignSelectedTaskIds}
+        onAssign={handleAssignSelected}
+        onCancel={() => setAssignSelectedTaskIds([])}
       />
 
       <ReviewerAssignmentModal

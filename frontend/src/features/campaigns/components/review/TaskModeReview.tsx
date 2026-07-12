@@ -45,6 +45,7 @@ interface TaskModeReviewProps {
   onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
   onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
   onCreateSet?: (name: string) => Promise<number | null>;
+  onAssignSelected?: (taskIds: number[]) => void;
   onOpenBulkAssign?: () => void;
   onOpenReviewerAssign?: () => void;
 }
@@ -61,6 +62,7 @@ export const TaskModeReview = ({
   onBatchUnassignTasks,
   onMoveTasks,
   onCreateSet,
+  onAssignSelected,
   onOpenBulkAssign,
   onOpenReviewerAssign,
 }: TaskModeReviewProps) => {
@@ -570,13 +572,22 @@ export const TaskModeReview = ({
                     Move to set
                   </Button>
                 )}
+                {onAssignSelected && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => onAssignSelected(Array.from(selectedTasks))}
+                    disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                  >
+                    Assign selected
+                  </Button>
+                )}
                 {onOpenBulkAssign && (
                   <Button
                     variant="secondary"
                     onClick={onOpenBulkAssign}
                     disabled={isDeleting || isBatchUnassigning}
                   >
-                    Bulk assign
+                    Assign all
                   </Button>
                 )}
                 {onOpenReviewerAssign && (

@@ -22,6 +22,7 @@ interface Props {
   onTaskGenerationError: (message: string) => void;
   onOpenBulkAssign: () => void;
   onOpenReviewerAssign: () => void;
+  onAssignSelected: (taskIds: number[]) => void;
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
   campaignId: number;
@@ -53,6 +54,7 @@ export const TasksTab: React.FC<Props> = ({
   onTaskGenerationError,
   onOpenBulkAssign,
   onOpenReviewerAssign,
+  onAssignSelected,
   handleBatchUnassignTasks,
   handleDeleteTasks,
   campaignId,
@@ -185,6 +187,7 @@ export const TasksTab: React.FC<Props> = ({
           selectable
           onOpenBulkAssign={onOpenBulkAssign}
           onOpenReviewerAssign={onOpenReviewerAssign}
+          onAssignSelected={onAssignSelected}
           onBatchUnassignTasks={handleBatchUnassignTasks}
           onDeleteTasks={handleDeleteTasks}
           onMoveTasks={onMoveTasks}
