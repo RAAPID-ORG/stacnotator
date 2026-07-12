@@ -1,7 +1,13 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { getAllAnnotationTasks, type AnnotationTaskOut, type CampaignOut } from '~/api/client';
+import {
+  getAllAnnotationTasks,
+  listTaskSets,
+  type AnnotationTaskOut,
+  type CampaignOut,
+  type TaskSetOut,
+} from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import {
   countTasksByStatus,
@@ -19,7 +25,7 @@ import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
-import { listRowCls } from '~/shared/ui/listRow';
+import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface TaskModeReviewProps {
   campaign: CampaignOut;
@@ -31,6 +37,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   const currentUser = useAccountStore((state) => state.account);
 
   const [tasks, setTasks] = useState<AnnotationTaskOut[]>([]);
+  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -39,13 +46,18 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
+  const [setFilter, setSetFilter] = useState<number | 'all'>('all');
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
         setLoading(true);
-        const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
+        const [tasksRes, taskSetsRes] = await Promise.all([
+          getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+          listTaskSets({ path: { campaign_id: campaignId } }),
+        ]);
         setTasks(tasksRes.data!.tasks);
+        setTaskSets(taskSetsRes.data ?? []);
       } catch (err) {
         handleError(err, 'Failed to load tasks');
       } finally {
@@ -55,9 +67,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     loadTasks();
   }, [campaignId]);
 
+  // Selecting a set that no longer exists (e.g. after a reload) falls back to "all".
+  useEffect(() => {
+    if (setFilter !== 'all' && !taskSets.some((s) => s.id === setFilter)) {
+      setSetFilter('all');
+    }
+  }, [taskSets, setFilter]);
+
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
       if (statusFilter !== 'all' && task.task_status !== statusFilter) return false;
+      if (setFilter !== 'all' && task.task_set_id !== setFilter) return false;
       if (selectedUserIds.length > 0) {
         const assignments = task.assignments || [];
         if (!assignments.some((a) => selectedUserIds.includes(a.user_id))) return false;
@@ -103,6 +123,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   }, [
     tasks,
     statusFilter,
+    setFilter,
     selectedUserIds,
     selectedConfidences,
     flaggedOnly,
@@ -227,6 +248,28 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                   ))}
                 </div>
               </div>
+
+              {/* Set Filter */}
+              {taskSets.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-neutral-700">Set:</label>
+                  <select
+                    data-testid="review-set-filter"
+                    value={setFilter}
+                    onChange={(e) =>
+                      setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                    }
+                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                  >
+                    <option value="all">All sets</option>
+                    {taskSets.map((set) => (
+                      <option key={set.id} value={set.id}>
+                        {set.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* User Filter */}
               <UserFilterDropdown
@@ -398,7 +441,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
             <div className="overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <tr className={tableHeadRowCls}>
                     <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                       Annotation #
                     </th>
@@ -417,7 +460,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTasks.map((task) => {
+                  {filteredTasks.map((task, index) => {
                     const latLon = extractCentroidFromWKT(task.geometry.geometry);
                     const taskStatus = task.task_status ?? 'pending';
                     const assignments = task.assignments || [];
@@ -426,7 +469,10 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                       currentUser && assignments.some((a) => a.user_id === currentUser.id);
 
                     return (
-                      <tr key={task.id} className={listRowCls(Boolean(isAssignedToMe))}>
+                      <tr
+                        key={task.id}
+                        className={listRowCls(index, { tinted: Boolean(isAssignedToMe) })}
+                      >
                         <td className="px-4 py-3 text-neutral-900 font-medium">
                           {task.annotation_number}
                         </td>

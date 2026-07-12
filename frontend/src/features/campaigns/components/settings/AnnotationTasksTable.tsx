@@ -10,6 +10,7 @@ import {
 import { Button } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
+import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface AnnotationTasksTableProps {
   tasks: AnnotationTaskOut[];
@@ -225,7 +226,7 @@ export const AnnotationTasksTable = ({
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-neutral-200">
+            <tr className={tableHeadRowCls}>
               {onAssignTasks && (
                 <th className="px-3 py-2 text-left">
                   <input
@@ -257,16 +258,14 @@ export const AnnotationTasksTable = ({
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
-            {tasks.map((task) => {
+          <tbody>
+            {tasks.map((task, index) => {
               const latLon = extractCentroidFromWKT(task.geometry.geometry);
               const isAssigning = assigningTaskId === task.id;
               return (
                 <tr
                   key={task.id}
-                  className={`hover:bg-neutral-50 transition-colors ${
-                    selectedTasks.has(task.id) ? 'bg-brand-50/60' : ''
-                  }`}
+                  className={listRowCls(index, { selected: selectedTasks.has(task.id) })}
                 >
                   {onAssignTasks && (
                     <td className="px-3 py-2">

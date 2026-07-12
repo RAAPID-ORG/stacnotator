@@ -22,7 +22,7 @@ import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
-import { listRowCls } from '~/shared/ui/listRow';
+import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface OpenModeReviewProps {
   campaign: CampaignOut;
@@ -529,7 +529,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             )}
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-200">
+                <tr className={tableHeadRowCls}>
                   <th className="px-3 py-3 text-left">
                     <input
                       type="checkbox"
@@ -570,7 +570,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 </tr>
               </thead>
               <tbody>
-                {filteredAnnotations.map((ann) => {
+                {filteredAnnotations.map((ann, index) => {
                   const centroid = extractCentroidFromWKT(ann.geometry.geometry);
                   const isMine = ann.created_by_user_id === currentUser?.id;
                   const createdAt = new Date(ann.created_at);
@@ -580,10 +580,10 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                   return (
                     <tr
                       key={ann.id}
-                      className={listRowCls(
-                        isMine,
-                        highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''
-                      )}
+                      className={listRowCls(index, {
+                        tinted: isMine,
+                        highlighted: highlightedAnnotationId === ann.id,
+                      })}
                       onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
                       onMouseLeave={() => setHighlightedAnnotationId(null)}
                     >
