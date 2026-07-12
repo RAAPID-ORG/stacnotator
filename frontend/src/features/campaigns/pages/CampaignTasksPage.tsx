@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAccountStore } from '~/features/account/account.store';
+import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
+import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
+import { Button } from '~/shared/ui/forms';
+import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import type { TaskScope } from '~/features/campaigns/components/settings/TaskScopeBar';
 import {
   TaskAssignmentModal,
@@ -43,6 +48,9 @@ import {
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
+  const navigate = useNavigate();
+  const currentUser = useAccountStore((state) => state.account);
+  const [showImport, setShowImport] = useState(false);
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +132,11 @@ export const CampaignTasksPage = () => {
       { replace: true }
     );
   };
+
+  const isAdmin = useMemo(
+    () => campaignUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
+    [campaignUsers, currentUser]
+  );
 
   const scopedAnnotationTasks = useMemo(
     () =>
@@ -453,7 +466,41 @@ export const CampaignTasksPage = () => {
                 Upload or generate annotation tasks and manage assignments.
               </p>
             </div>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
+                  {showImport ? (
+                    <IconChevronDown className="w-4 h-4" />
+                  ) : (
+                    <IconChevronRight className="w-4 h-4" />
+                  )}
+                  Import annotations
+                </Button>
+              )}
+              <ExportDropdown
+                campaignId={campaignId}
+                campaign={campaign}
+                disabled={annotationTasks.length === 0}
+                hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
+              />
+              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
+                Start annotating
+              </Button>
+            </div>
           </header>
+
+          {isAdmin && showImport && (
+            <div className="surface mb-6">
+              <div className="surface-section">
+                <ImportFeaturesSection
+                  campaignId={campaignId}
+                  labels={campaign.settings.labels}
+                  onSuccess={(msg) => showAlert(msg, 'success')}
+                  onError={(msg) => showAlert(msg, 'error')}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="surface">
             <div className="p-6">
