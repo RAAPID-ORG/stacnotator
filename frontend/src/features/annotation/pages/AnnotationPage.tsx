@@ -17,6 +17,7 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
+import { isAudienceMember } from '../utils/labellingPolicy';
 
 const WORK_MODES = ['tasks', 'explore'] as const;
 const isWorkMode = (value: string): value is WorkMode =>
@@ -31,6 +32,8 @@ export const AnnotationPage = () => {
   // Store subscriptions
   const campaign = useCampaignStore((s) => s.campaign);
   const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
+  const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
+  const isCampaignMember = useCampaignStore((s) => s.isCampaignMember);
   const isLoadingCampaign = useCampaignStore((s) => s.isLoadingCampaign);
   const loadCampaign = useCampaignStore((s) => s.loadCampaign);
   const workMode = useCampaignStore((s) => s.workMode);
@@ -113,6 +116,32 @@ export const AnnotationPage = () => {
       ]);
     }
   }, [campaign, campaignId, setBreadcrumbs]);
+
+  // A deep link (?mode=explore) can seed workMode='explore' even for a user
+  // the campaign's labelling policy doesn't allow to explore. The toolbar
+  // switch is disabled for them going forward, but that alone would leave
+  // them stuck on a dead-end mode with no button to get out - so if there
+  // are tasks to fall back to, bounce them to Tasks once tasks have loaded.
+  useEffect(() => {
+    if (!campaign || !tasksLoaded || workMode !== 'explore' || allTasks.length === 0) return;
+    const exploreAllowed = isAudienceMember(campaign.settings.labelling_policy.explore, {
+      userId: accountId ?? null,
+      isAdmin: isCampaignAdmin,
+      isAuthoritative: isAuthoritativeReviewer,
+      isMember: isCampaignMember,
+    });
+    if (!exploreAllowed) setWorkMode('tasks');
+  }, [
+    campaign,
+    tasksLoaded,
+    workMode,
+    allTasks.length,
+    accountId,
+    isCampaignAdmin,
+    isAuthoritativeReviewer,
+    isCampaignMember,
+    setWorkMode,
+  ]);
 
   // Auto-show the guided tour the first time this user opens this campaign.
   // For task-mode we wait until visibleTasks > 0 so the tour can actually

@@ -67,6 +67,9 @@ interface CampaignStore {
   isReviewMode: boolean;
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
+  /** Whether the current user is a CampaignUser of this campaign (any role).
+   *  Feeds the 'members' kind of labelling-policy audience checks. */
+  isCampaignMember: boolean;
   /** Client-side work style within the annotation UI, independent of the
    *  campaign's DB-persisted default (campaign.mode). Seeded on load, then
    *  freely switchable via the Tasks | Explore toggle. */
@@ -128,6 +131,7 @@ const initialState = {
   isReviewMode: false,
   isAuthoritativeReviewer: false,
   isCampaignAdmin: false,
+  isCampaignMember: false,
   workMode: 'explore' as WorkMode,
   knnValidationStatus: null as KnnValidationStatusOut | null,
   selectedViewId: null as number | null,
@@ -163,6 +167,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
       const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
       const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
+      const isCampaignMember = currentCampaignUser != null;
 
       // View & layout
       const firstView = campaign.imagery_views[0];
@@ -216,6 +221,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         isReviewMode: isReviewMode ?? false,
         isAuthoritativeReviewer,
         isCampaignAdmin,
+        isCampaignMember,
         workMode,
       });
 

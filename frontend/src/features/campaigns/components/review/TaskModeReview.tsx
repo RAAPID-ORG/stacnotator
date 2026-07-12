@@ -470,11 +470,12 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                 const confidence =
                                   ann.confidence != null ? `${ann.confidence}/5` : '-';
                                 const hasComment = ann.comment && ann.comment.trim() !== '';
+                                const isExtra = ann.counts_toward_completion === false;
 
                                 return (
                                   <div
                                     key={ann.id}
-                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'}`}
+                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
                                   >
                                     {ann.flagged_for_review && (
                                       <span
@@ -487,6 +488,17 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                                     <span className="font-medium" title="Annotator">
                                       {displayName}
                                     </span>
+                                    {isExtra && (
+                                      <>
+                                        <span className="text-neutral-400">|</span>
+                                        <span
+                                          className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
+                                          title="Does not count toward completion"
+                                        >
+                                          extra
+                                        </span>
+                                      </>
+                                    )}
                                     <span className="text-neutral-400">|</span>
                                     <span title="Label ID">{label}</span>
                                     <span className="text-neutral-400">|</span>

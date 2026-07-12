@@ -9,6 +9,7 @@ import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { UNASSIGNED } from '../utils/taskFilter';
+import { isAudienceMember } from '../utils/labellingPolicy';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
 import { IconFlag } from '~/shared/ui/Icons';
@@ -403,6 +404,8 @@ export const AnnotationToolbar = () => {
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
+  const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
+  const isCampaignMember = useCampaignStore((s) => s.isCampaignMember);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setIsEditingLayout = useCampaignStore((s) => s.setIsEditingLayout);
   const saveLayout = useCampaignStore((s) => s.saveLayout);
@@ -419,6 +422,7 @@ export const AnnotationToolbar = () => {
   const setShowKeyboardHelp = useLayoutStore((state) => state.setShowKeyboardHelp);
   const isFullscreen = useLayoutStore((state) => state.isFullscreen);
   const toggleFullscreen = useLayoutStore((state) => state.toggleFullscreen);
+  const currentUserId = useAccountStore((state) => state.account?.id) ?? null;
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -448,6 +452,13 @@ export const AnnotationToolbar = () => {
   }, []);
 
   if (!campaign) return null;
+
+  const exploreAllowed = isAudienceMember(campaign.settings.labelling_policy.explore, {
+    userId: currentUserId,
+    isAdmin: isCampaignAdmin,
+    isAuthoritative: isAuthoritativeReviewer,
+    isMember: isCampaignMember,
+  });
 
   const views = campaign.imagery_views;
   const selectedView = views.find((v) => v.id === selectedViewId);
@@ -603,10 +614,18 @@ export const AnnotationToolbar = () => {
           </button>
           <button
             onClick={() => setWorkMode('explore')}
+            disabled={!exploreAllowed}
+            title={
+              !exploreAllowed
+                ? 'Explore labelling is not enabled for you in this campaign'
+                : undefined
+            }
             className={`px-2 py-0.5 text-xs rounded transition-colors ${
               workMode === 'explore'
                 ? 'bg-white text-neutral-900 shadow-sm'
-                : 'text-neutral-500 hover:text-neutral-800'
+                : !exploreAllowed
+                  ? 'text-neutral-300 cursor-not-allowed'
+                  : 'text-neutral-500 hover:text-neutral-800'
             }`}
             type="button"
           >
