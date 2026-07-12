@@ -455,32 +455,36 @@ export const CampaignTasksPage = () => {
             </div>
           </header>
 
-          <TasksTab
-            scopedTasks={scopedAnnotationTasks}
-            totalTasks={annotationTasks.length}
-            taskFile={taskFile}
-            setTaskFile={setTaskFile}
-            uploadingTasks={uploadingTasks}
-            handleUploadAnnotationTasks={handleUploadAnnotationTasks}
-            handleTasksGenerated={handleTasksGenerated}
-            onTaskGenerationError={(msg) => showAlert(msg, 'error')}
-            onOpenBulkAssign={() => setShowAssignmentModal(true)}
-            onOpenReviewerAssign={() => setShowReviewerModal(true)}
-            onAssignSelected={setAssignSelectedTaskIds}
-            handleBatchUnassignTasks={handleBatchUnassignTasks}
-            handleDeleteTasks={handleDeleteTasks}
-            campaignId={campaignId}
-            campaignName={campaign.name}
-            onAssignmentsImported={reloadAnnotationTasks}
-            taskSets={taskSets}
-            taskScope={taskScope}
-            onSelectScope={handleSelectScope}
-            onCreateSetScoped={handleCreateTaskSet}
-            onRenameTaskSet={handleRenameTaskSet}
-            onDeleteTaskSet={handleDeleteTaskSet}
-            onMoveTasks={handleMoveTasks}
-            bbox={taskMapBbox}
-          />
+          <div className="surface">
+            <div className="p-6">
+              <TasksTab
+                scopedTasks={scopedAnnotationTasks}
+                totalTasks={annotationTasks.length}
+                taskFile={taskFile}
+                setTaskFile={setTaskFile}
+                uploadingTasks={uploadingTasks}
+                handleUploadAnnotationTasks={handleUploadAnnotationTasks}
+                handleTasksGenerated={handleTasksGenerated}
+                onTaskGenerationError={(msg) => showAlert(msg, 'error')}
+                onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                onOpenReviewerAssign={() => setShowReviewerModal(true)}
+                onAssignSelected={setAssignSelectedTaskIds}
+                handleBatchUnassignTasks={handleBatchUnassignTasks}
+                handleDeleteTasks={handleDeleteTasks}
+                campaignId={campaignId}
+                campaignName={campaign.name}
+                onAssignmentsImported={reloadAnnotationTasks}
+                taskSets={taskSets}
+                taskScope={taskScope}
+                onSelectScope={handleSelectScope}
+                onCreateSetScoped={handleCreateTaskSet}
+                onRenameTaskSet={handleRenameTaskSet}
+                onDeleteTaskSet={handleDeleteTaskSet}
+                onMoveTasks={handleMoveTasks}
+                bbox={taskMapBbox}
+              />
+            </div>
+          </div>
         </FadeIn>
       </div>
 
