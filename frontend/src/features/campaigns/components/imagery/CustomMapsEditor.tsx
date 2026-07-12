@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIsInternal } from '~/features/account/account.store';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
-import { IconTrash, IconPlus } from '~/shared/ui/Icons';
+import { IconTrash, IconPlus, IconExternalLink } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
   listCustomMaps,
@@ -30,6 +30,7 @@ const isColormapName = (value: string): value is ColormapName => COLORMAPS.some(
 interface FormState {
   name: string;
   cog_url: string;
+  mlops_url: string;
   mode: 'continuous' | 'categorical';
   colormap_name: ColormapName;
   rescale_min: string;
@@ -42,6 +43,7 @@ interface FormState {
 const defaultForm = (): FormState => ({
   name: '',
   cog_url: '',
+  mlops_url: '',
   mode: 'continuous',
   colormap_name: 'viridis',
   rescale_min: '0',
@@ -173,6 +175,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
           cog_url: form.cog_url,
           render_config: renderConfig,
           max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
+          mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
           internal_storage: isInternal ? form.internal_storage : false,
         },
       });
@@ -247,7 +250,21 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
               className="py-2.5 flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-neutral-900 truncate">{m.name}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-sm font-medium text-neutral-900 truncate">{m.name}</p>
+                  {m.mlops_url && (
+                    <a
+                      href={m.mlops_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="custom-map-row-mlops-link"
+                      title="Open linked experiment"
+                      className="shrink-0 text-neutral-400 hover:text-neutral-700 transition-colors"
+                    >
+                      <IconExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
                 <p className="text-xs text-neutral-500 truncate font-mono">{m.cog_url}</p>
               </div>
               <StatusBadge status={m.status} statusError={m.status_error} />
@@ -328,6 +345,24 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 render slowly.
               </li>
             </ul>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 mb-1">
+              Experiment link <span className="font-normal text-neutral-400">(optional)</span>
+            </label>
+            <Input
+              size="sm"
+              type="url"
+              value={form.mlops_url}
+              onChange={(e) => setForm((f) => ({ ...f, mlops_url: e.target.value }))}
+              placeholder="https://mlflow.example.org/#/experiments/7/runs/…"
+              data-testid="custom-map-mlops-url"
+              className="font-mono text-[11px]"
+            />
+            <p className="mt-1.5 text-[11px] text-neutral-500 leading-snug">
+              Linked from an icon next to the map, e.g. the MLflow run that produced it.
+            </p>
           </div>
 
           {isInternal && (

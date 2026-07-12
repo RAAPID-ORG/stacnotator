@@ -14,6 +14,7 @@ const READY_MAP = {
   tile_url: 'https://tiles.example.com/custom/{z}/{x}/{y}.png',
   mosaic_id: 'search-1',
   display_order: 0,
+  mlops_url: 'https://mlflow.example.com/#/experiments/7/runs/abc',
 };
 
 const READY_MAP_2 = {
@@ -28,6 +29,7 @@ const READY_MAP_2 = {
   tile_url: 'https://tiles.example.com/custom2/{z}/{x}/{y}.png',
   mosaic_id: 'search-2',
   display_order: 1,
+  mlops_url: null,
 };
 
 const CAMPAIGN_WITH_MAP = { ...MOCK_CAMPAIGN, custom_maps: [READY_MAP, READY_MAP_2] };
@@ -61,6 +63,11 @@ test.describe('custom map overlay', () => {
     const toggle = annotationPage.getByTestId('custom-map-toggle');
     await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    // The experiment link icon points at the map's mlops_url.
+    const mlopsLink = annotationPage.getByTestId('custom-map-mlops-link');
+    await expect(mlopsLink).toBeVisible();
+    await expect(mlopsLink).toHaveAttribute('href', READY_MAP.mlops_url);
 
     await expect(annotationPage.getByTestId('custom-map-legend')).toBeVisible();
 
@@ -97,6 +104,9 @@ test.describe('custom map overlay', () => {
     await annotationPage.keyboard.press('Shift+M');
     await expect(selectTrigger).toContainText('Test Map 2');
     await expect(legend).toBeVisible();
+
+    // Test Map 2 has no mlops_url, so no link icon is rendered for it.
+    await expect(annotationPage.getByTestId('custom-map-mlops-link')).toBeHidden();
 
     await annotationPage.keyboard.press('m');
     await expect(legend).toBeHidden();

@@ -1,5 +1,6 @@
 import { useMapStore } from '../stores/map.store';
 import type { CustomMapOut } from '~/api/client';
+import { IconExternalLink } from '~/shared/ui/Icons';
 import HeaderSelect from './Map/HeaderSelect';
 
 export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }) {
@@ -50,6 +51,18 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
       />
       {active && (
         <>
+          {active.mlops_url && (
+            <a
+              href={active.mlops_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="custom-map-mlops-link"
+              title="Open linked experiment"
+              className="w-6 h-6 rounded-md transition-colors flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            >
+              <IconExternalLink className="w-3 h-3" />
+            </a>
+          )}
           <button
             data-testid="custom-map-toggle"
             aria-pressed={showCustomMap}

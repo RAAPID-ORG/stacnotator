@@ -4,9 +4,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
+import numpy.typing as npt
 import rasterio
 from pyogrio import raw
-from rasterio.transform import from_origin
+from rasterio.transform import from_bounds, from_origin
 from rasterio.windows import from_bounds as window_from_bounds
 from rio_cogeo.cogeo import cog_translate
 from rio_cogeo.profiles import cog_profiles
@@ -35,6 +37,55 @@ def to_cog(
         quiet=True,
     )
     return dst
+
+
+def array_to_cog(
+    data: npt.NDArray[Any],
+    bounds: tuple[float, float, float, float],
+    dst: str | Path,
+    crs: str = "EPSG:4326",
+    nodata: float | None = None,
+    resampling: Resampling = "nearest",
+) -> Path:
+    """Write a numpy array (e.g. model predictions) as a Cloud-Optimized GeoTIFF.
+
+    ``data`` is (rows, cols) for a single band or (bands, rows, cols); row 0 is
+    the northern edge. ``bounds`` is (west, south, east, north) in ``crs``
+    units, e.g. a ``campaign.extent``.
+    """
+    if data.ndim == 2:
+        data = data[np.newaxis]
+    if data.ndim != 3:
+        raise ValueError(
+            f"data must be 2D (rows, cols) or 3D (bands, rows, cols), got {data.ndim}D"
+        )
+    west, south, east, north = bounds
+    if east <= west or north <= south:
+        raise ValueError(
+            "bounds must be (west, south, east, north) with east > west and "
+            f"north > south, got {bounds}"
+        )
+    count, height, width = data.shape
+
+    dst = Path(dst)
+    tmp = dst.with_suffix(".writing.tif")
+    try:
+        with rasterio.open(
+            tmp,
+            "w",
+            driver="GTiff",
+            width=width,
+            height=height,
+            count=count,
+            dtype=data.dtype.name,
+            crs=crs,
+            transform=from_bounds(west, south, east, north, width, height),
+            nodata=nodata,
+        ) as out:
+            out.write(data)
+        return to_cog(tmp, dst, resampling=resampling)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def merge_to_cog(

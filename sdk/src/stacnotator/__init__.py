@@ -1,3 +1,4 @@
+from stacnotator import utils
 from stacnotator.campaign import Campaign
 from stacnotator.client import Client, campaign, campaigns, login, logout, whoami
 from stacnotator.errors import (
@@ -18,5 +19,6 @@ __all__ = [
     "campaigns",
     "login",
     "logout",
+    "utils",
     "whoami",
 ]

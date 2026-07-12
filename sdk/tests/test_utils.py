@@ -6,7 +6,7 @@ import rasterio
 from rasterio.transform import from_bounds
 from rio_cogeo.cogeo import cog_validate
 
-from stacnotator.utils import merge_to_cog, to_cog, to_pmtiles
+from stacnotator.utils import array_to_cog, merge_to_cog, to_cog, to_pmtiles
 
 
 def write_tif(path, data, bounds, crs="EPSG:4326"):
@@ -47,6 +47,43 @@ def test_to_cog_explicit_destination(tmp_path):
 
     assert dst == tmp_path / "out.tif"
     assert cog_validate(dst, quiet=True)[0]
+
+
+def test_array_to_cog_writes_a_georeferenced_valid_cog(tmp_path):
+    data = np.arange(64 * 32, dtype="uint8").reshape(32, 64)
+
+    dst = array_to_cog(data, (10.0, 40.0, 12.0, 41.0), tmp_path / "predictions.cog.tif")
+
+    valid, errors, _warnings = cog_validate(dst, quiet=True)
+    assert valid, errors
+    with rasterio.open(dst) as cog:
+        assert cog.count == 1
+        assert cog.crs.to_string() == "EPSG:4326"
+        assert cog.bounds == (10.0, 40.0, 12.0, 41.0)
+        assert (cog.read(1) == data).all()
+
+
+def test_array_to_cog_multiband_and_nodata(tmp_path):
+    data = np.random.default_rng(42).random((3, 16, 16)).astype("float32")
+
+    dst = array_to_cog(data, (0, 0, 1, 1), tmp_path / "probs.tif", nodata=-1.0)
+
+    with rasterio.open(dst) as cog:
+        assert cog.count == 3
+        assert cog.nodata == -1.0
+        assert (cog.read() == data).all()
+
+
+def test_array_to_cog_rejects_wrong_dimensions(tmp_path):
+    with pytest.raises(ValueError, match="2D.*or 3D"):
+        array_to_cog(np.zeros(8, dtype="uint8"), (0, 0, 1, 1), tmp_path / "out.tif")
+
+
+def test_array_to_cog_rejects_inverted_bounds(tmp_path):
+    data = np.zeros((8, 8), dtype="uint8")
+
+    with pytest.raises(ValueError, match="west, south, east, north"):
+        array_to_cog(data, (1, 0, 0, 1), tmp_path / "out.tif")
 
 
 def test_merge_to_cog_mosaics_a_chip_grid(tmp_path):

@@ -4,10 +4,12 @@ Python library for active learning with [STACNotator](../README.md) campaign lab
 annotated samples into a `pandas.DataFrame`, grow your training set as annotators work, and
 push prediction rasters back into the annotation UI as overlay layers.
 
-The library is notebook-first: no CLI, no config files to write, no passwords in code.
 For a runnable end-to-end walkthrough (train on lat/lon, predict over the campaign extent,
 write a COG, register it with a legend, grow the training set), see
-[`examples/active-learning-demo.ipynb`](examples/active-learning-demo.ipynb).
+[`examples/active-learning-demo.ipynb`](examples/active-learning-demo.ipynb). For the same
+round tracked in MLflow (params, metrics, model and COG per run, overlay and run linked in
+both directions), see
+[`examples/active-learning-mlflow.ipynb`](examples/active-learning-mlflow.ipynb).
 
 ## Install
 
@@ -94,8 +96,10 @@ so the split stays clean while train grows.
 `register_overlay` shows your prediction COG as an overlay to annotators. Names are unique
 per campaign (a duplicate raises `ApiError` 409); without a `name` it auto-numbers
 (`overlay-1`, `overlay-2`, ...) and skips names that are already taken. `mlops_link`
-ties the layer to the experiment that produced it, and `campaign.overlays()` lists what's
-registered.
+ties the layer to the experiment that produced it (with MLflow, the run URL - see
+[`examples/active-learning-mlflow.ipynb`](examples/active-learning-mlflow.ipynb)); annotators
+open it via a small link icon next to the overlay selector in the annotation view, and
+`campaign.overlays()` lists what's registered.
 
 Most prediction tasks are categorical, so pass `classes` to render discrete values with an
 in-app legend instead of a continuous colormap:
@@ -129,10 +133,15 @@ Overlays need web-ready files: rasters as Cloud-Optimized GeoTIFFs, vectors as P
 ```python
 from stacnotator import utils
 
+utils.array_to_cog(preds, campaign.extent, "preds.cog.tif")  # numpy array + bounds -> COG
 utils.to_cog("predictions.tif")                      # plain GeoTIFF -> predictions.cog.tif
 utils.merge_to_cog("chips/", "predictions.tif")      # folder of inference tiles -> ONE COG
 utils.to_pmtiles("fields.gpkg")                      # GeoJSON/GPKG/Shapefile/... -> fields.pmtiles
 ```
+
+`array_to_cog` covers the common case where predictions are a numpy array in memory: pass
+(rows, cols) or (bands, rows, cols) plus (west, south, east, north) bounds - e.g. straight
+from `campaign.extent` - and it writes a finished COG, no rasterio boilerplate.
 
 `merge_to_cog` writes each chip into its window of the output, so memory stays flat even for
 tens of thousands of chips, and the result has real overviews (fast at every zoom). Overview
@@ -188,6 +197,8 @@ Campaign.register_vector_overlay(pmtiles_url, name=None,
                              source_layer=None, color="#3b82f6")
 Campaign.vector_overlays()                       # -> DataFrame
 
+utils.array_to_cog(data, bounds, dst, crs="EPSG:4326",
+                   nodata=None, resampling="nearest")        # -> Path
 utils.to_cog(src, dst=None, resampling="nearest")            # -> Path
 utils.merge_to_cog(sources, dst, resampling="nearest")       # folder/list of chips -> Path
 utils.to_pmtiles(src, dst=None, layer=None, min_zoom=0, max_zoom=14)  # -> Path
@@ -211,4 +222,4 @@ uv run ruff check src tests
 
 - Version Datasets
 - Provide the actual data loading capabilities for the raster data which is STAC
-- Link up more strongly with MLFlow (Add a MLOps interface, and concrete implementation for MLFlow) to automate a lot of the process
+- Link up more strongly with MLFlow (add a MLOps interface with a concrete MLflow implementation) to automate what `examples/active-learning-mlflow.ipynb` currently wires up by hand
