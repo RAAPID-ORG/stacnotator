@@ -20,6 +20,8 @@ import Statistics from './Statistics';
 import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
+import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
+import { MoveTasksDialog } from '~/features/campaigns/components/settings/MoveTasksDialog';
 import { UserFilterDropdown } from './UserFilterDropdown';
 import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
@@ -28,17 +30,47 @@ import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface TaskModeReviewProps {
-  campaign: CampaignOut;
+  campaign?: CampaignOut;
   campaignId: number;
+  /** External task list (e.g. the tasks page's scoped/reloadable set). Omit to have this component fetch and own its data, as on the annotations page. */
+  tasks?: AnnotationTaskOut[];
+  taskSets?: TaskSetOut[];
+  /** Tasks page already provides set scoping via TaskScopeBar; hide this component's own set filter to avoid a redundant control. */
+  hideSetFilter?: boolean;
+  /** Tasks page already renders its own header, map, and stats; render only the filterable list. */
+  embedded?: boolean;
+  /** Enables row selection and the management action bar (delete/unassign/move/bulk-assign). */
+  selectable?: boolean;
+  onDeleteTasks?: (taskIds: number[]) => Promise<void>;
+  onBatchUnassignTasks?: (taskIds: number[]) => Promise<void>;
+  onMoveTasks?: (taskIds: number[], taskSetId: number) => Promise<void>;
+  onCreateSet?: (name: string) => Promise<number | null>;
+  onOpenBulkAssign?: () => void;
+  onOpenReviewerAssign?: () => void;
 }
 
-export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) => {
+export const TaskModeReview = ({
+  campaign,
+  campaignId,
+  tasks: tasksProp,
+  taskSets: taskSetsProp,
+  hideSetFilter = false,
+  embedded = false,
+  selectable = false,
+  onDeleteTasks,
+  onBatchUnassignTasks,
+  onMoveTasks,
+  onCreateSet,
+  onOpenBulkAssign,
+  onOpenReviewerAssign,
+}: TaskModeReviewProps) => {
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
+  const isExternallyDriven = tasksProp !== undefined;
 
-  const [tasks, setTasks] = useState<AnnotationTaskOut[]>([]);
-  const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [fetchedTasks, setFetchedTasks] = useState<AnnotationTaskOut[]>([]);
+  const [fetchedTaskSets, setFetchedTaskSets] = useState<TaskSetOut[]>([]);
+  const [loading, setLoading] = useState(!isExternallyDriven);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -48,7 +80,15 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   const [sortOption, setSortOption] = useState<SortOption>('default');
   const [setFilter, setSetFilter] = useState<number | 'all'>('all');
 
+  const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
+  const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+
   useEffect(() => {
+    if (isExternallyDriven) return;
     const loadTasks = async () => {
       try {
         setLoading(true);
@@ -56,8 +96,8 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
           getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
         ]);
-        setTasks(tasksRes.data!.tasks);
-        setTaskSets(taskSetsRes.data ?? []);
+        setFetchedTasks(tasksRes.data!.tasks);
+        setFetchedTaskSets(taskSetsRes.data ?? []);
       } catch (err) {
         handleError(err, 'Failed to load tasks');
       } finally {
@@ -65,7 +105,10 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
       }
     };
     loadTasks();
-  }, [campaignId]);
+  }, [campaignId, isExternallyDriven]);
+
+  const tasks = tasksProp ?? fetchedTasks;
+  const taskSets = taskSetsProp ?? fetchedTaskSets;
 
   // Selecting a set that no longer exists (e.g. after a reload) falls back to "all".
   useEffect(() => {
@@ -131,6 +174,18 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     sortOption,
   ]);
 
+  // Selected ids must never outlive the rows on screen: filter changes and data
+  // reloads swap filteredTasks, and batch actions act on raw ids server-side.
+  useEffect(() => {
+    if (!selectable) return;
+    setSelectedTasks((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(filteredTasks.map((t) => t.id));
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredTasks, selectable]);
+
   const uniqueUsers = useMemo(() => {
     const m = new Map<string, UserInfo>();
     tasks.forEach((t) => {
@@ -163,6 +218,54 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
     navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
   };
 
+  const handleToggleTask = (taskId: number) => {
+    setSelectedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTasks.size === filteredTasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(filteredTasks.map((t) => t.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!onDeleteTasks || selectedTasks.size === 0) return;
+    try {
+      setIsDeleting(true);
+      await onDeleteTasks(Array.from(selectedTasks));
+      setSelectedTasks(new Set());
+    } finally {
+      setIsDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  const selectedTasksHaveAssignments = filteredTasks.some(
+    (t) => selectedTasks.has(t.id) && t.assignments && t.assignments.length > 0
+  );
+
+  const handleBatchUnassignSelected = async () => {
+    if (!onBatchUnassignTasks || selectedTasks.size === 0) return;
+    try {
+      setIsBatchUnassigning(true);
+      await onBatchUnassignTasks(Array.from(selectedTasks));
+      setSelectedTasks(new Set());
+    } finally {
+      setIsBatchUnassigning(false);
+      setConfirmBatchUnassign(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -174,28 +277,32 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
   const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   return (
-    <div className="flex-1 overflow-auto">
-      <FadeIn className="page">
-        <header className="page-header">
-          <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
-            <p className="page-subtitle">View and filter all annotation tasks for this campaign.</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <ExportDropdown
-              campaignId={campaignId}
-              campaign={campaign}
-              disabled={tasks.length === 0}
-              hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
-            />
-            <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-              Start annotating
-            </Button>
-          </div>
-        </header>
+    <div className={embedded ? undefined : 'flex-1 overflow-auto'}>
+      <FadeIn className={embedded ? undefined : 'page'}>
+        {!embedded && campaign && (
+          <header className="page-header">
+            <div>
+              <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
+              <p className="page-subtitle">
+                View and filter all annotation tasks for this campaign.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <ExportDropdown
+                campaignId={campaignId}
+                campaign={campaign}
+                disabled={tasks.length === 0}
+                hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
+              />
+              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
+                Start annotating
+              </Button>
+            </div>
+          </header>
+        )}
 
         {/* Map - sits above the surface, no card wrapper */}
-        {tasks.length > 0 && (
+        {!embedded && campaign && tasks.length > 0 && (
           <div className="mb-6">
             <AnnotationDistributionMap
               tasks={tasks}
@@ -211,7 +318,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
         )}
 
         {/* Statistics */}
-        {tasks.length > 0 && <Statistics campaignId={campaignId} />}
+        {!embedded && tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
         {/* Filters - inside the page surface, no nested card */}
         <div className="surface surface-unclipped">
@@ -250,7 +357,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
               </div>
 
               {/* Set Filter */}
-              {taskSets.length > 1 && (
+              {!hideSetFilter && taskSets.length > 1 && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-neutral-700">Set:</label>
                   <select
@@ -419,6 +526,72 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
 
         {/* Tasks Table */}
         <div className="mt-6">
+          {selectable && (
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3 text-xs text-neutral-500">
+                {selectedTasks.size > 0 && <span>{selectedTasks.size} selected</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {onDeleteTasks && (
+                  <Button
+                    variant="danger"
+                    onClick={() => setConfirmDelete(true)}
+                    disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                  >
+                    Delete selected
+                  </Button>
+                )}
+                {onBatchUnassignTasks && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setConfirmBatchUnassign(true)}
+                    disabled={
+                      selectedTasks.size === 0 ||
+                      !selectedTasksHaveAssignments ||
+                      isDeleting ||
+                      isBatchUnassigning
+                    }
+                    title={
+                      selectedTasks.size === 0
+                        ? 'Select tasks to unassign'
+                        : !selectedTasksHaveAssignments
+                          ? 'Selected tasks have no assignments'
+                          : undefined
+                    }
+                  >
+                    {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
+                  </Button>
+                )}
+                {onMoveTasks && taskSets.length > 1 && (
+                  <Button
+                    onClick={() => setShowMoveDialog(true)}
+                    disabled={selectedTasks.size === 0}
+                  >
+                    Move to set
+                  </Button>
+                )}
+                {onOpenBulkAssign && (
+                  <Button
+                    variant="secondary"
+                    onClick={onOpenBulkAssign}
+                    disabled={isDeleting || isBatchUnassigning}
+                  >
+                    Bulk assign
+                  </Button>
+                )}
+                {onOpenReviewerAssign && (
+                  <Button
+                    variant="secondary"
+                    onClick={onOpenReviewerAssign}
+                    disabled={isDeleting || isBatchUnassigning}
+                  >
+                    Set up reviews
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           {filteredTasks.length === 0 ? (
             <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
               <svg
@@ -442,6 +615,18 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className={tableHeadRowCls}>
+                    {selectable && (
+                      <th className="px-4 py-3 text-left w-8">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedTasks.size === filteredTasks.length && filteredTasks.length > 0
+                          }
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                        />
+                      </th>
+                    )}
                     <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
                       Annotation #
                     </th>
@@ -467,12 +652,26 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                     const annotations = task.annotations || [];
                     const isAssignedToMe =
                       currentUser && assignments.some((a) => a.user_id === currentUser.id);
+                    const isSelected = selectable && selectedTasks.has(task.id);
 
                     return (
                       <tr
                         key={task.id}
-                        className={listRowCls(index, { tinted: Boolean(isAssignedToMe) })}
+                        className={listRowCls(index, {
+                          tinted: Boolean(isAssignedToMe),
+                          selected: isSelected,
+                        })}
                       >
+                        {selectable && (
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedTasks.has(task.id)}
+                              onChange={() => handleToggleTask(task.id)}
+                              className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-neutral-900 font-medium">
                           {task.annotation_number}
                         </td>
@@ -654,6 +853,47 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
               );
             })()}
         </div>
+
+        {selectable && (
+          <>
+            <ConfirmDialog
+              isOpen={confirmDelete}
+              title="Delete selected tasks?"
+              description={`This will permanently delete ${selectedTasks.size} selected task(s) and their existing annotations. This action cannot be undone.`}
+              confirmText="Delete"
+              cancelText="Cancel"
+              isDangerous
+              isLoading={isDeleting}
+              onConfirm={handleDeleteSelected}
+              onCancel={() => setConfirmDelete(false)}
+            />
+
+            <ConfirmDialog
+              isOpen={confirmBatchUnassign}
+              title="Unassign selected tasks?"
+              description={`This will remove all user assignments from ${selectedTasks.size} selected task(s). Annotations already submitted are preserved. This action cannot be undone.`}
+              confirmText="Unassign"
+              cancelText="Cancel"
+              isDangerous
+              isLoading={isBatchUnassigning}
+              onConfirm={handleBatchUnassignSelected}
+              onCancel={() => setConfirmBatchUnassign(false)}
+            />
+
+            <MoveTasksDialog
+              isOpen={showMoveDialog}
+              taskSets={taskSets}
+              numTasks={selectedTasks.size}
+              onMove={async (taskSetId) => {
+                if (onMoveTasks) await onMoveTasks(Array.from(selectedTasks), taskSetId);
+                setSelectedTasks(new Set());
+                setShowMoveDialog(false);
+              }}
+              onCreateSet={async (name) => (onCreateSet ? onCreateSet(name) : null)}
+              onCancel={() => setShowMoveDialog(false)}
+            />
+          </>
+        )}
       </FadeIn>
     </div>
   );

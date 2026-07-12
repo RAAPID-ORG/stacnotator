@@ -1,25 +1,19 @@
 import React from 'react';
 import { TaskGenerationSection } from '~/features/campaigns/components/settings/TaskGenerationSection';
-import { AnnotationTasksTable } from '~/features/campaigns/components/settings/AnnotationTasksTable';
+import { TaskModeReview } from '~/features/campaigns/components/review/TaskModeReview';
 import { TaskLocationsMap } from '~/features/campaigns/components/settings/TaskLocationsMap';
 import { TaskAssignmentsExportImport } from '~/features/campaigns/components/settings/TaskAssignmentsExportImport';
 import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import type {
-  AnnotationTaskOut,
-  CampaignUserOut,
-  GenerateTasksResponse,
-  TaskSetOut,
-} from '~/api/client';
+import type { AnnotationTaskOut, GenerateTasksResponse, TaskSetOut } from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
   // Already filtered to the active scope by the page (single source of truth).
   scopedTasks: AnnotationTaskOut[];
   totalTasks: number;
-  campaignUsers: CampaignUserOut[];
   taskFile: File | null;
   setTaskFile: (f: File | null) => void;
   uploadingTasks: boolean;
@@ -28,8 +22,6 @@ interface Props {
   onTaskGenerationError: (message: string) => void;
   onOpenBulkAssign: () => void;
   onOpenReviewerAssign: () => void;
-  handleAssignSingleTask: (taskId: number, userId: string) => Promise<void>;
-  handleUnassignTask: (taskId: number, userId: string) => Promise<void>;
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
   campaignId: number;
@@ -53,7 +45,6 @@ interface Props {
 export const TasksTab: React.FC<Props> = ({
   scopedTasks,
   totalTasks,
-  campaignUsers,
   taskFile,
   setTaskFile,
   uploadingTasks,
@@ -62,8 +53,6 @@ export const TasksTab: React.FC<Props> = ({
   onTaskGenerationError,
   onOpenBulkAssign,
   onOpenReviewerAssign,
-  handleAssignSingleTask,
-  handleUnassignTask,
   handleBatchUnassignTasks,
   handleDeleteTasks,
   campaignId,
@@ -187,16 +176,17 @@ export const TasksTab: React.FC<Props> = ({
         </h2>
       </div>
       {scopedTasks.length > 0 ? (
-        <AnnotationTasksTable
+        <TaskModeReview
+          campaignId={campaignId}
           tasks={scopedTasks}
-          campaignUsers={campaignUsers}
-          onAssignTasks={handleAssignSingleTask}
-          onUnassignTask={handleUnassignTask}
+          taskSets={taskSets}
+          hideSetFilter
+          embedded
+          selectable
           onOpenBulkAssign={onOpenBulkAssign}
           onOpenReviewerAssign={onOpenReviewerAssign}
           onBatchUnassignTasks={handleBatchUnassignTasks}
           onDeleteTasks={handleDeleteTasks}
-          taskSets={taskSets}
           onMoveTasks={onMoveTasks}
           onCreateSet={onCreateSetScoped}
         />

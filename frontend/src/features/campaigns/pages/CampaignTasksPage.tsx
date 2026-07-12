@@ -25,7 +25,6 @@ import {
   ingestAnnotationTasksFromCsv,
   ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
-  unassignUserFromTask,
   batchUnassignTasks,
   assignReviewers,
   deleteAnnotationTasks,
@@ -265,49 +264,6 @@ export const CampaignTasksPage = () => {
     }
   };
 
-  const handleAssignSingleTask = async (taskId: number, userId: string) => {
-    try {
-      await assignTasksToUsers({
-        path: { campaign_id: campaignId },
-        body: { strategy: 'explicit', task_assignments: { [taskId]: [userId] } },
-      });
-
-      // Refresh tasks to get updated assignments
-      const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(data!.tasks);
-
-      showAlert('Task assigned successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to assign task');
-      throw err;
-    }
-  };
-
-  const handleUnassignTask = async (taskId: number, userId: string) => {
-    try {
-      await unassignUserFromTask({
-        path: {
-          campaign_id: campaignId,
-          task_id: taskId,
-          user_id: userId,
-        },
-      });
-
-      // Refresh tasks to get updated assignments
-      const { data } = await getAllAnnotationTasks({
-        path: { campaign_id: campaignId },
-      });
-      setAnnotationTasks(data!.tasks);
-
-      showAlert('User unassigned successfully', 'success');
-    } catch (err) {
-      handleError(err, 'Failed to unassign user');
-      throw err;
-    }
-  };
-
   const handleBulkAssignTasks = async (intent: BulkAssignIntent) => {
     try {
       setSaving(true);
@@ -474,7 +430,6 @@ export const CampaignTasksPage = () => {
               <TasksTab
                 scopedTasks={scopedAnnotationTasks}
                 totalTasks={annotationTasks.length}
-                campaignUsers={campaignUsers}
                 taskFile={taskFile}
                 setTaskFile={setTaskFile}
                 uploadingTasks={uploadingTasks}
@@ -483,8 +438,6 @@ export const CampaignTasksPage = () => {
                 onTaskGenerationError={(msg) => showAlert(msg, 'error')}
                 onOpenBulkAssign={() => setShowAssignmentModal(true)}
                 onOpenReviewerAssign={() => setShowReviewerModal(true)}
-                handleAssignSingleTask={handleAssignSingleTask}
-                handleUnassignTask={handleUnassignTask}
                 handleBatchUnassignTasks={handleBatchUnassignTasks}
                 handleDeleteTasks={handleDeleteTasks}
                 campaignId={campaignId}
