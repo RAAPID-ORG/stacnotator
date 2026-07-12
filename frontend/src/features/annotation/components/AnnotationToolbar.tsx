@@ -582,19 +582,20 @@ export const AnnotationToolbar = () => {
       <div className="flex items-center gap-0.5 desktop:gap-2">
         {/* Work style switch: Tasks | Explore */}
         <div
-          className="flex items-center rounded overflow-hidden border border-neutral-200"
+          className="flex items-center bg-neutral-100 rounded-md p-0.5"
           data-testid="work-mode-switch"
+          title="Work style"
         >
           <button
             onClick={() => setWorkMode('tasks')}
             disabled={allTasks.length === 0}
             title={allTasks.length === 0 ? 'This campaign has no tasks yet' : undefined}
-            className={`px-2 desktop:px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
               workMode === 'tasks'
-                ? 'bg-brand-600 text-white'
+                ? 'bg-white text-neutral-900 shadow-sm'
                 : allTasks.length === 0
                   ? 'text-neutral-300 cursor-not-allowed'
-                  : 'text-neutral-700 hover:bg-neutral-50'
+                  : 'text-neutral-500 hover:text-neutral-800'
             }`}
             type="button"
           >
@@ -602,10 +603,10 @@ export const AnnotationToolbar = () => {
           </button>
           <button
             onClick={() => setWorkMode('explore')}
-            className={`px-2 desktop:px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
               workMode === 'explore'
-                ? 'bg-brand-600 text-white'
-                : 'text-neutral-700 hover:bg-neutral-50'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-800'
             }`}
             type="button"
           >
