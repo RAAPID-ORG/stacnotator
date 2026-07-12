@@ -109,7 +109,11 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
     allows but doesn't count (e.g. a non-assignee's take on an assigned task)
     can never resolve or conflict a task on its own. Missing/None is treated
     as counting, so callers that don't pass the flag (older data, standalone
-    contexts) keep the pre-policy behavior.
+    contexts) keep the pre-policy behavior. When the task has any review
+    assignment (`is_review=True`), the number of such assignments sets the
+    required review-label count, and that requirement is satisfied by a
+    counting label from any user other than the primary (non-review)
+    annotator - not only the specific assigned reviewer(s).
     """
     counting = [a for a in annotation_list if a.get("counts_toward_completion") is not False]
     labeled = [a for a in counting if a.get("label_id") is not None]
@@ -123,14 +127,36 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
         # No assignment table entries - treat any label as done.
         return TASK_STATUS_DONE if labeled else TASK_STATUS_PENDING
 
-    all_assigned_ids = {a["user_id"] for a in assignment_list}
     all_skipped = all(a.get("status") == ANNOTATION_TASK_STATUS_SKIPPED for a in assignment_list)
+    if all_skipped:
+        return TASK_STATUS_SKIPPED
+
+    num_reviewers_required = sum(1 for a in assignment_list if a.get("is_review"))
+    if num_reviewers_required:
+        primary_ids = {a["user_id"] for a in assignment_list if not a.get("is_review")}
+        primary_labeled = {
+            a["created_by_user_id"]: a["label_id"]
+            for a in labeled
+            if a["created_by_user_id"] in primary_ids
+        }
+        # Anyone else with a counting label fills a review slot, whether or
+        # not they hold an assignment row on this task.
+        review_labeled = {
+            a["created_by_user_id"]: a["label_id"]
+            for a in labeled
+            if a["created_by_user_id"] not in primary_ids
+        }
+        if not primary_labeled and not review_labeled:
+            return TASK_STATUS_PENDING
+        if primary_labeled.keys() != primary_ids or len(review_labeled) < num_reviewers_required:
+            return TASK_STATUS_PARTIAL
+        labels = set(primary_labeled.values()) | set(review_labeled.values())
+        return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
+
+    all_assigned_ids = {a["user_id"] for a in assignment_list}
     labeled_ids = {
         a["created_by_user_id"] for a in labeled if a["created_by_user_id"] in all_assigned_ids
     }
-
-    if all_skipped:
-        return TASK_STATUS_SKIPPED
     if not labeled_ids:
         # Nobody labeled yet; some may have skipped or still be pending.
         return TASK_STATUS_PENDING
@@ -181,7 +207,10 @@ class AnnotationTaskOut(BaseModel):
             assignments = data.assignments or []
             annotations = data.annotations or []
             # Access ORM attributes
-            assignment_list = [{"user_id": a.user_id, "status": a.status} for a in assignments]
+            assignment_list = [
+                {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
+                for a in assignments
+            ]
             annotation_list = [
                 {
                     "label_id": a.label_id,
@@ -193,7 +222,15 @@ class AnnotationTaskOut(BaseModel):
             ]
         elif isinstance(data, dict):
             assignment_list = [
-                ({"user_id": a.user_id, "status": a.status} if hasattr(a, "user_id") else a)
+                (
+                    {
+                        "user_id": a.user_id,
+                        "status": a.status,
+                        "is_review": getattr(a, "is_review", False),
+                    }
+                    if hasattr(a, "user_id")
+                    else a
+                )
                 for a in (data.get("assignments") or [])
             ]
             annotation_list = [

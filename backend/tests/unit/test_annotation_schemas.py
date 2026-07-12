@@ -137,8 +137,8 @@ def _annotation(user_id, label_id, *, counts=True, is_authoritative=False):
     }
 
 
-def _assignment(user_id, status="pending"):
-    return {"user_id": user_id, "status": status}
+def _assignment(user_id, status="pending", is_review=False):
+    return {"user_id": user_id, "status": status, "is_review": is_review}
 
 
 def test_non_counting_label_alone_leaves_task_pending():
@@ -220,6 +220,140 @@ def test_none_counts_toward_completion_value_defaults_to_counting():
     assert status == "done"
 
 
+# ============================================================================
+# compute_task_status_value: review-slot satisfaction by non-assigned users
+#
+# Spec decision 4: a review assignment sets a required review-label count;
+# any counting label from a user other than the primary annotator satisfies
+# one slot, even if that user isn't one of the assigned reviewers.
+# ============================================================================
+
+
+def test_drive_by_counting_label_satisfies_review_slot():
+    """Primary labels; a user with NO assignment row on the task (not one of
+    the assigned reviewers) supplies a counting label - the single required
+    review slot is satisfied and the task is done."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer = uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary), _assignment(reviewer, is_review=True)],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(drive_by, label_id=1, counts=True),
+        ],
+    )
+    assert status == "done"
+
+
+def test_drive_by_non_counting_label_does_not_satisfy_review_slot():
+    """Same setup, but the drive-by user's label doesn't count - the review
+    slot stays unfilled and the task remains partial."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer = uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary), _assignment(reviewer, is_review=True)],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(drive_by, label_id=1, counts=False),
+        ],
+    )
+    assert status == "partial"
+
+
+def test_assigned_reviewer_own_label_still_satisfies_review_slot():
+    """Existing flow unchanged: the actually-assigned reviewer's own counting
+    label satisfies the slot, exactly as before."""
+    primary, reviewer = uuid4(), uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary), _assignment(reviewer, is_review=True)],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(reviewer, label_id=1, counts=True),
+        ],
+    )
+    assert status == "done"
+
+
+def test_review_slot_requires_primary_label_too():
+    """A drive-by reviewer label alone, without the primary annotator having
+    labeled, is not enough - the task is partial, not done."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer = uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary), _assignment(reviewer, is_review=True)],
+        [_annotation(drive_by, label_id=1, counts=True)],
+    )
+    assert status == "partial"
+
+
+def test_two_review_slots_need_two_distinct_counting_labelers():
+    """N=2 review requirement: one drive-by counting label is not enough."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer_a, reviewer_b = uuid4(), uuid4()
+    status = compute_task_status_value(
+        [
+            _assignment(primary),
+            _assignment(reviewer_a, is_review=True),
+            _assignment(reviewer_b, is_review=True),
+        ],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(drive_by, label_id=1, counts=True),
+        ],
+    )
+    assert status == "partial"
+
+
+def test_two_review_slots_satisfied_by_mixed_assigned_and_drive_by_users():
+    """N=2 review requirement met by one assigned reviewer plus one drive-by
+    user - identity of the reviewer doesn't matter, only the count."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer_a, reviewer_b = uuid4(), uuid4()
+    status = compute_task_status_value(
+        [
+            _assignment(primary),
+            _assignment(reviewer_a, is_review=True),
+            _assignment(reviewer_b, is_review=True),
+        ],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(reviewer_a, label_id=1, counts=True),
+            _annotation(drive_by, label_id=1, counts=True),
+        ],
+    )
+    assert status == "done"
+
+
+def test_disagreeing_drive_by_review_label_causes_conflicting():
+    """A drive-by counting label that disagrees with the primary's label
+    still surfaces as a conflict, once it fills the review slot."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer = uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary), _assignment(reviewer, is_review=True)],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(drive_by, label_id=2, counts=True),
+        ],
+    )
+    assert status == "conflicting"
+
+
+def test_no_review_assignments_drive_by_label_ignored_as_before():
+    """No review requirement on the task at all: a drive-by counting label
+    from a non-assigned user must not affect status, matching pre-existing
+    behavior (only assigned users are compared when there's no review)."""
+    primary, drive_by = uuid4(), uuid4()
+    status = compute_task_status_value(
+        [_assignment(primary)],
+        [
+            _annotation(primary, label_id=1, counts=True),
+            _annotation(drive_by, label_id=2, counts=True),
+        ],
+    )
+    assert status == "done"
+
+
 def test_annotation_task_out_computes_status_from_counting_flag_via_dict_annotations():
     """End-to-end through the pydantic model_validator (not just the pure
     function): a dict-shaped annotation carrying counts_toward_completion=False
@@ -245,3 +379,51 @@ def test_annotation_task_out_computes_status_from_counting_flag_via_dict_annotat
         ],
     )
     assert obj.task_status == "pending"
+
+
+def test_annotation_task_out_threads_is_review_through_object_shaped_assignments():
+    """End-to-end regression for the model_validator's object-shaped
+    assignment branch (`hasattr(a, "user_id")`): is_review must be carried
+    into the assignment dict it builds, not just the already-dict path, or a
+    drive-by reviewer's counting label would never satisfy a review slot
+    when assignments arrive as objects (e.g. AnnotationTaskAssignmentOut)."""
+    primary, drive_by = uuid4(), uuid4()
+    reviewer = uuid4()
+    primary_assignment = AnnotationTaskAssignmentOut(
+        user_id=primary, status="pending", is_review=False
+    )
+    reviewer_assignment = AnnotationTaskAssignmentOut(
+        user_id=reviewer, status="pending", is_review=True
+    )
+    obj = _make_task_out_with_computed_status(
+        assignments_data=[primary_assignment, reviewer_assignment],
+        annotations_data=[
+            {
+                "id": 1,
+                "label_id": 1,
+                "created_by_user_id": primary,
+                "comment": None,
+                "confidence": None,
+                "is_authoritative": False,
+                "flagged_for_review": False,
+                "flag_comment": None,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+                "counts_toward_completion": True,
+            },
+            {
+                "id": 2,
+                "label_id": 1,
+                "created_by_user_id": drive_by,
+                "comment": None,
+                "confidence": None,
+                "is_authoritative": False,
+                "flagged_for_review": False,
+                "flag_comment": None,
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+                "counts_toward_completion": True,
+            },
+        ],
+    )
+    assert obj.task_status == "done"
