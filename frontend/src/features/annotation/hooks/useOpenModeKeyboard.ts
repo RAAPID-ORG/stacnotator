@@ -25,6 +25,7 @@ import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
@@ -34,7 +35,7 @@ export const useOpenModeKeyboard = () => {
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   useEffect(() => {
-    if (!campaign || campaign.mode !== 'open') return;
+    if (!campaign || workMode !== 'explore') return;
 
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
@@ -227,6 +228,7 @@ export const useOpenModeKeyboard = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     campaign,
+    workMode,
     selectedViewId,
     setSelectedLabelId,
     setActiveTool,

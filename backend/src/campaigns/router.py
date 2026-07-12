@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
 from src.auth.models import User
-from src.campaigns import assignments, service, statistics
+from src.campaigns import assignments, service, statistics, task_sets
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -26,6 +26,12 @@ from src.campaigns.schemas import (
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
+    LabellingPolicy,
+    MoveTasksToSetRequest,
+    MoveTasksToSetResult,
+    TaskSetCreate,
+    TaskSetOut,
+    TaskSetRename,
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
     UpdateCampaignGuideRequest,
@@ -33,6 +39,7 @@ from src.campaigns.schemas import (
     UpdateCampaignNameRequest,
     UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
+    UpdateLabellingPolicyRequest,
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
@@ -100,6 +107,7 @@ def create_campaign(
         user_id=user.id,
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
+        labelling_policy=campaign.labelling_policy,
     )
     return result
 
@@ -254,6 +262,18 @@ def update_embedding_year(
     return service.update_embedding_year(db, campaign_id, req.embedding_year)
 
 
+@router.patch("/{campaign_id}/labelling-policy", response_model=LabellingPolicy)
+def update_labelling_policy(
+    campaign_id: int,
+    req: UpdateLabellingPolicyRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Replace the campaign's labelling policy. Rejects 'anyone' audiences
+    with 400 unless the campaign is public."""
+    return service.update_labelling_policy(db, campaign_id, req)
+
+
 @router.delete(
     "/{campaign_id}/users/{user_id}",
     status_code=204,
@@ -315,6 +335,8 @@ def assign_tasks_to_users(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing."""
+    if req.task_set_id is not None:
+        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
     return assignments.assign_tasks_to_users(db, campaign_id, req)
 
 
@@ -374,6 +396,9 @@ def assign_reviewers(
     assignment, and each task is topped up to the requested number of reviewers
     rather than accumulating more on every call.
     """
+    if req.task_set_id is not None:
+        task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
+
     if req.pattern == "percentage":
         if req.percentage is None or req.num_reviewers is None or req.reviewer_ids is None:
             raise HTTPException(
@@ -381,7 +406,12 @@ def assign_reviewers(
                 detail="For 'percentage' pattern, percentage, num_reviewers, and reviewer_ids are required",
             )
         assignments.assign_reviewers_percentage(
-            db, campaign_id, req.percentage, req.num_reviewers, req.reviewer_ids
+            db,
+            campaign_id,
+            req.percentage,
+            req.num_reviewers,
+            req.reviewer_ids,
+            task_set_id=req.task_set_id,
         )
         return {"message": f"Successfully assigned reviewers to {req.percentage}% of tasks"}
 
@@ -400,7 +430,12 @@ def assign_reviewers(
                 detail="For 'fixed' pattern, num_tasks, fixed_num_reviewers, and reviewer_ids are required",
             )
         assignments.assign_reviewers_fixed(
-            db, campaign_id, req.num_tasks, req.fixed_num_reviewers, req.reviewer_ids
+            db,
+            campaign_id,
+            req.num_tasks,
+            req.fixed_num_reviewers,
+            req.reviewer_ids,
+            task_set_id=req.task_set_id,
         )
         return {"message": f"Successfully assigned reviewers to {req.num_tasks} tasks"}
 
@@ -424,6 +459,72 @@ def delete_annotation_tasks(
     """Delete multiple annotation tasks from a campaign"""
     deleted_count = service.delete_annotation_tasks(db, campaign_id, req.task_ids)
     return {"message": f"Successfully deleted {deleted_count} task(s)"}
+
+
+@router.get("/{campaign_id}/task-sets", response_model=list[TaskSetOut])
+def list_task_sets(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_access),
+):
+    """Task sets of a campaign with per-set task counts (member-accessible)."""
+    return task_sets.list_task_sets_with_stats(db, campaign.id)
+
+
+@router.post("/{campaign_id}/task-sets", response_model=TaskSetOut, status_code=201)
+def create_task_set(
+    campaign_id: int,
+    req: TaskSetCreate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    created = task_sets.create_task_set(db, campaign.id, req.name)
+    return TaskSetOut(
+        id=created.id,
+        name=created.name,
+        created_at=created.created_at,
+        num_tasks=0,
+        num_labeled=0,
+    )
+
+
+@router.patch("/{campaign_id}/task-sets/{task_set_id}", response_model=TaskSetOut)
+def rename_task_set(
+    campaign_id: int,
+    task_set_id: int,
+    req: TaskSetRename,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    task_sets.rename_task_set(db, campaign.id, task_set_id, req.name)
+    stats = task_sets.list_task_sets_with_stats(db, campaign.id)
+    return next(s for s in stats if s["id"] == task_set_id)
+
+
+@router.delete("/{campaign_id}/task-sets/{task_set_id}", status_code=204)
+def delete_task_set(
+    campaign_id: int,
+    task_set_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    task_sets.delete_task_set(db, campaign.id, task_set_id)
+
+
+@router.post(
+    "/{campaign_id}/task-sets/{task_set_id}/move-tasks",
+    response_model=MoveTasksToSetResult,
+)
+def move_tasks_to_set(
+    campaign_id: int,
+    task_set_id: int,
+    req: MoveTasksToSetRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Move tasks (batched) into the given task set. All ids must belong to the campaign."""
+    num_moved = task_sets.move_tasks_to_set(db, campaign.id, task_set_id, req.task_ids)
+    return MoveTasksToSetResult(num_moved=num_moved)
 
 
 @router.get("/{campaign_id}/export-task-assignments")

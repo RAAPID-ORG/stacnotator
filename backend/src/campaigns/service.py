@@ -1,5 +1,6 @@
 import logging
 import threading
+from collections.abc import Iterable
 from datetime import datetime
 from uuid import UUID
 
@@ -10,7 +11,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation import embeddings_service
 from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.auth.models import User
+from src.auth.constants import ROLE_ADMIN
+from src.auth.models import User, UserRole
 from src.auth.service import is_admin as is_global_admin
 from src.campaigns.constants import (
     DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
@@ -20,10 +22,16 @@ from src.campaigns.models import (
     CampaignSettings,
     CampaignUser,
     CanvasLayout,
+    TaskSet,
 )
+from src.campaigns.policy import PolicyContext
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
+    LabellingPolicy,
+    PolicyAudience,
+    default_labelling_policy,
 )
+from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
@@ -54,6 +62,123 @@ def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> b
         )
     ).scalar_one_or_none()
     return cu is not None and cu.is_authorative_reviewer
+
+
+# ============================================================================
+# Labelling Policy Evaluation
+# ============================================================================
+
+
+def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
+    """Read a campaign's labelling policy, falling back to the default for
+    legacy campaigns whose settings predate the labelling-policy column."""
+    if campaign.settings and campaign.settings.labelling_policy:
+        return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+    return default_labelling_policy()
+
+
+def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> None:
+    """'anyone' only makes sense once the campaign itself is public - enforce
+    this invariant at every write of a labelling policy (campaign creation
+    and the PATCH .../labelling-policy endpoint), not just one of them."""
+    axes = (
+        policy.explore,
+        policy.unassigned_tasks,
+        policy.assigned_tasks,
+        policy.complete_assigned,
+    )
+    if any("anyone" in axis.kinds for axis in axes) and not is_public:
+        raise HTTPException(
+            status_code=400,
+            detail="The 'anyone' audience is only allowed for public campaigns",
+        )
+
+
+def _strip_anyone_kind(policy: LabellingPolicy) -> LabellingPolicy:
+    """Drop 'anyone' from every axis of `policy`. Used when a campaign flips
+    private, so a stored policy never keeps granting anonymous/any-visitor
+    access after the invariant enforced on write (`_reject_anyone_kind_if_private`)
+    stops applying to it."""
+    return LabellingPolicy(
+        explore=PolicyAudience(
+            kinds=[k for k in policy.explore.kinds if k != "anyone"],
+            user_ids=policy.explore.user_ids,
+        ),
+        unassigned_tasks=PolicyAudience(
+            kinds=[k for k in policy.unassigned_tasks.kinds if k != "anyone"],
+            user_ids=policy.unassigned_tasks.user_ids,
+        ),
+        assigned_tasks=PolicyAudience(
+            kinds=[k for k in policy.assigned_tasks.kinds if k != "anyone"],
+            user_ids=policy.assigned_tasks.user_ids,
+        ),
+        complete_assigned=policy.complete_assigned,
+    )
+
+
+def build_policy_context(
+    db: Session,
+    campaign: Campaign,
+    user_id: UUID,
+    task: AnnotationTask | None = None,
+) -> PolicyContext:
+    """Build a PolicyContext for one user's request against one campaign.
+
+    Used for real-time enforcement (a single annotate/create/update call), so
+    it does its own lookups rather than taking pre-fetched maps - contrast
+    with `get_campaign_role_map` / `context_from_role_map`, which amortize the
+    same lookups across many annotations (task lists, exports).
+
+    `task.assignments` must already be loaded (joinedload/selectinload) when
+    `task` is given; `is_assigned` is true if the user holds ANY assignment on
+    it (primary or review), per the labelling-policy spec.
+    """
+    cu = db.scalars(
+        select(CampaignUser).where(
+            CampaignUser.campaign_id == campaign.id,
+            CampaignUser.user_id == user_id,
+        )
+    ).first()
+    is_assigned = task is not None and any(
+        assignment.user_id == user_id for assignment in (task.assignments or [])
+    )
+    return PolicyContext(
+        user_id=user_id,
+        is_admin=(cu is not None and cu.is_admin) or is_global_admin(db, user_id),
+        is_authoritative=cu is not None and cu.is_authorative_reviewer,
+        is_member=cu is not None,
+        is_assigned=is_assigned,
+    )
+
+
+def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[bool, bool]]:
+    """One query giving every campaign member's (is_admin, is_authoritative)
+    flags, keyed by user id. Membership itself is `user_id in role_map`.
+
+    Meant to be fetched once per request and reused across many
+    `context_from_role_map` calls (see campaigns.policy) instead of a
+    per-annotation CampaignUser lookup.
+    """
+    rows = db.execute(
+        select(
+            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authorative_reviewer
+        ).where(CampaignUser.campaign_id == campaign_id)
+    ).all()
+    return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
+
+
+def get_platform_admin_ids(db: Session, user_ids: Iterable[UUID]) -> set[UUID]:
+    """Subset of `user_ids` holding the global admin role, in one query."""
+    candidates = {uid for uid in user_ids if uid is not None}
+    if not candidates:
+        return set()
+    return set(
+        db.scalars(
+            select(UserRole.user_id).where(
+                UserRole.role == ROLE_ADMIN, UserRole.user_id.in_(candidates)
+            )
+        ).all()
+    )
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
@@ -162,6 +287,7 @@ def create_campaign(
     user_id: UUID,
     imagery_editor_state=None,
     timeseries_configs: list | None = None,
+    labelling_policy: LabellingPolicy | None = None,
 ) -> Campaign:
     """
     Create a new campaign with default layout, settings, admin user, and optionally imagery/timeseries.
@@ -174,15 +300,21 @@ def create_campaign(
         user_id: ID of user to set as admin
         imagery_editor_state: Optional imagery editor state to persist
         timeseries_configs: Optional list of timeseries configurations to create
+        labelling_policy: Who may label what; defaults to default_labelling_policy()
+            when omitted (matches current unified behavior)
 
     Returns:
         Created campaign with all relationships loaded
     """
+    resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
+    _reject_anyone_kind_if_private(resolved_policy, is_public)
 
     # Create campaign first
     campaign = Campaign(name=name, mode=mode, is_public=is_public)
     db.add(campaign)
     db.flush()  # Get campaign.id
+
+    db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
 
     # Create default main canvas layout for the campaign
     default_layout = CanvasLayout(
@@ -198,6 +330,7 @@ def create_campaign(
     campaign_settings = CampaignSettings(
         campaign_id=campaign.id,
         guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
+        labelling_policy=resolved_policy.model_dump(mode="json"),
         **settings.to_orm(),
     )
     db.add(campaign_settings)
@@ -440,11 +573,24 @@ def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campai
 
 
 def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
-    """Toggle a campaign between public and private."""
+    """Toggle a campaign between public and private.
+
+    Flipping to private strips 'anyone' from every axis of the stored
+    labelling policy: 'anyone' is only a valid audience on a public campaign
+    (enforced on write by `_reject_anyone_kind_if_private`), so a policy that
+    was written while public must not keep granting anonymous/any-visitor
+    access once the campaign goes private.
+    """
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.is_public = is_public
+    if not is_public and campaign.settings and campaign.settings.labelling_policy:
+        current_policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+        campaign.settings.labelling_policy = _strip_anyone_kind(current_policy).model_dump(
+            mode="json"
+        )
+        flag_modified(campaign.settings, "labelling_policy")
     db.commit()
     return get_campaign_full(db, campaign_id)
 
@@ -590,6 +736,26 @@ def update_sample_extent(
     campaign.settings.sample_extent_meters = sample_extent_meters
     db.commit()
     return get_campaign_full(db, campaign_id)
+
+
+def update_labelling_policy(
+    db: Session, campaign_id: int, policy: LabellingPolicy
+) -> LabellingPolicy:
+    """Persist a new labelling policy. 'anyone' kinds are rejected for
+    non-public campaigns: an audience that lets any authenticated visitor
+    label only makes sense once the campaign itself is public."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    _reject_anyone_kind_if_private(policy, campaign.is_public)
+
+    campaign.settings.labelling_policy = policy.model_dump(mode="json")
+    flag_modified(campaign.settings, "labelling_policy")
+    db.commit()
+    return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
 
 
 def update_embedding_year(

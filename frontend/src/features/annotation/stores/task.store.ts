@@ -5,13 +5,16 @@ import {
   claimAnnotationTask,
   deleteAnnotation,
   validateAnnotationSubmission,
+  listTaskSets,
   type AnnotationTaskAssignmentOut,
   type AnnotationTaskOut,
+  type TaskSetOut,
 } from '~/api/client';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
+import { useAnnotationStore } from './annotation.store';
 import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
@@ -23,6 +26,7 @@ interface TaskStore {
   // State
   allTasks: AnnotationTaskOut[];
   visibleTasks: AnnotationTaskOut[];
+  taskSets: TaskSetOut[];
   currentTaskIndex: number;
   taskFilter: TaskFilter;
   isSubmitting: boolean;
@@ -40,7 +44,11 @@ interface TaskStore {
   skipConfirmDisabled: boolean;
 
   // Actions
-  loadTasks: (campaignId: number, initialTaskId?: number) => Promise<void>;
+  loadTasks: (
+    campaignId: number,
+    initialTaskId?: number,
+    initialTaskSetId?: number
+  ) => Promise<void>;
   submitAnnotation: (
     labelId: number | null,
     comment: string,
@@ -132,12 +140,14 @@ const NAVIGATION_DEBOUNCE_MS = 500;
 const initialState = {
   allTasks: [] as AnnotationTaskOut[],
   visibleTasks: [] as AnnotationTaskOut[],
+  taskSets: [] as TaskSetOut[],
   currentTaskIndex: 0,
   taskFilter: {
     assignedTo: [] as string[],
     statuses: ['pending' as TaskStatus],
     selectedConfidences: [] as number[],
     flaggedOnly: false,
+    taskSetId: null as number | null,
   },
   isSubmitting: false,
   isNavigating: false,
@@ -162,11 +172,22 @@ export const useTaskStore = create<TaskStore>((set, get) => {
   return {
     ...initialState,
 
-    loadTasks: async (campaignId, initialTaskId) => {
-      const tasksRes = await getAllAnnotationTasks({ path: { campaign_id: campaignId } });
+    loadTasks: async (campaignId, initialTaskId, initialTaskSetId) => {
+      const [tasksRes, setsRes] = await Promise.all([
+        getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+        listTaskSets({ path: { campaign_id: campaignId } }),
+      ]);
       const allTasks = tasksRes.data!.tasks;
+      const taskSets = setsRes.data ?? [];
       const currentUserId = useAccountStore.getState().account?.id;
       const campaign = useCampaignStore.getState().campaign;
+
+      // Only seed the filter from a deep-linked task set if it still exists;
+      // a stale/removed id falls through to the usual seeding below.
+      const seededTaskSetId =
+        initialTaskSetId !== undefined && taskSets.some((s) => s.id === initialTaskSetId)
+          ? initialTaskSetId
+          : null;
 
       let taskFilter: TaskFilter;
       let visibleTasks: AnnotationTaskOut[];
@@ -178,6 +199,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId: seededTaskSetId ?? get().taskFilter.taskSetId ?? null,
         };
         ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
           allTasks,
@@ -185,12 +207,22 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           initialTaskId
         ));
       } else {
-        const pendingFilter = (assignedTo: string[]): TaskFilter => ({
+        const pendingFilter = (
+          assignedTo: string[],
+          taskSetId: number | null = null
+        ): TaskFilter => ({
           assignedTo,
           statuses: ['pending'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId,
         });
+
+        // A deep-linked task set only stays in play while it actually has
+        // tasks; an empty set is abandoned immediately rather than broadened.
+        const setHasTasks =
+          seededTaskSetId !== null && allTasks.some((t) => t.task_set_id === seededTaskSetId);
+        const effectiveSetId = setHasTasks ? seededTaskSetId : null;
 
         // Users with their own assignments start on those. Everyone else
         // (public campaigns, or anyone with nothing assigned) starts on the
@@ -198,11 +230,31 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // rather than every pending task, so tasks already handed off to a
         // reviewer don't linger in the default view.
         const showAll = campaign?.is_public;
-        taskFilter = pendingFilter(showAll || !currentUserId ? [UNASSIGNED] : [currentUserId]);
+        taskFilter = pendingFilter(
+          showAll || !currentUserId ? [UNASSIGNED] : [currentUserId],
+          effectiveSetId
+        );
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
 
         // Progressive fallback so the user always lands on a task when work
-        // exists: mine -> unassigned -> all.
+        // exists. A live deep-linked set broadens within itself first (mine ->
+        // unassigned -> all statuses) before it's abandoned; only then - or
+        // when the set was empty from the start - does the search fall back
+        // to the set-less chain (mine -> unassigned -> all).
+        if (visibleTasks.length === 0 && effectiveSetId !== null && currentUserId && !showAll) {
+          taskFilter = pendingFilter([UNASSIGNED], effectiveSetId);
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+        }
+        if (visibleTasks.length === 0 && effectiveSetId !== null) {
+          taskFilter = {
+            assignedTo: [],
+            statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
+            selectedConfidences: [],
+            flaggedOnly: false,
+            taskSetId: effectiveSetId,
+          };
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+        }
         if (visibleTasks.length === 0 && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED]);
           ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
@@ -217,6 +269,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
       set({
         allTasks,
+        taskSets,
         visibleTasks,
         taskFilter,
         currentTaskIndex,
@@ -280,6 +333,9 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             isSubmitting: false,
             ...getFormStateForTask(updatedTask),
           });
+          // Explore's tile layer caches by this version, so a task-side delete
+          // must bump it too or Explore keeps showing the stale annotation.
+          useAnnotationStore.getState().bumpTileVersion();
           useLayoutStore.getState().showAlert('Annotation removed successfully', 'success');
           // Removing a labeled annotation also changes KNN counts.
           useCampaignStore.getState().refreshKnnValidationStatus();
@@ -360,6 +416,9 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           visibleTasks: updatedVisible,
           isSubmitting: false,
         });
+        // Explore's tile layer caches by this version, so a task submit or
+        // skip must bump it too or Explore keeps showing stale tiles.
+        useAnnotationStore.getState().bumpTileVersion();
         startNavigation({ currentTaskIndex: nextIndex, ...getFormStateForTask(nextTask) });
 
         // A labeled submission may change what the KNN validator has to work
@@ -413,6 +472,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
           selectedConfidences: [],
           flaggedOnly: false,
+          taskSetId: null,
         };
         ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
       } else {

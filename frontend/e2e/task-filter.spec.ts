@@ -123,4 +123,15 @@ test.describe('Task Status Filtering', () => {
     await expect(page.locator('label', { hasText: 'Conflicting' })).toBeVisible();
     await expect(page.locator('label', { hasText: 'Partial' })).toBeVisible();
   });
+
+  test('task set picker is hidden for a campaign with a single task set', async ({
+    annotationPage,
+  }) => {
+    const page = annotationPage;
+    await openFilterPanel(page);
+
+    // Migrated campaigns start with exactly one (default) task set - the
+    // picker only earns its place once a second set exists to choose between.
+    await expect(page.getByTestId('task-set-picker')).toHaveCount(0);
+  });
 });

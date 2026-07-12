@@ -129,7 +129,7 @@ def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]
         )
 
 
-def _eligible_task_ids(db: Session, campaign_id: int) -> list[int]:
+def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
     """Campaign tasks with no assignment and no annotation, locked for update."""
     has_assignment = (
         select(AnnotationTaskAssignment.id)
@@ -139,13 +139,16 @@ def _eligible_task_ids(db: Session, campaign_id: int) -> list[int]:
     has_annotation = (
         select(Annotation.id).where(Annotation.annotation_task_id == AnnotationTask.id).exists()
     )
+    conditions = [
+        AnnotationTask.campaign_id == campaign_id,
+        ~has_assignment,
+        ~has_annotation,
+    ]
+    if task_set_id is not None:
+        conditions.append(AnnotationTask.task_set_id == task_set_id)
     stmt = (
         select(AnnotationTask.id)
-        .where(
-            AnnotationTask.campaign_id == campaign_id,
-            ~has_assignment,
-            ~has_annotation,
-        )
+        .where(*conditions)
         .order_by(AnnotationTask.id)
         .with_for_update(skip_locked=True)
     )
@@ -210,7 +213,7 @@ def assign_tasks_to_users(
         target_users = req.user_ids if req.strategy == "even" else list(req.user_task_counts)
         _verify_campaign_members(db, campaign_id, set(target_users))
 
-        eligible_ids = _eligible_task_ids(db, campaign_id)
+        eligible_ids = _eligible_task_ids(db, campaign_id, req.task_set_id)
         random.shuffle(eligible_ids)
         mapping = (
             _distribute_evenly(eligible_ids, req.user_ids)
@@ -324,7 +327,9 @@ def _verify_reviewers_are_campaign_members(
         )
 
 
-def _reviewable_tasks(db: Session, campaign_id: int) -> list[AnnotationTask]:
+def _reviewable_tasks(
+    db: Session, campaign_id: int, task_set_id: int | None = None
+) -> list[AnnotationTask]:
     """Campaign tasks that already have a primary (non-review) assignment.
 
     A reviewer reviews someone else's annotation work, so a task is only
@@ -339,10 +344,13 @@ def _reviewable_tasks(db: Session, campaign_id: int) -> list[AnnotationTask]:
         )
         .exists()
     )
-    stmt = select(AnnotationTask).where(
+    conditions = [
         AnnotationTask.campaign_id == campaign_id,
         has_primary_assignment,
-    )
+    ]
+    if task_set_id is not None:
+        conditions.append(AnnotationTask.task_set_id == task_set_id)
+    stmt = select(AnnotationTask).where(*conditions)
     return list(db.scalars(stmt).all())
 
 
@@ -400,7 +408,12 @@ def _top_up_review_assignments(
 
 
 def assign_reviewers_percentage(
-    db: Session, campaign_id: int, percentage: float, num_reviewers: int, reviewer_ids: list[UUID]
+    db: Session,
+    campaign_id: int,
+    percentage: float,
+    num_reviewers: int,
+    reviewer_ids: list[UUID],
+    task_set_id: int | None = None,
 ) -> None:
     """
     Assign reviewers to a percentage of a campaign's already-assigned tasks.
@@ -431,7 +444,7 @@ def assign_reviewers_percentage(
 
     _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
 
-    reviewable_tasks = _reviewable_tasks(db, campaign_id)
+    reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
         raise HTTPException(
             status_code=404,
@@ -445,7 +458,12 @@ def assign_reviewers_percentage(
 
 
 def assign_reviewers_fixed(
-    db: Session, campaign_id: int, num_tasks: int, num_reviewers: int, reviewer_ids: list[UUID]
+    db: Session,
+    campaign_id: int,
+    num_tasks: int,
+    num_reviewers: int,
+    reviewer_ids: list[UUID],
+    task_set_id: int | None = None,
 ) -> None:
     """
     Assign reviewers to a fixed number of a campaign's already-assigned tasks.
@@ -476,7 +494,7 @@ def assign_reviewers_fixed(
 
     _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
 
-    reviewable_tasks = _reviewable_tasks(db, campaign_id)
+    reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
         raise HTTPException(
             status_code=404,

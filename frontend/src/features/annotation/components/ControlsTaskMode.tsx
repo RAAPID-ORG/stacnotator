@@ -7,6 +7,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { IconFlag } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { ReviewAnnotationList } from './ReviewAnnotationList';
+import { isAudienceMember, type PolicyContext } from '../utils/labellingPolicy';
 
 interface AnnotationControlsProps {
   labels: LabelBase[];
@@ -60,6 +61,8 @@ export const AnnotationControls = ({
   const hasEmbeddingYear = campaign?.settings?.embedding_year != null;
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
+  const isCampaignMember = useCampaignStore((s) => s.isCampaignMember);
   const knnStatus = useCampaignStore((s) => s.knnValidationStatus);
 
   const knnDisabledReason: string | null = (() => {
@@ -184,13 +187,46 @@ export const AnnotationControls = ({
   const isAssignedToTask =
     currentTask?.assignments?.some((a) => a.user_id === currentUserId) ?? false;
 
+  // Labelling-policy gating, mirrors backend.src.campaigns.policy: a task
+  // with any assignment is gated by assigned_tasks (may-label) /
+  // complete_assigned (counts); an unassigned task is gated by
+  // unassigned_tasks for both - so mayLabel and countsTowardCompletion are
+  // always equal there and the "may label but doesn't count" state can only
+  // arise on an assigned task. Fails open (true) when campaign/policy/task
+  // data isn't loaded yet - this is UX-only, the server remains the
+  // authority and will 403 regardless.
+  const labellingPolicy = campaign?.settings?.labelling_policy;
+  const taskHasAssignments = (currentTask?.assignments?.length ?? 0) > 0;
+  const policyCtx: PolicyContext = {
+    userId: currentUserId ?? null,
+    isAdmin: isCampaignAdmin,
+    isAuthoritative: isAuthoritativeReviewer,
+    isMember: isCampaignMember,
+    isAssigned: isAssignedToTask,
+  };
+  const mayLabel =
+    !currentTask || !labellingPolicy
+      ? true
+      : isAudienceMember(
+          taskHasAssignments ? labellingPolicy.assigned_tasks : labellingPolicy.unassigned_tasks,
+          policyCtx
+        );
+  const countsTowardCompletion =
+    !currentTask || !labellingPolicy
+      ? true
+      : isAudienceMember(
+          taskHasAssignments ? labellingPolicy.complete_assigned : labellingPolicy.unassigned_tasks,
+          policyCtx
+        );
+
   const isRemovingLabel = hasExistingLabel && selectedLabelId === null;
   const submitButtonText = isRemovingLabel
     ? 'Remove Label'
     : hasExistingLabel
       ? 'Update'
       : 'Submit';
-  const isSubmitDisabled = isDisabled || (selectedLabelId === null && !isRemovingLabel);
+  const isSubmitDisabled =
+    isDisabled || !mayLabel || (selectedLabelId === null && !isRemovingLabel);
 
   const showGoButton = currentTask && gotoValue !== currentTask.annotation_number.toString();
 
@@ -332,6 +368,23 @@ export const AnnotationControls = ({
               rows={2}
               className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors"
             />
+          )}
+
+          {currentTask && !mayLabel && (
+            <p
+              data-testid="policy-not-allowed-notice"
+              className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+            >
+              You are not allowed to label this task in this campaign.
+            </p>
+          )}
+          {currentTask && mayLabel && taskHasAssignments && !countsTowardCompletion && (
+            <p
+              data-testid="policy-extra-label-notice"
+              className="text-[11px] text-neutral-500 italic"
+            >
+              Your label will be saved as extra and does not count toward completion.
+            </p>
           )}
 
           <div className="flex gap-1.5">

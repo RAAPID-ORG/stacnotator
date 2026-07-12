@@ -56,6 +56,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const isMobile = useIsMobile();
 
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
   const currentLayout = useCampaignStore((s) => s.currentLayout);
@@ -80,14 +81,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const selectedLayerIndex = useMapStore((s) => s.selectedLayerIndex);
   const showBasemap = useMapStore((s) => s.showBasemap);
   const selectedBasemapId = useMapStore((s) => s.selectedBasemapId);
-  // Only open mode reads these; subscribing in task mode would re-render the
+  // Only explore reads these; subscribing in tasks mode would re-render the
   // whole grid every motion frame for nothing.
-  const currentMapBounds = useMapStore((s) =>
-    campaign?.mode === 'open' ? s.currentMapBounds : null
-  );
-  const currentMapCenter = useMapStore((s) =>
-    campaign?.mode === 'open' ? s.currentMapCenter : null
-  );
+  const currentMapBounds = useMapStore((s) => (workMode === 'explore' ? s.currentMapBounds : null));
+  const currentMapCenter = useMapStore((s) => (workMode === 'explore' ? s.currentMapCenter : null));
   const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
@@ -101,11 +98,11 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   // assigned/worked/review tasks, and claiming the next task releases this one.
   const currentTaskId = currentTask?.id ?? null;
   useEffect(() => {
-    if (currentTaskId == null) return;
+    if (workMode !== 'tasks' || currentTaskId == null) return;
     void claimCurrentTask();
     const renew = setInterval(() => void claimCurrentTask(), CLAIM_RENEW_MS);
     return () => clearInterval(renew);
-  }, [currentTaskId, claimCurrentTask]);
+  }, [workMode, currentTaskId, claimCurrentTask]);
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
@@ -128,7 +125,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   }, [allTasks, taskFilter.assignedTo]);
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
-  const isOpenMode = campaign?.mode === 'open';
+  const isOpenMode = workMode === 'explore';
   const campaignBbox = campaign
     ? ([
         campaign.settings.bbox_west,
@@ -145,7 +142,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const tileVersion = useAnnotationStore((s) => s.tileVersion);
   const [annotationDensity, setAnnotationDensity] = useState<AnnotationDensityCell[]>([]);
   useEffect(() => {
-    if (campaign?.mode !== 'open') {
+    if (workMode !== 'explore' || campaign?.id == null) {
       setAnnotationDensity([]);
       return;
     }
@@ -160,7 +157,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return () => {
       cancelled = true;
     };
-  }, [campaign?.id, campaign?.mode, tileVersion]);
+  }, [campaign?.id, workMode, tileVersion]);
 
   const windowCollections = useMemo(() => {
     if (!campaign || !selectedView) return [];
@@ -306,7 +303,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 : activeSourceVizName || 'Layer'}
             </span>
           )}
-          {activeClaim && (
+          {!isOpenMode && activeClaim && (
             <span
               className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${
                 claimedByMe ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
@@ -453,18 +450,18 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <MiniMap
               center={center}
               bbox={campaignBbox || [0, 0, 0, 0]}
-              visibleBounds={campaign?.mode === 'open' ? currentMapBounds : null}
+              visibleBounds={workMode === 'explore' ? currentMapBounds : null}
               onViewportDrag={
-                campaign?.mode === 'open' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+                workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
               }
-              fitBbox={campaign?.mode === 'tasks'}
+              fitBbox={workMode === 'tasks'}
               annotationDensity={annotationDensity}
             />
           </div>
 
           <div key="controls" className="grid-card" data-tour="controls">
             <div className="h-full overflow-y-auto overflow-x-hidden">
-              {campaign.mode === 'tasks' ? (
+              {workMode === 'tasks' ? (
                 <ControlsTaskMode
                   labels={campaign.settings.labels}
                   onSubmit={submitAnnotation}

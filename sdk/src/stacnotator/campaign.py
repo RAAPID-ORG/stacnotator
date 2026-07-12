@@ -1,4 +1,5 @@
 import colorsys
+import json
 from math import ceil
 from typing import Any, Literal
 
@@ -81,6 +82,48 @@ class Campaign:
         if new_rows.empty:
             return training_set.copy()
         return pd.concat([training_set, new_rows], ignore_index=True)
+
+    def task_sets(self) -> pd.DataFrame:
+        """Task sets of this campaign with per-set task counts."""
+        columns = ["id", "name", "num_tasks", "num_labeled"]
+        return pd.DataFrame(self._list_task_sets(), columns=columns)
+
+    def upload_tasks(
+        self,
+        data: "pd.DataFrame | dict[str, Any]",
+        task_set: str,
+        create_missing: bool = False,
+    ) -> int:
+        """Upload annotation tasks into the named task set of this campaign.
+
+        ``data`` is either a DataFrame with ``lat``/``lon`` columns (extra
+        columns are preserved on each task) or a GeoJSON FeatureCollection
+        dict for polygon tasks. Unknown set names fail with the existing set
+        names listed; pass ``create_missing=True`` to create the set instead.
+        Returns the number of tasks created.
+        """
+        feature_collection = _as_feature_collection(data)
+        sets = {s["name"]: s["id"] for s in self._list_task_sets()}
+        if task_set not in sets:
+            if not create_missing:
+                raise ValueError(
+                    f"task set {task_set!r} does not exist in campaign {self.id}; "
+                    f"existing sets: {sorted(sets)}. Pass create_missing=True to create it."
+                )
+            created = self._http.post(f"/campaigns/{self.id}/task-sets", json={"name": task_set})
+            sets[task_set] = created["id"]
+        result = self._http.post(
+            f"/campaigns/{self.id}/ingest-annotation-task-geojson",
+            data={"task_set_id": str(sets[task_set])},
+            files={
+                "file": ("tasks.geojson", json.dumps(feature_collection), "application/geo+json")
+            },
+        )
+        return int(result["num_tasks_created"])
+
+    def _list_task_sets(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = self._http.get(f"/campaigns/{self.id}/task-sets")
+        return result
 
     def register_overlay(
         self,
@@ -203,6 +246,34 @@ def _class_colors(n: int) -> list[str]:
         r, g, b = colorsys.hsv_to_rgb(hue, saturation, value)
         colors.append(f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}")
     return colors
+
+
+def _as_feature_collection(data: "pd.DataFrame | dict[str, Any]") -> dict[str, Any]:
+    if isinstance(data, pd.DataFrame):
+        if not {"lat", "lon"}.issubset(data.columns):
+            raise ValueError("data needs 'lat' and 'lon' columns (WGS84 degrees)")
+        if data[["lat", "lon"]].isna().any().any():
+            raise ValueError("data has rows with missing lat/lon values")
+        records = json.loads(data.to_json(orient="records"))
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [rec.pop("lon"), rec.pop("lat")],
+                    },
+                    "properties": rec,
+                }
+                for rec in records
+            ],
+        }
+    if isinstance(data, dict) and data.get("type") == "FeatureCollection":
+        return data
+    raise ValueError(
+        "data must be a DataFrame with lat/lon columns or a GeoJSON FeatureCollection dict"
+    )
 
 
 def _require_http_url(url: str, param: str) -> None:

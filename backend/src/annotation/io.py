@@ -17,7 +17,7 @@ from src.annotation.models import (
     AnnotationTask,
 )
 from src.annotation.schemas import compute_task_status_value
-from src.annotation.service import validate_label_id
+from src.annotation.service import attach_counts_toward_completion_flat, validate_label_id
 from src.auth.models import User
 from src.campaigns.models import Campaign
 
@@ -36,6 +36,7 @@ def create_annotation_tasks_from_csv(
     db: Session,
     campaign_id: int,
     contents: bytes,
+    task_set_id: int,
 ) -> None:
     """
     Create annotation tasks from uploaded CSV file.
@@ -52,6 +53,7 @@ def create_annotation_tasks_from_csv(
         db: Database session
         campaign_id: ID of campaign to create tasks for
         contents: CSV file contents as bytes
+        task_set_id: ID of task set to assign created tasks to
 
     Raises:
         HTTPException: If file is too large, invalid format, or validation fails
@@ -156,6 +158,7 @@ def create_annotation_tasks_from_csv(
                 "campaign_id": campaign_id,
                 "geometry_id": geometry_id,
                 "raw_source_data": row["raw_source_data"],
+                "task_set_id": task_set_id,
             }
             for geometry_id, (_, row) in zip(geometry_ids, df.iterrows(), strict=True)
         ]
@@ -181,6 +184,7 @@ def create_annotation_tasks_from_geojson(
     db: Session,
     campaign_id: int,
     contents: bytes,
+    task_set_id: int,
 ) -> int:
     """
     Create annotation tasks from an uploaded GeoJSON file.
@@ -193,6 +197,7 @@ def create_annotation_tasks_from_geojson(
         db: Database session
         campaign_id: ID of campaign to create tasks for
         contents: GeoJSON file contents as bytes
+        task_set_id: ID of task set to assign created tasks to
 
     Returns:
         Number of tasks created
@@ -276,6 +281,7 @@ def create_annotation_tasks_from_geojson(
                 "campaign_id": campaign_id,
                 "geometry_id": gid,
                 "raw_source_data": rd,
+                "task_set_id": task_set_id,
             }
             for i, (gid, rd) in enumerate(zip(geometry_ids, raw_data, strict=True))
         ]
@@ -299,7 +305,7 @@ def create_annotations_from_geojson(
     user_id: UUID,
 ) -> int:
     """
-    Bulk-import existing features as standalone open-mode annotations.
+    Bulk-import existing features as standalone annotations (no task).
 
     Each Feature becomes one annotation owned by the uploading admin. The
     label is read from the ``stacnotator_label_id`` property (round-trips with
@@ -310,11 +316,6 @@ def create_annotations_from_geojson(
     Returns:
         Number of annotations created
     """
-    if campaign.mode != "open":
-        raise HTTPException(
-            status_code=400,
-            detail="Features can only be imported into open-mode campaigns",
-        )
 
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
@@ -495,6 +496,7 @@ def _fetch_annotations_with_context(
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
         user_email_map = {user.id: user.email for user in users}
+    attach_counts_toward_completion_flat(db, campaign, annotations)
     return annotations, user_email_map
 
 
@@ -511,6 +513,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_annotation_number",
     "stacnotator_task_id",
     "stacnotator_task_status",
+    "stacnotator_counts_toward_completion",
     "stacnotator_label_id",
     "stacnotator_label_name",
     "stacnotator_annotator_count",
@@ -576,10 +579,18 @@ def _conflicting_task_numbers(
 ) -> list[int]:
     """Return human-readable annotation_numbers of any task whose labeled
     annotators disagree (>= 2 distinct label_ids among labeled annotations).
+
+    Only annotations whose `counts_toward_completion` is not explicitly False
+    are considered, mirroring `compute_task_status_value` - an extra label the
+    labelling policy allows but doesn't count must not manufacture a conflict
+    on its own.
     """
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
-        labeled = [a for a in task_anns if a.label_id is not None]
+        counting = [
+            a for a in task_anns if getattr(a, "counts_toward_completion", None) is not False
+        ]
+        labeled = [a for a in counting if a.label_id is not None]
         if any(a.is_authoritative for a in labeled):
             continue
         if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
@@ -600,12 +611,16 @@ def _compute_task_status_for_export(
     """
     if task is None:
         return None
-    assignment_list = [{"user_id": a.user_id, "status": a.status} for a in (task.assignments or [])]
+    assignment_list = [
+        {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
+        for a in (task.assignments or [])
+    ]
     annotation_list = [
         {
             "label_id": a.label_id,
             "created_by_user_id": a.created_by_user_id,
             "is_authoritative": a.is_authoritative,
+            "counts_toward_completion": getattr(a, "counts_toward_completion", None),
         }
         for a in task_anns
     ]
@@ -641,6 +656,9 @@ def _build_export_record_for_annotation(
         record["stacnotator_task_id"] = task.id
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
+        record["stacnotator_counts_toward_completion"] = getattr(
+            annotation, "counts_toward_completion", None
+        )
 
     record["stacnotator_annotation_id"] = annotation.id
     record["stacnotator_source_id"] = annotation.source_id
@@ -706,6 +724,12 @@ def _build_export_record_merged(
         record["stacnotator_task_id"] = task.id
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
+        # True if any contributing label counts toward completion - the merged
+        # row represents the task's resolved label, so it counts if the
+        # resolution itself was reachable by a counting contributor.
+        record["stacnotator_counts_toward_completion"] = any(
+            getattr(a, "counts_toward_completion", False) for a in labeled
+        )
 
     record["stacnotator_label_id"] = agreed_label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)

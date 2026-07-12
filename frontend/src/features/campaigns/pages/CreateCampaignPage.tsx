@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate } from '~/api/client';
 import { createCampaign } from '~/api/client';
+import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useCanCreateCampaigns } from '~/features/account/account.store';
 import {
@@ -47,7 +48,7 @@ export const CreateCampaignPage = () => {
     },
     imagery_editor_state: null,
     timeseries_configs: [],
-    mode: 'tasks',
+    labelling_policy: DEFAULT_LABELLING_POLICY,
   });
 
   const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
@@ -156,7 +157,7 @@ export const CreateCampaignPage = () => {
         </header>
 
         <div className="mb-6">
-          <StepIndicator step={step} mode={form.mode} onStepClick={setStep} />
+          <StepIndicator step={step} onStepClick={setStep} />
         </div>
 
         <div className="surface">

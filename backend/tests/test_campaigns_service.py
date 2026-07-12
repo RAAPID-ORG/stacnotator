@@ -17,7 +17,7 @@ from src.campaigns.assignments import (
     assign_tasks_to_users,
 )
 from src.campaigns.models import CampaignUser
-from src.campaigns.schemas import AssignTasksToUsersRequest
+from src.campaigns.schemas import AssignTasksToUsersRequest, default_labelling_policy
 from src.campaigns.service import (
     add_users_to_campaign_bulk,
     delete_campaign,
@@ -721,11 +721,52 @@ class TestUpdateCampaignVisibility:
         db = _mock_db()
         campaign = MagicMock()
         campaign.is_public = True
+        campaign.settings.labelling_policy = default_labelling_policy(is_public=True).model_dump(
+            mode="json"
+        )
         db.get.return_value = campaign
 
         update_campaign_visibility(db, 1, False)
         assert campaign.is_public is False
         db.commit.assert_called_once()
+
+    def test_makes_campaign_private_strips_anyone_from_stored_policy(self):
+        """A policy written while public may grant 'anyone' access; that
+        invariant is only valid for public campaigns, so flipping private
+        must strip it rather than leave a stale grant in place."""
+        db = _mock_db()
+        campaign = MagicMock()
+        campaign.is_public = True
+        campaign.settings.labelling_policy = default_labelling_policy(is_public=True).model_dump(
+            mode="json"
+        )
+        db.get.return_value = campaign
+
+        update_campaign_visibility(db, 1, False)
+
+        policy = campaign.settings.labelling_policy
+        assert "anyone" not in policy["explore"]["kinds"]
+        assert "anyone" not in policy["unassigned_tasks"]["kinds"]
+        assert "anyone" not in policy["assigned_tasks"]["kinds"]
+        assert policy["explore"]["kinds"] == ["members"]
+        # complete_assigned never had 'anyone' to begin with; unaffected.
+        assert set(policy["complete_assigned"]["kinds"]) == {
+            "assignees",
+            "admins",
+            "authoritative",
+        }
+
+    def test_making_public_does_not_touch_stored_policy(self):
+        db = _mock_db()
+        campaign = MagicMock()
+        campaign.is_public = False
+        original_policy = default_labelling_policy(is_public=False).model_dump(mode="json")
+        campaign.settings.labelling_policy = original_policy
+        db.get.return_value = campaign
+
+        update_campaign_visibility(db, 1, True)
+
+        assert campaign.settings.labelling_policy == original_policy
 
     def test_not_found_raises_404(self):
         db = _mock_db()
@@ -876,3 +917,36 @@ class TestAssignTasksToUsers:
         with pytest.raises(HTTPException) as exc_info:
             assign_tasks_to_users(db, 1, req)
         assert exc_info.value.status_code == 400
+
+
+def test_create_campaign_creates_default_task_set(sample_settings_data, sample_user_id):
+    from unittest.mock import MagicMock, patch
+
+    from src.campaigns import service
+    from src.campaigns.models import TaskSet
+    from src.campaigns.schemas import CampaignSettingsCreate
+    from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+
+    db = MagicMock()
+    mock_settings = MagicMock()
+    mock_settings.embedding_year = None
+
+    def mock_refresh(obj):
+        obj.settings = mock_settings
+
+    db.refresh.side_effect = mock_refresh
+
+    with patch("src.campaigns.service.get_campaign_full"):
+        service.create_campaign(
+            db,
+            name="c",
+            mode="tasks",
+            settings=CampaignSettingsCreate(**sample_settings_data),
+            user_id=sample_user_id,
+        )
+
+    added_task_sets = [
+        call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], TaskSet)
+    ]
+    assert len(added_task_sets) == 1
+    assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME

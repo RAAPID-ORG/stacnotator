@@ -22,13 +22,24 @@ import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
+import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
+import type { ReactNode } from 'react';
 
 interface OpenModeReviewProps {
   campaign: CampaignOut;
   campaignId: number;
+  // Extra action rendered first in the header row (e.g. the import toggle).
+  headerActions?: ReactNode;
+  // Rendered directly below the header (e.g. the expanded import section).
+  subHeader?: ReactNode;
 }
 
-export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) => {
+export const OpenModeReview = ({
+  campaign,
+  campaignId,
+  headerActions,
+  subHeader,
+}: OpenModeReviewProps) => {
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
   const showAlert = useLayoutStore((state) => state.showAlert);
@@ -268,11 +279,11 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
           <div>
             <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
             <p className="page-subtitle">
-              {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in open-mode
-              campaign.
+              {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this campaign.
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {headerActions}
             <ExportDropdown
               campaignId={campaignId}
               campaign={campaign}
@@ -284,6 +295,8 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             </Button>
           </div>
         </header>
+
+        {subHeader}
 
         {/* Map */}
         {annotations.length > 0 && (
@@ -528,7 +541,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
             )}
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-200">
+                <tr className={tableHeadRowCls}>
                   <th className="px-3 py-3 text-left">
                     <input
                       type="checkbox"
@@ -569,7 +582,7 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                 </tr>
               </thead>
               <tbody>
-                {filteredAnnotations.map((ann) => {
+                {filteredAnnotations.map((ann, index) => {
                   const centroid = extractCentroidFromWKT(ann.geometry.geometry);
                   const isMine = ann.created_by_user_id === currentUser?.id;
                   const createdAt = new Date(ann.created_at);
@@ -579,7 +592,9 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                   return (
                     <tr
                       key={ann.id}
-                      className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isMine ? 'bg-brand-50/30' : 'bg-white'} ${highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''}`}
+                      className={listRowCls(index, {
+                        tinted: isMine,
+                      })}
                       onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
                       onMouseLeave={() => setHighlightedAnnotationId(null)}
                     >

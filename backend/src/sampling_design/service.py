@@ -296,6 +296,7 @@ def create_tasks_from_sampling_strategy(
     strategy_type: str,
     num_samples: int,
     region_geometry: Polygon | MultiPolygon,
+    task_set_id: int,
     parameters: dict | None = None,
 ) -> int:
     """
@@ -307,6 +308,7 @@ def create_tasks_from_sampling_strategy(
         strategy_type: Type of sampling ('random', 'stratified_random', etc.)
         num_samples: Number of samples to generate
         region_geometry: Boundary geometry for sampling
+        task_set_id: ID of task set to assign created tasks to
         parameters: Additional strategy-specific parameters
 
     Returns:
@@ -357,6 +359,7 @@ def create_tasks_from_sampling_strategy(
                     "lon": point.x,
                     "lat": point.y,
                 },
+                "task_set_id": task_set_id,
             }
             for i, (geometry_id, point) in enumerate(zip(geometry_ids, sample_points, strict=True))
         ]
