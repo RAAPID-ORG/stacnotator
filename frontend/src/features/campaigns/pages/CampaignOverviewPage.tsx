@@ -78,6 +78,9 @@ export const CampaignOverviewPage = () => {
   }
 
   const createdDate = new Date(campaign.created_at).toLocaleDateString();
+  const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
+  const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
+  const hasTasks = totalTasks > 0;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -138,7 +141,7 @@ export const CampaignOverviewPage = () => {
               </Button>
             )}
           </div>
-          {taskSets.length === 0 ? (
+          {!hasTasks ? (
             <div className="surface">
               <div className="surface-section text-center py-12">
                 <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
@@ -162,8 +165,15 @@ export const CampaignOverviewPage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <MotionListItem index={0}>
+                <AllTasksCard
+                  totalLabeled={totalLabeled}
+                  totalTasks={totalTasks}
+                  onOpen={() => navigate(`/campaigns/${campaignId}/annotate?mode=tasks`)}
+                />
+              </MotionListItem>
               {taskSets.map((set, index) => (
-                <MotionListItem key={set.id} index={index}>
+                <MotionListItem key={set.id} index={index + 1}>
                   <TaskSetCard
                     taskSet={set}
                     onOpen={() =>
@@ -181,6 +191,47 @@ export const CampaignOverviewPage = () => {
           )}
         </section>
       </FadeIn>
+    </div>
+  );
+};
+
+const AllTasksCard = ({
+  totalLabeled,
+  totalTasks,
+  onOpen,
+}: {
+  totalLabeled: number;
+  totalTasks: number;
+  onOpen: () => void;
+}) => {
+  const percent = Math.round((totalLabeled / totalTasks) * 100);
+
+  return (
+    <div className="surface h-full flex flex-col border-2 border-brand-300">
+      <div className="surface-section flex-1 flex flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-sm font-semibold text-neutral-900 truncate">All tasks</h3>
+        </div>
+        <p className="text-[11px] text-brand-600 mt-0.5 font-medium">Across all sets</p>
+
+        <div className="mt-4">
+          <div className="h-1.5 rounded-full bg-neutral-100 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-brand-600 transition-[width]"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <p className="text-xs text-neutral-500 mt-1.5">
+            {totalLabeled} of {totalTasks} labeled
+          </p>
+        </div>
+
+        <div className="mt-4 flex-1 flex items-end">
+          <Button onClick={onOpen} className="w-full">
+            {totalLabeled === 0 ? 'Start' : 'Continue'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };

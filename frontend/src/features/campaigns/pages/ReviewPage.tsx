@@ -79,7 +79,9 @@ export const ReviewPage = () => {
     );
   }
 
-  const effectiveScope: ReviewScope = scope ?? (campaign.mode === 'open' ? 'all' : 'tasks');
+  // All annotations is the unified view across task and explore work, so it's
+  // always the default; the per-task lens is opt-in via the toggle.
+  const effectiveScope: ReviewScope = scope ?? 'all';
 
   return (
     <Fragment>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { IconPlus, IconDocument, IconGear, IconGlobe } from '~/shared/ui/Icons';
+import { IconPlus, IconDocument, IconGlobe } from '~/shared/ui/Icons';
 import { Button, Input } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -144,8 +144,6 @@ export const CampaignsPage = () => {
                       <CampaignRow
                         campaign={campaign}
                         onOpen={() => navigate(`/campaigns/${campaign.id}`)}
-                        onOpenReview={() => navigate(`/campaigns/${campaign.id}/annotations`)}
-                        onOpenSettings={() => navigate(`/campaigns/${campaign.id}/settings`)}
                       />
                     </MotionListItem>
                   ))}
@@ -162,13 +160,9 @@ export const CampaignsPage = () => {
 const CampaignRow = ({
   campaign,
   onOpen,
-  onOpenReview,
-  onOpenSettings,
 }: {
   campaign: CampaignListItemOut;
   onOpen: () => void;
-  onOpenReview: () => void;
-  onOpenSettings: () => void;
 }) => {
   const isMember = campaign.is_member ?? false;
   const isAdmin = campaign.is_admin ?? false;
@@ -217,34 +211,6 @@ const CampaignRow = ({
           )}
         </div>
         <p className="text-[11px] text-neutral-500 mt-0.5">{role}</p>
-      </div>
-
-      <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenReview();
-          }}
-          disabled={!canAccess}
-          className="inline-flex items-center h-8 px-3 text-xs font-medium text-neutral-600 rounded-md hover:bg-neutral-100 disabled:text-neutral-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-          type="button"
-        >
-          Annotations
-        </button>
-        {isAdmin && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSettings();
-            }}
-            className="inline-flex items-center justify-center h-8 w-8 text-neutral-400 hover:text-neutral-700 rounded-md hover:bg-neutral-100 transition-colors"
-            type="button"
-            aria-label="Campaign settings"
-            title="Campaign settings"
-          >
-            <IconGear className="w-4 h-4" />
-          </button>
-        )}
       </div>
     </li>
   );
