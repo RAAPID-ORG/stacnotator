@@ -228,8 +228,8 @@ export const AnnotationPage = () => {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   {isCampaignAdmin && (
-                    <Button onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}>
-                      Set up tasks in settings
+                    <Button onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}>
+                      Set up tasks
                     </Button>
                   )}
                   <Button variant="secondary" onClick={() => setWorkMode('explore')}>

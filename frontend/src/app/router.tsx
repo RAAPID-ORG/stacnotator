@@ -34,6 +34,11 @@ const CampaignSettingsPage = lazy(() =>
     default: m.CampaignSettingsPage,
   }))
 );
+const CampaignTasksPage = lazy(() =>
+  import('~/features/campaigns/pages/CampaignTasksPage').then((m) => ({
+    default: m.CampaignTasksPage,
+  }))
+);
 const ReviewPage = lazy(() =>
   import('~/features/campaigns/pages/ReviewPage').then((m) => ({ default: m.ReviewPage }))
 );
@@ -99,6 +104,14 @@ const router = createBrowserRouter(
           element={
             <Suspense fallback={<RouteFallback />}>
               <CampaignSettingsPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="tasks"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <CampaignTasksPage />
             </Suspense>
           }
         />

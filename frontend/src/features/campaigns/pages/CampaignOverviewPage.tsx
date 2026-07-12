@@ -127,7 +127,17 @@ export const CampaignOverviewPage = () => {
         </div>
 
         <section>
-          <h2 className="section-heading mb-3">Task sets</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="section-heading">Task sets</h2>
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+              >
+                Add tasks
+              </Button>
+            )}
+          </div>
           {taskSets.length === 0 ? (
             <div className="surface">
               <div className="surface-section text-center py-12">
@@ -138,14 +148,14 @@ export const CampaignOverviewPage = () => {
                 <p className="text-sm text-neutral-500 mb-4">
                   {isAdmin
                     ? 'Set up task sets to guide annotators through specific locations.'
-                    : 'An admin can add task sets in Settings.'}
+                    : 'An admin can add task sets for this campaign.'}
                 </p>
                 {isAdmin && (
                   <Button
                     variant="secondary"
-                    onClick={() => navigate(`/campaigns/${campaignId}/settings?tab=tasks`)}
+                    onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
                   >
-                    Go to Settings
+                    Add tasks
                   </Button>
                 )}
               </div>
@@ -159,6 +169,11 @@ export const CampaignOverviewPage = () => {
                     onOpen={() =>
                       navigate(`/campaigns/${campaignId}/annotate?mode=tasks&taskSet=${set.id}`)
                     }
+                    onManage={
+                      isAdmin
+                        ? () => navigate(`/campaigns/${campaignId}/tasks?taskSet=${set.id}`)
+                        : undefined
+                    }
                   />
                 </MotionListItem>
               ))}
@@ -170,7 +185,15 @@ export const CampaignOverviewPage = () => {
   );
 };
 
-const TaskSetCard = ({ taskSet, onOpen }: { taskSet: TaskSetOut; onOpen: () => void }) => {
+const TaskSetCard = ({
+  taskSet,
+  onOpen,
+  onManage,
+}: {
+  taskSet: TaskSetOut;
+  onOpen: () => void;
+  onManage?: () => void;
+}) => {
   const isEmpty = taskSet.num_tasks === 0;
   const percent = isEmpty ? 0 : Math.round((taskSet.num_labeled / taskSet.num_tasks) * 100);
   const createdDate = new Date(taskSet.created_at).toLocaleDateString();
@@ -178,7 +201,18 @@ const TaskSetCard = ({ taskSet, onOpen }: { taskSet: TaskSetOut; onOpen: () => v
   return (
     <div className="surface h-full flex flex-col">
       <div className="surface-section flex-1 flex flex-col">
-        <h3 className="text-sm font-semibold text-neutral-900 truncate">{taskSet.name}</h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-sm font-semibold text-neutral-900 truncate">{taskSet.name}</h3>
+          {onManage && (
+            <button
+              type="button"
+              onClick={onManage}
+              className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
+            >
+              Manage
+            </button>
+          )}
+        </div>
         <p className="text-[11px] text-neutral-500 mt-0.5">Created {createdDate}</p>
 
         <div className="mt-4">
