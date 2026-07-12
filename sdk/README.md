@@ -121,6 +121,27 @@ campaign.register_vector_overlay(
 campaign.vector_overlays()        # id, name, pmtiles_url, source_layer, color
 ```
 
+## Uploading tasks
+
+Predefined-task campaigns need tasks in place before annotators can work. Tasks live in named
+task sets (e.g. a first batch, then a "round-2" set once labeling wraps on the first):
+
+```python
+campaign.task_sets()   # id, name, num_tasks, num_labeled
+```
+
+`upload_tasks` accepts a DataFrame with `lat`/`lon` columns (extra columns become task
+properties) or a GeoJSON `FeatureCollection` dict for polygon/box tasks:
+
+```python
+points = pd.DataFrame({"lat": [10.0, 11.0], "lon": [20.0, 21.0], "plot": ["a", "b"]})
+campaign.upload_tasks(points, task_set="round-2")                        # existing set
+campaign.upload_tasks(points, task_set="round-3", create_missing=True)   # created on demand
+```
+
+Unknown set names raise `ValueError` listing the campaign's existing sets, unless
+`create_missing=True` is passed. Returns the number of tasks created.
+
 ## File utils: COGs and PMTiles
 
 Overlays need web-ready files: rasters as Cloud-Optimized GeoTIFFs, vectors as PMTiles.
@@ -187,6 +208,8 @@ Campaign.overlays()                              # -> DataFrame
 Campaign.register_vector_overlay(pmtiles_url, name=None,
                              source_layer=None, color="#3b82f6")
 Campaign.vector_overlays()                       # -> DataFrame
+Campaign.task_sets()                             # -> DataFrame: id, name, num_tasks, num_labeled
+Campaign.upload_tasks(data, task_set, create_missing=False)  # -> num tasks created
 
 utils.to_cog(src, dst=None, resampling="nearest")            # -> Path
 utils.merge_to_cog(sources, dst, resampling="nearest")       # folder/list of chips -> Path

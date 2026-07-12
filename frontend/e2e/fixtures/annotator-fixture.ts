@@ -11,6 +11,7 @@ import {
   MOCK_USER,
   MOCK_CAMPAIGN,
   MOCK_TASK_LIST,
+  MOCK_TASK_SETS,
   MOCK_CAMPAIGN_USERS,
   MOCK_CAMPAIGN_USERS_AUTHORITATIVE,
   ALL_TASKS,
@@ -285,6 +286,19 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(new URL(route.request().url()).pathname),
       });
       await route.fulfill({ json: taskListData });
+    });
+
+    // GET /api/campaigns/:id/task-sets
+    await page.route('**/api/campaigns/*/task-sets', async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      api.requests.push({
+        method: 'GET',
+        url: route.request().url(),
+        pathname: new URL(route.request().url()).pathname,
+        body: null,
+        pathParams: extractPathParams(new URL(route.request().url()).pathname),
+      });
+      await route.fulfill({ json: MOCK_TASK_SETS });
     });
 
     // POST /api/campaigns/:id/:taskId/annotate  (completeAnnotationTask)

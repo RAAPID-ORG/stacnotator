@@ -2,7 +2,7 @@ import io
 import json
 import logging
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -32,6 +32,7 @@ from src.auth.dependencies import require_approved_user, require_authenticated_u
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.utils import FunctionNameOperationIdRoute, clean_filename
 
@@ -56,7 +57,7 @@ def get_all_annotation_tasks(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    tasks = service.get_annotation_tasks_for_campaign(db, campaign_id)
+    tasks = service.get_annotation_tasks_for_campaign(db, campaign)
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -76,7 +77,7 @@ def complete_annotation_task(
     annotation_task = service.get_annotation_task_by_id(
         db=db,
         task_id=annotation_task_id,
-        campaign_id=campaign_id,
+        campaign=campaign,
     )
 
     if annotation_task is None:
@@ -97,7 +98,7 @@ def complete_annotation_task(
     refreshed_task = service.get_annotation_task_by_id(
         db=db,
         task_id=annotation_task_id,
-        campaign_id=campaign_id,
+        campaign=campaign,
     )
 
     task_out = AnnotationTaskOut.model_validate(refreshed_task)
@@ -189,12 +190,14 @@ async def ingest_annotation_tasks_from_csv(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
+    task_set_id: int = Form(...),
 ):
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
+    require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents)
+    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
@@ -202,6 +205,7 @@ async def ingest_annotation_tasks_from_geojson(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
     file: UploadFile = File(...),
+    task_set_id: int = Form(...),
 ):
     """
     Ingest annotation tasks from a GeoJSON file.
@@ -214,8 +218,11 @@ async def ingest_annotation_tasks_from_geojson(
     if not (fname.endswith(".geojson") or fname.endswith(".json")):
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
+    require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    num_created = annotation_io.create_annotation_tasks_from_geojson(db, campaign.id, contents)
+    num_created = annotation_io.create_annotation_tasks_from_geojson(
+        db, campaign.id, contents, task_set_id
+    )
     return {"num_tasks_created": num_created}
 
 
@@ -227,7 +234,7 @@ async def ingest_annotations_from_geojson(
     file: UploadFile = File(...),
 ):
     """
-    Bulk-import existing features as standalone annotations (open mode only).
+    Bulk-import existing features as standalone annotations (no task assignment).
 
     Each feature becomes one annotation owned by the uploading admin. The label
     is read from the ``stacnotator_label_id`` property and must be a label of
@@ -338,9 +345,8 @@ def delete_annotation(
     service.delete_annotation(
         db=db,
         annotation_id=annotation_id,
-        campaign_id=campaign.id,
-        user_id=user.id,
         campaign=campaign,
+        user_id=user.id,
     )
 
     # If it was linked to a task, return updated statuses
@@ -348,7 +354,7 @@ def delete_annotation(
         refreshed_task = service.get_annotation_task_by_id(
             db=db,
             task_id=task_id,
-            campaign_id=campaign_id,
+            campaign=campaign,
         )
         if refreshed_task:
             task_out = AnnotationTaskOut.model_validate(refreshed_task)
@@ -455,7 +461,7 @@ def get_all_annotations_for_campaign(
 ):
     annotations = service.get_annotations_for_campaign(
         db=db,
-        campaign_id=campaign.id,
+        campaign=campaign,
     )
     return annotations
 
@@ -549,7 +555,7 @@ def get_annotation(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationOut:
     """Fetch one annotation's full-resolution geometry for click-to-edit."""
-    annotation = service.get_annotation_by_id(db, annotation_id, campaign.id)
+    annotation = service.get_annotation_by_id(db, annotation_id, campaign)
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
     return annotation

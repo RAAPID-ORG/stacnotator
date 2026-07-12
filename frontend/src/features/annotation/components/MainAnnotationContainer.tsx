@@ -40,6 +40,7 @@ export const MainAnnotationsContainer = ({
   headerSlotRef,
 }: MainAnnotationsContainerProps) => {
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
 
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -188,10 +189,10 @@ export const MainAnnotationsContainer = ({
   }, []);
 
   const center = useMemo<[number, number] | undefined>(() => {
-    if (campaign?.mode !== 'tasks' || !latLon) return undefined;
+    if (workMode !== 'tasks' || !latLon) return undefined;
     return [latLon.lat, latLon.lon];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latLon?.lat, latLon?.lon, campaign?.mode]);
+  }, [latLon?.lat, latLon?.lon, workMode]);
 
   // Detect whether the current task has a polygon geometry (uploaded from GeoJSON)
   const isPolygonTask = useMemo(() => {
@@ -202,14 +203,14 @@ export const MainAnnotationsContainer = ({
   }, [currentTask?.geometry.geometry]);
 
   const crosshair = useMemo(() => {
-    if (campaign?.mode !== 'tasks' || !latLon || isPolygonTask) return undefined;
+    if (workMode !== 'tasks' || !latLon || isPolygonTask) return undefined;
     return { lat: latLon.lat, lon: latLon.lon, color: activeSource?.crosshair_hex6 ?? undefined };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latLon?.lat, latLon?.lon, campaign?.mode, activeSource?.crosshair_hex6, isPolygonTask]);
+  }, [latLon?.lat, latLon?.lon, workMode, activeSource?.crosshair_hex6, isPolygonTask]);
 
   // Compute sample extent GeoJSON for the current task
   const sampleExtent = useMemo<GeoJSON.Polygon | GeoJSON.MultiPolygon | null>(() => {
-    if (campaign?.mode !== 'tasks' || !currentTask) return null;
+    if (workMode !== 'tasks' || !currentTask || !campaign) return null;
     const wkt = currentTask.geometry.geometry;
     const geojson = convertWKTToGeoJSON(wkt);
     // If the task geometry is already a polygon/multipolygon, use it directly
@@ -223,7 +224,7 @@ export const MainAnnotationsContainer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     currentTask?.geometry.geometry,
-    campaign?.mode,
+    workMode,
     campaign?.settings.sample_extent_meters,
     latLon?.lat,
     latLon?.lon,
@@ -297,13 +298,13 @@ export const MainAnnotationsContainer = ({
 
   const handleTimeseriesClick = useCallback(
     (lat: number, lon: number) => {
-      if (campaign?.mode === 'tasks') {
+      if (workMode === 'tasks') {
         setProbeTimeseriesPoint({ lat, lon });
       } else {
         setTimeseriesPoint({ lat, lon });
       }
     },
-    [campaign?.mode, setTimeseriesPoint, setProbeTimeseriesPoint]
+    [workMode, setTimeseriesPoint, setProbeTimeseriesPoint]
   );
 
   const handleLayersChange = useCallback((layers: Layer[], id: string) => {
@@ -322,8 +323,8 @@ export const MainAnnotationsContainer = ({
 
   if (!campaign || !activeSource) return null;
 
-  const isTaskMode = campaign.mode === 'tasks';
-  const isOpenMode = campaign.mode === 'open';
+  const isTaskMode = workMode === 'tasks';
+  const isOpenMode = workMode === 'explore';
 
   // Number of collections that are shown as windows
   const windowCollections = viewCollections.filter((r) => r.show_as_window);

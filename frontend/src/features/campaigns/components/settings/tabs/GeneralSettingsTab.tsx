@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import type { CampaignOut, CampaignSettingsCreate, LabelBase } from '~/api/client';
+import type {
+  CampaignOut,
+  CampaignSettingsCreate,
+  CampaignUserOut,
+  LabelBase,
+  LabellingPolicy,
+} from '~/api/client';
 import {
   updateCampaignGuide,
   updateCampaignLabels,
   updateCampaignVisibility,
   updateEmbeddingYear,
+  updateLabellingPolicy,
   updateSampleExtent,
 } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
+import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
@@ -23,6 +31,7 @@ interface Props {
   onUpdateSettings: (updates: Partial<CampaignSettingsCreate>) => void;
   onOpenDelete: () => void;
   onCampaignUpdated?: (campaign: CampaignOut) => void;
+  campaignUsers: CampaignUserOut[];
 }
 
 export const GeneralSettingsTab: React.FC<Props> = ({
@@ -35,6 +44,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   onUpdateSettings,
   onOpenDelete,
   onCampaignUpdated,
+  campaignUsers,
 }) => {
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
@@ -92,6 +102,46 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       handleError(err, 'Failed to update labels');
     } finally {
       setSavingLabels(false);
+    }
+  };
+
+  // Labelling policy local draft.
+  const [policyDraft, setPolicyDraft] = useState<LabellingPolicy>(
+    campaign.settings.labelling_policy
+  );
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const policyChanged =
+    JSON.stringify(policyDraft) !== JSON.stringify(campaign.settings.labelling_policy);
+
+  const handleSavePolicy = async () => {
+    if (!policyChanged) return;
+    try {
+      setSavingPolicy(true);
+      const noOne = { kinds: [], user_ids: [] };
+      const { data } = await updateLabellingPolicy({
+        path: { campaign_id: campaign.id },
+        // PATCH replaces the whole policy, so every axis must be present.
+        body: {
+          explore: policyDraft.explore ?? noOne,
+          unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
+          assigned_tasks: policyDraft.assigned_tasks ?? noOne,
+          complete_assigned: policyDraft.complete_assigned ?? noOne,
+        },
+      });
+      if (data) {
+        setPolicyDraft(data);
+        if (onCampaignUpdated) {
+          onCampaignUpdated({
+            ...campaign,
+            settings: { ...campaign.settings, labelling_policy: data },
+          });
+        }
+      }
+      showAlert('Labelling access updated', 'success');
+    } catch (err) {
+      handleError(err, 'Failed to update labelling access');
+    } finally {
+      setSavingPolicy(false);
     }
   };
 
@@ -260,45 +310,42 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         </Button>
       </section>
 
-      {/* Sample Extent - task mode only */}
-      {campaign.mode === 'tasks' && (
-        <section className={sectionCls}>
-          <div>
-            <h2 className="section-heading">Sample extent</h2>
-            <p className="section-description">
-              Defines the exact size of a sample point. If lat/lon is the exact coordinate, the
-              sample extent defines the dimensions around this centroid that constitute the actual
-              sample. This helps to have a shared understanding of which area / pixels belong to a
-              sample point. Leave empty if tasks were uploaded as polygons or if no extent should be
-              visualized.
-            </p>
-          </div>
-          <div className="flex gap-3 items-end">
-            <Field
-              label="Extent (meters)"
-              error={!extentValid ? 'Must be a positive number' : undefined}
-              className="w-56"
-            >
-              <Input
-                type="number"
-                min="1"
-                step="1"
-                value={sampleExtent}
-                onChange={(e) => setSampleExtent(e.target.value)}
-                disabled={savingExtent}
-                placeholder="e.g. 100"
-                invalid={!extentValid}
-              />
-            </Field>
-            <Button
-              onClick={handleSaveExtent}
-              disabled={savingExtent || !extentChanged || !extentValid}
-            >
-              {savingExtent ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        </section>
-      )}
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Sample extent</h2>
+          <p className="section-description">
+            Defines the exact size of a sample point. If lat/lon is the exact coordinate, the sample
+            extent defines the dimensions around this centroid that constitute the actual sample.
+            This helps to have a shared understanding of which area / pixels belong to a sample
+            point. Leave empty if tasks were uploaded as polygons or if no extent should be
+            visualized.
+          </p>
+        </div>
+        <div className="flex gap-3 items-end">
+          <Field
+            label="Extent (meters)"
+            error={!extentValid ? 'Must be a positive number' : undefined}
+            className="w-56"
+          >
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={sampleExtent}
+              onChange={(e) => setSampleExtent(e.target.value)}
+              disabled={savingExtent}
+              placeholder="e.g. 100"
+              invalid={!extentValid}
+            />
+          </Field>
+          <Button
+            onClick={handleSaveExtent}
+            disabled={savingExtent || !extentChanged || !extentValid}
+          >
+            {savingExtent ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </section>
 
       <section className={sectionCls}>
         <div>
@@ -312,7 +359,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <LabelsEditor
           value={labelsDraft}
           onChange={setLabelsDraft}
-          showGeometryType={campaign.mode === 'open'}
+          showGeometryType
           disableDelete
         />
         <div className="flex items-center gap-3 mt-3">
@@ -335,6 +382,40 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           )}
           {!labelsAreValid && (
             <span className="text-xs text-red-600">Label names must be non-empty and unique.</span>
+          )}
+        </div>
+      </section>
+
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Labelling access</h2>
+          <p className="section-description">
+            Control who may label what, and whose labels count toward completing a task.
+          </p>
+        </div>
+        <LabellingPolicyEditor
+          value={policyDraft}
+          onChange={setPolicyDraft}
+          isPublic={campaign.is_public ?? false}
+          members={campaignUsers}
+        />
+        <div className="flex items-center gap-3 mt-3">
+          <Button
+            type="button"
+            onClick={() => void handleSavePolicy()}
+            disabled={!policyChanged || savingPolicy}
+          >
+            {savingPolicy ? 'Saving…' : 'Save labelling access'}
+          </Button>
+          {policyChanged && (
+            <button
+              type="button"
+              onClick={() => setPolicyDraft(campaign.settings.labelling_policy)}
+              disabled={savingPolicy}
+              className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
+            >
+              Discard
+            </button>
           )}
         </div>
       </section>

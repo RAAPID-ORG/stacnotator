@@ -109,7 +109,7 @@ export const TaskAssignmentModal = ({
     <div className="fixed inset-0 bg-neutral-900/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-neutral-300">
-          <h2 className="text-xl font-semibold text-neutral-900">Assign Tasks to Users</h2>
+          <h2 className="text-xl font-semibold text-neutral-900">Assign All Tasks</h2>
           <p className="text-sm text-neutral-500 mt-1">
             {unassignedTasks.length} unassigned tasks available
           </p>

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from src.auth.schemas import UserOut
 from src.custom_maps.schemas import CustomMapOut
@@ -30,6 +30,114 @@ class LabelBase(BaseModel):
     geometry_type: Literal["point", "polygon", "line"] | None = None
 
 
+PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
+
+# Labelling policies options per kind of task/explore
+_EXPLORE_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "members", "anyone"})
+_UNASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "members", "anyone"}
+)
+_ASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "assignees", "members", "anyone"}
+)
+_COMPLETE_ASSIGNED_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "assignees", "members"}
+)
+
+
+class PolicyAudience(BaseModel):
+    """An audience selector for one labelling-policy axis: a set of role
+    `kinds` plus an additive list of specifically selected `user_ids`. Empty
+    kinds and empty user_ids means "no one"."""
+
+    kinds: list[PolicyAudienceKind] = []
+    user_ids: list[UUID] = []
+
+
+def _validate_axis_kinds(
+    audience: PolicyAudience, allowed: frozenset[str], axis_name: str
+) -> PolicyAudience:
+    disallowed = [kind for kind in audience.kinds if kind not in allowed]
+    if disallowed:
+        raise ValueError(
+            f"{axis_name} does not allow kind(s) {disallowed}; allowed: {sorted(allowed)}"
+        )
+    return audience
+
+
+class LabellingPolicy(BaseModel):
+    """Who may label what, and whose labels count toward task completion.
+
+    See docs/labelling-policy.md for the
+    full rationale behind the four axes.
+    """
+
+    explore: PolicyAudience = Field(default_factory=PolicyAudience)
+    unassigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
+    assigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
+    complete_assigned: PolicyAudience = Field(default_factory=PolicyAudience)
+
+    @field_validator("explore")
+    @classmethod
+    def _check_explore_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _EXPLORE_ALLOWED_KINDS, "explore")
+
+    @field_validator("unassigned_tasks")
+    @classmethod
+    def _check_unassigned_tasks_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _UNASSIGNED_TASKS_ALLOWED_KINDS, "unassigned_tasks")
+
+    @field_validator("assigned_tasks")
+    @classmethod
+    def _check_assigned_tasks_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _ASSIGNED_TASKS_ALLOWED_KINDS, "assigned_tasks")
+
+    @field_validator("complete_assigned")
+    @classmethod
+    def _check_complete_assigned_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _COMPLETE_ASSIGNED_ALLOWED_KINDS, "complete_assigned")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
+    """The labelling policy used when a campaign is created without an
+    explicit one, and backfilled by migration z1labelpolicy for existing
+    campaigns. Matches current unified behavior (any member can label
+    anything); completion stays with assignees/admins/authoritative.
+
+    Public campaigns additionally open the explore/unassigned_tasks/
+    assigned_tasks axes to 'anyone' (unauthenticated/any visitor), since a
+    public campaign is meant to be labellable without membership. Whose
+    label *counts* toward completion is a separate question the spec answers
+    "no" for anonymous visitors, so complete_assigned is unchanged.
+    """
+    anyone = ["anyone"] if is_public else []
+    return LabellingPolicy(
+        explore=PolicyAudience(kinds=["members", *anyone]),
+        unassigned_tasks=PolicyAudience(kinds=["members", *anyone]),
+        assigned_tasks=PolicyAudience(kinds=["members", *anyone]),
+        complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
+    )
+
+
+class UpdateLabellingPolicyRequest(LabellingPolicy):
+    """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
+    as LabellingPolicy, plus the campaign-public check applied by the service.
+
+    All four axes are required (no defaults), unlike the base LabellingPolicy:
+    a PATCH is a full replacement of the stored policy, so silently omitting
+    an axis here would defaults it to "no one" for that axis rather than
+    leaving it as the caller likely intended (unchanged). Callers must always
+    send the complete policy, which is what the settings UI does.
+    """
+
+    explore: PolicyAudience
+    unassigned_tasks: PolicyAudience
+    assigned_tasks: PolicyAudience
+    complete_assigned: PolicyAudience
+
+
 class CampaignSettingsOut(BaseModel):
     labels: list[LabelBase]
     bbox_west: float
@@ -39,6 +147,7 @@ class CampaignSettingsOut(BaseModel):
     embedding_year: int | None = None
     guide_markdown: str | None = None
     sample_extent_meters: float | None = None
+    labelling_policy: LabellingPolicy
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -120,11 +229,12 @@ class CampaignOut(BaseModel):
 
 class CampaignCreate(BaseModel):
     name: str
-    mode: Literal["tasks", "open"]
+    mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
     is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
+    labelling_policy: LabellingPolicy | None = None
 
 
 class CampaignListItemOut(BaseModel):
@@ -280,6 +390,9 @@ class AssignTasksToUsersRequest(BaseModel):
     user_task_counts: dict[UUID, int] | None = None
     task_assignments: dict[int, list[UUID]] | None = None
 
+    # Optional scope: restrict the distribution pool to one task set.
+    task_set_id: int | None = None
+
 
 class AssignTasksToUsersResult(BaseModel):
     total_assigned: int
@@ -316,6 +429,9 @@ class AssignReviewersRequest(BaseModel):
     # For 'fixed' pattern
     num_tasks: int | None = None  # Number of already-assigned tasks to review
     fixed_num_reviewers: int | None = None  # Target reviewers per task (excluding the annotator)
+
+    # Optional scope: restrict the reviewable pool to one task set.
+    task_set_id: int | None = None
 
 
 class DeleteAnnotationTasksRequest(BaseModel):
@@ -373,3 +489,43 @@ class CampaignStatistics(BaseModel):
     krippendorff_alpha: float | None  # Overall inter-annotator agreement (0-1)
     annotators: list[AnnotatorInfo]
     pairwise_agreements: list[PairwiseAgreement]
+
+
+class TaskSetOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    num_tasks: int
+    num_labeled: int
+
+
+class TaskSetCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+
+class TaskSetRename(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("name must not be blank")
+        return v
+
+
+class MoveTasksToSetRequest(BaseModel):
+    task_ids: list[int]
+
+
+class MoveTasksToSetResult(BaseModel):
+    num_moved: int

@@ -96,6 +96,7 @@ const AnnotationCard = ({ entry, currentUserId, labels, taskConflicting }: Annot
   const isOwn = annotation.created_by_user_id === currentUserId;
   const isSkipped = assignment?.status === 'skipped';
   const isConflict = taskConflicting && !annotation.is_authoritative;
+  const isExtra = annotation.counts_toward_completion === false;
 
   const label = labels.find((l) => l.id === annotation.label_id);
   const labelName = label
@@ -121,7 +122,7 @@ const AnnotationCard = ({ entry, currentUserId, labels, taskConflicting }: Annot
       : 'text-neutral-800';
 
   return (
-    <div className={`${cardFrame} ${bg}`}>
+    <div className={`${cardFrame} ${bg} ${isExtra ? 'opacity-60' : ''}`}>
       <div className="flex items-center justify-between gap-2">
         <span className={`font-bold ${nameColor}`}>
           {resolveDisplayName(entry, currentUserId)}
@@ -136,6 +137,14 @@ const AnnotationCard = ({ entry, currentUserId, labels, taskConflicting }: Annot
               title={annotation.flag_comment || 'Flagged for review'}
             >
               <FlagIcon />
+            </span>
+          )}
+          {isExtra && (
+            <span
+              className="ml-1.5 px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide align-middle"
+              title="Does not count toward completion"
+            >
+              extra
             </span>
           )}
         </span>

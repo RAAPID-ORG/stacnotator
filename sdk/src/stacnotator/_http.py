@@ -22,8 +22,14 @@ class Http:
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", path, params=params)
 
-    def post(self, path: str, json: Any = None) -> Any:
-        return self._request("POST", path, json=json)
+    def post(
+        self,
+        path: str,
+        json: Any = None,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+    ) -> Any:
+        return self._request("POST", path, json=json, data=data, files=files)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         response = self._send(method, path, **kwargs)

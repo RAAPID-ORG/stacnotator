@@ -49,6 +49,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   const isDraggingRef = useRef(false);
 
   const campaign = useCampaignStore((s) => s.campaign);
+  const workMode = useCampaignStore((s) => s.workMode);
 
   // Re-mint the tiler cookie on campaign entry so a just-created / just-joined campaign is
   // covered (the cookie snapshots memberships at mint time). Keyed on campaign id, so the
@@ -82,7 +83,7 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
     [source, collectionId]
   );
   const currentTask = visibleTasks[currentTaskIndex] || null;
-  const isOpenMode = campaign?.mode === 'open';
+  const isOpenMode = workMode === 'explore';
   const campaignBbox = campaign
     ? ([
         campaign.settings.bbox_west,

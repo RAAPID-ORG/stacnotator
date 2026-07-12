@@ -1,6 +1,33 @@
-import type { CampaignCreate } from '~/api/client';
+import { useState } from 'react';
+import type { CampaignCreate, LabellingPolicy } from '~/api/client';
 import { Input } from '~/shared/ui/forms';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import {
+  DEFAULT_LABELLING_POLICY,
+  LabellingPolicyEditor,
+} from '~/features/campaigns/components/LabellingPolicyEditor';
+
+// Axes that get 'anyone' seeded onto them when a campaign becomes public and
+// the user hasn't customized the labelling policy yet. complete_assigned
+// deliberately excluded - 'anyone' isn't a valid kind there (backend and the
+// editor both reject it).
+const PUBLIC_SEEDED_AXES: (keyof LabellingPolicy)[] = [
+  'explore',
+  'unassigned_tasks',
+  'assigned_tasks',
+];
+
+const withAnyoneSeeded = (policy: LabellingPolicy): LabellingPolicy => {
+  const seeded = { ...policy };
+  for (const axis of PUBLIC_SEEDED_AXES) {
+    const current = policy[axis] ?? { kinds: [], user_ids: [] };
+    const kinds = new Set(current.kinds ?? []);
+    kinds.add('anyone');
+    seeded[axis] = { ...current, kinds: Array.from(kinds) };
+  }
+  return seeded;
+};
+
 export const StepCampaign = ({
   form,
   setForm,
@@ -9,6 +36,10 @@ export const StepCampaign = ({
   setForm: (f: CampaignCreate) => void;
 }) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+  // Whether the user has directly edited the labelling policy in this wizard
+  // session. Once true, toggling "Public" stops auto-seeding 'anyone' onto
+  // the axes - their choices win instead.
+  const [policyTouched, setPolicyTouched] = useState(false);
 
   const handleVisibilityChange = async (checked: boolean) => {
     if (!checked) {
@@ -23,7 +54,16 @@ export const StepCampaign = ({
       cancelText: 'Cancel',
       isDangerous: true,
     });
-    if (confirmed) setForm({ ...form, is_public: true });
+    if (!confirmed) return;
+    if (policyTouched) {
+      setForm({ ...form, is_public: true });
+      return;
+    }
+    setForm({
+      ...form,
+      is_public: true,
+      labelling_policy: withAnyoneSeeded(form.labelling_policy ?? DEFAULT_LABELLING_POLICY),
+    });
   };
 
   return (
@@ -36,47 +76,6 @@ export const StepCampaign = ({
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
-      </div>
-
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-neutral-900">Campaign Mode</p>
-
-        <div className="space-y-3">
-          <label className="flex items-start space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="mode"
-              value="tasks"
-              checked={form.mode === 'tasks'}
-              onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-700 focus:ring-brand-600"
-            />
-            <div className="flex-1">
-              <div className="font-medium text-sm text-neutral-900">Tasks</div>
-              <div className="text-sm text-neutral-600">
-                Predefined list of sampled locations that should be annotated.
-              </div>
-            </div>
-          </label>
-
-          <label className="flex items-start space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="mode"
-              value="open"
-              checked={form.mode === 'open'}
-              onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-700 focus:ring-brand-600"
-            />
-            <div className="flex-1">
-              <div className="font-medium text-sm text-neutral-900">Open</div>
-              <div className="text-sm text-neutral-600">
-                Imagery that can be navigated open-world like and annotations such as polygons can
-                be placed manually.
-              </div>
-            </div>
-          </label>
-        </div>
       </div>
 
       <div className="space-y-3">
@@ -96,6 +95,23 @@ export const StepCampaign = ({
             </div>
           </div>
         </label>
+      </div>
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-neutral-900">Labelling access</p>
+        <p className="text-sm text-neutral-600">
+          Every campaign supports both task-by-task labeling and free exploration - annotators can
+          switch between them anytime from the annotation view. Control who may label what, and
+          whose labels count toward completing a task. You can revisit this later in campaign
+          settings.
+        </p>
+
+        <LabellingPolicyEditor
+          value={form.labelling_policy ?? DEFAULT_LABELLING_POLICY}
+          onChange={(labelling_policy) => setForm({ ...form, labelling_policy })}
+          onTouch={() => setPolicyTouched(true)}
+          isPublic={form.is_public ?? false}
+        />
       </div>
     </div>
   );

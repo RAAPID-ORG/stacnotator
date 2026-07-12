@@ -39,21 +39,34 @@ from src.annotation.service import (
 def _mock_db():
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
+    # `add_annotation_for_task` always fetches its campaign via db.get to
+    # evaluate the labelling policy; default it to a well-formed campaign so
+    # tests that don't care about campaign shape don't have to configure it.
+    db.get.return_value = _make_campaign()
     return db
 
 
 def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
-    """Return a MagicMock campaign whose label set contains the given ids."""
+    """Return a MagicMock campaign whose label set contains the given ids.
+
+    `settings.labelling_policy = None` so `get_labelling_policy` falls back to
+    the default policy (members-everywhere) instead of trying to validate a
+    MagicMock as a LabellingPolicy - policy-enforcement tests below override
+    it explicitly where they need a specific policy.
+    """
     campaign = MagicMock()
     campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
+    campaign.settings.labelling_policy = None
+    campaign.is_public = False
     return campaign
 
 
-def _make_task(task_id=1, campaign_id=1, geometry_id=10):
+def _make_task(task_id=1, campaign_id=1, geometry_id=10, assignments=None):
     task = MagicMock()
     task.id = task_id
     task.campaign_id = campaign_id
     task.geometry_id = geometry_id
+    task.assignments = assignments if assignments is not None else []
     return task
 
 
@@ -481,7 +494,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.label_id == 3
         db.commit.assert_called_once()
@@ -495,7 +508,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=None, comment="updated comment", geometry_wkt=None, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.comment == "updated comment"
 
@@ -512,7 +525,7 @@ class TestUpdateAnnotation:
             geometry_wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             is_authoritative=None,
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         # Should have added a new AnnotationGeometry
         added_geom = db.add.call_args[0][0]
@@ -538,7 +551,7 @@ class TestUpdateAnnotation:
             imagery_start_date="2024-06-01",
             imagery_end_date="2024-06-30",
         )
-        update_annotation(db, 5, payload, uuid4())
+        update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 
         assert existing.imagery_slice_id == 99
         assert existing.imagery_source_name == "New Source"
@@ -567,7 +580,7 @@ class TestUpdateAnnotation:
             imagery_start_date="2024-06-01",
             imagery_end_date="2024-06-30",
         )
-        update_annotation(db, 5, payload, uuid4())
+        update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 
         assert existing.imagery_slice_id == 1
         assert existing.imagery_source_name == "Old Source"
@@ -583,7 +596,7 @@ class TestUpdateAnnotation:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            update_annotation(db, 999, payload, uuid4())
+            update_annotation(db, 999, payload, uuid4(), campaign=_make_campaign())
 
         assert exc_info.value.status_code == 404
 
@@ -601,7 +614,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=None, comment=None, geometry_wkt=None, confidence=1, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.label_id == 2  # unchanged
         assert existing.comment == "original"  # unchanged
@@ -619,7 +632,7 @@ class TestUpdateAnnotation:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            update_annotation(db, 5, payload, user_id)
+            update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert exc_info.value.status_code == 400
         db.rollback.assert_called_once()
@@ -634,7 +647,7 @@ class TestDeleteAnnotation:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(db, 10, campaign_id=1)
+        delete_annotation(db, 10, _make_campaign())
 
         db.delete.assert_called_once_with(existing)
         db.commit.assert_called_once()
@@ -651,7 +664,7 @@ class TestDeleteAnnotation:
         # first execute -> find annotation; second execute -> find assignment
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, assignment]
 
-        delete_annotation(db, 10, campaign_id=1)
+        delete_annotation(db, 10, _make_campaign())
 
         assert assignment.status == ANNOTATION_TASK_STATUS_PENDING
         db.delete.assert_called_once_with(existing)
@@ -661,7 +674,7 @@ class TestDeleteAnnotation:
         db.execute.return_value.scalar_one_or_none.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(db, 999, campaign_id=1)
+            delete_annotation(db, 999, _make_campaign())
 
         assert exc_info.value.status_code == 404
 
@@ -670,9 +683,11 @@ class TestDeleteAnnotation:
         db = _mock_db()
         # query filters by both annotation_id AND campaign_id, so returns None
         db.execute.return_value.scalar_one_or_none.return_value = None
+        campaign = _make_campaign()
+        campaign.id = 2
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(db, 10, campaign_id=2)
+            delete_annotation(db, 10, campaign)
 
         assert exc_info.value.status_code == 404
 
@@ -685,7 +700,7 @@ class TestCreateAnnotationTasksFromCSV:
         huge = b"x" * (21 * 1024 * 1024)
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=huge)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=huge, task_set_id=1)
 
         assert exc_info.value.status_code == 413
 
@@ -693,7 +708,7 @@ class TestCreateAnnotationTasksFromCSV:
         db = _mock_db()
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=b"")
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=b"", task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -702,7 +717,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"name,value\nfoo,1\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "columns" in exc_info.value.detail.lower()
@@ -712,7 +727,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,20.0\n1,11.0,21.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "duplicate" in exc_info.value.detail.lower()
@@ -722,7 +737,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,10.0,200.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "longitude" in exc_info.value.detail.lower()
@@ -732,7 +747,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n1,95.0,10.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
         assert "latitude" in exc_info.value.detail.lower()
@@ -742,7 +757,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n ,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -752,7 +767,7 @@ class TestCreateAnnotationTasksFromCSV:
         csv_bytes = b"id,lat,lon\n\x80\x81,10.0,20.0\n"
 
         with pytest.raises(HTTPException) as exc_info:
-            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes)
+            create_annotation_tasks_from_csv(db, campaign_id=1, contents=csv_bytes, task_set_id=1)
 
         assert exc_info.value.status_code == 400
 
@@ -823,9 +838,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(
-            db, 10, campaign_id=1, user_id=user_id, campaign=self._make_public_campaign()
-        )
+        delete_annotation(db, 10, self._make_public_campaign(), user_id=user_id)
         db.delete.assert_called_once_with(existing)
 
     def test_delete_other_users_annotation_in_public_campaign_raises_403(self):
@@ -840,9 +853,7 @@ class TestPublicCampaignAnnotationOwnership:
         db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(
-                db, 10, campaign_id=1, user_id=other_user_id, campaign=self._make_public_campaign()
-            )
+            delete_annotation(db, 10, self._make_public_campaign(), user_id=other_user_id)
         assert exc_info.value.status_code == 403
 
     def test_delete_other_users_annotation_in_private_campaign_allowed(self):
@@ -853,9 +864,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(
-            db, 10, campaign_id=1, user_id=other_user_id, campaign=self._make_private_campaign()
-        )
+        delete_annotation(db, 10, self._make_private_campaign(), user_id=other_user_id)
         db.delete.assert_called_once_with(existing)
 
 
@@ -1345,6 +1354,69 @@ class TestExportMergeCorrectness:
         fc = self._geojson([a])
         assert fc["features"][0]["geometry"] is None
 
+    # ---- stacnotator_counts_toward_completion ---------------------------
+    #
+    # These tests patch out `_fetch_annotations_with_context` entirely (see
+    # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
+    # runs - the counts flag is read straight off the annotation stand-ins,
+    # exactly as if it had already been attached by that helper.
+
+    def test_counts_toward_completion_true_for_counting_task_linked_annotation(self):
+        task = self._task()
+        a = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        row = self._csv([a]).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is True
+
+    def test_counts_toward_completion_false_for_non_counting_task_linked_annotation(self):
+        task = self._task()
+        a = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([a]).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is False
+
+    def test_counts_toward_completion_absent_for_standalone_annotation(self):
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None)
+        assert "stacnotator_counts_toward_completion" not in self._csv([a]).columns
+
+    def test_counts_toward_completion_true_on_merged_row_when_any_contributor_counts(self):
+        task = self._task()
+        counting = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        extra = self._ann(
+            ann_id=2, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([counting, extra], merge=True).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is True
+
+    def test_counts_toward_completion_false_on_merged_row_when_no_contributor_counts(self):
+        task = self._task()
+        a1 = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        a2 = self._ann(
+            ann_id=2, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([a1, a2], merge=True).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is False
+
+    def test_geojson_counts_toward_completion_present_for_task_linked_only(self):
+        task = self._task()
+        linked = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        standalone = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=None)
+        fc = self._geojson([linked, standalone])
+        props = {
+            feat["properties"].get("stacnotator_task_id"): feat["properties"]
+            for feat in fc["features"]
+        }
+        assert props[task.id]["stacnotator_counts_toward_completion"] is True
+        assert "stacnotator_counts_toward_completion" not in props[None]
+
 
 def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):
     a = MagicMock(spec=AnnotationTaskAssignment)
@@ -1543,14 +1615,26 @@ class TestCreateAnnotationsFromGeojson:
         assert all(r["created_by_user_id"] == user_id for r in annotation_records)
         assert all(r["campaign_id"] == 1 for r in annotation_records)
 
-    def test_rejects_non_open_campaign(self):
+    def test_tasks_campaign_imports_successfully(self):
+        """Tasks-mode campaigns can now import standalone annotations (no task assignment)."""
         db = MagicMock()
-        with pytest.raises(HTTPException) as exc:
-            create_annotations_from_geojson(
-                db, self._campaign(mode="tasks"), self._fc([self._feature(1)]), uuid4()
-            )
-        assert exc.value.status_code == 400
-        db.commit.assert_not_called()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101), SimpleNamespace(id=102)],  # geometry insert returning ids
+            MagicMock(),  # annotation insert
+        ]
+        user_id = uuid4()
+        contents = self._fc([self._feature(1), self._feature("2")])
+
+        num = create_annotations_from_geojson(db, self._campaign(mode="tasks"), contents, user_id)
+
+        assert num == 2
+        db.commit.assert_called_once()
+        # Verify annotations are inserted with no task assignment
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert [r["label_id"] for r in annotation_records] == [1, 2]
+        assert all(r["annotation_task_id"] is None for r in annotation_records)
+        assert all(r["created_by_user_id"] == user_id for r in annotation_records)
+        assert all(r["campaign_id"] == 1 for r in annotation_records)
 
     def test_rejects_missing_label(self):
         db = MagicMock()

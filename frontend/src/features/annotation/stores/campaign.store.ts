@@ -58,6 +58,8 @@ function buildMergedLayout(
   return mainLayout;
 }
 
+export type WorkMode = 'tasks' | 'explore';
+
 interface CampaignStore {
   // State
   campaign: CampaignOutFull | null;
@@ -65,6 +67,13 @@ interface CampaignStore {
   isReviewMode: boolean;
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
+  /** Whether the current user is a CampaignUser of this campaign (any role).
+   *  Feeds the 'members' kind of labelling-policy audience checks. */
+  isCampaignMember: boolean;
+  /** Client-side work style within the annotation UI, independent of the
+   *  campaign's DB-persisted default (campaign.mode). Seeded on load, then
+   *  freely switchable via the Tasks | Explore toggle. */
+  workMode: WorkMode;
 
   // KNN label validation status (embedding counts vs. thresholds). Refreshed
   // on campaign load and after each annotation submission so the tooltip in
@@ -86,9 +95,12 @@ interface CampaignStore {
   loadCampaign: (
     campaignId: number,
     initialTaskId?: number,
-    isReviewMode?: boolean
+    isReviewMode?: boolean,
+    initialWorkMode?: WorkMode,
+    initialTaskSetId?: number
   ) => Promise<void>;
   refreshKnnValidationStatus: () => Promise<void>;
+  setWorkMode: (mode: WorkMode) => void;
   setSelectedViewId: (id: number | null) => void;
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
@@ -119,6 +131,8 @@ const initialState = {
   isReviewMode: false,
   isAuthoritativeReviewer: false,
   isCampaignAdmin: false,
+  isCampaignMember: false,
+  workMode: 'explore' as WorkMode,
   knnValidationStatus: null as KnnValidationStatusOut | null,
   selectedViewId: null as number | null,
   currentLayout: null as Layout | null,
@@ -130,7 +144,13 @@ const initialState = {
 export const useCampaignStore = create<CampaignStore>((set, get) => ({
   ...initialState,
 
-  loadCampaign: async (campaignId, initialTaskId, isReviewMode) => {
+  loadCampaign: async (
+    campaignId,
+    initialTaskId,
+    isReviewMode,
+    initialWorkMode,
+    initialTaskSetId
+  ) => {
     set({ isLoadingCampaign: true });
 
     try {
@@ -147,6 +167,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
       const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
       const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
+      const isCampaignMember = currentCampaignUser != null;
 
       // View & layout
       const firstView = campaign.imagery_views[0];
@@ -172,10 +193,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         firstView?.default_canvas_layout?.layout_data;
       const mergedLayout = buildMergedLayout(mainLayout, viewLayout, firstView);
 
-      // Map initial state for open mode
+      const workMode: WorkMode =
+        initialWorkMode ?? (campaign.mode === 'open' ? 'explore' : 'tasks');
+
+      // Map initial state for Explore. Kept keyed on the seeded workMode
+      // (rather than always-seeded) because TaskModeMap and WindowMap read
+      // currentMapCenter/currentMapZoom directly - unconditionally seeding
+      // them would change Tasks mode's initial zoom behaviour today.
       let initialMapCenter: [number, number] | null = null;
       let initialMapZoom: number | null = null;
-      if (campaign.mode === 'open') {
+      if (workMode === 'explore') {
         initialMapCenter = [
           (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
           (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
@@ -194,29 +221,44 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
         isReviewMode: isReviewMode ?? false,
         isAuthoritativeReviewer,
         isCampaignAdmin,
+        isCampaignMember,
+        workMode,
       });
 
       // Initialize sibling stores. The centre crosshair is on by default for
-      // task mode (point placement) but off for open mode, where free-form
+      // Tasks work mode (point placement) but off for Explore, where free-form
       // drawing doesn't need it; the user can still toggle it with O.
       useMapStore.setState({
         currentMapCenter: initialMapCenter,
         currentMapZoom: initialMapZoom,
         currentMapBounds: null,
-        showCrosshair: campaign.mode !== 'open',
+        showCrosshair: workMode === 'tasks',
       });
       // Use the action (not setState) so the reducer resolves the default
       // collection's cover_slice_index into activeSliceIndex.
       useMapStore.getState().setActiveCollectionId(activeCollectionId);
 
       // Load tasks
-      await useTaskStore.getState().loadTasks(campaignId, initialTaskId);
+      await useTaskStore.getState().loadTasks(campaignId, initialTaskId, initialTaskSetId);
 
-      // Open-mode annotations are served as vector tiles in the viewport, not
-      // loaded upfront. Seed the tile cache-busting version from the campaign.
-      if (campaign.mode === 'open') {
-        useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
+      // Zero-task campaigns have nothing to claim in Tasks mode - seed
+      // straight into Explore instead, unless the caller (deep link/session
+      // restore) explicitly asked for a mode.
+      if (initialWorkMode === undefined && useTaskStore.getState().allTasks.length === 0) {
+        get().setWorkMode('explore');
+        useMapStore.setState({
+          currentMapCenter: [
+            (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
+            (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
+          ],
+          currentMapZoom: campaign.imagery_sources[0]?.default_zoom ?? DEFAULT_MAP_ZOOM,
+        });
       }
+
+      // Explore annotations are served as vector tiles in the viewport, not
+      // loaded upfront. Seed the tile cache-busting version from the campaign
+      // for every campaign, since Explore can be entered from any of them.
+      useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
     } catch (error) {
       handleError(error, 'Failed to load campaign');
       set({ isLoadingCampaign: false });
@@ -253,6 +295,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
     const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
+  },
+
+  setWorkMode: (mode) => {
+    // Entering Explore also drops any lingering review-mode flag - review is
+    // a Tasks-only concept, so carrying it over would trap the UI in it with
+    // no way back short of a reload.
+    set({ workMode: mode, ...(mode === 'explore' ? { isReviewMode: false } : {}) });
+    // Mirrors the load-time seeding: crosshair on for Tasks (point
+    // placement), off for Explore (free-form drawing).
+    useMapStore.setState({ showCrosshair: mode === 'tasks' });
   },
 
   refreshKnnValidationStatus: async () => {

@@ -261,6 +261,12 @@ export const MOCK_TASK_LIST = {
   tasks: ALL_TASKS,
 };
 
+// Every migrated campaign starts with exactly one task set (default backfill
+// set), so the task set picker stays hidden until a second set is created.
+export const MOCK_TASK_SETS = [
+  { id: 1, name: 'Default', created_at: '2024-01-01T00:00:00Z', num_tasks: ALL_TASKS.length, num_labeled: 0 },
+];
+
 export const MOCK_CAMPAIGN_USERS = {
   campaign_id: 42,
   users: [

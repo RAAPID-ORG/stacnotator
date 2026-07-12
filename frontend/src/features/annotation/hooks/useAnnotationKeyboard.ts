@@ -26,6 +26,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setSelectedViewId = useCampaignStore((s) => s.setSelectedViewId);
+  const workMode = useCampaignStore((s) => s.workMode);
+  const tasksActive = workMode === 'tasks';
 
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const comment = useTaskStore((s) => s.comment);
@@ -66,12 +68,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   const selectLabelByIndex = useCallback(
     (index: number) => {
+      if (!tasksActive) return;
       if (index > 0 && index <= labels.length) {
         const targetLabelId = labels[index - 1].id;
         setSelectedLabelId(selectedLabelId === targetLabelId ? null : targetLabelId);
       }
     },
-    [labels, setSelectedLabelId, selectedLabelId]
+    [tasksActive, labels, setSelectedLabelId, selectedLabelId]
   );
 
   const processDigitBuffer = useCallback(() => {
@@ -196,6 +199,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   }, [campaign, selectedViewId, setSelectedViewId]);
 
   const handleSubmit = useCallback(async () => {
+    if (!tasksActive) return;
     if (isSubmitting || isNavigating) return;
 
     // Get current task to check if annotation exists
@@ -218,6 +222,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     );
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
   }, [
+    tasksActive,
     isSubmitting,
     isNavigating,
     selectedLabelId,
@@ -233,11 +238,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   // Skip handler
   const handleSkip = useCallback(async () => {
+    if (!tasksActive) return;
     if (isSubmitting || isNavigating) return;
 
     await submitAnnotation(null, comment, confidence, undefined, flaggedForReview, flagComment);
     // Don't reset form here - let the effect in AnnotationControls handle it when task changes
   }, [
+    tasksActive,
     isSubmitting,
     isNavigating,
     comment,
@@ -248,29 +255,33 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   ]);
 
   const toggleFlagForReview = useCallback(() => {
+    if (!tasksActive) return;
     setFlaggedForReview(!flaggedForReview);
-  }, [flaggedForReview, setFlaggedForReview]);
+  }, [tasksActive, flaggedForReview, setFlaggedForReview]);
 
   // Focus comment box
   const focusComment = useCallback(() => {
+    if (!tasksActive) return;
     const textarea = commentInputRef.current;
     if (!textarea) return;
     textarea.focus();
-  }, [commentInputRef]);
+  }, [tasksActive, commentInputRef]);
 
   // Adjust confidence level
   const adjustConfidence = useCallback(
     (delta: number) => {
+      if (!tasksActive) return;
       setConfidence(Math.max(1, Math.min(5, confidence + delta)));
     },
-    [confidence, setConfidence]
+    [tasksActive, confidence, setConfidence]
   );
 
   const setConfidenceLevel = useCallback(
     (level: number) => {
+      if (!tasksActive) return;
       if (level >= 1 && level <= 5) setConfidence(level);
     },
-    [setConfidence]
+    [tasksActive, setConfidence]
   );
 
   // Main keydown handler
@@ -314,12 +325,12 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'w':
         case 'W':
           e.preventDefault();
-          if (!isNavigating) previousTask();
+          if (tasksActive && !isNavigating) previousTask();
           break;
         case 's':
         case 'S':
           e.preventDefault();
-          if (!isNavigating) nextTask();
+          if (tasksActive && !isNavigating) nextTask();
           break;
 
         // Slice/Collection navigation: A/D for slices, Shift+A/D for collections.
@@ -349,7 +360,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Map controls
         case ' ':
           e.preventDefault();
-          triggerRefocus();
+          if (tasksActive) triggerRefocus();
           break;
         case 'o':
         case 'O':
@@ -438,19 +449,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'g':
         case 'G':
           e.preventDefault();
-          toggleGuide();
+          if (tasksActive) toggleGuide();
           break;
 
         // Toggle view sync
         case 'l':
         case 'L':
           e.preventDefault();
-          useMapStore.getState().toggleViewSync();
+          if (tasksActive) useMapStore.getState().toggleViewSync();
           break;
 
         case 'm':
         case 'M': {
           e.preventDefault();
+          if (!tasksActive) break;
           const maps = campaign?.custom_maps ?? [];
           if (e.shiftKey) cycleCustomMap(maps);
           else toggleCustomMap(maps);
@@ -461,6 +473,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         case 'i':
         case 'I':
           e.preventDefault();
+          if (!tasksActive) break;
           if (e.shiftKey) {
             cycleVisualization();
           } else {
@@ -497,6 +510,7 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     };
   }, [
     campaign,
+    tasksActive,
     isSubmitting,
     isNavigating,
     commentInputRef,

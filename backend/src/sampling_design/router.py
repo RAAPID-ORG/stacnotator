@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_approved_user
 from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
+from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
@@ -54,6 +55,7 @@ router = APIRouter(
 async def generate_tasks_from_sampling(
     campaign_id: int,
     strategy: str = Form(..., description="JSON string of SamplingStrategyConfig"),
+    task_set_id: int = Form(...),
     region_file: UploadFile | None = File(
         None,
         description="Region boundary file (.zip shapefile or .geojson). Optional if using campaign bbox.",
@@ -85,6 +87,7 @@ async def generate_tasks_from_sampling(
     """
     # Parse strategy JSON string
     strategy_config = SamplingStrategyConfig.model_validate_json(strategy)
+    require_task_set(db, campaign.id, task_set_id, status_code=400)
 
     # Determine region geometry source
     if strategy_config.use_campaign_bbox:
@@ -110,6 +113,7 @@ async def generate_tasks_from_sampling(
         num_samples=strategy_config.num_samples,
         region_geometry=region_geometry,
         parameters=strategy_config.parameters,
+        task_set_id=task_set_id,
     )
 
     return GenerateTasksResponse(
