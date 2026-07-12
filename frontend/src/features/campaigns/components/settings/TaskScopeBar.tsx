@@ -15,12 +15,7 @@ interface Props {
   onDeleteSet: (id: number) => Promise<boolean>;
 }
 
-const pillCls = (active: boolean) =>
-  `flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border transition-colors ${
-    active
-      ? 'bg-brand-600 text-white border-brand-600'
-      : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-  }`;
+import { pillCls } from '~/shared/ui/pill';
 
 export const TaskScopeBar = ({
   scope,

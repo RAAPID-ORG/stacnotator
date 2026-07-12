@@ -9,15 +9,9 @@ import { TaskModeReview } from '../components/review/TaskModeReview';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
 import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
+import { pillCls } from '~/shared/ui/pill';
 
 type ReviewScope = 'tasks' | 'all';
-
-const pillCls = (active: boolean) =>
-  `px-3 h-8 rounded-full text-sm border transition-colors ${
-    active
-      ? 'bg-brand-600 text-white border-brand-600'
-      : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-  }`;
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -85,7 +79,7 @@ export const ReviewPage = () => {
 
   return (
     <Fragment>
-      <div className="w-full max-w-[80rem] mx-auto px-6 pt-4 flex items-center justify-between gap-2">
+      <div className="w-full max-w-[80rem] mx-auto px-6 pt-4 pb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
