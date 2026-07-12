@@ -32,11 +32,7 @@ class LabelBase(BaseModel):
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
 
-# Per-axis allowed kinds, per the labelling-policy spec: `assignees` only makes
-# sense on the two assigned-task axes; `anyone` is meaningless for
-# `complete_assigned` (a public campaign already lets anyone label; whether an
-# arbitrary visitor's label counts toward completion is a separate question
-# the spec answers "no").
+# Labelling policies options per kind of task/explore
 _EXPLORE_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "members", "anyone"})
 _UNASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
     {"admins", "authoritative", "members", "anyone"}
@@ -72,7 +68,7 @@ def _validate_axis_kinds(
 class LabellingPolicy(BaseModel):
     """Who may label what, and whose labels count toward task completion.
 
-    See docs/superpowers/specs/2026-07-12-labelling-policy-design.md for the
+    See docs/labelling-policy.md for the
     full rationale behind the four axes.
     """
 
@@ -233,10 +229,7 @@ class CampaignOut(BaseModel):
 
 class CampaignCreate(BaseModel):
     name: str
-    # Mode stays only as the default work style; the annotation UI already
-    # falls back to Explore for zero-task campaigns. Access control lives in
-    # labelling_policy below, not in mode.
-    mode: Literal["tasks", "open"] = "tasks"
+    mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
     is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None

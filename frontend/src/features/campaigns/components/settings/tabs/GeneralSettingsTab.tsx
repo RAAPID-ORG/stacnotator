@@ -117,9 +117,16 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!policyChanged) return;
     try {
       setSavingPolicy(true);
+      const noOne = { kinds: [], user_ids: [] };
       const { data } = await updateLabellingPolicy({
         path: { campaign_id: campaign.id },
-        body: policyDraft,
+        // PATCH replaces the whole policy, so every axis must be present.
+        body: {
+          explore: policyDraft.explore ?? noOne,
+          unassigned_tasks: policyDraft.unassigned_tasks ?? noOne,
+          assigned_tasks: policyDraft.assigned_tasks ?? noOne,
+          complete_assigned: policyDraft.complete_assigned ?? noOne,
+        },
       });
       if (data) {
         setPolicyDraft(data);

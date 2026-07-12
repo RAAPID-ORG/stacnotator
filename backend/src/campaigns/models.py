@@ -193,7 +193,7 @@ class CampaignSettings(Base):
     # Shape: {"explore": AUD, "unassigned_tasks": AUD, "assigned_tasks": AUD,
     # "complete_assigned": AUD} where AUD = {"kinds": [...], "user_ids": [...]}.
     # See src/campaigns/schemas.py:LabellingPolicy and
-    # docs/superpowers/specs/2026-07-12-labelling-policy-design.md.
+    # docs/labelling-policy.md.
     labelling_policy: Mapped[dict] = mapped_column(
         JSONB,
         server_default=text(

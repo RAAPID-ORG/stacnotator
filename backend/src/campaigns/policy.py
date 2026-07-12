@@ -1,11 +1,3 @@
-"""Pure evaluation of a campaign's labelling policy.
-
-Deliberately DB-free: callers build a PolicyContext from whatever they've
-already loaded (campaign membership, task assignments) and get a plain bool
-back. Nothing here stores per-annotation state - evaluation is always
-dynamic, per docs/superpowers/specs/2026-07-12-labelling-policy-design.md.
-"""
-
 from dataclasses import dataclass
 from uuid import UUID
 

@@ -5,7 +5,7 @@ question with four audience-scoped permissions (explore, unassigned_tasks,
 assigned_tasks, complete_assigned). Backfills existing campaigns with the
 spec's default policy: members may explore/label unassigned/label assigned
 tasks; assignees+admins+authoritative count toward completing an assigned
-task. See docs/superpowers/specs/2026-07-12-labelling-policy-design.md.
+task. See docs/labelling-policy.md.
 
 Revision ID: z1labelpolicy
 Revises: y1tasksets

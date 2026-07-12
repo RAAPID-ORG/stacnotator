@@ -1907,7 +1907,7 @@ export type LabelBase = {
  *
  * Who may label what, and whose labels count toward task completion.
  *
- * See docs/superpowers/specs/2026-07-12-labelling-policy-design.md for the
+ * See docs/labelling-policy.md for the
  * full rationale behind the four axes.
  */
 export type LabellingPolicy = {
@@ -2548,12 +2548,18 @@ export type UpdateEmbeddingYearRequest = {
  *
  * Request body for PATCH /campaigns/{id}/labelling-policy - same shape
  * as LabellingPolicy, plus the campaign-public check applied by the service.
+ *
+ * All four axes are required (no defaults), unlike the base LabellingPolicy:
+ * a PATCH is a full replacement of the stored policy, so silently omitting
+ * an axis here would defaults it to "no one" for that axis rather than
+ * leaving it as the caller likely intended (unchanged). Callers must always
+ * send the complete policy, which is what the settings UI does.
  */
 export type UpdateLabellingPolicyRequest = {
-    explore?: PolicyAudience;
-    unassigned_tasks?: PolicyAudience;
-    assigned_tasks?: PolicyAudience;
-    complete_assigned?: PolicyAudience;
+    explore: PolicyAudience;
+    unassigned_tasks: PolicyAudience;
+    assigned_tasks: PolicyAudience;
+    complete_assigned: PolicyAudience;
 };
 
 /**
