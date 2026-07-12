@@ -698,7 +698,7 @@ export const AnnotationToolbar = () => {
           </div>
         )}
 
-        {/* Review Mode Toggle (tasks mode only) + Navigate to Review Page (both modes) */}
+        {/* Review Mode Toggle (tasks mode only) + Navigate to Annotations Page (both modes) */}
         <div className="flex items-center rounded overflow-hidden" data-tour="review-toggle">
           {workMode === 'tasks' && (
             <>
@@ -754,12 +754,12 @@ export const AnnotationToolbar = () => {
               <div className="w-px h-5 bg-neutral-200" />
             </>
           )}
-          {/* Navigate to review page */}
+          {/* Navigate to the campaign's Annotations page */}
           <button
             onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
             type="button"
-            title="Go to review page"
+            title="Go to Annotations page"
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
               <path
@@ -768,7 +768,7 @@ export const AnnotationToolbar = () => {
                 d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75Zm0 5A.75.75 0 0 1 2.75 9h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 9.75Zm0 5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"
               />
             </svg>
-            {workMode !== 'tasks' && <span>Review</span>}
+            {workMode !== 'tasks' && <span>Annotations</span>}
           </button>
         </div>
 

@@ -229,7 +229,7 @@ const CampaignRow = ({
           className="inline-flex items-center h-8 px-3 text-xs font-medium text-neutral-600 rounded-md hover:bg-neutral-100 disabled:text-neutral-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
           type="button"
         >
-          Review
+          Annotations
         </button>
         {isAdmin && (
           <button

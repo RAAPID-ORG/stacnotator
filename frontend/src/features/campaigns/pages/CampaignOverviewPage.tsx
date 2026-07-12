@@ -92,7 +92,7 @@ export const CampaignOverviewPage = () => {
               variant="secondary"
               onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
             >
-              Review
+              Annotations
             </Button>
             {isAdmin && (
               <Button

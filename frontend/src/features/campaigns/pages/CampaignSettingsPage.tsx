@@ -13,7 +13,6 @@ import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
-import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -34,7 +33,7 @@ import {
   updateCampaignBbox,
 } from '~/api/client';
 
-const SETTINGS_TABS = ['general', 'imagery', 'users', 'timeseries', 'annotations'] as const;
+const SETTINGS_TABS = ['general', 'imagery', 'users', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const isSettingsTab = (t: string | null): t is SettingsTab =>
@@ -122,9 +121,13 @@ export const CampaignSettingsPage = () => {
 
   // Task management moved to its own page - honor old ?tab=tasks deep links
   // (e.g. bookmarks, the annotator empty-state CTA) by forwarding them.
+  // Bulk import moved to the Annotations page - honor old ?tab=annotations
+  // deep links the same way.
   useEffect(() => {
     if (tabParam === 'tasks') {
       navigate(`/campaigns/${campaignId}/tasks`, { replace: true });
+    } else if (tabParam === 'annotations') {
+      navigate(`/campaigns/${campaignId}/annotations`, { replace: true });
     }
   }, [tabParam, campaignId, navigate]);
 
@@ -499,7 +502,6 @@ export const CampaignSettingsPage = () => {
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
-                { id: 'annotations', label: 'Annotations' },
                 { id: 'users', label: 'Users' },
               ]}
               activeId={activeTab}
@@ -541,15 +543,6 @@ export const CampaignSettingsPage = () => {
                   imagery={imagery}
                   campaignMode={campaign?.mode || 'tasks'}
                   campaignSettings={campaign?.settings || {}}
-                />
-              )}
-
-              {activeTab === 'annotations' && (
-                <ImportFeaturesSection
-                  campaignId={campaignId}
-                  labels={campaign!.settings.labels}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  onError={(msg) => showAlert(msg, 'error')}
                 />
               )}
 
