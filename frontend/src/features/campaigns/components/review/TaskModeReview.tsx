@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import {
@@ -26,7 +26,7 @@ import { UserFilterDropdown } from './UserFilterDropdown';
 import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
-import { FadeIn, Dropdown } from '~/shared/ui/motion';
+import { FadeIn } from '~/shared/ui/motion';
 import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 /** Funnel icon for the filters dropdown trigger - kept local since Icons.tsx has unrelated WIP. */
@@ -52,6 +52,8 @@ interface TaskModeReviewProps {
   hideSetFilter?: boolean;
   /** Tasks page already renders its own header, map, and stats; render only the filterable list. */
   embedded?: boolean;
+  /** Heading content for the filters row (e.g. the tasks page's "Annotation tasks (N)" h2). Falls back to a local "Filters & search" label. */
+  headerSlot?: ReactNode;
   /** Enables row selection and the management action bar (delete/unassign/move/bulk-assign). */
   selectable?: boolean;
   onDeleteTasks?: (taskIds: number[]) => Promise<void>;
@@ -70,6 +72,7 @@ export const TaskModeReview = ({
   taskSets: taskSetsProp,
   hideSetFilter = false,
   embedded = false,
+  headerSlot,
   selectable = false,
   onDeleteTasks,
   onBatchUnassignTasks,
@@ -94,8 +97,7 @@ export const TaskModeReview = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('default');
   const [setFilter, setSetFilter] = useState<number | 'all'>('all');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -123,16 +125,6 @@ export const TaskModeReview = ({
     };
     loadTasks();
   }, [campaignId, isExternallyDriven]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
-        setShowFilterDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const tasks = tasksProp ?? fetchedTasks;
   const taskSets = taskSetsProp ?? fetchedTaskSets;
@@ -360,220 +352,25 @@ export const TaskModeReview = ({
         {/* Filters - inside the page surface, no nested card */}
         <div className="surface surface-unclipped">
           <div className="px-5 py-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="section-heading">Filters & search</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Filters dropdown - status, set, user, confidence, flagged */}
-              <div className="relative" ref={filterDropdownRef}>
-                <button
-                  onClick={() => setShowFilterDropdown((v) => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors ${
-                    showFilterDropdown
-                      ? 'bg-neutral-100 border-neutral-300 text-neutral-900'
-                      : 'bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50'
-                  }`}
-                  type="button"
-                >
-                  <IconFunnel className="w-4 h-4" />
-                  <span>Filters</span>
-                  {activeFilterCount > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-                <Dropdown
-                  open={showFilterDropdown}
-                  className="absolute top-full left-0 mt-1 z-20 origin-top-left"
-                >
-                  <div className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[280px] p-3 space-y-3">
-                    {/* Status Filter */}
-                    <div>
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Status
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(
-                          [
-                            'all',
-                            'pending',
-                            'partial',
-                            'conflicting',
-                            'done',
-                            'skipped',
-                          ] as StatusFilter[]
-                        ).map((status) => (
-                          <button
-                            key={status}
-                            onClick={() => setStatusFilter(status)}
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              statusFilter === status
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                          >
-                            {status === 'all' ? 'All' : capitalizeFirst(status)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Set Filter */}
-                    {!hideSetFilter && taskSets.length > 1 && (
-                      <div className="border-t border-neutral-200 pt-3">
-                        <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                          Set
-                        </div>
-                        <select
-                          data-testid="review-set-filter"
-                          value={setFilter}
-                          onChange={(e) =>
-                            setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                          }
-                          className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                        >
-                          <option value="all">All sets</option>
-                          {taskSets.map((set) => (
-                            <option key={set.id} value={set.id}>
-                              {set.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* User Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <UserFilterDropdown
-                        users={uniqueUsers}
-                        selectedUserIds={selectedUserIds}
-                        setSelectedUserIds={setSelectedUserIds}
-                        currentUserId={currentUser?.id}
-                      />
-                    </div>
-
-                    {/* Confidence Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                        Confidence
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        <button
-                          onClick={() => setSelectedConfidences([])}
-                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                            selectedConfidences.length === 0
-                              ? 'bg-brand-600 text-white'
-                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                          }`}
-                        >
-                          All
-                        </button>
-                        {[1, 2, 3, 4, 5].map((c) => (
-                          <button
-                            key={c}
-                            onClick={() =>
-                              setSelectedConfidences(
-                                selectedConfidences.includes(c)
-                                  ? selectedConfidences.filter((x) => x !== c)
-                                  : [...selectedConfidences, c]
-                              )
-                            }
-                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              selectedConfidences.includes(c)
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                            }`}
-                          >
-                            {c}
-                          </button>
-                        ))}
-                        <button
-                          onClick={() =>
-                            setSelectedConfidences(
-                              selectedConfidences.includes(0)
-                                ? selectedConfidences.filter((x) => x !== 0)
-                                : [...selectedConfidences, 0]
-                            )
-                          }
-                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                            selectedConfidences.includes(0)
-                              ? 'bg-brand-600 text-white'
-                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                          }`}
-                          title="Tasks with annotations missing a confidence rating, or no annotations"
-                        >
-                          No rating
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Flagged Filter */}
-                    <div className="border-t border-neutral-200 pt-3">
-                      <button
-                        onClick={() => setFlaggedOnly((v) => !v)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
-                          flaggedOnly
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
-                            : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
-                        }`}
-                        title="Show only tasks with at least one flagged annotation"
-                      >
-                        <IconFlag className="w-3.5 h-3.5" />
-                        <span>Flagged only</span>
-                      </button>
-                    </div>
-                  </div>
-                </Dropdown>
-              </div>
-
-              {/* Sort By - a display/ordering option rather than a filter, so it stays outside the dropdown */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-neutral-700">Sort by:</label>
-                <select
-                  value={sortOption}
-                  onChange={(e) => {
-                    if (isSortOption(e.target.value)) setSortOption(e.target.value);
-                  }}
-                  className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                >
-                  <option value="default">Default</option>
-                  <option value="confidence-asc">Confidence (Low to High)</option>
-                  <option value="confidence-desc">Confidence (High to Low)</option>
-                  <option value="id-asc">Annotation # (Ascending)</option>
-                  <option value="id-desc">Annotation # (Descending)</option>
-                </select>
-              </div>
-
-              {/* Search */}
-              <div className="flex items-center gap-2 ml-auto">
-                <input
-                  type="text"
-                  placeholder="Search by ID or annotation #..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="text-neutral-500 hover:text-neutral-700"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+            <div className="flex items-center gap-2">
+              {headerSlot ?? <h3 className="section-heading">Filters & search</h3>}
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+                title="Filter and sort"
+                type="button"
+              >
+                <IconFunnel className="w-4 h-4" />
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
+                    {activeFilterCount}
+                  </span>
                 )}
-              </div>
+              </button>
             </div>
 
-            {/* Filter results summary */}
-            <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
+            {/* Stats stay visible regardless of the filter panel's collapsed state. */}
+            <div className="flex items-center justify-between text-xs text-neutral-500">
               <span>
                 Showing {filteredTasks.length} of {tasks.length} tasks
               </span>
@@ -595,6 +392,202 @@ export const TaskModeReview = ({
                 </span>
               </div>
             </div>
+
+            {showFilters && (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 space-y-3">
+                {/* Search */}
+                <div>
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    Search
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search by ID or annotation #..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="text-neutral-500 hover:text-neutral-700"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    Status
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {(
+                      [
+                        'all',
+                        'pending',
+                        'partial',
+                        'conflicting',
+                        'done',
+                        'skipped',
+                      ] as StatusFilter[]
+                    ).map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          statusFilter === status
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {status === 'all' ? 'All' : capitalizeFirst(status)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Set Filter */}
+                {!hideSetFilter && taskSets.length > 1 && (
+                  <div className="border-t border-neutral-200 pt-3">
+                    <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      Set
+                    </div>
+                    <select
+                      data-testid="review-set-filter"
+                      value={setFilter}
+                      onChange={(e) =>
+                        setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                      }
+                      className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                    >
+                      <option value="all">All sets</option>
+                      {taskSets.map((set) => (
+                        <option key={set.id} value={set.id}>
+                          {set.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* User Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <UserFilterDropdown
+                    users={uniqueUsers}
+                    selectedUserIds={selectedUserIds}
+                    setSelectedUserIds={setSelectedUserIds}
+                    currentUserId={currentUser?.id}
+                  />
+                </div>
+
+                {/* Confidence Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    Confidence
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setSelectedConfidences([])}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.length === 0
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {[1, 2, 3, 4, 5].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() =>
+                          setSelectedConfidences(
+                            selectedConfidences.includes(c)
+                              ? selectedConfidences.filter((x) => x !== c)
+                              : [...selectedConfidences, c]
+                          )
+                        }
+                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          selectedConfidences.includes(c)
+                            ? 'bg-brand-600 text-white'
+                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() =>
+                        setSelectedConfidences(
+                          selectedConfidences.includes(0)
+                            ? selectedConfidences.filter((x) => x !== 0)
+                            : [...selectedConfidences, 0]
+                        )
+                      }
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        selectedConfidences.includes(0)
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                      title="Tasks with annotations missing a confidence rating, or no annotations"
+                    >
+                      No rating
+                    </button>
+                  </div>
+                </div>
+
+                {/* Flagged Filter */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <button
+                    onClick={() => setFlaggedOnly((v) => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
+                      flaggedOnly
+                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                        : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                    }`}
+                    title="Show only tasks with at least one flagged annotation"
+                  >
+                    <IconFlag className="w-3.5 h-3.5" />
+                    <span>Flagged only</span>
+                  </button>
+                </div>
+
+                {/* Sort */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                    Sort by
+                  </div>
+                  <select
+                    value={sortOption}
+                    onChange={(e) => {
+                      if (isSortOption(e.target.value)) setSortOption(e.target.value);
+                    }}
+                    className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                  >
+                    <option value="default">Default</option>
+                    <option value="confidence-asc">Confidence (Low to High)</option>
+                    <option value="confidence-desc">Confidence (High to Low)</option>
+                    <option value="id-asc">Annotation # (Ascending)</option>
+                    <option value="id-desc">Annotation # (Descending)</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

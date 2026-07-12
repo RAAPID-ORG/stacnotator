@@ -169,14 +169,14 @@ export const TasksTab: React.FC<Props> = ({
     </section>
   );
 
+  const tasksTableHeading = (
+    <h2 className="section-heading">
+      Annotation tasks <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
+    </h2>
+  );
+
   const tasksTable = (
     <section className={sectionCls}>
-      <div>
-        <h2 className="section-heading">
-          Annotation tasks{' '}
-          <span className="text-neutral-400 font-normal">({scopedTasks.length})</span>
-        </h2>
-      </div>
       {scopedTasks.length > 0 ? (
         <TaskModeReview
           campaignId={campaignId}
@@ -184,6 +184,7 @@ export const TasksTab: React.FC<Props> = ({
           taskSets={taskSets}
           hideSetFilter
           embedded
+          headerSlot={tasksTableHeading}
           selectable
           onOpenBulkAssign={onOpenBulkAssign}
           onOpenReviewerAssign={onOpenReviewerAssign}
@@ -194,11 +195,14 @@ export const TasksTab: React.FC<Props> = ({
           onCreateSet={onCreateSetScoped}
         />
       ) : (
-        <p className="text-sm text-neutral-500">
-          {taskScope === 'all'
-            ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
-            : 'No tasks in this set yet. Upload a file or generate tasks above.'}
-        </p>
+        <>
+          <div>{tasksTableHeading}</div>
+          <p className="text-sm text-neutral-500">
+            {taskScope === 'all'
+              ? 'No annotation tasks yet. Select a set to upload or generate tasks.'
+              : 'No tasks in this set yet. Upload a file or generate tasks above.'}
+          </p>
+        </>
       )}
     </section>
   );
