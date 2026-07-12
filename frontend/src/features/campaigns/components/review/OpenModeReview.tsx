@@ -22,6 +22,7 @@ import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
+import { listRowCls } from '~/shared/ui/listRow';
 
 interface OpenModeReviewProps {
   campaign: CampaignOut;
@@ -579,7 +580,10 @@ export const OpenModeReview = ({ campaign, campaignId }: OpenModeReviewProps) =>
                   return (
                     <tr
                       key={ann.id}
-                      className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isMine ? 'bg-brand-50/30' : 'bg-white'} ${highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''}`}
+                      className={listRowCls(
+                        isMine,
+                        highlightedAnnotationId === ann.id ? 'ring-2 ring-brand-400 ring-inset' : ''
+                      )}
                       onMouseEnter={() => setHighlightedAnnotationId(ann.id)}
                       onMouseLeave={() => setHighlightedAnnotationId(null)}
                     >

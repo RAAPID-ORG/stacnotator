@@ -590,7 +590,7 @@ export const AnnotationToolbar = () => {
             onClick={() => setWorkMode('tasks')}
             disabled={allTasks.length === 0}
             title={allTasks.length === 0 ? 'This campaign has no tasks yet' : undefined}
-            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
               workMode === 'tasks'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : allTasks.length === 0
@@ -603,7 +603,7 @@ export const AnnotationToolbar = () => {
           </button>
           <button
             onClick={() => setWorkMode('explore')}
-            className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
               workMode === 'explore'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-500 hover:text-neutral-800'

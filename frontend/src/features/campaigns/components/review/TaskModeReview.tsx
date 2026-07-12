@@ -19,6 +19,7 @@ import { IconFlag } from '~/shared/ui/Icons';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { isSortOption, type SortOption, type StatusFilter, type UserInfo } from './types';
 import { FadeIn } from '~/shared/ui/motion';
+import { listRowCls } from '~/shared/ui/listRow';
 
 interface TaskModeReviewProps {
   campaign: CampaignOut;
@@ -425,10 +426,7 @@ export const TaskModeReview = ({ campaign, campaignId }: TaskModeReviewProps) =>
                       currentUser && assignments.some((a) => a.user_id === currentUser.id);
 
                     return (
-                      <tr
-                        key={task.id}
-                        className={`border-b border-neutral-200 hover:bg-neutral-50 transition-colors ${isAssignedToMe ? 'bg-brand-50/30' : 'bg-white'}`}
-                      >
+                      <tr key={task.id} className={listRowCls(Boolean(isAssignedToMe))}>
                         <td className="px-4 py-3 text-neutral-900 font-medium">
                           {task.annotation_number}
                         </td>

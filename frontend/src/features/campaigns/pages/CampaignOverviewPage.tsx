@@ -109,7 +109,15 @@ export const CampaignOverviewPage = () => {
           </div>
         </header>
 
-        <div className="surface mb-6">
+        <div
+          className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/campaigns/${campaignId}/annotate?mode=explore`)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') navigate(`/campaigns/${campaignId}/annotate?mode=explore`);
+          }}
+        >
           <div className="surface-section flex items-center gap-5">
             <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
               <IconMap className="w-5 h-5 text-brand-600" />
@@ -170,6 +178,7 @@ export const CampaignOverviewPage = () => {
                   totalLabeled={totalLabeled}
                   totalTasks={totalTasks}
                   onOpen={() => navigate(`/campaigns/${campaignId}/annotate?mode=tasks`)}
+                  onManage={isAdmin ? () => navigate(`/campaigns/${campaignId}/tasks`) : undefined}
                 />
               </MotionListItem>
               {taskSets.map((set, index) => (
@@ -199,10 +208,12 @@ const AllTasksCard = ({
   totalLabeled,
   totalTasks,
   onOpen,
+  onManage,
 }: {
   totalLabeled: number;
   totalTasks: number;
   onOpen: () => void;
+  onManage?: () => void;
 }) => {
   const percent = Math.round((totalLabeled / totalTasks) * 100);
 
@@ -211,6 +222,15 @@ const AllTasksCard = ({
       <div className="surface-section flex-1 flex flex-col">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold text-neutral-900 truncate">All tasks</h3>
+          {onManage && (
+            <button
+              type="button"
+              onClick={onManage}
+              className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
+            >
+              Manage
+            </button>
+          )}
         </div>
         <p className="text-[11px] text-brand-600 mt-0.5 font-medium">Across all sets</p>
 
