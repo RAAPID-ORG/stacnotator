@@ -177,20 +177,20 @@ class TestExploreAxisEnforcement:
             query.compile(compile_kwargs={"literal_binds": True})
         )
 
-    def test_update_annotation_skips_policy_check_when_campaign_not_passed(self):
-        """No campaign -> policy can't be evaluated; defensive callers that
-        don't pass one (none exist today) get the pre-policy behavior."""
-        db = _db(cu=None)  # would be denied if the explore check ran
-        existing = MagicMock()
-        existing.created_by_user_id = uuid4()
-        db.execute.return_value.scalar_one_or_none.return_value = existing
+    def test_update_annotation_requires_campaign(self):
+        """`campaign` used to be optional, silently skipping the policy check
+        when omitted. It is now a required parameter, so omitting it is a
+        hard TypeError instead of a silent bypass - the explore check always
+        runs (see test_update_annotation_denied_for_non_member) and the
+        lookup query is always campaign-scoped (see
+        test_update_annotation_wrong_campaign_returns_404)."""
+        db = _db(cu=None)
         payload = AnnotationUpdate(
             label_id=2, comment=None, geometry_wkt=None, is_authoritative=None
         )
 
-        update_annotation(db, 5, payload, uuid4())
-
-        assert existing.label_id == 2
+        with pytest.raises(TypeError):
+            update_annotation(db, 5, payload, uuid4())
 
 
 class TestTaskAnnotateAxisEnforcement:

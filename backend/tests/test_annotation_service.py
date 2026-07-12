@@ -57,6 +57,7 @@ def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
     campaign = MagicMock()
     campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
     campaign.settings.labelling_policy = None
+    campaign.is_public = False
     return campaign
 
 
@@ -493,7 +494,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=3, comment=None, geometry_wkt=None, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.label_id == 3
         db.commit.assert_called_once()
@@ -507,7 +508,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=None, comment="updated comment", geometry_wkt=None, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.comment == "updated comment"
 
@@ -524,7 +525,7 @@ class TestUpdateAnnotation:
             geometry_wkt="POLYGON((0 0,1 0,1 1,0 1,0 0))",
             is_authoritative=None,
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         # Should have added a new AnnotationGeometry
         added_geom = db.add.call_args[0][0]
@@ -550,7 +551,7 @@ class TestUpdateAnnotation:
             imagery_start_date="2024-06-01",
             imagery_end_date="2024-06-30",
         )
-        update_annotation(db, 5, payload, uuid4())
+        update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 
         assert existing.imagery_slice_id == 99
         assert existing.imagery_source_name == "New Source"
@@ -579,7 +580,7 @@ class TestUpdateAnnotation:
             imagery_start_date="2024-06-01",
             imagery_end_date="2024-06-30",
         )
-        update_annotation(db, 5, payload, uuid4())
+        update_annotation(db, 5, payload, uuid4(), campaign=_make_campaign())
 
         assert existing.imagery_slice_id == 1
         assert existing.imagery_source_name == "Old Source"
@@ -595,7 +596,7 @@ class TestUpdateAnnotation:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            update_annotation(db, 999, payload, uuid4())
+            update_annotation(db, 999, payload, uuid4(), campaign=_make_campaign())
 
         assert exc_info.value.status_code == 404
 
@@ -613,7 +614,7 @@ class TestUpdateAnnotation:
         payload = AnnotationUpdate(
             label_id=None, comment=None, geometry_wkt=None, confidence=1, is_authoritative=None
         )
-        update_annotation(db, 5, payload, user_id)
+        update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert existing.label_id == 2  # unchanged
         assert existing.comment == "original"  # unchanged
@@ -631,7 +632,7 @@ class TestUpdateAnnotation:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            update_annotation(db, 5, payload, user_id)
+            update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
         assert exc_info.value.status_code == 400
         db.rollback.assert_called_once()
@@ -646,7 +647,7 @@ class TestDeleteAnnotation:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(db, 10, campaign_id=1)
+        delete_annotation(db, 10, _make_campaign())
 
         db.delete.assert_called_once_with(existing)
         db.commit.assert_called_once()
@@ -663,7 +664,7 @@ class TestDeleteAnnotation:
         # first execute -> find annotation; second execute -> find assignment
         db.execute.return_value.scalar_one_or_none.side_effect = [existing, assignment]
 
-        delete_annotation(db, 10, campaign_id=1)
+        delete_annotation(db, 10, _make_campaign())
 
         assert assignment.status == ANNOTATION_TASK_STATUS_PENDING
         db.delete.assert_called_once_with(existing)
@@ -673,7 +674,7 @@ class TestDeleteAnnotation:
         db.execute.return_value.scalar_one_or_none.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(db, 999, campaign_id=1)
+            delete_annotation(db, 999, _make_campaign())
 
         assert exc_info.value.status_code == 404
 
@@ -682,9 +683,11 @@ class TestDeleteAnnotation:
         db = _mock_db()
         # query filters by both annotation_id AND campaign_id, so returns None
         db.execute.return_value.scalar_one_or_none.return_value = None
+        campaign = _make_campaign()
+        campaign.id = 2
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(db, 10, campaign_id=2)
+            delete_annotation(db, 10, campaign)
 
         assert exc_info.value.status_code == 404
 
@@ -835,9 +838,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(
-            db, 10, campaign_id=1, user_id=user_id, campaign=self._make_public_campaign()
-        )
+        delete_annotation(db, 10, self._make_public_campaign(), user_id=user_id)
         db.delete.assert_called_once_with(existing)
 
     def test_delete_other_users_annotation_in_public_campaign_raises_403(self):
@@ -852,9 +853,7 @@ class TestPublicCampaignAnnotationOwnership:
         db.execute.return_value.first.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            delete_annotation(
-                db, 10, campaign_id=1, user_id=other_user_id, campaign=self._make_public_campaign()
-            )
+            delete_annotation(db, 10, self._make_public_campaign(), user_id=other_user_id)
         assert exc_info.value.status_code == 403
 
     def test_delete_other_users_annotation_in_private_campaign_allowed(self):
@@ -865,9 +864,7 @@ class TestPublicCampaignAnnotationOwnership:
         existing.annotation_task_id = None
         db.execute.return_value.scalar_one_or_none.return_value = existing
 
-        delete_annotation(
-            db, 10, campaign_id=1, user_id=other_user_id, campaign=self._make_private_campaign()
-        )
+        delete_annotation(db, 10, self._make_private_campaign(), user_id=other_user_id)
         db.delete.assert_called_once_with(existing)
 
 

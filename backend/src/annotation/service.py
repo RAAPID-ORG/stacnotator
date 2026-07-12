@@ -86,20 +86,6 @@ def validate_label_id(campaign: Campaign, label_id: int) -> None:
         )
 
 
-def _resolve_campaign(db: Session, campaign_id: int, campaign: Campaign | None) -> Campaign:
-    """Return `campaign` if given, otherwise look it up by id.
-
-    Lets callers that already loaded the campaign (the common case, from the
-    router's `require_campaign_access` dependency) skip a redundant fetch,
-    while functions called without one still resolve a real `Campaign` for
-    `_attach_counts_toward_completion` / `attach_counts_toward_completion_flat`.
-    """
-    resolved = campaign or db.get(Campaign, campaign_id)
-    if resolved is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    return resolved
-
-
 def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
     """Raise HTTP 403 unless the user may do explorative (standalone,
     free-drawn) labelling in this campaign, per the `explore` policy axis."""
@@ -120,8 +106,7 @@ def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> N
 def get_annotation_task_by_id(
     db: Session,
     task_id: int,
-    campaign_id: int,
-    campaign: Campaign | None = None,
+    campaign: Campaign,
 ) -> AnnotationTask | None:
     """
     Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
@@ -129,10 +114,8 @@ def get_annotation_task_by_id(
     Args:
         db: Database session
         task_id: ID of the task
-        campaign_id: ID of the campaign (for validation)
-        campaign: The campaign, if already loaded by the caller - passed
-            through to `_attach_counts_toward_completion` so it doesn't need
-            a redundant fetch. Looked up if omitted.
+        campaign: The campaign the task must belong to (routers pass the
+            object resolved by their access dependency).
 
     Returns:
         Annotation task item or None if not found
@@ -141,7 +124,7 @@ def get_annotation_task_by_id(
         select(AnnotationTask)
         .where(
             AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign_id,
+            AnnotationTask.campaign_id == campaign.id,
         )
         .options(
             joinedload(AnnotationTask.geometry),
@@ -153,14 +136,13 @@ def get_annotation_task_by_id(
     task = db.scalars(stmt).unique().first()
     if task is not None:
         _attach_has_embedding(db, [task])
-        _attach_counts_toward_completion(db, _resolve_campaign(db, campaign_id, campaign), [task])
+        _attach_counts_toward_completion(db, campaign, [task])
     return task
 
 
 def get_annotation_tasks_for_campaign(
     db: Session,
-    campaign_id: int,
-    campaign: Campaign | None = None,
+    campaign: Campaign,
 ) -> list[AnnotationTask]:
     """
     Retrieve all annotation tasks for a campaign with eager loading
@@ -171,16 +153,14 @@ def get_annotation_tasks_for_campaign(
 
     Args:
         db: Database session
-        campaign_id: ID of the campaign
-        campaign: The campaign, if already loaded by the caller (see
-            get_annotation_task_by_id). Looked up if omitted.
+        campaign: The campaign whose tasks to load.
 
     Returns:
         List of annotation task items with all relationships loaded
     """
     stmt = (
         select(AnnotationTask)
-        .where(AnnotationTask.campaign_id == campaign_id)
+        .where(AnnotationTask.campaign_id == campaign.id)
         .options(
             joinedload(AnnotationTask.geometry),
             joinedload(AnnotationTask.assignments).joinedload(AnnotationTaskAssignment.user),
@@ -191,7 +171,7 @@ def get_annotation_tasks_for_campaign(
 
     tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)
-    _attach_counts_toward_completion(db, _resolve_campaign(db, campaign_id, campaign), tasks)
+    _attach_counts_toward_completion(db, campaign, tasks)
     return tasks
 
 
@@ -663,7 +643,7 @@ def update_annotation(
     annotation_id: int,
     annotation_update: AnnotationUpdate,
     user_id: UUID,
-    campaign: Campaign | None = None,
+    campaign: Campaign,
 ) -> Annotation:
     """
     Update an existing annotation.
@@ -686,25 +666,22 @@ def update_annotation(
     Raises:
         HTTPException: If annotation not found, update fails, or ownership violated
     """
-    # Get existing annotation, scoped to the campaign when one is known (the
-    # URL's campaign_id) - without this, an annotation from any campaign
+    # Scoped to the campaign - without this, an annotation from any campaign
     # platform-wide would be editable through this endpoint, and the policy /
     # ownership checks below would evaluate against the wrong campaign.
-    query = select(Annotation).where(Annotation.id == annotation_id)
-    if campaign is not None:
-        query = query.where(Annotation.campaign_id == campaign.id)
+    query = select(Annotation).where(
+        Annotation.id == annotation_id, Annotation.campaign_id == campaign.id
+    )
     annotation = db.execute(query).scalar_one_or_none()
 
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
-    if campaign is not None:
-        _require_explore_access(db, campaign, user_id)
+    _require_explore_access(db, campaign, user_id)
 
     # In public campaigns, only the creator or a campaign admin can update annotations
     if (
-        campaign
-        and campaign.is_public
+        campaign.is_public
         and annotation.created_by_user_id != user_id
         and not _is_campaign_admin(db, user_id, campaign.id)
     ):
@@ -770,8 +747,7 @@ def update_annotation(
 
 def get_annotations_for_campaign(
     db: Session,
-    campaign_id: int,
-    campaign: Campaign | None = None,
+    campaign: Campaign,
 ) -> list[Annotation]:
     """
     Retrieve all annotations for a specific campaign with eager loading.
@@ -780,17 +756,15 @@ def get_annotations_for_campaign(
 
     Args:
         db: Database session
-        campaign_id: ID of campaign to retrieve annotations for
-        campaign: The campaign, if already loaded by the caller - used to
+        campaign: The campaign to retrieve annotations for - also used to
             compute `counts_toward_completion` on task-linked annotations.
-            Looked up if omitted.
 
     Returns:
         List of all annotation records for the campaign
     """
     stmt = (
         select(Annotation)
-        .where(Annotation.campaign_id == campaign_id)
+        .where(Annotation.campaign_id == campaign.id)
         .options(
             joinedload(Annotation.geometry),
             joinedload(Annotation.creator),
@@ -798,17 +772,14 @@ def get_annotations_for_campaign(
         )
     )
     annotations = list(db.scalars(stmt).unique().all())
-    attach_counts_toward_completion_flat(
-        db, _resolve_campaign(db, campaign_id, campaign), annotations
-    )
+    attach_counts_toward_completion_flat(db, campaign, annotations)
     return annotations
 
 
 def get_annotation_by_id(
     db: Session,
     annotation_id: int,
-    campaign_id: int,
-    campaign: Campaign | None = None,
+    campaign: Campaign,
 ) -> Annotation | None:
     """Fetch one annotation (with geometry + creator) scoped to a campaign.
 
@@ -819,7 +790,7 @@ def get_annotation_by_id(
         select(Annotation)
         .where(
             Annotation.id == annotation_id,
-            Annotation.campaign_id == campaign_id,
+            Annotation.campaign_id == campaign.id,
         )
         .options(
             joinedload(Annotation.geometry),
@@ -829,9 +800,7 @@ def get_annotation_by_id(
     )
     annotation = db.scalars(stmt).unique().first()
     if annotation is not None:
-        attach_counts_toward_completion_flat(
-            db, _resolve_campaign(db, campaign_id, campaign), [annotation]
-        )
+        attach_counts_toward_completion_flat(db, campaign, [annotation])
     return annotation
 
 
@@ -958,9 +927,8 @@ def get_annotation_density(
 def delete_annotation(
     db: Session,
     annotation_id: int,
-    campaign_id: int,
+    campaign: Campaign,
     user_id: UUID | None = None,
-    campaign: Campaign | None = None,
 ) -> None:
     """
     Delete a specific annotation from a campaign.
@@ -973,9 +941,9 @@ def delete_annotation(
     Args:
         db: Database session
         annotation_id: ID of annotation to delete
-        campaign_id: ID of campaign (used for validation)
+        campaign: The campaign the annotation must belong to (also used for
+            the public campaign ownership check)
         user_id: ID of user requesting deletion (for ownership check)
-        campaign: Campaign object (for public campaign ownership check)
 
     Raises:
         HTTPException: If annotation not found, doesn't belong to campaign, or ownership violated
@@ -984,7 +952,7 @@ def delete_annotation(
     annotation = db.execute(
         select(Annotation).where(
             Annotation.id == annotation_id,
-            Annotation.campaign_id == campaign_id,
+            Annotation.campaign_id == campaign.id,
         )
     ).scalar_one_or_none()
 
@@ -993,8 +961,7 @@ def delete_annotation(
 
     # In public campaigns, only the creator or a campaign admin can delete annotations
     if (
-        campaign
-        and campaign.is_public
+        campaign.is_public
         and user_id
         and annotation.created_by_user_id != user_id
         and not _is_campaign_admin(db, user_id, campaign.id)
@@ -1020,7 +987,7 @@ def delete_annotation(
 
         # Delete the annotation
         db.delete(annotation)
-        bump_campaign_annotations_version(db, campaign_id)
+        bump_campaign_annotations_version(db, campaign.id)
         db.commit()
 
     except Exception as e:

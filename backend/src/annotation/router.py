@@ -57,7 +57,7 @@ def get_all_annotation_tasks(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    tasks = service.get_annotation_tasks_for_campaign(db, campaign_id, campaign=campaign)
+    tasks = service.get_annotation_tasks_for_campaign(db, campaign)
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -77,7 +77,6 @@ def complete_annotation_task(
     annotation_task = service.get_annotation_task_by_id(
         db=db,
         task_id=annotation_task_id,
-        campaign_id=campaign_id,
         campaign=campaign,
     )
 
@@ -99,7 +98,6 @@ def complete_annotation_task(
     refreshed_task = service.get_annotation_task_by_id(
         db=db,
         task_id=annotation_task_id,
-        campaign_id=campaign_id,
         campaign=campaign,
     )
 
@@ -347,9 +345,8 @@ def delete_annotation(
     service.delete_annotation(
         db=db,
         annotation_id=annotation_id,
-        campaign_id=campaign.id,
-        user_id=user.id,
         campaign=campaign,
+        user_id=user.id,
     )
 
     # If it was linked to a task, return updated statuses
@@ -357,7 +354,6 @@ def delete_annotation(
         refreshed_task = service.get_annotation_task_by_id(
             db=db,
             task_id=task_id,
-            campaign_id=campaign_id,
             campaign=campaign,
         )
         if refreshed_task:
@@ -465,7 +461,6 @@ def get_all_annotations_for_campaign(
 ):
     annotations = service.get_annotations_for_campaign(
         db=db,
-        campaign_id=campaign.id,
         campaign=campaign,
     )
     return annotations
@@ -560,7 +555,7 @@ def get_annotation(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationOut:
     """Fetch one annotation's full-resolution geometry for click-to-edit."""
-    annotation = service.get_annotation_by_id(db, annotation_id, campaign.id, campaign=campaign)
+    annotation = service.get_annotation_by_id(db, annotation_id, campaign)
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
     return annotation

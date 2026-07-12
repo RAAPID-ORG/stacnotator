@@ -47,10 +47,8 @@ class AnnotationFromTaskOut(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
-    # Whether this annotation's label counts toward its task's completion,
-    # per the campaign's labelling policy (see campaigns/policy.py). Computed
-    # by the API layer from a per-campaign role map, not stored. None for
-    # standalone (non-task) annotations, which have no completion semantics.
+    # Computed per request from the labelling policy (campaigns/policy.py),
+    # never stored. None for standalone annotations.
     counts_toward_completion: bool | None = None
 
     @model_validator(mode="before")
@@ -104,16 +102,10 @@ class AnnotationTaskAssignmentOut(BaseModel):
 def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
     """Derive a task's status from its assignments and annotations.
 
-    Only annotations whose `counts_toward_completion` is not explicitly False
-    drive done/partial/conflicting - an "extra" label the labelling policy
-    allows but doesn't count (e.g. a non-assignee's take on an assigned task)
-    can never resolve or conflict a task on its own. Missing/None is treated
-    as counting, so callers that don't pass the flag (older data, standalone
-    contexts) keep the pre-policy behavior. When the task has any review
-    assignment (`is_review=True`), the number of such assignments sets the
-    required review-label count, and that requirement is satisfied by a
-    counting label from any user other than the primary (non-review)
-    annotator - not only the specific assigned reviewer(s).
+    Only counting annotations (`counts_toward_completion` is not False;
+    missing means counting) drive done/partial/conflicting. Review
+    assignments set a required review-label count, satisfiable by a counting
+    label from any non-primary user, not just the assigned reviewer(s).
     """
     counting = [a for a in annotation_list if a.get("counts_toward_completion") is not False]
     labeled = [a for a in counting if a.get("label_id") is not None]
