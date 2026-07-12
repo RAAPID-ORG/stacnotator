@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -187,6 +188,23 @@ class CampaignSettings(Base):
     # Side length (in meters) of the square extent around each task centroid.
     # NULL means no extent is drawn (only crosshair shown for point tasks).
     sample_extent_meters: Mapped[float | None] = mapped_column(nullable=True)
+
+    # Who may label what, and whose labels count toward task completion.
+    # Shape: {"explore": AUD, "unassigned_tasks": AUD, "assigned_tasks": AUD,
+    # "complete_assigned": AUD} where AUD = {"kinds": [...], "user_ids": [...]}.
+    # See src/campaigns/schemas.py:LabellingPolicy and
+    # docs/superpowers/specs/2026-07-12-labelling-policy-design.md.
+    labelling_policy: Mapped[dict] = mapped_column(
+        JSONB,
+        server_default=text(
+            '\'{"explore": {"kinds": ["members"], "user_ids": []}, '
+            '"unassigned_tasks": {"kinds": ["members"], "user_ids": []}, '
+            '"assigned_tasks": {"kinds": ["members"], "user_ids": []}, '
+            '"complete_assigned": {"kinds": ["assignees", "admins", "authoritative"], '
+            '"user_ids": []}}\'::jsonb'
+        ),
+        nullable=False,
+    )
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")

@@ -30,6 +30,98 @@ class LabelBase(BaseModel):
     geometry_type: Literal["point", "polygon", "line"] | None = None
 
 
+PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
+
+# Per-axis allowed kinds, per the labelling-policy spec: `assignees` only makes
+# sense on the two assigned-task axes; `anyone` is meaningless for
+# `complete_assigned` (a public campaign already lets anyone label; whether an
+# arbitrary visitor's label counts toward completion is a separate question
+# the spec answers "no").
+_EXPLORE_ALLOWED_KINDS: frozenset[str] = frozenset({"admins", "members", "anyone"})
+_UNASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "members", "anyone"}
+)
+_ASSIGNED_TASKS_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "assignees", "members", "anyone"}
+)
+_COMPLETE_ASSIGNED_ALLOWED_KINDS: frozenset[str] = frozenset(
+    {"admins", "authoritative", "assignees", "members"}
+)
+
+
+class PolicyAudience(BaseModel):
+    """An audience selector for one labelling-policy axis: a set of role
+    `kinds` plus an additive list of specifically selected `user_ids`. Empty
+    kinds and empty user_ids means "no one"."""
+
+    kinds: list[PolicyAudienceKind] = []
+    user_ids: list[UUID] = []
+
+
+def _validate_axis_kinds(
+    audience: PolicyAudience, allowed: frozenset[str], axis_name: str
+) -> PolicyAudience:
+    disallowed = [kind for kind in audience.kinds if kind not in allowed]
+    if disallowed:
+        raise ValueError(
+            f"{axis_name} does not allow kind(s) {disallowed}; allowed: {sorted(allowed)}"
+        )
+    return audience
+
+
+class LabellingPolicy(BaseModel):
+    """Who may label what, and whose labels count toward task completion.
+
+    See docs/superpowers/specs/2026-07-12-labelling-policy-design.md for the
+    full rationale behind the four axes.
+    """
+
+    explore: PolicyAudience = Field(default_factory=PolicyAudience)
+    unassigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
+    assigned_tasks: PolicyAudience = Field(default_factory=PolicyAudience)
+    complete_assigned: PolicyAudience = Field(default_factory=PolicyAudience)
+
+    @field_validator("explore")
+    @classmethod
+    def _check_explore_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _EXPLORE_ALLOWED_KINDS, "explore")
+
+    @field_validator("unassigned_tasks")
+    @classmethod
+    def _check_unassigned_tasks_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _UNASSIGNED_TASKS_ALLOWED_KINDS, "unassigned_tasks")
+
+    @field_validator("assigned_tasks")
+    @classmethod
+    def _check_assigned_tasks_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _ASSIGNED_TASKS_ALLOWED_KINDS, "assigned_tasks")
+
+    @field_validator("complete_assigned")
+    @classmethod
+    def _check_complete_assigned_kinds(cls, v: PolicyAudience) -> PolicyAudience:
+        return _validate_axis_kinds(v, _COMPLETE_ASSIGNED_ALLOWED_KINDS, "complete_assigned")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+def default_labelling_policy() -> LabellingPolicy:
+    """The labelling policy used when a campaign is created without an
+    explicit one, and backfilled by migration z1labelpolicy for existing
+    campaigns. Matches current unified behavior (any member can label
+    anything); completion stays with assignees/admins/authoritative."""
+    return LabellingPolicy(
+        explore=PolicyAudience(kinds=["members"]),
+        unassigned_tasks=PolicyAudience(kinds=["members"]),
+        assigned_tasks=PolicyAudience(kinds=["members"]),
+        complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
+    )
+
+
+class UpdateLabellingPolicyRequest(LabellingPolicy):
+    """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
+    as LabellingPolicy, plus the campaign-public check applied by the service."""
+
+
 class CampaignSettingsOut(BaseModel):
     labels: list[LabelBase]
     bbox_west: float
@@ -39,6 +131,7 @@ class CampaignSettingsOut(BaseModel):
     embedding_year: int | None = None
     guide_markdown: str | None = None
     sample_extent_meters: float | None = None
+    labelling_policy: LabellingPolicy
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -120,11 +213,15 @@ class CampaignOut(BaseModel):
 
 class CampaignCreate(BaseModel):
     name: str
-    mode: Literal["tasks", "open"]
+    # Mode stays only as the default work style; the annotation UI already
+    # falls back to Explore for zero-task campaigns. Access control lives in
+    # labelling_policy below, not in mode.
+    mode: Literal["tasks", "open"] = "tasks"
     is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
+    labelling_policy: LabellingPolicy | None = None
 
 
 class CampaignListItemOut(BaseModel):

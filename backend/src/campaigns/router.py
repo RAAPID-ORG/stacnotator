@@ -26,6 +26,7 @@ from src.campaigns.schemas import (
     DeleteAnnotationTasksRequest,
     EmbeddingYearUpdateResponse,
     ImportTaskAssignmentsResult,
+    LabellingPolicy,
     MoveTasksToSetRequest,
     MoveTasksToSetResult,
     TaskSetCreate,
@@ -38,6 +39,7 @@ from src.campaigns.schemas import (
     UpdateCampaignNameRequest,
     UpdateCampaignVisibilityRequest,
     UpdateEmbeddingYearRequest,
+    UpdateLabellingPolicyRequest,
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
@@ -105,6 +107,7 @@ def create_campaign(
         user_id=user.id,
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
+        labelling_policy=campaign.labelling_policy,
     )
     return result
 
@@ -257,6 +260,18 @@ def update_embedding_year(
     campaigns.
     """
     return service.update_embedding_year(db, campaign_id, req.embedding_year)
+
+
+@router.patch("/{campaign_id}/labelling-policy", response_model=LabellingPolicy)
+def update_labelling_policy(
+    campaign_id: int,
+    req: UpdateLabellingPolicyRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Replace the campaign's labelling policy. Rejects 'anyone' audiences
+    with 400 unless the campaign is public."""
+    return service.update_labelling_policy(db, campaign_id, req)
 
 
 @router.delete(

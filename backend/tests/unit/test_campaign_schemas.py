@@ -44,6 +44,16 @@ def test_campaign_create_mode_arbitrary_string_rejected():
         )
 
 
+def test_campaign_create_mode_defaults_to_tasks():
+    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    assert data.mode == "tasks"
+
+
+def test_campaign_create_labelling_policy_defaults_to_none():
+    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    assert data.labelling_policy is None
+
+
 def test_assign_reviewers_pattern_percentage_accepted():
     req = AssignReviewersRequest(
         pattern="percentage", percentage=50.0, num_reviewers=1, reviewer_ids=[]

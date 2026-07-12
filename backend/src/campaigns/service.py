@@ -24,6 +24,8 @@ from src.campaigns.models import (
 )
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
+    LabellingPolicy,
+    default_labelling_policy,
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.database import SessionLocal
@@ -164,6 +166,7 @@ def create_campaign(
     user_id: UUID,
     imagery_editor_state=None,
     timeseries_configs: list | None = None,
+    labelling_policy: LabellingPolicy | None = None,
 ) -> Campaign:
     """
     Create a new campaign with default layout, settings, admin user, and optionally imagery/timeseries.
@@ -176,6 +179,8 @@ def create_campaign(
         user_id: ID of user to set as admin
         imagery_editor_state: Optional imagery editor state to persist
         timeseries_configs: Optional list of timeseries configurations to create
+        labelling_policy: Who may label what; defaults to default_labelling_policy()
+            when omitted (matches current unified behavior)
 
     Returns:
         Created campaign with all relationships loaded
@@ -202,6 +207,7 @@ def create_campaign(
     campaign_settings = CampaignSettings(
         campaign_id=campaign.id,
         guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
+        labelling_policy=(labelling_policy or default_labelling_policy()).model_dump(mode="json"),
         **settings.to_orm(),
     )
     db.add(campaign_settings)
@@ -594,6 +600,37 @@ def update_sample_extent(
     campaign.settings.sample_extent_meters = sample_extent_meters
     db.commit()
     return get_campaign_full(db, campaign_id)
+
+
+def update_labelling_policy(
+    db: Session, campaign_id: int, policy: LabellingPolicy
+) -> LabellingPolicy:
+    """Persist a new labelling policy. 'anyone' kinds are rejected for
+    non-public campaigns: an audience that lets any authenticated visitor
+    label only makes sense once the campaign itself is public."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    axes = (
+        policy.explore,
+        policy.unassigned_tasks,
+        policy.assigned_tasks,
+        policy.complete_assigned,
+    )
+    uses_anyone = any("anyone" in axis.kinds for axis in axes)
+    if uses_anyone and not campaign.is_public:
+        raise HTTPException(
+            status_code=400,
+            detail="The 'anyone' audience is only allowed for public campaigns",
+        )
+
+    campaign.settings.labelling_policy = policy.model_dump(mode="json")
+    flag_modified(campaign.settings, "labelling_policy")
+    db.commit()
+    return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
 
 
 def update_embedding_year(
