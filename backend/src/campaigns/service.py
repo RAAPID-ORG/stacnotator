@@ -1,5 +1,6 @@
 import logging
 import threading
+from collections.abc import Iterable
 from datetime import datetime
 from uuid import UUID
 
@@ -10,7 +11,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation import embeddings_service
 from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.auth.models import User
+from src.auth.constants import ROLE_ADMIN
+from src.auth.models import User, UserRole
 from src.auth.service import is_admin as is_global_admin
 from src.campaigns.constants import (
     DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
@@ -22,6 +24,7 @@ from src.campaigns.models import (
     CanvasLayout,
     TaskSet,
 )
+from src.campaigns.policy import PolicyContext
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
     LabellingPolicy,
@@ -58,6 +61,84 @@ def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> b
         )
     ).scalar_one_or_none()
     return cu is not None and cu.is_authorative_reviewer
+
+
+# ============================================================================
+# Labelling Policy Evaluation
+# ============================================================================
+
+
+def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
+    """Read a campaign's labelling policy, falling back to the default for
+    legacy campaigns whose settings predate the labelling-policy column."""
+    if campaign.settings and campaign.settings.labelling_policy:
+        return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+    return default_labelling_policy()
+
+
+def build_policy_context(
+    db: Session,
+    campaign: Campaign,
+    user_id: UUID,
+    task: AnnotationTask | None = None,
+) -> PolicyContext:
+    """Build a PolicyContext for one user's request against one campaign.
+
+    Used for real-time enforcement (a single annotate/create/update call), so
+    it does its own lookups rather than taking pre-fetched maps - contrast
+    with `get_campaign_role_map` / `context_from_role_map`, which amortize the
+    same lookups across many annotations (task lists, exports).
+
+    `task.assignments` must already be loaded (joinedload/selectinload) when
+    `task` is given; `is_assigned` is true if the user holds ANY assignment on
+    it (primary or review), per the labelling-policy spec.
+    """
+    cu = db.scalars(
+        select(CampaignUser).where(
+            CampaignUser.campaign_id == campaign.id,
+            CampaignUser.user_id == user_id,
+        )
+    ).first()
+    is_assigned = task is not None and any(
+        assignment.user_id == user_id for assignment in (task.assignments or [])
+    )
+    return PolicyContext(
+        user_id=user_id,
+        is_admin=(cu is not None and cu.is_admin) or is_global_admin(db, user_id),
+        is_authoritative=cu is not None and cu.is_authorative_reviewer,
+        is_member=cu is not None,
+        is_assigned=is_assigned,
+    )
+
+
+def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[bool, bool]]:
+    """One query giving every campaign member's (is_admin, is_authoritative)
+    flags, keyed by user id. Membership itself is `user_id in role_map`.
+
+    Meant to be fetched once per request and reused across many
+    `context_from_role_map` calls (see campaigns.policy) instead of a
+    per-annotation CampaignUser lookup.
+    """
+    rows = db.execute(
+        select(
+            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authorative_reviewer
+        ).where(CampaignUser.campaign_id == campaign_id)
+    ).all()
+    return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
+
+
+def get_platform_admin_ids(db: Session, user_ids: Iterable[UUID]) -> set[UUID]:
+    """Subset of `user_ids` holding the global admin role, in one query."""
+    candidates = {uid for uid in user_ids if uid is not None}
+    if not candidates:
+        return set()
+    return set(
+        db.scalars(
+            select(UserRole.user_id).where(
+                UserRole.role == ROLE_ADMIN, UserRole.user_id.in_(candidates)
+            )
+        ).all()
+    )
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:

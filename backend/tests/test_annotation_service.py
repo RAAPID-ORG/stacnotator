@@ -39,21 +39,33 @@ from src.annotation.service import (
 def _mock_db():
     db = MagicMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
+    # `add_annotation_for_task` always fetches its campaign via db.get to
+    # evaluate the labelling policy; default it to a well-formed campaign so
+    # tests that don't care about campaign shape don't have to configure it.
+    db.get.return_value = _make_campaign()
     return db
 
 
 def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
-    """Return a MagicMock campaign whose label set contains the given ids."""
+    """Return a MagicMock campaign whose label set contains the given ids.
+
+    `settings.labelling_policy = None` so `get_labelling_policy` falls back to
+    the default policy (members-everywhere) instead of trying to validate a
+    MagicMock as a LabellingPolicy - policy-enforcement tests below override
+    it explicitly where they need a specific policy.
+    """
     campaign = MagicMock()
     campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
+    campaign.settings.labelling_policy = None
     return campaign
 
 
-def _make_task(task_id=1, campaign_id=1, geometry_id=10):
+def _make_task(task_id=1, campaign_id=1, geometry_id=10, assignments=None):
     task = MagicMock()
     task.id = task_id
     task.campaign_id = campaign_id
     task.geometry_id = geometry_id
+    task.assignments = assignments if assignments is not None else []
     return task
 
 
@@ -1344,6 +1356,69 @@ class TestExportMergeCorrectness:
         a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None, geometry=None)
         fc = self._geojson([a])
         assert fc["features"][0]["geometry"] is None
+
+    # ---- stacnotator_counts_toward_completion ---------------------------
+    #
+    # These tests patch out `_fetch_annotations_with_context` entirely (see
+    # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
+    # runs - the counts flag is read straight off the annotation stand-ins,
+    # exactly as if it had already been attached by that helper.
+
+    def test_counts_toward_completion_true_for_counting_task_linked_annotation(self):
+        task = self._task()
+        a = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        row = self._csv([a]).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is True
+
+    def test_counts_toward_completion_false_for_non_counting_task_linked_annotation(self):
+        task = self._task()
+        a = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([a]).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is False
+
+    def test_counts_toward_completion_absent_for_standalone_annotation(self):
+        a = self._ann(ann_id=1, label_id=1, user_id=uuid4(), task=None)
+        assert "stacnotator_counts_toward_completion" not in self._csv([a]).columns
+
+    def test_counts_toward_completion_true_on_merged_row_when_any_contributor_counts(self):
+        task = self._task()
+        counting = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        extra = self._ann(
+            ann_id=2, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([counting, extra], merge=True).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is True
+
+    def test_counts_toward_completion_false_on_merged_row_when_no_contributor_counts(self):
+        task = self._task()
+        a1 = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        a2 = self._ann(
+            ann_id=2, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=False
+        )
+        row = self._csv([a1, a2], merge=True).iloc[0]
+        assert bool(row["stacnotator_counts_toward_completion"]) is False
+
+    def test_geojson_counts_toward_completion_present_for_task_linked_only(self):
+        task = self._task()
+        linked = self._ann(
+            ann_id=1, label_id=1, user_id=uuid4(), task=task, counts_toward_completion=True
+        )
+        standalone = self._ann(ann_id=2, label_id=1, user_id=uuid4(), task=None)
+        fc = self._geojson([linked, standalone])
+        props = {
+            feat["properties"].get("stacnotator_task_id"): feat["properties"]
+            for feat in fc["features"]
+        }
+        assert props[task.id]["stacnotator_counts_toward_completion"] is True
+        assert "stacnotator_counts_toward_completion" not in props[None]
 
 
 def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):

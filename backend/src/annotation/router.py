@@ -57,7 +57,7 @@ def get_all_annotation_tasks(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
 ):
-    tasks = service.get_annotation_tasks_for_campaign(db, campaign_id)
+    tasks = service.get_annotation_tasks_for_campaign(db, campaign_id, campaign=campaign)
     return AnnotationTaskListOut(campaign_id=campaign.id, tasks=tasks)
 
 
@@ -78,6 +78,7 @@ def complete_annotation_task(
         db=db,
         task_id=annotation_task_id,
         campaign_id=campaign_id,
+        campaign=campaign,
     )
 
     if annotation_task is None:
@@ -99,6 +100,7 @@ def complete_annotation_task(
         db=db,
         task_id=annotation_task_id,
         campaign_id=campaign_id,
+        campaign=campaign,
     )
 
     task_out = AnnotationTaskOut.model_validate(refreshed_task)
@@ -356,6 +358,7 @@ def delete_annotation(
             db=db,
             task_id=task_id,
             campaign_id=campaign_id,
+            campaign=campaign,
         )
         if refreshed_task:
             task_out = AnnotationTaskOut.model_validate(refreshed_task)
@@ -463,6 +466,7 @@ def get_all_annotations_for_campaign(
     annotations = service.get_annotations_for_campaign(
         db=db,
         campaign_id=campaign.id,
+        campaign=campaign,
     )
     return annotations
 
@@ -556,7 +560,7 @@ def get_annotation(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationOut:
     """Fetch one annotation's full-resolution geometry for click-to-edit."""
-    annotation = service.get_annotation_by_id(db, annotation_id, campaign.id)
+    annotation = service.get_annotation_by_id(db, annotation_id, campaign.id, campaign=campaign)
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found in this campaign")
     return annotation

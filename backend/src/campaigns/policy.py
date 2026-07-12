@@ -48,3 +48,29 @@ def counts_toward_completion(
     """
     axis = policy.complete_assigned if task_has_assignments else policy.unassigned_tasks
     return is_allowed(axis, ctx)
+
+
+def context_from_role_map(
+    user_id: UUID,
+    role_map: dict[UUID, tuple[bool, bool]],
+    platform_admin_ids: set[UUID],
+    is_assigned: bool = False,
+) -> PolicyContext:
+    """Build a PolicyContext from pre-fetched, campaign-wide lookups.
+
+    `role_map` is `{user_id: (is_admin, is_authoritative)}` for every
+    CampaignUser of one campaign; `platform_admin_ids` is the subset of a
+    candidate user set holding the global admin role. Both are fetched once
+    per request (see campaigns.service.get_campaign_role_map /
+    get_platform_admin_ids) so evaluating many annotations' authors - e.g. a
+    whole task list or export - costs two queries total instead of one per
+    annotation.
+    """
+    is_admin, is_authoritative = role_map.get(user_id, (False, False))
+    return PolicyContext(
+        user_id=user_id,
+        is_admin=is_admin or user_id in platform_admin_ids,
+        is_authoritative=is_authoritative,
+        is_member=user_id in role_map,
+        is_assigned=is_assigned,
+    )

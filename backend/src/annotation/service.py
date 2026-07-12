@@ -27,7 +27,15 @@ from src.annotation.schemas import (
 from src.annotation.tiles import build_mvt_query
 from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.models import Campaign, CampaignUser
-from src.campaigns.service import is_authoritative_reviewer
+from src.campaigns.policy import context_from_role_map, counts_toward_completion, is_allowed
+from src.campaigns.schemas import LabellingPolicy
+from src.campaigns.service import (
+    build_policy_context,
+    get_campaign_role_map,
+    get_labelling_policy,
+    get_platform_admin_ids,
+    is_authoritative_reviewer,
+)
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -78,6 +86,32 @@ def validate_label_id(campaign: Campaign, label_id: int) -> None:
         )
 
 
+def _resolve_campaign(db: Session, campaign_id: int, campaign: Campaign | None) -> Campaign:
+    """Return `campaign` if given, otherwise look it up by id.
+
+    Lets callers that already loaded the campaign (the common case, from the
+    router's `require_campaign_access` dependency) skip a redundant fetch,
+    while functions called without one still resolve a real `Campaign` for
+    `_attach_counts_toward_completion` / `attach_counts_toward_completion_flat`.
+    """
+    resolved = campaign or db.get(Campaign, campaign_id)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return resolved
+
+
+def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
+    """Raise HTTP 403 unless the user may do explorative (standalone,
+    free-drawn) labelling in this campaign, per the `explore` policy axis."""
+    policy = get_labelling_policy(campaign)
+    ctx = build_policy_context(db, campaign, user_id)
+    if not is_allowed(policy.explore, ctx):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not allowed to create standalone annotations in this campaign",
+        )
+
+
 # ============================================================================
 # Task Retrieval
 # ============================================================================
@@ -87,6 +121,7 @@ def get_annotation_task_by_id(
     db: Session,
     task_id: int,
     campaign_id: int,
+    campaign: Campaign | None = None,
 ) -> AnnotationTask | None:
     """
     Retrieve a single annotation task by ID, ensuring it belongs to the campaign.
@@ -95,6 +130,9 @@ def get_annotation_task_by_id(
         db: Database session
         task_id: ID of the task
         campaign_id: ID of the campaign (for validation)
+        campaign: The campaign, if already loaded by the caller - passed
+            through to `_attach_counts_toward_completion` so it doesn't need
+            a redundant fetch. Looked up if omitted.
 
     Returns:
         Annotation task item or None if not found
@@ -115,12 +153,14 @@ def get_annotation_task_by_id(
     task = db.scalars(stmt).unique().first()
     if task is not None:
         _attach_has_embedding(db, [task])
+        _attach_counts_toward_completion(db, _resolve_campaign(db, campaign_id, campaign), [task])
     return task
 
 
 def get_annotation_tasks_for_campaign(
     db: Session,
     campaign_id: int,
+    campaign: Campaign | None = None,
 ) -> list[AnnotationTask]:
     """
     Retrieve all annotation tasks for a campaign with eager loading
@@ -132,6 +172,8 @@ def get_annotation_tasks_for_campaign(
     Args:
         db: Database session
         campaign_id: ID of the campaign
+        campaign: The campaign, if already loaded by the caller (see
+            get_annotation_task_by_id). Looked up if omitted.
 
     Returns:
         List of annotation task items with all relationships loaded
@@ -147,8 +189,9 @@ def get_annotation_tasks_for_campaign(
         .order_by(AnnotationTask.annotation_number)
     )
 
-    tasks = db.scalars(stmt).unique().all()
+    tasks = list(db.scalars(stmt).unique().all())
     _attach_has_embedding(db, tasks)
+    _attach_counts_toward_completion(db, _resolve_campaign(db, campaign_id, campaign), tasks)
     return tasks
 
 
@@ -168,6 +211,73 @@ def _attach_has_embedding(db: Session, tasks: list[AnnotationTask]) -> None:
     )
     for task in tasks:
         task.has_embedding = task.id in embedded_ids
+
+
+def _counting_context(
+    annotation: Annotation,
+    policy: LabellingPolicy,
+    role_map: dict[UUID, tuple[bool, bool]],
+    admin_ids: set[UUID],
+    assigned_ids: set[UUID],
+) -> bool:
+    """Whether one task-linked annotation's label counts toward its task's
+    completion, per the campaign's labelling policy."""
+    ctx = context_from_role_map(
+        annotation.created_by_user_id,
+        role_map,
+        admin_ids,
+        is_assigned=annotation.created_by_user_id in assigned_ids,
+    )
+    return counts_toward_completion(policy, bool(assigned_ids), ctx)
+
+
+def _attach_counts_toward_completion(
+    db: Session, campaign: Campaign, tasks: list[AnnotationTask]
+) -> None:
+    """Set `counts_toward_completion` on every annotation of every task, via
+    one role-map lookup for the whole campaign instead of a per-annotation
+    query. Mirrors `_attach_has_embedding`: the flag is set directly on the
+    ORM instance so `AnnotationFromTaskOut` (from_attributes) picks it up
+    without an extra fetch.
+    """
+    if not tasks:
+        return
+    policy = get_labelling_policy(campaign)
+    role_map = get_campaign_role_map(db, campaign.id)
+    author_ids = {ann.created_by_user_id for task in tasks for ann in (task.annotations or [])}
+    admin_ids = get_platform_admin_ids(db, author_ids)
+
+    for task in tasks:
+        assigned_ids = {a.user_id for a in (task.assignments or [])}
+        for ann in task.annotations or []:
+            ann.counts_toward_completion = _counting_context(
+                ann, policy, role_map, admin_ids, assigned_ids
+            )
+
+
+def attach_counts_toward_completion_flat(
+    db: Session, campaign: Campaign, annotations: list[Annotation]
+) -> None:
+    """Same as `_attach_counts_toward_completion` but for a flat annotation
+    list where each task-linked annotation carries its own `.annotation_task`
+    (with `.assignments` loaded) rather than the nested task-tree shape.
+    Used by the plain annotation list/fetch endpoints and by exports
+    (annotation/io.py). Standalone annotations are left untouched, so
+    `AnnotationFromTaskOut.counts_toward_completion` reads back as its None
+    default - "not applicable", not "doesn't count".
+    """
+    task_linked = [a for a in annotations if a.annotation_task_id is not None and a.annotation_task]
+    if not task_linked:
+        return
+    policy = get_labelling_policy(campaign)
+    role_map = get_campaign_role_map(db, campaign.id)
+    admin_ids = get_platform_admin_ids(db, {a.created_by_user_id for a in task_linked})
+
+    for ann in task_linked:
+        assigned_ids = {a.user_id for a in (ann.annotation_task.assignments or [])}
+        ann.counts_toward_completion = _counting_context(
+            ann, policy, role_map, admin_ids, assigned_ids
+        )
 
 
 def get_annotation_task_id_for_annotation(
@@ -214,6 +324,24 @@ def add_annotation_for_task(
         user_id: ID of user creating the annotation
     """
 
+    campaign = db.get(Campaign, annotation_task.campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    policy = get_labelling_policy(campaign)
+    has_assignments = bool(annotation_task.assignments)
+    ctx = build_policy_context(db, campaign, user_id, task=annotation_task)
+    axis = policy.assigned_tasks if has_assignments else policy.unassigned_tasks
+    if not is_allowed(axis, ctx):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You are not allowed to annotate assigned tasks in this campaign"
+                if has_assignments
+                else "You are not allowed to annotate unassigned tasks in this campaign"
+            ),
+        )
+
     if annotation_create.is_authoritative and not is_authoritative_reviewer(
         db, annotation_task.campaign_id, user_id
     ):
@@ -221,10 +349,6 @@ def add_annotation_for_task(
             status_code=403,
             detail="Only campaign admins or authoritative reviewers can submit authoritative annotations",
         )
-
-    campaign = db.get(Campaign, annotation_task.campaign_id)
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
 
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
@@ -298,6 +422,7 @@ def add_annotation_for_task(
 
     if annotation:
         db.refresh(annotation)
+        annotation.counts_toward_completion = counts_toward_completion(policy, has_assignments, ctx)
         return annotation
 
 
@@ -433,6 +558,8 @@ def create_annotation(
     Raises:
         HTTPException: If geometry is invalid or creation fails
     """
+    _require_explore_access(db, campaign, user_id)
+
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
 
@@ -488,6 +615,8 @@ def create_annotations_bulk(
     """
     if not annotations_create:
         return 0
+
+    _require_explore_access(db, campaign, user_id)
 
     # Validate the distinct labels once rather than per-annotation.
     for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:
@@ -565,6 +694,9 @@ def update_annotation(
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")
 
+    if campaign is not None:
+        _require_explore_access(db, campaign, user_id)
+
     # In public campaigns, only the creator or a campaign admin can update annotations
     if (
         campaign
@@ -635,6 +767,7 @@ def update_annotation(
 def get_annotations_for_campaign(
     db: Session,
     campaign_id: int,
+    campaign: Campaign | None = None,
 ) -> list[Annotation]:
     """
     Retrieve all annotations for a specific campaign with eager loading.
@@ -644,6 +777,9 @@ def get_annotations_for_campaign(
     Args:
         db: Database session
         campaign_id: ID of campaign to retrieve annotations for
+        campaign: The campaign, if already loaded by the caller - used to
+            compute `counts_toward_completion` on task-linked annotations.
+            Looked up if omitted.
 
     Returns:
         List of all annotation records for the campaign
@@ -654,17 +790,21 @@ def get_annotations_for_campaign(
         .options(
             joinedload(Annotation.geometry),
             joinedload(Annotation.creator),
+            joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
         )
     )
-    annotations = db.scalars(stmt).unique().all()
-
-    return list(annotations)
+    annotations = list(db.scalars(stmt).unique().all())
+    attach_counts_toward_completion_flat(
+        db, _resolve_campaign(db, campaign_id, campaign), annotations
+    )
+    return annotations
 
 
 def get_annotation_by_id(
     db: Session,
     annotation_id: int,
     campaign_id: int,
+    campaign: Campaign | None = None,
 ) -> Annotation | None:
     """Fetch one annotation (with geometry + creator) scoped to a campaign.
 
@@ -680,9 +820,15 @@ def get_annotation_by_id(
         .options(
             joinedload(Annotation.geometry),
             joinedload(Annotation.creator),
+            joinedload(Annotation.annotation_task).selectinload(AnnotationTask.assignments),
         )
     )
-    return db.scalars(stmt).unique().first()
+    annotation = db.scalars(stmt).unique().first()
+    if annotation is not None:
+        attach_counts_toward_completion_flat(
+            db, _resolve_campaign(db, campaign_id, campaign), [annotation]
+        )
+    return annotation
 
 
 def render_annotation_tile(

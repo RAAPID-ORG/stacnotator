@@ -6,6 +6,7 @@ model instances (no session), and the DB session in service tests is a
 MagicMock.
 """
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -15,7 +16,12 @@ from pydantic import ValidationError
 
 from src.campaigns import service
 from src.campaigns.models import Campaign, CampaignSettings
-from src.campaigns.policy import PolicyContext, counts_toward_completion, is_allowed
+from src.campaigns.policy import (
+    PolicyContext,
+    context_from_role_map,
+    counts_toward_completion,
+    is_allowed,
+)
 from src.campaigns.schemas import (
     LabellingPolicy,
     PolicyAudience,
@@ -256,3 +262,196 @@ def test_update_labelling_policy_missing_campaign_raises_404():
         service.update_labelling_policy(db, 1, default_labelling_policy())
 
     assert exc_info.value.status_code == 404
+
+
+# ============================================================================
+# get_labelling_policy: campaign -> LabellingPolicy, with legacy fallback
+# ============================================================================
+
+
+def test_get_labelling_policy_returns_default_when_settings_missing():
+    campaign = Campaign(id=1, name="x", mode="tasks")
+    campaign.settings = None
+    assert service.get_labelling_policy(campaign) == default_labelling_policy()
+
+
+def test_get_labelling_policy_returns_default_when_column_empty():
+    campaign = _campaign()  # labelling_policy={} per the shared helper
+    assert service.get_labelling_policy(campaign) == default_labelling_policy()
+
+
+def test_get_labelling_policy_reads_stored_policy():
+    campaign = _campaign()
+    campaign.settings.labelling_policy = {
+        "explore": {"kinds": ["anyone"], "user_ids": []},
+        "unassigned_tasks": {"kinds": ["members"], "user_ids": []},
+        "assigned_tasks": {"kinds": ["members"], "user_ids": []},
+        "complete_assigned": {"kinds": ["admins"], "user_ids": []},
+    }
+    policy = service.get_labelling_policy(campaign)
+    assert policy.explore.kinds == ["anyone"]
+    assert policy.complete_assigned.kinds == ["admins"]
+
+
+# ============================================================================
+# context_from_role_map: pure PolicyContext construction from pre-fetched maps
+# ============================================================================
+
+
+def test_context_from_role_map_non_member_defaults_false():
+    user_id = uuid4()
+    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
+    assert ctx == PolicyContext(
+        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
+    )
+
+
+def test_context_from_role_map_reads_campaign_admin_and_authoritative_flags():
+    user_id = uuid4()
+    ctx = context_from_role_map(user_id, role_map={user_id: (True, True)}, platform_admin_ids=set())
+    assert ctx.is_member is True
+    assert ctx.is_admin is True
+    assert ctx.is_authoritative is True
+
+
+def test_context_from_role_map_platform_admin_without_campaign_admin_flag():
+    """A platform admin who isn't flagged is_admin on the CampaignUser row
+    still resolves as an admin."""
+    user_id = uuid4()
+    ctx = context_from_role_map(
+        user_id, role_map={user_id: (False, False)}, platform_admin_ids={user_id}
+    )
+    assert ctx.is_admin is True
+
+
+def test_context_from_role_map_passes_through_is_assigned():
+    user_id = uuid4()
+    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set(), is_assigned=True)
+    assert ctx.is_assigned is True
+
+
+# ============================================================================
+# get_campaign_role_map / get_platform_admin_ids: single-query batch lookups
+# ============================================================================
+
+
+def test_get_campaign_role_map_builds_dict_from_rows():
+    user_a, user_b = uuid4(), uuid4()
+    db = MagicMock()
+    db.execute.return_value.all.return_value = [(user_a, True, False), (user_b, False, True)]
+
+    role_map = service.get_campaign_role_map(db, campaign_id=1)
+
+    assert role_map == {user_a: (True, False), user_b: (False, True)}
+
+
+def test_get_platform_admin_ids_empty_input_skips_query():
+    db = MagicMock()
+    assert service.get_platform_admin_ids(db, []) == set()
+    db.scalars.assert_not_called()
+
+
+def test_get_platform_admin_ids_returns_matching_set():
+    admin_id, other_id = uuid4(), uuid4()
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [admin_id]
+
+    result = service.get_platform_admin_ids(db, [admin_id, other_id])
+
+    assert result == {admin_id}
+
+
+# ============================================================================
+# build_policy_context: real-time, single-user PolicyContext for enforcement
+# ============================================================================
+
+
+def _db_with_campaign_user(cu=None, is_platform_admin=False):
+    """A MagicMock db wired so the CampaignUser lookup (`db.scalars(...).first()`)
+    and auth.service.is_admin's role check (`db.execute(...).first()`) - two
+    different mock chains - can be configured independently. Both default to
+    "no" so tests only need to name what they're asserting."""
+    db = MagicMock()
+    db.scalars.return_value.first.return_value = cu
+    db.execute.return_value.first.return_value = ("admin",) if is_platform_admin else None
+    return db
+
+
+def test_build_policy_context_non_member_non_admin():
+    campaign = _campaign()
+    user_id = uuid4()
+    db = _db_with_campaign_user(cu=None)
+
+    ctx = service.build_policy_context(db, campaign, user_id)
+
+    assert ctx == PolicyContext(
+        user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
+    )
+
+
+def test_build_policy_context_campaign_admin():
+    campaign = _campaign()
+    user_id = uuid4()
+    cu = SimpleNamespace(is_admin=True, is_authorative_reviewer=False)
+    db = _db_with_campaign_user(cu=cu)
+
+    ctx = service.build_policy_context(db, campaign, user_id)
+
+    assert ctx.is_member is True
+    assert ctx.is_admin is True
+    assert ctx.is_authoritative is False
+
+
+def test_build_policy_context_authoritative_reviewer():
+    campaign = _campaign()
+    user_id = uuid4()
+    cu = SimpleNamespace(is_admin=False, is_authorative_reviewer=True)
+    db = _db_with_campaign_user(cu=cu)
+
+    ctx = service.build_policy_context(db, campaign, user_id)
+
+    assert ctx.is_authoritative is True
+    assert ctx.is_admin is False
+
+
+def test_build_policy_context_platform_admin_without_campaign_membership():
+    campaign = _campaign()
+    user_id = uuid4()
+    db = _db_with_campaign_user(cu=None, is_platform_admin=True)
+
+    ctx = service.build_policy_context(db, campaign, user_id)
+
+    assert ctx.is_admin is True
+    assert ctx.is_member is False
+
+
+def test_build_policy_context_no_task_is_never_assigned():
+    campaign = _campaign()
+    user_id = uuid4()
+    db = _db_with_campaign_user(cu=None)
+
+    ctx = service.build_policy_context(db, campaign, user_id, task=None)
+
+    assert ctx.is_assigned is False
+
+
+def test_build_policy_context_assigned_when_user_holds_any_assignment():
+    campaign = _campaign()
+    user_id = uuid4()
+    db = _db_with_campaign_user(cu=None)
+    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
+
+    ctx = service.build_policy_context(db, campaign, user_id, task=task)
+
+    assert ctx.is_assigned is True
+
+
+def test_build_policy_context_not_assigned_when_task_assigned_to_others():
+    campaign = _campaign()
+    user_id = uuid4()
+    db = _db_with_campaign_user(cu=None)
+    task = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
+
+    ctx = service.build_policy_context(db, campaign, user_id, task=task)
+
+    assert ctx.is_assigned is False

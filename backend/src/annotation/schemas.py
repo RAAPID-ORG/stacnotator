@@ -47,6 +47,11 @@ class AnnotationFromTaskOut(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    # Whether this annotation's label counts toward its task's completion,
+    # per the campaign's labelling policy (see campaigns/policy.py). Computed
+    # by the API layer from a per-campaign role map, not stored. None for
+    # standalone (non-task) annotations, which have no completion semantics.
+    counts_toward_completion: bool | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -97,8 +102,17 @@ class AnnotationTaskAssignmentOut(BaseModel):
 
 
 def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
-    """Derive a task's status from its assignments and annotations."""
-    labeled = [a for a in annotation_list if a.get("label_id") is not None]
+    """Derive a task's status from its assignments and annotations.
+
+    Only annotations whose `counts_toward_completion` is not explicitly False
+    drive done/partial/conflicting - an "extra" label the labelling policy
+    allows but doesn't count (e.g. a non-assignee's take on an assigned task)
+    can never resolve or conflict a task on its own. Missing/None is treated
+    as counting, so callers that don't pass the flag (older data, standalone
+    contexts) keep the pre-policy behavior.
+    """
+    counting = [a for a in annotation_list if a.get("counts_toward_completion") is not False]
+    labeled = [a for a in counting if a.get("label_id") is not None]
     has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
 
     if has_authoritative_label:
@@ -173,6 +187,7 @@ class AnnotationTaskOut(BaseModel):
                     "label_id": a.label_id,
                     "created_by_user_id": a.created_by_user_id,
                     "is_authoritative": a.is_authoritative,
+                    "counts_toward_completion": getattr(a, "counts_toward_completion", None),
                 }
                 for a in annotations
             ]
@@ -187,6 +202,7 @@ class AnnotationTaskOut(BaseModel):
                         "label_id": a.label_id,
                         "created_by_user_id": a.created_by_user_id,
                         "is_authoritative": getattr(a, "is_authoritative", False),
+                        "counts_toward_completion": getattr(a, "counts_toward_completion", None),
                     }
                     if hasattr(a, "label_id")
                     else a

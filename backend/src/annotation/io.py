@@ -17,7 +17,7 @@ from src.annotation.models import (
     AnnotationTask,
 )
 from src.annotation.schemas import compute_task_status_value
-from src.annotation.service import validate_label_id
+from src.annotation.service import attach_counts_toward_completion_flat, validate_label_id
 from src.auth.models import User
 from src.campaigns.models import Campaign
 
@@ -496,6 +496,7 @@ def _fetch_annotations_with_context(
     if user_ids:
         users = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()
         user_email_map = {user.id: user.email for user in users}
+    attach_counts_toward_completion_flat(db, campaign, annotations)
     return annotations, user_email_map
 
 
@@ -512,6 +513,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
     "stacnotator_annotation_number",
     "stacnotator_task_id",
     "stacnotator_task_status",
+    "stacnotator_counts_toward_completion",
     "stacnotator_label_id",
     "stacnotator_label_name",
     "stacnotator_annotator_count",
@@ -642,6 +644,9 @@ def _build_export_record_for_annotation(
         record["stacnotator_task_id"] = task.id
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
+        record["stacnotator_counts_toward_completion"] = getattr(
+            annotation, "counts_toward_completion", None
+        )
 
     record["stacnotator_annotation_id"] = annotation.id
     record["stacnotator_source_id"] = annotation.source_id
@@ -707,6 +712,12 @@ def _build_export_record_merged(
         record["stacnotator_task_id"] = task.id
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
+        # True if any contributing label counts toward completion - the merged
+        # row represents the task's resolved label, so it counts if the
+        # resolution itself was reachable by a counting contributor.
+        record["stacnotator_counts_toward_completion"] = any(
+            getattr(a, "counts_toward_completion", False) for a in labeled
+        )
 
     record["stacnotator_label_id"] = agreed_label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
