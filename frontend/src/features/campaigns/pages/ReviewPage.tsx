@@ -1,25 +1,22 @@
 import { Fragment, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { getCampaign, listAllCampaigns, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
-import { TaskModeReview } from '../components/review/TaskModeReview';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
 import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
-import { pillCls } from '~/shared/ui/pill';
-
-type ReviewScope = 'tasks' | 'all';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
+  const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [scope, setScope] = useState<ReviewScope | null>(null);
   const [showImport, setShowImport] = useState(false);
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -73,29 +70,16 @@ export const ReviewPage = () => {
     );
   }
 
-  // All annotations is the unified view across task and explore work, so it's
-  // always the default; the per-task lens is opt-in via the toggle.
-  const effectiveScope: ReviewScope = scope ?? 'all';
-
   return (
     <Fragment>
       <div className="w-full max-w-[80rem] mx-auto px-6 pt-4 pb-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className={pillCls(effectiveScope === 'tasks')}
-            onClick={() => setScope('tasks')}
-          >
-            Tasks
-          </button>
-          <button
-            type="button"
-            className={pillCls(effectiveScope === 'all')}
-            onClick={() => setScope('all')}
-          >
-            All annotations
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+          className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
+        >
+          Looking for tasks? Open the task workspace
+        </button>
 
         {isAdmin && (
           <button
@@ -129,11 +113,7 @@ export const ReviewPage = () => {
         </div>
       )}
 
-      {effectiveScope === 'all' ? (
-        <OpenModeReview campaign={campaign} campaignId={campaignId} />
-      ) : (
-        <TaskModeReview campaign={campaign} campaignId={campaignId} />
-      )}
+      <OpenModeReview campaign={campaign} campaignId={campaignId} />
     </Fragment>
   );
 };
