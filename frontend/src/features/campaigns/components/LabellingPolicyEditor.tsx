@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CampaignUserOut, LabellingPolicy, PolicyAudience } from '~/api/client';
 import { Tooltip } from '~/shared/ui/Tooltip';
 
@@ -71,6 +71,11 @@ interface LabellingPolicyEditorProps {
   /** Omit in the create wizard where campaign members aren't known yet - the
    * "selected members" option is hidden in that case. */
   members?: CampaignUserOut[];
+  /** Called only for direct user interaction with a checkbox (kind, member
+   * toggle) - not for the isPublic-driven 'anyone' strip below. Lets callers
+   * (e.g. the create wizard) distinguish "user customized the policy" from
+   * changes this component makes on its own. */
+  onTouch?: () => void;
 }
 
 export const LabellingPolicyEditor = ({
@@ -78,6 +83,7 @@ export const LabellingPolicyEditor = ({
   onChange,
   isPublic,
   members,
+  onTouch,
 }: LabellingPolicyEditorProps) => {
   // UI-only: whether the member picker is expanded for a given axis. Seeded
   // from any pre-selected members so editing an existing policy shows them
@@ -90,12 +96,35 @@ export const LabellingPolicyEditor = ({
       ) as Record<AxisKey, boolean>
   );
 
+  // A campaign going private must not leave 'anyone' checked on any axis -
+  // the backend rejects it with a 400, and an already-checked box surviving
+  // the flip is an inconsistent, confusing UI state. Strips unconditionally
+  // (independent of any "touched" tracking a caller does) whenever isPublic
+  // is or becomes false.
+  useEffect(() => {
+    if (isPublic) return;
+    const hasAnyone = AXES.some((axis) => (value[axis.key]?.kinds ?? []).includes('anyone'));
+    if (!hasAnyone) return;
+    const stripped = Object.fromEntries(
+      AXES.map((axis) => {
+        const current = value[axis.key] ?? emptyAudience;
+        return [
+          axis.key,
+          { ...current, kinds: (current.kinds ?? []).filter((k) => k !== 'anyone') },
+        ];
+      })
+    ) as LabellingPolicy;
+    onChange(stripped);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to isPublic flipping, reading the latest value/onChange from closure
+  }, [isPublic]);
+
   const updateAxis = (key: AxisKey, updates: Partial<PolicyAudience>) => {
     const current = value[key] ?? emptyAudience;
     onChange({ ...value, [key]: { ...current, ...updates } });
   };
 
   const toggleKind = (key: AxisKey, kind: PolicyKind, checked: boolean) => {
+    onTouch?.();
     const current = value[key] ?? emptyAudience;
     const kinds = new Set(current.kinds ?? []);
     if (checked) kinds.add(kind);
@@ -104,6 +133,7 @@ export const LabellingPolicyEditor = ({
   };
 
   const toggleMembersEnabled = (key: AxisKey, checked: boolean) => {
+    onTouch?.();
     setExpanded((prev) => ({ ...prev, [key]: checked }));
     if (!checked) {
       updateAxis(key, { user_ids: [] });
@@ -111,6 +141,7 @@ export const LabellingPolicyEditor = ({
   };
 
   const toggleMember = (key: AxisKey, userId: string, checked: boolean) => {
+    onTouch?.();
     const current = value[key] ?? emptyAudience;
     const ids = new Set(current.user_ids ?? []);
     if (checked) ids.add(userId);

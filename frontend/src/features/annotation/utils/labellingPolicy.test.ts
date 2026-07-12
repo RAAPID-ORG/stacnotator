@@ -51,14 +51,20 @@ describe('isAudienceMember', () => {
     expect(isAudienceMember(a, ctx({ isAuthoritative: false }))).toBe(false);
   });
 
-  it("'assignees' never matches through this task-independent context", () => {
-    // The frontend context carries no per-task assignment info; this axis is
-    // only ever used for task-independent gating (e.g. explore), so a
-    // ctx-only 'assignees' kind must fall through to the user_ids check.
+  it("'assignees' does not match when isAssigned is omitted or false", () => {
+    // Task-independent call sites (e.g. explore) never pass isAssigned, so a
+    // ctx without it must fall through to the user_ids check.
     const a = audience({ kinds: ['assignees'] });
     expect(isAudienceMember(a, ctx({ isAdmin: true, isAuthoritative: true, isMember: true }))).toBe(
       false
     );
+    expect(isAudienceMember(a, ctx({ isAssigned: false }))).toBe(false);
+  });
+
+  it("'assignees' matches only when ctx.isAssigned", () => {
+    const a = audience({ kinds: ['assignees'] });
+    expect(isAudienceMember(a, ctx({ isAssigned: true }))).toBe(true);
+    expect(isAudienceMember(a, ctx({ isAssigned: false }))).toBe(false);
   });
 
   it('user_ids is additive: an explicit id matches regardless of kinds', () => {
