@@ -184,6 +184,10 @@ export type AnnotationFromTaskOut = {
      * Imagery End Date
      */
     imagery_end_date?: string | null;
+    /**
+     * Counts Toward Completion
+     */
+    counts_toward_completion?: boolean | null;
 };
 
 /**
@@ -254,6 +258,10 @@ export type AnnotationOut = {
      * Imagery End Date
      */
     imagery_end_date?: string | null;
+    /**
+     * Counts Toward Completion
+     */
+    counts_toward_completion?: boolean | null;
     geometry: GeometryOut;
 };
 
@@ -813,7 +821,7 @@ export type CampaignCreate = {
     /**
      * Mode
      */
-    mode: 'tasks' | 'open';
+    mode?: 'tasks' | 'open';
     /**
      * Is Public
      */
@@ -824,6 +832,7 @@ export type CampaignCreate = {
      * Timeseries Configs
      */
     timeseries_configs?: Array<TimeSeriesCreate> | null;
+    labelling_policy?: LabellingPolicy | null;
 };
 
 /**
@@ -1076,6 +1085,7 @@ export type CampaignSettingsOut = {
      * Sample Extent Meters
      */
     sample_extent_meters?: number | null;
+    labelling_policy: LabellingPolicy;
 };
 
 /**
@@ -1893,6 +1903,21 @@ export type LabelBase = {
 };
 
 /**
+ * LabellingPolicy
+ *
+ * Who may label what, and whose labels count toward task completion.
+ *
+ * See docs/superpowers/specs/2026-07-12-labelling-policy-design.md for the
+ * full rationale behind the four axes.
+ */
+export type LabellingPolicy = {
+    explore?: PolicyAudience;
+    unassigned_tasks?: PolicyAudience;
+    assigned_tasks?: PolicyAudience;
+    complete_assigned?: PolicyAudience;
+};
+
+/**
  * MoveTasksToSetRequest
  */
 export type MoveTasksToSetRequest = {
@@ -1946,6 +1971,24 @@ export type PairwiseAgreement = {
      * Shared Tasks
      */
     shared_tasks: number;
+};
+
+/**
+ * PolicyAudience
+ *
+ * An audience selector for one labelling-policy axis: a set of role
+ * `kinds` plus an additive list of specifically selected `user_ids`. Empty
+ * kinds and empty user_ids means "no one".
+ */
+export type PolicyAudience = {
+    /**
+     * Kinds
+     */
+    kinds?: Array<'admins' | 'authoritative' | 'assignees' | 'members' | 'anyone'>;
+    /**
+     * User Ids
+     */
+    user_ids?: Array<string>;
 };
 
 /**
@@ -2498,6 +2541,19 @@ export type UpdateEmbeddingYearRequest = {
      * Embedding Year
      */
     embedding_year?: number | null;
+};
+
+/**
+ * UpdateLabellingPolicyRequest
+ *
+ * Request body for PATCH /campaigns/{id}/labelling-policy - same shape
+ * as LabellingPolicy, plus the campaign-public check applied by the service.
+ */
+export type UpdateLabellingPolicyRequest = {
+    explore?: PolicyAudience;
+    unassigned_tasks?: PolicyAudience;
+    assigned_tasks?: PolicyAudience;
+    complete_assigned?: PolicyAudience;
 };
 
 /**
@@ -4030,6 +4086,36 @@ export type UpdateEmbeddingYearResponses = {
 };
 
 export type UpdateEmbeddingYearResponse = UpdateEmbeddingYearResponses[keyof UpdateEmbeddingYearResponses];
+
+export type UpdateLabellingPolicyData = {
+    body: UpdateLabellingPolicyRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/labelling-policy';
+};
+
+export type UpdateLabellingPolicyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateLabellingPolicyError = UpdateLabellingPolicyErrors[keyof UpdateLabellingPolicyErrors];
+
+export type UpdateLabellingPolicyResponses = {
+    /**
+     * Successful Response
+     */
+    200: LabellingPolicy;
+};
+
+export type UpdateLabellingPolicyResponse = UpdateLabellingPolicyResponses[keyof UpdateLabellingPolicyResponses];
 
 export type RemoveUserFromCampaignData = {
     body?: never;
