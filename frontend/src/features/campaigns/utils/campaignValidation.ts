@@ -15,10 +15,6 @@ export function validateCampaignStep(form: CampaignCreate): StepValidationResult
     errors.name = 'Campaign name is required.';
   }
 
-  if (!form.mode) {
-    errors.mode = 'Please select a campaign mode.';
-  }
-
   return { errors, isValid: Object.keys(errors).length === 0 };
 }
 

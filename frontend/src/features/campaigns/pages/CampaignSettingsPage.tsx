@@ -184,11 +184,12 @@ export const CampaignSettingsPage = () => {
     return () => clearInterval(interval);
   }, [isAnyRegistering, campaignId, showAlert]);
 
-  // Load campaign users when the users tab is active. Re-fetches every time
-  // the tab becomes active so changes made there (add / remove / promote)
-  // stay current.
+  // Load campaign users when the users tab is active, or the general tab
+  // (labelling access needs the member list for the "selected members"
+  // picker). Re-fetches every time the tab becomes active so changes made
+  // in the users tab (add / remove / promote) stay current.
   useEffect(() => {
-    if (activeTab !== 'users') return;
+    if (activeTab !== 'users' && activeTab !== 'general') return;
 
     const loadUsers = async () => {
       try {
@@ -524,6 +525,7 @@ export const CampaignSettingsPage = () => {
                   }
                   onOpenDelete={() => setShowDeleteCampaignDialog(true)}
                   onCampaignUpdated={(updated) => setCampaign(updated)}
+                  campaignUsers={campaignUsers}
                 />
               )}
 

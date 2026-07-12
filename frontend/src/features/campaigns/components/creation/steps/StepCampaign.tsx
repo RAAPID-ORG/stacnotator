@@ -1,6 +1,11 @@
 import type { CampaignCreate } from '~/api/client';
 import { Input } from '~/shared/ui/forms';
 import { useLayoutStore } from '~/features/layout/layout.store';
+import {
+  DEFAULT_LABELLING_POLICY,
+  LabellingPolicyEditor,
+} from '~/features/campaigns/components/LabellingPolicyEditor';
+
 export const StepCampaign = ({
   form,
   setForm,
@@ -39,51 +44,6 @@ export const StepCampaign = ({
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm font-medium text-neutral-900">Default work style</p>
-        <p className="text-sm text-neutral-600">
-          Every campaign supports both task-by-task labeling and free exploration - annotators can
-          switch between them anytime from the annotation view. Pick which one opens by default.
-        </p>
-
-        <div className="space-y-3">
-          <label className="flex items-start space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="mode"
-              value="tasks"
-              checked={form.mode === 'tasks'}
-              onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-700 focus:ring-brand-600"
-            />
-            <div className="flex-1">
-              <div className="font-medium text-sm text-neutral-900">Tasks</div>
-              <div className="text-sm text-neutral-600">
-                Start on a predefined list of sampled locations that need annotating.
-              </div>
-            </div>
-          </label>
-
-          <label className="flex items-start space-x-3 cursor-pointer">
-            <input
-              type="radio"
-              name="mode"
-              value="open"
-              checked={form.mode === 'open'}
-              onChange={(e) => setForm({ ...form, mode: e.target.value as 'tasks' | 'open' })}
-              className="mt-1 text-brand-700 focus:ring-brand-600"
-            />
-            <div className="flex-1">
-              <div className="font-medium text-sm text-neutral-900">Explore</div>
-              <div className="text-sm text-neutral-600">
-                Start by navigating imagery open-world like and placing annotations such as polygons
-                manually.
-              </div>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <div className="space-y-3">
         <p className="text-sm font-medium text-neutral-900">Visibility</p>
         <label className="flex items-start space-x-3 cursor-pointer">
           <input
@@ -100,6 +60,22 @@ export const StepCampaign = ({
             </div>
           </div>
         </label>
+      </div>
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-neutral-900">Labelling access</p>
+        <p className="text-sm text-neutral-600">
+          Every campaign supports both task-by-task labeling and free exploration - annotators can
+          switch between them anytime from the annotation view. Control who may label what, and
+          whose labels count toward completing a task. You can revisit this later in campaign
+          settings.
+        </p>
+
+        <LabellingPolicyEditor
+          value={form.labelling_policy ?? DEFAULT_LABELLING_POLICY}
+          onChange={(labelling_policy) => setForm({ ...form, labelling_policy })}
+          isPublic={form.is_public ?? false}
+        />
       </div>
     </div>
   );
