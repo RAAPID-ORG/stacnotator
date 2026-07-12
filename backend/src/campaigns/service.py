@@ -28,6 +28,7 @@ from src.campaigns.policy import PolicyContext
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
     LabellingPolicy,
+    PolicyAudience,
     default_labelling_policy,
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
@@ -74,6 +75,45 @@ def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
     if campaign.settings and campaign.settings.labelling_policy:
         return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
     return default_labelling_policy()
+
+
+def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> None:
+    """'anyone' only makes sense once the campaign itself is public - enforce
+    this invariant at every write of a labelling policy (campaign creation
+    and the PATCH .../labelling-policy endpoint), not just one of them."""
+    axes = (
+        policy.explore,
+        policy.unassigned_tasks,
+        policy.assigned_tasks,
+        policy.complete_assigned,
+    )
+    if any("anyone" in axis.kinds for axis in axes) and not is_public:
+        raise HTTPException(
+            status_code=400,
+            detail="The 'anyone' audience is only allowed for public campaigns",
+        )
+
+
+def _strip_anyone_kind(policy: LabellingPolicy) -> LabellingPolicy:
+    """Drop 'anyone' from every axis of `policy`. Used when a campaign flips
+    private, so a stored policy never keeps granting anonymous/any-visitor
+    access after the invariant enforced on write (`_reject_anyone_kind_if_private`)
+    stops applying to it."""
+    return LabellingPolicy(
+        explore=PolicyAudience(
+            kinds=[k for k in policy.explore.kinds if k != "anyone"],
+            user_ids=policy.explore.user_ids,
+        ),
+        unassigned_tasks=PolicyAudience(
+            kinds=[k for k in policy.unassigned_tasks.kinds if k != "anyone"],
+            user_ids=policy.unassigned_tasks.user_ids,
+        ),
+        assigned_tasks=PolicyAudience(
+            kinds=[k for k in policy.assigned_tasks.kinds if k != "anyone"],
+            user_ids=policy.assigned_tasks.user_ids,
+        ),
+        complete_assigned=policy.complete_assigned,
+    )
 
 
 def build_policy_context(
@@ -266,6 +306,8 @@ def create_campaign(
     Returns:
         Created campaign with all relationships loaded
     """
+    resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
+    _reject_anyone_kind_if_private(resolved_policy, is_public)
 
     # Create campaign first
     campaign = Campaign(name=name, mode=mode, is_public=is_public)
@@ -288,7 +330,7 @@ def create_campaign(
     campaign_settings = CampaignSettings(
         campaign_id=campaign.id,
         guide_markdown="# Campaign Guide\n\nWelcome! This guide helps annotators understand the campaign goals and labeling conventions.\n",
-        labelling_policy=(labelling_policy or default_labelling_policy()).model_dump(mode="json"),
+        labelling_policy=resolved_policy.model_dump(mode="json"),
         **settings.to_orm(),
     )
     db.add(campaign_settings)
@@ -531,11 +573,24 @@ def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campai
 
 
 def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
-    """Toggle a campaign between public and private."""
+    """Toggle a campaign between public and private.
+
+    Flipping to private strips 'anyone' from every axis of the stored
+    labelling policy: 'anyone' is only a valid audience on a public campaign
+    (enforced on write by `_reject_anyone_kind_if_private`), so a policy that
+    was written while public must not keep granting anonymous/any-visitor
+    access once the campaign goes private.
+    """
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.is_public = is_public
+    if not is_public and campaign.settings and campaign.settings.labelling_policy:
+        current_policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
+        campaign.settings.labelling_policy = _strip_anyone_kind(current_policy).model_dump(
+            mode="json"
+        )
+        flag_modified(campaign.settings, "labelling_policy")
     db.commit()
     return get_campaign_full(db, campaign_id)
 
@@ -695,18 +750,7 @@ def update_labelling_policy(
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
 
-    axes = (
-        policy.explore,
-        policy.unassigned_tasks,
-        policy.assigned_tasks,
-        policy.complete_assigned,
-    )
-    uses_anyone = any("anyone" in axis.kinds for axis in axes)
-    if uses_anyone and not campaign.is_public:
-        raise HTTPException(
-            status_code=400,
-            detail="The 'anyone' audience is only allowed for public campaigns",
-        )
+    _reject_anyone_kind_if_private(policy, campaign.is_public)
 
     campaign.settings.labelling_policy = policy.model_dump(mode="json")
     flag_modified(campaign.settings, "labelling_policy")

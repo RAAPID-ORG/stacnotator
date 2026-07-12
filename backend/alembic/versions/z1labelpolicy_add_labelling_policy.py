@@ -32,12 +32,31 @@ DEFAULT_POLICY_JSON = (
     '"user_ids": []}}'
 )
 
+# Public campaigns additionally open explore/unassigned_tasks/assigned_tasks to
+# 'anyone' (any visitor, membership not required) - matches
+# schemas.default_labelling_policy(is_public=True). complete_assigned is
+# unchanged: an anonymous visitor's label never counts toward completion.
+PUBLIC_DEFAULT_POLICY_JSON = (
+    '{"explore": {"kinds": ["members", "anyone"], "user_ids": []}, '
+    '"unassigned_tasks": {"kinds": ["members", "anyone"], "user_ids": []}, '
+    '"assigned_tasks": {"kinds": ["members", "anyone"], "user_ids": []}, '
+    '"complete_assigned": {"kinds": ["assignees", "admins", "authoritative"], '
+    '"user_ids": []}}'
+)
+
 
 def upgrade() -> None:
     op.add_column(
         "settings",
         sa.Column("labelling_policy", postgresql.JSONB(), nullable=True),
         schema="data",
+    )
+    op.execute(
+        f"UPDATE data.settings SET labelling_policy = '{PUBLIC_DEFAULT_POLICY_JSON}'::jsonb "
+        "FROM data.campaigns "
+        "WHERE data.settings.campaign_id = data.campaigns.id "
+        "AND data.campaigns.is_public "
+        "AND data.settings.labelling_policy IS NULL"
     )
     op.execute(
         f"UPDATE data.settings SET labelling_policy = '{DEFAULT_POLICY_JSON}'::jsonb "

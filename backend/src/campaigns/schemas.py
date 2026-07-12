@@ -104,22 +104,42 @@ class LabellingPolicy(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def default_labelling_policy() -> LabellingPolicy:
+def default_labelling_policy(is_public: bool = False) -> LabellingPolicy:
     """The labelling policy used when a campaign is created without an
     explicit one, and backfilled by migration z1labelpolicy for existing
     campaigns. Matches current unified behavior (any member can label
-    anything); completion stays with assignees/admins/authoritative."""
+    anything); completion stays with assignees/admins/authoritative.
+
+    Public campaigns additionally open the explore/unassigned_tasks/
+    assigned_tasks axes to 'anyone' (unauthenticated/any visitor), since a
+    public campaign is meant to be labellable without membership. Whose
+    label *counts* toward completion is a separate question the spec answers
+    "no" for anonymous visitors, so complete_assigned is unchanged.
+    """
+    anyone = ["anyone"] if is_public else []
     return LabellingPolicy(
-        explore=PolicyAudience(kinds=["members"]),
-        unassigned_tasks=PolicyAudience(kinds=["members"]),
-        assigned_tasks=PolicyAudience(kinds=["members"]),
+        explore=PolicyAudience(kinds=["members", *anyone]),
+        unassigned_tasks=PolicyAudience(kinds=["members", *anyone]),
+        assigned_tasks=PolicyAudience(kinds=["members", *anyone]),
         complete_assigned=PolicyAudience(kinds=["assignees", "admins", "authoritative"]),
     )
 
 
 class UpdateLabellingPolicyRequest(LabellingPolicy):
     """Request body for PATCH /campaigns/{id}/labelling-policy - same shape
-    as LabellingPolicy, plus the campaign-public check applied by the service."""
+    as LabellingPolicy, plus the campaign-public check applied by the service.
+
+    All four axes are required (no defaults), unlike the base LabellingPolicy:
+    a PATCH is a full replacement of the stored policy, so silently omitting
+    an axis here would defaults it to "no one" for that axis rather than
+    leaving it as the caller likely intended (unchanged). Callers must always
+    send the complete policy, which is what the settings UI does.
+    """
+
+    explore: PolicyAudience
+    unassigned_tasks: PolicyAudience
+    assigned_tasks: PolicyAudience
+    complete_assigned: PolicyAudience
 
 
 class CampaignSettingsOut(BaseModel):

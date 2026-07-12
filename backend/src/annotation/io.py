@@ -579,10 +579,18 @@ def _conflicting_task_numbers(
 ) -> list[int]:
     """Return human-readable annotation_numbers of any task whose labeled
     annotators disagree (>= 2 distinct label_ids among labeled annotations).
+
+    Only annotations whose `counts_toward_completion` is not explicitly False
+    are considered, mirroring `compute_task_status_value` - an extra label the
+    labelling policy allows but doesn't count must not manufacture a conflict
+    on its own.
     """
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
-        labeled = [a for a in task_anns if a.label_id is not None]
+        counting = [
+            a for a in task_anns if getattr(a, "counts_toward_completion", None) is not False
+        ]
+        labeled = [a for a in counting if a.label_id is not None]
         if any(a.is_authoritative for a in labeled):
             continue
         if len(labeled) >= 2 and len({a.label_id for a in labeled}) > 1:
@@ -603,12 +611,16 @@ def _compute_task_status_for_export(
     """
     if task is None:
         return None
-    assignment_list = [{"user_id": a.user_id, "status": a.status} for a in (task.assignments or [])]
+    assignment_list = [
+        {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
+        for a in (task.assignments or [])
+    ]
     annotation_list = [
         {
             "label_id": a.label_id,
             "created_by_user_id": a.created_by_user_id,
             "is_authoritative": a.is_authoritative,
+            "counts_toward_completion": getattr(a, "counts_toward_completion", None),
         }
         for a in task_anns
     ]

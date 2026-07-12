@@ -686,10 +686,14 @@ def update_annotation(
     Raises:
         HTTPException: If annotation not found, update fails, or ownership violated
     """
-    # Get existing annotation
-    annotation = db.execute(
-        select(Annotation).where(Annotation.id == annotation_id)
-    ).scalar_one_or_none()
+    # Get existing annotation, scoped to the campaign when one is known (the
+    # URL's campaign_id) - without this, an annotation from any campaign
+    # platform-wide would be editable through this endpoint, and the policy /
+    # ownership checks below would evaluate against the wrong campaign.
+    query = select(Annotation).where(Annotation.id == annotation_id)
+    if campaign is not None:
+        query = query.where(Annotation.campaign_id == campaign.id)
+    annotation = db.execute(query).scalar_one_or_none()
 
     if annotation is None:
         raise HTTPException(status_code=404, detail="Annotation not found")

@@ -155,6 +155,28 @@ class TestExploreAxisEnforcement:
 
         assert existing.label_id == 1
 
+    def test_update_annotation_wrong_campaign_returns_404(self):
+        """The annotation exists, but not in the URL's campaign - a real DB
+        would filter it out via the campaign_id predicate, returning None.
+        Simulate that here, and also assert the query sent to db.execute()
+        actually carries a campaign_id filter (the regression this guards
+        against: fetching by annotation_id alone, ignoring the URL campaign)."""
+        campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=["members"])))
+        db = _db(cu=_MEMBER)
+        db.execute.return_value.scalar_one_or_none.return_value = None
+        payload = AnnotationUpdate(
+            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+
+        assert exc.value.status_code == 404
+        query = db.execute.call_args_list[0].args[0]
+        assert f"annotations.campaign_id = {campaign.id}" in str(
+            query.compile(compile_kwargs={"literal_binds": True})
+        )
+
     def test_update_annotation_skips_policy_check_when_campaign_not_passed(self):
         """No campaign -> policy can't be evaluated; defensive callers that
         don't pass one (none exist today) get the pre-policy behavior."""

@@ -25,6 +25,7 @@ from src.campaigns.policy import (
 from src.campaigns.schemas import (
     LabellingPolicy,
     PolicyAudience,
+    UpdateLabellingPolicyRequest,
     default_labelling_policy,
 )
 
@@ -117,9 +118,55 @@ def test_default_policy_shape():
     assert set(policy.complete_assigned.kinds) == {"assignees", "admins", "authoritative"}
 
 
+def test_update_request_rejects_missing_axis():
+    """PATCH is a full-replace of the stored policy: omitting an axis must be
+    a 422, not a silent default to 'no one' for that axis."""
+    with pytest.raises(ValidationError):
+        UpdateLabellingPolicyRequest(
+            unassigned_tasks=PolicyAudience(kinds=["members"]),
+            assigned_tasks=PolicyAudience(kinds=["members"]),
+            complete_assigned=PolicyAudience(kinds=["admins"]),
+        )
+
+
+def test_update_request_accepts_full_body():
+    req = UpdateLabellingPolicyRequest(
+        explore=PolicyAudience(kinds=["members"]),
+        unassigned_tasks=PolicyAudience(kinds=["members"]),
+        assigned_tasks=PolicyAudience(kinds=["members"]),
+        complete_assigned=PolicyAudience(kinds=["admins"]),
+    )
+    assert req.explore.kinds == ["members"]
+
+
 def test_default_policy_is_itself_valid():
     # Round-trips through validation without raising.
     LabellingPolicy(**default_labelling_policy().model_dump())
+
+
+def test_default_policy_is_private_by_default():
+    policy = default_labelling_policy()
+    assert "anyone" not in policy.explore.kinds
+    assert "anyone" not in policy.unassigned_tasks.kinds
+    assert "anyone" not in policy.assigned_tasks.kinds
+
+
+def test_public_default_policy_adds_anyone_to_three_axes():
+    policy = default_labelling_policy(is_public=True)
+    assert set(policy.explore.kinds) == {"members", "anyone"}
+    assert set(policy.unassigned_tasks.kinds) == {"members", "anyone"}
+    assert set(policy.assigned_tasks.kinds) == {"members", "anyone"}
+
+
+def test_public_default_policy_leaves_complete_assigned_unchanged():
+    private_policy = default_labelling_policy(is_public=False)
+    public_policy = default_labelling_policy(is_public=True)
+    assert public_policy.complete_assigned == private_policy.complete_assigned
+    assert "anyone" not in public_policy.complete_assigned.kinds
+
+
+def test_public_default_policy_is_itself_valid():
+    LabellingPolicy(**default_labelling_policy(is_public=True).model_dump())
 
 
 # ============================================================================
@@ -455,3 +502,114 @@ def test_build_policy_context_not_assigned_when_task_assigned_to_others():
     ctx = service.build_policy_context(db, campaign, user_id, task=task)
 
     assert ctx.is_assigned is False
+
+
+# ============================================================================
+# create_campaign: 'anyone' invariant enforced at creation, not just PATCH
+# ============================================================================
+
+
+def _campaign_settings_create() -> "service.CampaignSettingsCreate":
+    from src.campaigns.schemas import CampaignSettingsCreate
+
+    return CampaignSettingsCreate(
+        labels=[], bbox_west=-10.0, bbox_south=-10.0, bbox_east=10.0, bbox_north=10.0
+    )
+
+
+def _db_capturing_campaign_settings() -> MagicMock:
+    """A MagicMock db that mimics just enough of a real flush's relationship
+    back-population for create_campaign to run past `campaign.settings.
+    embedding_year`: when the CampaignSettings row is added, wire it onto the
+    just-added Campaign's `.settings` the way a real flush/refresh would.
+    """
+    db = MagicMock()
+    captured: dict = {}
+
+    def _capture_add(obj):
+        if isinstance(obj, Campaign):
+            captured["campaign"] = obj
+        elif isinstance(obj, CampaignSettings):
+            captured["settings"] = obj
+            captured["campaign"].settings = obj
+
+    db.add.side_effect = _capture_add
+    return db
+
+
+def test_create_campaign_rejects_anyone_for_private_campaign():
+    db = MagicMock()
+    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_campaign(
+            db,
+            name="x",
+            mode="tasks",
+            is_public=False,
+            settings=_campaign_settings_create(),
+            user_id=uuid4(),
+            labelling_policy=policy,
+        )
+
+    assert exc_info.value.status_code == 400
+    db.add.assert_not_called()
+
+
+def test_create_campaign_allows_anyone_for_public_campaign():
+    db = _db_capturing_campaign_settings()
+    policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
+
+    service.create_campaign(
+        db,
+        name="x",
+        mode="tasks",
+        is_public=True,
+        settings=_campaign_settings_create(),
+        user_id=uuid4(),
+        labelling_policy=policy,
+    )
+
+    db.add.assert_called()
+
+
+def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
+    """create_campaign with no explicit policy on a public campaign should
+    thread is_public into the default, granting 'anyone' on the three
+    labellable axes - not the private default, which would immediately be
+    inconsistent with a public campaign."""
+    db = _db_capturing_campaign_settings()
+
+    service.create_campaign(
+        db,
+        name="x",
+        mode="tasks",
+        is_public=True,
+        settings=_campaign_settings_create(),
+        user_id=uuid4(),
+    )
+
+    settings_call = next(
+        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
+    )
+    stored_policy = settings_call.args[0].labelling_policy
+    assert "anyone" in stored_policy["explore"]["kinds"]
+
+
+def test_create_campaign_no_explicit_policy_private_gets_private_default():
+    db = _db_capturing_campaign_settings()
+
+    service.create_campaign(
+        db,
+        name="x",
+        mode="tasks",
+        is_public=False,
+        settings=_campaign_settings_create(),
+        user_id=uuid4(),
+    )
+
+    settings_call = next(
+        call for call in db.add.call_args_list if isinstance(call.args[0], CampaignSettings)
+    )
+    stored_policy = settings_call.args[0].labelling_policy
+    assert "anyone" not in stored_policy["explore"]["kinds"]
