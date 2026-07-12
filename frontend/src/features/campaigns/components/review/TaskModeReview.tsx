@@ -612,6 +612,7 @@ export const TaskModeReview = ({
                   )}
                   {onMoveTasks && taskSets.length > 1 && (
                     <Button
+                      variant="secondary"
                       onClick={() => setShowMoveDialog(true)}
                       disabled={selectedTasks.size === 0}
                     >
@@ -641,7 +642,7 @@ export const TaskModeReview = ({
                   )}
                   {onDeleteTasks && (
                     <Button
-                      variant="danger"
+                      variant="dangerQuiet"
                       onClick={() => setConfirmDelete(true)}
                       disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
                     >

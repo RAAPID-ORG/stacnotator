@@ -42,7 +42,7 @@ export const textareaClass = `${fieldBase} ${fieldAreaSize.md} resize-y min-h-[5
 
 export const selectClass = `${fieldBase} ${fieldSingleSize.md} ${selectChevron}`;
 
-export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger' | 'dangerQuiet';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -73,6 +73,11 @@ const buttonVariants: Record<ButtonVariant, string> = {
   danger:
     'bg-red-600 text-white shadow-sm hover:bg-red-700 ' +
     'disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none',
+  // Secondary shape with red text: destructive actions that should not shout
+  // from a toolbar (the filled danger variant stays for confirm dialogs).
+  dangerQuiet:
+    'bg-white text-red-600 border border-neutral-300 shadow-sm hover:bg-red-50 ' +
+    'disabled:bg-neutral-50 disabled:text-neutral-400 disabled:border-neutral-200',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
