@@ -144,6 +144,10 @@ services:
       AZURE_SIGNING_ENABLED: ${AZURE_SIGNING_ENABLED:-false}
       # Allow POST /ingest so non-MPC STAC-API mosaics can be registered locally.
       ALLOW_STAC_API_INGEST: ${ALLOW_STAC_API_INGEST:-true}
+    # The tiler fetches overlay COGs itself, so it needs the same host alias the backend
+    # has - lets it reach e.g. a `python3 -m http.server` on the host serving a prediction COG.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Serve custom COGs from disk: drop *.tif into $COG_DIR (default ./cogs) and register a
       # custom map with cog_url=/data/cogs/<file>.tif. Read-only.
