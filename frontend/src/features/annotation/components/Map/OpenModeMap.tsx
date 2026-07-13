@@ -119,9 +119,11 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
     });
 
     useCustomMapLayer(layerManagerRef.current, campaign.custom_maps ?? []);
-    // Mount enabled PMTiles vector layers (managed directly on the OL map).
-    const enabledVectorLayerIds = useMapStore((s) => s.enabledVectorLayerIds);
-    useVectorLayers(olMap, campaign.vector_layers ?? [], enabledVectorLayerIds);
+    // Mount the active PMTiles vector layer (managed directly on the OL map).
+    const activeVectorLayerId = useMapStore((s) => s.activeVectorLayerId);
+    const showVectorLayer = useMapStore((s) => s.showVectorLayer);
+    const shownVectorLayerId = showVectorLayer ? activeVectorLayerId : null;
+    useVectorLayers(olMap, campaign.vector_layers ?? [], shownVectorLayerId);
     // Mount the read-only annotation vector-tile display + highlight layers.
     useAnnotationTileLayer(olMap, campaign);
 
@@ -347,7 +349,7 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
             map={olMap}
             activeTool={activeTool}
             selectedLabel={selectedLabel}
-            hasEnabledLayers={enabledVectorLayerIds.length > 0}
+            hasEnabledLayers={shownVectorLayerId != null}
           />
         )}
 

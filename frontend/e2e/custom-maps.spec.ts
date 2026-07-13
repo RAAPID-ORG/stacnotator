@@ -84,7 +84,7 @@ test.describe('custom map overlay', () => {
     await expect(opacity).toBeHidden();
   });
 
-  test('shift+m cycles to the next map; m hides then re-enters the same map', async ({
+  test('shift+o cycles to the next map; o hides then re-enters the same map', async ({
     annotationPage,
   }) => {
     await reloadWithCustomMap(annotationPage);
@@ -101,17 +101,17 @@ test.describe('custom map overlay', () => {
     await expect(legend).toBeVisible();
 
     await annotationPage.locator('body').click();
-    await annotationPage.keyboard.press('Shift+M');
+    await annotationPage.keyboard.press('Shift+O');
     await expect(selectTrigger).toContainText('Test Map 2');
     await expect(legend).toBeVisible();
 
     // Test Map 2 has no mlops_url, so no link icon is rendered for it.
     await expect(annotationPage.getByTestId('custom-map-mlops-link')).toBeHidden();
 
-    await annotationPage.keyboard.press('m');
+    await annotationPage.keyboard.press('o');
     await expect(legend).toBeHidden();
 
-    await annotationPage.keyboard.press('m');
+    await annotationPage.keyboard.press('o');
     await expect(legend).toBeVisible();
     await expect(selectTrigger).toContainText('Test Map 2');
   });

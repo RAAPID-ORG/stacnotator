@@ -287,6 +287,8 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   // Main keydown handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.
+      if (e.ctrlKey || e.metaKey) return;
       // Skip if submitting
       if (isSubmitting) return;
 
@@ -363,12 +365,24 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           if (tasksActive) triggerRefocus();
           break;
         case 'o':
-        case 'O':
+        case 'O': {
+          e.preventDefault();
+          if (!tasksActive) break;
+          const maps = campaign?.custom_maps ?? [];
+          if (e.shiftKey) cycleCustomMap(maps);
+          else toggleCustomMap(maps);
+          break;
+        }
+        // Plain X only: in explore, Shift+X belongs to the open-mode hook
+        // (toggle drawn objects), which listens on the same window.
+        case 'x':
+        case 'X':
+          if (e.shiftKey) break;
           e.preventDefault();
           toggleCrosshair();
           break;
-        case 'v':
-        case 'V':
+        case 'u':
+        case 'U':
           e.preventDefault();
           cycleView();
           break;
@@ -458,16 +472,6 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           e.preventDefault();
           if (tasksActive) useMapStore.getState().toggleViewSync();
           break;
-
-        case 'm':
-        case 'M': {
-          e.preventDefault();
-          if (!tasksActive) break;
-          const maps = campaign?.custom_maps ?? [];
-          if (e.shiftKey) cycleCustomMap(maps);
-          else toggleCustomMap(maps);
-          break;
-        }
 
         // Cycle imagery source / visualization
         case 'i':

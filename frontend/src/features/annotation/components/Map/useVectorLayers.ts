@@ -3,8 +3,8 @@
  *
  * Each enabled `VectorLayer` becomes an OL `VectorTileLayer` backed by a
  * `PMTilesVectorSource` (ol-pmtiles reads the `.pmtiles` file directly via HTTP
- * range requests — no tiler involved). Several layers can be on at once; they are
- * keyed by id and reconciled against the enabled set. Styling is a stroke+fill
+ * range requests — no tiler involved). One layer is active at a time; mounted
+ * layers are keyed by id and reconciled against it. Styling is a stroke+fill
  * derived from the layer's colour. Hit-testing and hover/label interactions live
  * in `VectorLabelLayer`, targeting these layers via the `VECTOR_LAYER_FLAG`.
  */
@@ -52,7 +52,7 @@ function buildVectorLayer(layer: VectorLayerOut): VectorTileLayer {
 export function useVectorLayers(
   map: OLMap | null,
   vectorLayers: VectorLayerOut[],
-  enabledIds: number[]
+  activeId: number | null
 ) {
   // id -> { layer, signature } for reconciliation across renders.
   const mountedRef = useRef<Map<number, { layer: VectorTileLayer; signature: string }>>(new Map());
@@ -61,7 +61,7 @@ export function useVectorLayers(
     if (!map) return;
     const mounted = mountedRef.current;
     const byId = new Map(vectorLayers.map((l) => [l.id, l]));
-    const enabled = new Set(enabledIds.filter((id) => byId.has(id)));
+    const enabled = new Set(activeId != null && byId.has(activeId) ? [activeId] : []);
 
     // Remove layers that are no longer enabled or whose definition changed.
     for (const [id, entry] of [...mounted]) {
@@ -82,7 +82,7 @@ export function useVectorLayers(
       map.addLayer(layer);
       mounted.set(id, { layer, signature: layerSignature(def) });
     }
-  }, [map, vectorLayers, enabledIds]);
+  }, [map, vectorLayers, activeId]);
 
   // Tear everything down on unmount. mountedRef holds a single stable Map object
   // for the lifetime of the hook, so capturing it here is safe.

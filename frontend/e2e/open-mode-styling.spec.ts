@@ -110,8 +110,8 @@ test.describe('Open mode - drawn object visibility', () => {
     await expect(showBtn).toBeVisible();
     await expect(hideBtn).toHaveCount(0);
 
-    // The X hotkey toggles the same state back to shown.
-    await page.keyboard.press('x');
+    // The Shift+X hotkey toggles the same state back to shown.
+    await page.keyboard.press('Shift+X');
     await expect(hideBtn).toBeVisible();
     await expect(showBtn).toHaveCount(0);
   });

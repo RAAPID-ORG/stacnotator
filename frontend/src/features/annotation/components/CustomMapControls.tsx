@@ -67,7 +67,7 @@ export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }
             data-testid="custom-map-toggle"
             aria-pressed={showCustomMap}
             onClick={() => setShowCustomMap(!showCustomMap)}
-            title={showCustomMap ? 'Hide overlay (m)' : 'Show overlay (m)'}
+            title={showCustomMap ? 'Hide overlay (o)' : 'Show overlay (o)'}
             className={`w-6 h-6 rounded-md transition-colors flex items-center justify-center cursor-pointer ${
               showCustomMap
                 ? 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700'

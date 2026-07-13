@@ -11,6 +11,8 @@ import {
 } from '../utils/labelMetadata';
 import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
+import { TOOL_KEYS, EXPLORE_PANEL_SHORTCUTS } from '../hotkeys';
+import { ShortcutList } from './ShortcutList';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
 
@@ -21,7 +23,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'pan',
     label: 'Pan',
-    shortcut: 'P',
+    shortcut: TOOL_KEYS.pan,
     icon: (
       <svg
         width="16"
@@ -39,7 +41,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'annotate',
     label: 'Annotate',
-    shortcut: 'R',
+    shortcut: TOOL_KEYS.annotate,
     icon: (
       <svg
         width="16"
@@ -57,7 +59,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'edit',
     label: 'Edit',
-    shortcut: 'E',
+    shortcut: TOOL_KEYS.edit,
     icon: (
       <svg
         width="16"
@@ -75,7 +77,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'labelvector',
     label: 'Label vector',
-    shortcut: 'V',
+    shortcut: TOOL_KEYS.labelvector,
     icon: (
       <svg
         width="16"
@@ -95,7 +97,7 @@ const TOOLS: { id: OpenModeTool; label: string; icon: React.ReactNode; shortcut:
   {
     id: 'timeseries',
     label: 'Timeseries',
-    shortcut: 'T',
+    shortcut: TOOL_KEYS.timeseries,
     icon: (
       <svg
         width="16"
@@ -155,7 +157,7 @@ const OpenModeControls = () => {
     (tool) =>
       (tool.id !== 'timeseries' || hasTimeseries) && (tool.id !== 'labelvector' || hasVectorLayers)
   );
-  const enabledVectorLayerIds = useMapStore((s) => s.enabledVectorLayerIds);
+  const vectorLayerShown = useMapStore((s) => s.showVectorLayer && s.activeVectorLayerId != null);
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
@@ -222,7 +224,7 @@ const OpenModeControls = () => {
             ))}
             <button
               onClick={toggleAnnotations}
-              title={`${showAnnotations ? 'Hide' : 'Show'} drawn objects (X)`}
+              title={`${showAnnotations ? 'Hide' : 'Show'} drawn objects (Shift+X)`}
               className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                 showAnnotations
                   ? 'bg-neutral-50 text-neutral-600 border border-neutral-200 hover:bg-neutral-100 hover:border-neutral-300'
@@ -265,9 +267,9 @@ const OpenModeControls = () => {
         {activeTool === 'labelvector' && (
           <div className="p-2.5 bg-emerald-50 rounded border border-emerald-200 w-full">
             <p className="text-[11px] text-emerald-800 font-medium mb-1">Label vector data</p>
-            {enabledVectorLayerIds.length === 0 ? (
+            {!vectorLayerShown ? (
               <p className="text-[11px] text-amber-700">
-                Enable a vector layer from the header first, then pick a label below.
+                Select a vector layer in the header first, then pick a label below.
               </p>
             ) : (
               <p className="text-[11px] text-emerald-700">
@@ -597,98 +599,11 @@ const OpenModeControls = () => {
         <div className="pt-2 border-t border-neutral-200 w-full">
           <span className="font-semibold text-neutral-700 text-[11px]">Shortcuts</span>
           <div className="mt-1.5 space-y-1 max-w-xs">
-            {availableTools.map((tool) => (
-              <div key={tool.id} className="flex justify-between text-[11px] text-neutral-500">
-                <span>{tool.label}</span>
-                <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                  {tool.shortcut}
-                </kbd>
-              </div>
-            ))}
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Select label</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                1-9
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Toggle drawn objects</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                X
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Select / edit (edit tool)</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Click
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Insert vertex</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Click edge
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Move feature</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Alt+drag
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Multi-select</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Shift+drag
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Delete selection</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Del
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Cancel edit</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Esc
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Sync windows</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                L
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Cycle source</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                I
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Cycle viz</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Shift+I
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Toggle overlay</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                M
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Cycle overlays</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                Shift+M
-              </kbd>
-            </div>
-            <div className="flex justify-between text-[11px] text-neutral-500">
-              <span>Flag selected (edit tool)</span>
-              <kbd className="px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-600">
-                F
-              </kbd>
-            </div>
+            <ShortcutList
+              dense
+              shortcuts={availableTools.map((t) => ({ key: t.shortcut, description: t.label }))}
+            />
+            <ShortcutList dense shortcuts={EXPLORE_PANEL_SHORTCUTS} />
           </div>
         </div>
       </div>

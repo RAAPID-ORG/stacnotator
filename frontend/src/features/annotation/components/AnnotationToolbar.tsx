@@ -12,33 +12,14 @@ import { UNASSIGNED } from '../utils/taskFilter';
 import { isAudienceMember } from '../utils/labellingPolicy';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
+import {
+  TASK_MODE_SHORTCUTS,
+  EXPLORE_TOOL_SHORTCUTS,
+  EXPLORE_NAVIGATION_SHORTCUTS,
+  EXPLORE_MAP_SHORTCUTS,
+} from '../hotkeys';
+import { ShortcutList } from './ShortcutList';
 import { IconFlag } from '~/shared/ui/Icons';
-
-const KEYBOARD_SHORTCUTS = [
-  { key: 'W / S', description: 'Previous / Next task' },
-  { key: 'A / D', description: 'Previous / Next slice' },
-  { key: 'Shift+A / D', description: 'Previous / Next collection' },
-  { key: '↑ ↓ ← ->', description: 'Pan map' },
-  { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
-  { key: 'Space', description: 'Recenter maps' },
-  { key: 'O', description: 'Toggle crosshair' },
-  { key: 'V', description: 'Cycle view' },
-  { key: 'L', description: 'Toggle view link (sync windows)' },
-  { key: 'I', description: 'Cycle imagery source' },
-  { key: 'Shift+I', description: 'Cycle visualization' },
-  { key: 'M', description: 'Toggle overlay layer' },
-  { key: 'Shift+M', description: 'Cycle overlay layers' },
-  { key: '1-9, 0', description: 'Select label by number' },
-  { key: 'Q / E', description: 'Decrease / Increase confidence' },
-  { key: 'Shift+1-5', description: 'Set confidence level' },
-  { key: 'Enter', description: 'Submit annotation' },
-  { key: 'B', description: 'Skip annotation' },
-  { key: 'F', description: 'Toggle flag for review' },
-  { key: 'C', description: 'Focus comment' },
-  { key: 'Escape', description: 'Unfocus input' },
-  { key: 'G', description: 'Toggle campaign guide' },
-  { key: 'H', description: 'Toggle keyboard help' },
-];
 
 /**
  * Task filter panel component
@@ -639,7 +620,7 @@ export const AnnotationToolbar = () => {
             onClick={() => setShowImageryDropdown(!showImageryDropdown)}
             className={`flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-900 hover:bg-neutral-100 rounded transition-colors ${showImageryDropdown ? 'bg-neutral-100' : ''}`}
             type="button"
-            title={selectedView ? `View: ${selectedView.name}` : 'Switch View (v)'}
+            title={selectedView ? `View: ${selectedView.name}` : 'Switch View (u)'}
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M3.5 3C2.67157 3 2 3.67157 2 4.5V15.5C2 16.3284 2.67157 17 3.5 17H16.5C17.3284 17 18 16.3284 18 15.5V4.5C18 3.67157 17.3284 3 16.5 3H3.5ZM3 4.5C3 4.22386 3.22386 4 3.5 4H16.5C16.7761 4 17 4.22386 17 4.5V11.7929L14.8536 9.64645C14.6583 9.45118 14.3417 9.45118 14.1464 9.64645L11 12.7929L8.85355 10.6464C8.65829 10.4512 8.34171 10.4512 8.14645 10.6464L3 15.7929V4.5ZM3.20711 16L8 11.2071L10.1464 13.3536C10.3417 13.5488 10.6583 13.5488 10.8536 13.3536L14 10.2071L17 13.2071V15.5C17 15.7761 16.7761 16 16.5 16H3.5C3.39645 16 3.29871 15.9682 3.20711 16ZM13 7.5C13 8.32843 12.3284 9 11.5 9C10.6716 9 10 8.32843 10 7.5C10 6.67157 10.6716 6 11.5 6C12.3284 6 13 6.67157 13 7.5Z" />
@@ -1110,78 +1091,19 @@ export const AnnotationToolbar = () => {
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-0.5">
                   Tools
                 </div>
-                {(
-                  [
-                    { key: 'P', description: 'Pan tool' },
-                    { key: 'R', description: 'Annotate tool' },
-                    { key: 'E', description: 'Edit tool' },
-                    { key: 'T', description: 'Timeseries probe' },
-                    { key: '1-9', description: 'Select label & annotate' },
-                    { key: 'F', description: 'Flag selected (edit tool)' },
-                    { key: 'Space', description: 'Fit view to annotations' },
-                    { key: 'Alt+drag', description: 'Move feature' },
-                    { key: 'Escape', description: 'Cancel / deselect edit' },
-                  ] as { key: string; description: string }[]
-                ).map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
-                  </div>
-                ))}
+                <ShortcutList shortcuts={EXPLORE_TOOL_SHORTCUTS} />
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
                   Navigation
                 </div>
-                {(
-                  [
-                    { key: 'A / D', description: 'Previous / Next slice' },
-                    { key: 'Shift+A / D', description: 'Previous / Next collection' },
-                  ] as { key: string; description: string }[]
-                ).map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
-                  </div>
-                ))}
+                <ShortcutList shortcuts={EXPLORE_NAVIGATION_SHORTCUTS} />
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mt-2">
                   Map
                 </div>
-                {(
-                  [
-                    { key: '↑ ↓ ← →', description: 'Pan map' },
-                    { key: 'Alt+↑ / ↓', description: 'Zoom in / out' },
-                    { key: 'O', description: 'Toggle crosshair' },
-                    { key: 'L', description: 'Toggle view link (sync)' },
-                    { key: 'I', description: 'Cycle imagery source' },
-                    { key: 'Shift+I', description: 'Cycle visualization' },
-                    { key: 'M', description: 'Toggle overlay layer' },
-                    { key: 'Shift+M', description: 'Cycle overlay layers' },
-                    { key: 'V', description: 'Cycle view' },
-                    { key: 'G', description: 'Toggle campaign guide' },
-                    { key: 'H', description: 'Toggle keyboard help' },
-                  ] as { key: string; description: string }[]
-                ).map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
-                  </div>
-                ))}
+                <ShortcutList shortcuts={EXPLORE_MAP_SHORTCUTS} />
               </div>
             ) : (
               <div className="space-y-1.5">
-                {KEYBOARD_SHORTCUTS.map((shortcut) => (
-                  <div key={shortcut.key} className="flex justify-between items-center text-xs">
-                    <span className="text-neutral-600">{shortcut.description}</span>
-                    <kbd className="ml-2 px-1.5 py-0.5 bg-neutral-100 border border-neutral-200 rounded text-[10px] font-mono text-neutral-700">
-                      {shortcut.key}
-                    </kbd>
-                  </div>
-                ))}
+                <ShortcutList shortcuts={TASK_MODE_SHORTCUTS} />
               </div>
             )}
           </Dropdown>

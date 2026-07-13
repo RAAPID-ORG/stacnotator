@@ -6,6 +6,7 @@ import { useAnnotationStore } from '../stores/annotation.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
+import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -15,12 +16,16 @@ import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
  *   R - Annotate (draw)
  *   E - Edit
  *   T - Timeseries (only when campaign has time series)
+ *   B - Label vector (only when campaign has vector layers)
  *
  * Label selection:
  *   1-9 - Select label by index and switch to Annotate
  *
  * Misc:
- *   X - Toggle visibility of drawn objects
+ *   X - Toggle crosshair (shared binding in useAnnotationKeyboard; Shift+X
+ *       toggles visibility of drawn objects)
+ *   O - Toggle overlay map (Shift+O cycles overlays)
+ *   V - Toggle the active vector layer (Shift+V cycles vector layers)
  *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
@@ -57,6 +62,8 @@ export const useOpenModeKeyboard = () => {
     const basemapIds = (campaign.basemaps ?? []).map((b) => `basemap-${b.id}`);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.
+      if (e.ctrlKey || e.metaKey) return;
       // Ignore if user is typing in an input/textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -98,13 +105,16 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           setActiveTool('timeseries');
           break;
-        case 'v':
+        case 'b':
           if (!hasVectorLayers) break;
           e.preventDefault();
           setActiveTool('labelvector');
           setTimeseriesPoint(null);
           break;
+        // Shift+X only: plain X (crosshair) is handled by the task-mode hook,
+        // whose listener stays active in explore for mode-shared bindings.
         case 'x':
+          if (!e.shiftKey) break;
           e.preventDefault();
           useMapStore.getState().toggleAnnotations();
           break;
@@ -112,11 +122,19 @@ export const useOpenModeKeyboard = () => {
           e.preventDefault();
           toggleViewSync();
           break;
-        case 'm': {
+        case 'o': {
           e.preventDefault();
           const maps = campaign?.custom_maps ?? [];
           if (e.shiftKey) cycleCustomMap(maps);
           else toggleCustomMap(maps);
+          break;
+        }
+        case 'v': {
+          if (!hasVectorLayers) break;
+          e.preventDefault();
+          const layers = campaign?.vector_layers ?? [];
+          if (e.shiftKey) cycleVectorLayer(layers);
+          else toggleVectorLayer(layers);
           break;
         }
         case 'i': {

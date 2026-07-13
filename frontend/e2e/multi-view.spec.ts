@@ -19,7 +19,9 @@ async function loadMultiView(page: Page, api: ApiCapture): Promise<void> {
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
   await page.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
-  await page.locator('button', { hasText: /^(Submit|Update)$/ }).first()
+  await page
+    .locator('button', { hasText: /^(Submit|Update)$/ })
+    .first()
     .waitFor({ state: 'visible', timeout: 5000 });
   await waitForNavIdle(page);
   api.clear();
@@ -69,19 +71,17 @@ test.describe('View cycling via V key', () => {
   });
 
   test('V switches to the second view', async ({ annotationPage }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
   });
 
   test('V: active source is VHR and S2/NDVI windows leave DOM', async ({ annotationPage }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
 
     // Layer selector confirms the VHR source is active
     await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
@@ -98,13 +98,12 @@ test.describe('View cycling via V key', () => {
   });
 
   test('V twice wraps back to the first view', async ({ annotationPage }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
 
-    await annotationPage.keyboard.press('v');
+    await annotationPage.keyboard.press('u');
     await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
       'Sentinel-2 View',
       { timeout: 3000 }
@@ -117,23 +116,22 @@ test.describe('View cycling via V key', () => {
 
   test('view switch does not move the crosshair', async ({ annotationPage }) => {
     await assertCrosshairAt(annotationPage, TASK_1.id, 'before V');
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
     await assertCrosshairAt(annotationPage, TASK_1.id, 'after V');
   });
 
   test('crosshair stays correct through view cycles and task navigation', async ({
     annotationPage,
   }) => {
-    await annotationPage.keyboard.press('v');
+    await annotationPage.keyboard.press('u');
     await annotationPage.keyboard.press('s');
     await waitForNavIdle(annotationPage);
     await assertCrosshairAt(annotationPage, TASK_2.id, 'task nav in VHR view');
 
-    await annotationPage.keyboard.press('v');
+    await annotationPage.keyboard.press('u');
     await assertCrosshairAt(annotationPage, TASK_2.id, 'back to S2 view');
   });
 });
@@ -157,10 +155,9 @@ test.describe('View switching via toolbar dropdown', () => {
     await viewSelector(annotationPage).locator('button').first().click();
     await annotationPage.getByText('VHR View').first().click();
 
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
     await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
       'VHR',
       { timeout: 3000 }
@@ -170,11 +167,10 @@ test.describe('View switching via toolbar dropdown', () => {
   test('selecting Sentinel-2 View from dropdown when VHR is active switches back', async ({
     annotationPage,
   }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
 
     await viewSelector(annotationPage).locator('button').first().click();
     await annotationPage.getByText('Sentinel-2 View').first().click();
@@ -193,10 +189,9 @@ test.describe('View switching via toolbar dropdown', () => {
 
     await viewSelector(annotationPage).locator('button').first().click();
     await annotationPage.getByText('VHR View').first().click();
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
 
     await assertCrosshairAt(annotationPage, TASK_1.id, 'after dropdown switch');
   });
@@ -217,14 +212,11 @@ test.describe('Timeline updates with active view', () => {
     );
   });
 
-  test('timeline shows VHR collection after switching to VHR View', async ({
-    annotationPage,
-  }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+  test('timeline shows VHR collection after switching to VHR View', async ({ annotationPage }) => {
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
     await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
       COLLECTION_VHR.name,
       { timeout: 3000 }
@@ -243,7 +235,9 @@ test.describe('Imagery source cycling within a view', () => {
 
   test('Shift+D cycles collections within the current view only', async ({ annotationPage }) => {
     // In Sentinel-2 View: S2 L2A → NDVI (Shift+D)
-    const before = await annotationPage.locator('.active-window .card-header').getAttribute('title');
+    const before = await annotationPage
+      .locator('.active-window .card-header')
+      .getAttribute('title');
     await annotationPage.keyboard.press('Shift+d');
     const after = await annotationPage.locator('.active-window .card-header').getAttribute('title');
     expect(after).not.toBe(before);
@@ -254,11 +248,10 @@ test.describe('Imagery source cycling within a view', () => {
   test('switching to VHR View then using layer selector shows VHR source', async ({
     annotationPage,
   }) => {
-    await annotationPage.keyboard.press('v');
-    await expect(viewSelector(annotationPage).locator('button').first()).toContainText(
-      'VHR View',
-      { timeout: 3000 }
-    );
+    await annotationPage.keyboard.press('u');
+    await expect(viewSelector(annotationPage).locator('button').first()).toContainText('VHR View', {
+      timeout: 3000,
+    });
     await expect(annotationPage.locator('[data-tour="layer-selector"] button')).toContainText(
       'VHR',
       { timeout: 3000 }

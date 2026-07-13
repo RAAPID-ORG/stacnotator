@@ -32,8 +32,10 @@ interface MapStore {
   activeCustomMapId: number | null;
   customMapOpacity: number;
   showCustomMap: boolean;
-  // PMTiles vector layers currently toggled on (several may be enabled at once).
-  enabledVectorLayerIds: number[];
+  // PMTiles vector layers: single selection, mirroring custom maps. The active
+  // layer keeps its identity while hidden so toggling brings the same one back.
+  activeVectorLayerId: number | null;
+  showVectorLayer: boolean;
   // Per-source memory so cycling I → static → back to a source restores the
   // last collection + visualization the user was on, instead of resetting to
   // the first slice / first viz.
@@ -80,9 +82,8 @@ interface MapStore {
   setActiveCustomMapId: (id: number | null) => void;
   setCustomMapOpacity: (opacity: number) => void;
   setShowCustomMap: (show: boolean) => void;
-  setVectorLayerEnabled: (id: number, enabled: boolean) => void;
-  toggleVectorLayer: (id: number) => void;
-  setEnabledVectorLayerIds: (ids: number[]) => void;
+  setActiveVectorLayerId: (id: number | null) => void;
+  setShowVectorLayer: (show: boolean) => void;
   recordSourceState: (sourceId: number, collectionId: number, layerIndex: number) => void;
 
   setMapCenter: (center: [number, number]) => void;
@@ -141,7 +142,8 @@ const initialState = {
   activeCustomMapId: null as number | null,
   customMapOpacity: 100,
   showCustomMap: true,
-  enabledVectorLayerIds: [] as number[],
+  activeVectorLayerId: null as number | null,
+  showVectorLayer: true,
   lastSourceState: {} as Record<number, { collectionId: number; layerIndex: number }>,
 
   currentMapCenter: null as [number, number] | null,
@@ -257,23 +259,8 @@ export const useMapStore = create<MapStore>((set) => ({
   setCustomMapOpacity: (opacity) => set({ customMapOpacity: opacity }),
   setShowCustomMap: (show) => set({ showCustomMap: show }),
 
-  setVectorLayerEnabled: (id, enabled) =>
-    set((s) => {
-      const has = s.enabledVectorLayerIds.includes(id);
-      if (enabled === has) return s;
-      return {
-        enabledVectorLayerIds: enabled
-          ? [...s.enabledVectorLayerIds, id]
-          : s.enabledVectorLayerIds.filter((x) => x !== id),
-      };
-    }),
-  toggleVectorLayer: (id) =>
-    set((s) => ({
-      enabledVectorLayerIds: s.enabledVectorLayerIds.includes(id)
-        ? s.enabledVectorLayerIds.filter((x) => x !== id)
-        : [...s.enabledVectorLayerIds, id],
-    })),
-  setEnabledVectorLayerIds: (ids) => set({ enabledVectorLayerIds: ids }),
+  setActiveVectorLayerId: (id) => set({ activeVectorLayerId: id }),
+  setShowVectorLayer: (show) => set({ showVectorLayer: show }),
 
   recordSourceState: (sourceId, collectionId, layerIndex) =>
     set((s) => ({
