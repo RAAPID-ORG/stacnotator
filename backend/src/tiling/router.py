@@ -37,6 +37,39 @@ MPC_API_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 _AUTH_REQUIRED_CATALOGS = {"usgs-m2m", "maxar"}
 
 
+def _curated_catalog(cat_id: str, title: str, url: str, summary: str, is_mpc: bool = False) -> dict:
+    return {
+        "id": cat_id,
+        "title": title,
+        "url": url,
+        "summary": summary,
+        "is_mpc": is_mpc,
+        "auth_required": False,
+        "tiler_name": None,
+        "provided": True,
+    }
+
+
+# Hand-picked catalogs, shown in the featured section ahead of the StacIndex list.
+# Static catalogs (no /search endpoint) never pass StacIndex's isApi filter, so
+# adding them here is the only way they get listed.
+CURATED_CATALOGS: list[dict] = [
+    _curated_catalog(
+        "mpc",
+        "Microsoft Planetary Computer",
+        MPC_API_URL,
+        "The Planetary Computer - petabytes of Earth observation data",
+        is_mpc=True,
+    ),
+    _curated_catalog(
+        "vantor-opendata",
+        "Vantor OpenData",
+        "https://vantor-opendata.s3.amazonaws.com/events/catalog.json",
+        "Open high-resolution Vantor (formerly Maxar) imagery of disaster events",
+    ),
+]
+
+
 _catalogs_cache: dict = {"data": None, "expires": 0}
 
 # Per-catalog_url collections cache. MPC's /collections can time out for
@@ -171,7 +204,7 @@ def _map_stacindex_catalog(cat: dict) -> dict | None:
 
 
 async def _public_catalogs() -> list[dict]:
-    """MPC + StacIndex API catalogs (user-independent), cached. Proxied via StacIndex."""
+    """Curated catalogs (MPC, Vantor) + StacIndex API catalogs (user-independent), cached."""
     now = time.time()
     if _catalogs_cache["data"] and now < _catalogs_cache["expires"]:
         return _catalogs_cache["data"]
@@ -187,19 +220,7 @@ async def _public_catalogs() -> list[dict]:
             return _catalogs_cache["data"]
         raise HTTPException(status_code=502, detail="StacIndex unavailable") from e
 
-    filtered = []
-    filtered.append(
-        {
-            "id": "mpc",
-            "title": "Microsoft Planetary Computer",
-            "url": MPC_API_URL,
-            "summary": "The Planetary Computer - petabytes of Earth observation data",
-            "is_mpc": True,
-            "auth_required": False,
-            "tiler_name": None,
-            "provided": True,
-        }
-    )
+    filtered = [*CURATED_CATALOGS]
 
     for cat in all_catalogs:
         mapped = _map_stacindex_catalog(cat)
