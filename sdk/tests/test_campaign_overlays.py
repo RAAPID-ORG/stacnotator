@@ -175,6 +175,21 @@ def test_register_rejects_local_file_paths():
         campaign.register_overlay("/home/me/predictions.tif")
 
 
+@responses.activate
+def test_register_accepts_tiler_local_cog_paths():
+    campaign = make_campaign()
+    responses.get(f"{BASE}/api/campaigns/42/custom-maps", json=[])
+    responses.post(
+        f"{BASE}/api/campaigns/42/custom-maps",
+        json=created_layer(cog_url="/data/cogs/predictions.cog.tif"),
+        status=201,
+    )
+
+    campaign.register_overlay("/data/cogs/predictions.cog.tif")
+
+    assert posted_body()["cog_url"] == "/data/cogs/predictions.cog.tif"
+
+
 def vector_layer(layer_id, name):
     return {
         "id": layer_id,

@@ -140,11 +140,14 @@ class Campaign:
         auto-assigned, shown as a legend to annotators) or ``{value: (label,
         "#rrggbb")}``. Without it the overlay renders continuously: values in the
         ``rescale`` range map onto ``colormap``, and annotators see that gradient
-        with min/mid/max ticks as the legend. Overlay names are unique per
-        campaign; registration continues asynchronously on the server and the
-        returned overlay starts in status "registering".
+        with min/mid/max ticks as the legend. ``cog_url`` is a hosted http(s)
+        URL; on a dev stack running the tiler profile it may also be a
+        tiler-local ``/data/cogs/<file>`` path (the repo's ``cogs/`` folder,
+        mounted into the tiler). Overlay names are unique per campaign;
+        registration continues asynchronously on the server and the returned
+        overlay starts in status "registering".
         """
-        _require_http_url(cog_url, "cog_url")
+        _require_cog_location(cog_url)
         if colormap not in COLORMAPS:
             raise ValueError(
                 f"colormap {colormap!r} is not supported; the legend can render: "
@@ -281,6 +284,21 @@ def _require_http_url(url: str, param: str) -> None:
         raise ValueError(
             f"{param} must be an http(s) URL, got a local path: {url!r}. Upload the "
             "file (or serve it, e.g. `python -m http.server`) and pass its URL."
+        )
+
+
+# Where the dev-compose tiler mounts the repo's cogs/ folder; paths under it are
+# resolved by the tiler itself, so they are valid COG locations without any hosting.
+TILER_COG_PREFIX = "/data/cogs/"
+
+
+def _require_cog_location(url: str) -> None:
+    if not url.startswith(("http://", "https://", TILER_COG_PREFIX)):
+        raise ValueError(
+            f"cog_url must be an http(s) URL or a tiler-local {TILER_COG_PREFIX}<file> "
+            f"path, got a local path: {url!r}. Upload the file (or serve it, e.g. "
+            "`python -m http.server`) and pass its URL, or drop it into the repo's "
+            f"cogs/ folder and register it as {TILER_COG_PREFIX}<file>."
         )
 
 

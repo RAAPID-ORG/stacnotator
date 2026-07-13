@@ -101,6 +101,11 @@ ties the layer to the experiment that produced it (with MLflow, the run URL - se
 open it via a small link icon next to the overlay selector in the annotation view, and
 `campaign.overlays()` lists what's registered.
 
+`cog_url` is normally a hosted http(s) URL the tiler can fetch. On a local dev stack running
+the tiler profile, a tiler-local `/data/cogs/<file>.tif` path also works: the dev tiler
+serves the repo's `cogs/` folder from there, so writing the file into that folder replaces
+the upload entirely.
+
 Most prediction tasks are categorical, so pass `classes` to render discrete values with an
 in-app legend instead of a continuous colormap:
 
