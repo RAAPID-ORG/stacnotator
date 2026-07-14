@@ -122,6 +122,18 @@ function NumberField({
   const numericValue = typeof raw === 'number' ? raw : undefined;
   const step = field.step ?? (field.number_type === 'int' ? 1 : undefined);
 
+  const clamp = (value: number) => {
+    let result = field.number_type === 'int' ? Math.round(value) : value;
+    if (field.min != null) result = Math.max(field.min, result);
+    if (field.max != null) result = Math.min(field.max, result);
+    return result;
+  };
+
+  // Clamping happens on blur, not per keystroke: clamping while typing garbles
+  // entry whenever min has 2+ digits (typing "2015" with min 1990 would clamp
+  // the intermediate "2" to 1990). Round for int fields immediately since that
+  // never conflicts with a digit prefix. Enter-to-submit cannot bypass the
+  // blur clamp: the keyboard hooks skip all shortcuts while an input is focused.
   const handleChange = (rawValue: string) => {
     if (rawValue === '') {
       onChange(setFieldValue(values, field.id, null));
@@ -132,12 +144,17 @@ function NumberField({
       onChange(setFieldValue(values, field.id, null));
       return;
     }
-    // Clamp into bounds and round to a whole number for int fields, so the UI
-    // never submits a value the backend's range/integer check would reject.
-    let value = field.number_type === 'int' ? Math.round(parsed) : parsed;
-    if (field.min != null) value = Math.max(field.min, value);
-    if (field.max != null) value = Math.min(field.max, value);
-    onChange(setFieldValue(values, field.id, value));
+    onChange(
+      setFieldValue(values, field.id, field.number_type === 'int' ? Math.round(parsed) : parsed)
+    );
+  };
+
+  const handleBlur = () => {
+    if (numericValue === undefined) return;
+    const clamped = clamp(numericValue);
+    if (clamped !== numericValue) {
+      onChange(setFieldValue(values, field.id, clamped));
+    }
   };
 
   if (field.slider && field.min != null && field.max != null) {
@@ -169,6 +186,7 @@ function NumberField({
       max={field.max ?? undefined}
       step={step}
       onChange={(e) => handleChange(e.target.value)}
+      onBlur={handleBlur}
       disabled={disabled}
       className={textInputClass}
     />
