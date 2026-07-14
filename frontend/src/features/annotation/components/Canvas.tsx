@@ -349,9 +349,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   const renderMinimapHeader = () => (
     <div className="flex items-center gap-2 w-full min-w-0">
-      <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider shrink-0">
-        Loc
-      </span>
       {focusPoint ? (
         <>
           <span className="tabular-nums text-xs text-neutral-700 font-medium truncate">
