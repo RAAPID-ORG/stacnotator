@@ -7,6 +7,13 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
+import {
+  cycleFieldIndex,
+  digitTargetsOption,
+  fieldDigitAction,
+  focusFormFieldInput,
+} from '../utils/formFieldNav';
+import { applySelectOption } from '../utils/formValues';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -19,20 +26,30 @@ import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
  *   B - Label vector (only when campaign has vector layers)
  *
  * Label selection:
- *   1-9 - Select label by index and switch to Annotate
+ *   1-9 - Select label by index and switch to Annotate (only while no
+ *         custom form field is active - see form field navigation below)
+ *
+ * Form field navigation (shared activeFieldIndex/formValues with task mode):
+ *   Tab / Shift+Tab - Cycle the active custom form field
+ *   1-9 - With a select/multiselect field active, toggle that option
+ *   Enter / any digit - With a number/text/date/daterange field active, focus its input
+ *   Escape - Clear the active field (also handled by DrawingLayer for edit/draw cancel)
  *
  * Misc:
  *   X - Toggle crosshair (shared binding in useAnnotationKeyboard; Shift+X
  *       toggles visibility of drawn objects)
  *   O - Toggle overlay map (Shift+O cycles overlays)
  *   V - Toggle the active vector layer (Shift+V cycles vector layers)
- *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
+  const setActiveFieldIndex = useTaskStore((s) => s.setActiveFieldIndex);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
@@ -46,6 +63,16 @@ export const useOpenModeKeyboard = () => {
     const extendedLabels = extendLabelsWithMetadata(labels);
     const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
     const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
+    const formFields = campaign.settings.form_fields ?? [];
+
+    const applyFieldDigit = (field: (typeof formFields)[number], digitKey: string) => {
+      const action = fieldDigitAction(field, parseInt(digitKey, 10));
+      if (action.kind === 'toggleOption') {
+        setFormValues(applySelectOption(formValues, field, action.optionId));
+      } else if (action.kind === 'focusInput') {
+        focusFormFieldInput(field.id);
+      }
+    };
 
     const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
@@ -64,15 +91,30 @@ export const useOpenModeKeyboard = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.
       if (e.ctrlKey || e.metaKey) return;
-      // Ignore if user is typing in an input/textarea
+      // Ignore if user is typing in an input/textarea, except Escape which
+      // blurs back to hotkey mode (matches useAnnotationKeyboard's guard).
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          (document.activeElement as HTMLElement)?.blur();
+        }
         return;
       }
 
-      // Number keys 1-9: select label. In label-vector mode keep that tool so the
-      // label applies to clicked features; otherwise switch to annotate (draw).
-      if (e.key >= '1' && e.key <= '9') {
+      // Number keys: with a custom form field active, dispatch to it (toggle
+      // an option or focus its input) instead of selecting a label.
+      if (/^[0-9]$/.test(e.key)) {
+        const activeField = activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+        if (activeField) {
+          e.preventDefault();
+          applyFieldDigit(activeField, e.key);
+          return;
+        }
+        if (e.key === '0') return;
+
+        // 1-9: select label. In label-vector mode keep that tool so the
+        // label applies to clicked features; otherwise switch to annotate (draw).
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
@@ -84,7 +126,28 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
+      // Enter with an input-like form field active focuses it for typing.
+      if (e.key === 'Enter') {
+        const activeField = activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+        if (activeField && !digitTargetsOption(activeField)) {
+          e.preventDefault();
+          focusFormFieldInput(activeField.id);
+        }
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
+        case 'tab':
+          if (formFields.length === 0) break;
+          e.preventDefault();
+          setActiveFieldIndex(
+            cycleFieldIndex(activeFieldIndex, formFields.length, e.shiftKey ? -1 : 1)
+          );
+          break;
+        case 'escape':
+          e.preventDefault();
+          setActiveFieldIndex(null);
+          break;
         case 'p':
           e.preventDefault();
           setActiveTool('pan');
@@ -254,5 +317,9 @@ export const useOpenModeKeyboard = () => {
     triggerFitAnnotations,
     toggleViewSync,
     toggleGuide,
+    formValues,
+    activeFieldIndex,
+    setFormValues,
+    setActiveFieldIndex,
   ]);
 };

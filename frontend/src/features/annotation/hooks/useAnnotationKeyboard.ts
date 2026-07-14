@@ -11,6 +11,13 @@ import {
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
+import {
+  cycleFieldIndex,
+  digitTargetsOption,
+  fieldDigitAction,
+  focusFormFieldInput,
+} from '../utils/formFieldNav';
+import { applySelectOption } from '../utils/formValues';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -44,6 +51,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setConfidence = useTaskStore((s) => s.setConfidence);
   const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
+  const setActiveFieldIndex = useTaskStore((s) => s.setActiveFieldIndex);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
@@ -60,6 +71,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
+  const formFields = useMemo(
+    () => campaign?.settings.form_fields ?? [],
+    [campaign?.settings.form_fields]
+  );
 
   // Derive the selected view (still needed for source cycling below)
   const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
@@ -82,6 +97,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     if (!isNaN(num) && num > 0) selectLabelByIndex(num);
     digitBuffer.current = '';
   }, [selectLabelByIndex]);
+
+  // Digit pressed while a custom form field is active: toggles an option or
+  // focuses the field's input, bypassing the label digit-buffer entirely.
+  const applyFieldDigit = useCallback(
+    (field: (typeof formFields)[number], digitKey: string) => {
+      const action = fieldDigitAction(field, parseInt(digitKey, 10));
+      if (action.kind === 'toggleOption') {
+        setFormValues(applySelectOption(formValues, field, action.optionId));
+      } else if (action.kind === 'focusInput') {
+        focusFormFieldInput(field.id);
+      }
+    },
+    [formValues, setFormValues]
+  );
 
   const handleDigitInput = useCallback(
     (digit: string) => {
@@ -315,14 +344,30 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         return;
       }
 
-      // Number keys for label selection
+      // Number keys: dispatch to the active form field when task mode has one
+      // focused (via Tab), otherwise fall back to label selection as before.
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
-        handleDigitInput(e.key);
+        const activeField =
+          tasksActive && activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+        if (activeField) {
+          applyFieldDigit(activeField, e.key);
+        } else {
+          handleDigitInput(e.key);
+        }
         return;
       }
 
       switch (e.key) {
+        // Form field navigation
+        case 'Tab':
+          if (!tasksActive || formFields.length === 0) break;
+          e.preventDefault();
+          setActiveFieldIndex(
+            cycleFieldIndex(activeFieldIndex, formFields.length, e.shiftKey ? -1 : 1)
+          );
+          break;
+
         // Task navigation
         case 'w':
         case 'W':
@@ -432,11 +477,19 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           adjustConfidence(1); // Increase confidence
           break;
 
-        // Submit
-        case 'Enter':
+        // Submit (or, with an input-like form field active, focus it instead)
+        case 'Enter': {
+          const activeField =
+            tasksActive && activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+          if (activeField && !digitTargetsOption(activeField)) {
+            e.preventDefault();
+            focusFormFieldInput(activeField.id);
+            break;
+          }
           e.preventDefault();
           handleSubmit();
           break;
+        }
 
         // Skip
         case 'b':
@@ -483,6 +536,13 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           } else {
             cycleSource();
           }
+          break;
+
+        // Leave the active form field
+        case 'Escape':
+          if (!tasksActive) break;
+          e.preventDefault();
+          setActiveFieldIndex(null);
           break;
       }
     };
@@ -541,6 +601,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     cycleSource,
     cycleVisualization,
     cycleView,
+    formFields,
+    activeFieldIndex,
+    setActiveFieldIndex,
+    applyFieldDigit,
   ]);
 
   // Stop slice autoscroll only on unmount. stopSliceAutoNav has empty deps so

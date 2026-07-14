@@ -25,3 +25,24 @@ export function optionIdForDigit(field: FormField, digit: number): number | null
   const option = field.options[digit - 1];
   return option ? option.id : null;
 }
+
+// What a digit keypress does to the currently-active field: toggle one of
+// its options, focus its input for typing, or nothing (digit out of range).
+export type FieldDigitAction =
+  | { kind: 'toggleOption'; optionId: number }
+  | { kind: 'focusInput' }
+  | { kind: 'none' };
+
+export function fieldDigitAction(field: FormField, digit: number): FieldDigitAction {
+  if (!digitTargetsOption(field)) return { kind: 'focusInput' };
+  const optionId = optionIdForDigit(field, digit);
+  return optionId === null ? { kind: 'none' } : { kind: 'toggleOption', optionId };
+}
+
+/** Focuses the first input/textarea inside a field's container, per AnnotationForm's data-form-field-id. */
+export function focusFormFieldInput(fieldId: number): void {
+  const input = document.querySelector<HTMLElement>(
+    `[data-form-field-id="${fieldId}"] input, [data-form-field-id="${fieldId}"] textarea`
+  );
+  input?.focus();
+}

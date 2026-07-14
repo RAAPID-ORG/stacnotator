@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { SelectFormField, NumberFormField, TextFormField } from '~/api/client';
-import { cycleFieldIndex, digitTargetsOption, optionIdForDigit } from './formFieldNav';
+import {
+  cycleFieldIndex,
+  digitTargetsOption,
+  optionIdForDigit,
+  fieldDigitAction,
+} from './formFieldNav';
 
 const SELECT: SelectFormField = {
   id: 1,
@@ -114,5 +119,32 @@ describe('optionIdForDigit', () => {
   it('returns null for a non-option field', () => {
     expect(optionIdForDigit(NUMBER, 1)).toBeNull();
     expect(optionIdForDigit(TEXT, 1)).toBeNull();
+  });
+});
+
+describe('fieldDigitAction', () => {
+  it('toggles the matching option on a select field', () => {
+    expect(fieldDigitAction(SELECT, 2)).toEqual({ kind: 'toggleOption', optionId: 20 });
+  });
+
+  it('toggles the matching option on a multiselect field', () => {
+    expect(fieldDigitAction(MULTISELECT, 1)).toEqual({ kind: 'toggleOption', optionId: 10 });
+  });
+
+  it('is a no-op when the digit is beyond the option count', () => {
+    expect(fieldDigitAction(SELECT, 9)).toEqual({ kind: 'none' });
+  });
+
+  it('is a no-op for digit 0 on an option field', () => {
+    expect(fieldDigitAction(SELECT, 0)).toEqual({ kind: 'none' });
+  });
+
+  it('focuses the input for number fields regardless of digit', () => {
+    expect(fieldDigitAction(NUMBER, 1)).toEqual({ kind: 'focusInput' });
+    expect(fieldDigitAction(NUMBER, 0)).toEqual({ kind: 'focusInput' });
+  });
+
+  it('focuses the input for text fields', () => {
+    expect(fieldDigitAction(TEXT, 5)).toEqual({ kind: 'focusInput' });
   });
 });

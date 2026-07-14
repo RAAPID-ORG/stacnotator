@@ -3,6 +3,7 @@ import type { SelectFormField, NumberFormField, TextFormField } from '~/api/clie
 import {
   setFieldValue,
   toggleMultiOption,
+  applySelectOption,
   missingRequiredFields,
   formatMissingFieldsTitle,
   hydrateFormValues,
@@ -132,6 +133,31 @@ describe('toggleMultiOption', () => {
     const values: FormValues = { '2': [10] };
     toggleMultiOption(values, MULTISELECT, 20);
     expect(values).toEqual({ '2': [10] });
+  });
+});
+
+describe('applySelectOption', () => {
+  it('selects an option on an empty select field', () => {
+    const next = applySelectOption({}, SELECT, 10);
+    expect(next).toEqual({ '1': 10 });
+  });
+
+  it('deselects a select field option that is already the current value', () => {
+    const values: FormValues = { '1': 10 };
+    const next = applySelectOption(values, SELECT, 10);
+    expect(next).toEqual({});
+  });
+
+  it('replaces the current value when selecting a different select option', () => {
+    const values: FormValues = { '1': 10 };
+    const next = applySelectOption(values, SELECT, 20);
+    expect(next).toEqual({ '1': 20 });
+  });
+
+  it('toggles a multiselect field the same way toggleMultiOption does', () => {
+    const values: FormValues = { '2': [10] };
+    const next = applySelectOption(values, MULTISELECT, 20);
+    expect(next).toEqual({ '2': [10, 20] });
   });
 });
 

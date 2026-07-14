@@ -1,6 +1,6 @@
 import type { DateRangeValue } from '~/api/client';
 import type { FormField, FormValue, FormValues } from '../utils/formValues';
-import { setFieldValue, toggleMultiOption } from '../utils/formValues';
+import { applySelectOption, setFieldValue } from '../utils/formValues';
 
 interface AnnotationFormProps {
   fields: FormField[];
@@ -85,13 +85,7 @@ function SelectField({
   const isSelected = (optionId: number) =>
     field.type === 'multiselect' ? Array.isArray(raw) && raw.includes(optionId) : raw === optionId;
 
-  const handleClick = (optionId: number) => {
-    if (field.type === 'multiselect') {
-      onChange(toggleMultiOption(values, field, optionId));
-      return;
-    }
-    onChange(setFieldValue(values, field.id, raw === optionId ? null : optionId));
-  };
+  const handleClick = (optionId: number) => onChange(applySelectOption(values, field, optionId));
 
   return (
     <div className="flex flex-wrap gap-1.5">
