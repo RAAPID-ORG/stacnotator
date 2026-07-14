@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-from typing import cast
 from uuid import UUID
 
 import numpy as np
@@ -494,19 +493,30 @@ def format_form_value(field: FormField, value: object) -> object | None:
     """Render one submitted form value for CSV/GeoJSON: option ids become
     their option names (multiselect joined with "; "), a daterange becomes
     "start/end", everything else (number/text/date) passes through as-is.
+
+    Stored values may predate a field-definition change; any value whose
+    shape no longer matches the field type degrades to str(value) so the
+    export never crashes on drifted data.
     """
     if value is None:
         return None
     if isinstance(field, SelectFormField):
         names = {option.id: option.name for option in field.options}
         if field.type == "select":
-            option_id = cast(int, value)
-            return names.get(option_id, str(option_id))
-        option_ids = cast(list[int], value)
-        return "; ".join(names.get(v, str(v)) for v in option_ids)
+            if isinstance(value, int):
+                return names.get(value, str(value))
+            return str(value)
+        if isinstance(value, list) and all(isinstance(v, int) for v in value):
+            return "; ".join(names.get(v, str(v)) for v in value)
+        return str(value)
     if isinstance(field, DateFormField) and field.type == "daterange":
-        interval = cast(dict[str, str], value)
-        return f"{interval['start']}/{interval['end']}"
+        if (
+            isinstance(value, dict)
+            and isinstance(value.get("start"), str)
+            and isinstance(value.get("end"), str)
+        ):
+            return f"{value['start']}/{value['end']}"
+        return str(value)
     return value
 
 

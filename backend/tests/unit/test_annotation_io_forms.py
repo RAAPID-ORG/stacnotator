@@ -55,6 +55,26 @@ def test_unknown_option_falls_back_to_id():
     assert format_form_value(FIELDS[0], 99) == "99"
 
 
+def test_select_with_non_int_value_falls_back_to_str():
+    assert format_form_value(FIELDS[0], "Wheat") == "Wheat"
+
+
+def test_multiselect_with_non_list_value_falls_back_to_str():
+    assert format_form_value(FIELDS[1], 1) == "1"
+
+
+def test_multiselect_with_mixed_list_falls_back_to_str():
+    assert format_form_value(FIELDS[1], [1, "Drought"]) == "[1, 'Drought']"
+
+
+def test_daterange_with_plain_string_falls_back_to_str():
+    assert format_form_value(FIELDS[3], "2026-05-01") == "2026-05-01"
+
+
+def test_daterange_with_incomplete_dict_falls_back_to_str():
+    assert format_form_value(FIELDS[3], {"start": "2026-05-01"}) == "{'start': '2026-05-01'}"
+
+
 def test_cells_cover_all_fields_with_none_for_unanswered():
     cells = build_form_export_cells(FIELDS, {"1": 1, "3": 4.2})
     assert cells == {
