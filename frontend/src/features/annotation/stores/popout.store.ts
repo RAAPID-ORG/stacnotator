@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Layout } from 'react-grid-layout';
 import type { PopoutBounds } from '~/shared/ui/PopoutWindow';
-import { appendItem, withoutKeys } from '../utils/popoutLayout';
+import { packItem, withoutKeys } from '../utils/popoutLayout';
 
 /** Card size used when the sender cannot tell us how big the card was. */
 export const FALLBACK_CARD_SIZE = { w: 20, h: 12 };
@@ -102,7 +102,7 @@ export const usePopoutStore = create<PopoutState>()(
               : target;
           if (target !== 'new' && !s.screens.includes(id)) return s;
 
-          layouts[id] = appendItem(layouts[id] ?? [], key, size);
+          layouts[id] = packItem(layouts[id] ?? [], key, size);
           return withSaved(s, {
             screens: s.screens.includes(id) ? s.screens : [...s.screens, id],
             assignment: { ...s.assignment, [key]: id },

@@ -7,13 +7,32 @@ export function withoutKeys(layout: Layout, keys: ReadonlySet<string>): Layout {
   return layout.filter((it) => !keys.has(it.i));
 }
 
-/** Place a card at the bottom of a screen's layout, keeping the size it had
- *  on the canvas it came from (both grids share cols/rowHeight, so w/h
- *  transfer 1:1). No-op if the card is already on the screen. */
-export function appendItem(layout: Layout, key: string, size: { w: number; h: number }): Layout {
+const overlaps = (
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number }
+) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/** Place a card into the first free slot of a screen's layout - greedy
+ *  top-to-bottom, left-to-right scan - keeping the size it arrives with.
+ *  Falls back to a fresh row below everything; no-op if already present. */
+export function packItem(
+  layout: Layout,
+  key: string,
+  size: { w: number; h: number },
+  cols = 60
+): Layout {
   if (layout.some((it) => it.i === key)) return layout;
+  const w = Math.min(size.w, cols);
   const bottom = layout.reduce((max, it) => Math.max(max, (it.y ?? 0) + (it.h ?? 0)), 0);
-  return [...layout, { i: key, x: 0, y: bottom, w: size.w, h: size.h }];
+  for (let y = 0; y <= bottom; y++) {
+    for (let x = 0; x + w <= cols; x++) {
+      const rect = { x, y, w, h: size.h };
+      if (!layout.some((it) => overlaps(rect, it))) {
+        return [...layout, { i: key, ...rect }];
+      }
+    }
+  }
+  return [...layout, { i: key, x: 0, y: bottom, w, h: size.h }];
 }
 
 /** Convert a card width from one canvas to another so the card keeps its

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withoutKeys, mergeLayoutChange, appendItem, scaleWidthToScreen } from './popoutLayout';
+import { withoutKeys, mergeLayoutChange, packItem, scaleWidthToScreen } from './popoutLayout';
 import type { Layout } from 'react-grid-layout';
 
 const layout: Layout = [
@@ -19,25 +19,48 @@ describe('withoutKeys', () => {
   });
 });
 
-describe('appendItem', () => {
+describe('packItem', () => {
   it('places the first card at the top left with the given size', () => {
-    expect(appendItem([], 'controls', { w: 20, h: 12 })).toEqual([
+    expect(packItem([], 'controls', { w: 20, h: 12 })).toEqual([
       { i: 'controls', x: 0, y: 0, w: 20, h: 12 },
     ]);
   });
 
-  it('stacks below the bottom-most existing item', () => {
+  it('fills the first free slot to the right of existing cards', () => {
     const screen: Layout = [
       { i: 'controls', x: 0, y: 0, w: 20, h: 12 },
       { i: '7', x: 20, y: 0, w: 10, h: 20 },
     ];
-    const result = appendItem(screen, 'minimap', { w: 15, h: 10 });
-    expect(result).toContainEqual({ i: 'minimap', x: 0, y: 20, w: 15, h: 10 });
+    const result = packItem(screen, 'minimap', { w: 15, h: 10 });
+    expect(result).toContainEqual({ i: 'minimap', x: 30, y: 0, w: 15, h: 10 });
+  });
+
+  it('fills a gap left by a returned card before opening a new row', () => {
+    const screen: Layout = [
+      { i: 'a', x: 0, y: 0, w: 20, h: 10 },
+      // gap at x 20..40
+      { i: 'b', x: 40, y: 0, w: 20, h: 10 },
+      { i: 'c', x: 0, y: 10, w: 60, h: 10 },
+    ];
+    const result = packItem(screen, 'minimap', { w: 20, h: 10 });
+    expect(result).toContainEqual({ i: 'minimap', x: 20, y: 0, w: 20, h: 10 });
+  });
+
+  it('starts a fresh row when no slot fits', () => {
+    const screen: Layout = [{ i: 'a', x: 0, y: 0, w: 60, h: 10 }];
+    const result = packItem(screen, 'minimap', { w: 30, h: 10 });
+    expect(result).toContainEqual({ i: 'minimap', x: 0, y: 10, w: 30, h: 10 });
+  });
+
+  it('clamps cards wider than the grid', () => {
+    expect(packItem([], 'wide', { w: 90, h: 10 })).toEqual([
+      { i: 'wide', x: 0, y: 0, w: 60, h: 10 },
+    ]);
   });
 
   it('is a no-op when the card is already on the screen', () => {
     const screen: Layout = [{ i: 'controls', x: 5, y: 5, w: 20, h: 12 }];
-    expect(appendItem(screen, 'controls', { w: 1, h: 1 })).toBe(screen);
+    expect(packItem(screen, 'controls', { w: 1, h: 1 })).toBe(screen);
   });
 });
 
