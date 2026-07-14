@@ -28,7 +28,7 @@ import { IconClose, IconExternalLink, IconEyeSlash } from '~/shared/ui/Icons';
 import { PopoutWindow, type PopoutBounds } from '~/shared/ui/PopoutWindow';
 import { PopoutScreen, type ScreenCard } from './PopoutScreen';
 import { usePopoutStore } from '../stores/popout.store';
-import { mergeLayoutChange, withoutKeys } from '../utils/popoutLayout';
+import { mergeLayoutChange, scaleWidthToScreen, withoutKeys } from '../utils/popoutLayout';
 
 // A single stable compactor instance - recreating it per render would
 // invalidate react-grid-layout's internal memos that key on its identity.
@@ -41,6 +41,9 @@ const CLAIM_RENEW_MS = 10 * 60 * 1000;
 // Initial OS-window size for a newly opened screen; the store remembers the
 // user's size/position per screen for the rest of the session.
 const SCREEN_DEFAULT_BOUNDS: PopoutBounds = { width: 1280, height: 860 };
+// Rough horizontal overhead of a screen window (scrollbar + canvas padding),
+// used to estimate its canvas width before the window has reported one.
+const SCREEN_CHROME_PX = 40;
 
 /** Card-header control that sends a canvas card to a secondary screen
  *  window. With no screen open a click opens the first one directly; with
@@ -344,10 +347,25 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     setCurrentLayout(mergeLayoutChange(next, previous, poppedNow));
   };
 
-  // Keep the card's size when it moves - the two grids share geometry.
+  // Keep the card's PIXEL size when it moves: rows are fixed-height so h
+  // transfers as-is, but a grid column is narrower in a smaller screen
+  // window, so convert w using the two canvas widths.
   const sendToScreen = (key: string, target: number | 'new') => {
     const item = (useCampaignStore.getState().currentLayout ?? []).find((it) => it.i === key);
-    sendCard(key, target, item ? { w: item.w, h: item.h } : undefined);
+    if (!item) {
+      sendCard(key, target);
+      return;
+    }
+    const { screenWidths, lastBounds: bounds } = usePopoutStore.getState();
+    const screenPx =
+      target === 'new'
+        ? SCREEN_DEFAULT_BOUNDS.width - SCREEN_CHROME_PX
+        : (screenWidths[target] ??
+          (bounds[target]?.width ?? SCREEN_DEFAULT_BOUNDS.width) - SCREEN_CHROME_PX);
+    sendCard(key, target, {
+      w: scaleWidthToScreen(item.w, containerWidth, screenPx),
+      h: item.h,
+    });
   };
 
   // A sent-away card can disappear from under us (view switch removes its

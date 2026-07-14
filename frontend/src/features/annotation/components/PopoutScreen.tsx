@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import ReactGridLayout, { getCompactor, type Layout } from 'react-grid-layout';
 import { usePopoutStore } from '../stores/popout.store';
+import { useCampaignStore } from '../stores/campaign.store';
 import { useContainerWidth } from '../hooks/useContainerWidth';
 import { IconChevronLeft } from '~/shared/ui/Icons';
 
@@ -20,24 +21,38 @@ export interface ScreenCard {
 const SCREEN_COMPACTOR = getCompactor(null, false, true);
 const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
 const GRID_CONFIG = { cols: 60, rowHeight: 15, margin: [6, 6] as [number, number] };
-// Screens are always arrangeable - placing panels is their whole purpose, and
-// there is no saved layout to protect (screen layouts are session-only).
-// `cancel` keeps interactive header elements (return button, slice select)
-// from starting a drag, which would swallow their clicks.
-const DRAG_CONFIG = {
-  enabled: true,
-  handle: '.screen-drag-handle',
-  cancel: 'button, select, input, a',
-};
-const RESIZE_CONFIG = { enabled: true, handles: [...RESIZE_HANDLES] };
 
-/** A secondary canvas hosted in a pop-out window: its own grid of cards,
- *  freely arrangeable, with a per-card control to send the card back. */
+/** A secondary canvas hosted in a pop-out window: its own grid of cards.
+ *  Arranging follows the main canvas's edit-layout mode (the store is shared
+ *  across windows), including the `.is-editing` styling that reveals drag
+ *  headers and resize handles. */
 export const PopoutScreen = ({ screenId, cards }: { screenId: number; cards: ScreenCard[] }) => {
   const layout = usePopoutStore((s) => s.screenLayouts[screenId]);
   const setScreenLayout = usePopoutStore((s) => s.setScreenLayout);
   const sendCard = usePopoutStore((s) => s.sendCard);
+  const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
   const { containerRef, containerWidth, isMounted } = useContainerWidth();
+
+  // Cards sent here are converted to this screen's grid units so they keep
+  // their pixel size; report the live canvas width for that conversion.
+  useEffect(() => {
+    if (containerWidth > 0) usePopoutStore.getState().setScreenWidth(screenId, containerWidth);
+  }, [screenId, containerWidth]);
+
+  // `cancel` keeps interactive header elements (return button, slice select)
+  // from starting a drag, which would swallow their clicks.
+  const dragConfig = useMemo(
+    () => ({
+      enabled: isEditingLayout,
+      handle: '.screen-drag-handle',
+      cancel: 'button, select, input, a',
+    }),
+    [isEditingLayout]
+  );
+  const resizeConfig = useMemo(
+    () => ({ enabled: isEditingLayout, handles: [...RESIZE_HANDLES] }),
+    [isEditingLayout]
+  );
 
   // Only render items the layout knows about, and vice versa - during a
   // send/return the two stores update in separate renders.
@@ -48,14 +63,14 @@ export const PopoutScreen = ({ screenId, cards }: { screenId: number; cards: Scr
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto overflow-x-hidden bg-base p-1"
+      className={`h-full overflow-y-auto overflow-x-hidden bg-base p-1 ${isEditingLayout ? 'is-editing' : ''}`}
       data-testid={`popout-screen-${screenId}`}
     >
       {renderable.length === 0 ? (
         <div className="flex h-full items-center justify-center px-6">
           <p className="max-w-sm text-center text-sm leading-relaxed text-neutral-400">
-            This screen is empty. In the main window, hover a panel and use its send-to-screen
-            button to move it here, then drag panels by their header to arrange them.
+            This screen is empty. In the main window, turn on Edit Layout, hover a panel and use its
+            send-to-screen button to move it here, then drag panels by their header to arrange them.
           </p>
         </div>
       ) : (
@@ -64,33 +79,36 @@ export const PopoutScreen = ({ screenId, cards }: { screenId: number; cards: Scr
             width={containerWidth}
             layout={effectiveLayout}
             gridConfig={GRID_CONFIG}
-            dragConfig={DRAG_CONFIG}
-            resizeConfig={RESIZE_CONFIG}
+            dragConfig={dragConfig}
+            resizeConfig={resizeConfig}
             compactor={SCREEN_COMPACTOR}
             onLayoutChange={(l) => setScreenLayout(screenId, l)}
           >
             {renderable.map((card) => (
               <div key={card.key} className="grid-card">
                 <div
-                  className={`screen-drag-handle card-header cursor-grab active:cursor-grabbing ${card.headerClassName ?? ''}`}
+                  className={`screen-drag-handle card-header ${isEditingLayout ? 'editable' : ''} ${card.headerClassName ?? ''}`}
                   onClick={card.onHeaderClick}
                 >
                   {card.headerContent ?? (
                     <span className="min-w-0 flex-1 truncate">{card.title}</span>
                   )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      sendCard(card.key, null);
-                    }}
-                    title={`Return ${card.title} to the main window`}
-                    aria-label={`Return ${card.title} to the main window`}
-                    data-testid={`return-${card.key}`}
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700"
-                  >
-                    <IconChevronLeft className="h-3.5 w-3.5" />
-                  </button>
+                  {isEditingLayout && (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendCard(card.key, null);
+                      }}
+                      title={`Return ${card.title} to the main window`}
+                      aria-label={`Return ${card.title} to the main window`}
+                      data-testid={`return-${card.key}`}
+                      className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700"
+                    >
+                      <IconChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
                 {card.body}
               </div>

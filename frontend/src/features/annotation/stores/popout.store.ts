@@ -25,6 +25,10 @@ interface ScreensSnapshot {
  *  through to it. After a reload the user restores the split with one click
  *  (browsers require a user gesture to open windows). */
 interface PopoutState extends ScreensSnapshot {
+  /** Live inner canvas width per open screen, so cards sent there can be
+   *  converted to grid units that keep their pixel size. Runtime only. */
+  screenWidths: Record<number, number>;
+  setScreenWidth: (id: number, width: number) => void;
   /** `${userId}:${campaignId}` while an annotation canvas is mounted. */
   activeKey: string | null;
   /** Persisted screen configuration per user+campaign. */
@@ -69,10 +73,14 @@ export const usePopoutStore = create<PopoutState>()(
       assignment: {},
       screenLayouts: {},
       lastBounds: {},
+      screenWidths: {},
       activeKey: null,
       saved: {},
 
       setActiveKey: (key) => set({ activeKey: key }),
+
+      setScreenWidth: (id, width) =>
+        set((s) => ({ screenWidths: { ...s.screenWidths, [id]: width } })),
 
       sendCard: (key, target, size = FALLBACK_CARD_SIZE) =>
         set((s) => {
@@ -109,11 +117,16 @@ export const usePopoutStore = create<PopoutState>()(
           );
           const screenLayouts = { ...s.screenLayouts };
           delete screenLayouts[id];
-          return withSaved(s, {
-            screens: s.screens.filter((sid) => sid !== id),
-            assignment,
-            screenLayouts,
-          });
+          const screenWidths = { ...s.screenWidths };
+          delete screenWidths[id];
+          return {
+            ...withSaved(s, {
+              screens: s.screens.filter((sid) => sid !== id),
+              assignment,
+              screenLayouts,
+            }),
+            screenWidths,
+          };
         }),
 
       setScreenLayout: (id, layout) =>
@@ -147,7 +160,14 @@ export const usePopoutStore = create<PopoutState>()(
         }),
 
       reset: () =>
-        set({ activeKey: null, screens: [], assignment: {}, screenLayouts: {}, lastBounds: {} }),
+        set({
+          activeKey: null,
+          screens: [],
+          assignment: {},
+          screenLayouts: {},
+          lastBounds: {},
+          screenWidths: {},
+        }),
     }),
     {
       name: 'annotation-screens',

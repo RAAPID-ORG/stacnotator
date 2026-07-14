@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withoutKeys, mergeLayoutChange, appendItem } from './popoutLayout';
+import { withoutKeys, mergeLayoutChange, appendItem, scaleWidthToScreen } from './popoutLayout';
 import type { Layout } from 'react-grid-layout';
 
 const layout: Layout = [
@@ -38,6 +38,25 @@ describe('appendItem', () => {
   it('is a no-op when the card is already on the screen', () => {
     const screen: Layout = [{ i: 'controls', x: 5, y: 5, w: 20, h: 12 }];
     expect(appendItem(screen, 'controls', { w: 1, h: 1 })).toBe(screen);
+  });
+});
+
+describe('scaleWidthToScreen', () => {
+  it('keeps the pixel width when the screen canvas is narrower', () => {
+    // 16 cols of an 1800px canvas = 480px = 24 cols of a 1200px screen.
+    expect(scaleWidthToScreen(16, 1800, 1200)).toBe(24);
+  });
+
+  it('caps at the full grid width', () => {
+    expect(scaleWidthToScreen(50, 2400, 800)).toBe(60);
+  });
+
+  it('never collapses below a usable minimum', () => {
+    expect(scaleWidthToScreen(4, 800, 2400)).toBe(4);
+  });
+
+  it('passes through when a measurement is missing', () => {
+    expect(scaleWidthToScreen(16, 0, 1200)).toBe(16);
   });
 });
 

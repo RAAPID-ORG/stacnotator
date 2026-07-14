@@ -16,6 +16,14 @@ export function appendItem(layout: Layout, key: string, size: { w: number; h: nu
   return [...layout, { i: key, x: 0, y: bottom, w: size.w, h: size.h }];
 }
 
+/** Convert a card width from one canvas to another so the card keeps its
+ *  pixel width: both grids have 60 columns, but a column is wider on a wide
+ *  canvas than in a smaller screen window. */
+export function scaleWidthToScreen(w: number, sourcePx: number, targetPx: number): number {
+  if (sourcePx <= 0 || targetPx <= 0) return w;
+  return Math.max(4, Math.min(60, Math.round((w * sourcePx) / targetPx)));
+}
+
 /** react-grid-layout reports layout changes without the withheld items, but
  *  `currentLayout` must keep a slot for every popped-out card - it is where
  *  the card returns to, and what `saveLayout` persists. Re-add the remembered
