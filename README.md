@@ -216,4 +216,4 @@ STACNotator supports multiple deployment options (or maybe only one at the momen
 
 ## Contributing
 This project welcomes contributions and proposals. Please open up a issue deiscribing your requirements, proposed solutions or  encountered bugs. Check the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
-To familiarize yourself with the project please referr to the [docs](docs/architcture.md). For the development workflow (branching, reviews, CI) see [docs/development.md](docs/development.md).
+To familiarize yourself with the project please refer to the [docs](docs/architecture.md). For the development workflow (branching, reviews, CI) see [docs/development.md](docs/development.md).
