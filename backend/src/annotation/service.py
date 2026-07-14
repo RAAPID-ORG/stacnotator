@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
+from pydantic import TypeAdapter
 from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,6 +13,7 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
+from src.annotation.forms import FormValidationError, validate_form_values
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -26,6 +28,7 @@ from src.annotation.schemas import (
 )
 from src.annotation.tiles import build_mvt_query
 from src.auth.service import is_admin as is_platform_admin
+from src.campaigns.form_fields import FormField
 from src.campaigns.models import Campaign, CampaignUser
 from src.campaigns.policy import context_from_role_map, counts_toward_completion, is_allowed
 from src.campaigns.schemas import LabellingPolicy
@@ -37,6 +40,8 @@ from src.campaigns.service import (
     is_authoritative_reviewer,
 )
 from src.config import get_settings
+
+FORM_FIELDS_ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +89,18 @@ def validate_label_id(campaign: Campaign, label_id: int) -> None:
             status_code=400,
             detail=f"label_id {label_id} is not a label of this campaign",
         )
+
+
+def validate_annotation_form_values(
+    campaign: Campaign, form_values: dict | None, *, enforce_required: bool
+) -> dict | None:
+    """Validate/normalize submitted form values against the campaign's field
+    definitions, raising HTTP 400 on any FormValidationError."""
+    fields = FORM_FIELDS_ADAPTER.validate_python(campaign.settings.form_fields or [])
+    try:
+        return validate_form_values(fields, form_values, enforce_required=enforce_required)
+    except FormValidationError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
 
 
 def _require_explore_access(db: Session, campaign: Campaign, user_id: UUID) -> None:
@@ -333,6 +350,12 @@ def add_annotation_for_task(
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
 
+    normalized_form_values = validate_annotation_form_values(
+        campaign,
+        annotation_create.form_values,
+        enforce_required=annotation_create.label_id is not None,
+    )
+
     # Check if annotation already exists for this task
     existing_annotation = db.execute(
         select(Annotation).where(
@@ -368,6 +391,7 @@ def add_annotation_for_task(
             existing_annotation.flag_comment = (
                 annotation_create.flag_comment if annotation_create.flagged_for_review else None
             )
+            existing_annotation.form_values = normalized_form_values
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
             annotation = existing_annotation
@@ -387,6 +411,7 @@ def add_annotation_for_task(
                 flag_comment=(
                     annotation_create.flag_comment if annotation_create.flagged_for_review else None
                 ),
+                form_values=normalized_form_values,
             )
             db.add(annotation)
 
@@ -543,6 +568,10 @@ def create_annotation(
     if annotation_create.label_id is not None:
         validate_label_id(campaign, annotation_create.label_id)
 
+    normalized_form_values = validate_annotation_form_values(
+        campaign, annotation_create.form_values, enforce_required=True
+    )
+
     try:
         # Create geometry from WKT
         geometry = AnnotationGeometry(geometry=f"SRID=4326;{annotation_create.geometry_wkt}")
@@ -562,6 +591,7 @@ def create_annotation(
             flag_comment=(
                 annotation_create.flag_comment if annotation_create.flagged_for_review else None
             ),
+            form_values=normalized_form_values,
             imagery_slice_id=annotation_create.imagery_slice_id,
             imagery_source_name=annotation_create.imagery_source_name,
             imagery_start_date=annotation_create.imagery_start_date,
@@ -602,6 +632,11 @@ def create_annotations_bulk(
     for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:
         validate_label_id(campaign, label_id)
 
+    normalized_form_values = [
+        validate_annotation_form_values(campaign, a.form_values, enforce_required=True)
+        for a in annotations_create
+    ]
+
     try:
         geometries = [
             AnnotationGeometry(geometry=f"SRID=4326;{a.geometry_wkt}") for a in annotations_create
@@ -620,12 +655,15 @@ def create_annotations_bulk(
                 annotation_task_id=None,  # Standalone annotations
                 flagged_for_review=a.flagged_for_review or False,
                 flag_comment=a.flag_comment if a.flagged_for_review else None,
+                form_values=form_values,
                 imagery_slice_id=a.imagery_slice_id,
                 imagery_source_name=a.imagery_source_name,
                 imagery_start_date=a.imagery_start_date,
                 imagery_end_date=a.imagery_end_date,
             )
-            for a, geometry in zip(annotations_create, geometries, strict=True)
+            for a, geometry, form_values in zip(
+                annotations_create, geometries, normalized_form_values, strict=True
+            )
         ]
         db.add_all(annotations)
         bump_campaign_annotations_version(db, campaign.id)
@@ -712,6 +750,12 @@ def update_annotation(
             if campaign is not None:
                 validate_label_id(campaign, annotation_update.label_id)
             annotation.label_id = annotation_update.label_id
+
+        annotation.form_values = validate_annotation_form_values(
+            campaign,
+            annotation_update.form_values,
+            enforce_required=annotation.label_id is not None,
+        )
 
         # Update comment if provided (allow empty string to clear)
         if annotation_update.comment is not None:

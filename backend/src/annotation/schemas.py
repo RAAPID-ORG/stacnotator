@@ -15,6 +15,14 @@ from src.annotation.constants import (
 )
 
 
+class DateRangeValue(BaseModel):
+    start: str
+    end: str
+
+
+FormValue = int | float | str | list[int] | DateRangeValue
+
+
 class GeometryOut(BaseModel):
     id: int
     geometry: str
@@ -47,6 +55,7 @@ class AnnotationFromTaskOut(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
     # Computed per request from the labelling policy (campaigns/policy.py),
     # never stored. None for standalone annotations.
     counts_toward_completion: bool | None = None
@@ -267,6 +276,7 @@ class AnnotationFromTaskCreate(BaseModel):
     is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
     flag_comment: str | None = None
+    form_values: dict[str, FormValue] | None = None
 
 
 class AnnotationTaskSubmitResponse(BaseModel):
@@ -299,6 +309,7 @@ class AnnotationCreate(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
 
 
 class AnnotationsExtentOut(BaseModel):
@@ -350,6 +361,7 @@ class AnnotationUpdate(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):
