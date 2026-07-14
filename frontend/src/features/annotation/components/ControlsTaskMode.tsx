@@ -10,6 +10,7 @@ import { ReviewAnnotationList } from './ReviewAnnotationList';
 import { AnnotationForm } from './AnnotationForm';
 import { isAudienceMember, type PolicyContext } from '../utils/labellingPolicy';
 import { missingRequiredFields, formatMissingFieldsTitle } from '../utils/formValues';
+import { LABEL_FIELD_INDEX } from '../utils/formFieldNav';
 
 interface AnnotationControlsProps {
   labels: LabelBase[];
@@ -254,7 +255,11 @@ export const AnnotationControls = ({
           />
         )}
 
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
+        <div
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
+            activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+          }`}
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
               Label

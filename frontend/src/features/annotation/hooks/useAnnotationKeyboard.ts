@@ -334,7 +334,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
         const activeField =
-          tasksActive && activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+          tasksActive && activeFieldIndex !== null && activeFieldIndex >= 0
+            ? formFields[activeFieldIndex]
+            : undefined;
         if (activeField) {
           applyFieldDigit(activeField, e.key, formValues, setFormValues);
         } else {
@@ -465,7 +467,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         // Submit (or, with an input-like form field active, focus it instead)
         case 'Enter': {
           const activeField =
-            tasksActive && activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+            tasksActive && activeFieldIndex !== null && activeFieldIndex >= 0
+              ? formFields[activeFieldIndex]
+              : undefined;
           if (activeField && !digitTargetsOption(activeField)) {
             e.preventDefault();
             focusFormFieldInput(activeField.id);

@@ -29,7 +29,7 @@ import {
  *         custom form field is active - see form field navigation below)
  *
  * Form field navigation (shared activeFieldIndex/formValues with task mode):
- *   Tab / Shift+Tab - Cycle the active custom form field
+ *   Tab / Shift+Tab - Cycle the label selector, then each custom form field
  *   1-9 - With a select/multiselect field active, toggle that option
  *   Enter / any digit - With a number/text/date/daterange field active, focus its input
  *   Escape - Clear the active field (also handled by DrawingLayer for edit/draw cancel)
@@ -95,7 +95,10 @@ export const useOpenModeKeyboard = () => {
       // Number keys: with a custom form field active, dispatch to it (toggle
       // an option or focus its input) instead of selecting a label.
       if (/^[0-9]$/.test(e.key)) {
-        const activeField = activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+        const activeField =
+          activeFieldIndex !== null && activeFieldIndex >= 0
+            ? formFields[activeFieldIndex]
+            : undefined;
         if (activeField) {
           e.preventDefault();
           applyFieldDigit(activeField, e.key, formValues, setFormValues);
@@ -118,7 +121,10 @@ export const useOpenModeKeyboard = () => {
 
       // Enter with an input-like form field active focuses it for typing.
       if (e.key === 'Enter') {
-        const activeField = activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
+        const activeField =
+          activeFieldIndex !== null && activeFieldIndex >= 0
+            ? formFields[activeFieldIndex]
+            : undefined;
         if (activeField && !digitTargetsOption(activeField)) {
           e.preventDefault();
           focusFormFieldInput(activeField.id);

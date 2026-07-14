@@ -6,6 +6,7 @@ import {
   digitTargetsOption,
   optionIdForDigit,
   fieldDigitAction,
+  LABEL_FIELD_INDEX,
 } from './formFieldNav';
 import type { FormValues } from './formValues';
 
@@ -48,8 +49,10 @@ describe('cycleFieldIndex', () => {
     expect(cycleFieldIndex(0, 0, 1)).toBeNull();
   });
 
-  it('cycles forward through the full range and back to null', () => {
+  it('cycles forward through the label slot, the full field range, and back to null', () => {
     let idx: number | null = null;
+    idx = cycleFieldIndex(idx, 3, 1);
+    expect(idx).toBe(LABEL_FIELD_INDEX);
     idx = cycleFieldIndex(idx, 3, 1);
     expect(idx).toBe(0);
     idx = cycleFieldIndex(idx, 3, 1);
@@ -59,10 +62,10 @@ describe('cycleFieldIndex', () => {
     idx = cycleFieldIndex(idx, 3, 1);
     expect(idx).toBeNull();
     idx = cycleFieldIndex(idx, 3, 1);
-    expect(idx).toBe(0);
+    expect(idx).toBe(LABEL_FIELD_INDEX);
   });
 
-  it('cycles backward through the full range and back to null', () => {
+  it('cycles backward through the full field range, the label slot, and back to null', () => {
     let idx: number | null = null;
     idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(2);
@@ -71,16 +74,20 @@ describe('cycleFieldIndex', () => {
     idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(0);
     idx = cycleFieldIndex(idx, 3, -1);
+    expect(idx).toBe(LABEL_FIELD_INDEX);
+    idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBeNull();
     idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(2);
   });
 
-  it('single field cycles null -> 0 -> null', () => {
-    expect(cycleFieldIndex(null, 1, 1)).toBe(0);
+  it('single field cycles null -> label -> 0 -> null', () => {
+    expect(cycleFieldIndex(null, 1, 1)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, 1)).toBe(0);
     expect(cycleFieldIndex(0, 1, 1)).toBeNull();
     expect(cycleFieldIndex(null, 1, -1)).toBe(0);
-    expect(cycleFieldIndex(0, 1, -1)).toBeNull();
+    expect(cycleFieldIndex(0, 1, -1)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, -1)).toBeNull();
   });
 });
 

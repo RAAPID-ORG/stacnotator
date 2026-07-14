@@ -14,6 +14,7 @@ import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 import { TOOL_KEYS, EXPLORE_PANEL_SHORTCUTS } from '../hotkeys';
 import { ShortcutList } from './ShortcutList';
 import { AnnotationForm } from './AnnotationForm';
+import { LABEL_FIELD_INDEX } from '../utils/formFieldNav';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
 
@@ -288,7 +289,11 @@ const OpenModeControls = () => {
         {/* Label Selection - show for annotate & label-vector tools */}
         {(activeTool === 'annotate' || activeTool === 'labelvector') && (
           <>
-            <div className="flex flex-col gap-1.5 w-full">
+            <div
+              className={`flex flex-col gap-1.5 w-full ${
+                activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+              }`}
+            >
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
               <div className="flex flex-col gap-1">
                 {extendedLabels.map((label, index) => {

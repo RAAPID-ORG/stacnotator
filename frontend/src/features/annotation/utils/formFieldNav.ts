@@ -2,7 +2,13 @@ import type { FormField, FormValues } from './formValues';
 import { applySelectOption } from './formValues';
 
 // activeIndex convention: null = no field focused (digits select labels, task mode)
+// LABEL_FIELD_INDEX = the primary label selector focused (digits still select labels)
 // 0..fields.length-1 = custom field focused.
+export const LABEL_FIELD_INDEX = -1;
+
+// Cycle order: null -> LABEL_FIELD_INDEX -> 0 -> ... -> fieldCount-1 -> null
+// (reversed for direction -1). fieldCount 0 always stays null so zero-field
+// campaigns are unaffected - callers gate Tab handling on fieldCount > 0.
 export function cycleFieldIndex(
   current: number | null,
   fieldCount: number,
@@ -10,11 +16,14 @@ export function cycleFieldIndex(
 ): number | null {
   if (fieldCount === 0) return null;
   if (direction === 1) {
-    if (current === null) return 0;
+    if (current === null) return LABEL_FIELD_INDEX;
+    if (current === LABEL_FIELD_INDEX) return 0;
     return current === fieldCount - 1 ? null : current + 1;
   }
   if (current === null) return fieldCount - 1;
-  return current === 0 ? null : current - 1;
+  if (current === 0) return LABEL_FIELD_INDEX;
+  if (current === LABEL_FIELD_INDEX) return null;
+  return current - 1;
 }
 
 export function digitTargetsOption(field: FormField): boolean {
