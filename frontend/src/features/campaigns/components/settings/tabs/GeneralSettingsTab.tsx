@@ -15,6 +15,7 @@ import {
   updateSampleExtent,
 } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
+import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
@@ -384,6 +385,21 @@ export const GeneralSettingsTab: React.FC<Props> = ({
             <span className="text-xs text-red-600">Label names must be non-empty and unique.</span>
           )}
         </div>
+      </section>
+
+      <section className={sectionCls}>
+        <div>
+          <h2 className="section-heading">Custom form fields</h2>
+          <p className="section-description">
+            Additional questions annotators answer per annotation. Configured at campaign creation;
+            editing here is not yet supported.
+          </p>
+        </div>
+        <FormFieldsEditor
+          value={campaign.settings.form_fields ?? []}
+          onChange={() => {}}
+          readOnly
+        />
       </section>
 
       <section className={sectionCls}>

@@ -1,5 +1,6 @@
 import type { CampaignCreate } from '~/api/client';
 import type { ImageryStepState } from '~/features/campaigns/components/imagery/types';
+import { validateFormFields } from './formFields';
 
 export type FieldErrors = Record<string, string>;
 
@@ -44,6 +45,11 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
     if (emptyLabels.length > 0) {
       errors.labels = `${emptyLabels.length} label${emptyLabels.length > 1 ? 's have' : ' has'} an empty name.`;
     }
+  }
+
+  const formFieldErrors = validateFormFields(s.form_fields ?? []);
+  if (formFieldErrors.length > 0) {
+    errors.form_fields = formFieldErrors.join(' ');
   }
 
   return { errors, isValid: Object.keys(errors).length === 0 };

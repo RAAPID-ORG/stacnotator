@@ -1,5 +1,6 @@
 import type { CampaignCreate, CampaignSettingsCreate } from '~/api/client';
 import { BoundingBoxEditor } from '../../BoundingBoxEditor';
+import { FormFieldsEditor } from '../../FormFieldsEditor';
 import { LabelsEditor } from '../../LabelsEditor';
 import { Select } from '~/shared/ui/forms';
 
@@ -61,6 +62,17 @@ export const StepSettings = ({
           value={s.labels}
           onChange={(labels) => updateSettings('labels', labels)}
           showGeometryType
+        />
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium text-neutral-900 mb-1">Custom form fields</h3>
+        <p className="text-xs text-neutral-500 mb-3">
+          Additional questions annotators answer per annotation.
+        </p>
+        <FormFieldsEditor
+          value={s.form_fields ?? []}
+          onChange={(form_fields) => updateSettings('form_fields', form_fields)}
         />
       </div>
 
