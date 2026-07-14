@@ -225,7 +225,7 @@ class TestUpdateAnnotationFormValuesWiring:
 
         assert annotation.form_values == {"1": 2}
 
-    def test_rejects_missing_required_form_value_when_resulting_label_present(self):
+    def test_rejects_empty_form_values_when_required_and_label_present(self):
         campaign = _campaign(REQUIRED_SELECT_FIELD)
         existing = MagicMock()
         existing.label_id = 1
@@ -233,7 +233,11 @@ class TestUpdateAnnotationFormValuesWiring:
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
-            label_id=None, comment=None, geometry_wkt=None, is_authoritative=None
+            label_id=None,
+            comment=None,
+            geometry_wkt=None,
+            is_authoritative=None,
+            form_values={},
         )
 
         with pytest.raises(HTTPException) as exc:
@@ -241,15 +245,36 @@ class TestUpdateAnnotationFormValuesWiring:
 
         assert exc.value.status_code == 400
 
-    def test_form_values_not_enforced_when_resulting_label_absent(self):
+    def test_omitted_form_values_keeps_stored_values(self):
         campaign = _campaign(REQUIRED_SELECT_FIELD)
         existing = MagicMock()
-        existing.label_id = None
+        existing.label_id = 1
         existing.created_by_user_id = uuid4()
+        existing.form_values = {"1": 1}
         db = _db(cu=_MEMBER)
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
             label_id=None, comment="a note", geometry_wkt=None, is_authoritative=None
+        )
+
+        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+
+        assert annotation.form_values == {"1": 1}
+
+    def test_empty_form_values_clears_when_label_absent(self):
+        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        existing = MagicMock()
+        existing.label_id = None
+        existing.created_by_user_id = uuid4()
+        existing.form_values = {"1": 1}
+        db = _db(cu=_MEMBER)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        payload = AnnotationUpdate(
+            label_id=None,
+            comment=None,
+            geometry_wkt=None,
+            is_authoritative=None,
+            form_values={},
         )
 
         annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)

@@ -751,11 +751,14 @@ def update_annotation(
                 validate_label_id(campaign, annotation_update.label_id)
             annotation.label_id = annotation_update.label_id
 
-        annotation.form_values = validate_annotation_form_values(
-            campaign,
-            annotation_update.form_values,
-            enforce_required=annotation.label_id is not None,
-        )
+        # Patch semantics like every other field: omitting form_values keeps
+        # the stored answers, sending {} clears them (normalizes to None).
+        if annotation_update.form_values is not None:
+            annotation.form_values = validate_annotation_form_values(
+                campaign,
+                annotation_update.form_values,
+                enforce_required=annotation.label_id is not None,
+            )
 
         # Update comment if provided (allow empty string to clear)
         if annotation_update.comment is not None:
