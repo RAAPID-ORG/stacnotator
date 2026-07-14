@@ -184,7 +184,9 @@ const LayerSelector = ({ layers, selectedLayer, onLayerSelect }: LayerSelectorPr
               ))}
             </div>
           </div>,
-          document.body
+          // The selector may live in a pop-out screen window; portal into the
+          // button's document so the dropdown opens next to it.
+          buttonRef.current?.ownerDocument.body ?? document.body
         )}
     </div>
   );

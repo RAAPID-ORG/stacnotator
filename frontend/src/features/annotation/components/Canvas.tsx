@@ -25,7 +25,11 @@ import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
 import { useAccountStore } from '~/features/account/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
-import { IconEyeSlash } from '~/shared/ui/Icons';
+import { IconClose, IconExternalLink, IconEyeSlash } from '~/shared/ui/Icons';
+import { PopoutWindow, type PopoutBounds } from '~/shared/ui/PopoutWindow';
+import { PopoutScreen, type ScreenCard } from './PopoutScreen';
+import { usePopoutStore } from '../stores/popout.store';
+import { mergeLayoutChange, scaleWidthToScreen, withoutKeys } from '../utils/popoutLayout';
 
 // A single stable compactor instance - recreating it per render would
 // invalidate react-grid-layout's internal memos that key on its identity.
@@ -34,6 +38,106 @@ const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
 
 // Renew interval for a held claim; TTL/3, well inside the backend 30 min TTL.
 const CLAIM_RENEW_MS = 10 * 60 * 1000;
+
+// Initial OS-window size for a newly opened screen; the store remembers the
+// user's size/position per screen for the rest of the session.
+const SCREEN_DEFAULT_BOUNDS: PopoutBounds = { width: 1280, height: 860 };
+// Rough horizontal overhead of a screen window (scrollbar + canvas padding),
+// used to estimate its canvas width before the window has reported one.
+const SCREEN_CHROME_PX = 40;
+
+/** Card-header control that sends a canvas card to a secondary screen
+ *  window. With no screen open a click opens the first one directly; with
+ *  screens open it offers the existing screens plus "New screen". Lives
+ *  inside each card's header so it never overlaps card content. */
+const SendToScreenButton = ({
+  cardKey,
+  label,
+  onSend,
+  darkBg = false,
+  revealClass = 'opacity-0 group-hover/card:opacity-100',
+  className = '',
+}: {
+  cardKey: string;
+  label: string;
+  onSend: (target: number | 'new') => void;
+  darkBg?: boolean;
+  revealClass?: string;
+  className?: string;
+}) => {
+  const screens = usePopoutStore((s) => s.screens);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen]);
+
+  const send = (target: number | 'new') => {
+    setMenuOpen(false);
+    onSend(target);
+  };
+
+  return (
+    <div ref={wrapRef} className={`relative shrink-0 ${className}`}>
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (screens.length === 0) send('new');
+          else setMenuOpen((open) => !open);
+        }}
+        title={`Move ${label} to another screen`}
+        aria-label={`Move ${label} to another screen`}
+        data-testid={`send-to-screen-${cardKey}`}
+        className={`grid h-5 w-5 place-items-center rounded transition-colors focus-visible:opacity-100 ${
+          darkBg
+            ? 'text-white/70 hover:bg-white/10 hover:text-white'
+            : 'text-neutral-400 hover:bg-neutral-100 hover:text-brand-600'
+        } ${menuOpen ? 'opacity-100' : revealClass}`}
+      >
+        <IconExternalLink className="h-3.5 w-3.5" />
+      </button>
+      {menuOpen && (
+        // z above Leaflet's panes/controls (~1000) so the menu isn't painted
+        // under the minimap; the RGL item's transform keeps this context local.
+        <div className="absolute right-0 top-6 z-[1001] w-36 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-lg">
+          {screens.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                send(id);
+              }}
+              data-testid={`send-to-screen-${cardKey}-${id}`}
+              className="block w-full px-3 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+            >
+              Screen {id}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              send('new');
+            }}
+            data-testid={`send-to-screen-${cardKey}-new`}
+            className="block w-full border-t border-neutral-100 px-3 py-1.5 text-left text-xs font-medium text-brand-700 hover:bg-brand-50"
+          >
+            New screen
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -64,6 +168,16 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const setCurrentLayout = useCampaignStore((s) => s.setCurrentLayout);
   const hideWindow = useCampaignStore((s) => s.hideWindow);
 
+  const screens = usePopoutStore((s) => s.screens);
+  const assignment = usePopoutStore((s) => s.assignment);
+  const sendCard = usePopoutStore((s) => s.sendCard);
+  const closeScreen = usePopoutStore((s) => s.closeScreen);
+  const rememberBounds = usePopoutStore((s) => s.rememberBounds);
+  const lastBounds = usePopoutStore((s) => s.lastBounds);
+  const savedScreens = usePopoutStore((s) => (s.activeKey ? (s.saved[s.activeKey] ?? null) : null));
+  const restoreSaved = usePopoutStore((s) => s.restoreSaved);
+  const clearSaved = usePopoutStore((s) => s.clearSaved);
+
   const allTasks = useTaskStore((s) => s.allTasks);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const taskFilter = useTaskStore((s) => s.taskFilter);
@@ -76,6 +190,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const claimCurrentTask = useTaskStore((s) => s.claimCurrentTask);
 
   const currentUserId = useAccountStore((s) => s.account?.id);
+
+  // Scope the persisted screen configuration to this user+campaign.
+  const campaignId = campaign?.id;
+  useEffect(() => {
+    if (campaignId == null || currentUserId == null || isMobile) return;
+    usePopoutStore.getState().setActiveKey(`${currentUserId}:${campaignId}`);
+  }, [campaignId, currentUserId, isMobile]);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -208,7 +329,60 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return items;
   }, [campaign, containerHeight, windowCollections]);
 
-  const effectiveLayout = isMobile ? mobileLayout : currentLayout;
+  // Screens are a desktop affordance; mobile keeps its fixed stacked layout.
+  const popped = useMemo(
+    () => new Set(isMobile ? [] : Object.keys(assignment)),
+    [isMobile, assignment]
+  );
+
+  const effectiveLayout = isMobile
+    ? mobileLayout
+    : currentLayout && withoutKeys(currentLayout, popped);
+
+  // The grid reports layout changes without the sent-away cards; keep their
+  // remembered slots in currentLayout so saving and returning both work.
+  // Reads both stores at call time: react-grid-layout may invoke a callback
+  // captured on an earlier render, and a stale `popped` here would silently
+  // drop a sent-away card from the layout.
+  const handleLayoutChange = (next: Layout) => {
+    const previous = useCampaignStore.getState().currentLayout;
+    const poppedNow = new Set(Object.keys(usePopoutStore.getState().assignment));
+    setCurrentLayout(mergeLayoutChange(next, previous, poppedNow));
+  };
+
+  // Keep the card's PIXEL size when it moves: rows are fixed-height so h
+  // transfers as-is, but a grid column is narrower in a smaller screen
+  // window, so convert w using the two canvas widths.
+  const sendToScreen = (key: string, target: number | 'new') => {
+    const item = (useCampaignStore.getState().currentLayout ?? []).find((it) => it.i === key);
+    if (!item) {
+      sendCard(key, target);
+      return;
+    }
+    const { screenWidths, lastBounds: bounds } = usePopoutStore.getState();
+    const screenPx =
+      target === 'new'
+        ? SCREEN_DEFAULT_BOUNDS.width - SCREEN_CHROME_PX
+        : (screenWidths[target] ??
+          (bounds[target]?.width ?? SCREEN_DEFAULT_BOUNDS.width) - SCREEN_CHROME_PX);
+    sendCard(key, target, {
+      w: scaleWidthToScreen(item.w, containerWidth, screenPx),
+      h: item.h,
+    });
+  };
+
+  // A sent-away card can disappear from under us (view switch removes its
+  // collection, campaign settings drop the time series): return it.
+  useEffect(() => {
+    const keys = Object.keys(assignment);
+    if (keys.length === 0) return;
+    const valid = new Set(['controls', 'minimap']);
+    if (campaign && campaign.time_series.length > 0) valid.add('timeseries');
+    for (const wc of windowCollections) valid.add(String(wc.collection_id));
+    for (const key of keys) {
+      if (!valid.has(key)) sendCard(key, null);
+    }
+  }, [assignment, campaign, windowCollections, sendCard]);
 
   // react-grid-layout memoizes against the *identity* of these config props, so
   // keep them stable across renders to avoid needlessly re-firing its effects.
@@ -348,7 +522,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     );
   };
 
-  const renderMinimapHeader = () => (
+  const renderMinimapHeader = (withSendButton = false) => (
     <div className="flex items-center gap-2 w-full min-w-0">
       {!searchExpanded &&
         (focusPoint ? (
@@ -395,9 +569,113 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           onSelect={(result) => triggerSearchFocus(result.center, result.extent)}
           className={searchExpanded ? 'w-full' : ''}
         />
+        {withSendButton && showPopoutButtons && !searchExpanded && (
+          <SendToScreenButton
+            cardKey="minimap"
+            label="the location minimap"
+            onSend={(target) => sendToScreen('minimap', target)}
+          />
+        )}
       </div>
     </div>
   );
+
+  // Sending cards to screens is a layout decision, so it lives in edit mode
+  // (like hiding windows); the split persists per user, so it's a one-time
+  // setup rather than an every-session chore.
+  const showPopoutButtons = !isMobile && isEditingLayout;
+
+  // Screens cannot reopen automatically after a reload (browsers require a
+  // user gesture per popup), so offer the saved split back with one click.
+  const restorableCount =
+    !isMobile &&
+    screens.length === 0 &&
+    savedScreens &&
+    Object.keys(savedScreens.assignment).length > 0
+      ? savedScreens.screens.length
+      : 0;
+
+  // Card bodies are defined once and rendered either as a grid child or into
+  // a pop-out window - never both - so component state and maps stay intact
+  // in whichever window currently hosts them.
+  const controlsBody = (
+    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      {workMode === 'tasks' ? (
+        <ControlsTaskMode
+          labels={campaign.settings.labels}
+          onSubmit={submitAnnotation}
+          onNext={nextTask}
+          onPrevious={previousTask}
+          onGoToTask={goToTask}
+          isSubmitting={isSubmitting}
+          totalTasksCount={visibleTasks.length}
+          currentTask={currentTask}
+          commentInputRef={commentInputRef}
+        />
+      ) : (
+        <ControlsOpenMode />
+      )}
+    </div>
+  );
+
+  const timeseriesBody =
+    campaign.time_series.length > 0 ? (
+      <TimeSeriesChart
+        timeseries={campaign.time_series}
+        latLon={timeseriesLatLon}
+        prefetchCoordinates={visibleTasks
+          .slice(currentTaskIndex + 1, currentTaskIndex + 4)
+          .map((task) => extractCentroidFromWKT(task.geometry.geometry))
+          .filter((coord): coord is LatLon => coord !== null)}
+        probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
+      />
+    ) : null;
+
+  const minimapBody = (
+    <MiniMap
+      center={center}
+      bbox={campaignBbox || [0, 0, 0, 0]}
+      visibleBounds={workMode === 'explore' ? currentMapBounds : null}
+      onViewportDrag={
+        workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+      }
+      fitBbox={workMode === 'tasks'}
+      annotationDensity={annotationDensity}
+    />
+  );
+
+  const cardDefFor = (key: string): ScreenCard | null => {
+    if (key === 'controls') return { key, title: 'Controls', body: controlsBody };
+    if (key === 'timeseries')
+      return timeseriesBody ? { key, title: 'Time series', body: timeseriesBody } : null;
+    if (key === 'minimap')
+      return { key, title: 'Location', headerContent: renderMinimapHeader(), body: minimapBody };
+    const wc = windowCollections.find((w) => String(w.collection_id) === key);
+    if (!wc?.collection || !wc.source) return null;
+    const { collection, source } = wc;
+    const isActiveCol = collection.id === activeCollectionId;
+    return {
+      key,
+      title: collection.name,
+      headerClassName: `!py-0.5 !gap-2 hover:bg-neutral-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`,
+      onHeaderClick: () => setActiveCollectionId(collection.id),
+      headerContent: (
+        <>
+          <span className="min-w-0 flex-1 truncate" title={`${source.name} - ${collection.name}`}>
+            {collection.name}
+          </span>
+          <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
+        </>
+      ),
+      body: <ImageryContainer collectionId={collection.id} sourceId={source.id} />,
+    };
+  };
+
+  const screenCardsFor = (screenId: number): ScreenCard[] =>
+    Object.entries(assignment)
+      .filter(([, sid]) => sid === screenId)
+      .map(([key]) => cardDefFor(key))
+      .filter((c): c is ScreenCard => c !== null);
 
   return (
     <main
@@ -415,7 +693,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           dragConfig={dragConfig}
           resizeConfig={resizeConfig}
           compactor={CANVAS_COMPACTOR}
-          onLayoutChange={isMobile ? undefined : setCurrentLayout}
+          onLayoutChange={isMobile ? undefined : handleLayoutChange}
         >
           <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
@@ -427,78 +705,67 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             />
           </div>
 
-          {campaign.time_series.length > 0 && (
-            <div key="timeseries" className="grid-card" data-tour="timeseries">
-              {isEditingLayout && (
-                <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
-                  <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                    Time series
-                  </span>
-                </div>
-              )}
-              <TimeSeriesChart
-                timeseries={campaign.time_series}
-                latLon={timeseriesLatLon}
-                prefetchCoordinates={visibleTasks
-                  .slice(currentTaskIndex + 1, currentTaskIndex + 4)
-                  .map((task) => extractCentroidFromWKT(task.geometry.geometry))
-                  .filter((coord): coord is LatLon => coord !== null)}
-                probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
-              />
+          {campaign.time_series.length > 0 && !popped.has('timeseries') && (
+            <div key="timeseries" className="grid-card group/card" data-tour="timeseries">
+              <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                  Time series
+                </span>
+                {showPopoutButtons && (
+                  <SendToScreenButton
+                    cardKey="timeseries"
+                    label="the time series chart"
+                    onSend={(target) => sendToScreen('timeseries', target)}
+                  />
+                )}
+              </div>
+              {timeseriesBody}
             </div>
           )}
 
-          <div
-            key="minimap"
-            className="grid-card"
-            data-tour="minimap"
-            data-center-lat={center[0]}
-            data-center-lon={center[1]}
-          >
-            <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
-              {renderMinimapHeader()}
+          {!popped.has('minimap') && (
+            <div
+              key="minimap"
+              className="grid-card group/card"
+              data-tour="minimap"
+              data-center-lat={center[0]}
+              data-center-lon={center[1]}
+            >
+              <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
+                {renderMinimapHeader(true)}
+              </div>
+              {minimapBody}
             </div>
-            <MiniMap
-              center={center}
-              bbox={campaignBbox || [0, 0, 0, 0]}
-              visibleBounds={workMode === 'explore' ? currentMapBounds : null}
-              onViewportDrag={
-                workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
-              }
-              fitBbox={workMode === 'tasks'}
-              annotationDensity={annotationDensity}
-            />
-          </div>
+          )}
 
-          <div key="controls" className="grid-card" data-tour="controls">
-            <div className="h-full overflow-y-auto overflow-x-hidden">
-              {workMode === 'tasks' ? (
-                <ControlsTaskMode
-                  labels={campaign.settings.labels}
-                  onSubmit={submitAnnotation}
-                  onNext={nextTask}
-                  onPrevious={previousTask}
-                  onGoToTask={goToTask}
-                  isSubmitting={isSubmitting}
-                  totalTasksCount={visibleTasks.length}
-                  currentTask={currentTask}
-                  commentInputRef={commentInputRef}
-                />
-              ) : (
-                <ControlsOpenMode />
-              )}
+          {!popped.has('controls') && (
+            <div key="controls" className="grid-card group/card" data-tour="controls">
+              <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                  Controls
+                </span>
+                {showPopoutButtons && (
+                  <SendToScreenButton
+                    cardKey="controls"
+                    label="the annotation controls"
+                    onSend={(target) => sendToScreen('controls', target)}
+                  />
+                )}
+              </div>
+              {controlsBody}
             </div>
-          </div>
+          )}
 
           {windowCollections.map(({ collection, source }, idx) => {
             if (!collection || !source) return null;
+            if (popped.has(String(collection.id))) return null;
             const isActiveCol = collection.id === activeCollectionId;
 
             return (
               <div
                 key={collection.id}
                 data-window-collection-id={collection.id}
-                className={`grid-card grid-card-hoverable ${isActiveCol ? 'active-window' : ''}`}
+                className={`grid-card grid-card-hoverable relative group/card ${isActiveCol ? 'active-window' : ''}`}
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
                 <div
@@ -516,6 +783,15 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                     {collection.name}
                   </span>
                   <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
+                  {showPopoutButtons && (
+                    <SendToScreenButton
+                      cardKey={String(collection.id)}
+                      label={collection.name}
+                      darkBg={isActiveCol}
+                      revealClass="opacity-0 group-hover/header:opacity-100"
+                      onSend={(target) => sendToScreen(String(collection.id), target)}
+                    />
+                  )}
                 </div>
                 {isEditingLayout && !isMobile ? (
                   // While editing we skip the (expensive) map and turn the whole
@@ -552,6 +828,28 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         </ReactGridLayout>
       )}
 
+      {!isMobile &&
+        screens.map((id) => (
+          <PopoutWindow
+            key={id}
+            title={`Screen ${id}`}
+            closeLabel="Close screen"
+            bounds={lastBounds[id] ?? SCREEN_DEFAULT_BOUNDS}
+            onUserClose={() => closeScreen(id)}
+            onBounds={(b) => rememberBounds(id, b)}
+            onBlocked={() =>
+              useLayoutStore
+                .getState()
+                .showAlert(
+                  'The browser blocked the screen window. Allow popups for this site and try again.',
+                  'error'
+                )
+            }
+          >
+            <PopoutScreen screenId={id} cards={screenCardsFor(id)} />
+          </PopoutWindow>
+        ))}
+
       {editing && (
         <WindowDropController
           gridRef={gridInnerRef}
@@ -561,6 +859,31 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         />
       )}
       {!isMobile && <HiddenWindowsPanel />}
+
+      {restorableCount > 0 && !isEditingLayout && (
+        <div className="fixed bottom-3 right-3 z-[1002] flex items-center gap-1 rounded-full border border-neutral-200 bg-white/95 py-1 pl-1 pr-1.5 shadow-lg ring-1 ring-black/5 backdrop-blur">
+          <button
+            type="button"
+            onClick={restoreSaved}
+            data-testid="restore-screens"
+            className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
+            title="Reopen your saved screen windows with their panels"
+          >
+            <IconExternalLink className="h-3.5 w-3.5 text-brand-600" />
+            Restore {restorableCount === 1 ? 'screen' : `${restorableCount} screens`}
+          </button>
+          <button
+            type="button"
+            onClick={clearSaved}
+            data-testid="dismiss-saved-screens"
+            aria-label="Forget saved screens"
+            title="Forget the saved screen split"
+            className="grid h-6 w-6 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            <IconClose className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </main>
   );
 };

@@ -21,9 +21,11 @@ export const InfoPopover = ({ children }: InfoPopoverProps) => {
     }
   };
 
-  // Close on outside click
+  // Close on outside click, in whichever document hosts the anchor (the
+  // popover may render inside a pop-out window).
   useEffect(() => {
     if (!pos) return;
+    const doc = ref.current?.ownerDocument ?? document;
     const handler = (e: MouseEvent) => {
       if (
         popoverRef.current &&
@@ -34,8 +36,8 @@ export const InfoPopover = ({ children }: InfoPopoverProps) => {
         setPos(null);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    doc.addEventListener('mousedown', handler);
+    return () => doc.removeEventListener('mousedown', handler);
   }, [pos]);
 
   return (
@@ -59,7 +61,7 @@ export const InfoPopover = ({ children }: InfoPopoverProps) => {
             {children}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-200" />
           </div>,
-          document.body
+          ref.current?.ownerDocument.body ?? document.body
         )}
     </>
   );

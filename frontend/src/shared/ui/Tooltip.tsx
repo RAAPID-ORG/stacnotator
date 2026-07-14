@@ -51,7 +51,9 @@ export const Tooltip = ({
               className={`absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent ${tone[variant].arrow}`}
             />
           </div>,
-          document.body
+          // The anchor may live in a pop-out window; portal into its document
+          // so the bubble appears next to it (coords are per-viewport).
+          ref.current?.ownerDocument.body ?? document.body
         )}
     </span>
   );
