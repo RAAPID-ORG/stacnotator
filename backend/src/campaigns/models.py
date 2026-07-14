@@ -173,6 +173,7 @@ class CampaignSettings(Base):
         server_default="{}",
         nullable=False,
     )
+    form_fields: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
     bbox_west: Mapped[float] = mapped_column(nullable=False)
     bbox_south: Mapped[float] = mapped_column(nullable=False)
     bbox_east: Mapped[float] = mapped_column(nullable=False)
