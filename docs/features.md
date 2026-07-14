@@ -63,6 +63,14 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Confidence scoring per annotation
 - Comments/remarks field
 
+### Custom Forms
+- Optional per-campaign form fields configured at creation, answered per annotation alongside the label
+- Field types: single select, multi select, number (int/float, optional min/max/step, slider rendering), short/long text, date, date range
+- Each field has a title, optional description (shown on hover of a "?" icon), and a required flag
+- Required fields block submission while a label is selected; skipping stays ungated
+- Hotkeys: Tab/Shift+Tab cycle fields, number keys toggle options or focus the active input, Esc leaves the field
+- Export adds one column per field (`stacnotator_field_<slug>`); multi select values join into one cell; GeoJSON export carries raw values for lossless re-import
+
 ### Navigation
 - Keyboard-driven workflow: submit, skip, next/previous task
 - Collection cycling (J/K), slice cycling, visualization switching (I/Shift+I), view switching (V)
