@@ -5,6 +5,7 @@ import 'react-resizable/css/styles.css';
 import ImageryContainer from './ImageryContainer';
 import { WindowSliceSelect } from './WindowSliceSelect';
 import MiniMap from './Minimap';
+import { LocationSearch } from './LocationSearch';
 import MainAnnotationsContainer from './MainAnnotationContainer';
 import { TimeSeriesChart } from './TimeSeries/TimeSeriesChart';
 import ControlsTaskMode from './ControlsTaskMode';
@@ -86,6 +87,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const currentMapBounds = useMapStore((s) => (workMode === 'explore' ? s.currentMapBounds : null));
   const currentMapCenter = useMapStore((s) => (workMode === 'explore' ? s.currentMapCenter : null));
   const triggerPanToCenter = useMapStore((s) => s.triggerPanToCenter);
+  const triggerSearchFocus = useMapStore((s) => s.triggerSearchFocus);
   const timeseriesPoint = useMapStore((s) => s.timeseriesPoint);
   const probeTimeseriesPoint = useMapStore((s) => s.probeTimeseriesPoint);
   const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
@@ -447,16 +449,22 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
-            <MiniMap
-              center={center}
-              bbox={campaignBbox || [0, 0, 0, 0]}
-              visibleBounds={workMode === 'explore' ? currentMapBounds : null}
-              onViewportDrag={
-                workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
-              }
-              fitBbox={workMode === 'tasks'}
-              annotationDensity={annotationDensity}
-            />
+            <div className="relative flex-1 min-h-0">
+              <LocationSearch
+                onSelect={(result) => triggerSearchFocus(result.center, result.extent)}
+                className="absolute top-1.5 left-1.5 right-1.5 z-[1000]"
+              />
+              <MiniMap
+                center={center}
+                bbox={campaignBbox || [0, 0, 0, 0]}
+                visibleBounds={workMode === 'explore' ? currentMapBounds : null}
+                onViewportDrag={
+                  workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+                }
+                fitBbox={workMode === 'tasks'}
+                annotationDensity={annotationDensity}
+              />
+            </div>
           </div>
 
           <div key="controls" className="grid-card" data-tour="controls">
