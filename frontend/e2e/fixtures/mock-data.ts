@@ -138,6 +138,15 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
+    // Mirrors DEFAULT_LABELLING_POLICY (LabellingPolicyEditor.tsx) / backend
+    // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
+    // campaign.settings.labelling_policy.explore unconditionally.
+    labelling_policy: {
+      explore: { kinds: ['members'], user_ids: [] },
+      unassigned_tasks: { kinds: ['members'], user_ids: [] },
+      assigned_tasks: { kinds: ['members'], user_ids: [] },
+      complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
+    },
   },
   imagery_sources: [SOURCE],
   imagery_views: [VIEW_DEFAULT],
