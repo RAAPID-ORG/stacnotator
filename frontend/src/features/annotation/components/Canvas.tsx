@@ -143,6 +143,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   // (tileVersion bump) so the overview tracks edits.
   const tileVersion = useAnnotationStore((s) => s.tileVersion);
   const [annotationDensity, setAnnotationDensity] = useState<AnnotationDensityCell[]>([]);
+  const [searchExpanded, setSearchExpanded] = useState(false);
   useEffect(() => {
     if (workMode !== 'explore' || campaign?.id == null) {
       setAnnotationDensity([]);
@@ -349,12 +350,19 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   const renderMinimapHeader = () => (
     <div className="flex items-center gap-2 w-full min-w-0">
-      {focusPoint ? (
-        <>
+      {!searchExpanded &&
+        (focusPoint ? (
           <span className="tabular-nums text-xs text-neutral-700 font-medium truncate">
             {focusPoint.lat.toFixed(5)}, {focusPoint.lon.toFixed(5)}
           </span>
-          <div className="flex items-center gap-0.5 ml-auto shrink-0">
+        ) : (
+          <span className="text-[11px] text-neutral-400 italic">no position</span>
+        ))}
+      <div
+        className={`flex items-center gap-0.5 min-w-0 ${searchExpanded ? 'flex-1' : 'ml-auto shrink-0'}`}
+      >
+        {!searchExpanded && focusPoint && (
+          <>
             <button
               onClick={() => copyToClipboard(`${focusPoint.lat},${focusPoint.lon}`)}
               className="p-1 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded transition-colors"
@@ -379,11 +387,15 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                 <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
               </svg>
             </a>
-          </div>
-        </>
-      ) : (
-        <span className="text-[11px] text-neutral-400 italic">no position</span>
-      )}
+          </>
+        )}
+        <LocationSearch
+          expanded={searchExpanded}
+          onExpandedChange={setSearchExpanded}
+          onSelect={(result) => triggerSearchFocus(result.center, result.extent)}
+          className={searchExpanded ? 'w-full' : ''}
+        />
+      </div>
     </div>
   );
 
@@ -446,22 +458,16 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
               {renderMinimapHeader()}
             </div>
-            <div className="relative flex-1 min-h-0">
-              <LocationSearch
-                onSelect={(result) => triggerSearchFocus(result.center, result.extent)}
-                className="absolute top-1.5 left-1.5 right-1.5 z-[1000]"
-              />
-              <MiniMap
-                center={center}
-                bbox={campaignBbox || [0, 0, 0, 0]}
-                visibleBounds={workMode === 'explore' ? currentMapBounds : null}
-                onViewportDrag={
-                  workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
-                }
-                fitBbox={workMode === 'tasks'}
-                annotationDensity={annotationDensity}
-              />
-            </div>
+            <MiniMap
+              center={center}
+              bbox={campaignBbox || [0, 0, 0, 0]}
+              visibleBounds={workMode === 'explore' ? currentMapBounds : null}
+              onViewportDrag={
+                workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+              }
+              fitBbox={workMode === 'tasks'}
+              annotationDensity={annotationDensity}
+            />
           </div>
 
           <div key="controls" className="grid-card" data-tour="controls">
