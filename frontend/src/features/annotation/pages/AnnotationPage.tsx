@@ -104,7 +104,7 @@ export const AnnotationPage = () => {
       useTaskStore.getState().reset();
       useAnnotationStore.getState().reset();
       useMapStore.getState().reset();
-      usePopoutStore.getState().closeAll();
+      usePopoutStore.getState().reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);

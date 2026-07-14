@@ -144,7 +144,12 @@ export const PopoutWindow = ({
     child.addEventListener('pagehide', handleChildClosed);
 
     // Never leave orphan popouts showing dead UI when the opener goes away.
-    const closeChild = () => child.close();
+    // Detach the child's close handler first: an opener unload is not a user
+    // close and must not report one (the owner persists deliberate closes).
+    const closeChild = () => {
+      child.removeEventListener('pagehide', handleChildClosed);
+      child.close();
+    };
     window.addEventListener('pagehide', closeChild);
 
     return () => {

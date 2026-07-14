@@ -24,7 +24,7 @@ import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
 import { useAccountStore } from '~/features/account/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
-import { IconExternalLink, IconEyeSlash } from '~/shared/ui/Icons';
+import { IconClose, IconExternalLink, IconEyeSlash } from '~/shared/ui/Icons';
 import { PopoutWindow, type PopoutBounds } from '~/shared/ui/PopoutWindow';
 import { PopoutScreen, type ScreenCard } from './PopoutScreen';
 import { usePopoutStore } from '../stores/popout.store';
@@ -83,6 +83,7 @@ const SendToScreenButton = ({
     <div ref={wrapRef} className={`relative shrink-0 ${className}`}>
       <button
         type="button"
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           if (screens.length === 0) send('new');
@@ -169,6 +170,9 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const closeScreen = usePopoutStore((s) => s.closeScreen);
   const rememberBounds = usePopoutStore((s) => s.rememberBounds);
   const lastBounds = usePopoutStore((s) => s.lastBounds);
+  const savedScreens = usePopoutStore((s) => (s.activeKey ? (s.saved[s.activeKey] ?? null) : null));
+  const restoreSaved = usePopoutStore((s) => s.restoreSaved);
+  const clearSaved = usePopoutStore((s) => s.clearSaved);
 
   const allTasks = useTaskStore((s) => s.allTasks);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -182,6 +186,13 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const claimCurrentTask = useTaskStore((s) => s.claimCurrentTask);
 
   const currentUserId = useAccountStore((s) => s.account?.id);
+
+  // Scope the persisted screen configuration to this user+campaign.
+  const campaignId = campaign?.id;
+  useEffect(() => {
+    if (campaignId == null || currentUserId == null || isMobile) return;
+    usePopoutStore.getState().setActiveKey(`${currentUserId}:${campaignId}`);
+  }, [campaignId, currentUserId, isMobile]);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -541,7 +552,20 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     </div>
   );
 
-  const showPopoutButtons = !isMobile && !isEditingLayout;
+  // Sending cards to screens is a layout decision, so it lives in edit mode
+  // (like hiding windows); the split persists per user, so it's a one-time
+  // setup rather than an every-session chore.
+  const showPopoutButtons = !isMobile && isEditingLayout;
+
+  // Screens cannot reopen automatically after a reload (browsers require a
+  // user gesture per popup), so offer the saved split back with one click.
+  const restorableCount =
+    !isMobile &&
+    screens.length === 0 &&
+    savedScreens &&
+    Object.keys(savedScreens.assignment).length > 0
+      ? savedScreens.screens.length
+      : 0;
 
   // Card bodies are defined once and rendered either as a grid child or into
   // a pop-out window - never both - so component state and maps stay intact
@@ -807,6 +831,31 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
         />
       )}
       {!isMobile && <HiddenWindowsPanel />}
+
+      {restorableCount > 0 && !isEditingLayout && (
+        <div className="fixed bottom-3 right-3 z-[1002] flex items-center gap-1 rounded-full border border-neutral-200 bg-white/95 py-1 pl-1 pr-1.5 shadow-lg ring-1 ring-black/5 backdrop-blur">
+          <button
+            type="button"
+            onClick={restoreSaved}
+            data-testid="restore-screens"
+            className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100"
+            title="Reopen your saved screen windows with their panels"
+          >
+            <IconExternalLink className="h-3.5 w-3.5 text-brand-600" />
+            Restore {restorableCount === 1 ? 'screen' : `${restorableCount} screens`}
+          </button>
+          <button
+            type="button"
+            onClick={clearSaved}
+            data-testid="dismiss-saved-screens"
+            aria-label="Forget saved screens"
+            title="Forget the saved screen split"
+            className="grid h-6 w-6 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
+          >
+            <IconClose className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </main>
   );
 };

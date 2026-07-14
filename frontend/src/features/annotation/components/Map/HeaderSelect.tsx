@@ -194,7 +194,10 @@ const HeaderSelect = ({
               })}
             </div>
           </div>,
-          document.body
+          // The select may live in a pop-out screen window; portal into the
+          // button's document so the dropdown opens next to it (the fixed
+          // positioning above is relative to that window's viewport).
+          buttonRef.current?.ownerDocument.body ?? document.body
         )}
     </div>
   );
