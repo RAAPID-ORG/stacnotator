@@ -4,6 +4,7 @@ import {
   setFieldValue,
   toggleMultiOption,
   missingRequiredFields,
+  formatMissingFieldsTitle,
   hydrateFormValues,
   type FormValues,
 } from './formValues';
@@ -170,6 +171,18 @@ describe('missingRequiredFields', () => {
     const fields = [REQUIRED_TEXT, secondRequired];
     const missing = missingRequiredFields(fields, {});
     expect(missing).toEqual([REQUIRED_TEXT, secondRequired]);
+  });
+});
+
+describe('formatMissingFieldsTitle', () => {
+  it('lists a single missing field title', () => {
+    expect(formatMissingFieldsTitle([REQUIRED_TEXT])).toBe('Missing required: Notes');
+  });
+
+  it('joins multiple missing field titles with a comma', () => {
+    expect(formatMissingFieldsTitle([REQUIRED_TEXT, REQUIRED_MULTISELECT])).toBe(
+      'Missing required: Notes, Required Tags'
+    );
   });
 });
 

@@ -19,6 +19,7 @@ import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
+import { hydrateFormValues, type FormValues } from '../utils/formValues';
 
 export type { TaskFilter, TaskStatus };
 
@@ -39,6 +40,8 @@ interface TaskStore {
   confidence: number;
   flaggedForReview: boolean;
   flagComment: string;
+  formValues: FormValues;
+  activeFieldIndex: number | null;
   magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
@@ -68,6 +71,8 @@ interface TaskStore {
   setConfidence: (confidence: number) => void;
   setFlaggedForReview: (flagged: boolean) => void;
   setFlagComment: (comment: string) => void;
+  setFormValues: (next: FormValues) => void;
+  setActiveFieldIndex: (index: number | null) => void;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -87,6 +92,8 @@ const emptyFormState = {
   confidence: 5,
   flaggedForReview: false,
   flagComment: '',
+  formValues: {} as FormValues,
+  activeFieldIndex: null as number | null,
 };
 
 const getFormStateForTask = (task: AnnotationTaskOut | null) => {
@@ -101,6 +108,8 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
         confidence: userAnn.confidence ?? 5,
         flaggedForReview: userAnn.flagged_for_review ?? false,
         flagComment: userAnn.flag_comment || '',
+        formValues: hydrateFormValues(userAnn.form_values),
+        activeFieldIndex: null,
       }
     : emptyFormState;
 };
@@ -157,6 +166,8 @@ const initialState = {
   confidence: 5,
   flaggedForReview: false,
   flagComment: '',
+  formValues: {} as FormValues,
+  activeFieldIndex: null as number | null,
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
@@ -369,6 +380,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         }
 
         // Submit
+        const { formValues } = get();
         const response = await completeAnnotationTask({
           path: { campaign_id: campaign.id, annotation_task_id: task.id },
           body: {
@@ -378,6 +390,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             is_authoritative: isAuthoritative ?? null,
             flagged_for_review: flaggedForReview ?? false,
             flag_comment: flaggedForReview ? flagComment || null : null,
+            form_values: Object.keys(formValues).length ? formValues : null,
           },
         });
 
@@ -550,6 +563,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         flagComment: flagged ? s.flagComment : '',
       })),
     setFlagComment: (flagComment) => set({ flagComment }),
+    setFormValues: (formValues) => set({ formValues }),
+    setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
     toggleMagicWand: (labelId) =>
       set((s) => ({
         magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
@@ -563,6 +578,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         confidence: 5,
         flaggedForReview: false,
         flagComment: '',
+        formValues: {},
+        activeFieldIndex: null,
       }),
 
     // Filter actions

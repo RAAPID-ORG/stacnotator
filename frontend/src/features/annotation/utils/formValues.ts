@@ -43,6 +43,10 @@ export function missingRequiredFields(fields: FormField[], values: FormValues): 
   return fields.filter((field) => field.required && isEmptyValue(values[String(field.id)] ?? null));
 }
 
+export function formatMissingFieldsTitle(missing: FormField[]): string {
+  return `Missing required: ${missing.map((field) => field.title).join(', ')}`;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
