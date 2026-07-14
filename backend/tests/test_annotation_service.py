@@ -917,6 +917,7 @@ class TestExportAnnotatorCount:
             imagery_source_name=None,
             imagery_start_date=None,
             imagery_end_date=None,
+            form_values=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -933,6 +934,7 @@ class TestExportAnnotatorCount:
                 user_email_map={},
                 merge_on_agreement=merge,
                 include_geometry_wkt=False,
+                form_fields=[],
             )
         return records
 
@@ -1036,7 +1038,10 @@ class TestExportMergeCorrectness:
     @classmethod
     def _campaign(cls, labels=None):
         return SimpleNamespace(
-            id=1, settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels)
+            id=1,
+            settings=SimpleNamespace(
+                labels=cls.LABELS if labels is None else labels, form_fields=[]
+            ),
         )
 
     @staticmethod
@@ -1071,6 +1076,7 @@ class TestExportMergeCorrectness:
             imagery_source_name=None,
             imagery_start_date=None,
             imagery_end_date=None,
+            form_values=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -1416,6 +1422,139 @@ class TestExportMergeCorrectness:
         }
         assert props[task.id]["stacnotator_counts_toward_completion"] is True
         assert "stacnotator_counts_toward_completion" not in props[None]
+
+
+class TestExportFormFields:
+    """Wiring of per-field export columns (CSV) and raw form_values (GeoJSON).
+
+    The pure formatting/column-naming rules are covered directly in
+    ``tests/unit/test_annotation_io_forms.py``; this class exercises the
+    seam where ``build_annotations_export`` / ``build_annotations_geojson_export``
+    parse the campaign's raw JSONB ``form_fields`` and merge the per-annotation
+    cells into the assembled record/feature.
+    """
+
+    LABELS = {"1": {"name": "Forest"}}
+    FORM_FIELDS = [
+        {
+            "id": 1,
+            "title": "Crop Type",
+            "type": "select",
+            "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
+        },
+        {"id": 2, "title": "Yield (t/ha)", "type": "number"},
+    ]
+
+    @classmethod
+    def _campaign(cls, *, form_fields=None):
+        return SimpleNamespace(
+            id=1,
+            settings=SimpleNamespace(
+                labels=cls.LABELS,
+                form_fields=cls.FORM_FIELDS if form_fields is None else form_fields,
+            ),
+        )
+
+    @staticmethod
+    def _task(task_id=1, annotation_number=42):
+        return SimpleNamespace(
+            id=task_id, annotation_number=annotation_number, raw_source_data=None
+        )
+
+    @staticmethod
+    def _ann(*, ann_id, label_id=1, user_id=None, task=None, form_values=None, **overrides):
+        ann = SimpleNamespace(
+            id=ann_id,
+            source_id=None,
+            label_id=label_id,
+            comment=None,
+            confidence=None,
+            is_authoritative=False,
+            flagged_for_review=False,
+            flag_comment=None,
+            created_by_user_id=user_id or uuid4(),
+            created_at=datetime(2026, 5, 6, tzinfo=UTC),
+            annotation_task_id=task.id if task else None,
+            campaign_id=1,
+            annotation_task=task,
+            geometry=None,
+            imagery_slice_id=None,
+            imagery_source_name=None,
+            imagery_start_date=None,
+            imagery_end_date=None,
+            form_values=form_values,
+        )
+        for k, v in overrides.items():
+            setattr(ann, k, v)
+        return ann
+
+    def _csv(self, annotations, *, merge=False, campaign=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.io._fetch_annotations_with_context",
+                return_value=(annotations, {}),
+            ),
+            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+        ):
+            return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    def _geojson(self, annotations, *, merge=False, campaign=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.io._fetch_annotations_with_context",
+                return_value=(annotations, {}),
+            ),
+            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+        ):
+            return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    def test_csv_gets_one_column_per_field_right_after_label_name(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values={"1": 2, "2": 4.2})
+        df = self._csv([a])
+        cols = list(df.columns)
+        label_idx = cols.index("stacnotator_label_name")
+        assert cols[label_idx + 1] == "stacnotator_field_crop_type"
+        assert cols[label_idx + 2] == "stacnotator_field_yield_t_ha"
+        row = df.iloc[0]
+        assert row["stacnotator_field_crop_type"] == "Wheat"
+        assert row["stacnotator_field_yield_t_ha"] == 4.2
+
+    def test_csv_unanswered_field_is_null(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        row = self._csv([a]).iloc[0]
+        crop = row["stacnotator_field_crop_type"]
+        assert crop is None or (isinstance(crop, float) and np.isnan(crop))
+
+    def test_zero_field_campaign_has_no_form_columns(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        df = self._csv([a], campaign=self._campaign(form_fields=[]))
+        assert not any(c.startswith("stacnotator_field_") for c in df.columns)
+
+    def test_merge_takes_form_values_from_canonical_annotation(self):
+        task = self._task()
+        a1 = self._ann(ann_id=1, task=task, form_values={"1": 1}, is_authoritative=True)
+        a2 = self._ann(ann_id=2, task=task, form_values={"1": 2})
+        df = self._csv([a1, a2], merge=True)
+        assert df.iloc[0]["stacnotator_field_crop_type"] == "Maize"
+
+    def test_geojson_includes_formatted_and_raw_form_values(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values={"1": 2, "2": 4.2})
+        fc = self._geojson([a])
+        props = fc["features"][0]["properties"]
+        assert props["stacnotator_field_crop_type"] == "Wheat"
+        assert props["stacnotator_form_values"] == {"1": 2, "2": 4.2}
+
+    def test_geojson_omits_raw_form_values_when_campaign_has_no_fields(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        fc = self._geojson([a], campaign=self._campaign(form_fields=[]))
+        assert "stacnotator_form_values" not in fc["features"][0]["properties"]
 
 
 def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):
