@@ -11,6 +11,7 @@ from shapely.geometry import mapping, shape
 from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session, joinedload
 
+from src.annotation.forms import FormValidationError, validate_form_values
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -316,7 +317,11 @@ def create_annotations_from_geojson(
     label is read from the ``stacnotator_label_id`` property (round-trips with
     the GeoJSON export). Every feature must carry a label id that exists in the
     campaign's label set; otherwise the whole import is rejected and nothing is
-    created.
+    created. Form values are read from the ``stacnotator_form_values`` property
+    (also round-trips with the export) and validated against the campaign's
+    field definitions with ``enforce_required=False`` - lenient on presence,
+    strict on shape. Any invalid feature (unknown field id, wrong value shape)
+    rejects the whole import, matching the label-validation behavior above.
 
     Returns:
         Number of annotations created
@@ -343,10 +348,12 @@ def create_annotations_from_geojson(
     if not features:
         raise HTTPException(status_code=400, detail="GeoJSON contains no features")
 
+    fields = _campaign_form_fields(campaign)
     allowed_types = {"Point", "Polygon", "MultiPolygon"}
     geometry_records: list[dict] = []
     label_ids: list[int] = []
     source_ids: list[int | None] = []
+    form_values_list: list[dict | None] = []
     seen_source_ids: set[int] = set()
 
     for idx, feat in enumerate(features):
@@ -373,6 +380,20 @@ def create_annotations_from_geojson(
                 status_code=400,
                 detail=f"Feature {idx}: label id {label_id} is not a label of this campaign",
             ) from None
+
+        raw_form_values = properties.get("stacnotator_form_values")
+        if raw_form_values is not None and not isinstance(raw_form_values, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: 'stacnotator_form_values' must be an object",
+            )
+        try:
+            form_values = validate_form_values(fields, raw_form_values, enforce_required=False)
+        except FormValidationError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Feature {idx}: {exc.message}",
+            ) from exc
 
         raw_source = properties.get("stacnotator_annotation_id")
         source_id: int | None = None
@@ -417,6 +438,7 @@ def create_annotations_from_geojson(
         geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
         label_ids.append(label_id)
         source_ids.append(source_id)
+        form_values_list.append(form_values)
 
     if seen_source_ids:
         existing = db.scalars(
@@ -446,8 +468,11 @@ def create_annotations_from_geojson(
                 "annotation_task_id": None,
                 "label_id": label_id,
                 "source_id": source_id,
+                "form_values": form_values,
             }
-            for gid, label_id, source_id in zip(geometry_ids, label_ids, source_ids, strict=True)
+            for gid, label_id, source_id, form_values in zip(
+                geometry_ids, label_ids, source_ids, form_values_list, strict=True
+            )
         ]
 
         db.execute(insert(Annotation), annotation_records)

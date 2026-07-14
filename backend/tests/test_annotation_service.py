@@ -1711,20 +1711,33 @@ class TestCreateAnnotationsFromGeojson:
     """Bulk import of existing features as standalone open-mode annotations."""
 
     LABELS = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
+    FORM_FIELDS = [
+        {
+            "id": 1,
+            "title": "Crop",
+            "type": "select",
+            "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
+        },
+    ]
 
     @classmethod
-    def _campaign(cls, *, mode="open", labels=None):
+    def _campaign(cls, *, mode="open", labels=None, form_fields=None):
         return SimpleNamespace(
             id=1,
             mode=mode,
-            settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels),
+            settings=SimpleNamespace(
+                labels=cls.LABELS if labels is None else labels,
+                form_fields=form_fields or [],
+            ),
         )
 
     @staticmethod
-    def _feature(label_id, *, source_id=None, geom=None):
+    def _feature(label_id, *, source_id=None, geom=None, form_values=None):
         properties = {} if label_id is None else {"stacnotator_label_id": label_id}
         if source_id is not None:
             properties["stacnotator_annotation_id"] = source_id
+        if form_values is not None:
+            properties["stacnotator_form_values"] = form_values
         return {
             "type": "Feature",
             "geometry": geom or {"type": "Point", "coordinates": [10.0, 20.0]},
@@ -1825,4 +1838,66 @@ class TestCreateAnnotationsFromGeojson:
             create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
         assert exc.value.status_code == 400
         assert "already exist" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_imports_normalized_form_values(self):
+        db = MagicMock()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101)],
+            MagicMock(),
+        ]
+        contents = self._fc([self._feature(1, form_values={"1": 1})])
+
+        num = create_annotations_from_geojson(
+            db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+        )
+
+        assert num == 1
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert annotation_records[0]["form_values"] == {"1": 1}
+
+    def test_no_form_values_property_imports_none(self):
+        db = MagicMock()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101)],
+            MagicMock(),
+        ]
+        contents = self._fc([self._feature(1)])
+
+        create_annotations_from_geojson(
+            db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+        )
+
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert annotation_records[0]["form_values"] is None
+
+    def test_rejects_unknown_form_field_id(self):
+        db = MagicMock()
+        contents = self._fc(
+            [
+                self._feature(1, form_values={"1": 1}),
+                self._feature(2, form_values={"99": 1}),
+            ]
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(
+                db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+            )
+
+        assert exc.value.status_code == 400
+        assert "Feature 1" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_non_object_form_values(self):
+        db = MagicMock()
+        contents = self._fc([self._feature(1, form_values=["not", "a", "dict"])])
+
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(
+                db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+            )
+
+        assert exc.value.status_code == 400
+        assert "Feature 0" in exc.value.detail
         db.execute.assert_not_called()
