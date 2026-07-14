@@ -86,6 +86,10 @@ export const LocationSearch = ({
 
   const collapse = () => {
     abortRef.current?.abort();
+    // Without the blur, focus stays on the zero-width input after collapsing:
+    // the isTyping guards keep suppressing hotkeys and keystrokes keep typing
+    // (and fetching) invisibly.
+    inputRef.current?.blur();
     setQuery('');
     setSuggestions([]);
     setIsOpen(false);
