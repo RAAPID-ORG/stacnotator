@@ -6,9 +6,13 @@ import { applySelectOption } from './formValues';
 // 0..fields.length-1 = custom field focused.
 export const LABEL_FIELD_INDEX = -1;
 
-// Cycle order: null -> LABEL_FIELD_INDEX -> 0 -> ... -> fieldCount-1 -> null
-// (reversed for direction -1). fieldCount 0 always stays null so zero-field
-// campaigns are unaffected - callers gate Tab handling on fieldCount > 0.
+// Cycle order: LABEL_FIELD_INDEX -> 0 -> ... -> fieldCount-1 -> LABEL_FIELD_INDEX
+// (reversed for direction -1), wrapping directly between the label slot and
+// the last field with no "nothing selected" stop in between. `current ===
+// null` only occurs on entry (nothing focused yet, e.g. after Escape) and
+// picks the natural end of the cycle for the given direction. fieldCount 0
+// always stays null so zero-field campaigns are unaffected - callers gate
+// Tab handling on fieldCount > 0.
 export function cycleFieldIndex(
   current: number | null,
   fieldCount: number,
@@ -18,11 +22,11 @@ export function cycleFieldIndex(
   if (direction === 1) {
     if (current === null) return LABEL_FIELD_INDEX;
     if (current === LABEL_FIELD_INDEX) return 0;
-    return current === fieldCount - 1 ? null : current + 1;
+    return current === fieldCount - 1 ? LABEL_FIELD_INDEX : current + 1;
   }
   if (current === null) return fieldCount - 1;
   if (current === 0) return LABEL_FIELD_INDEX;
-  if (current === LABEL_FIELD_INDEX) return null;
+  if (current === LABEL_FIELD_INDEX) return fieldCount - 1;
   return current - 1;
 }
 

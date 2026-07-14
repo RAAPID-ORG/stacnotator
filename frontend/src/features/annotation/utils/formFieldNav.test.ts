@@ -49,10 +49,13 @@ describe('cycleFieldIndex', () => {
     expect(cycleFieldIndex(0, 0, 1)).toBeNull();
   });
 
-  it('cycles forward through the label slot, the full field range, and back to null', () => {
-    let idx: number | null = null;
-    idx = cycleFieldIndex(idx, 3, 1);
-    expect(idx).toBe(LABEL_FIELD_INDEX);
+  it('enters the cycle from null: forward to the label slot, reverse to the last field', () => {
+    expect(cycleFieldIndex(null, 3, 1)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(null, 3, -1)).toBe(2);
+  });
+
+  it('cycles forward through the label slot and the full field range, wrapping without a null stop', () => {
+    let idx: number | null = LABEL_FIELD_INDEX;
     idx = cycleFieldIndex(idx, 3, 1);
     expect(idx).toBe(0);
     idx = cycleFieldIndex(idx, 3, 1);
@@ -60,13 +63,13 @@ describe('cycleFieldIndex', () => {
     idx = cycleFieldIndex(idx, 3, 1);
     expect(idx).toBe(2);
     idx = cycleFieldIndex(idx, 3, 1);
-    expect(idx).toBeNull();
-    idx = cycleFieldIndex(idx, 3, 1);
     expect(idx).toBe(LABEL_FIELD_INDEX);
+    idx = cycleFieldIndex(idx, 3, 1);
+    expect(idx).toBe(0);
   });
 
-  it('cycles backward through the full field range, the label slot, and back to null', () => {
-    let idx: number | null = null;
+  it('cycles backward through the full field range and the label slot, wrapping without a null stop', () => {
+    let idx: number | null = LABEL_FIELD_INDEX;
     idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(2);
     idx = cycleFieldIndex(idx, 3, -1);
@@ -76,18 +79,16 @@ describe('cycleFieldIndex', () => {
     idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(LABEL_FIELD_INDEX);
     idx = cycleFieldIndex(idx, 3, -1);
-    expect(idx).toBeNull();
-    idx = cycleFieldIndex(idx, 3, -1);
     expect(idx).toBe(2);
   });
 
-  it('single field cycles null -> label -> 0 -> null', () => {
+  it('single field wraps forward and backward directly between label and field 0, never null', () => {
     expect(cycleFieldIndex(null, 1, 1)).toBe(LABEL_FIELD_INDEX);
     expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, 1)).toBe(0);
-    expect(cycleFieldIndex(0, 1, 1)).toBeNull();
+    expect(cycleFieldIndex(0, 1, 1)).toBe(LABEL_FIELD_INDEX);
     expect(cycleFieldIndex(null, 1, -1)).toBe(0);
     expect(cycleFieldIndex(0, 1, -1)).toBe(LABEL_FIELD_INDEX);
-    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, -1)).toBeNull();
+    expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, -1)).toBe(0);
   });
 });
 
