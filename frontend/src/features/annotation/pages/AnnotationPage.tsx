@@ -4,6 +4,7 @@ import { useCampaignStore, type WorkMode } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useAnnotationStore } from '../stores/annotation.store';
 import { useMapStore } from '../stores/map.store';
+import { usePopoutStore } from '../stores/popout.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { hasSeenTour, usePreferencesStore } from '../stores/preferences.store';
@@ -103,6 +104,7 @@ export const AnnotationPage = () => {
       useTaskStore.getState().reset();
       useAnnotationStore.getState().reset();
       useMapStore.getState().reset();
+      usePopoutStore.getState().reset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);

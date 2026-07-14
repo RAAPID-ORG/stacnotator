@@ -920,7 +920,10 @@ export const TimeSeriesChart = ({
             className="pointer-events-none fixed z-[10000] w-72 px-3 py-2 bg-neutral-800 text-white text-[11px] leading-relaxed rounded-md shadow-lg space-y-1.5"
             style={{
               top: infoPos.top,
-              left: Math.min(infoPos.left, window.innerWidth - 296),
+              left: Math.min(
+                infoPos.left,
+                (infoBtnRef.current?.ownerDocument.defaultView ?? window).innerWidth - 296
+              ),
             }}
           >
             <p>
@@ -947,7 +950,7 @@ export const TimeSeriesChart = ({
               <strong>Dots</strong> toggles whether the per-observation markers are drawn.
             </p>
           </div>,
-          document.body
+          infoBtnRef.current?.ownerDocument.body ?? document.body
         )}
     </div>
   );

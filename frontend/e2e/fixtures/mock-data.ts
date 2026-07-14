@@ -122,6 +122,9 @@ const DEFAULT_LAYOUT = {
     { i: 'controls', x: 44, y: 0, w: 16, h: 26 },
     // timeseries card below main - must be present so Chart.js gets a real size
     { i: 'timeseries', x: 0, y: 26, w: 44, h: 14 },
+    // minimap needs a real slot too - react-grid-layout renders children
+    // missing from the layout as 1x1 slivers, hiding the card's controls
+    { i: 'minimap', x: 44, y: 26, w: 16, h: 14 },
   ],
 };
 
@@ -138,6 +141,14 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
+    // Mirrors backend default_labelling_policy(): the API always sends this
+    // and AnnotationPage dereferences it without a guard.
+    labelling_policy: {
+      explore: { kinds: ['members'], user_ids: [] },
+      unassigned_tasks: { kinds: ['members'], user_ids: [] },
+      assigned_tasks: { kinds: ['members'], user_ids: [] },
+      complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
+    },
   },
   imagery_sources: [SOURCE],
   imagery_views: [VIEW_DEFAULT],
