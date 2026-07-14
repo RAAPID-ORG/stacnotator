@@ -70,9 +70,16 @@ interface FormFieldsEditorProps {
   value: FormField[];
   onChange: (fields: FormField[]) => void;
   readOnly?: boolean;
+  /** Hide field delete buttons (post-creation: removal would orphan stored answers). */
+  disableDelete?: boolean;
 }
 
-export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFieldsEditorProps) => {
+export const FormFieldsEditor = ({
+  value,
+  onChange,
+  readOnly = false,
+  disableDelete = false,
+}: FormFieldsEditorProps) => {
   const titleRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const addField = useCallback(() => {
@@ -104,6 +111,7 @@ export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFiel
           key={field.id}
           field={field}
           readOnly={readOnly}
+          canRemove={!readOnly && !disableDelete}
           onChange={replaceField}
           onRemove={() => removeField(field.id)}
           titleInputRef={(el) => {
@@ -129,12 +137,14 @@ export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFiel
 const FieldRow = ({
   field,
   readOnly,
+  canRemove,
   onChange,
   onRemove,
   titleInputRef,
 }: {
   field: FormField;
   readOnly: boolean;
+  canRemove: boolean;
   onChange: (next: FormField) => void;
   onRemove: () => void;
   titleInputRef: (el: HTMLInputElement | null) => void;
@@ -212,7 +222,7 @@ const FieldRow = ({
           )}
         </div>
 
-        {!readOnly && (
+        {canRemove && (
           <button
             onClick={onRemove}
             className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"

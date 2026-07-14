@@ -7,6 +7,7 @@ import type {
   LabellingPolicy,
 } from '~/api/client';
 import {
+  updateCampaignFormFields,
   updateCampaignGuide,
   updateCampaignLabels,
   updateCampaignVisibility,
@@ -17,6 +18,7 @@ import {
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
+import { validateFormFields, type FormField } from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -103,6 +105,51 @@ export const GeneralSettingsTab: React.FC<Props> = ({
       handleError(err, 'Failed to update labels');
     } finally {
       setSavingLabels(false);
+    }
+  };
+
+  // Custom form fields local draft. Edits (same id) and adds (new id) are
+  // allowed; deletes are blocked by the editor and the backend, and the
+  // backend rejects reshaping a field that already has stored answers.
+  const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
+    campaign.settings.form_fields ?? []
+  );
+  const [savingFormFields, setSavingFormFields] = useState(false);
+  const formFieldsChanged =
+    JSON.stringify(formFieldsDraft) !== JSON.stringify(campaign.settings.form_fields ?? []);
+  const formFieldErrors = validateFormFields(formFieldsDraft);
+  const editedFormFields = formFieldsDraft.filter((f) => {
+    const original = (campaign.settings.form_fields ?? []).find((o) => o.id === f.id);
+    return original && JSON.stringify(original) !== JSON.stringify(f);
+  });
+
+  const handleSaveFormFields = async () => {
+    if (!formFieldsChanged || formFieldErrors.length > 0) return;
+    if (editedFormFields.length > 0) {
+      const ok = await showConfirmDialog({
+        title: 'Edit existing form fields?',
+        description:
+          `Editing fields affects how existing annotations display - the underlying ` +
+          `field IDs stay the same, so stored answers are kept, but annotators will ` +
+          `see the updated ${editedFormFields.length === 1 ? 'question' : 'questions'} ` +
+          `everywhere (annotation view, review, exports).`,
+        confirmText: 'Yes, save changes',
+        cancelText: 'Cancel',
+      });
+      if (!ok) return;
+    }
+    try {
+      setSavingFormFields(true);
+      const res = await updateCampaignFormFields({
+        path: { campaign_id: campaign.id },
+        body: { form_fields: formFieldsDraft },
+      });
+      if (onCampaignUpdated && res.data) onCampaignUpdated(res.data);
+      showAlert('Form fields updated', 'success');
+    } catch (err) {
+      handleError(err, 'Failed to update form fields');
+    } finally {
+      setSavingFormFields(false);
     }
   };
 
@@ -391,15 +438,35 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         <div>
           <h2 className="section-heading">Custom form fields</h2>
           <p className="section-description">
-            Additional questions annotators answer per annotation. Configured at campaign creation;
-            editing here is not yet supported.
+            Additional questions annotators answer per annotation. You can add new fields and edit
+            existing ones; editing requires confirmation since it affects how prior answers display.
+            Deleting fields is not supported (it would orphan stored answers), and a field&apos;s
+            type or options can only change while it has no answers yet.
           </p>
         </div>
-        <FormFieldsEditor
-          value={campaign.settings.form_fields ?? []}
-          onChange={() => {}}
-          readOnly
-        />
+        <FormFieldsEditor value={formFieldsDraft} onChange={setFormFieldsDraft} disableDelete />
+        <div className="flex items-center gap-3 mt-3">
+          <Button
+            type="button"
+            onClick={() => void handleSaveFormFields()}
+            disabled={!formFieldsChanged || formFieldErrors.length > 0 || savingFormFields}
+          >
+            {savingFormFields ? 'Saving…' : 'Save fields'}
+          </Button>
+          {formFieldsChanged && (
+            <button
+              type="button"
+              onClick={() => setFormFieldsDraft(campaign.settings.form_fields ?? [])}
+              disabled={savingFormFields}
+              className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
+            >
+              Discard
+            </button>
+          )}
+          {formFieldErrors.length > 0 && (
+            <span className="text-xs text-red-600">{formFieldErrors[0]}</span>
+          )}
+        </div>
       </section>
 
       <section className={sectionCls}>

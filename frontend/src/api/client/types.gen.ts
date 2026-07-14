@@ -2703,6 +2703,27 @@ export type UpdateCampaignBBoxRequest = {
 };
 
 /**
+ * UpdateCampaignFormFieldsRequest
+ *
+ * Replace the campaign's custom form fields. Existing field IDs must be
+ * preserved (stored annotation answers key off them); new fields get new ids.
+ */
+export type UpdateCampaignFormFieldsRequest = {
+    /**
+     * Form Fields
+     */
+    form_fields: Array<({
+        type: 'multiselect' | 'select';
+    } & SelectFormField) | ({
+        type: 'number';
+    } & NumberFormField) | ({
+        type: 'text';
+    } & TextFormField) | ({
+        type: 'date' | 'daterange';
+    } & DateFormField)>;
+};
+
+/**
  * UpdateCampaignGuideRequest
  */
 export type UpdateCampaignGuideRequest = {
@@ -4246,6 +4267,36 @@ export type UpdateCampaignLabelsResponses = {
 };
 
 export type UpdateCampaignLabelsResponse = UpdateCampaignLabelsResponses[keyof UpdateCampaignLabelsResponses];
+
+export type UpdateCampaignFormFieldsData = {
+    body: UpdateCampaignFormFieldsRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/form-fields';
+};
+
+export type UpdateCampaignFormFieldsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCampaignFormFieldsError = UpdateCampaignFormFieldsErrors[keyof UpdateCampaignFormFieldsErrors];
+
+export type UpdateCampaignFormFieldsResponses = {
+    /**
+     * Successful Response
+     */
+    200: CampaignOut;
+};
+
+export type UpdateCampaignFormFieldsResponse = UpdateCampaignFormFieldsResponses[keyof UpdateCampaignFormFieldsResponses];
 
 export type UpdateSampleExtentData = {
     body: UpdateSampleExtentRequest;

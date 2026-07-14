@@ -679,6 +679,66 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
     return get_campaign_full(db, campaign_id)
 
 
+def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list) -> Campaign:
+    """Replace the campaign's custom form fields. Field IDs are the stability
+    anchor: stored annotation answers key off them, so edit = same id, add =
+    new id. Removals are rejected outright, and shape changes (type,
+    number_type, removed select options) are rejected once a field has stored
+    answers - they would make those answers unresolvable."""
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if not campaign.settings:
+        raise HTTPException(status_code=404, detail="Campaign settings not found")
+
+    existing = {str(f.get("id")): f for f in (campaign.settings.form_fields or [])}
+    incoming_ids = {str(field.id) for field in form_fields}
+    removed = set(existing) - incoming_ids
+    if removed:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Removing form fields is not supported (would orphan stored answers). "
+                f"Missing field id(s): {sorted(removed)}"
+            ),
+        )
+
+    for field in form_fields:
+        old = existing.get(str(field.id))
+        if not old:
+            continue
+        shape_changed = old.get("type") != field.type or old.get("number_type") != getattr(
+            field, "number_type", None
+        )
+        old_option_ids = {option["id"] for option in old.get("options") or []}
+        new_option_ids = {option.id for option in getattr(field, "options", [])}
+        removed_options = old_option_ids - new_option_ids
+        if not shape_changed and not removed_options:
+            continue
+        answer_count = db.scalar(
+            select(func.count())
+            .select_from(Annotation)
+            .where(
+                Annotation.campaign_id == campaign_id,
+                Annotation.form_values.has_key(str(field.id)),
+            )
+        )
+        if answer_count:
+            what = "type" if shape_changed else "options"
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Cannot change the {what} of form field {field.id} "
+                    f"('{field.title}'): annotations already answered it"
+                ),
+            )
+
+    campaign.settings.form_fields = [field.model_dump() for field in form_fields]
+    flag_modified(campaign.settings, "form_fields")
+    db.commit()
+    return get_campaign_full(db, campaign_id)
+
+
 def update_campaign_bbox(
     db: Session,
     campaign_id: int,

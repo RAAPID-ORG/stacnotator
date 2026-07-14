@@ -379,6 +379,19 @@ class UpdateCampaignLabelsRequest(BaseModel):
     labels: list[LabelBase]
 
 
+class UpdateCampaignFormFieldsRequest(BaseModel):
+    """Replace the campaign's custom form fields. Existing field IDs must be
+    preserved (stored annotation answers key off them); new fields get new ids."""
+
+    form_fields: list[FormField]
+
+    @field_validator("form_fields")
+    @classmethod
+    def check_form_fields(cls, value: list[FormField]) -> list[FormField]:
+        validate_form_fields(value)
+        return value
+
+
 class EmbeddingYearUpdateResponse(BaseModel):
     """Response after updating the embedding year."""
 
