@@ -74,3 +74,34 @@ def test_assign_reviewers_pattern_manual_accepted():
 def test_assign_reviewers_pattern_invalid_rejected():
     with pytest.raises(ValidationError):
         AssignReviewersRequest(pattern="random")
+
+
+def test_settings_accept_form_fields():
+    settings = CampaignSettingsCreate(
+        **_minimal_settings(),
+        form_fields=[
+            {"id": 1, "title": "Notes", "type": "text"},
+        ],
+    )
+    orm = settings.to_orm()
+    assert orm["form_fields"] == [
+        {
+            "id": 1,
+            "title": "Notes",
+            "description": None,
+            "required": False,
+            "type": "text",
+            "multiline": False,
+        }
+    ]
+
+
+def test_settings_reject_duplicate_form_field_slugs():
+    with pytest.raises(ValidationError):
+        CampaignSettingsCreate(
+            **_minimal_settings(),
+            form_fields=[
+                {"id": 1, "title": "Notes", "type": "text"},
+                {"id": 2, "title": "notes!", "type": "text"},
+            ],
+        )

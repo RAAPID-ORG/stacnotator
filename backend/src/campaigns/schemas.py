@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from src.auth.schemas import UserOut
+from src.campaigns.form_fields import FormField, validate_form_fields
 from src.custom_maps.schemas import CustomMapOut
 from src.imagery.schemas import (
     BasemapOut,
@@ -148,6 +149,7 @@ class CampaignSettingsOut(BaseModel):
     guide_markdown: str | None = None
     sample_extent_meters: float | None = None
     labelling_policy: LabellingPolicy
+    form_fields: list[FormField] = []
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -185,6 +187,13 @@ class CampaignSettingsCreate(BaseModel):
     bbox_north: float
     embedding_year: int | None = None
     sample_extent_meters: float | None = None
+    form_fields: list[FormField] = []
+
+    @field_validator("form_fields")
+    @classmethod
+    def check_form_fields(cls, value: list[FormField]) -> list[FormField]:
+        validate_form_fields(value)
+        return value
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
@@ -202,6 +211,7 @@ class CampaignSettingsCreate(BaseModel):
             "bbox_north": self.bbox_north,
             "embedding_year": self.embedding_year,
             "sample_extent_meters": self.sample_extent_meters,
+            "form_fields": [f.model_dump() for f in self.form_fields],
         }
 
 
