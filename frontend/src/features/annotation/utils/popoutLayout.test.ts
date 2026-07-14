@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withoutKeys, mergeLayoutChange } from './popoutLayout';
+import { withoutKeys, mergeLayoutChange, appendItem } from './popoutLayout';
 import type { Layout } from 'react-grid-layout';
 
 const layout: Layout = [
@@ -16,6 +16,28 @@ describe('withoutKeys', () => {
 
   it('returns the same reference when nothing is popped', () => {
     expect(withoutKeys(layout, new Set())).toBe(layout);
+  });
+});
+
+describe('appendItem', () => {
+  it('places the first card at the top left with the given size', () => {
+    expect(appendItem([], 'controls', { w: 20, h: 12 })).toEqual([
+      { i: 'controls', x: 0, y: 0, w: 20, h: 12 },
+    ]);
+  });
+
+  it('stacks below the bottom-most existing item', () => {
+    const screen: Layout = [
+      { i: 'controls', x: 0, y: 0, w: 20, h: 12 },
+      { i: '7', x: 20, y: 0, w: 10, h: 20 },
+    ];
+    const result = appendItem(screen, 'minimap', { w: 15, h: 10 });
+    expect(result).toContainEqual({ i: 'minimap', x: 0, y: 20, w: 15, h: 10 });
+  });
+
+  it('is a no-op when the card is already on the screen', () => {
+    const screen: Layout = [{ i: 'controls', x: 5, y: 5, w: 20, h: 12 }];
+    expect(appendItem(screen, 'controls', { w: 1, h: 1 })).toBe(screen);
   });
 });
 

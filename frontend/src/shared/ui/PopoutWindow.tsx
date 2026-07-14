@@ -21,6 +21,8 @@ interface PopoutWindowProps {
   onBounds?: (bounds: PopoutBounds) => void;
   /** The browser blocked the popup. `onUserClose` still follows. */
   onBlocked?: () => void;
+  /** Label of the close button in the window's top bar. */
+  closeLabel?: string;
   children: React.ReactNode;
 }
 
@@ -34,6 +36,11 @@ function copyStyles(sourceDoc: Document, targetDoc: Document) {
   sourceDoc.head.querySelectorAll('style, link[rel="stylesheet"]').forEach((node) => {
     const clone = targetDoc.importNode(node, true);
     clone.setAttribute(POPOUT_STYLE_ATTR, '');
+    if (clone instanceof HTMLLinkElement && node instanceof HTMLLinkElement) {
+      // The popout document is about:blank; a relative href copied as-is has
+      // no reliable base to resolve against, so pin the resolved URL.
+      clone.href = node.href;
+    }
     targetDoc.head.appendChild(clone);
   });
 }
@@ -55,6 +62,7 @@ export const PopoutWindow = ({
   onUserClose,
   onBounds,
   onBlocked,
+  closeLabel = 'Close window',
   children,
 }: PopoutWindowProps) => {
   const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -162,15 +170,13 @@ export const PopoutWindow = ({
           type="button"
           onClick={() => childRef.current?.close()}
           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
-          title="Close this window and return the panel to the canvas"
+          title="Close this window and return its panels to the main window"
         >
           <IconClose className="h-3 w-3" />
-          Return to canvas
+          {closeLabel}
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden p-1">
-        <div className="grid-card h-full">{children}</div>
-      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
     </div>,
     container
   );
