@@ -29,6 +29,7 @@ import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { findNearestSlice } from '../../utils/nearestSlice';
 
 ChartJS.register(
   LineElement,
@@ -487,13 +488,13 @@ export const TimeSeriesChart = ({
     []
   );
 
-  // Jump the main view to the slice
-  // nearest the clicked date across ALL collections of the active source,
-  // switching collection when the date lives in a sibling collection.
+  // Jump the main view to the slice nearest the clicked date across ALL
+  // sources' collections, switching collection (and thereby source) when the
+  // clicked date lives outside the active one.
   const handleChartClick = useCallback(
     (event: ChartEvent, _elements: ActiveElement[], chart: ChartJS<'line'>) => {
       const labels = chartData?.labels;
-      if (!activeSource || !labels?.length) return;
+      if (!activeSource || !campaign || !labels?.length) return;
       const xScale = chart.scales.x;
       if (!xScale || event.x == null) return;
 
@@ -503,26 +504,8 @@ export const TimeSeriesChart = ({
       const clickedTime = parseSeriesDate(labels[labelIdx]);
       if (Number.isNaN(clickedTime)) return;
 
-      // Pick the slice whose date-range midpoint is closest to the click. The
-      // midpoint naturally favours the most specific slice when several ranges
-      // overlap (e.g. a weekly slice over its month-spanning "Cover").
-      let best: { collectionId: number; sliceIndex: number; dist: number } | null = null;
-      for (const col of activeSource.collections) {
-        // A dedicated cover spans the whole period rather than a point in time,
-        // so it must never win the nearest-date search. A normal slice that
-        // merely sits at the cover index stays eligible.
-        const dedicatedCoverIdx = col.has_dedicated_cover ? col.cover_slice_index : -1;
-        col.slices.forEach((slice, i) => {
-          if (i === dedicatedCoverIdx) return;
-          const start = new Date(slice.start_date).getTime();
-          const end = new Date(slice.end_date).getTime();
-          const dist = Math.abs((start + end) / 2 - clickedTime);
-          if (Number.isNaN(dist)) return;
-          if (!best || dist < best.dist) best = { collectionId: col.id, sliceIndex: i, dist };
-        });
-      }
-      if (!best) return;
-      const target: { collectionId: number; sliceIndex: number } = best;
+      const target = findNearestSlice(campaign.imagery_sources, clickedTime, activeCollectionId);
+      if (!target) return;
 
       if (target.collectionId !== activeCollectionId) {
         // Seed the slice index first so setActiveCollectionId resolves to it
@@ -535,6 +518,7 @@ export const TimeSeriesChart = ({
     },
     [
       chartData?.labels,
+      campaign,
       activeSource,
       activeCollectionId,
       activeSliceIndex,
@@ -616,7 +600,12 @@ export const TimeSeriesChart = ({
   if (!chartData) return null;
 
   return (
-    <div className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative">
+    <div
+      className="flex-1 flex flex-col bg-white p-2 min-h-0 overflow-hidden relative"
+      data-indicator-collection-id={activeCollection?.id ?? ''}
+      data-indicator-start={activeSlice?.start_date ?? ''}
+      data-indicator-end={activeSlice?.end_date ?? ''}
+    >
       {/* Loading indicator overlay */}
       {(isLoading || isProbeLoading) && (
         <div className="absolute top-2 right-2 z-10">
