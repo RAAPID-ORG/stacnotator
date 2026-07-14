@@ -626,7 +626,9 @@ const DrawingLayer = ({
           await updateAnnotationGeometry(annotationId, geoJSON, {
             labelId: detail?.label_id ?? (feature.get(PROP_LABEL_ID) as number | null) ?? null,
             comment: detail?.comment ?? null,
-            formValues: hydrateFormValues(detail?.form_values),
+            // Without the loaded detail, resending would push {} and clear the
+            // stored answers - omit instead so the backend keeps them.
+            formValues: detail ? hydrateFormValues(detail.form_values) : undefined,
           });
         } catch (err) {
           handleError(err, 'Failed to save geometry update');

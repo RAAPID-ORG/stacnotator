@@ -183,10 +183,10 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
           comment: meta.comment,
           geometry_wkt: wktGeometry,
           is_authoritative: null,
-          // PATCH semantics: omitting formValues keeps the annotation's stored
-          // answers untouched. Callers that set/preserve a label must pass the
-          // full current snapshot - the backend only re-checks required fields
-          // when this key is present in the payload.
+          // PATCH semantics: sending null keeps the stored answers, {} clears
+          // them, a dict replaces them. Callers that set/preserve a label must
+          // pass the full current snapshot - the backend only re-checks
+          // required fields when the payload carries a non-null value.
           form_values: meta.formValues !== undefined ? meta.formValues : null,
           ...resolveActiveImagerySnapshot(),
         },
