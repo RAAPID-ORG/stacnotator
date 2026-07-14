@@ -68,9 +68,17 @@ interface LabellingPolicyEditorProps {
   value: LabellingPolicy;
   onChange: (value: LabellingPolicy) => void;
   isPublic: boolean;
-  /** Omit in the create wizard where campaign members aren't known yet - the
-   * "selected members" option is hidden in that case. */
+  /** Omit where campaign members aren't known yet - the "selected members"
+   * option is hidden in that case. */
   members?: CampaignUserOut[];
+  /** User IDs to seed into an axis's user_ids the first time its "Selected
+   * members" checkbox is enabled with nothing selected yet (e.g. the
+   * campaign creator, pre-checked in the create wizard). Filtered to known
+   * `members`. Absent means seed empty, matching prior behavior. */
+  defaultSelectedMemberIds?: string[];
+  /** Muted helper text rendered under an axis's expanded member picker, e.g.
+   * pointing users at where to add more members later. */
+  membersHint?: string;
   /** Called only for direct user interaction with a checkbox (kind, member
    * toggle) - not for the isPublic-driven 'anyone' strip below. Lets callers
    * (e.g. the create wizard) distinguish "user customized the policy" from
@@ -83,6 +91,8 @@ export const LabellingPolicyEditor = ({
   onChange,
   isPublic,
   members,
+  defaultSelectedMemberIds,
+  membersHint,
   onTouch,
 }: LabellingPolicyEditorProps) => {
   // UI-only: whether the member picker is expanded for a given axis. Seeded
@@ -137,7 +147,13 @@ export const LabellingPolicyEditor = ({
     setExpanded((prev) => ({ ...prev, [key]: checked }));
     if (!checked) {
       updateAxis(key, { user_ids: [] });
+      return;
     }
+    const current = value[key] ?? emptyAudience;
+    if ((current.user_ids ?? []).length > 0 || !defaultSelectedMemberIds?.length) return;
+    const knownIds = new Set((members ?? []).map((m) => m.user.id));
+    const seeded = defaultSelectedMemberIds.filter((id) => knownIds.has(id));
+    if (seeded.length > 0) updateAxis(key, { user_ids: seeded });
   };
 
   const toggleMember = (key: AxisKey, userId: string, checked: boolean) => {
@@ -227,6 +243,7 @@ export const LabellingPolicyEditor = ({
                     </label>
                   ))
                 )}
+                {membersHint && <p className="text-xs text-neutral-400 italic">{membersHint}</p>}
               </div>
             )}
 
