@@ -99,7 +99,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         path: { campaign_id: campaign.id },
         body: { labels: labelsDraft },
       });
-      if (onCampaignUpdated && res.data) onCampaignUpdated(res.data);
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update labels');
+        return;
+      }
+      if (onCampaignUpdated) onCampaignUpdated(res.data);
       showAlert('Labels updated', 'success');
     } catch (err) {
       handleError(err, 'Failed to update labels');
@@ -144,7 +148,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         path: { campaign_id: campaign.id },
         body: { form_fields: formFieldsDraft },
       });
-      if (onCampaignUpdated && res.data) onCampaignUpdated(res.data);
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update form fields');
+        return;
+      }
+      if (onCampaignUpdated) onCampaignUpdated(res.data);
       showAlert('Form fields updated', 'success');
     } catch (err) {
       handleError(err, 'Failed to update form fields');
@@ -166,7 +174,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     try {
       setSavingPolicy(true);
       const noOne = { kinds: [], user_ids: [] };
-      const { data } = await updateLabellingPolicy({
+      const res = await updateLabellingPolicy({
         path: { campaign_id: campaign.id },
         // PATCH replaces the whole policy, so every axis must be present.
         body: {
@@ -176,14 +184,16 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           complete_assigned: policyDraft.complete_assigned ?? noOne,
         },
       });
-      if (data) {
-        setPolicyDraft(data);
-        if (onCampaignUpdated) {
-          onCampaignUpdated({
-            ...campaign,
-            settings: { ...campaign.settings, labelling_policy: data },
-          });
-        }
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update labelling access');
+        return;
+      }
+      setPolicyDraft(res.data);
+      if (onCampaignUpdated) {
+        onCampaignUpdated({
+          ...campaign,
+          settings: { ...campaign.settings, labelling_policy: res.data },
+        });
       }
       showAlert('Labelling access updated', 'success');
     } catch (err) {
@@ -207,10 +217,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!guideChanged) return;
     try {
       setSavingGuide(true);
-      await updateCampaignGuide({
+      const res = await updateCampaignGuide({
         path: { campaign_id: campaign.id },
         body: { guide_markdown: guideMarkdown || null },
       });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update guide');
+        return;
+      }
       if (onCampaignUpdated) {
         onCampaignUpdated({
           ...campaign,
@@ -229,10 +243,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!extentChanged || !extentValid) return;
     try {
       setSavingExtent(true);
-      await updateSampleExtent({
+      const res = await updateSampleExtent({
         path: { campaign_id: campaign.id },
         body: { sample_extent_meters: parsedExtent },
       });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update sample extent');
+        return;
+      }
       if (onCampaignUpdated) {
         onCampaignUpdated({
           ...campaign,
@@ -264,12 +282,17 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
     try {
       setSavingEmbeddingYear(true);
-      const { data } = await updateEmbeddingYear({
+      const res = await updateEmbeddingYear({
         path: { campaign_id: campaign.id },
         body: { embedding_year: embeddingYear },
       });
 
-      if (data?.embeddings_recomputed) {
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update embedding year');
+        return;
+      }
+
+      if (res.data.embeddings_recomputed) {
         showAlert(`Embeddings recomputed for ${embeddingYear}`, 'success');
       } else {
         showAlert('Embedding year updated', 'success');
@@ -281,7 +304,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           ...campaign,
           settings: {
             ...campaign.settings,
-            embedding_year: data?.embedding_year ?? null,
+            embedding_year: res.data.embedding_year ?? null,
           },
         });
       }
@@ -590,11 +613,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               });
               if (!confirmed) return;
               try {
-                const { data } = await updateCampaignVisibility({
+                const res = await updateCampaignVisibility({
                   path: { campaign_id: campaign.id },
                   body: { is_public: newValue },
                 });
-                if (onCampaignUpdated && data) onCampaignUpdated(data);
+                if (res.error || !res.data) {
+                  handleError(res.error, 'Failed to update visibility');
+                  return;
+                }
+                if (onCampaignUpdated) onCampaignUpdated(res.data);
                 showAlert(
                   newValue ? 'Campaign is now public' : 'Campaign is now private',
                   'success'
