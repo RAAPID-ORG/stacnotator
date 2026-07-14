@@ -12,6 +12,11 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 import { resolveActiveImagerySnapshot } from '../utils/imagerySnapshot';
+import {
+  missingRequiredFields,
+  formatMissingFieldsTitle,
+  type FormValues,
+} from '../utils/formValues';
 import { useCampaignStore } from './campaign.store';
 
 interface OpenAnnotationStore {
@@ -39,15 +44,20 @@ interface OpenAnnotationStore {
   saveAnnotation: (
     geometry: GeoJSON.Geometry,
     labelId: number,
-    comment?: string | null
+    comment?: string | null,
+    formValues?: FormValues
   ) => Promise<AnnotationOut | null>;
   /** Create many annotations from vector features in one go (box-label). Returns
    * the number saved. Bumps the tile version once and shows a single toast. */
-  saveAnnotationsBatch: (geometries: GeoJSON.Geometry[], labelId: number) => Promise<number>;
+  saveAnnotationsBatch: (
+    geometries: GeoJSON.Geometry[],
+    labelId: number,
+    formValues?: FormValues
+  ) => Promise<number>;
   updateAnnotationGeometry: (
     annotationId: number,
     geometry: GeoJSON.Geometry,
-    meta: { labelId: number | null; comment: string | null }
+    meta: { labelId: number | null; comment: string | null; formValues?: FormValues }
   ) => Promise<void>;
   updateAnnotationFlags: (
     annotationId: number,
@@ -81,9 +91,15 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
 
   setEditingId: (id) => set({ editingId: id }),
 
-  saveAnnotation: async (geometry, labelId, comment = null) => {
+  saveAnnotation: async (geometry, labelId, comment = null, formValues = {}) => {
     const campaign = useCampaignStore.getState().campaign;
     if (!campaign) return null;
+
+    const missing = missingRequiredFields(campaign.settings.form_fields ?? [], formValues);
+    if (missing.length > 0) {
+      useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+      return null;
+    }
 
     set({ isSaving: true });
     try {
@@ -95,6 +111,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
           comment: comment || null,
           geometry_wkt: wktGeometry,
           confidence: null,
+          form_values: Object.keys(formValues).length ? formValues : null,
           ...resolveActiveImagerySnapshot(),
         },
       });
@@ -110,13 +127,20 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
     }
   },
 
-  saveAnnotationsBatch: async (geometries, labelId) => {
+  saveAnnotationsBatch: async (geometries, labelId, formValues = {}) => {
     const campaign = useCampaignStore.getState().campaign;
     if (!campaign || geometries.length === 0) return 0;
+
+    const missing = missingRequiredFields(campaign.settings.form_fields ?? [], formValues);
+    if (missing.length > 0) {
+      useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+      return 0;
+    }
 
     set({ isSaving: true });
     try {
       const snapshot = resolveActiveImagerySnapshot();
+      const formValuesPayload = Object.keys(formValues).length ? formValues : null;
       // One request + one transaction for the whole set, rather than a POST per
       // feature - labelling hundreds of vector features stays fast.
       const response = await batchCreateAnnotationsApi({
@@ -127,6 +151,7 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
             comment: null,
             geometry_wkt: convertGeoJSONToWKT(geometry),
             confidence: null,
+            form_values: formValuesPayload,
             ...snapshot,
           })),
         },
@@ -158,6 +183,11 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
           comment: meta.comment,
           geometry_wkt: wktGeometry,
           is_authoritative: null,
+          // PATCH semantics: omitting formValues keeps the annotation's stored
+          // answers untouched. Callers that set/preserve a label must pass the
+          // full current snapshot - the backend only re-checks required fields
+          // when this key is present in the payload.
+          form_values: meta.formValues !== undefined ? meta.formValues : null,
           ...resolveActiveImagerySnapshot(),
         },
       });

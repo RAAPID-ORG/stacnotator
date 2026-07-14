@@ -38,10 +38,12 @@ import type { Geometry } from 'ol/geom';
 import type { DrawEvent } from 'ol/interaction/Draw';
 
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
+import { hydrateFormValues } from '../../utils/formValues';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import { usePreferencesStore } from '../../stores/preferences.store';
+import { useTaskStore } from '../../stores/task.store';
 import {
   resolveLabelStyle,
   styleKey,
@@ -366,7 +368,12 @@ const DrawingLayer = ({
         return;
       }
 
-      const saved = await saveAnnotation(geoJSON, selectedLabelRef.current.id);
+      const saved = await saveAnnotation(
+        geoJSON,
+        selectedLabelRef.current.id,
+        undefined,
+        useTaskStore.getState().formValues
+      );
       // No-flicker handoff: keep the just-drawn feature painted until the
       // refreshed tiles (bumped tileVersion -> source.refresh) repaint, then drop
       // it so the tile representation takes over without a visible gap.
@@ -410,7 +417,12 @@ const DrawingLayer = ({
         const polygonGeometry = await mockMagicWandSegmentation(lat, lon);
         if (controller.signal.aborted) return;
         if (selectedLabelRef.current) {
-          await saveAnnotation(polygonGeometry, selectedLabelRef.current.id);
+          await saveAnnotation(
+            polygonGeometry,
+            selectedLabelRef.current.id,
+            undefined,
+            useTaskStore.getState().formValues
+          );
         }
       } catch (err) {
         handleError(err, 'Magic wand segmentation failed');
@@ -614,6 +626,7 @@ const DrawingLayer = ({
           await updateAnnotationGeometry(annotationId, geoJSON, {
             labelId: detail?.label_id ?? (feature.get(PROP_LABEL_ID) as number | null) ?? null,
             comment: detail?.comment ?? null,
+            formValues: hydrateFormValues(detail?.form_values),
           });
         } catch (err) {
           handleError(err, 'Failed to save geometry update');

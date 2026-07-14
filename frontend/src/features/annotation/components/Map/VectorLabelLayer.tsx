@@ -26,6 +26,7 @@ import { Fill, Stroke, Style } from 'ol/style';
 
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useAnnotationStore } from '../../stores/annotation.store';
+import { useTaskStore } from '../../stores/task.store';
 import type { AnnotationTool } from '../../stores/map.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import {
@@ -130,7 +131,9 @@ const VectorLabelLayer = ({
       const hit = hitVectorFeature(evt.pixel);
       if (!hit) return;
       const geoJSON = featureLikeToGeoJSON4326(hit);
-      if (geoJSON) void saveAnnotation(geoJSON, label.id);
+      if (geoJSON) {
+        void saveAnnotation(geoJSON, label.id, undefined, useTaskStore.getState().formValues);
+      }
     };
     map.on('click', onClick as unknown as () => void);
 
@@ -159,8 +162,8 @@ const VectorLabelLayer = ({
         }
       }
       if (geometries.length === 0) return;
-      void saveAnnotationsBatch(geometries, label.id).catch((err) =>
-        handleError(err, 'Failed to label features')
+      void saveAnnotationsBatch(geometries, label.id, useTaskStore.getState().formValues).catch(
+        (err) => handleError(err, 'Failed to label features')
       );
     });
     map.addInteraction(dragBox);

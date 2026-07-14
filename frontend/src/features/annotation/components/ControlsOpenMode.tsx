@@ -13,6 +13,7 @@ import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 import { TOOL_KEYS, EXPLORE_PANEL_SHORTCUTS } from '../hotkeys';
 import { ShortcutList } from './ShortcutList';
+import { AnnotationForm } from './AnnotationForm';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
 
@@ -123,8 +124,11 @@ const OpenModeControls = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
   const activeTool = useMapStore((s) => s.activeTool);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
@@ -149,6 +153,7 @@ const OpenModeControls = () => {
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
   const extendedLabels = extendLabelsWithMetadata(baseLabels);
+  const formFields = campaign?.settings.form_fields ?? [];
 
   // Filter tools based on campaign configuration
   const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
@@ -483,6 +488,13 @@ const OpenModeControls = () => {
                 </p>
               )}
             </div>
+
+            <AnnotationForm
+              fields={formFields}
+              values={formValues}
+              onChange={setFormValues}
+              activeFieldIndex={activeFieldIndex}
+            />
 
             {/* Current selection info */}
             {selectedLabel && (
