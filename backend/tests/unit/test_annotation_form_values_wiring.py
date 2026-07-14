@@ -22,11 +22,11 @@ from src.annotation.service import (
     validate_annotation_form_values,
 )
 
-REQUIRED_SELECT_FIELD = [
+REQUIRED_CATEGORY_FIELD = [
     {
         "id": 1,
         "title": "Crop",
-        "type": "select",
+        "type": "category",
         "required": True,
         "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
     },
@@ -56,14 +56,14 @@ _MEMBER = SimpleNamespace(is_admin=False, is_authorative_reviewer=False)
 
 class TestValidateAnnotationFormValuesHelper:
     def test_happy_path_returns_normalized_dict(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
 
         result = validate_annotation_form_values(campaign, {"1": 1}, enforce_required=True)
 
         assert result == {"1": 1}
 
     def test_form_validation_error_becomes_http_400_with_message(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
 
         with pytest.raises(HTTPException) as exc:
             validate_annotation_form_values(campaign, {"1": 99}, enforce_required=True)
@@ -72,7 +72,7 @@ class TestValidateAnnotationFormValuesHelper:
         assert "unknown option" in exc.value.detail
 
     def test_missing_required_field_becomes_http_400(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
 
         with pytest.raises(HTTPException) as exc:
             validate_annotation_form_values(campaign, None, enforce_required=True)
@@ -81,19 +81,19 @@ class TestValidateAnnotationFormValuesHelper:
         assert "required" in exc.value.detail
 
     def test_missing_required_field_ignored_when_not_enforced(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
 
         assert validate_annotation_form_values(campaign, None, enforce_required=False) is None
 
     def test_fields_are_parsed_from_campaign_settings_form_fields(self):
         # A different campaign's field list rejects an option id that would
-        # be valid under REQUIRED_SELECT_FIELD, proving the fields actually
+        # be valid under REQUIRED_CATEGORY_FIELD, proving the fields actually
         # come from campaign.settings.form_fields rather than being ignored.
         other_fields = [
             {
                 "id": 1,
                 "title": "Crop",
-                "type": "select",
+                "type": "category",
                 "options": [{"id": 5, "name": "Rice"}],
             },
         ]
@@ -118,7 +118,7 @@ class TestValidateAnnotationFormValuesHelper:
 
 class TestCreateAnnotationFormValuesWiring:
     def test_persists_normalized_form_values(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         payload = AnnotationCreate(
             label_id=1,
@@ -133,7 +133,7 @@ class TestCreateAnnotationFormValuesWiring:
         assert annotation.form_values == {"1": 1}
 
     def test_rejects_missing_required_form_value(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
@@ -159,7 +159,7 @@ class TestCreateAnnotationFormValuesWiring:
 
 class TestCreateAnnotationsBulkFormValuesWiring:
     def test_validates_each_item_and_persists(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         payloads = [
             AnnotationCreate(
@@ -185,7 +185,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
         assert [a.form_values for a in annotations] == [{"1": 1}, {"1": 2}]
 
     def test_rejects_when_any_item_missing_required_form_value(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         payloads = [
             AnnotationCreate(
@@ -207,7 +207,7 @@ class TestCreateAnnotationsBulkFormValuesWiring:
 
 class TestUpdateAnnotationFormValuesWiring:
     def test_persists_normalized_form_values_when_label_present(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
         existing.created_by_user_id = uuid4()
@@ -226,7 +226,7 @@ class TestUpdateAnnotationFormValuesWiring:
         assert annotation.form_values == {"1": 2}
 
     def test_rejects_empty_form_values_when_required_and_label_present(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
         existing.created_by_user_id = uuid4()
@@ -250,7 +250,7 @@ class TestUpdateAnnotationFormValuesWiring:
         # the caller with its original detail, not get swallowed by the
         # broad except and rewritten to the generic "Failed to update
         # annotation" message.
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
         existing.created_by_user_id = uuid4()
@@ -272,7 +272,7 @@ class TestUpdateAnnotationFormValuesWiring:
         assert exc.value.detail != "Failed to update annotation"
 
     def test_omitted_form_values_keeps_stored_values(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = 1
         existing.created_by_user_id = uuid4()
@@ -288,7 +288,7 @@ class TestUpdateAnnotationFormValuesWiring:
         assert annotation.form_values == {"1": 1}
 
     def test_empty_form_values_clears_when_label_absent(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         existing = MagicMock()
         existing.label_id = None
         existing.created_by_user_id = uuid4()
@@ -314,7 +314,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         return SimpleNamespace(id=1, campaign_id=1, geometry_id=10, assignments=assignments or [])
 
     def test_enforces_required_when_label_submitted(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
         payload = AnnotationFromTaskCreate(label_id=1, comment=None)
@@ -326,7 +326,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         db.add.assert_not_called()
 
     def test_persists_normalized_form_values_on_create(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
         payload = AnnotationFromTaskCreate(label_id=1, comment=None, form_values={"1": 1})
@@ -337,7 +337,7 @@ class TestAddAnnotationForTaskFormValuesWiring:
         assert annotation.form_values == {"1": 1}
 
     def test_skip_bypasses_required_form_values(self):
-        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
         db = _db(cu=_MEMBER)
         db.get.return_value = campaign
         payload = AnnotationFromTaskCreate(label_id=None, comment="skipping without a label")

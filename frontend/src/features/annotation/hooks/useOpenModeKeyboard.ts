@@ -30,7 +30,7 @@ import {
  *
  * Form field navigation (shared activeFieldIndex/formValues with task mode):
  *   Tab / Shift+Tab - Cycle the label selector, then each custom form field
- *   1-9 - With a select/multiselect field active, toggle that option
+ *   1-9 - With a category/multicategory field active, toggle that option
  *   Enter / any digit - With a number/text/date/daterange field active, focus its input
  *   Escape - Clear the active field (also handled by DrawingLayer for edit/draw cancel)
  *

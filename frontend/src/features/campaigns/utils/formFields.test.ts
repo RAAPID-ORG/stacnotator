@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import type { SelectFormField, NumberFormField, TextFormField, DateFormField } from '~/api/client';
+import type {
+  CategoryFormField,
+  NumberFormField,
+  TextFormField,
+  DateFormField,
+} from '~/api/client';
 import {
   formFieldSlug,
   validateFormFields,
@@ -7,11 +12,11 @@ import {
   type FormField,
 } from './formFields';
 
-const SELECT: SelectFormField = {
+const CATEGORY: CategoryFormField = {
   id: 1,
   title: 'Condition',
   required: false,
-  type: 'select',
+  type: 'category',
   options: [
     { id: 10, name: 'Good' },
     { id: 20, name: 'Bad' },
@@ -60,7 +65,7 @@ describe('validateFormFields', () => {
   });
 
   it('accepts a well-formed mix of field types', () => {
-    const fields: FormField[] = [SELECT, NUMBER, TEXT, DATE];
+    const fields: FormField[] = [CATEGORY, NUMBER, TEXT, DATE];
     expect(validateFormFields(fields)).toEqual([]);
     expect(formFieldsAreValid(fields)).toBe(true);
   });
@@ -84,16 +89,16 @@ describe('validateFormFields', () => {
     expect(validateFormFields(fields)).toContain('Field titles must be unique.');
   });
 
-  it('flags a select field with no options', () => {
-    const fields: FormField[] = [{ ...SELECT, options: [] }];
+  it('flags a category field with no options', () => {
+    const fields: FormField[] = [{ ...CATEGORY, options: [] }];
     const errors = validateFormFields(fields);
     expect(errors).toContain('"Condition" needs at least one option.');
   });
 
-  it('flags a select field with a blank option name', () => {
+  it('flags a category field with a blank option name', () => {
     const fields: FormField[] = [
       {
-        ...SELECT,
+        ...CATEGORY,
         options: [
           { id: 10, name: 'Good' },
           { id: 20, name: '  ' },
@@ -104,10 +109,10 @@ describe('validateFormFields', () => {
     expect(errors).toContain('"Condition" has an option with no name.');
   });
 
-  it('flags duplicate option ids on a select field', () => {
+  it('flags duplicate option ids on a category field', () => {
     const fields: FormField[] = [
       {
-        ...SELECT,
+        ...CATEGORY,
         options: [
           { id: 10, name: 'Good' },
           { id: 10, name: 'Bad' },
@@ -118,8 +123,8 @@ describe('validateFormFields', () => {
     expect(errors).toContain('"Condition" has duplicate option ids.');
   });
 
-  it('flags a multiselect field the same way as select', () => {
-    const fields: FormField[] = [{ ...SELECT, type: 'multiselect', options: [] }];
+  it('flags a multicategory field the same way as category', () => {
+    const fields: FormField[] = [{ ...CATEGORY, type: 'multicategory', options: [] }];
     const errors = validateFormFields(fields);
     expect(errors).toContain('"Condition" needs at least one option.');
   });
@@ -147,7 +152,7 @@ describe('validateFormFields', () => {
   });
 
   it('falls back to a generic label when the title is blank', () => {
-    const fields: FormField[] = [{ ...SELECT, title: '', options: [] }];
+    const fields: FormField[] = [{ ...CATEGORY, title: '', options: [] }];
     const errors = validateFormFields(fields);
     expect(errors).toContain('"field 1" needs at least one option.');
   });

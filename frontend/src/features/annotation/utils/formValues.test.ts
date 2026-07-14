@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { SelectFormField, NumberFormField, TextFormField } from '~/api/client';
+import type { CategoryFormField, NumberFormField, TextFormField } from '~/api/client';
 import {
   setFieldValue,
   toggleMultiOption,
-  applySelectOption,
+  applyCategoryOption,
   missingRequiredFields,
   formatMissingFieldsTitle,
   hydrateFormValues,
@@ -11,22 +11,22 @@ import {
   type FormValues,
 } from './formValues';
 
-const SELECT: SelectFormField = {
+const CATEGORY: CategoryFormField = {
   id: 1,
   title: 'Condition',
   required: false,
-  type: 'select',
+  type: 'category',
   options: [
     { id: 10, name: 'Good' },
     { id: 20, name: 'Bad' },
   ],
 };
 
-const MULTISELECT: SelectFormField = {
+const MULTICATEGORY: CategoryFormField = {
   id: 2,
   title: 'Tags',
   required: false,
-  type: 'multiselect',
+  type: 'multicategory',
   options: [
     { id: 10, name: 'A' },
     { id: 20, name: 'B' },
@@ -48,11 +48,11 @@ const NUMBER: NumberFormField = {
   type: 'number',
 };
 
-const REQUIRED_MULTISELECT: SelectFormField = {
+const REQUIRED_MULTICATEGORY: CategoryFormField = {
   id: 5,
   title: 'Required Tags',
   required: true,
-  type: 'multiselect',
+  type: 'multicategory',
   options: [{ id: 10, name: 'A' }],
 };
 
@@ -113,57 +113,57 @@ describe('setFieldValue', () => {
 describe('toggleMultiOption', () => {
   it('adds an option id to an absent key', () => {
     const values: FormValues = {};
-    const next = toggleMultiOption(values, MULTISELECT, 10);
+    const next = toggleMultiOption(values, MULTICATEGORY, 10);
     expect(next).toEqual({ '2': [10] });
   });
 
   it('adds an option id and keeps the result sorted ascending', () => {
     const values: FormValues = { '2': [20] };
-    const next = toggleMultiOption(values, MULTISELECT, 10);
+    const next = toggleMultiOption(values, MULTICATEGORY, 10);
     expect(next).toEqual({ '2': [10, 20] });
   });
 
   it('removes an option id that is already present', () => {
     const values: FormValues = { '2': [10, 20] };
-    const next = toggleMultiOption(values, MULTISELECT, 10);
+    const next = toggleMultiOption(values, MULTICATEGORY, 10);
     expect(next).toEqual({ '2': [20] });
   });
 
   it('removing the last option id deletes the key entirely', () => {
     const values: FormValues = { '2': [10] };
-    const next = toggleMultiOption(values, MULTISELECT, 10);
+    const next = toggleMultiOption(values, MULTICATEGORY, 10);
     expect(next).toEqual({});
     expect('2' in next).toBe(false);
   });
 
   it('does not mutate the input', () => {
     const values: FormValues = { '2': [10] };
-    toggleMultiOption(values, MULTISELECT, 20);
+    toggleMultiOption(values, MULTICATEGORY, 20);
     expect(values).toEqual({ '2': [10] });
   });
 });
 
-describe('applySelectOption', () => {
-  it('selects an option on an empty select field', () => {
-    const next = applySelectOption({}, SELECT, 10);
+describe('applyCategoryOption', () => {
+  it('selects an option on an empty category field', () => {
+    const next = applyCategoryOption({}, CATEGORY, 10);
     expect(next).toEqual({ '1': 10 });
   });
 
-  it('deselects a select field option that is already the current value', () => {
+  it('deselects a category field option that is already the current value', () => {
     const values: FormValues = { '1': 10 };
-    const next = applySelectOption(values, SELECT, 10);
+    const next = applyCategoryOption(values, CATEGORY, 10);
     expect(next).toEqual({});
   });
 
-  it('replaces the current value when selecting a different select option', () => {
+  it('replaces the current value when selecting a different category option', () => {
     const values: FormValues = { '1': 10 };
-    const next = applySelectOption(values, SELECT, 20);
+    const next = applyCategoryOption(values, CATEGORY, 20);
     expect(next).toEqual({ '1': 20 });
   });
 
-  it('toggles a multiselect field the same way toggleMultiOption does', () => {
+  it('toggles a multicategory field the same way toggleMultiOption does', () => {
     const values: FormValues = { '2': [10] };
-    const next = applySelectOption(values, MULTISELECT, 20);
+    const next = applyCategoryOption(values, MULTICATEGORY, 20);
     expect(next).toEqual({ '2': [10, 20] });
   });
 });
@@ -194,13 +194,13 @@ describe('missingRequiredFields', () => {
   });
 
   it('treats an empty array as missing even if the key is present', () => {
-    const fields = [REQUIRED_MULTISELECT];
+    const fields = [REQUIRED_MULTICATEGORY];
     const missing = missingRequiredFields(fields, { '5': [] });
-    expect(missing).toEqual([REQUIRED_MULTISELECT]);
+    expect(missing).toEqual([REQUIRED_MULTICATEGORY]);
   });
 
   it('non-required fields are never reported as missing', () => {
-    const fields = [SELECT, NUMBER];
+    const fields = [CATEGORY, NUMBER];
     const missing = missingRequiredFields(fields, {});
     expect(missing).toEqual([]);
   });
@@ -219,7 +219,7 @@ describe('formatMissingFieldsTitle', () => {
   });
 
   it('joins multiple missing field titles with a comma', () => {
-    expect(formatMissingFieldsTitle([REQUIRED_TEXT, REQUIRED_MULTISELECT])).toBe(
+    expect(formatMissingFieldsTitle([REQUIRED_TEXT, REQUIRED_MULTICATEGORY])).toBe(
       'Missing required: Notes, Required Tags'
     );
   });

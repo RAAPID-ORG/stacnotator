@@ -13,14 +13,14 @@ FIELDS = _ADAPTER.validate_python(
         {
             "id": 1,
             "title": "Crop",
-            "type": "select",
+            "type": "category",
             "required": True,
             "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
         },
         {
             "id": 2,
             "title": "Damage",
-            "type": "multiselect",
+            "type": "multicategory",
             "options": [{"id": 1, "name": "Flood"}, {"id": 2, "name": "Drought"}],
         },
         {"id": 3, "title": "Yield", "type": "number", "number_type": "int", "min": 0, "max": 10},
@@ -73,15 +73,15 @@ class TestRejection:
         with pytest.raises(FormValidationError, match="unknown"):
             validate_form_values(FIELDS, {"99": 1}, enforce_required=False)
 
-    def test_select_option_not_in_field(self):
+    def test_category_option_not_in_field(self):
         with pytest.raises(FormValidationError, match="option"):
             validate_form_values(FIELDS, {"1": 99}, enforce_required=False)
 
-    def test_multiselect_duplicate_options(self):
+    def test_multicategory_duplicate_options(self):
         with pytest.raises(FormValidationError, match="duplicate"):
             validate_form_values(FIELDS, {"2": [1, 1]}, enforce_required=False)
 
-    def test_multiselect_wrong_type(self):
+    def test_multicategory_wrong_type(self):
         with pytest.raises(FormValidationError):
             validate_form_values(FIELDS, {"2": 1}, enforce_required=False)
 

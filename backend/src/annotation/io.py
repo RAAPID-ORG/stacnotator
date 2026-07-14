@@ -24,7 +24,7 @@ from src.annotation.service import (
     validate_label_id,
 )
 from src.auth.models import User
-from src.campaigns.form_fields import DateFormField, FormField, SelectFormField, form_field_slug
+from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
 from src.campaigns.models import Campaign
 
 logger = logging.getLogger(__name__)
@@ -511,7 +511,7 @@ def form_export_columns(fields: list[FormField]) -> list[str]:
 
 def format_form_value(field: FormField, value: object) -> object | None:
     """Render one submitted form value for CSV/GeoJSON: option ids become
-    their option names (multiselect joined with "; "), a daterange becomes
+    their option names (multicategory joined with "; "), a daterange becomes
     "start/end", everything else (number/text/date) passes through as-is.
 
     Stored values may predate a field-definition change; any value whose
@@ -520,9 +520,9 @@ def format_form_value(field: FormField, value: object) -> object | None:
     """
     if value is None:
         return None
-    if isinstance(field, SelectFormField):
+    if isinstance(field, CategoryFormField):
         names = {option.id: option.name for option in field.options}
-        if field.type == "select":
+        if field.type == "category":
             if isinstance(value, int):
                 return names.get(value, str(value))
             return str(value)

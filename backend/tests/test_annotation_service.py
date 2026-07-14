@@ -1439,7 +1439,7 @@ class TestExportFormFields:
         {
             "id": 1,
             "title": "Crop Type",
-            "type": "select",
+            "type": "category",
             "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
         },
         {"id": 2, "title": "Yield (t/ha)", "type": "number"},
@@ -1715,7 +1715,7 @@ class TestCreateAnnotationsFromGeojson:
         {
             "id": 1,
             "title": "Crop",
-            "type": "select",
+            "type": "category",
             "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
         },
     ]

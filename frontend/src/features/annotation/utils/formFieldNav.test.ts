@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { SelectFormField, NumberFormField, TextFormField } from '~/api/client';
+import type { CategoryFormField, NumberFormField, TextFormField } from '~/api/client';
 import {
   applyFieldDigit,
   cycleFieldIndex,
@@ -10,11 +10,11 @@ import {
 } from './formFieldNav';
 import type { FormValues } from './formValues';
 
-const SELECT: SelectFormField = {
+const CATEGORY: CategoryFormField = {
   id: 1,
   title: 'Condition',
   required: false,
-  type: 'select',
+  type: 'category',
   options: [
     { id: 10, name: 'Good' },
     { id: 20, name: 'Bad' },
@@ -22,10 +22,10 @@ const SELECT: SelectFormField = {
   ],
 };
 
-const MULTISELECT: SelectFormField = {
-  ...SELECT,
+const MULTICATEGORY: CategoryFormField = {
+  ...CATEGORY,
   id: 2,
-  type: 'multiselect',
+  type: 'multicategory',
 };
 
 const NUMBER: NumberFormField = {
@@ -93,12 +93,12 @@ describe('cycleFieldIndex', () => {
 });
 
 describe('digitTargetsOption', () => {
-  it('is true for select fields', () => {
-    expect(digitTargetsOption(SELECT)).toBe(true);
+  it('is true for category fields', () => {
+    expect(digitTargetsOption(CATEGORY)).toBe(true);
   });
 
-  it('is true for multiselect fields', () => {
-    expect(digitTargetsOption(MULTISELECT)).toBe(true);
+  it('is true for multicategory fields', () => {
+    expect(digitTargetsOption(MULTICATEGORY)).toBe(true);
   });
 
   it('is false for number fields', () => {
@@ -112,18 +112,18 @@ describe('digitTargetsOption', () => {
 
 describe('optionIdForDigit', () => {
   it('resolves 1-based digits to the corresponding option id', () => {
-    expect(optionIdForDigit(SELECT, 1)).toBe(10);
-    expect(optionIdForDigit(SELECT, 2)).toBe(20);
-    expect(optionIdForDigit(SELECT, 3)).toBe(30);
+    expect(optionIdForDigit(CATEGORY, 1)).toBe(10);
+    expect(optionIdForDigit(CATEGORY, 2)).toBe(20);
+    expect(optionIdForDigit(CATEGORY, 3)).toBe(30);
   });
 
   it('returns null for a digit beyond the option count', () => {
-    expect(optionIdForDigit(SELECT, 4)).toBeNull();
+    expect(optionIdForDigit(CATEGORY, 4)).toBeNull();
   });
 
   it('returns null for digit 0 and negative digits', () => {
-    expect(optionIdForDigit(SELECT, 0)).toBeNull();
-    expect(optionIdForDigit(SELECT, -1)).toBeNull();
+    expect(optionIdForDigit(CATEGORY, 0)).toBeNull();
+    expect(optionIdForDigit(CATEGORY, -1)).toBeNull();
   });
 
   it('returns null for a non-option field', () => {
@@ -133,20 +133,20 @@ describe('optionIdForDigit', () => {
 });
 
 describe('fieldDigitAction', () => {
-  it('toggles the matching option on a select field', () => {
-    expect(fieldDigitAction(SELECT, 2)).toEqual({ kind: 'toggleOption', optionId: 20 });
+  it('toggles the matching option on a category field', () => {
+    expect(fieldDigitAction(CATEGORY, 2)).toEqual({ kind: 'toggleOption', optionId: 20 });
   });
 
-  it('toggles the matching option on a multiselect field', () => {
-    expect(fieldDigitAction(MULTISELECT, 1)).toEqual({ kind: 'toggleOption', optionId: 10 });
+  it('toggles the matching option on a multicategory field', () => {
+    expect(fieldDigitAction(MULTICATEGORY, 1)).toEqual({ kind: 'toggleOption', optionId: 10 });
   });
 
   it('is a no-op when the digit is beyond the option count', () => {
-    expect(fieldDigitAction(SELECT, 9)).toEqual({ kind: 'none' });
+    expect(fieldDigitAction(CATEGORY, 9)).toEqual({ kind: 'none' });
   });
 
   it('is a no-op for digit 0 on an option field', () => {
-    expect(fieldDigitAction(SELECT, 0)).toEqual({ kind: 'none' });
+    expect(fieldDigitAction(CATEGORY, 0)).toEqual({ kind: 'none' });
   });
 
   it('focuses the input for number fields regardless of digit', () => {
@@ -174,21 +174,21 @@ describe('applyFieldDigit', () => {
     Object.defineProperty(globalThis, 'document', { value: undefined, configurable: true });
   });
 
-  it('toggle path: calls setValues with the option applied, for a select field', () => {
+  it('toggle path: calls setValues with the option applied, for a category field', () => {
     const setValues = vi.fn();
     const values: FormValues = {};
 
-    applyFieldDigit(SELECT, '2', values, setValues);
+    applyFieldDigit(CATEGORY, '2', values, setValues);
 
     expect(setValues).toHaveBeenCalledTimes(1);
     expect(setValues).toHaveBeenCalledWith({ '1': 20 });
   });
 
-  it('toggle path: calls setValues with the option toggled off, for a multiselect field', () => {
+  it('toggle path: calls setValues with the option toggled off, for a multicategory field', () => {
     const setValues = vi.fn();
     const values: FormValues = { '2': [10] };
 
-    applyFieldDigit(MULTISELECT, '1', values, setValues);
+    applyFieldDigit(MULTICATEGORY, '1', values, setValues);
 
     expect(setValues).toHaveBeenCalledTimes(1);
     expect(setValues).toHaveBeenCalledWith({});
@@ -207,7 +207,7 @@ describe('applyFieldDigit', () => {
     const setValues = vi.fn();
     const values: FormValues = {};
 
-    applyFieldDigit(SELECT, '9', values, setValues);
+    applyFieldDigit(CATEGORY, '9', values, setValues);
 
     expect(setValues).not.toHaveBeenCalled();
   });

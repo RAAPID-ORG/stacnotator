@@ -39,13 +39,13 @@ export function toggleMultiOption(
   return setFieldValue(values, field.id, next);
 }
 
-/** Selecting an option on a select field toggles it off if already chosen; multiselect adds/removes it. */
-export function applySelectOption(
+/** Selecting an option on a category field toggles it off if already chosen; multicategory adds/removes it. */
+export function applyCategoryOption(
   values: FormValues,
   field: FormField,
   optionId: number
 ): FormValues {
-  if (field.type === 'multiselect') return toggleMultiOption(values, field, optionId);
+  if (field.type === 'multicategory') return toggleMultiOption(values, field, optionId);
   const current = values[String(field.id)];
   return setFieldValue(values, field.id, current === optionId ? null : optionId);
 }

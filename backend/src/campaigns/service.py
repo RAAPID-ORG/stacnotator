@@ -683,8 +683,8 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
     """Replace the campaign's custom form fields. Field IDs are the stability
     anchor: stored annotation answers key off them, so edit = same id, add =
     new id. Removals are rejected outright, and shape changes (type,
-    number_type, removed select options) are rejected once a field has stored
-    answers - they would make those answers unresolvable."""
+    number_type, removed category options) are rejected once a field has
+    stored answers - they would make those answers unresolvable."""
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")

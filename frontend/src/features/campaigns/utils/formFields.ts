@@ -35,7 +35,7 @@ export function validateFormFields(fields: FormField[]): string[] {
   }
 
   for (const field of fields) {
-    if (field.type === 'select' || field.type === 'multiselect') {
+    if (field.type === 'category' || field.type === 'multicategory') {
       if (field.options.length === 0) {
         errors.push(`"${fieldLabel(field)}" needs at least one option.`);
       } else if (field.options.some((o) => !o.name.trim())) {

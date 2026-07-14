@@ -8,10 +8,10 @@ import math
 from datetime import date
 
 from src.campaigns.form_fields import (
+    CategoryFormField,
     DateFormField,
     FormField,
     NumberFormField,
-    SelectFormField,
     TextFormField,
 )
 
@@ -48,9 +48,9 @@ def _validate_number(field: NumberFormField, raw: object) -> int | float | None:
     return raw
 
 
-def _validate_select(field: SelectFormField, raw: object) -> int | list[int] | None:
+def _validate_category(field: CategoryFormField, raw: object) -> int | list[int] | None:
     option_ids = {option.id for option in field.options}
-    if field.type == "select":
+    if field.type == "category":
         if isinstance(raw, bool) or not isinstance(raw, int):
             raise FormValidationError(f"'{field.title}' expects an option id")
         if raw not in option_ids:
@@ -67,8 +67,8 @@ def _validate_select(field: SelectFormField, raw: object) -> int | list[int] | N
 
 
 def _validate_one(field: FormField, raw: object) -> object | None:
-    if isinstance(field, SelectFormField):
-        return _validate_select(field, raw)
+    if isinstance(field, CategoryFormField):
+        return _validate_category(field, raw)
     if isinstance(field, NumberFormField):
         return _validate_number(field, raw)
     if isinstance(field, TextFormField):

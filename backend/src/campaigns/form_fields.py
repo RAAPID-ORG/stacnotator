@@ -38,8 +38,8 @@ def _validate_unique_option_ids(options: list[FormFieldOption]) -> list[FormFiel
     return options
 
 
-class SelectFormField(FormFieldBase):
-    type: Literal["select", "multiselect"]
+class CategoryFormField(FormFieldBase):
+    type: Literal["category", "multicategory"]
     options: list[FormFieldOption] = Field(min_length=1)
 
     _unique_options = field_validator("options")(_validate_unique_option_ids)
@@ -72,7 +72,7 @@ class DateFormField(FormFieldBase):
 
 
 FormField = Annotated[
-    SelectFormField | NumberFormField | TextFormField | DateFormField,
+    CategoryFormField | NumberFormField | TextFormField | DateFormField,
     Field(discriminator="type"),
 ]
 

@@ -1,5 +1,5 @@
 import type { FormField, FormValues } from './formValues';
-import { applySelectOption } from './formValues';
+import { applyCategoryOption } from './formValues';
 
 // activeIndex convention: null = no field focused (digits select labels, task mode)
 // LABEL_FIELD_INDEX = the primary label selector focused (digits still select labels)
@@ -31,7 +31,7 @@ export function cycleFieldIndex(
 }
 
 export function digitTargetsOption(field: FormField): boolean {
-  return field.type === 'select' || field.type === 'multiselect';
+  return field.type === 'category' || field.type === 'multicategory';
 }
 
 export function optionIdForDigit(field: FormField, digit: number): number | null {
@@ -72,7 +72,7 @@ export function applyFieldDigit(
 ): void {
   const action = fieldDigitAction(field, parseInt(digitKey, 10));
   if (action.kind === 'toggleOption') {
-    setValues(applySelectOption(values, field, action.optionId));
+    setValues(applyCategoryOption(values, field, action.optionId));
   } else if (action.kind === 'focusInput') {
     focusFormFieldInput(field.id);
   }

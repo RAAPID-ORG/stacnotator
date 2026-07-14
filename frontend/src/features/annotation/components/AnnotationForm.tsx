@@ -1,6 +1,6 @@
 import type { DateRangeValue } from '~/api/client';
 import type { FormField, FormValues } from '../utils/formValues';
-import { applySelectOption, isDateRangeValue, setFieldValue } from '../utils/formValues';
+import { applyCategoryOption, isDateRangeValue, setFieldValue } from '../utils/formValues';
 
 interface AnnotationFormProps {
   fields: FormField[];
@@ -66,22 +66,24 @@ function FieldHeader({ field }: { field: FormField }) {
   );
 }
 
-function SelectField({
+function CategoryField({
   field,
   values,
   onChange,
   disabled,
 }: {
-  field: Extract<FormField, { type: 'select' | 'multiselect' }>;
+  field: Extract<FormField, { type: 'category' | 'multicategory' }>;
   values: FormValues;
   onChange: (next: FormValues) => void;
   disabled: boolean;
 }) {
   const raw = values[String(field.id)];
   const isSelected = (optionId: number) =>
-    field.type === 'multiselect' ? Array.isArray(raw) && raw.includes(optionId) : raw === optionId;
+    field.type === 'multicategory'
+      ? Array.isArray(raw) && raw.includes(optionId)
+      : raw === optionId;
 
-  const handleClick = (optionId: number) => onChange(applySelectOption(values, field, optionId));
+  const handleClick = (optionId: number) => onChange(applyCategoryOption(values, field, optionId));
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -304,9 +306,11 @@ function FieldInput({
   disabled: boolean;
 }) {
   switch (field.type) {
-    case 'select':
-    case 'multiselect':
-      return <SelectField field={field} values={values} onChange={onChange} disabled={disabled} />;
+    case 'category':
+    case 'multicategory':
+      return (
+        <CategoryField field={field} values={values} onChange={onChange} disabled={disabled} />
+      );
     case 'number':
       return <NumberField field={field} values={values} onChange={onChange} disabled={disabled} />;
     case 'text':

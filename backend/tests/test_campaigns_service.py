@@ -16,7 +16,7 @@ from src.campaigns.assignments import (
     assign_reviewers_percentage,
     assign_tasks_to_users,
 )
-from src.campaigns.form_fields import SelectFormField, TextFormField
+from src.campaigns.form_fields import CategoryFormField, TextFormField
 from src.campaigns.models import CampaignUser
 from src.campaigns.schemas import AssignTasksToUsersRequest, default_labelling_policy
 from src.campaigns.service import (
@@ -955,9 +955,9 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
 
 
 class TestUpdateCampaignFormFields:
-    SELECT_FIELD = {
+    CATEGORY_FIELD = {
         "id": 1,
-        "type": "select",
+        "type": "category",
         "title": "Crop",
         "required": False,
         "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Other"}],
@@ -971,18 +971,21 @@ class TestUpdateCampaignFormFields:
         db.get.return_value = campaign
         return campaign
 
-    def _select(self, **overrides):
-        return SelectFormField.model_validate({**self.SELECT_FIELD, **overrides})
+    def _category(self, **overrides):
+        return CategoryFormField.model_validate({**self.CATEGORY_FIELD, **overrides})
 
     def test_edit_title_and_add_field_succeeds(self):
         db = _mock_db()
-        campaign = self._campaign(db, [dict(self.SELECT_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign_form_fields(
                 db,
                 1,
-                [self._select(title="Crop type"), TextFormField(id=2, type="text", title="Notes")],
+                [
+                    self._category(title="Crop type"),
+                    TextFormField(id=2, type="text", title="Notes"),
+                ],
             )
 
         stored = campaign.settings.form_fields
@@ -993,7 +996,7 @@ class TestUpdateCampaignFormFields:
 
     def test_removing_a_field_is_rejected(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.SELECT_FIELD)])
+        self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
         with pytest.raises(HTTPException) as exc_info:
             update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
@@ -1001,7 +1004,7 @@ class TestUpdateCampaignFormFields:
 
     def test_type_change_with_answers_is_rejected(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.SELECT_FIELD)])
+        self._campaign(db, [dict(self.CATEGORY_FIELD)])
         db.scalar.return_value = 3
 
         with pytest.raises(HTTPException) as exc_info:
@@ -1010,7 +1013,7 @@ class TestUpdateCampaignFormFields:
 
     def test_type_change_without_answers_succeeds(self):
         db = _mock_db()
-        campaign = self._campaign(db, [dict(self.SELECT_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
         db.scalar.return_value = 0
 
         with patch("src.campaigns.service.get_campaign_full"):
@@ -1020,16 +1023,18 @@ class TestUpdateCampaignFormFields:
 
     def test_removing_an_option_with_answers_is_rejected(self):
         db = _mock_db()
-        self._campaign(db, [dict(self.SELECT_FIELD)])
+        self._campaign(db, [dict(self.CATEGORY_FIELD)])
         db.scalar.return_value = 1
 
         with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(db, 1, [self._select(options=[{"id": 1, "name": "Maize"}])])
+            update_campaign_form_fields(
+                db, 1, [self._category(options=[{"id": 1, "name": "Maize"}])]
+            )
         assert exc_info.value.status_code == 409
 
     def test_renaming_and_adding_options_succeeds(self):
         db = _mock_db()
-        campaign = self._campaign(db, [dict(self.SELECT_FIELD)])
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
         new_options = [
             {"id": 1, "name": "Maize (yellow)"},
             {"id": 2, "name": "Other"},
@@ -1037,7 +1042,7 @@ class TestUpdateCampaignFormFields:
         ]
 
         with patch("src.campaigns.service.get_campaign_full"):
-            update_campaign_form_fields(db, 1, [self._select(options=new_options)])
+            update_campaign_form_fields(db, 1, [self._category(options=new_options)])
 
         assert [o["id"] for o in campaign.settings.form_fields[0]["options"]] == [1, 2, 3]
         db.scalar.assert_not_called()

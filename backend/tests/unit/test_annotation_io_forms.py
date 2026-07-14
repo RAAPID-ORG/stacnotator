@@ -12,13 +12,13 @@ FIELDS = _ADAPTER.validate_python(
         {
             "id": 1,
             "title": "Crop Type",
-            "type": "select",
+            "type": "category",
             "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
         },
         {
             "id": 2,
             "title": "Damage",
-            "type": "multiselect",
+            "type": "multicategory",
             "options": [{"id": 1, "name": "Flood"}, {"id": 2, "name": "Drought"}],
         },
         {"id": 3, "title": "Yield (t/ha)", "type": "number"},
@@ -36,11 +36,11 @@ def test_columns_are_slugged_and_ordered():
     ]
 
 
-def test_select_formats_to_option_name():
+def test_category_formats_to_option_name():
     assert format_form_value(FIELDS[0], 2) == "Wheat"
 
 
-def test_multiselect_joins_names():
+def test_multicategory_joins_names():
     assert format_form_value(FIELDS[1], [1, 2]) == "Flood; Drought"
 
 
@@ -55,15 +55,15 @@ def test_unknown_option_falls_back_to_id():
     assert format_form_value(FIELDS[0], 99) == "99"
 
 
-def test_select_with_non_int_value_falls_back_to_str():
+def test_category_with_non_int_value_falls_back_to_str():
     assert format_form_value(FIELDS[0], "Wheat") == "Wheat"
 
 
-def test_multiselect_with_non_list_value_falls_back_to_str():
+def test_multicategory_with_non_list_value_falls_back_to_str():
     assert format_form_value(FIELDS[1], 1) == "1"
 
 
-def test_multiselect_with_mixed_list_falls_back_to_str():
+def test_multicategory_with_mixed_list_falls_back_to_str():
     assert format_form_value(FIELDS[1], [1, "Drought"]) == "[1, 'Drought']"
 
 

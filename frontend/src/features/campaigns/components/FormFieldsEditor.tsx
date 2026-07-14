@@ -3,7 +3,7 @@ import type { FormFieldOption } from '~/api/client';
 import type { FormField } from '~/features/campaigns/utils/formFields';
 import { Input, Select, Switch } from '~/shared/ui/forms';
 
-const FIELD_TYPES = ['select', 'multiselect', 'number', 'text', 'date', 'daterange'] as const;
+const FIELD_TYPES = ['category', 'multicategory', 'number', 'text', 'date', 'daterange'] as const;
 type FieldType = (typeof FIELD_TYPES)[number];
 
 function isFieldType(value: string): value is FieldType {
@@ -11,8 +11,8 @@ function isFieldType(value: string): value is FieldType {
 }
 
 const FIELD_TYPE_OPTIONS: Array<{ value: FieldType; label: string }> = [
-  { value: 'select', label: 'Single select' },
-  { value: 'multiselect', label: 'Multi select' },
+  { value: 'category', label: 'Category' },
+  { value: 'multicategory', label: 'Multi category' },
   { value: 'number', label: 'Number' },
   { value: 'text', label: 'Text' },
   { value: 'date', label: 'Date' },
@@ -28,10 +28,10 @@ interface FieldBase {
 
 function makeField(type: FieldType, base: FieldBase): FormField {
   switch (type) {
-    case 'select':
-      return { ...base, type: 'select', options: [{ id: 1, name: '' }] };
-    case 'multiselect':
-      return { ...base, type: 'multiselect', options: [{ id: 1, name: '' }] };
+    case 'category':
+      return { ...base, type: 'category', options: [{ id: 1, name: '' }] };
+    case 'multicategory':
+      return { ...base, type: 'multicategory', options: [{ id: 1, name: '' }] };
     case 'number':
       return {
         ...base,
@@ -53,8 +53,8 @@ function makeField(type: FieldType, base: FieldBase): FormField {
 
 function withBase(field: FormField, patch: Partial<FieldBase>): FormField {
   switch (field.type) {
-    case 'select':
-    case 'multiselect':
+    case 'category':
+    case 'multicategory':
       return { ...field, ...patch };
     case 'number':
       return { ...field, ...patch };
@@ -84,7 +84,7 @@ export const FormFieldsEditor = ({
 
   const addField = useCallback(() => {
     const nextId = value.length === 0 ? 1 : Math.max(...value.map((f) => f.id)) + 1;
-    const field = makeField('select', { id: nextId, title: '', required: false });
+    const field = makeField('category', { id: nextId, title: '', required: false });
     onChange([...value, field]);
 
     requestAnimationFrame(() => {
@@ -211,8 +211,8 @@ const FieldRow = ({
             label="Required"
           />
 
-          {(field.type === 'select' || field.type === 'multiselect') && (
-            <SelectOptionsConfig field={field} onChange={onChange} readOnly={readOnly} />
+          {(field.type === 'category' || field.type === 'multicategory') && (
+            <CategoryOptionsConfig field={field} onChange={onChange} readOnly={readOnly} />
           )}
           {field.type === 'number' && (
             <NumberConfig field={field} onChange={onChange} readOnly={readOnly} />
@@ -237,12 +237,12 @@ const FieldRow = ({
   );
 };
 
-const SelectOptionsConfig = ({
+const CategoryOptionsConfig = ({
   field,
   onChange,
   readOnly,
 }: {
-  field: Extract<FormField, { type: 'select' | 'multiselect' }>;
+  field: Extract<FormField, { type: 'category' | 'multicategory' }>;
   onChange: (next: FormField) => void;
   readOnly: boolean;
 }) => {

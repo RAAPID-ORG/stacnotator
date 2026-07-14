@@ -1081,8 +1081,8 @@ export type CampaignSettingsCreate = {
      * Form Fields
      */
     form_fields?: Array<({
-        type: 'multiselect' | 'select';
-    } & SelectFormField) | ({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
         type: 'number';
     } & NumberFormField) | ({
         type: 'text';
@@ -1132,8 +1132,8 @@ export type CampaignSettingsOut = {
      * Form Fields
      */
     form_fields?: Array<({
-        type: 'multiselect' | 'select';
-    } & SelectFormField) | ({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
         type: 'number';
     } & NumberFormField) | ({
         type: 'text';
@@ -1318,6 +1318,36 @@ export type CategoricalEntry = {
      * Label
      */
     label?: string;
+};
+
+/**
+ * CategoryFormField
+ */
+export type CategoryFormField = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Required
+     */
+    required?: boolean;
+    /**
+     * Type
+     */
+    type: 'category' | 'multicategory';
+    /**
+     * Options
+     */
+    options: Array<FormFieldOption>;
 };
 
 /**
@@ -2227,36 +2257,6 @@ export type SearchResponse = {
 };
 
 /**
- * SelectFormField
- */
-export type SelectFormField = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Title
-     */
-    title: string;
-    /**
-     * Description
-     */
-    description?: string | null;
-    /**
-     * Required
-     */
-    required?: boolean;
-    /**
-     * Type
-     */
-    type: 'select' | 'multiselect';
-    /**
-     * Options
-     */
-    options: Array<FormFieldOption>;
-};
-
-/**
  * SliceTileUrlCreate
  */
 export type SliceTileUrlCreate = {
@@ -2713,8 +2713,8 @@ export type UpdateCampaignFormFieldsRequest = {
      * Form Fields
      */
     form_fields: Array<({
-        type: 'multiselect' | 'select';
-    } & SelectFormField) | ({
+        type: 'category' | 'multicategory';
+    } & CategoryFormField) | ({
         type: 'number';
     } & NumberFormField) | ({
         type: 'text';
