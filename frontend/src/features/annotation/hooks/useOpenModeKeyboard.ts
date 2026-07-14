@@ -8,12 +8,11 @@ import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
 import {
+  applyFieldDigit,
   cycleFieldIndex,
   digitTargetsOption,
-  fieldDigitAction,
   focusFormFieldInput,
 } from '../utils/formFieldNav';
-import { applySelectOption } from '../utils/formValues';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -65,15 +64,6 @@ export const useOpenModeKeyboard = () => {
     const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
     const formFields = campaign.settings.form_fields ?? [];
 
-    const applyFieldDigit = (field: (typeof formFields)[number], digitKey: string) => {
-      const action = fieldDigitAction(field, parseInt(digitKey, 10));
-      if (action.kind === 'toggleOption') {
-        setFormValues(applySelectOption(formValues, field, action.optionId));
-      } else if (action.kind === 'focusInput') {
-        focusFormFieldInput(field.id);
-      }
-    };
-
     const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
     const sourceGroups: { id: number; startIdx: number; count: number }[] = [];
@@ -97,7 +87,7 @@ export const useOpenModeKeyboard = () => {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         if (e.key === 'Escape') {
           e.preventDefault();
-          (document.activeElement as HTMLElement)?.blur();
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         }
         return;
       }
@@ -108,7 +98,7 @@ export const useOpenModeKeyboard = () => {
         const activeField = activeFieldIndex !== null ? formFields[activeFieldIndex] : undefined;
         if (activeField) {
           e.preventDefault();
-          applyFieldDigit(activeField, e.key);
+          applyFieldDigit(activeField, e.key, formValues, setFormValues);
           return;
         }
         if (e.key === '0') return;
@@ -145,6 +135,7 @@ export const useOpenModeKeyboard = () => {
           );
           break;
         case 'escape':
+          if (formFields.length === 0 && activeFieldIndex === null) break;
           e.preventDefault();
           setActiveFieldIndex(null);
           break;

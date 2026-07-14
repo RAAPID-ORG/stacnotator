@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SelectFormField, NumberFormField, TextFormField } from '~/api/client';
 import {
+  applyFieldDigit,
   cycleFieldIndex,
   digitTargetsOption,
   optionIdForDigit,
   fieldDigitAction,
 } from './formFieldNav';
+import type { FormValues } from './formValues';
 
 const SELECT: SelectFormField = {
   id: 1,
@@ -146,5 +148,59 @@ describe('fieldDigitAction', () => {
 
   it('focuses the input for text fields', () => {
     expect(fieldDigitAction(TEXT, 5)).toEqual({ kind: 'focusInput' });
+  });
+});
+
+describe('applyFieldDigit', () => {
+  // The vitest environment is 'node', so `document` isn't defined by default;
+  // stub the one method focusFormFieldInput calls, matching the browser
+  // behaviour of a query with no match (returns null, focus is a no-op).
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'document', {
+      value: { querySelector: () => null },
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'document', { value: undefined, configurable: true });
+  });
+
+  it('toggle path: calls setValues with the option applied, for a select field', () => {
+    const setValues = vi.fn();
+    const values: FormValues = {};
+
+    applyFieldDigit(SELECT, '2', values, setValues);
+
+    expect(setValues).toHaveBeenCalledTimes(1);
+    expect(setValues).toHaveBeenCalledWith({ '1': 20 });
+  });
+
+  it('toggle path: calls setValues with the option toggled off, for a multiselect field', () => {
+    const setValues = vi.fn();
+    const values: FormValues = { '2': [10] };
+
+    applyFieldDigit(MULTISELECT, '1', values, setValues);
+
+    expect(setValues).toHaveBeenCalledTimes(1);
+    expect(setValues).toHaveBeenCalledWith({});
+  });
+
+  it('focus path: does not call setValues for a number field (querySelector finds no match, so focus is a no-op)', () => {
+    const setValues = vi.fn();
+    const values: FormValues = {};
+
+    applyFieldDigit(NUMBER, '5', values, setValues);
+
+    expect(setValues).not.toHaveBeenCalled();
+  });
+
+  it('no-op path: does not call setValues when the digit is out of range', () => {
+    const setValues = vi.fn();
+    const values: FormValues = {};
+
+    applyFieldDigit(SELECT, '9', values, setValues);
+
+    expect(setValues).not.toHaveBeenCalled();
   });
 });

@@ -245,6 +245,32 @@ class TestUpdateAnnotationFormValuesWiring:
 
         assert exc.value.status_code == 400
 
+    def test_form_validation_error_detail_survives_update(self):
+        # A validation HTTPException raised inside the try block must reach
+        # the caller with its original detail, not get swallowed by the
+        # broad except and rewritten to the generic "Failed to update
+        # annotation" message.
+        campaign = _campaign(REQUIRED_SELECT_FIELD)
+        existing = MagicMock()
+        existing.label_id = 1
+        existing.created_by_user_id = uuid4()
+        db = _db(cu=_MEMBER)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        payload = AnnotationUpdate(
+            label_id=None,
+            comment=None,
+            geometry_wkt=None,
+            is_authoritative=None,
+            form_values={"1": 99},
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+
+        assert exc.value.status_code == 400
+        assert "Crop" in exc.value.detail
+        assert exc.value.detail != "Failed to update annotation"
+
     def test_omitted_form_values_keeps_stored_values(self):
         campaign = _campaign(REQUIRED_SELECT_FIELD)
         existing = MagicMock()

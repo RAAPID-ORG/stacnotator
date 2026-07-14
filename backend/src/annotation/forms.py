@@ -4,6 +4,7 @@ Functional core: no DB, no HTTP. Callers translate FormValidationError
 into a 400 response.
 """
 
+import math
 from datetime import date
 
 from src.campaigns.form_fields import (
@@ -33,6 +34,8 @@ def _parse_iso_date(raw: object, field_title: str) -> str:
 def _validate_number(field: NumberFormField, raw: object) -> int | float | None:
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         raise FormValidationError(f"'{field.title}' expects a number")
+    if not math.isfinite(raw):
+        raise FormValidationError(f"'{field.title}' must be a finite number")
     if field.number_type == "int":
         if isinstance(raw, float):
             if not raw.is_integer():

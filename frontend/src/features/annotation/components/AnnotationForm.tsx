@@ -1,6 +1,6 @@
 import type { DateRangeValue } from '~/api/client';
-import type { FormField, FormValue, FormValues } from '../utils/formValues';
-import { applySelectOption, setFieldValue } from '../utils/formValues';
+import type { FormField, FormValues } from '../utils/formValues';
+import { applySelectOption, isDateRangeValue, setFieldValue } from '../utils/formValues';
 
 interface AnnotationFormProps {
   fields: FormField[];
@@ -21,10 +21,6 @@ const textInputClass =
   'w-full px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors';
 
 const textareaClass = `${textInputClass} resize-none`;
-
-function isDateRangeValue(value: FormValue | undefined): value is DateRangeValue {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function readDateRange(values: FormValues, fieldId: number): DateRangeValue {
   const raw = values[String(fieldId)];
@@ -132,7 +128,16 @@ function NumberField({
       return;
     }
     const parsed = Number(rawValue);
-    onChange(setFieldValue(values, field.id, Number.isNaN(parsed) ? null : parsed));
+    if (Number.isNaN(parsed)) {
+      onChange(setFieldValue(values, field.id, null));
+      return;
+    }
+    // Clamp into bounds and round to a whole number for int fields, so the UI
+    // never submits a value the backend's range/integer check would reject.
+    let value = field.number_type === 'int' ? Math.round(parsed) : parsed;
+    if (field.min != null) value = Math.max(field.min, value);
+    if (field.max != null) value = Math.min(field.max, value);
+    onChange(setFieldValue(values, field.id, value));
   };
 
   if (field.slider && field.min != null && field.max != null) {

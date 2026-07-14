@@ -622,13 +622,15 @@ const DrawingLayer = ({
         // Preserve label/comment - the PUT only changes geometry. Prefer the
         // fetched detail; fall back to the feature's labelId.
         const detail = useAnnotationStore.getState().selectedAnnotationDetail;
+        const snap = hydrateFormValues(detail?.form_values);
         try {
           await updateAnnotationGeometry(annotationId, geoJSON, {
             labelId: detail?.label_id ?? (feature.get(PROP_LABEL_ID) as number | null) ?? null,
             comment: detail?.comment ?? null,
-            // Without the loaded detail, resending would push {} and clear the
-            // stored answers - omit instead so the backend keeps them.
-            formValues: detail ? hydrateFormValues(detail.form_values) : undefined,
+            // Without a loaded detail, or with one that has no stored answers
+            // (e.g. a leniently-imported annotation), sending {} would clear
+            // required answers - omit instead so the backend keeps them.
+            formValues: Object.keys(snap).length ? snap : undefined,
           });
         } catch (err) {
           handleError(err, 'Failed to save geometry update');

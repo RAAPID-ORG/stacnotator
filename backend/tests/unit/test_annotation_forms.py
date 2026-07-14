@@ -99,6 +99,16 @@ class TestRejection:
         with pytest.raises(FormValidationError):
             validate_form_values(FIELDS, {"3": "7"}, enforce_required=False)
 
+    def test_number_rejects_nan(self):
+        with pytest.raises(FormValidationError, match="finite"):
+            validate_form_values(FIELDS, {"3": float("nan")}, enforce_required=False)
+
+    def test_number_rejects_infinity(self):
+        with pytest.raises(FormValidationError, match="finite"):
+            validate_form_values(FIELDS, {"3": float("inf")}, enforce_required=False)
+        with pytest.raises(FormValidationError, match="finite"):
+            validate_form_values(FIELDS, {"3": float("-inf")}, enforce_required=False)
+
     def test_bad_date_format(self):
         with pytest.raises(FormValidationError, match="date"):
             validate_form_values(FIELDS, {"5": "01.05.2026"}, enforce_required=False)

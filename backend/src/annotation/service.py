@@ -91,12 +91,19 @@ def validate_label_id(campaign: Campaign, label_id: int) -> None:
         )
 
 
+def campaign_form_fields(campaign: Campaign) -> list[FormField]:
+    """Parse a campaign's field definitions, guarding the case where the
+    campaign has no settings row at all (not just an empty form_fields)."""
+    raw = campaign.settings.form_fields if campaign.settings else []
+    return FORM_FIELDS_ADAPTER.validate_python(raw or [])
+
+
 def validate_annotation_form_values(
     campaign: Campaign, form_values: dict | None, *, enforce_required: bool
 ) -> dict | None:
     """Validate/normalize submitted form values against the campaign's field
     definitions, raising HTTP 400 on any FormValidationError."""
-    fields = FORM_FIELDS_ADAPTER.validate_python(campaign.settings.form_fields or [])
+    fields = campaign_form_fields(campaign)
     try:
         return validate_form_values(fields, form_values, enforce_required=enforce_required)
     except FormValidationError as exc:
@@ -632,10 +639,16 @@ def create_annotations_bulk(
     for label_id in {a.label_id for a in annotations_create if a.label_id is not None}:
         validate_label_id(campaign, label_id)
 
-    normalized_form_values = [
-        validate_annotation_form_values(campaign, a.form_values, enforce_required=True)
-        for a in annotations_create
-    ]
+    # Parse the campaign's field definitions once and reuse across items,
+    # rather than re-parsing on every validate_annotation_form_values call.
+    fields = campaign_form_fields(campaign)
+    try:
+        normalized_form_values = [
+            validate_form_values(fields, a.form_values, enforce_required=True)
+            for a in annotations_create
+        ]
+    except FormValidationError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
 
     try:
         geometries = [
@@ -781,6 +794,9 @@ def update_annotation(
 
         return annotation
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.exception("Failed to update annotation")

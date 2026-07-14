@@ -6,7 +6,7 @@ export type FormValues = Record<string, FormValue>;
 
 function isEmptyValue(value: FormValue | null): boolean {
   if (value == null) return true;
-  if (typeof value === 'string') return value === '';
+  if (typeof value === 'string') return value.trim() === '';
   if (Array.isArray(value)) return value.length === 0;
   return false;
 }
@@ -62,7 +62,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isDateRangeValue(value: unknown): value is DateRangeValue {
+export function isDateRangeValue(value: unknown): value is DateRangeValue {
   return isPlainObject(value) && typeof value.start === 'string' && typeof value.end === 'string';
 }
 

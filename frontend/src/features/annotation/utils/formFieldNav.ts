@@ -1,4 +1,5 @@
-import type { FormField } from './formValues';
+import type { FormField, FormValues } from './formValues';
+import { applySelectOption } from './formValues';
 
 // activeIndex convention: null = no field focused (digits select labels, task mode)
 // 0..fields.length-1 = custom field focused.
@@ -45,4 +46,21 @@ export function focusFormFieldInput(fieldId: number): void {
     `[data-form-field-id="${fieldId}"] input, [data-form-field-id="${fieldId}"] textarea`
   );
   input?.focus();
+}
+
+/** Digit pressed while `field` is the active custom form field: toggles an
+ * option or focuses the field's input, per `fieldDigitAction`. Shared by the
+ * task-mode and open-mode keyboard hooks so the dispatch logic lives once. */
+export function applyFieldDigit(
+  field: FormField,
+  digitKey: string,
+  values: FormValues,
+  setValues: (next: FormValues) => void
+): void {
+  const action = fieldDigitAction(field, parseInt(digitKey, 10));
+  if (action.kind === 'toggleOption') {
+    setValues(applySelectOption(values, field, action.optionId));
+  } else if (action.kind === 'focusInput') {
+    focusFormFieldInput(field.id);
+  }
 }

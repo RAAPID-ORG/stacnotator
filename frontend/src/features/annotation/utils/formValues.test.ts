@@ -7,6 +7,7 @@ import {
   missingRequiredFields,
   formatMissingFieldsTitle,
   hydrateFormValues,
+  isDateRangeValue,
   type FormValues,
 } from './formValues';
 
@@ -80,6 +81,12 @@ describe('setFieldValue', () => {
   it('deletes the key when value is an empty string', () => {
     const values: FormValues = { '3': 'hello' };
     const next = setFieldValue(values, 3, '');
+    expect(next).toEqual({});
+  });
+
+  it('deletes the key when value is a whitespace-only string', () => {
+    const values: FormValues = { '3': 'hello' };
+    const next = setFieldValue(values, 3, '   ');
     expect(next).toEqual({});
   });
 
@@ -180,6 +187,12 @@ describe('missingRequiredFields', () => {
     expect(missing).toEqual([REQUIRED_TEXT]);
   });
 
+  it('treats a whitespace-only string as missing (matches backend text stripping)', () => {
+    const fields = [REQUIRED_TEXT];
+    const missing = missingRequiredFields(fields, { '3': '   ' });
+    expect(missing).toEqual([REQUIRED_TEXT]);
+  });
+
   it('treats an empty array as missing even if the key is present', () => {
     const fields = [REQUIRED_MULTISELECT];
     const missing = missingRequiredFields(fields, { '5': [] });
@@ -209,6 +222,23 @@ describe('formatMissingFieldsTitle', () => {
     expect(formatMissingFieldsTitle([REQUIRED_TEXT, REQUIRED_MULTISELECT])).toBe(
       'Missing required: Notes, Required Tags'
     );
+  });
+});
+
+describe('isDateRangeValue', () => {
+  it('accepts an object with string start and end', () => {
+    expect(isDateRangeValue({ start: '2024-01-01', end: '2024-01-31' })).toBe(true);
+  });
+
+  it('rejects an object whose start/end are not strings', () => {
+    expect(isDateRangeValue({ start: 1, end: 2 })).toBe(false);
+  });
+
+  it('rejects arrays, null, and primitives', () => {
+    expect(isDateRangeValue([10, 20])).toBe(false);
+    expect(isDateRangeValue(null)).toBe(false);
+    expect(isDateRangeValue('2024-01-01')).toBe(false);
+    expect(isDateRangeValue(10)).toBe(false);
   });
 });
 

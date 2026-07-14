@@ -19,8 +19,8 @@ from src.annotation.models import (
 )
 from src.annotation.schemas import compute_task_status_value
 from src.annotation.service import (
-    FORM_FIELDS_ADAPTER,
     attach_counts_toward_completion_flat,
+    campaign_form_fields,
     validate_label_id,
 )
 from src.auth.models import User
@@ -348,7 +348,7 @@ def create_annotations_from_geojson(
     if not features:
         raise HTTPException(status_code=400, detail="GeoJSON contains no features")
 
-    fields = _campaign_form_fields(campaign)
+    fields = campaign_form_fields(campaign)
     allowed_types = {"Point", "Polygon", "MultiPolygon"}
     geometry_records: list[dict] = []
     label_ids: list[int] = []
@@ -502,11 +502,6 @@ def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
         label_data = labels[label_id_str]
         return label_data.get("name") if isinstance(label_data, dict) else label_data
     return None
-
-
-def _campaign_form_fields(campaign: Campaign) -> list[FormField]:
-    raw = campaign.settings.form_fields if campaign.settings else []
-    return FORM_FIELDS_ADAPTER.validate_python(raw or [])
 
 
 def form_export_columns(fields: list[FormField]) -> list[str]:
@@ -958,7 +953,7 @@ def build_annotations_export(
     """
     annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
     _guard_merge_on_agreement(annotations, merge_on_agreement)
-    form_fields = _campaign_form_fields(campaign)
+    form_fields = campaign_form_fields(campaign)
 
     records, _canonical = _build_annotation_records(
         annotations=annotations,
@@ -990,7 +985,7 @@ def build_annotations_geojson_export(
     """
     annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
     _guard_merge_on_agreement(annotations, merge_on_agreement)
-    form_fields = _campaign_form_fields(campaign)
+    form_fields = campaign_form_fields(campaign)
 
     records, canonical_annotations = _build_annotation_records(
         annotations=annotations,
