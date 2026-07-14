@@ -24,7 +24,10 @@ import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
 import { useAccountStore } from '~/features/account/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
-import { IconEyeSlash } from '~/shared/ui/Icons';
+import { IconExternalLink, IconEyeSlash } from '~/shared/ui/Icons';
+import { PopoutWindow, type PopoutBounds } from '~/shared/ui/PopoutWindow';
+import { usePopoutStore } from '../stores/popout.store';
+import { mergeLayoutChange, withoutKeys } from '../utils/popoutLayout';
 
 // A single stable compactor instance - recreating it per render would
 // invalidate react-grid-layout's internal memos that key on its identity.
@@ -33,6 +36,44 @@ const RESIZE_HANDLES = ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] as const;
 
 // Renew interval for a held claim; TTL/3, well inside the backend 30 min TTL.
 const CLAIM_RENEW_MS = 10 * 60 * 1000;
+
+// Initial pop-out window sizes per card type, used until the user resizes a
+// card's window (the store then remembers its bounds for the session).
+const DEFAULT_POPOUT_BOUNDS: Record<string, PopoutBounds> = {
+  controls: { width: 440, height: 820 },
+  timeseries: { width: 960, height: 420 },
+  minimap: { width: 480, height: 440 },
+};
+const IMAGERY_POPOUT_BOUNDS: PopoutBounds = { width: 900, height: 640 };
+
+/** Hover-revealed button that moves a canvas card into its own browser
+ *  window. Overlaid on the card so every card type gets the same affordance
+ *  regardless of whether it has a persistent header. */
+const PopoutButton = ({
+  cardKey,
+  label,
+  onClick,
+  className = 'top-1.5',
+}: {
+  cardKey: string;
+  label: string;
+  onClick: () => void;
+  className?: string;
+}) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    title={`Move ${label} to a separate window`}
+    aria-label={`Move ${label} to a separate window`}
+    data-testid={`popout-${cardKey}`}
+    className={`absolute right-1.5 z-20 grid h-6 w-6 place-items-center rounded-md border border-neutral-200 bg-white/95 text-neutral-500 opacity-0 shadow-sm backdrop-blur transition-opacity hover:text-brand-600 focus-visible:opacity-100 group-hover/card:opacity-100 ${className}`}
+  >
+    <IconExternalLink className="h-3.5 w-3.5" />
+  </button>
+);
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -62,6 +103,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const currentLayout = useCampaignStore((s) => s.currentLayout);
   const setCurrentLayout = useCampaignStore((s) => s.setCurrentLayout);
   const hideWindow = useCampaignStore((s) => s.hideWindow);
+
+  const poppedKeys = usePopoutStore((s) => s.poppedKeys);
+  const popOut = usePopoutStore((s) => s.popOut);
+  const closePopout = usePopoutStore((s) => s.closePopout);
+  const rememberBounds = usePopoutStore((s) => s.rememberBounds);
+  const lastBounds = usePopoutStore((s) => s.lastBounds);
 
   const allTasks = useTaskStore((s) => s.allTasks);
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
@@ -205,7 +252,31 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     return items;
   }, [campaign, containerHeight, windowCollections]);
 
-  const effectiveLayout = isMobile ? mobileLayout : currentLayout;
+  // Pop-outs are a desktop affordance; mobile keeps its fixed stacked layout.
+  const popped = useMemo(() => new Set(isMobile ? [] : poppedKeys), [isMobile, poppedKeys]);
+
+  const effectiveLayout = isMobile
+    ? mobileLayout
+    : currentLayout && withoutKeys(currentLayout, popped);
+
+  // The grid reports layout changes without the popped-out cards; keep their
+  // remembered slots in currentLayout so saving and returning both work.
+  const handleLayoutChange = (next: Layout) => {
+    const previous = useCampaignStore.getState().currentLayout;
+    setCurrentLayout(mergeLayoutChange(next, previous, popped));
+  };
+
+  // A popped-out card can disappear from under us (view switch removes its
+  // collection, campaign settings drop the time series): close its window.
+  useEffect(() => {
+    if (poppedKeys.length === 0) return;
+    const valid = new Set(['controls', 'minimap']);
+    if (campaign && campaign.time_series.length > 0) valid.add('timeseries');
+    for (const wc of windowCollections) valid.add(String(wc.collection_id));
+    for (const key of poppedKeys) {
+      if (!valid.has(key)) closePopout(key);
+    }
+  }, [poppedKeys, campaign, windowCollections, closePopout]);
 
   // react-grid-layout memoizes against the *identity* of these config props, so
   // keep them stable across renders to avoid needlessly re-firing its effects.
@@ -388,6 +459,116 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     </div>
   );
 
+  const showPopoutButtons = !isMobile && !isEditingLayout;
+
+  // Card bodies are defined once and rendered either as a grid child or into
+  // a pop-out window - never both - so component state and maps stay intact
+  // in whichever window currently hosts them.
+  const controlsBody = (
+    <div className="h-full overflow-y-auto overflow-x-hidden">
+      {workMode === 'tasks' ? (
+        <ControlsTaskMode
+          labels={campaign.settings.labels}
+          onSubmit={submitAnnotation}
+          onNext={nextTask}
+          onPrevious={previousTask}
+          onGoToTask={goToTask}
+          isSubmitting={isSubmitting}
+          totalTasksCount={visibleTasks.length}
+          currentTask={currentTask}
+          commentInputRef={commentInputRef}
+        />
+      ) : (
+        <ControlsOpenMode />
+      )}
+    </div>
+  );
+
+  const timeseriesBody =
+    campaign.time_series.length > 0 ? (
+      <TimeSeriesChart
+        timeseries={campaign.time_series}
+        latLon={timeseriesLatLon}
+        prefetchCoordinates={visibleTasks
+          .slice(currentTaskIndex + 1, currentTaskIndex + 4)
+          .map((task) => extractCentroidFromWKT(task.geometry.geometry))
+          .filter((coord): coord is LatLon => coord !== null)}
+        probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
+      />
+    ) : null;
+
+  const minimapBody = (
+    <MiniMap
+      center={center}
+      bbox={campaignBbox || [0, 0, 0, 0]}
+      visibleBounds={workMode === 'explore' ? currentMapBounds : null}
+      onViewportDrag={
+        workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
+      }
+      fitBbox={workMode === 'tasks'}
+      annotationDensity={annotationDensity}
+    />
+  );
+
+  const renderPopout = (key: string) => {
+    let title: string;
+    let body: React.ReactNode;
+    if (key === 'controls') {
+      title = 'Controls';
+      body = controlsBody;
+    } else if (key === 'timeseries') {
+      title = 'Time series';
+      body = timeseriesBody;
+    } else if (key === 'minimap') {
+      title = 'Location';
+      body = (
+        <>
+          <div className="card-header">{renderMinimapHeader()}</div>
+          {minimapBody}
+        </>
+      );
+    } else {
+      const wc = windowCollections.find((w) => String(w.collection_id) === key);
+      if (!wc?.collection || !wc.source) return null;
+      const { collection, source } = wc;
+      const isActiveCol = collection.id === activeCollectionId;
+      title = `${source.name} - ${collection.name}`;
+      body = (
+        <>
+          <div
+            className={`card-header !py-0.5 !gap-2 cursor-pointer hover:bg-neutral-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
+            onClick={() => setActiveCollectionId(collection.id)}
+            title={`${source.name} - ${collection.name}`}
+          >
+            <span className="truncate flex-1 min-w-0">{collection.name}</span>
+            <WindowSliceSelect collection={collection} darkBg={isActiveCol} />
+          </div>
+          <ImageryContainer collectionId={collection.id} sourceId={source.id} />
+        </>
+      );
+    }
+    if (body == null) return null;
+    return (
+      <PopoutWindow
+        key={key}
+        title={title}
+        bounds={lastBounds[key] ?? DEFAULT_POPOUT_BOUNDS[key] ?? IMAGERY_POPOUT_BOUNDS}
+        onUserClose={() => closePopout(key)}
+        onBounds={(b) => rememberBounds(key, b)}
+        onBlocked={() =>
+          useLayoutStore
+            .getState()
+            .showAlert(
+              'The browser blocked the pop-out window. Allow popups for this site and try again.',
+              'error'
+            )
+        }
+      >
+        {body}
+      </PopoutWindow>
+    );
+  };
+
   return (
     <main
       ref={containerRef}
@@ -404,7 +585,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           dragConfig={dragConfig}
           resizeConfig={resizeConfig}
           compactor={CANVAS_COMPACTOR}
-          onLayoutChange={isMobile ? undefined : setCurrentLayout}
+          onLayoutChange={isMobile ? undefined : handleLayoutChange}
         >
           <div key="main" className="grid-card" data-tour="main-map">
             <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
@@ -416,8 +597,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             />
           </div>
 
-          {campaign.time_series.length > 0 && (
-            <div key="timeseries" className="grid-card" data-tour="timeseries">
+          {campaign.time_series.length > 0 && !popped.has('timeseries') && (
+            <div key="timeseries" className="grid-card relative group/card" data-tour="timeseries">
               {isEditingLayout && (
                 <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
                   <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
@@ -425,71 +606,73 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
                   </span>
                 </div>
               )}
-              <TimeSeriesChart
-                timeseries={campaign.time_series}
-                latLon={timeseriesLatLon}
-                prefetchCoordinates={visibleTasks
-                  .slice(currentTaskIndex + 1, currentTaskIndex + 4)
-                  .map((task) => extractCentroidFromWKT(task.geometry.geometry))
-                  .filter((coord): coord is LatLon => coord !== null)}
-                probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
-              />
+              {showPopoutButtons && (
+                <PopoutButton
+                  cardKey="timeseries"
+                  label="the time series chart"
+                  onClick={() => popOut('timeseries')}
+                />
+              )}
+              {timeseriesBody}
             </div>
           )}
 
-          <div
-            key="minimap"
-            className="grid-card"
-            data-tour="minimap"
-            data-center-lat={center[0]}
-            data-center-lon={center[1]}
-          >
-            <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
-              {renderMinimapHeader()}
-            </div>
-            <MiniMap
-              center={center}
-              bbox={campaignBbox || [0, 0, 0, 0]}
-              visibleBounds={workMode === 'explore' ? currentMapBounds : null}
-              onViewportDrag={
-                workMode === 'explore' ? (lat, lon) => triggerPanToCenter([lat, lon]) : undefined
-              }
-              fitBbox={workMode === 'tasks'}
-              annotationDensity={annotationDensity}
-            />
-          </div>
-
-          <div key="controls" className="grid-card" data-tour="controls">
-            <div className="h-full overflow-y-auto overflow-x-hidden">
-              {workMode === 'tasks' ? (
-                <ControlsTaskMode
-                  labels={campaign.settings.labels}
-                  onSubmit={submitAnnotation}
-                  onNext={nextTask}
-                  onPrevious={previousTask}
-                  onGoToTask={goToTask}
-                  isSubmitting={isSubmitting}
-                  totalTasksCount={visibleTasks.length}
-                  currentTask={currentTask}
-                  commentInputRef={commentInputRef}
+          {!popped.has('minimap') && (
+            <div
+              key="minimap"
+              className="grid-card relative group/card"
+              data-tour="minimap"
+              data-center-lat={center[0]}
+              data-center-lon={center[1]}
+            >
+              <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
+                {renderMinimapHeader()}
+              </div>
+              {showPopoutButtons && (
+                <PopoutButton
+                  cardKey="minimap"
+                  label="the location minimap"
+                  onClick={() => popOut('minimap')}
+                  className="top-8"
                 />
-              ) : (
-                <ControlsOpenMode />
               )}
+              {minimapBody}
             </div>
-          </div>
+          )}
+
+          {!popped.has('controls') && (
+            <div key="controls" className="grid-card relative group/card" data-tour="controls">
+              {showPopoutButtons && (
+                <PopoutButton
+                  cardKey="controls"
+                  label="the annotation controls"
+                  onClick={() => popOut('controls')}
+                />
+              )}
+              {controlsBody}
+            </div>
+          )}
 
           {windowCollections.map(({ collection, source }, idx) => {
             if (!collection || !source) return null;
+            if (popped.has(String(collection.id))) return null;
             const isActiveCol = collection.id === activeCollectionId;
 
             return (
               <div
                 key={collection.id}
                 data-window-collection-id={collection.id}
-                className={`grid-card grid-card-hoverable ${isActiveCol ? 'active-window' : ''}`}
+                className={`grid-card grid-card-hoverable relative group/card ${isActiveCol ? 'active-window' : ''}`}
                 {...(idx === 0 ? { 'data-tour': 'imagery-windows' } : {})}
               >
+                {showPopoutButtons && (
+                  <PopoutButton
+                    cardKey={String(collection.id)}
+                    label={collection.name}
+                    onClick={() => popOut(String(collection.id))}
+                    className="top-8"
+                  />
+                )}
                 <div
                   className={`drag-handle card-header !py-0.5 !gap-2 group/header ${isEditingLayout ? 'editable' : ''} cursor-pointer hover:bg-neutral-50 ${isActiveCol ? '!bg-brand-600 !text-white !border-b-brand-600' : ''}`}
                   onClick={() => setActiveCollectionId(collection.id)}
@@ -540,6 +723,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           })}
         </ReactGridLayout>
       )}
+
+      {!isMobile && poppedKeys.map(renderPopout)}
 
       {editing && (
         <WindowDropController
