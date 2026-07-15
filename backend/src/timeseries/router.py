@@ -98,9 +98,13 @@ def get_timeseries_data(
     start = f"{start_year}-{start_month:02d}-01"
     end = f"{end_year}-{end_month:02d}-{monthrange(end_year, end_month)[1]}"
 
+    # Hand the pooled connection back before the Earth Engine call.
+    ts_type, source = timeseries.ts_type, timeseries.data_source
+    db.close()
+
     timeseries_data_df = service.get_timeseries_data(
-        ts_type=timeseries.ts_type,
-        source=timeseries.data_source,
+        ts_type=ts_type,
+        source=source,
         latitude=latitude,
         longitude=longitude,
         start_date=start,
