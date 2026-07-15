@@ -108,8 +108,12 @@ fi
 # IMPORTANT: If we increase backend replicas, we will need to implement
 # a lock for database migrations that run on startup.
 if [ "$ENV" = "dev" ]; then
-    BACKEND_CPU=0.5  BACKEND_MEM=1Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=2
-    BACKEND_POOL_SIZE=3  BACKEND_MAX_OVERFLOW=2
+    # Dev is an actively-used deployment, not a scratch environment: size it for real
+    # concurrent annotators. BACKEND_MAX stays 1 (see the migration-race note above), so
+    # scaling up is the only lever available. Pools are sized from DB capacity rather than
+    # worker count - the pool is the cap on concurrent DB work, and the DB is burstable.
+    BACKEND_CPU=2    BACKEND_MEM=4Gi  BACKEND_MIN=1  BACKEND_MAX=1  BACKEND_WORKERS=4
+    BACKEND_POOL_SIZE=5  BACKEND_MAX_OVERFLOW=5
     TILER_CPU=4      TILER_MEM=8Gi    TILER_MIN=1    TILER_MAX=1    TILER_WORKERS=4
     TILER_DB_MAX_CONN=2
     TILER_DEDICATED=false
@@ -123,8 +127,11 @@ fi
 # Connection budget (must fit the Postgres server's max_connections):
 #   backend = (BACKEND_POOL_SIZE + BACKEND_MAX_OVERFLOW) x BACKEND_WORKERS
 #   tiler   = TILER_DB_MAX_CONN x TILER_WORKERS
-# dev: backend 5x2=10 + tiler 2x4=8 = ~18. prod pools assume a larger DB SKU
-# (and ideally PgBouncer) - review against prod max_connections.
+# dev: backend 10x4=40 + tiler 2x4=8 = ~48, against a B_Standard_B2s (max_connections
+# ~429), so ~11% of budget - connections are not the dev constraint, backend CPU is.
+# prod: backend 35x4=140 + tiler 4x4=16 = ~156 - sized from worker count, not DB
+# capacity, and unreviewed against prod max_connections. Shrink it (or add PgBouncer)
+# before prod carries real load.
 
 echo -e "${GREEN}Stacnotator Deployment (${ENV})${NC}"
 echo ""
@@ -224,8 +231,12 @@ TILER_DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-db-password"
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp secret set --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --secrets "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" --output none
+    # --cpu/--memory must be passed here too, not just on create: without them an
+    # existing app keeps its original sizing while WORKERS/pool env vars below are
+    # applied regardless, silently oversubscribing a container that never grew.
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
+        --cpu "$BACKEND_CPU" --memory "$BACKEND_MEM" \
         --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
         --set-env-vars "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                        "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
