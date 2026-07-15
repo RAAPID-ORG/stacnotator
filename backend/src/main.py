@@ -160,11 +160,15 @@ def handle_uncaught_exception(request: Request, exc: Exception):
     with no exception details. Wire an observability sink (Sentry/Datadog)
     where indicated below."""
     request_id = getattr(request.state, "request_id", None)
-    logger.exception(
+    # exc_info=exc, not logger.exception(): this handler is sync, so Starlette
+    # dispatches it via run_in_threadpool, where thread-local sys.exc_info() is
+    # empty and the traceback would be logged as "NoneType: None".
+    logger.error(
         "Unhandled exception | request_id=%s path=%s method=%s",
         request_id,
         request.url.path,
         request.method,
+        exc_info=exc,
     )
     # OBSERVABILITY: forward `exc` here with request_id, user_id (if available),
     # path, method as tags. Single point of integration.
