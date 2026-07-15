@@ -27,6 +27,7 @@ FIELDS = _ADAPTER.validate_python(
         {"id": 4, "title": "Notes", "type": "text"},
         {"id": 5, "title": "Planted", "type": "date"},
         {"id": 6, "title": "Season", "type": "daterange"},
+        {"id": 7, "title": "Long notes", "type": "text", "multiline": True},
     ]
 )
 
@@ -128,3 +129,19 @@ class TestRejection:
     def test_missing_required_ignored_when_not_enforced(self):
         result = validate_form_values(FIELDS, {"4": "note"}, enforce_required=False)
         assert result == {"4": "note"}
+
+    def test_short_text_over_500_chars_rejected(self):
+        with pytest.raises(FormValidationError, match="too long"):
+            validate_form_values(FIELDS, {"4": "x" * 501}, enforce_required=False)
+
+    def test_short_text_at_500_chars_accepted(self):
+        result = validate_form_values(FIELDS, {"4": "x" * 500}, enforce_required=False)
+        assert len(result["4"]) == 500
+
+    def test_long_text_over_5000_chars_rejected(self):
+        with pytest.raises(FormValidationError, match="too long"):
+            validate_form_values(FIELDS, {"7": "x" * 5001}, enforce_required=False)
+
+    def test_long_text_at_5000_chars_accepted(self):
+        result = validate_form_values(FIELDS, {"7": "x" * 5000}, enforce_required=False)
+        assert len(result["7"]) == 5000

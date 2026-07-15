@@ -7,8 +7,11 @@ import pytest
 from pydantic import ValidationError
 
 from src.annotation.schemas import (
+    AnnotationCreate,
+    AnnotationFromTaskCreate,
     AnnotationTaskAssignmentOut,
     AnnotationTaskOut,
+    AnnotationUpdate,
     compute_task_status_value,
 )
 
@@ -427,3 +430,50 @@ def test_annotation_task_out_threads_is_review_through_object_shaped_assignments
         ],
     )
     assert obj.task_status == "done"
+
+
+class TestCommentLengthCaps:
+    """comment/flag_comment are capped at 5000 chars on every write schema -
+    the DB column stays Text, so the cap lives at the schema boundary."""
+
+    def test_from_task_create_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationFromTaskCreate(label_id=1, comment="x" * 5001)
+
+    def test_from_task_create_flag_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationFromTaskCreate(label_id=1, comment=None, flag_comment="x" * 5001)
+
+    def test_from_task_create_comment_at_5000_accepted(self):
+        obj = AnnotationFromTaskCreate(label_id=1, comment="x" * 5000)
+        assert obj.comment is not None
+        assert len(obj.comment) == 5000
+
+    def test_create_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationCreate(label_id=1, comment="x" * 5001, geometry_wkt="POINT (0 0)")
+
+    def test_create_flag_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationCreate(
+                label_id=1, comment=None, geometry_wkt="POINT (0 0)", flag_comment="x" * 5001
+            )
+
+    def test_update_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationUpdate(
+                label_id=1,
+                comment="x" * 5001,
+                geometry_wkt=None,
+                is_authoritative=None,
+            )
+
+    def test_update_flag_comment_over_5000_rejected(self):
+        with pytest.raises(ValidationError):
+            AnnotationUpdate(
+                label_id=1,
+                comment=None,
+                geometry_wkt=None,
+                is_authoritative=None,
+                flag_comment="x" * 5001,
+            )

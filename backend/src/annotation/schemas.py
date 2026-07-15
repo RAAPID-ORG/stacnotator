@@ -271,11 +271,11 @@ class AnnotationTaskListOut(BaseModel):
 
 class AnnotationFromTaskCreate(BaseModel):
     label_id: int | None
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
     form_values: dict[str, FormValue] | None = None
 
 
@@ -300,11 +300,11 @@ class ClaimTaskResponse(BaseModel):
 
 class AnnotationCreate(BaseModel):
     label_id: int
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     geometry_wkt: str  # Geometry in WKT format
     confidence: int | None = Field(default=None, ge=0, le=10)
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
     imagery_slice_id: int | None = None
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
@@ -351,12 +351,12 @@ class BatchCreateAnnotationsResponse(BaseModel):
 
 class AnnotationUpdate(BaseModel):
     label_id: int | None
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     geometry_wkt: str | None  # Geometry in WKT format
     confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
     imagery_slice_id: int | None = None
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None

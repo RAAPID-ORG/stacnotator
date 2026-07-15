@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class FormFieldOption(BaseModel):
     id: int
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=200)
 
 
 class FormFieldBase(BaseModel):
     id: int
     title: str
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=2000)
     required: bool = False
 
     @field_validator("title")
@@ -28,6 +28,8 @@ class FormFieldBase(BaseModel):
         stripped = value.strip()
         if not stripped:
             raise ValueError("field title must not be blank")
+        if len(stripped) > 200:
+            raise ValueError("field title must not exceed 200 characters")
         return stripped
 
 
@@ -40,7 +42,7 @@ def _validate_unique_option_ids(options: list[FormFieldOption]) -> list[FormFiel
 
 class CategoryFormField(FormFieldBase):
     type: Literal["category", "multicategory"]
-    options: list[FormFieldOption] = Field(min_length=1)
+    options: list[FormFieldOption] = Field(min_length=1, max_length=200)
 
     _unique_options = field_validator("options")(_validate_unique_option_ids)
 
@@ -82,6 +84,8 @@ def form_field_slug(title: str) -> str:
 
 
 def validate_form_fields(fields: list[FormField]) -> None:
+    if len(fields) > 100:
+        raise ValueError("a form may not have more than 100 fields")
     ids = [field.id for field in fields]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate field id in form fields")

@@ -74,7 +74,11 @@ def _validate_one(field: FormField, raw: object) -> object | None:
     if isinstance(field, TextFormField):
         if not isinstance(raw, str):
             raise FormValidationError(f"'{field.title}' expects text")
-        return raw.strip() or None
+        stripped = raw.strip()
+        max_length = 5000 if field.multiline else 500
+        if len(stripped) > max_length:
+            raise FormValidationError(f"'{field.title}' is too long (max {max_length} characters)")
+        return stripped or None
     if isinstance(field, DateFormField) and field.type == "date":
         return _parse_iso_date(raw, field.title)
     if not isinstance(raw, dict) or set(raw) != {"start", "end"}:

@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import type { FormFieldOption } from '~/api/client';
-import type { FormField } from '~/features/campaigns/utils/formFields';
+import { MAX_FIELDS, MAX_OPTIONS, type FormField } from '~/features/campaigns/utils/formFields';
 import { Input, Select, Switch } from '~/shared/ui/forms';
 
 const FIELD_TYPES = ['category', 'multicategory', 'number', 'text', 'date', 'daterange'] as const;
@@ -122,13 +122,21 @@ export const FormFieldsEditor = ({
       ))}
 
       {!readOnly && (
-        <button
-          onClick={addField}
-          className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
-          type="button"
-        >
-          + Add field
-        </button>
+        <div className="space-y-1">
+          <button
+            onClick={addField}
+            disabled={value.length >= MAX_FIELDS}
+            className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
+            type="button"
+          >
+            + Add field
+          </button>
+          {value.length >= MAX_FIELDS && (
+            <p className="text-xs text-neutral-400 italic">
+              Maximum of {MAX_FIELDS} fields reached.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -176,6 +184,7 @@ const FieldRow = ({
                 ref={titleInputRef}
                 onChange={(e) => onChange(withBase(field, { title: e.target.value }))}
                 disabled={readOnly}
+                maxLength={200}
               />
             </div>
             <div className="w-40">
@@ -202,6 +211,7 @@ const FieldRow = ({
             placeholder="Description (optional)"
             onChange={(e) => onChange(withBase(field, { description: e.target.value || null }))}
             disabled={readOnly}
+            maxLength={2000}
           />
 
           <Switch
@@ -278,6 +288,7 @@ const CategoryOptionsConfig = ({
                 }
               }}
               disabled={readOnly}
+              maxLength={200}
             />
           </div>
           {!readOnly && (
@@ -294,13 +305,21 @@ const CategoryOptionsConfig = ({
       ))}
 
       {!readOnly && (
-        <button
-          onClick={addOption}
-          className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
-          type="button"
-        >
-          + Add option
-        </button>
+        <div className="space-y-1">
+          <button
+            onClick={addOption}
+            disabled={field.options.length >= MAX_OPTIONS}
+            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
+            type="button"
+          >
+            + Add option
+          </button>
+          {field.options.length >= MAX_OPTIONS && (
+            <p className="text-xs text-neutral-400 italic">
+              Maximum of {MAX_OPTIONS} options reached.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

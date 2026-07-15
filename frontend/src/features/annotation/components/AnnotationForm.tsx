@@ -220,6 +220,7 @@ function TextField({
         onChange={(e) => handleChange(e.target.value)}
         disabled={disabled}
         rows={3}
+        maxLength={5000}
         className={textareaClass}
       />
     );
@@ -231,6 +232,7 @@ function TextField({
       value={stringValue}
       onChange={(e) => handleChange(e.target.value)}
       disabled={disabled}
+      maxLength={500}
       className={textInputClass}
     />
   );
@@ -339,7 +341,9 @@ export const AnnotationForm: React.FC<AnnotationFormProps> = ({
           key={field.id}
           data-form-field-id={field.id}
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] ${
-            activeFieldIndex === index ? 'ring-2 ring-brand-500/40 rounded' : ''
+            // ring-inset matches the label section and avoids the ring being
+            // clipped by the scroll container / adjacent sections.
+            activeFieldIndex === index ? 'ring-2 ring-inset ring-brand-500/40 rounded' : ''
           }`}
         >
           <FieldHeader field={field} />

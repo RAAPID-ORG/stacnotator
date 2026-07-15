@@ -75,6 +75,46 @@ class TestFieldParsing:
         with pytest.raises(ValidationError):
             FIELD_ADAPTER.validate_python(_category(type="checkbox"))
 
+    def test_title_over_200_chars_rejected(self):
+        with pytest.raises(ValidationError):
+            FIELD_ADAPTER.validate_python(_category(title="x" * 201))
+
+    def test_title_at_200_chars_accepted(self):
+        field = FIELD_ADAPTER.validate_python(_category(title="x" * 200))
+        assert len(field.title) == 200
+
+    def test_title_over_200_after_strip_rejected(self):
+        # Padding whitespace must not let the pre-strip length dodge the cap.
+        with pytest.raises(ValidationError):
+            FIELD_ADAPTER.validate_python(_category(title="  " + "x" * 201 + "  "))
+
+    def test_description_over_2000_chars_rejected(self):
+        with pytest.raises(ValidationError):
+            FIELD_ADAPTER.validate_python(_category(description="x" * 2001))
+
+    def test_description_at_2000_chars_accepted(self):
+        field = FIELD_ADAPTER.validate_python(_category(description="x" * 2000))
+        assert field.description is not None
+        assert len(field.description) == 2000
+
+    def test_option_name_over_200_chars_rejected(self):
+        with pytest.raises(ValidationError):
+            FIELD_ADAPTER.validate_python(_category(options=[{"id": 1, "name": "x" * 201}]))
+
+    def test_option_name_at_200_chars_accepted(self):
+        field = FIELD_ADAPTER.validate_python(_category(options=[{"id": 1, "name": "x" * 200}]))
+        assert len(field.options[0].name) == 200
+
+    def test_more_than_200_options_rejected(self):
+        options = [{"id": i, "name": f"opt{i}"} for i in range(201)]
+        with pytest.raises(ValidationError):
+            FIELD_ADAPTER.validate_python(_category(options=options))
+
+    def test_exactly_200_options_accepted(self):
+        options = [{"id": i, "name": f"opt{i}"} for i in range(200)]
+        field = FIELD_ADAPTER.validate_python(_category(options=options))
+        assert len(field.options) == 200
+
 
 class TestSlugAndListValidation:
     def test_slug_normalizes(self):
@@ -100,5 +140,18 @@ class TestSlugAndListValidation:
         fields = [
             FIELD_ADAPTER.validate_python(_category()),
             FIELD_ADAPTER.validate_python(_category(id=2, title="Land use")),
+        ]
+        validate_form_fields(fields)
+
+    def test_more_than_100_fields_rejected(self):
+        fields = [
+            FIELD_ADAPTER.validate_python(_category(id=i, title=f"Field {i}")) for i in range(101)
+        ]
+        with pytest.raises(ValueError, match="100"):
+            validate_form_fields(fields)
+
+    def test_exactly_100_fields_pass(self):
+        fields = [
+            FIELD_ADAPTER.validate_python(_category(id=i, title=f"Field {i}")) for i in range(100)
         ]
         validate_form_fields(fields)
