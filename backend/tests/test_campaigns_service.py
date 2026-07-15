@@ -983,6 +983,11 @@ class TestUpdateCampaignFormFields:
     def _category(self, **overrides):
         return CategoryFormField.model_validate({**self.CATEGORY_FIELD, **overrides})
 
+    def _answered(self, db, *field_keys):
+        """Stand in for the single query that collects the field keys some
+        annotation has an answer for."""
+        db.scalars.return_value.all.return_value = list(field_keys)
+
     def test_edit_title_and_add_field_succeeds(self):
         db = _mock_db()
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
@@ -1001,11 +1006,12 @@ class TestUpdateCampaignFormFields:
         assert [f["id"] for f in stored] == [1, 2]
         assert stored[0]["title"] == "Crop type"
         db.commit.assert_called_once()
-        db.scalar.assert_not_called()  # no shape change -> no annotation lookup
+        db.scalars.assert_not_called()  # no shape change, no removal -> no annotation lookup
 
     def test_removing_a_field_drops_it_and_strips_its_stored_answers(self):
         db = _mock_db()
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        self._answered(db, "1")
 
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
@@ -1015,8 +1021,18 @@ class TestUpdateCampaignFormFields:
         sql = _compile(db.execute.call_args[0][0])
         # Discards only the removed field's key (leaving answers to surviving
         # fields intact), and only within this campaign.
-        assert "form_values - CAST('1' AS TEXT)" in sql
+        assert "form_values - CAST(ARRAY['1'] AS TEXT[])" in sql
         assert "campaign_id = 1" in sql
+
+    def test_removing_a_field_nobody_answered_strips_nothing(self):
+        db = _mock_db()
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
+
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
+
+        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        db.execute.assert_not_called()
 
     def test_keeping_every_field_touches_no_annotation(self):
         db = _mock_db()
@@ -1027,24 +1043,25 @@ class TestUpdateCampaignFormFields:
 
         db.execute.assert_not_called()
 
-    def test_removing_several_fields_strips_each_of_them(self):
+    def test_removing_several_fields_strips_them_in_one_statement(self):
         db = _mock_db()
         second = {**self.CATEGORY_FIELD, "id": 7, "title": "Notes"}
         self._campaign(db, [dict(self.CATEGORY_FIELD), second])
+        self._answered(db, "1", "7")
 
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign_form_fields(db, 1, [])
 
-        stripped = [_compile(call[0][0]) for call in db.execute.call_args_list]
-        assert len(stripped) == 2
-        assert any("CAST('1'" in sql for sql in stripped)
-        assert any("CAST('7'" in sql for sql in stripped)
+        db.execute.assert_called_once()
+        assert "form_values - CAST(ARRAY['1', '7'] AS TEXT[])" in _compile(
+            db.execute.call_args[0][0]
+        )
 
     def test_a_rejected_reshape_strips_nothing(self):
         # The 409 must abort before any answer is discarded.
         db = _mock_db()
         self._campaign(db, [dict(self.CATEGORY_FIELD)])
-        db.scalar.return_value = 3
+        self._answered(db, "1")
 
         with pytest.raises(HTTPException):
             update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
@@ -1055,7 +1072,7 @@ class TestUpdateCampaignFormFields:
     def test_type_change_with_answers_is_rejected(self):
         db = _mock_db()
         self._campaign(db, [dict(self.CATEGORY_FIELD)])
-        db.scalar.return_value = 3
+        self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
             update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
@@ -1064,7 +1081,7 @@ class TestUpdateCampaignFormFields:
     def test_type_change_without_answers_succeeds(self):
         db = _mock_db()
         campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
-        db.scalar.return_value = 0
+        self._answered(db)
 
         with patch("src.campaigns.service.get_campaign_full"):
             update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
@@ -1074,7 +1091,7 @@ class TestUpdateCampaignFormFields:
     def test_removing_an_option_with_answers_is_rejected(self):
         db = _mock_db()
         self._campaign(db, [dict(self.CATEGORY_FIELD)])
-        db.scalar.return_value = 1
+        self._answered(db, "1")
 
         with pytest.raises(HTTPException) as exc_info:
             update_campaign_form_fields(
@@ -1095,4 +1112,4 @@ class TestUpdateCampaignFormFields:
             update_campaign_form_fields(db, 1, [self._category(options=new_options)])
 
         assert [o["id"] for o in campaign.settings.form_fields[0]["options"]] == [1, 2, 3]
-        db.scalar.assert_not_called()
+        db.scalars.assert_not_called()

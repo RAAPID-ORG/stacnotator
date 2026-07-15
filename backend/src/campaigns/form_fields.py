@@ -8,29 +8,23 @@ list; it stays a separate concept (settings.labels).
 import re
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+
+# Strip before length/blank checks so " " is rejected and a padded title cannot
+# exceed the cap on whitespace alone.
+ShortName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 
 
 class FormFieldOption(BaseModel):
     id: int
-    name: str = Field(min_length=1, max_length=200)
+    name: ShortName
 
 
 class FormFieldBase(BaseModel):
     id: int
-    title: str
+    title: ShortName
     description: str | None = Field(default=None, max_length=2000)
     required: bool = False
-
-    @field_validator("title")
-    @classmethod
-    def title_not_blank(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("field title must not be blank")
-        if len(stripped) > 200:
-            raise ValueError("field title must not exceed 200 characters")
-        return stripped
 
 
 def _validate_unique_option_ids(options: list[FormFieldOption]) -> list[FormFieldOption]:

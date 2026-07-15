@@ -1,8 +1,15 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
@@ -21,6 +28,14 @@ from src.vector_layers.schemas import VectorLayerOut
 # ============================================================================
 # Campaign Related Schemas
 # ============================================================================
+def _check_form_fields(value: list[FormField]) -> list[FormField]:
+    validate_form_fields(value)
+    return value
+
+
+ValidatedFormFields = Annotated[list[FormField], AfterValidator(_check_form_fields)]
+
+
 class LabelBase(BaseModel):
     """
     A label that can be assigned to an annotation within a campaign.
@@ -187,13 +202,7 @@ class CampaignSettingsCreate(BaseModel):
     bbox_north: float
     embedding_year: int | None = None
     sample_extent_meters: float | None = None
-    form_fields: list[FormField] = []
-
-    @field_validator("form_fields")
-    @classmethod
-    def check_form_fields(cls, value: list[FormField]) -> list[FormField]:
-        validate_form_fields(value)
-        return value
+    form_fields: ValidatedFormFields = []
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
@@ -383,13 +392,7 @@ class UpdateCampaignFormFieldsRequest(BaseModel):
     """Replace the campaign's custom form fields. Existing field IDs must be
     preserved (stored annotation answers key off them); new fields get new ids."""
 
-    form_fields: list[FormField]
-
-    @field_validator("form_fields")
-    @classmethod
-    def check_form_fields(cls, value: list[FormField]) -> list[FormField]:
-        validate_form_fields(value)
-        return value
+    form_fields: ValidatedFormFields
 
 
 class EmbeddingYearUpdateResponse(BaseModel):

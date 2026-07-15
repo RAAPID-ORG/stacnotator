@@ -18,6 +18,7 @@ from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
 )
 from src.annotation.io import (
+    FormExportSchema,
     _build_annotation_records,
     build_annotations_export,
     build_annotations_geojson_export,
@@ -80,6 +81,9 @@ def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=
     ann.comment = None
     ann.confidence = None
     ann.is_authoritative = False
+    # A real Annotation always has this as a dict or None; leaving it as a
+    # bare MagicMock attribute makes the stand-in lie to form validation.
+    ann.form_values = None
     return ann
 
 
@@ -934,7 +938,7 @@ class TestExportAnnotatorCount:
                 user_email_map={},
                 merge_on_agreement=merge,
                 include_geometry_wkt=False,
-                form_fields=[],
+                form_schema=FormExportSchema([]),
             )
         return records
 

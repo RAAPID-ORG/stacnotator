@@ -7,12 +7,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
-import {
-  applyFieldDigit,
-  cycleFieldIndex,
-  digitTargetsOption,
-  focusFormFieldInput,
-} from '../utils/formFieldNav';
+import { handleFormFieldKey } from '../utils/formFieldNav';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -92,22 +87,21 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
-      // Number keys: with a custom form field active, dispatch to it (toggle
-      // an option or focus its input) instead of selecting a label.
-      if (/^[0-9]$/.test(e.key)) {
-        const activeField =
-          activeFieldIndex !== null && activeFieldIndex >= 0
-            ? formFields[activeFieldIndex]
-            : undefined;
-        if (activeField) {
-          e.preventDefault();
-          applyFieldDigit(activeField, e.key, formValues, setFormValues);
-          return;
-        }
-        if (e.key === '0') return;
+      if (
+        handleFormFieldKey(e, {
+          fields: formFields,
+          activeIndex: activeFieldIndex,
+          values: formValues,
+          setValues: setFormValues,
+          setActiveIndex: setActiveFieldIndex,
+        })
+      ) {
+        return;
+      }
 
-        // 1-9: select label. In label-vector mode keep that tool so the
-        // label applies to clicked features; otherwise switch to annotate (draw).
+      // 1-9: select label. In label-vector mode keep that tool so the
+      // label applies to clicked features; otherwise switch to annotate (draw).
+      if (/^[1-9]$/.test(e.key)) {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
@@ -119,32 +113,7 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
-      // Enter with an input-like form field active focuses it for typing.
-      if (e.key === 'Enter') {
-        const activeField =
-          activeFieldIndex !== null && activeFieldIndex >= 0
-            ? formFields[activeFieldIndex]
-            : undefined;
-        if (activeField && !digitTargetsOption(activeField)) {
-          e.preventDefault();
-          focusFormFieldInput(activeField.id);
-        }
-        return;
-      }
-
       switch (e.key.toLowerCase()) {
-        case 'tab':
-          if (formFields.length === 0) break;
-          e.preventDefault();
-          setActiveFieldIndex(
-            cycleFieldIndex(activeFieldIndex, formFields.length, e.shiftKey ? -1 : 1)
-          );
-          break;
-        case 'escape':
-          if (formFields.length === 0 && activeFieldIndex === null) break;
-          e.preventDefault();
-          setActiveFieldIndex(null);
-          break;
         case 'p':
           e.preventDefault();
           setActiveTool('pan');

@@ -93,6 +93,8 @@ def _validate_one(field: FormField, raw: object) -> object | None:
 def validate_form_values(
     fields: list[FormField], form_values: dict | None, *, enforce_required: bool
 ) -> dict | None:
+    if form_values is not None and not isinstance(form_values, dict):
+        raise FormValidationError("form values must be an object")
     fields_by_key = {str(field.id): field for field in fields}
     normalized: dict = {}
     for key, raw in (form_values or {}).items():

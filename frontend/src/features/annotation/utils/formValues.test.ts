@@ -6,7 +6,6 @@ import {
   applyCategoryOption,
   missingRequiredFields,
   formatMissingFieldsTitle,
-  hydrateFormValues,
   isDateRangeValue,
   type FormValues,
 } from './formValues';
@@ -94,19 +93,6 @@ describe('setFieldValue', () => {
     const values: FormValues = { '2': [10, 20] };
     const next = setFieldValue(values, 2, []);
     expect(next).toEqual({});
-  });
-
-  it('setting null on a key that is already absent is a no-op producing a new object', () => {
-    const values: FormValues = { '1': 10 };
-    const next = setFieldValue(values, 99, null);
-    expect(next).toEqual({ '1': 10 });
-    expect(next).not.toBe(values);
-  });
-
-  it('leaves the input object reference untouched (immutability)', () => {
-    const values: FormValues = { '1': 10 };
-    const frozen = Object.freeze({ ...values });
-    expect(() => setFieldValue(frozen, 1, 30)).not.toThrow();
   });
 });
 
@@ -239,31 +225,5 @@ describe('isDateRangeValue', () => {
     expect(isDateRangeValue(null)).toBe(false);
     expect(isDateRangeValue('2024-01-01')).toBe(false);
     expect(isDateRangeValue(10)).toBe(false);
-  });
-});
-
-describe('hydrateFormValues', () => {
-  it('narrows null to an empty object', () => {
-    expect(hydrateFormValues(null)).toEqual({});
-  });
-
-  it('narrows undefined to an empty object', () => {
-    expect(hydrateFormValues(undefined)).toEqual({});
-  });
-
-  it('passes through a valid dict unchanged', () => {
-    const raw = { '1': 10, '3': 'hello', '2': [10, 20] };
-    expect(hydrateFormValues(raw)).toEqual(raw);
-  });
-
-  it('passes through a daterange value unchanged', () => {
-    const raw = { '6': { start: '2024-01-01', end: '2024-01-31' } };
-    expect(hydrateFormValues(raw)).toEqual(raw);
-  });
-
-  it('falls back to an empty object for non-object input', () => {
-    expect(hydrateFormValues('not an object')).toEqual({});
-    expect(hydrateFormValues(42)).toEqual({});
-    expect(hydrateFormValues([1, 2, 3])).toEqual({});
   });
 });

@@ -11,12 +11,7 @@ import {
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
-import {
-  applyFieldDigit,
-  cycleFieldIndex,
-  digitTargetsOption,
-  focusFormFieldInput,
-} from '../utils/formFieldNav';
+import { handleFormFieldKey } from '../utils/formFieldNav';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -329,32 +324,27 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         return;
       }
 
-      // Number keys: dispatch to the active form field when task mode has one
-      // focused (via Tab), otherwise fall back to label selection as before.
+      if (
+        tasksActive &&
+        handleFormFieldKey(e, {
+          fields: formFields,
+          activeIndex: activeFieldIndex,
+          values: formValues,
+          setValues: setFormValues,
+          setActiveIndex: setActiveFieldIndex,
+        })
+      ) {
+        return;
+      }
+
+      // Number keys select a label by index, buffered so 2-digit indices work.
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
-        const activeField =
-          tasksActive && activeFieldIndex !== null && activeFieldIndex >= 0
-            ? formFields[activeFieldIndex]
-            : undefined;
-        if (activeField) {
-          applyFieldDigit(activeField, e.key, formValues, setFormValues);
-        } else {
-          handleDigitInput(e.key);
-        }
+        handleDigitInput(e.key);
         return;
       }
 
       switch (e.key) {
-        // Form field navigation
-        case 'Tab':
-          if (!tasksActive || formFields.length === 0) break;
-          e.preventDefault();
-          setActiveFieldIndex(
-            cycleFieldIndex(activeFieldIndex, formFields.length, e.shiftKey ? -1 : 1)
-          );
-          break;
-
         // Task navigation
         case 'w':
         case 'W':
@@ -464,21 +454,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           adjustConfidence(1); // Increase confidence
           break;
 
-        // Submit (or, with an input-like form field active, focus it instead)
-        case 'Enter': {
-          const activeField =
-            tasksActive && activeFieldIndex !== null && activeFieldIndex >= 0
-              ? formFields[activeFieldIndex]
-              : undefined;
-          if (activeField && !digitTargetsOption(activeField)) {
-            e.preventDefault();
-            focusFormFieldInput(activeField.id);
-            break;
-          }
+        // Submit
+        case 'Enter':
           e.preventDefault();
           handleSubmit();
           break;
-        }
 
         // Skip
         case 'b':
@@ -525,14 +505,6 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
           } else {
             cycleSource();
           }
-          break;
-
-        // Leave the active form field
-        case 'Escape':
-          if (!tasksActive) break;
-          if (formFields.length === 0 && activeFieldIndex === null) break;
-          e.preventDefault();
-          setActiveFieldIndex(null);
           break;
       }
     };

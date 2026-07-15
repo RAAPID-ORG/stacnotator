@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
@@ -15,11 +15,13 @@ from src.annotation.constants import (
 )
 
 
-class DateRangeValue(BaseModel):
+class DateRangeValue(TypedDict):
     start: str
     end: str
 
 
+# A TypedDict, not a BaseModel: form values stay plain JSON containers so
+# annotation.forms.validate_form_values remains the single authority on shape.
 FormValue = int | float | str | list[int] | DateRangeValue
 
 

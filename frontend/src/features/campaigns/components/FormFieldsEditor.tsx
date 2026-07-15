@@ -3,39 +3,32 @@ import type { FormFieldOption } from '~/api/client';
 import { MAX_FIELDS, MAX_OPTIONS, type FormField } from '~/features/campaigns/utils/formFields';
 import { Input, Select, Switch } from '~/shared/ui/forms';
 
-const FIELD_TYPES = ['category', 'multicategory', 'number', 'text', 'date', 'daterange'] as const;
-type FieldType = (typeof FIELD_TYPES)[number];
-
-function isFieldType(value: string): value is FieldType {
-  return (FIELD_TYPES as readonly string[]).includes(value);
-}
-
-const FIELD_TYPE_OPTIONS: Array<{ value: FieldType; label: string }> = [
+const FIELD_TYPE_OPTIONS = [
   { value: 'category', label: 'Category' },
   { value: 'multicategory', label: 'Multi category' },
   { value: 'number', label: 'Number' },
   { value: 'text', label: 'Text' },
   { value: 'date', label: 'Date' },
   { value: 'daterange', label: 'Date range' },
-];
+] as const;
 
-interface FieldBase {
-  id: number;
-  title: string;
-  description?: string | null;
-  required: boolean;
+type FieldType = (typeof FIELD_TYPE_OPTIONS)[number]['value'];
+
+function isFieldType(value: string): value is FieldType {
+  return FIELD_TYPE_OPTIONS.some((o) => o.value === value);
 }
+
+type FieldBase = Pick<FormField, 'id' | 'title' | 'description' | 'required'>;
 
 function makeField(type: FieldType, base: FieldBase): FormField {
   switch (type) {
     case 'category':
-      return { ...base, type: 'category', options: [{ id: 1, name: '' }] };
     case 'multicategory':
-      return { ...base, type: 'multicategory', options: [{ id: 1, name: '' }] };
+      return { ...base, type, options: [{ id: 1, name: '' }] };
     case 'number':
       return {
         ...base,
-        type: 'number',
+        type,
         number_type: 'float',
         min: null,
         max: null,
@@ -43,36 +36,23 @@ function makeField(type: FieldType, base: FieldBase): FormField {
         slider: false,
       };
     case 'text':
-      return { ...base, type: 'text', multiline: false };
+      return { ...base, type, multiline: false };
     case 'date':
-      return { ...base, type: 'date' };
     case 'daterange':
-      return { ...base, type: 'daterange' };
+      return { ...base, type };
   }
 }
 
 function withBase(field: FormField, patch: Partial<FieldBase>): FormField {
-  switch (field.type) {
-    case 'category':
-    case 'multicategory':
-      return { ...field, ...patch };
-    case 'number':
-      return { ...field, ...patch };
-    case 'text':
-      return { ...field, ...patch };
-    case 'date':
-    case 'daterange':
-      return { ...field, ...patch };
-  }
+  return { ...field, ...patch };
 }
 
 interface FormFieldsEditorProps {
   value: FormField[];
   onChange: (fields: FormField[]) => void;
-  readOnly?: boolean;
 }
 
-export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFieldsEditorProps) => {
+export const FormFieldsEditor = ({ value, onChange }: FormFieldsEditorProps) => {
   const titleRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const addField = useCallback(() => {
@@ -95,16 +75,10 @@ export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFiel
 
   return (
     <div className="space-y-3">
-      {readOnly && value.length === 0 && (
-        <p className="text-xs text-neutral-500">No custom fields configured.</p>
-      )}
-
       {value.map((field) => (
         <FieldRow
           key={field.id}
           field={field}
-          readOnly={readOnly}
-          canRemove={!readOnly}
           onChange={replaceField}
           onRemove={() => removeField(field.id)}
           titleInputRef={(el) => {
@@ -114,38 +88,30 @@ export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFiel
         />
       ))}
 
-      {!readOnly && (
-        <div className="space-y-1">
-          <button
-            onClick={addField}
-            disabled={value.length >= MAX_FIELDS}
-            className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
-            type="button"
-          >
-            + Add field
-          </button>
-          {value.length >= MAX_FIELDS && (
-            <p className="text-xs text-neutral-400 italic">
-              Maximum of {MAX_FIELDS} fields reached.
-            </p>
-          )}
-        </div>
-      )}
+      <div className="space-y-1">
+        <button
+          onClick={addField}
+          disabled={value.length >= MAX_FIELDS}
+          className="text-sm text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
+          type="button"
+        >
+          + Add field
+        </button>
+        {value.length >= MAX_FIELDS && (
+          <p className="text-xs text-neutral-400 italic">Maximum of {MAX_FIELDS} fields reached.</p>
+        )}
+      </div>
     </div>
   );
 };
 
 const FieldRow = ({
   field,
-  readOnly,
-  canRemove,
   onChange,
   onRemove,
   titleInputRef,
 }: {
   field: FormField;
-  readOnly: boolean;
-  canRemove: boolean;
   onChange: (next: FormField) => void;
   onRemove: () => void;
   titleInputRef: (el: HTMLInputElement | null) => void;
@@ -176,7 +142,6 @@ const FieldRow = ({
                 placeholder="Question title"
                 ref={titleInputRef}
                 onChange={(e) => onChange(withBase(field, { title: e.target.value }))}
-                disabled={readOnly}
                 maxLength={200}
               />
             </div>
@@ -187,7 +152,6 @@ const FieldRow = ({
                   const next = e.target.value;
                   if (isFieldType(next)) changeType(next);
                 }}
-                disabled={readOnly}
               >
                 {FIELD_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -203,38 +167,30 @@ const FieldRow = ({
             value={field.description ?? ''}
             placeholder="Description (optional)"
             onChange={(e) => onChange(withBase(field, { description: e.target.value || null }))}
-            disabled={readOnly}
             maxLength={2000}
           />
 
           <Switch
             checked={field.required ?? false}
             onChange={(checked) => onChange(withBase(field, { required: checked }))}
-            disabled={readOnly}
             label="Required"
           />
 
           {(field.type === 'category' || field.type === 'multicategory') && (
-            <CategoryOptionsConfig field={field} onChange={onChange} readOnly={readOnly} />
+            <CategoryOptionsConfig field={field} onChange={onChange} />
           )}
-          {field.type === 'number' && (
-            <NumberConfig field={field} onChange={onChange} readOnly={readOnly} />
-          )}
-          {field.type === 'text' && (
-            <TextConfig field={field} onChange={onChange} readOnly={readOnly} />
-          )}
+          {field.type === 'number' && <NumberConfig field={field} onChange={onChange} />}
+          {field.type === 'text' && <TextConfig field={field} onChange={onChange} />}
         </div>
 
-        {canRemove && (
-          <button
-            onClick={onRemove}
-            className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
-            type="button"
-            aria-label="Remove field"
-          >
-            ✕
-          </button>
-        )}
+        <button
+          onClick={onRemove}
+          className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
+          type="button"
+          aria-label="Remove field"
+        >
+          ✕
+        </button>
       </div>
     </div>
   );
@@ -243,11 +199,9 @@ const FieldRow = ({
 const CategoryOptionsConfig = ({
   field,
   onChange,
-  readOnly,
 }: {
   field: Extract<FormField, { type: 'category' | 'multicategory' }>;
   onChange: (next: FormField) => void;
-  readOnly: boolean;
 }) => {
   const setOptions = (options: FormFieldOption[]) => onChange({ ...field, options });
 
@@ -280,40 +234,35 @@ const CategoryOptionsConfig = ({
                   addOption();
                 }
               }}
-              disabled={readOnly}
               maxLength={200}
             />
           </div>
-          {!readOnly && (
-            <button
-              onClick={() => setOptions(field.options.filter((o) => o.id !== option.id))}
-              className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
-              type="button"
-              aria-label="Remove option"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            onClick={() => setOptions(field.options.filter((o) => o.id !== option.id))}
+            className="text-sm text-neutral-400 hover:text-red-600 transition-colors px-1"
+            type="button"
+            aria-label="Remove option"
+          >
+            ✕
+          </button>
         </div>
       ))}
 
-      {!readOnly && (
-        <div className="space-y-1">
-          <button
-            onClick={addOption}
-            disabled={field.options.length >= MAX_OPTIONS}
-            className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
-            type="button"
-          >
-            + Add option
-          </button>
-          {field.options.length >= MAX_OPTIONS && (
-            <p className="text-xs text-neutral-400 italic">
-              Maximum of {MAX_OPTIONS} options reached.
-            </p>
-          )}
-        </div>
-      )}
+      <div className="space-y-1">
+        <button
+          onClick={addOption}
+          disabled={field.options.length >= MAX_OPTIONS}
+          className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer disabled:text-neutral-400 disabled:no-underline disabled:cursor-not-allowed"
+          type="button"
+        >
+          + Add option
+        </button>
+        {field.options.length >= MAX_OPTIONS && (
+          <p className="text-xs text-neutral-400 italic">
+            Maximum of {MAX_OPTIONS} options reached.
+          </p>
+        )}
+      </div>
     </div>
   );
 };
@@ -321,11 +270,9 @@ const CategoryOptionsConfig = ({
 const NumberConfig = ({
   field,
   onChange,
-  readOnly,
 }: {
   field: Extract<FormField, { type: 'number' }>;
   onChange: (next: FormField) => void;
-  readOnly: boolean;
 }) => {
   const boundsSet = field.min != null && field.max != null;
 
@@ -340,7 +287,6 @@ const NumberConfig = ({
               onChange({ ...field, number_type: next });
             }
           }}
-          disabled={readOnly}
           size="sm"
         >
           <option value="float">Float</option>
@@ -356,7 +302,6 @@ const NumberConfig = ({
             const slider = (field.slider ?? false) && min != null && field.max != null;
             onChange({ ...field, min, slider });
           }}
-          disabled={readOnly}
         />
         <Input
           type="number"
@@ -368,7 +313,6 @@ const NumberConfig = ({
             const slider = (field.slider ?? false) && field.min != null && max != null;
             onChange({ ...field, max, slider });
           }}
-          disabled={readOnly}
         />
         <Input
           type="number"
@@ -379,13 +323,12 @@ const NumberConfig = ({
             const step = e.target.value === '' ? null : Number(e.target.value);
             onChange({ ...field, step });
           }}
-          disabled={readOnly}
         />
       </div>
       <Switch
         checked={field.slider ?? false}
         onChange={(checked) => onChange({ ...field, slider: checked })}
-        disabled={readOnly || !boundsSet}
+        disabled={!boundsSet}
         label="Show as slider"
       />
     </div>
@@ -395,16 +338,13 @@ const NumberConfig = ({
 const TextConfig = ({
   field,
   onChange,
-  readOnly,
 }: {
   field: Extract<FormField, { type: 'text' }>;
   onChange: (next: FormField) => void;
-  readOnly: boolean;
 }) => (
   <Switch
     checked={field.multiline ?? false}
     onChange={(checked) => onChange({ ...field, multiline: checked })}
-    disabled={readOnly}
     label="Multiline"
   />
 );

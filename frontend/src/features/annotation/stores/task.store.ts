@@ -19,7 +19,11 @@ import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
-import { hydrateFormValues, type FormValues } from '../utils/formValues';
+import {
+  formatMissingFieldsTitle,
+  missingRequiredFields,
+  type FormValues,
+} from '../utils/formValues';
 
 export type { TaskFilter, TaskStatus };
 
@@ -108,7 +112,7 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
         confidence: userAnn.confidence ?? 5,
         flaggedForReview: userAnn.flagged_for_review ?? false,
         flagComment: userAnn.flag_comment || '',
-        formValues: hydrateFormValues(userAnn.form_values),
+        formValues: userAnn.form_values ?? {},
         activeFieldIndex: null,
       }
     : emptyFormState;
@@ -304,6 +308,21 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       const currentUserId = useAccountStore.getState().account?.id;
 
       if (!task || !campaign || !currentUserId) return;
+
+      // Guard here rather than in the submit button's disabled state: the
+      // Enter hotkey calls this directly and would otherwise reach the
+      // backend's 422. Skips (no label) are exempt, matching the backend.
+      if (labelId !== null) {
+        const missing = missingRequiredFields(
+          campaign.settings.form_fields ?? [],
+          get().formValues
+        );
+        if (missing.length > 0) {
+          useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+          return;
+        }
+      }
+
       set({ isSubmitting: true });
 
       // visibleTasks is treated as a stable working set between explicit re-filters

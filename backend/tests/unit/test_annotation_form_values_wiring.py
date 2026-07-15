@@ -116,6 +116,56 @@ class TestValidateAnnotationFormValuesHelper:
         assert validate_annotation_form_values(campaign, None, enforce_required=True) is None
 
 
+ALL_FIELD_TYPES = [
+    {"id": 1, "title": "Crop", "type": "category", "options": [{"id": 1, "name": "Maize"}]},
+    {
+        "id": 2,
+        "title": "Damage",
+        "type": "multicategory",
+        "options": [{"id": 1, "name": "Flood"}, {"id": 2, "name": "Drought"}],
+    },
+    {"id": 3, "title": "Yield", "type": "number", "number_type": "float"},
+    {"id": 4, "title": "Notes", "type": "text"},
+    {"id": 5, "title": "Planted", "type": "date"},
+    {"id": 6, "title": "Season", "type": "daterange"},
+]
+
+
+@pytest.mark.parametrize(
+    ("field_id", "submitted", "stored"),
+    [
+        (1, 1, 1),
+        (2, [2, 1], [1, 2]),
+        (3, 4.5, 4.5),
+        (4, "  a note ", "a note"),
+        (5, "2026-05-01", "2026-05-01"),
+        (
+            6,
+            {"start": "2026-05-01", "end": "2026-09-30"},
+            {"start": "2026-05-01", "end": "2026-09-30"},
+        ),
+    ],
+)
+def test_every_field_type_survives_schema_parsing(field_id, submitted, stored):
+    # Guards the schema/validator seam: AnnotationCreate must hand
+    # validate_form_values plain JSON containers. Typing a form value as a
+    # BaseModel once made Pydantic coerce daterange dicts into model
+    # instances, which the validator then rejected as the wrong shape.
+    campaign = _campaign(ALL_FIELD_TYPES)
+    db = _db(cu=_MEMBER)
+    payload = AnnotationCreate(
+        label_id=1,
+        comment=None,
+        geometry_wkt="POINT(0 0)",
+        confidence=None,
+        form_values={str(field_id): submitted},
+    )
+
+    annotation = create_annotation(db, campaign, payload, uuid4())
+
+    assert annotation.form_values == {str(field_id): stored}
+
+
 class TestCreateAnnotationFormValuesWiring:
     def test_persists_normalized_form_values(self):
         campaign = _campaign(REQUIRED_CATEGORY_FIELD)
@@ -281,6 +331,43 @@ class TestUpdateAnnotationFormValuesWiring:
         db.execute.return_value.scalar_one_or_none.return_value = existing
         payload = AnnotationUpdate(
             label_id=None, comment="a note", geometry_wkt=None, is_authoritative=None
+        )
+
+        annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+
+        assert annotation.form_values == {"1": 1}
+
+    def test_adding_a_label_cannot_bypass_required_fields(self):
+        # Skipped (unlabelled, no answers), then labelled via a PUT that omits
+        # form_values: the required field must still be enforced rather than
+        # slipping through because form_values was absent from the payload.
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
+        existing = MagicMock()
+        existing.label_id = None
+        existing.created_by_user_id = uuid4()
+        existing.form_values = None
+        db = _db(cu=_MEMBER)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        payload = AnnotationUpdate(
+            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            update_annotation(db, 5, payload, uuid4(), campaign=campaign)
+
+        assert exc.value.status_code == 400
+        assert "Crop" in exc.value.detail
+
+    def test_label_edit_keeps_satisfying_stored_values(self):
+        campaign = _campaign(REQUIRED_CATEGORY_FIELD)
+        existing = MagicMock()
+        existing.label_id = None
+        existing.created_by_user_id = uuid4()
+        existing.form_values = {"1": 1}
+        db = _db(cu=_MEMBER)
+        db.execute.return_value.scalar_one_or_none.return_value = existing
+        payload = AnnotationUpdate(
+            label_id=1, comment=None, geometry_wkt=None, is_authoritative=None
         )
 
         annotation = update_annotation(db, 5, payload, uuid4(), campaign=campaign)

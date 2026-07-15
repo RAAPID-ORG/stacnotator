@@ -382,11 +382,6 @@ def create_annotations_from_geojson(
             ) from None
 
         raw_form_values = properties.get("stacnotator_form_values")
-        if raw_form_values is not None and not isinstance(raw_form_values, dict):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx}: 'stacnotator_form_values' must be an object",
-            )
         try:
             form_values = validate_form_values(fields, raw_form_values, enforce_required=False)
         except FormValidationError as exc:
@@ -509,6 +504,12 @@ def form_export_columns(fields: list[FormField]) -> list[str]:
     return [f"stacnotator_field_{form_field_slug(field.title)}" for field in fields]
 
 
+def _option_names(field: FormField) -> dict[int, str]:
+    if isinstance(field, CategoryFormField):
+        return {option.id: option.name for option in field.options}
+    return {}
+
+
 def format_form_value(field: FormField, value: object) -> object | None:
     """Render one submitted form value for CSV/GeoJSON: option ids become
     their option names (multicategory joined with "; "), a daterange becomes
@@ -518,10 +519,13 @@ def format_form_value(field: FormField, value: object) -> object | None:
     shape no longer matches the field type degrades to str(value) so the
     export never crashes on drifted data.
     """
+    return _format_form_value(field, value, _option_names(field))
+
+
+def _format_form_value(field: FormField, value: object, names: dict[int, str]) -> object | None:
     if value is None:
         return None
     if isinstance(field, CategoryFormField):
-        names = {option.id: option.name for option in field.options}
         if field.type == "category":
             if isinstance(value, int):
                 return names.get(value, str(value))
@@ -540,15 +544,30 @@ def format_form_value(field: FormField, value: object) -> object | None:
     return value
 
 
-def build_form_export_cells(fields: list[FormField], form_values: dict | None) -> dict[str, object]:
-    """One export cell per campaign form field, keyed by its export column
-    name. Fields with no entry in ``form_values`` (unanswered) map to None.
+class FormExportSchema:
+    """The campaign's form fields prepared for one export run.
+
+    Column slugging and option-name lookups depend only on the field
+    definitions, so they are resolved once here rather than re-derived for
+    every exported row.
     """
-    values = form_values or {}
-    return {
-        column: format_form_value(field, values.get(str(field.id)))
-        for column, field in zip(form_export_columns(fields), fields, strict=True)
-    }
+
+    def __init__(self, fields: list[FormField]):
+        self.columns = form_export_columns(fields)
+        self._cells = [
+            (column, field, str(field.id), _option_names(field))
+            for column, field in zip(self.columns, fields, strict=True)
+        ]
+
+    def cells(self, form_values: dict | None) -> dict[str, object]:
+        """One export cell per campaign form field, keyed by its export column
+        name. Fields with no entry in ``form_values`` (unanswered) map to None.
+        """
+        values = form_values or {}
+        return {
+            column: _format_form_value(field, values.get(key), names)
+            for column, field, key, names in self._cells
+        }
 
 
 def _fetch_annotations_with_context(
@@ -610,7 +629,7 @@ _STACNOTATOR_COLUMN_ORDER: tuple[str, ...] = (
 )
 
 
-def _ordered_columns(records: list[dict], form_columns: list[str] | None = None) -> list[str]:
+def _ordered_columns(records: list[dict], form_columns: list[str]) -> list[str]:
     """Compute the final column order for an export.
 
     Stacnotator-generated columns first (in ``_STACNOTATOR_COLUMN_ORDER``),
@@ -624,16 +643,18 @@ def _ordered_columns(records: list[dict], form_columns: list[str] | None = None)
     for record in records:
         seen.update(record.keys())
 
+    splice_at = _STACNOTATOR_COLUMN_ORDER.index("stacnotator_label_name") + 1
+    candidates = (
+        *_STACNOTATOR_COLUMN_ORDER[:splice_at],
+        *form_columns,
+        *_STACNOTATOR_COLUMN_ORDER[splice_at:],
+    )
+
     ordered: list[str] = []
-    for col in _STACNOTATOR_COLUMN_ORDER:
+    for col in candidates:
         if col in seen:
             ordered.append(col)
             seen.discard(col)
-        if col == "stacnotator_label_name":
-            for form_col in form_columns or []:
-                if form_col in seen:
-                    ordered.append(form_col)
-                    seen.discard(form_col)
     for record in records:
         for key in record:
             if key in seen:
@@ -718,7 +739,7 @@ def _build_export_record_for_annotation(
     user_email_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
-    form_fields: list[FormField],
+    form_schema: FormExportSchema,
     task_annotator_count: int = 1,
 ) -> dict:
     """Build one flat record for a single annotation (non-merged output).
@@ -750,7 +771,7 @@ def _build_export_record_for_annotation(
     record["stacnotator_source_id"] = annotation.source_id
     record["stacnotator_label_id"] = annotation.label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, annotation.label_id)
-    record.update(build_form_export_cells(form_fields, annotation.form_values))
+    record.update(form_schema.cells(annotation.form_values))
     record["stacnotator_comment"] = annotation.comment
     record["stacnotator_confidence"] = annotation.confidence
     record["stacnotator_is_authoritative"] = annotation.is_authoritative
@@ -775,7 +796,7 @@ def _build_export_record_merged(
     user_email_map: dict[UUID, str],
     task_status: str | None,
     include_geometry_wkt: bool,
-    form_fields: list[FormField],
+    form_schema: FormExportSchema,
 ) -> dict:
     """Collapse multiple annotations of the same task into one record.
 
@@ -821,7 +842,7 @@ def _build_export_record_merged(
 
     record["stacnotator_label_id"] = agreed_label_id
     record["stacnotator_label_name"] = _resolve_label_name(campaign, agreed_label_id)
-    record.update(build_form_export_cells(form_fields, canonical.form_values))
+    record.update(form_schema.cells(canonical.form_values))
     record["stacnotator_comment"] = " | ".join(comments) if comments else None
     record["stacnotator_confidence"] = mean_confidence
     record["stacnotator_is_authoritative"] = any(a.is_authoritative for a in labeled)
@@ -847,7 +868,7 @@ def _build_annotation_records(
     user_email_map: dict[UUID, str],
     merge_on_agreement: bool,
     include_geometry_wkt: bool,
-    form_fields: list[FormField],
+    form_schema: FormExportSchema,
 ) -> tuple[list[dict], list[Annotation]]:
     """Core export loop. Returns (records, canonical_annotations).
 
@@ -877,7 +898,7 @@ def _build_annotation_records(
                     user_email_map,
                     task_status,
                     include_geometry_wkt,
-                    form_fields,
+                    form_schema,
                 )
             )
             canonical_annotations.append(
@@ -893,7 +914,7 @@ def _build_annotation_records(
                         user_email_map,
                         task_status,
                         include_geometry_wkt,
-                        form_fields,
+                        form_schema,
                         task_annotator_count=labeled_count,
                     )
                 )
@@ -902,7 +923,7 @@ def _build_annotation_records(
     for ann in standalone:
         records.append(
             _build_export_record_for_annotation(
-                ann, campaign, user_email_map, None, include_geometry_wkt, form_fields
+                ann, campaign, user_email_map, None, include_geometry_wkt, form_schema
             )
         )
         canonical_annotations.append(ann)
@@ -953,7 +974,7 @@ def build_annotations_export(
     """
     annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
     _guard_merge_on_agreement(annotations, merge_on_agreement)
-    form_fields = campaign_form_fields(campaign)
+    form_schema = FormExportSchema(campaign_form_fields(campaign))
 
     records, _canonical = _build_annotation_records(
         annotations=annotations,
@@ -961,10 +982,10 @@ def build_annotations_export(
         user_email_map=user_email_map,
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=True,
-        form_fields=form_fields,
+        form_schema=form_schema,
     )
 
-    columns = _ordered_columns(records, form_export_columns(form_fields))
+    columns = _ordered_columns(records, form_schema.columns)
     for record in records:
         for col in columns:
             record.setdefault(col, np.nan)
@@ -985,7 +1006,7 @@ def build_annotations_geojson_export(
     """
     annotations, user_email_map = _fetch_annotations_with_context(db, campaign)
     _guard_merge_on_agreement(annotations, merge_on_agreement)
-    form_fields = campaign_form_fields(campaign)
+    form_schema = FormExportSchema(campaign_form_fields(campaign))
 
     records, canonical_annotations = _build_annotation_records(
         annotations=annotations,
@@ -993,10 +1014,10 @@ def build_annotations_geojson_export(
         user_email_map=user_email_map,
         merge_on_agreement=merge_on_agreement,
         include_geometry_wkt=False,
-        form_fields=form_fields,
+        form_schema=form_schema,
     )
 
-    columns = _ordered_columns(records, form_export_columns(form_fields))
+    columns = _ordered_columns(records, form_schema.columns)
 
     features = []
     for record, canonical in zip(records, canonical_annotations, strict=True):
@@ -1012,7 +1033,7 @@ def build_annotations_geojson_export(
             if col in record:
                 value = record[col]
                 properties[col] = value.isoformat() if hasattr(value, "isoformat") else value
-        if form_fields:
+        if form_schema.columns:
             properties["stacnotator_form_values"] = canonical.form_values
 
         features.append(

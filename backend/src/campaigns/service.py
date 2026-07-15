@@ -2,10 +2,11 @@ import logging
 import threading
 from collections.abc import Iterable
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import Text, cast, delete, func, select, update
+from sqlalchemy import ARRAY, Text, cast, delete, func, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -669,14 +670,23 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
         labels_dict[str(label.id)] = entry
     campaign.settings.labels = labels_dict
 
-    # JSONB column needs an explicit flag so SQLAlchemy emits an UPDATE for
-    # in-place dict mutations (assignment above already creates a new dict,
-    # but flag_modified is defensive against future refactors).
-    from sqlalchemy.orm.attributes import flag_modified
-
     flag_modified(campaign.settings, "labels")
     db.commit()
     return get_campaign_full(db, campaign_id)
+
+
+def _answered_form_field_keys(db: Session, campaign_id: int) -> set[str]:
+    """Field ids that at least one annotation in the campaign has an answer
+    for. One scan answers it for every field, so callers stay clear of a query
+    per field."""
+    return set(
+        db.scalars(
+            select(func.distinct(func.jsonb_object_keys(Annotation.form_values))).where(
+                Annotation.campaign_id == campaign_id,
+                Annotation.form_values.isnot(None),
+            )
+        ).all()
+    )
 
 
 def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list) -> Campaign:
@@ -697,6 +707,7 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
     incoming_ids = {str(field.id) for field in form_fields}
     removed = set(existing) - incoming_ids
 
+    reshaped: list[tuple[Any, str]] = []
     for field in form_fields:
         old = existing.get(str(field.id))
         if not old:
@@ -707,18 +718,13 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
         old_option_ids = {option["id"] for option in old.get("options") or []}
         new_option_ids = {option.id for option in getattr(field, "options", [])}
         removed_options = old_option_ids - new_option_ids
-        if not shape_changed and not removed_options:
-            continue
-        answer_count = db.scalar(
-            select(func.count())
-            .select_from(Annotation)
-            .where(
-                Annotation.campaign_id == campaign_id,
-                Annotation.form_values.has_key(str(field.id)),
-            )
-        )
-        if answer_count:
-            what = "type" if shape_changed else "options"
+        if shape_changed or removed_options:
+            reshaped.append((field, "type" if shape_changed else "options"))
+
+    answered = _answered_form_field_keys(db, campaign_id) if (reshaped or removed) else set()
+
+    for field, what in reshaped:
+        if str(field.id) in answered:
             raise HTTPException(
                 status_code=409,
                 detail=(
@@ -727,16 +733,19 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
                 ),
             )
 
-    # Deleting a field discards the answers stored for it - `jsonb - text`
-    # drops just that key, so answers to surviving fields are untouched.
-    for key in sorted(removed):
+    # Runs only after every reshape is accepted: a 409 must leave stored
+    # answers untouched. Deleting a field discards the answers stored for it -
+    # `jsonb - text[]` drops just those keys, so answers to surviving fields
+    # are untouched.
+    strip = removed & answered
+    if strip:
         db.execute(
             update(Annotation)
             .where(
                 Annotation.campaign_id == campaign_id,
-                Annotation.form_values.has_key(key),
+                Annotation.form_values.isnot(None),
             )
-            .values(form_values=Annotation.form_values.op("-")(cast(key, Text)))
+            .values(form_values=Annotation.form_values.op("-")(cast(sorted(strip), ARRAY(Text))))
         )
 
     campaign.settings.form_fields = [field.model_dump() for field in form_fields]

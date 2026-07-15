@@ -1,8 +1,8 @@
-import type { CampaignSettingsOut, DateRangeValue } from '~/api/client';
+import type { AnnotationOut, CampaignSettingsOut, DateRangeValue } from '~/api/client';
 
 export type FormField = NonNullable<CampaignSettingsOut['form_fields']>[number];
-export type FormValue = number | string | Array<number> | DateRangeValue;
-export type FormValues = Record<string, FormValue>;
+export type FormValues = NonNullable<AnnotationOut['form_values']>;
+export type FormValue = FormValues[string];
 
 function isEmptyValue(value: FormValue | null): boolean {
   if (value == null) return true;
@@ -64,18 +64,4 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 export function isDateRangeValue(value: unknown): value is DateRangeValue {
   return isPlainObject(value) && typeof value.start === 'string' && typeof value.end === 'string';
-}
-
-function isFormValue(value: unknown): value is FormValue {
-  if (typeof value === 'number' || typeof value === 'string') return true;
-  if (Array.isArray(value)) return value.every((item) => typeof item === 'number');
-  return isDateRangeValue(value);
-}
-
-function isFormValues(raw: unknown): raw is FormValues {
-  return isPlainObject(raw) && Object.values(raw).every(isFormValue);
-}
-
-export function hydrateFormValues(raw: unknown): FormValues {
-  return isFormValues(raw) ? raw : {};
 }

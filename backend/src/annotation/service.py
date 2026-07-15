@@ -760,16 +760,20 @@ def update_annotation(
 
         # Update label if provided
         if annotation_update.label_id is not None:
-            if campaign is not None:
-                validate_label_id(campaign, annotation_update.label_id)
+            validate_label_id(campaign, annotation_update.label_id)
             annotation.label_id = annotation_update.label_id
 
         # Patch semantics like every other field: omitting form_values keeps
         # the stored answers, sending {} clears them (normalizes to None).
-        if annotation_update.form_values is not None:
+        # A label edit revalidates the stored answers too, so labelling an
+        # annotation cannot slip past required fields by omitting form_values.
+        # Edits that touch neither are left alone: annotations predating a new
+        # required field stay editable.
+        if annotation_update.form_values is not None or annotation_update.label_id is not None:
+            incoming = annotation_update.form_values
             annotation.form_values = validate_annotation_form_values(
                 campaign,
-                annotation_update.form_values,
+                incoming if incoming is not None else annotation.form_values,
                 enforce_required=annotation.label_id is not None,
             )
 

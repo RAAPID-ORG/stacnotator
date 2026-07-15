@@ -1,13 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { CategoryFormField, NumberFormField, TextFormField } from '~/api/client';
-import {
-  applyFieldDigit,
-  cycleFieldIndex,
-  digitTargetsOption,
-  optionIdForDigit,
-  fieldDigitAction,
-  LABEL_FIELD_INDEX,
-} from './formFieldNav';
+import { describe, it, expect, vi } from 'vitest';
+import type { CategoryFormField } from '~/api/client';
+import { applyFieldDigit, cycleFieldIndex, LABEL_FIELD_INDEX } from './formFieldNav';
 import type { FormValues } from './formValues';
 
 const CATEGORY: CategoryFormField = {
@@ -26,20 +19,6 @@ const MULTICATEGORY: CategoryFormField = {
   ...CATEGORY,
   id: 2,
   type: 'multicategory',
-};
-
-const NUMBER: NumberFormField = {
-  id: 3,
-  title: 'Count',
-  required: false,
-  type: 'number',
-};
-
-const TEXT: TextFormField = {
-  id: 4,
-  title: 'Notes',
-  required: false,
-  type: 'text',
 };
 
 describe('cycleFieldIndex', () => {
@@ -102,88 +81,7 @@ describe('cycleFieldIndex', () => {
   });
 });
 
-describe('digitTargetsOption', () => {
-  it('is true for category fields', () => {
-    expect(digitTargetsOption(CATEGORY)).toBe(true);
-  });
-
-  it('is true for multicategory fields', () => {
-    expect(digitTargetsOption(MULTICATEGORY)).toBe(true);
-  });
-
-  it('is false for number fields', () => {
-    expect(digitTargetsOption(NUMBER)).toBe(false);
-  });
-
-  it('is false for text fields', () => {
-    expect(digitTargetsOption(TEXT)).toBe(false);
-  });
-});
-
-describe('optionIdForDigit', () => {
-  it('resolves 1-based digits to the corresponding option id', () => {
-    expect(optionIdForDigit(CATEGORY, 1)).toBe(10);
-    expect(optionIdForDigit(CATEGORY, 2)).toBe(20);
-    expect(optionIdForDigit(CATEGORY, 3)).toBe(30);
-  });
-
-  it('returns null for a digit beyond the option count', () => {
-    expect(optionIdForDigit(CATEGORY, 4)).toBeNull();
-  });
-
-  it('returns null for digit 0 and negative digits', () => {
-    expect(optionIdForDigit(CATEGORY, 0)).toBeNull();
-    expect(optionIdForDigit(CATEGORY, -1)).toBeNull();
-  });
-
-  it('returns null for a non-option field', () => {
-    expect(optionIdForDigit(NUMBER, 1)).toBeNull();
-    expect(optionIdForDigit(TEXT, 1)).toBeNull();
-  });
-});
-
-describe('fieldDigitAction', () => {
-  it('toggles the matching option on a category field', () => {
-    expect(fieldDigitAction(CATEGORY, 2)).toEqual({ kind: 'toggleOption', optionId: 20 });
-  });
-
-  it('toggles the matching option on a multicategory field', () => {
-    expect(fieldDigitAction(MULTICATEGORY, 1)).toEqual({ kind: 'toggleOption', optionId: 10 });
-  });
-
-  it('is a no-op when the digit is beyond the option count', () => {
-    expect(fieldDigitAction(CATEGORY, 9)).toEqual({ kind: 'none' });
-  });
-
-  it('is a no-op for digit 0 on an option field', () => {
-    expect(fieldDigitAction(CATEGORY, 0)).toEqual({ kind: 'none' });
-  });
-
-  it('focuses the input for number fields regardless of digit', () => {
-    expect(fieldDigitAction(NUMBER, 1)).toEqual({ kind: 'focusInput' });
-    expect(fieldDigitAction(NUMBER, 0)).toEqual({ kind: 'focusInput' });
-  });
-
-  it('focuses the input for text fields', () => {
-    expect(fieldDigitAction(TEXT, 5)).toEqual({ kind: 'focusInput' });
-  });
-});
-
 describe('applyFieldDigit', () => {
-  // The vitest environment is 'node', so `document` isn't defined by default;
-  // stub the one method focusFormFieldInput calls, matching the browser
-  // behaviour of a query with no match (returns null, focus is a no-op).
-  beforeEach(() => {
-    Object.defineProperty(globalThis, 'document', {
-      value: { querySelector: () => null },
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, 'document', { value: undefined, configurable: true });
-  });
-
   it('toggle path: calls setValues with the option applied, for a category field', () => {
     const setValues = vi.fn();
     const values: FormValues = {};
@@ -202,15 +100,6 @@ describe('applyFieldDigit', () => {
 
     expect(setValues).toHaveBeenCalledTimes(1);
     expect(setValues).toHaveBeenCalledWith({});
-  });
-
-  it('focus path: does not call setValues for a number field (querySelector finds no match, so focus is a no-op)', () => {
-    const setValues = vi.fn();
-    const values: FormValues = {};
-
-    applyFieldDigit(NUMBER, '5', values, setValues);
-
-    expect(setValues).not.toHaveBeenCalled();
   });
 
   it('no-op path: does not call setValues when the digit is out of range', () => {

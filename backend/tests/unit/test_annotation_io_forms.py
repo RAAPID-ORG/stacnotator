@@ -2,7 +2,7 @@
 
 from pydantic import TypeAdapter
 
-from src.annotation.io import build_form_export_cells, form_export_columns, format_form_value
+from src.annotation.io import FormExportSchema, form_export_columns, format_form_value
 from src.campaigns.form_fields import FormField
 
 _ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
@@ -76,7 +76,7 @@ def test_daterange_with_incomplete_dict_falls_back_to_str():
 
 
 def test_cells_cover_all_fields_with_none_for_unanswered():
-    cells = build_form_export_cells(FIELDS, {"1": 1, "3": 4.2})
+    cells = FormExportSchema(FIELDS).cells({"1": 1, "3": 4.2})
     assert cells == {
         "stacnotator_field_crop_type": "Maize",
         "stacnotator_field_damage": None,
@@ -86,5 +86,5 @@ def test_cells_cover_all_fields_with_none_for_unanswered():
 
 
 def test_cells_handle_null_form_values():
-    cells = build_form_export_cells(FIELDS, None)
+    cells = FormExportSchema(FIELDS).cells(None)
     assert set(cells.values()) == {None}

@@ -130,18 +130,16 @@ class TestRejection:
         result = validate_form_values(FIELDS, {"4": "note"}, enforce_required=False)
         assert result == {"4": "note"}
 
-    def test_short_text_over_500_chars_rejected(self):
+    def test_text_cap_depends_on_multiline(self):
+        # Field 4 is single-line (500), field 7 is multiline (5000). Asserting
+        # both caps at their boundary is what pins the two apart: an
+        # over-the-cap rejection alone would still pass if multiline wrongly
+        # inherited the 500 cap.
+        short = validate_form_values(FIELDS, {"4": "x" * 500}, enforce_required=False)
+        multiline = validate_form_values(FIELDS, {"7": "x" * 5000}, enforce_required=False)
+        assert len(short["4"]) == 500
+        assert len(multiline["7"]) == 5000
         with pytest.raises(FormValidationError, match="too long"):
             validate_form_values(FIELDS, {"4": "x" * 501}, enforce_required=False)
-
-    def test_short_text_at_500_chars_accepted(self):
-        result = validate_form_values(FIELDS, {"4": "x" * 500}, enforce_required=False)
-        assert len(result["4"]) == 500
-
-    def test_long_text_over_5000_chars_rejected(self):
         with pytest.raises(FormValidationError, match="too long"):
             validate_form_values(FIELDS, {"7": "x" * 5001}, enforce_required=False)
-
-    def test_long_text_at_5000_chars_accepted(self):
-        result = validate_form_values(FIELDS, {"7": "x" * 5000}, enforce_required=False)
-        assert len(result["7"]) == 5000

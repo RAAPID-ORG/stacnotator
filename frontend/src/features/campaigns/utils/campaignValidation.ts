@@ -47,10 +47,9 @@ export function validateSettingsStep(form: CampaignCreate): StepValidationResult
     }
   }
 
-  const formFieldErrors = validateFormFields(s.form_fields ?? []);
-  if (formFieldErrors.length > 0) {
-    errors.form_fields = formFieldErrors.join(' ');
-  }
+  validateFormFields(s.form_fields ?? []).forEach((msg, i) => {
+    errors[`form_field_${i}`] = msg;
+  });
 
   return { errors, isValid: Object.keys(errors).length === 0 };
 }

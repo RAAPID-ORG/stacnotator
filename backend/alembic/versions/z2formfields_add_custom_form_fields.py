@@ -19,17 +19,16 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # PG11+ backfills existing rows from the server default without rewriting
+    # the table, so no separate UPDATE is needed to satisfy NOT NULL.
     op.add_column(
         "settings",
-        sa.Column("form_fields", postgresql.JSONB(), nullable=True),
-        schema="data",
-    )
-    op.execute("UPDATE data.settings SET form_fields = '[]'::jsonb")
-    op.alter_column(
-        "settings",
-        "form_fields",
-        nullable=False,
-        server_default=sa.text("'[]'::jsonb"),
+        sa.Column(
+            "form_fields",
+            postgresql.JSONB(),
+            nullable=False,
+            server_default=sa.text("'[]'::jsonb"),
+        ),
         schema="data",
     )
     op.add_column(
