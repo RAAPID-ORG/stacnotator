@@ -23,6 +23,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Spinner } from '~/shared/ui/Spinner';
+import { IconSliders } from '~/shared/ui/Icons';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
 import { formatDateForTooltip, getOptimalMonthLabels, parseSeriesDate } from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
@@ -789,10 +790,7 @@ export const TimeSeriesChart = ({
             title="Chart options"
             onClick={() => setOptionsOpen((o) => !o)}
           >
-            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
-              <path d="M17.3 11.8a7.6 7.6 0 0 0 0-3.6l1.5-1.2-1.5-2.6-1.8.7a7.4 7.4 0 0 0-3.1-1.8L12.1 1.4H9.1L8.8 3.3a7.4 7.4 0 0 0-3.1 1.8l-1.8-.7-1.5 2.6 1.5 1.2a7.6 7.6 0 0 0 0 3.6l-1.5 1.2 1.5 2.6 1.8-.7a7.4 7.4 0 0 0 3.1 1.8l.3 1.9h3l.3-1.9a7.4 7.4 0 0 0 3.1-1.8l1.8.7 1.5-2.6-1.5-1.2z" />
-            </svg>
+            <IconSliders className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

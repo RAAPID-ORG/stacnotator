@@ -320,7 +320,7 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
                 on the map and see its time series.
               </p>
               <p>
-                The <strong>options</strong> menu (gear icon) offers two useful filters:{' '}
+                The <strong>options</strong> menu (sliders icon) offers two useful filters:{' '}
                 <strong>Remove Cloudy</strong> hides observations that were flagged as
                 cloud-covered, and <strong>Smooth</strong> applies a Savitzky-Golay filter to the
                 curve so seasonal patterns are easier to spot. When smoothing is enabled you can
@@ -995,7 +995,7 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
                 anywhere on the map to load its time series.
               </p>
               <p>
-                The <strong>options</strong> menu (gear icon) offers two useful filters:{' '}
+                The <strong>options</strong> menu (sliders icon) offers two useful filters:{' '}
                 <strong>Remove Cloudy</strong> hides cloud-flagged observations, and{' '}
                 <strong>Smooth</strong> applies a Savitzky-Golay filter so seasonal patterns are
                 easier to spot. When smoothing is enabled you can adjust the{' '}
