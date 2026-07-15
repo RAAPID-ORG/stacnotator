@@ -115,6 +115,23 @@ else
 fi
 echo ""
 
+# API key encryption secret (AES-256-GCM master key for provider API keys at rest).
+# Rotating this makes every stored ciphertext undecryptable, so only ever generate when absent.
+echo -e "${YELLOW}Generating API key encryption secret...${NC}"
+EXISTING_APIKEY_SECRET=$(az keyvault secret show --vault-name "$KV_NAME" --name "apikey-encryption-secret" --query "value" -o tsv 2>/dev/null || echo "")
+if [ -z "$EXISTING_APIKEY_SECRET" ]; then
+    APIKEY_SECRET=$(openssl rand -base64 32)
+    az keyvault secret set \
+        --vault-name "$KV_NAME" \
+        --name "apikey-encryption-secret" \
+        --value "$APIKEY_SECRET" \
+        --output none
+    echo -e "${GREEN}✓ API key encryption secret generated and uploaded${NC}"
+else
+    echo -e "${GREEN}✓ API key encryption secret already exists${NC}"
+fi
+echo ""
+
 # Firebase Client Configuration (for frontend) (not actual secrets just env vars)
 
 # Firebase Client Configuration (set in .env.deploy.<env>)

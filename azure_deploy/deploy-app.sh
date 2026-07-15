@@ -220,10 +220,12 @@ FIREBASE_CREDS_URI="https://$KV_NAME.vault.azure.net/secrets/firebase-credential
 EE_KEY_URI="https://$KV_NAME.vault.azure.net/secrets/ee-private-key"
 TILER_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-token-secret"
 TILER_DB_PASS_URI="https://$KV_NAME.vault.azure.net/secrets/tiler-db-password"
+APIKEY_SECRET_URI="https://$KV_NAME.vault.azure.net/secrets/apikey-encryption-secret"
 
 if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; then
     az containerapp secret set --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
-        --secrets "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" --output none
+        --secrets "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
+                  "apikey-encryption-secret=keyvaultref:$APIKEY_SECRET_URI,identityref:$IDENTITY_ID" --output none
     az containerapp update --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
         --image "$ACR_LOGIN_SERVER/backend:$IMAGE_TAG" \
         --min-replicas "$BACKEND_MIN" --max-replicas "$BACKEND_MAX" \
@@ -231,6 +233,7 @@ if az containerapp show --name "$APP_BACKEND" -g "$RESOURCE_GROUP" &>/dev/null; 
                        "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
                        "DB_POOL_SIZE=$BACKEND_POOL_SIZE" "DB_MAX_OVERFLOW=$BACKEND_MAX_OVERFLOW" \
                        "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
+                       "APIKEY_ENCRYPTION_SECRET=secretref:apikey-encryption-secret" \
         --output none
 else
     az containerapp create --name "$APP_BACKEND" -g "$RESOURCE_GROUP" \
@@ -247,6 +250,7 @@ else
                   "firebase-credentials=keyvaultref:$FIREBASE_CREDS_URI,identityref:$IDENTITY_ID" \
                   "ee-private-key=keyvaultref:$EE_KEY_URI,identityref:$IDENTITY_ID" \
                   "tiler-token-secret=keyvaultref:$TILER_SECRET_URI,identityref:$IDENTITY_ID" \
+                  "apikey-encryption-secret=keyvaultref:$APIKEY_SECRET_URI,identityref:$IDENTITY_ID" \
         --env-vars "DBNAME=stacnotator" "DBUSER=psqladmin" "DBPORT=5432" \
                    "DBDRIVER=psycopg2" "DBSCHEME=postgresql" \
                    "AUTH_PROVIDER=firebase" "CORS_ORIGINS=__PENDING__" \
@@ -254,6 +258,7 @@ else
                    "FIREBASE_CREDENTIALS=secretref:firebase-credentials" \
                    "EE_PRIVATE_KEY=secretref:ee-private-key" \
                    "TILER_TOKEN_SECRET=secretref:tiler-token-secret" \
+                   "APIKEY_ENCRYPTION_SECRET=secretref:apikey-encryption-secret" \
                    "EE_SERVICE_ACCOUNT=$EE_SERVICE_ACCOUNT" \
                    "ENVIRONMENT=production" \
                    "WORKERS=$BACKEND_WORKERS" "TIMEOUT=60" \
