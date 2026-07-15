@@ -201,6 +201,26 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       map.getView().setCenter(fromLonLat([newCenter[1], newCenter[0]]));
     }, [panToCenterTrigger]);
 
+    // Location search: fit to the result's extent when available, else center + zoom.
+    const searchFocusTrigger = useMapStore((s) => s.searchFocusTrigger);
+    const lastSearchFocusRef = useRef(searchFocusTrigger);
+    useEffect(() => {
+      if (searchFocusTrigger === lastSearchFocusRef.current) return;
+      lastSearchFocusRef.current = searchFocusTrigger;
+      const map = mapRef.current;
+      const request = useMapStore.getState().searchFocusRequest;
+      if (!map || !request) return;
+      const view = map.getView();
+      if (request.extent) {
+        const ext = transformExtent(request.extent, 'EPSG:4326', 'EPSG:3857');
+        if (!isEmpty(ext)) {
+          view.fit(ext, { padding: [60, 60, 60, 60], maxZoom: 16, duration: 400 });
+        }
+      } else {
+        view.animate({ center: fromLonLat(request.center), zoom: 12, duration: 400 });
+      }
+    }, [searchFocusTrigger]);
+
     // Keyboard zoom in
     const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
     useEffect(() => {

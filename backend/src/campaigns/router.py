@@ -34,6 +34,7 @@ from src.campaigns.schemas import (
     TaskSetRename,
     UnassignTasksRequest,
     UpdateCampaignBBoxRequest,
+    UpdateCampaignFormFieldsRequest,
     UpdateCampaignGuideRequest,
     UpdateCampaignLabelsRequest,
     UpdateCampaignNameRequest,
@@ -234,6 +235,19 @@ def update_campaign_labels(
     (new id) are accepted; removing an existing label is rejected since it
     would orphan annotations that reference it."""
     return service.update_campaign_labels(db, campaign_id, req.labels)
+
+
+@router.patch("/{campaign_id}/form-fields", response_model=CampaignOut)
+def update_campaign_form_fields(
+    campaign_id: int,
+    req: UpdateCampaignFormFieldsRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Replace the campaign's custom form fields. Edits (same id) and adds (new
+    id) are accepted; removing a field, or reshaping one that already has
+    stored answers, is rejected since answers key off the field id."""
+    return service.update_campaign_form_fields(db, campaign_id, req.form_fields)
 
 
 @router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)

@@ -248,6 +248,7 @@ class Annotation(Base):
     # Annotation data
     label_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    form_values: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_authoritative: Mapped[bool] = mapped_column(
         sa.Boolean,

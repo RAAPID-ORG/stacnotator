@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type {
   CampaignOut,
   CampaignSettingsCreate,
@@ -7,6 +7,7 @@ import type {
   LabellingPolicy,
 } from '~/api/client';
 import {
+  updateCampaignFormFields,
   updateCampaignGuide,
   updateCampaignLabels,
   updateCampaignVisibility,
@@ -15,11 +16,19 @@ import {
   updateSampleExtent,
 } from '~/api/client';
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
+import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
+import {
+  diffFormFields,
+  validateFormFields,
+  type FormField,
+} from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
+
+const LIST_FORMATTER = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
 interface Props {
   campaign: CampaignOut;
@@ -96,12 +105,84 @@ export const GeneralSettingsTab: React.FC<Props> = ({
         path: { campaign_id: campaign.id },
         body: { labels: labelsDraft },
       });
-      if (onCampaignUpdated && res.data) onCampaignUpdated(res.data);
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update labels');
+        return;
+      }
+      if (onCampaignUpdated) onCampaignUpdated(res.data);
       showAlert('Labels updated', 'success');
     } catch (err) {
       handleError(err, 'Failed to update labels');
     } finally {
       setSavingLabels(false);
+    }
+  };
+
+  // Custom form fields local draft. Edits (same id) and adds (new id) are
+  // allowed; a removed field is deleted on save together with every answer
+  // recorded for it, and the backend rejects reshaping a field that already
+  // has stored answers.
+  const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
+    campaign.settings.form_fields ?? []
+  );
+  const [savingFormFields, setSavingFormFields] = useState(false);
+  const savedFormFields = useMemo(
+    () => campaign.settings.form_fields ?? [],
+    [campaign.settings.form_fields]
+  );
+  const formFieldsChanged = JSON.stringify(formFieldsDraft) !== JSON.stringify(savedFormFields);
+  const formFieldErrors = validateFormFields(formFieldsDraft);
+  const formFieldsDiff = useMemo(
+    () => diffFormFields(savedFormFields, formFieldsDraft),
+    [savedFormFields, formFieldsDraft]
+  );
+
+  const handleSaveFormFields = async () => {
+    if (!formFieldsChanged || formFieldErrors.length > 0) return;
+    const { edited: editedFormFields, deleted: deletedFormFields } = formFieldsDiff;
+    // Deletion is the destructive case, so it owns the dialog when both apply.
+    if (deletedFormFields.length > 0) {
+      const names = deletedFormFields.map((f) => `"${f.title.trim() || `field ${f.id}`}"`);
+      const ok = await showConfirmDialog({
+        title: `Delete ${names.length === 1 ? 'form field' : `${names.length} form fields`}?`,
+        description:
+          `Saving deletes ${LIST_FORMATTER.format(names)} and permanently deletes every answer ` +
+          `annotators have recorded for ${names.length === 1 ? 'it' : 'them'} across all ` +
+          `annotations in this campaign. This cannot be undone.`,
+        confirmText: 'Delete and save',
+        cancelText: 'Cancel',
+        isDangerous: true,
+      });
+      if (!ok) return;
+    } else if (editedFormFields.length > 0) {
+      const ok = await showConfirmDialog({
+        title: 'Edit existing form fields?',
+        description:
+          `Editing fields affects how existing annotations display - the underlying ` +
+          `field IDs stay the same, so stored answers are kept, but annotators will ` +
+          `see the updated ${editedFormFields.length === 1 ? 'question' : 'questions'} ` +
+          `everywhere (annotation view, review, exports).`,
+        confirmText: 'Yes, save changes',
+        cancelText: 'Cancel',
+      });
+      if (!ok) return;
+    }
+    try {
+      setSavingFormFields(true);
+      const res = await updateCampaignFormFields({
+        path: { campaign_id: campaign.id },
+        body: { form_fields: formFieldsDraft },
+      });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update form fields');
+        return;
+      }
+      if (onCampaignUpdated) onCampaignUpdated(res.data);
+      showAlert('Form fields updated', 'success');
+    } catch (err) {
+      handleError(err, 'Failed to update form fields');
+    } finally {
+      setSavingFormFields(false);
     }
   };
 
@@ -118,7 +199,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     try {
       setSavingPolicy(true);
       const noOne = { kinds: [], user_ids: [] };
-      const { data } = await updateLabellingPolicy({
+      const res = await updateLabellingPolicy({
         path: { campaign_id: campaign.id },
         // PATCH replaces the whole policy, so every axis must be present.
         body: {
@@ -128,14 +209,16 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           complete_assigned: policyDraft.complete_assigned ?? noOne,
         },
       });
-      if (data) {
-        setPolicyDraft(data);
-        if (onCampaignUpdated) {
-          onCampaignUpdated({
-            ...campaign,
-            settings: { ...campaign.settings, labelling_policy: data },
-          });
-        }
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update labelling access');
+        return;
+      }
+      setPolicyDraft(res.data);
+      if (onCampaignUpdated) {
+        onCampaignUpdated({
+          ...campaign,
+          settings: { ...campaign.settings, labelling_policy: res.data },
+        });
       }
       showAlert('Labelling access updated', 'success');
     } catch (err) {
@@ -159,10 +242,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!guideChanged) return;
     try {
       setSavingGuide(true);
-      await updateCampaignGuide({
+      const res = await updateCampaignGuide({
         path: { campaign_id: campaign.id },
         body: { guide_markdown: guideMarkdown || null },
       });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update guide');
+        return;
+      }
       if (onCampaignUpdated) {
         onCampaignUpdated({
           ...campaign,
@@ -181,10 +268,14 @@ export const GeneralSettingsTab: React.FC<Props> = ({
     if (!extentChanged || !extentValid) return;
     try {
       setSavingExtent(true);
-      await updateSampleExtent({
+      const res = await updateSampleExtent({
         path: { campaign_id: campaign.id },
         body: { sample_extent_meters: parsedExtent },
       });
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update sample extent');
+        return;
+      }
       if (onCampaignUpdated) {
         onCampaignUpdated({
           ...campaign,
@@ -216,12 +307,17 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
     try {
       setSavingEmbeddingYear(true);
-      const { data } = await updateEmbeddingYear({
+      const res = await updateEmbeddingYear({
         path: { campaign_id: campaign.id },
         body: { embedding_year: embeddingYear },
       });
 
-      if (data?.embeddings_recomputed) {
+      if (res.error || !res.data) {
+        handleError(res.error, 'Failed to update embedding year');
+        return;
+      }
+
+      if (res.data.embeddings_recomputed) {
         showAlert(`Embeddings recomputed for ${embeddingYear}`, 'success');
       } else {
         showAlert('Embedding year updated', 'success');
@@ -233,7 +329,7 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           ...campaign,
           settings: {
             ...campaign.settings,
-            embedding_year: data?.embedding_year ?? null,
+            embedding_year: res.data.embedding_year ?? null,
           },
         });
       }
@@ -388,6 +484,41 @@ export const GeneralSettingsTab: React.FC<Props> = ({
 
       <section className={sectionCls}>
         <div>
+          <h2 className="section-heading">Custom form fields</h2>
+          <p className="section-description">
+            Additional questions annotators answer per annotation. You can add new fields and edit
+            existing ones; editing requires confirmation since it affects how prior answers display.
+            Deleting a field also deletes every answer recorded for it, so it asks first. A
+            field&apos;s type or options can only change while it has no answers yet.
+          </p>
+        </div>
+        <FormFieldsEditor value={formFieldsDraft} onChange={setFormFieldsDraft} />
+        <div className="flex items-center gap-3 mt-3">
+          <Button
+            type="button"
+            onClick={() => void handleSaveFormFields()}
+            disabled={!formFieldsChanged || formFieldErrors.length > 0 || savingFormFields}
+          >
+            {savingFormFields ? 'Saving…' : 'Save fields'}
+          </Button>
+          {formFieldsChanged && (
+            <button
+              type="button"
+              onClick={() => setFormFieldsDraft(campaign.settings.form_fields ?? [])}
+              disabled={savingFormFields}
+              className="text-sm text-neutral-500 hover:text-neutral-700 underline underline-offset-4"
+            >
+              Discard
+            </button>
+          )}
+          {formFieldErrors.length > 0 && (
+            <span className="text-xs text-red-600">{formFieldErrors[0]}</span>
+          )}
+        </div>
+      </section>
+
+      <section className={sectionCls}>
+        <div>
           <h2 className="section-heading">Labelling access</h2>
           <p className="section-description">
             Control who may label what, and whose labels count toward completing a task.
@@ -507,11 +638,15 @@ export const GeneralSettingsTab: React.FC<Props> = ({
               });
               if (!confirmed) return;
               try {
-                const { data } = await updateCampaignVisibility({
+                const res = await updateCampaignVisibility({
                   path: { campaign_id: campaign.id },
                   body: { is_public: newValue },
                 });
-                if (onCampaignUpdated && data) onCampaignUpdated(data);
+                if (res.error || !res.data) {
+                  handleError(res.error, 'Failed to update visibility');
+                  return;
+                }
+                if (onCampaignUpdated) onCampaignUpdated(res.data);
                 showAlert(
                   newValue ? 'Campaign is now public' : 'Campaign is now private',
                   'success'

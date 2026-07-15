@@ -217,6 +217,14 @@ export const IconFilter = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconSliders = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M3 6h2M9 6h8M3 14h8M15 14h2" />
+    <circle cx="7" cy="6" r="2" />
+    <circle cx="13" cy="14" r="2" />
+  </svg>
+);
+
 export const IconExternalLink = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M9 5H6a2 2 0 00-2 2v7a2 2 0 002 2h7a2 2 0 002-2v-3" />

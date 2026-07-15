@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
@@ -13,6 +13,16 @@ from src.annotation.constants import (
     TASK_STATUS_PENDING,
     TASK_STATUS_SKIPPED,
 )
+
+
+class DateRangeValue(TypedDict):
+    start: str
+    end: str
+
+
+# A TypedDict, not a BaseModel: form values stay plain JSON containers so
+# annotation.forms.validate_form_values remains the single authority on shape.
+FormValue = int | float | str | list[int] | DateRangeValue
 
 
 class GeometryOut(BaseModel):
@@ -47,6 +57,7 @@ class AnnotationFromTaskOut(BaseModel):
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
     # Computed per request from the labelling policy (campaigns/policy.py),
     # never stored. None for standalone annotations.
     counts_toward_completion: bool | None = None
@@ -262,11 +273,12 @@ class AnnotationTaskListOut(BaseModel):
 
 class AnnotationFromTaskCreate(BaseModel):
     label_id: int | None
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None = None
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
+    form_values: dict[str, FormValue] | None = None
 
 
 class AnnotationTaskSubmitResponse(BaseModel):
@@ -290,15 +302,16 @@ class ClaimTaskResponse(BaseModel):
 
 class AnnotationCreate(BaseModel):
     label_id: int
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     geometry_wkt: str  # Geometry in WKT format
     confidence: int | None = Field(default=None, ge=0, le=10)
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
     imagery_slice_id: int | None = None
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
 
 
 class AnnotationsExtentOut(BaseModel):
@@ -340,16 +353,17 @@ class BatchCreateAnnotationsResponse(BaseModel):
 
 class AnnotationUpdate(BaseModel):
     label_id: int | None
-    comment: str | None
+    comment: str | None = Field(max_length=5000)
     geometry_wkt: str | None  # Geometry in WKT format
     confidence: int | None = Field(default=None, ge=0, le=10)
     is_authoritative: bool | None
     flagged_for_review: bool | None = None
-    flag_comment: str | None = None
+    flag_comment: str | None = Field(default=None, max_length=5000)
     imagery_slice_id: int | None = None
     imagery_source_name: str | None = None
     imagery_start_date: str | None = None
     imagery_end_date: str | None = None
+    form_values: dict[str, FormValue] | None = None
 
 
 class ValidateLabelSubmissionsResponse(BaseModel):

@@ -19,6 +19,11 @@ import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
+import {
+  formatMissingFieldsTitle,
+  missingRequiredFields,
+  type FormValues,
+} from '../utils/formValues';
 
 export type { TaskFilter, TaskStatus };
 
@@ -39,6 +44,8 @@ interface TaskStore {
   confidence: number;
   flaggedForReview: boolean;
   flagComment: string;
+  formValues: FormValues;
+  activeFieldIndex: number | null;
   magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
@@ -68,6 +75,8 @@ interface TaskStore {
   setConfidence: (confidence: number) => void;
   setFlaggedForReview: (flagged: boolean) => void;
   setFlagComment: (comment: string) => void;
+  setFormValues: (next: FormValues) => void;
+  setActiveFieldIndex: (index: number | null) => void;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -87,6 +96,8 @@ const emptyFormState = {
   confidence: 5,
   flaggedForReview: false,
   flagComment: '',
+  formValues: {} as FormValues,
+  activeFieldIndex: null as number | null,
 };
 
 const getFormStateForTask = (task: AnnotationTaskOut | null) => {
@@ -101,6 +112,8 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
         confidence: userAnn.confidence ?? 5,
         flaggedForReview: userAnn.flagged_for_review ?? false,
         flagComment: userAnn.flag_comment || '',
+        formValues: userAnn.form_values ?? {},
+        activeFieldIndex: null,
       }
     : emptyFormState;
 };
@@ -157,6 +170,8 @@ const initialState = {
   confidence: 5,
   flaggedForReview: false,
   flagComment: '',
+  formValues: {} as FormValues,
+  activeFieldIndex: null as number | null,
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
@@ -204,6 +219,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
           allTasks,
           taskFilter,
+          currentUserId,
           initialTaskId
         ));
       } else {
@@ -234,7 +250,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           showAll || !currentUserId ? [UNASSIGNED] : [currentUserId],
           effectiveSetId
         );
-        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
 
         // Progressive fallback so the user always lands on a task when work
         // exists. A live deep-linked set broadens within itself first (mine ->
@@ -243,7 +259,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // to the set-less chain (mine -> unassigned -> all).
         if (visibleTasks.length === 0 && effectiveSetId !== null && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED], effectiveSetId);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && effectiveSetId !== null) {
           taskFilter = {
@@ -253,15 +269,15 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             flaggedOnly: false,
             taskSetId: effectiveSetId,
           };
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED]);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && allTasks.length > 0) {
           taskFilter = pendingFilter([]);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
       }
 
@@ -292,6 +308,21 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       const currentUserId = useAccountStore.getState().account?.id;
 
       if (!task || !campaign || !currentUserId) return;
+
+      // Guard here rather than in the submit button's disabled state: the
+      // Enter hotkey calls this directly and would otherwise reach the
+      // backend's 422. Skips (no label) are exempt, matching the backend.
+      if (labelId !== null) {
+        const missing = missingRequiredFields(
+          campaign.settings.form_fields ?? [],
+          get().formValues
+        );
+        if (missing.length > 0) {
+          useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+          return;
+        }
+      }
+
       set({ isSubmitting: true });
 
       // visibleTasks is treated as a stable working set between explicit re-filters
@@ -369,6 +400,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         }
 
         // Submit
+        const { formValues } = get();
         const response = await completeAnnotationTask({
           path: { campaign_id: campaign.id, annotation_task_id: task.id },
           body: {
@@ -378,6 +410,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             is_authoritative: isAuthoritative ?? null,
             flagged_for_review: flaggedForReview ?? false,
             flag_comment: flaggedForReview ? flagComment || null : null,
+            form_values: Object.keys(formValues).length ? formValues : null,
           },
         });
 
@@ -462,6 +495,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
     goToTaskById: (taskId, options) => {
       const { allTasks, visibleTasks: currentVisible, taskFilter: currentFilter } = get();
+      const currentUserId = useAccountStore.getState().account?.id;
 
       let taskFilter: TaskFilter;
       let visibleTasks: AnnotationTaskOut[];
@@ -474,7 +508,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           flaggedOnly: false,
           taskSetId: null,
         };
-        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId, taskId));
       } else {
         taskFilter = currentFilter;
         visibleTasks = currentVisible;
@@ -550,6 +584,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         flagComment: flagged ? s.flagComment : '',
       })),
     setFlagComment: (flagComment) => set({ flagComment }),
+    setFormValues: (formValues) => set({ formValues }),
+    setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
     toggleMagicWand: (labelId) =>
       set((s) => ({
         magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
@@ -563,13 +599,16 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         confidence: 5,
         flaggedForReview: false,
         flagComment: '',
+        formValues: {},
+        activeFieldIndex: null,
       }),
 
     // Filter actions
     setTaskFilter: (filterUpdate) => {
       const { allTasks, taskFilter } = get();
+      const currentUserId = useAccountStore.getState().account?.id;
       const newFilter: TaskFilter = { ...taskFilter, ...filterUpdate };
-      const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, newFilter);
+      const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, newFilter, currentUserId);
       const firstTask = visibleTasks[suggestedIndex] || null;
 
       useMapStore.setState({ probeTimeseriesPoint: null });

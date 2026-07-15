@@ -55,6 +55,9 @@ export const TASK_MODE_SHORTCUTS: Shortcut[] = [
   { key: '1-9, 0', description: 'Select label by number' },
   { key: 'Q / E', description: 'Decrease / Increase confidence' },
   { key: 'Shift+1-5', description: 'Set confidence level' },
+  { key: 'Tab / Shift+Tab', description: 'Next / previous question' },
+  { key: '1-9', description: 'Toggle option in active field' },
+  { key: 'Esc', description: 'Leave form field' },
   { key: 'Enter', description: 'Submit annotation' },
   { key: 'B', description: 'Skip annotation' },
   { key: 'F', description: 'Toggle flag for review' },
@@ -121,4 +124,7 @@ export const EXPLORE_PANEL_SHORTCUTS: Shortcut[] = [
   HOTKEYS.toggleVectorLayer,
   HOTKEYS.cycleVectorLayers,
   { key: 'F', description: 'Flag selected (edit tool)' },
+  { key: 'Tab / Shift+Tab', description: 'Next / previous question' },
+  { key: '1-9', description: 'Toggle option in active field' },
+  { key: 'Esc', description: 'Leave form field' },
 ];

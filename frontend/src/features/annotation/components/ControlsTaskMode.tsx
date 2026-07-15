@@ -7,7 +7,10 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { IconFlag } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { ReviewAnnotationList } from './ReviewAnnotationList';
+import { AnnotationForm } from './AnnotationForm';
 import { isAudienceMember, type PolicyContext } from '../utils/labellingPolicy';
+import { missingRequiredFields, formatMissingFieldsTitle } from '../utils/formValues';
+import { LABEL_FIELD_INDEX } from '../utils/formFieldNav';
 
 interface AnnotationControlsProps {
   labels: LabelBase[];
@@ -46,6 +49,8 @@ export const AnnotationControls = ({
   const confidence = useTaskStore((s) => s.confidence);
   const flaggedForReview = useTaskStore((s) => s.flaggedForReview);
   const flagComment = useTaskStore((s) => s.flagComment);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
   const isNavigating = useTaskStore((s) => s.isNavigating);
   const knnValidationEnabled = useTaskStore((s) => s.knnValidationEnabled);
   const skipConfirmDisabled = useTaskStore((s) => s.skipConfirmDisabled);
@@ -54,10 +59,12 @@ export const AnnotationControls = ({
   const setConfidence = useTaskStore((s) => s.setConfidence);
   const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
   const setFlagComment = useTaskStore((s) => s.setFlagComment);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
   const setKnnValidationEnabled = useTaskStore((s) => s.setKnnValidationEnabled);
   const setSkipConfirmDisabled = useTaskStore((s) => s.setSkipConfirmDisabled);
 
   const campaign = useCampaignStore((s) => s.campaign);
+  const formFields = campaign?.settings.form_fields ?? [];
   const hasEmbeddingYear = campaign?.settings?.embedding_year != null;
   const isReviewMode = useCampaignStore((s) => s.isReviewMode);
   const isAuthoritativeReviewer = useCampaignStore((s) => s.isAuthoritativeReviewer);
@@ -225,8 +232,15 @@ export const AnnotationControls = ({
     : hasExistingLabel
       ? 'Update'
       : 'Submit';
+  const missingFields =
+    selectedLabelId !== null ? missingRequiredFields(formFields, formValues) : [];
+  const missingFieldsTitle =
+    missingFields.length > 0 ? formatMissingFieldsTitle(missingFields) : undefined;
   const isSubmitDisabled =
-    isDisabled || !mayLabel || (selectedLabelId === null && !isRemovingLabel);
+    isDisabled ||
+    !mayLabel ||
+    (selectedLabelId === null && !isRemovingLabel) ||
+    missingFields.length > 0;
 
   const showGoButton = currentTask && gotoValue !== currentTask.annotation_number.toString();
 
@@ -241,7 +255,11 @@ export const AnnotationControls = ({
           />
         )}
 
-        <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem]">
+        <div
+          className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
+            activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+          }`}
+        >
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
               Label
@@ -298,6 +316,14 @@ export const AnnotationControls = ({
           </div>
         </div>
 
+        <AnnotationForm
+          fields={formFields}
+          values={formValues}
+          onChange={setFormValues}
+          activeFieldIndex={activeFieldIndex}
+          disabled={isDisabled}
+        />
+
         <div className="flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem]">
           <textarea
             ref={commentInputRef}
@@ -306,6 +332,7 @@ export const AnnotationControls = ({
             disabled={isDisabled}
             placeholder="Add a comment…"
             rows={3}
+            maxLength={5000}
             className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors"
           />
         </div>
@@ -366,6 +393,7 @@ export const AnnotationControls = ({
               disabled={isDisabled}
               placeholder="Why are you flagging this? (optional)"
               rows={2}
+              maxLength={5000}
               className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:bg-neutral-50 disabled:opacity-60 placeholder:text-neutral-400 transition-colors"
             />
           )}
@@ -391,6 +419,7 @@ export const AnnotationControls = ({
             <button
               disabled={isSubmitDisabled}
               onClick={handleSubmit}
+              title={missingFieldsTitle}
               className="flex-1 inline-flex items-center justify-center h-8 px-3 text-xs font-medium bg-brand-600 text-white hover:bg-brand-700 rounded-md shadow-sm transition-colors disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none disabled:cursor-not-allowed"
               type="button"
             >
@@ -412,9 +441,10 @@ export const AnnotationControls = ({
               disabled={isSubmitDisabled}
               onClick={handleSubmitAuthoritative}
               title={
-                isAssignedToTask
+                missingFieldsTitle ??
+                (isAssignedToTask
                   ? 'Submit as authoritative: overrides any other annotators on this task and marks it completed, even if their labels disagree.'
-                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees."
+                  : "Submit as authoritative: this task isn't assigned to you, but your label will be recorded as the canonical answer and the task will be marked completed without needing consensus from assignees.")
               }
               className="w-full inline-flex items-center justify-center h-8 px-3 text-xs font-medium border border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               type="button"

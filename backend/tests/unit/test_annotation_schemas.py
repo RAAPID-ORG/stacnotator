@@ -7,8 +7,11 @@ import pytest
 from pydantic import ValidationError
 
 from src.annotation.schemas import (
+    AnnotationCreate,
+    AnnotationFromTaskCreate,
     AnnotationTaskAssignmentOut,
     AnnotationTaskOut,
+    AnnotationUpdate,
     compute_task_status_value,
 )
 
@@ -427,3 +430,43 @@ def test_annotation_task_out_threads_is_review_through_object_shaped_assignments
         ],
     )
     assert obj.task_status == "done"
+
+
+class TestCommentLengthCaps:
+    """comment/flag_comment are capped at 5000 chars on every write schema -
+    the DB column stays Text, so the cap lives at the schema boundary."""
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda text: AnnotationFromTaskCreate(label_id=1, comment=text),
+            lambda text: AnnotationFromTaskCreate(label_id=1, comment=None, flag_comment=text),
+            lambda text: AnnotationCreate(label_id=1, comment=text, geometry_wkt="POINT (0 0)"),
+            lambda text: AnnotationCreate(
+                label_id=1, comment=None, geometry_wkt="POINT (0 0)", flag_comment=text
+            ),
+            lambda text: AnnotationUpdate(
+                label_id=1, comment=text, geometry_wkt=None, is_authoritative=None
+            ),
+            lambda text: AnnotationUpdate(
+                label_id=1,
+                comment=None,
+                geometry_wkt=None,
+                is_authoritative=None,
+                flag_comment=text,
+            ),
+        ],
+    )
+    def test_comment_fields_reject_over_5000(self, build):
+        with pytest.raises(ValidationError):
+            build("x" * 5001)
+
+    def test_comment_stays_required_on_write_schemas(self):
+        # The 5000 cap must not silently turn comment optional (it is
+        # required-but-nullable); omitting it entirely still fails.
+        with pytest.raises(ValidationError):
+            AnnotationFromTaskCreate(label_id=1)
+        with pytest.raises(ValidationError):
+            AnnotationCreate(label_id=1, geometry_wkt="POINT (0 0)")
+        with pytest.raises(ValidationError):
+            AnnotationUpdate(label_id=1, geometry_wkt=None, is_authoritative=None)

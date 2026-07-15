@@ -1,10 +1,18 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from src.auth.schemas import UserOut
+from src.campaigns.form_fields import FormField, validate_form_fields
 from src.custom_maps.schemas import CustomMapOut
 from src.imagery.schemas import (
     BasemapOut,
@@ -20,6 +28,14 @@ from src.vector_layers.schemas import VectorLayerOut
 # ============================================================================
 # Campaign Related Schemas
 # ============================================================================
+def _check_form_fields(value: list[FormField]) -> list[FormField]:
+    validate_form_fields(value)
+    return value
+
+
+ValidatedFormFields = Annotated[list[FormField], AfterValidator(_check_form_fields)]
+
+
 class LabelBase(BaseModel):
     """
     A label that can be assigned to an annotation within a campaign.
@@ -148,6 +164,7 @@ class CampaignSettingsOut(BaseModel):
     guide_markdown: str | None = None
     sample_extent_meters: float | None = None
     labelling_policy: LabellingPolicy
+    form_fields: list[FormField] = []
 
     @field_validator("labels", mode="before")
     @classmethod
@@ -185,6 +202,7 @@ class CampaignSettingsCreate(BaseModel):
     bbox_north: float
     embedding_year: int | None = None
     sample_extent_meters: float | None = None
+    form_fields: ValidatedFormFields = []
 
     # Helper to convert labels to dict in DB
     def to_orm(self) -> dict:
@@ -202,6 +220,7 @@ class CampaignSettingsCreate(BaseModel):
             "bbox_north": self.bbox_north,
             "embedding_year": self.embedding_year,
             "sample_extent_meters": self.sample_extent_meters,
+            "form_fields": [f.model_dump() for f in self.form_fields],
         }
 
 
@@ -367,6 +386,13 @@ class UpdateCampaignLabelsRequest(BaseModel):
     annotations referencing them continue to resolve); new labels get appended."""
 
     labels: list[LabelBase]
+
+
+class UpdateCampaignFormFieldsRequest(BaseModel):
+    """Replace the campaign's custom form fields. Existing field IDs must be
+    preserved (stored annotation answers key off them); new fields get new ids."""
+
+    form_fields: ValidatedFormFields
 
 
 class EmbeddingYearUpdateResponse(BaseModel):

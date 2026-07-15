@@ -18,6 +18,7 @@ from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
 )
 from src.annotation.io import (
+    FormExportSchema,
     _build_annotation_records,
     build_annotations_export,
     build_annotations_geojson_export,
@@ -80,6 +81,9 @@ def _make_annotation(ann_id=1, task_id=1, campaign_id=1, user_id=None, label_id=
     ann.comment = None
     ann.confidence = None
     ann.is_authoritative = False
+    # A real Annotation always has this as a dict or None; leaving it as a
+    # bare MagicMock attribute makes the stand-in lie to form validation.
+    ann.form_values = None
     return ann
 
 
@@ -917,6 +921,7 @@ class TestExportAnnotatorCount:
             imagery_source_name=None,
             imagery_start_date=None,
             imagery_end_date=None,
+            form_values=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -933,6 +938,7 @@ class TestExportAnnotatorCount:
                 user_email_map={},
                 merge_on_agreement=merge,
                 include_geometry_wkt=False,
+                form_schema=FormExportSchema([]),
             )
         return records
 
@@ -1036,7 +1042,10 @@ class TestExportMergeCorrectness:
     @classmethod
     def _campaign(cls, labels=None):
         return SimpleNamespace(
-            id=1, settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels)
+            id=1,
+            settings=SimpleNamespace(
+                labels=cls.LABELS if labels is None else labels, form_fields=[]
+            ),
         )
 
     @staticmethod
@@ -1071,6 +1080,7 @@ class TestExportMergeCorrectness:
             imagery_source_name=None,
             imagery_start_date=None,
             imagery_end_date=None,
+            form_values=None,
         )
         for k, v in overrides.items():
             setattr(ann, k, v)
@@ -1418,6 +1428,139 @@ class TestExportMergeCorrectness:
         assert "stacnotator_counts_toward_completion" not in props[None]
 
 
+class TestExportFormFields:
+    """Wiring of per-field export columns (CSV) and raw form_values (GeoJSON).
+
+    The pure formatting/column-naming rules are covered directly in
+    ``tests/unit/test_annotation_io_forms.py``; this class exercises the
+    seam where ``build_annotations_export`` / ``build_annotations_geojson_export``
+    parse the campaign's raw JSONB ``form_fields`` and merge the per-annotation
+    cells into the assembled record/feature.
+    """
+
+    LABELS = {"1": {"name": "Forest"}}
+    FORM_FIELDS = [
+        {
+            "id": 1,
+            "title": "Crop Type",
+            "type": "category",
+            "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
+        },
+        {"id": 2, "title": "Yield (t/ha)", "type": "number"},
+    ]
+
+    @classmethod
+    def _campaign(cls, *, form_fields=None):
+        return SimpleNamespace(
+            id=1,
+            settings=SimpleNamespace(
+                labels=cls.LABELS,
+                form_fields=cls.FORM_FIELDS if form_fields is None else form_fields,
+            ),
+        )
+
+    @staticmethod
+    def _task(task_id=1, annotation_number=42):
+        return SimpleNamespace(
+            id=task_id, annotation_number=annotation_number, raw_source_data=None
+        )
+
+    @staticmethod
+    def _ann(*, ann_id, label_id=1, user_id=None, task=None, form_values=None, **overrides):
+        ann = SimpleNamespace(
+            id=ann_id,
+            source_id=None,
+            label_id=label_id,
+            comment=None,
+            confidence=None,
+            is_authoritative=False,
+            flagged_for_review=False,
+            flag_comment=None,
+            created_by_user_id=user_id or uuid4(),
+            created_at=datetime(2026, 5, 6, tzinfo=UTC),
+            annotation_task_id=task.id if task else None,
+            campaign_id=1,
+            annotation_task=task,
+            geometry=None,
+            imagery_slice_id=None,
+            imagery_source_name=None,
+            imagery_start_date=None,
+            imagery_end_date=None,
+            form_values=form_values,
+        )
+        for k, v in overrides.items():
+            setattr(ann, k, v)
+        return ann
+
+    def _csv(self, annotations, *, merge=False, campaign=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.io._fetch_annotations_with_context",
+                return_value=(annotations, {}),
+            ),
+            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+        ):
+            return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    def _geojson(self, annotations, *, merge=False, campaign=None):
+        campaign = campaign or self._campaign()
+        with (
+            patch(
+                "src.annotation.io._fetch_annotations_with_context",
+                return_value=(annotations, {}),
+            ),
+            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+        ):
+            return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
+
+    def test_csv_gets_one_column_per_field_right_after_label_name(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values={"1": 2, "2": 4.2})
+        df = self._csv([a])
+        cols = list(df.columns)
+        label_idx = cols.index("stacnotator_label_name")
+        assert cols[label_idx + 1] == "stacnotator_field_crop_type"
+        assert cols[label_idx + 2] == "stacnotator_field_yield_t_ha"
+        row = df.iloc[0]
+        assert row["stacnotator_field_crop_type"] == "Wheat"
+        assert row["stacnotator_field_yield_t_ha"] == 4.2
+
+    def test_csv_unanswered_field_is_null(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        row = self._csv([a]).iloc[0]
+        crop = row["stacnotator_field_crop_type"]
+        assert crop is None or (isinstance(crop, float) and np.isnan(crop))
+
+    def test_zero_field_campaign_has_no_form_columns(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        df = self._csv([a], campaign=self._campaign(form_fields=[]))
+        assert not any(c.startswith("stacnotator_field_") for c in df.columns)
+
+    def test_merge_takes_form_values_from_canonical_annotation(self):
+        task = self._task()
+        a1 = self._ann(ann_id=1, task=task, form_values={"1": 1}, is_authoritative=True)
+        a2 = self._ann(ann_id=2, task=task, form_values={"1": 2})
+        df = self._csv([a1, a2], merge=True)
+        assert df.iloc[0]["stacnotator_field_crop_type"] == "Maize"
+
+    def test_geojson_includes_formatted_and_raw_form_values(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values={"1": 2, "2": 4.2})
+        fc = self._geojson([a])
+        props = fc["features"][0]["properties"]
+        assert props["stacnotator_field_crop_type"] == "Wheat"
+        assert props["stacnotator_form_values"] == {"1": 2, "2": 4.2}
+
+    def test_geojson_omits_raw_form_values_when_campaign_has_no_fields(self):
+        task = self._task()
+        a = self._ann(ann_id=1, task=task, form_values=None)
+        fc = self._geojson([a], campaign=self._campaign(form_fields=[]))
+        assert "stacnotator_form_values" not in fc["features"][0]["properties"]
+
+
 def _claim_assignment(user_id, status=ANNOTATION_TASK_STATUS_PENDING, claimed_at=None):
     a = MagicMock(spec=AnnotationTaskAssignment)
     a.task_id = 1
@@ -1572,20 +1715,33 @@ class TestCreateAnnotationsFromGeojson:
     """Bulk import of existing features as standalone open-mode annotations."""
 
     LABELS = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
+    FORM_FIELDS = [
+        {
+            "id": 1,
+            "title": "Crop",
+            "type": "category",
+            "options": [{"id": 1, "name": "Maize"}, {"id": 2, "name": "Wheat"}],
+        },
+    ]
 
     @classmethod
-    def _campaign(cls, *, mode="open", labels=None):
+    def _campaign(cls, *, mode="open", labels=None, form_fields=None):
         return SimpleNamespace(
             id=1,
             mode=mode,
-            settings=SimpleNamespace(labels=cls.LABELS if labels is None else labels),
+            settings=SimpleNamespace(
+                labels=cls.LABELS if labels is None else labels,
+                form_fields=form_fields or [],
+            ),
         )
 
     @staticmethod
-    def _feature(label_id, *, source_id=None, geom=None):
+    def _feature(label_id, *, source_id=None, geom=None, form_values=None):
         properties = {} if label_id is None else {"stacnotator_label_id": label_id}
         if source_id is not None:
             properties["stacnotator_annotation_id"] = source_id
+        if form_values is not None:
+            properties["stacnotator_form_values"] = form_values
         return {
             "type": "Feature",
             "geometry": geom or {"type": "Point", "coordinates": [10.0, 20.0]},
@@ -1686,4 +1842,66 @@ class TestCreateAnnotationsFromGeojson:
             create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
         assert exc.value.status_code == 400
         assert "already exist" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_imports_normalized_form_values(self):
+        db = MagicMock()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101)],
+            MagicMock(),
+        ]
+        contents = self._fc([self._feature(1, form_values={"1": 1})])
+
+        num = create_annotations_from_geojson(
+            db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+        )
+
+        assert num == 1
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert annotation_records[0]["form_values"] == {"1": 1}
+
+    def test_no_form_values_property_imports_none(self):
+        db = MagicMock()
+        db.execute.side_effect = [
+            [SimpleNamespace(id=101)],
+            MagicMock(),
+        ]
+        contents = self._fc([self._feature(1)])
+
+        create_annotations_from_geojson(
+            db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+        )
+
+        annotation_records = db.execute.call_args_list[1][0][1]
+        assert annotation_records[0]["form_values"] is None
+
+    def test_rejects_unknown_form_field_id(self):
+        db = MagicMock()
+        contents = self._fc(
+            [
+                self._feature(1, form_values={"1": 1}),
+                self._feature(2, form_values={"99": 1}),
+            ]
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(
+                db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+            )
+
+        assert exc.value.status_code == 400
+        assert "Feature 1" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_non_object_form_values(self):
+        db = MagicMock()
+        contents = self._fc([self._feature(1, form_values=["not", "a", "dict"])])
+
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(
+                db, self._campaign(form_fields=self.FORM_FIELDS), contents, uuid4()
+            )
+
+        assert exc.value.status_code == 400
+        assert "Feature 0" in exc.value.detail
         db.execute.assert_not_called()

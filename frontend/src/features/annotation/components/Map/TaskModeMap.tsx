@@ -23,7 +23,8 @@ import {
 } from './mapUtils';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import { fromLonLat, toLonLat } from 'ol/proj';
+import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
+import { isEmpty } from 'ol/extent';
 import { Style, Fill, Stroke } from 'ol/style';
 import { GeoJSON as OLGeoJSON } from 'ol/format';
 import type OLFeature from 'ol/Feature';
@@ -101,6 +102,8 @@ const TaskModeMap = ({
   const zoomInTrigger = useMapStore((s) => s.zoomInTrigger);
   const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
   const panTrigger = useMapStore((s) => s.panTrigger);
+  const searchFocusTrigger = useMapStore((s) => s.searchFocusTrigger);
+  const lastSearchFocusRef = useRef(searchFocusTrigger);
 
   // Shared layer management
   const {
@@ -198,6 +201,25 @@ const TaskModeMap = ({
     }
     view.animate({ center: [x, y], duration: PAN_ANIMATION_MS });
   }, [panTrigger]);
+
+  // Location search: fit to the result's extent when available, else center + zoom.
+  // Overrides the task-locked center transiently, same as zoom/pan triggers do.
+  useEffect(() => {
+    if (searchFocusTrigger === lastSearchFocusRef.current) return;
+    lastSearchFocusRef.current = searchFocusTrigger;
+    const map = mapRef.current;
+    const request = useMapStore.getState().searchFocusRequest;
+    if (!map || !request) return;
+    const view = map.getView();
+    if (request.extent) {
+      const ext = transformExtent(request.extent, 'EPSG:4326', 'EPSG:3857');
+      if (!isEmpty(ext)) {
+        view.fit(ext, { padding: [60, 60, 60, 60], maxZoom: 16, duration: 400 });
+      }
+    } else {
+      view.animate({ center: fromLonLat(request.center), zoom: 12, duration: 400 });
+    }
+  }, [searchFocusTrigger]);
 
   // Crosshair overlay
   useEffect(() => {

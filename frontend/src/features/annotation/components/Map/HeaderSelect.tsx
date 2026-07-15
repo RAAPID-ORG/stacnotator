@@ -86,13 +86,45 @@ const HeaderSelect = ({
     setOpen(false);
   };
 
-  // Position dropdown under button
+  // Position dropdown under button, clamped into the viewport. Flips above
+  // the button when there's more room there than below, and always caps the
+  // scrollable list height so options stay reachable instead of running off
+  // screen with no way to scroll to them.
   useEffect(() => {
     if (!open || !buttonRef.current || !dropdownRef.current) return;
+    const inner = dropdownRef.current.firstElementChild;
+    if (!(inner instanceof HTMLElement)) return;
+
+    // Measure against the button's own window - it may live in a popped-out
+    // screen window, whose viewport differs from `window` (see the portal
+    // target comment below).
+    const win = buttonRef.current.ownerDocument.defaultView ?? window;
     const rect = buttonRef.current.getBoundingClientRect();
-    dropdownRef.current.style.top = `${rect.bottom + 4}px`;
-    dropdownRef.current.style.left = `${rect.left}px`;
-  }, [open]);
+
+    const spaceBelow = win.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    const desired = Math.min(inner.scrollHeight, 300);
+
+    let top: number;
+    let maxHeight: number;
+    if (desired <= spaceBelow) {
+      top = rect.bottom + 4;
+      maxHeight = Math.min(300, spaceBelow);
+    } else if (spaceAbove > spaceBelow) {
+      maxHeight = Math.min(desired, spaceAbove);
+      top = Math.max(4, rect.top - 4 - maxHeight);
+    } else {
+      top = rect.bottom + 4;
+      maxHeight = Math.max(spaceBelow, 80);
+    }
+
+    const dropdownWidth = dropdownRef.current.getBoundingClientRect().width;
+    const left = Math.max(4, Math.min(rect.left, win.innerWidth - dropdownWidth - 4));
+
+    dropdownRef.current.style.top = `${top}px`;
+    dropdownRef.current.style.left = `${left}px`;
+    inner.style.maxHeight = `${maxHeight}px`;
+  }, [open, options]);
 
   const h = compact ? 'h-5' : 'h-6';
   const text = compact ? 'text-[10px]' : 'text-[11px]';
@@ -134,7 +166,7 @@ const HeaderSelect = ({
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
-            <div className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[180px] max-h-[300px] overflow-y-auto py-1">
+            <div className="bg-white border border-neutral-200 rounded-lg shadow-lg min-w-[180px] overflow-y-auto py-1">
               {options.map((opt) => {
                 const isSelected = opt.value === value;
                 if (!onMarkOption) {

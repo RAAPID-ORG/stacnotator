@@ -23,6 +23,7 @@ const WindowSliceSelectImpl = ({ collection, darkBg = false }: WindowSliceSelect
     return sig;
   });
   const setCollectionSliceIndex = useMapStore((s) => s.setCollectionSliceIndex);
+  const setActiveCollectionId = useMapStore((s) => s.setActiveCollectionId);
 
   const currentSliceIndex = resolveSliceIndex(collection, sliceIndexForCollection);
   const slices = collection.slices;
@@ -53,7 +54,11 @@ const WindowSliceSelectImpl = ({ collection, darkBg = false }: WindowSliceSelect
   if (slices.length <= 1) return null;
 
   const handleChange = (val: string | number) => {
+    // Slice index first, then activate: setActiveCollectionId resolves
+    // activeSliceIndex from collectionSliceIndices, so this order makes the
+    // freshly picked slice the active one (main map + chart indicator follow).
     setCollectionSliceIndex(collection.id, Number(val));
+    setActiveCollectionId(collection.id);
   };
 
   return (

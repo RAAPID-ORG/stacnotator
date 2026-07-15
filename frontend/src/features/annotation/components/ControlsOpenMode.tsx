@@ -13,6 +13,8 @@ import { usePreferencesStore } from '../stores/preferences.store';
 import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 import { TOOL_KEYS, EXPLORE_PANEL_SHORTCUTS } from '../hotkeys';
 import { ShortcutList } from './ShortcutList';
+import { AnnotationForm } from './AnnotationForm';
+import { LABEL_FIELD_INDEX } from '../utils/formFieldNav';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
 
@@ -123,8 +125,11 @@ const OpenModeControls = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
   const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
   const activeTool = useMapStore((s) => s.activeTool);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
@@ -149,6 +154,7 @@ const OpenModeControls = () => {
   // Get labels and extend with metadata
   const baseLabels = campaign?.settings.labels || [];
   const extendedLabels = extendLabelsWithMetadata(baseLabels);
+  const formFields = campaign?.settings.form_fields ?? [];
 
   // Filter tools based on campaign configuration
   const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
@@ -283,7 +289,11 @@ const OpenModeControls = () => {
         {/* Label Selection - show for annotate & label-vector tools */}
         {(activeTool === 'annotate' || activeTool === 'labelvector') && (
           <>
-            <div className="flex flex-col gap-1.5 w-full">
+            <div
+              className={`flex flex-col gap-1.5 w-full ${
+                activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
+              }`}
+            >
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
               <div className="flex flex-col gap-1">
                 {extendedLabels.map((label, index) => {
@@ -484,6 +494,13 @@ const OpenModeControls = () => {
               )}
             </div>
 
+            <AnnotationForm
+              fields={formFields}
+              values={formValues}
+              onChange={setFormValues}
+              activeFieldIndex={activeFieldIndex}
+            />
+
             {/* Current selection info */}
             {selectedLabel && (
               <div className="p-2.5 bg-blue-50 rounded border border-blue-200 w-full">
@@ -564,6 +581,7 @@ const OpenModeControls = () => {
                     }}
                     placeholder="Why are you flagging this? (optional)"
                     rows={2}
+                    maxLength={5000}
                     className="w-full resize-none px-2.5 py-2 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 placeholder:text-neutral-400 transition-colors"
                   />
                 )}

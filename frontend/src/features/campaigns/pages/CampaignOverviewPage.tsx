@@ -228,7 +228,7 @@ const AllTasksCard = ({
               onClick={onManage}
               className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
             >
-              Manage
+              Details
             </button>
           )}
         </div>
@@ -280,7 +280,7 @@ const TaskSetCard = ({
               onClick={onManage}
               className="text-[11px] text-neutral-400 hover:text-neutral-600 shrink-0"
             >
-              Manage
+              Details
             </button>
           )}
         </div>

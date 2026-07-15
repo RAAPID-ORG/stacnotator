@@ -245,9 +245,12 @@ const ImageryContainer: React.FC<ImageryContainerProps> = ({ collectionId, sourc
   // each step and stall the main thread when a collection is mostly empty.
   // Self-hosted tiles need an auth token; MPC tiles are fetched directly.
   useEffect(() => {
-    if (isOpenMode || !crosshairTileUrl) return;
+    // Reset before the guard: entering explore (or losing the crosshair
+    // position) must clear an alert raised for a previous task location,
+    // otherwise it sticks forever since probing only runs in task mode.
     setEmptyTileAlert(null);
     setProbingLabel(null);
+    if (isOpenMode || !crosshairTileUrl) return;
 
     const controller = new AbortController();
 

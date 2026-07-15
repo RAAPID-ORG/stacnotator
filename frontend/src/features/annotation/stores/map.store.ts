@@ -53,6 +53,13 @@ interface MapStore {
   zoomOutTrigger: number;
   panTrigger: { direction: 'up' | 'down' | 'left' | 'right'; count: number };
   panToCenterTrigger: number;
+  // Location search (minimap geocoder): center is [lon, lat] EPSG:4326, matching
+  // GeocodingResult, since this is consumed directly by OL's fromLonLat/transformExtent.
+  searchFocusRequest: {
+    center: [number, number];
+    extent: [number, number, number, number] | null;
+  } | null;
+  searchFocusTrigger: number;
   showCrosshair: boolean;
   showAnnotations: boolean;
 
@@ -103,6 +110,10 @@ interface MapStore {
   triggerZoomOut: () => void;
   triggerPan: (direction: 'up' | 'down' | 'left' | 'right') => void;
   triggerPanToCenter: (center: [number, number]) => void;
+  triggerSearchFocus: (
+    center: [number, number],
+    extent: [number, number, number, number] | null
+  ) => void;
   toggleCrosshair: () => void;
   toggleAnnotations: () => void;
 
@@ -156,6 +167,11 @@ const initialState = {
   zoomOutTrigger: 0,
   panTrigger: { direction: 'up' as const, count: 0 },
   panToCenterTrigger: 0,
+  searchFocusRequest: null as {
+    center: [number, number];
+    extent: [number, number, number, number] | null;
+  } | null,
+  searchFocusTrigger: 0,
   showCrosshair: true,
   showAnnotations: true,
 
@@ -288,6 +304,11 @@ export const useMapStore = create<MapStore>((set) => ({
     set((s) => ({ panTrigger: { direction, count: s.panTrigger.count + 1 } })),
   triggerPanToCenter: (center) =>
     set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
+  triggerSearchFocus: (center, extent) =>
+    set((s) => ({
+      searchFocusRequest: { center, extent },
+      searchFocusTrigger: s.searchFocusTrigger + 1,
+    })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
   toggleAnnotations: () => set((s) => ({ showAnnotations: !s.showAnnotations })),
 

@@ -38,10 +38,13 @@ import type { Geometry } from 'ol/geom';
 import type { DrawEvent } from 'ol/interaction/Draw';
 
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
+import { formatMissingFieldsTitle, missingRequiredFields } from '../../utils/formValues';
+import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import { usePreferencesStore } from '../../stores/preferences.store';
+import { useTaskStore } from '../../stores/task.store';
 import {
   resolveLabelStyle,
   styleKey,
@@ -356,6 +359,20 @@ const DrawingLayer = ({
 
     const draw = new Draw({ source, type: olDrawType, style: drawStyle });
 
+    // Refuse the draw up front rather than at drawend: saveAnnotation would
+    // reject the finished shape and drawend discards unsaved features, so a
+    // late check costs the user the geometry they just drew.
+    draw.on('drawstart', () => {
+      const missing = missingRequiredFields(
+        useCampaignStore.getState().campaign?.settings.form_fields ?? [],
+        useTaskStore.getState().formValues
+      );
+      if (missing.length > 0) {
+        draw.abortDrawing();
+        useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+      }
+    });
+
     draw.on('drawend', async (evt: DrawEvent) => {
       const feature = evt.feature as OLFeature<Geometry>;
 
@@ -366,7 +383,12 @@ const DrawingLayer = ({
         return;
       }
 
-      const saved = await saveAnnotation(geoJSON, selectedLabelRef.current.id);
+      const saved = await saveAnnotation(
+        geoJSON,
+        selectedLabelRef.current.id,
+        undefined,
+        useTaskStore.getState().formValues
+      );
       // No-flicker handoff: keep the just-drawn feature painted until the
       // refreshed tiles (bumped tileVersion -> source.refresh) repaint, then drop
       // it so the tile representation takes over without a visible gap.
@@ -410,7 +432,12 @@ const DrawingLayer = ({
         const polygonGeometry = await mockMagicWandSegmentation(lat, lon);
         if (controller.signal.aborted) return;
         if (selectedLabelRef.current) {
-          await saveAnnotation(polygonGeometry, selectedLabelRef.current.id);
+          await saveAnnotation(
+            polygonGeometry,
+            selectedLabelRef.current.id,
+            undefined,
+            useTaskStore.getState().formValues
+          );
         }
       } catch (err) {
         handleError(err, 'Magic wand segmentation failed');
@@ -610,10 +637,15 @@ const DrawingLayer = ({
         // Preserve label/comment - the PUT only changes geometry. Prefer the
         // fetched detail; fall back to the feature's labelId.
         const detail = useAnnotationStore.getState().selectedAnnotationDetail;
+        const snap = detail?.form_values ?? {};
         try {
           await updateAnnotationGeometry(annotationId, geoJSON, {
             labelId: detail?.label_id ?? (feature.get(PROP_LABEL_ID) as number | null) ?? null,
             comment: detail?.comment ?? null,
+            // Without a loaded detail, or with one that has no stored answers
+            // (e.g. a leniently-imported annotation), sending {} would clear
+            // required answers - omit instead so the backend keeps them.
+            formValues: Object.keys(snap).length ? snap : undefined,
           });
         } catch (err) {
           handleError(err, 'Failed to save geometry update');

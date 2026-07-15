@@ -7,6 +7,7 @@ import { useLayoutStore } from '~/features/layout/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
+import { handleFormFieldKey } from '../utils/formFieldNav';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -19,20 +20,30 @@ import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
  *   B - Label vector (only when campaign has vector layers)
  *
  * Label selection:
- *   1-9 - Select label by index and switch to Annotate
+ *   1-9 - Select label by index and switch to Annotate (only while no
+ *         custom form field is active - see form field navigation below)
+ *
+ * Form field navigation (shared activeFieldIndex/formValues with task mode):
+ *   Tab / Shift+Tab - Cycle the label selector, then each custom form field
+ *   1-9 - With a category/multicategory field active, toggle that option
+ *   Enter / any digit - With a number/text/date/daterange field active, focus its input
+ *   Escape - Clear the active field (also handled by DrawingLayer for edit/draw cancel)
  *
  * Misc:
  *   X - Toggle crosshair (shared binding in useAnnotationKeyboard; Shift+X
  *       toggles visibility of drawn objects)
  *   O - Toggle overlay map (Shift+O cycles overlays)
  *   V - Toggle the active vector layer (Shift+V cycles vector layers)
- *   Escape - Handled by DrawingLayer (cancel edit / rollback)
  */
 export const useOpenModeKeyboard = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
+  const setActiveFieldIndex = useTaskStore((s) => s.setActiveFieldIndex);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
   const setTimeseriesPoint = useMapStore((s) => s.setTimeseriesPoint);
   const triggerFitAnnotations = useMapStore((s) => s.triggerFitAnnotations);
@@ -46,6 +57,7 @@ export const useOpenModeKeyboard = () => {
     const extendedLabels = extendLabelsWithMetadata(labels);
     const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
     const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
+    const formFields = campaign.settings.form_fields ?? [];
 
     const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
@@ -64,15 +76,32 @@ export const useOpenModeKeyboard = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.
       if (e.ctrlKey || e.metaKey) return;
-      // Ignore if user is typing in an input/textarea
+      // Ignore if user is typing in an input/textarea, except Escape which
+      // blurs back to hotkey mode (matches useAnnotationKeyboard's guard).
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        }
         return;
       }
 
-      // Number keys 1-9: select label. In label-vector mode keep that tool so the
+      if (
+        handleFormFieldKey(e, {
+          fields: formFields,
+          activeIndex: activeFieldIndex,
+          values: formValues,
+          setValues: setFormValues,
+          setActiveIndex: setActiveFieldIndex,
+        })
+      ) {
+        return;
+      }
+
+      // 1-9: select label. In label-vector mode keep that tool so the
       // label applies to clicked features; otherwise switch to annotate (draw).
-      if (e.key >= '1' && e.key <= '9') {
+      if (/^[1-9]$/.test(e.key)) {
         e.preventDefault();
         const index = parseInt(e.key, 10) - 1;
         if (index < extendedLabels.length) {
@@ -254,5 +283,9 @@ export const useOpenModeKeyboard = () => {
     triggerFitAnnotations,
     toggleViewSync,
     toggleGuide,
+    formValues,
+    activeFieldIndex,
+    setFormValues,
+    setActiveFieldIndex,
   ]);
 };

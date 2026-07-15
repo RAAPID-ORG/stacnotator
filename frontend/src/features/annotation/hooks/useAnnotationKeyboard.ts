@@ -11,6 +11,7 @@ import {
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
 import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
+import { handleFormFieldKey } from '../utils/formFieldNav';
 
 interface UseAnnotationKeyboardOptions {
   commentInputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -44,6 +45,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const setConfidence = useTaskStore((s) => s.setConfidence);
   const setFlaggedForReview = useTaskStore((s) => s.setFlaggedForReview);
   const submitAnnotation = useTaskStore((s) => s.submitAnnotation);
+  const formValues = useTaskStore((s) => s.formValues);
+  const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
+  const setFormValues = useTaskStore((s) => s.setFormValues);
+  const setActiveFieldIndex = useTaskStore((s) => s.setActiveFieldIndex);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const triggerRefocus = useMapStore((s) => s.triggerRefocus);
@@ -60,6 +65,10 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
   const toggleGuide = useLayoutStore((s) => s.toggleGuide);
 
   const labels = useMemo(() => campaign?.settings.labels ?? [], [campaign?.settings.labels]);
+  const formFields = useMemo(
+    () => campaign?.settings.form_fields ?? [],
+    [campaign?.settings.form_fields]
+  );
 
   // Derive the selected view (still needed for source cycling below)
   const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId);
@@ -315,7 +324,20 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
         return;
       }
 
-      // Number keys for label selection
+      if (
+        tasksActive &&
+        handleFormFieldKey(e, {
+          fields: formFields,
+          activeIndex: activeFieldIndex,
+          values: formValues,
+          setValues: setFormValues,
+          setActiveIndex: setActiveFieldIndex,
+        })
+      ) {
+        return;
+      }
+
+      // Number keys select a label by index, buffered so 2-digit indices work.
       if (/^[0-9]$/.test(e.key)) {
         e.preventDefault();
         handleDigitInput(e.key);
@@ -541,6 +563,11 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
     cycleSource,
     cycleVisualization,
     cycleView,
+    formFields,
+    activeFieldIndex,
+    setActiveFieldIndex,
+    formValues,
+    setFormValues,
   ]);
 
   // Stop slice autoscroll only on unmount. stopSliceAutoNav has empty deps so

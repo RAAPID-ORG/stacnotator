@@ -26,14 +26,17 @@ async function loadWithTimeseries(page: Page, api: ApiCapture): Promise<void> {
 }
 
 const chart = (page: Page) => page.locator('[data-tour="timeseries"]');
-// Use div[title] to target the toggle pill specifically - each control has both
-// a <span> label and a <div> toggle with the same title; the div is the clickable pill.
-const smoothToggle = (page: Page) =>
-  page.locator('div[title="Savitzky-Golay Smoothing."]').first();
-const removeCloudy = (page: Page) =>
-  page.locator('div[title="Removes cloud-flagged days (shown as gray dots) from the series"]').first();
-const dotsToggle = (page: Page) =>
-  page.locator('div[title="Show or hide the per-observation dots (line is always shown)"]').first();
+// The chart options (Remove cloudy / Smooth / Dots) live behind a gear button and
+// render in a portal outside the chart card, so locate them page-wide.
+const optionsBtn = (page: Page) => page.getByRole('button', { name: 'Chart options' });
+const openOptions = async (page: Page) => {
+  await optionsBtn(page).click();
+  await expect(page.locator('[data-ts-option="smooth"]')).toBeVisible();
+};
+const tsOption = (page: Page, option: string) => page.locator(`[data-ts-option="${option}"]`);
+const smoothToggle = (page: Page) => tsOption(page, 'smooth');
+const removeCloudy = (page: Page) => tsOption(page, 'remove-cloudy');
+const dotsToggle = (page: Page) => tsOption(page, 'dots');
 const resetZoomBtn = (page: Page) =>
   page.locator('button[title="Reset zoom (double-click chart)"]');
 const legendBtn = (page: Page, name: string) =>
@@ -49,9 +52,7 @@ test.describe('Timeseries chart renders', () => {
     await expect(chart(annotationPage)).toBeVisible();
   });
 
-  test('chart card is NOT visible when campaign has no time_series', async ({
-    annotationPage,
-  }) => {
+  test('chart card is NOT visible when campaign has no time_series', async ({ annotationPage }) => {
     await expect(annotationPage.locator('[data-tour="timeseries"]')).not.toBeVisible();
   });
 
@@ -89,6 +90,42 @@ test.describe('Timeseries chart renders', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Options menu
+// ---------------------------------------------------------------------------
+
+test.describe('Chart options menu', () => {
+  test.beforeEach(async ({ annotationPage, api }) => {
+    await loadWithTimeseries(annotationPage, api);
+    await chart(annotationPage).locator('canvas').waitFor({ timeout: 5000 });
+  });
+
+  test('options are hidden until the gear button is clicked', async ({ annotationPage }) => {
+    await expect(optionsBtn(annotationPage)).toBeVisible();
+    await expect(smoothToggle(annotationPage)).toHaveCount(0);
+    await expect(removeCloudy(annotationPage)).toHaveCount(0);
+    await expect(dotsToggle(annotationPage)).toHaveCount(0);
+
+    await openOptions(annotationPage);
+    await expect(removeCloudy(annotationPage)).toBeVisible();
+    await expect(dotsToggle(annotationPage)).toBeVisible();
+  });
+
+  test('clicking the gear again closes the menu', async ({ annotationPage }) => {
+    await openOptions(annotationPage);
+    await optionsBtn(annotationPage).click();
+    await expect(smoothToggle(annotationPage)).toHaveCount(0);
+  });
+
+  test('clicking outside closes the menu', async ({ annotationPage }) => {
+    await openOptions(annotationPage);
+    await chart(annotationPage)
+      .locator('canvas')
+      .click({ position: { x: 5, y: 5 } });
+    await expect(smoothToggle(annotationPage)).toHaveCount(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Smooth toggle
 // ---------------------------------------------------------------------------
 
@@ -96,44 +133,44 @@ test.describe('Smooth toggle (Savitzky-Golay)', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
     await loadWithTimeseries(annotationPage, api);
     await chart(annotationPage).locator('canvas').waitFor({ timeout: 5000 });
+    await openOptions(annotationPage);
   });
 
   test('Smooth toggle is present and starts off', async ({ annotationPage }) => {
-    const toggle = smoothToggle(annotationPage);
-    await expect(toggle).toBeVisible();
-    // Off state: the toggle pill should NOT have the brand colour class
-    await expect(toggle).not.toHaveClass(/bg-brand-600/);
+    await expect(smoothToggle(annotationPage)).toHaveAttribute('aria-checked', 'false');
   });
 
-  test('clicking Smooth toggle enables smoothing (pill turns brand colour)', async ({
-    annotationPage,
-  }) => {
+  test('clicking Smooth toggle enables smoothing', async ({ annotationPage }) => {
     await smoothToggle(annotationPage).click();
-    await expect(smoothToggle(annotationPage)).toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(smoothToggle(annotationPage)).toHaveAttribute('aria-checked', 'true', {
+      timeout: 2000,
+    });
   });
 
   test('clicking Smooth twice disables smoothing again', async ({ annotationPage }) => {
     await smoothToggle(annotationPage).click();
-    await expect(smoothToggle(annotationPage)).toHaveClass(/bg-brand-600/);
+    await expect(smoothToggle(annotationPage)).toHaveAttribute('aria-checked', 'true');
     await smoothToggle(annotationPage).click();
-    await expect(smoothToggle(annotationPage)).not.toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(smoothToggle(annotationPage)).toHaveAttribute('aria-checked', 'false', {
+      timeout: 2000,
+    });
   });
 
   test('W (window) input is visible when smoothing is enabled', async ({ annotationPage }) => {
     await smoothToggle(annotationPage).click();
     // title is on the <label>, not the <input>
-    await expect(
-      annotationPage.locator('[title*="Window size"] input')
-    ).toBeVisible({ timeout: 2000 });
+    await expect(annotationPage.locator('[title*="Window size"] input')).toBeVisible({
+      timeout: 2000,
+    });
   });
 
   test('P (polynomial order) input is visible when smoothing is enabled', async ({
     annotationPage,
   }) => {
     await smoothToggle(annotationPage).click();
-    await expect(
-      annotationPage.locator('[title*="Polynomial order"] input')
-    ).toBeVisible({ timeout: 2000 });
+    await expect(annotationPage.locator('[title*="Polynomial order"] input')).toBeVisible({
+      timeout: 2000,
+    });
   });
 
   test('W defaults to 7 and can be changed', async ({ annotationPage }) => {
@@ -161,23 +198,26 @@ test.describe('Remove cloudy toggle', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
     await loadWithTimeseries(annotationPage, api);
     await chart(annotationPage).locator('canvas').waitFor({ timeout: 5000 });
+    await openOptions(annotationPage);
   });
 
   test('Remove cloudy toggle is present and starts off', async ({ annotationPage }) => {
-    const toggle = removeCloudy(annotationPage);
-    await expect(toggle).toBeVisible();
-    await expect(toggle).not.toHaveClass(/bg-brand-600/);
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'false');
   });
 
   test('clicking Remove cloudy enables it', async ({ annotationPage }) => {
     await removeCloudy(annotationPage).click();
-    await expect(removeCloudy(annotationPage)).toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'true', {
+      timeout: 2000,
+    });
   });
 
   test('clicking Remove cloudy twice disables it again', async ({ annotationPage }) => {
     await removeCloudy(annotationPage).click();
     await removeCloudy(annotationPage).click();
-    await expect(removeCloudy(annotationPage)).not.toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(removeCloudy(annotationPage)).toHaveAttribute('aria-checked', 'false', {
+      timeout: 2000,
+    });
   });
 });
 
@@ -189,22 +229,26 @@ test.describe('Dots toggle', () => {
   test.beforeEach(async ({ annotationPage, api }) => {
     await loadWithTimeseries(annotationPage, api);
     await chart(annotationPage).locator('canvas').waitFor({ timeout: 5000 });
+    await openOptions(annotationPage);
   });
 
   test('Dots toggle is present and starts on', async ({ annotationPage }) => {
-    await expect(dotsToggle(annotationPage)).toBeVisible();
-    await expect(dotsToggle(annotationPage)).toHaveClass(/bg-brand-600/);
+    await expect(dotsToggle(annotationPage)).toHaveAttribute('aria-checked', 'true');
   });
 
   test('clicking Dots turns it off', async ({ annotationPage }) => {
     await dotsToggle(annotationPage).click();
-    await expect(dotsToggle(annotationPage)).not.toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(dotsToggle(annotationPage)).toHaveAttribute('aria-checked', 'false', {
+      timeout: 2000,
+    });
   });
 
   test('clicking Dots twice restores it', async ({ annotationPage }) => {
     await dotsToggle(annotationPage).click();
     await dotsToggle(annotationPage).click();
-    await expect(dotsToggle(annotationPage)).toHaveClass(/bg-brand-600/, { timeout: 2000 });
+    await expect(dotsToggle(annotationPage)).toHaveAttribute('aria-checked', 'true', {
+      timeout: 2000,
+    });
   });
 });
 
@@ -248,14 +292,16 @@ test.describe('Data fetching with task navigation', () => {
 
     // Wait for a request containing TASK_2's longitude
     const task2Lon = TASK_2.geometry.geometry.match(/POINT\(([^ ]+)/)?.[1] ?? '';
-    await annotationPage.waitForFunction(
-      ({ lon, tsId }) =>
-        (window as any).__TS_URLS__?.some?.((u: string) =>
-          u.includes(`/timeseries/${tsId}/`) && u.includes(lon)
-        ) ?? false,
-      { lon: task2Lon, tsId: MOCK_TIMESERIES_ENTRY.id },
-      { timeout: 5000 }
-    ).catch(() => null);
+    await annotationPage
+      .waitForFunction(
+        ({ lon, tsId }) =>
+          (window as any).__TS_URLS__?.some?.(
+            (u: string) => u.includes(`/timeseries/${tsId}/`) && u.includes(lon)
+          ) ?? false,
+        { lon: task2Lon, tsId: MOCK_TIMESERIES_ENTRY.id },
+        { timeout: 5000 }
+      )
+      .catch(() => null);
 
     // The request may have fired before the listener was attached (cached prefetch);
     // just verify the chart is still showing data for the new task.
@@ -264,10 +310,7 @@ test.describe('Data fetching with task navigation', () => {
     });
   });
 
-  test('timeseries card remains visible after task navigation', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('timeseries card remains visible after task navigation', async ({ annotationPage, api }) => {
     await annotationPage.keyboard.press('s');
     await waitForNavIdle(annotationPage);
     await expect(chart(annotationPage)).toBeVisible();

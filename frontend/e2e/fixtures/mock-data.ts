@@ -141,8 +141,9 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
-    // Mirrors backend default_labelling_policy(): the API always sends this
-    // and AnnotationPage dereferences it without a guard.
+    // Mirrors DEFAULT_LABELLING_POLICY (LabellingPolicyEditor.tsx) / backend
+    // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
+    // campaign.settings.labelling_policy.explore unconditionally.
     labelling_policy: {
       explore: { kinds: ['members'], user_ids: [] },
       unassigned_tasks: { kinds: ['members'], user_ids: [] },
@@ -443,6 +444,81 @@ export const MOCK_TIMESERIES_DATA = [
 
 export const MOCK_CAMPAIGN_WITH_TIMESERIES = {
   ...MOCK_CAMPAIGN,
+  time_series: [MOCK_TIMESERIES_ENTRY],
+};
+
+// ---------------------------------------------------------------------------
+// Multi-source campaign WITH timeseries, for the active-window chart
+// indicator. Source A (Sentinel-2) covers Jan/Jun 2024; source B (VHR)
+// covers two weekly slices in Sep 2024 - a date range the timeseries
+// (Jan -> Sep 2024) spans but source A's collection does not, so chart
+// clicks, per-window dropdown changes, and window activation each land on
+// a date/collection distinguishable from source A's.
+// ---------------------------------------------------------------------------
+
+export const COLLECTION_VHR_MULTI = {
+  id: 40,
+  name: 'VHR Sept',
+  cover_slice_index: 0,
+  display_order: 0,
+  stac_config: null,
+  slices: [
+    {
+      id: 401,
+      name: 'Sep Wk1',
+      start_date: '2024-09-01',
+      end_date: '2024-09-07',
+      display_order: 0,
+      tile_urls: [
+        {
+          visualization_name: 'True Color',
+          tile_url:
+            'https://tiles.example.com/mosaic/vhr-sep-wk1/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+        },
+      ],
+    },
+    {
+      id: 402,
+      name: 'Sep Wk2',
+      start_date: '2024-09-08',
+      end_date: '2024-09-14',
+      display_order: 1,
+      tile_urls: [
+        {
+          visualization_name: 'True Color',
+          tile_url:
+            'https://tiles.example.com/mosaic/vhr-sep-wk2/tiles/WebMercatorQuad/{z}/{x}/{y}?viz=vhr-truecolor',
+        },
+      ],
+    },
+  ],
+};
+
+export const SOURCE_VHR_MULTI = {
+  id: 2,
+  name: 'VHR',
+  crosshair_hex6: '#0000ff',
+  default_zoom: 16,
+  visualizations: [{ id: 3, name: 'True Color' }],
+  collections: [COLLECTION_VHR_MULTI],
+};
+
+export const MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES = {
+  ...MOCK_CAMPAIGN,
+  imagery_sources: [SOURCE, SOURCE_VHR_MULTI],
+  imagery_views: [
+    {
+      id: 1,
+      name: 'Default View',
+      display_order: 0,
+      collection_refs: [
+        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
+        { collection_id: 40, source_id: 2, show_as_window: true, display_order: 1 },
+      ],
+      default_canvas_layout: null,
+      personal_canvas_layout: null,
+    },
+  ],
   time_series: [MOCK_TIMESERIES_ENTRY],
 };
 

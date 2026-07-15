@@ -502,7 +502,7 @@ export const CampaignTasksPage = () => {
             </div>
           )}
 
-          <div className="surface">
+          <div className="surface surface-unclipped">
             <div className="p-6">
               <TasksTab
                 scopedTasks={scopedAnnotationTasks}

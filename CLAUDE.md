@@ -103,4 +103,4 @@ The annotation feature is the heart of the app. Two campaign modes drive paralle
 
 ## Further docs
 
-`docs/architcture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `azure_deploy/README.md` (deployment).
+`docs/architecture.md` (services overview), `docs/development.md` (branching/CI/deploy), `docs/features.md` (full feature list), `docs/tile-serving.md` + `docs/tilers.md` (tiler internals), `azure_deploy/README.md` (deployment).
