@@ -9,10 +9,15 @@ export const LABEL_FIELD_INDEX = -1;
 // Cycle order: LABEL_FIELD_INDEX -> 0 -> ... -> fieldCount-1 -> LABEL_FIELD_INDEX
 // (reversed for direction -1), wrapping directly between the label slot and
 // the last field with no "nothing selected" stop in between. `current ===
-// null` only occurs on entry (nothing focused yet, e.g. after Escape) and
-// picks the natural end of the cycle for the given direction. fieldCount 0
-// always stays null so zero-field campaigns are unaffected - callers gate
-// Tab handling on fieldCount > 0.
+// null` only occurs on entry (nothing focused yet, e.g. after Escape). On
+// entry the label selector is already the active digit target (null and
+// LABEL_FIELD_INDEX both route digits to labels; the only difference is the
+// focus ring), so entering forward skips straight to the first custom field
+// rather than re-highlighting a slot that is already active - the label slot
+// is still reached by wrapping past the last field, and by Shift+Tab. Entering
+// reverse goes to the last field for the same reason. fieldCount 0 always
+// stays null so zero-field campaigns are unaffected - callers gate Tab
+// handling on fieldCount > 0.
 export function cycleFieldIndex(
   current: number | null,
   fieldCount: number,
@@ -20,7 +25,7 @@ export function cycleFieldIndex(
 ): number | null {
   if (fieldCount === 0) return null;
   if (direction === 1) {
-    if (current === null) return LABEL_FIELD_INDEX;
+    if (current === null) return 0;
     if (current === LABEL_FIELD_INDEX) return 0;
     return current === fieldCount - 1 ? LABEL_FIELD_INDEX : current + 1;
   }

@@ -320,11 +320,12 @@ const buildTaskModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
                 on the map and see its time series.
               </p>
               <p>
-                The chart toolbar offers two useful filters: <strong>Remove Cloudy</strong> hides
-                observations that were flagged as cloud-covered, and <strong>Smooth</strong> applies
-                a Savitzky-Golay filter to the curve so seasonal patterns are easier to spot. When
-                smoothing is enabled you can adjust the <strong>window size</strong> and{' '}
-                <strong>polynomial order</strong> to fine-tune the result.
+                The <strong>options</strong> menu (gear icon) offers two useful filters:{' '}
+                <strong>Remove Cloudy</strong> hides observations that were flagged as
+                cloud-covered, and <strong>Smooth</strong> applies a Savitzky-Golay filter to the
+                curve so seasonal patterns are easier to spot. When smoothing is enabled you can
+                adjust the <strong>window size</strong> and <strong>polynomial order</strong> to
+                fine-tune the result.
               </p>
             </div>
           ),
@@ -994,11 +995,12 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
                 anywhere on the map to load its time series.
               </p>
               <p>
-                The chart toolbar offers two useful filters: <strong>Remove Cloudy</strong> hides
-                cloud-flagged observations, and <strong>Smooth</strong> applies a Savitzky-Golay
-                filter so seasonal patterns are easier to spot. When smoothing is enabled you can
-                adjust the <strong>window size</strong> and <strong>polynomial order</strong> to
-                fine-tune the result.
+                The <strong>options</strong> menu (gear icon) offers two useful filters:{' '}
+                <strong>Remove Cloudy</strong> hides cloud-flagged observations, and{' '}
+                <strong>Smooth</strong> applies a Savitzky-Golay filter so seasonal patterns are
+                easier to spot. When smoothing is enabled you can adjust the{' '}
+                <strong>window size</strong> and <strong>polynomial order</strong> to fine-tune the
+                result.
               </p>
             </div>
           ),

@@ -49,9 +49,19 @@ describe('cycleFieldIndex', () => {
     expect(cycleFieldIndex(0, 0, 1)).toBeNull();
   });
 
-  it('enters the cycle from null: forward to the label slot, reverse to the last field', () => {
-    expect(cycleFieldIndex(null, 3, 1)).toBe(LABEL_FIELD_INDEX);
+  it('enters the cycle from null: forward to the first field, reverse to the last field', () => {
+    // On entry the label slot is already the active digit target, so the first
+    // Tab advances to a custom field instead of re-highlighting the label slot.
+    expect(cycleFieldIndex(null, 3, 1)).toBe(0);
     expect(cycleFieldIndex(null, 3, -1)).toBe(2);
+  });
+
+  it('reaches the label slot by wrapping past the last field, not on the first Tab', () => {
+    let idx: number | null = null;
+    idx = cycleFieldIndex(idx, 2, 1); // -> 0
+    idx = cycleFieldIndex(idx, 2, 1); // -> 1 (last)
+    idx = cycleFieldIndex(idx, 2, 1); // -> label slot
+    expect(idx).toBe(LABEL_FIELD_INDEX);
   });
 
   it('cycles forward through the label slot and the full field range, wrapping without a null stop', () => {
@@ -83,7 +93,7 @@ describe('cycleFieldIndex', () => {
   });
 
   it('single field wraps forward and backward directly between label and field 0, never null', () => {
-    expect(cycleFieldIndex(null, 1, 1)).toBe(LABEL_FIELD_INDEX);
+    expect(cycleFieldIndex(null, 1, 1)).toBe(0);
     expect(cycleFieldIndex(LABEL_FIELD_INDEX, 1, 1)).toBe(0);
     expect(cycleFieldIndex(0, 1, 1)).toBe(LABEL_FIELD_INDEX);
     expect(cycleFieldIndex(null, 1, -1)).toBe(0);

@@ -594,7 +594,7 @@ export const TaskModeReview = ({
         {/* Tasks Table */}
         <div className="mt-6">
           {selectable && (
-            <div className="flex items-center justify-between mb-4">
+            <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 mb-1">
               {/* Left: selection-scoped actions, constructive-to-destructive */}
               <div className="flex items-center gap-3">
                 {selectedTasks.size > 0 && (

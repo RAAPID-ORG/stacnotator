@@ -215,6 +215,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         ({ visibleTasks, suggestedIndex: currentTaskIndex } = applyTaskFilter(
           allTasks,
           taskFilter,
+          currentUserId,
           initialTaskId
         ));
       } else {
@@ -245,7 +246,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           showAll || !currentUserId ? [UNASSIGNED] : [currentUserId],
           effectiveSetId
         );
-        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
 
         // Progressive fallback so the user always lands on a task when work
         // exists. A live deep-linked set broadens within itself first (mine ->
@@ -254,7 +255,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // to the set-less chain (mine -> unassigned -> all).
         if (visibleTasks.length === 0 && effectiveSetId !== null && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED], effectiveSetId);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && effectiveSetId !== null) {
           taskFilter = {
@@ -264,15 +265,15 @@ export const useTaskStore = create<TaskStore>((set, get) => {
             flaggedOnly: false,
             taskSetId: effectiveSetId,
           };
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && currentUserId && !showAll) {
           taskFilter = pendingFilter([UNASSIGNED]);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
         if (visibleTasks.length === 0 && allTasks.length > 0) {
           taskFilter = pendingFilter([]);
-          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter));
+          ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId));
         }
       }
 
@@ -475,6 +476,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
 
     goToTaskById: (taskId, options) => {
       const { allTasks, visibleTasks: currentVisible, taskFilter: currentFilter } = get();
+      const currentUserId = useAccountStore.getState().account?.id;
 
       let taskFilter: TaskFilter;
       let visibleTasks: AnnotationTaskOut[];
@@ -487,7 +489,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
           flaggedOnly: false,
           taskSetId: null,
         };
-        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, taskId));
+        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId, taskId));
       } else {
         taskFilter = currentFilter;
         visibleTasks = currentVisible;
@@ -585,8 +587,9 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     // Filter actions
     setTaskFilter: (filterUpdate) => {
       const { allTasks, taskFilter } = get();
+      const currentUserId = useAccountStore.getState().account?.id;
       const newFilter: TaskFilter = { ...taskFilter, ...filterUpdate };
-      const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, newFilter);
+      const { visibleTasks, suggestedIndex } = applyTaskFilter(allTasks, newFilter, currentUserId);
       const firstTask = visibleTasks[suggestedIndex] || null;
 
       useMapStore.setState({ probeTimeseriesPoint: null });

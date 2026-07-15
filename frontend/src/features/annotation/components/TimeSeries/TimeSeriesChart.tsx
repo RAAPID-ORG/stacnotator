@@ -4,7 +4,7 @@
  * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Line } from 'react-chartjs-2';
 import {
@@ -57,6 +57,37 @@ const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#2
  *  it reads as "lesser quality" without competing with any series color. */
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 
+const OPTIONS_PANEL_WIDTH = 208;
+
+interface ToggleRowProps {
+  option: string;
+  label: string;
+  title: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}
+
+const ToggleRow = ({ option, label, title, checked, onChange }: ToggleRowProps) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    data-ts-option={option}
+    className="w-full flex items-center justify-between gap-3 cursor-pointer select-none"
+    title={title}
+    onClick={() => onChange(!checked)}
+  >
+    <span className="text-[10px] text-neutral-700">{label}</span>
+    <div
+      className={`relative w-6 h-3.5 rounded-full transition-colors flex-shrink-0 ${checked ? 'bg-brand-600' : 'bg-neutral-300'}`}
+    >
+      <div
+        className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-3' : 'translate-x-0.5'}`}
+      />
+    </div>
+  </button>
+);
+
 export const TimeSeriesChart = ({
   timeseries,
   latLon,
@@ -80,6 +111,53 @@ export const TimeSeriesChart = ({
   const [infoOpen, setInfoOpen] = useState(false);
   const infoBtnRef = useRef<HTMLButtonElement>(null);
   const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const optionsBtnRef = useRef<HTMLButtonElement>(null);
+  const optionsPanelRef = useRef<HTMLDivElement>(null);
+
+  // The chart usually sits at the bottom of the layout, so the panel rarely
+  // fits below the gear - flip it above when it doesn't. Measured against the
+  // button's own window, which may be a popped-out screen window.
+  useLayoutEffect(() => {
+    if (!optionsOpen || !optionsBtnRef.current || !optionsPanelRef.current) return;
+    const panel = optionsPanelRef.current;
+    const win = optionsBtnRef.current.ownerDocument.defaultView ?? window;
+    const rect = optionsBtnRef.current.getBoundingClientRect();
+
+    const spaceBelow = win.innerHeight - rect.bottom - 8;
+    const height = panel.offsetHeight;
+    const top =
+      height <= spaceBelow
+        ? rect.bottom + 4
+        : Math.max(4, Math.min(rect.top - 4 - height, win.innerHeight - height - 4));
+    const left = Math.max(
+      4,
+      Math.min(rect.right - OPTIONS_PANEL_WIDTH, win.innerWidth - OPTIONS_PANEL_WIDTH - 4)
+    );
+
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+  }, [optionsOpen, smoothEnabled]);
+
+  useEffect(() => {
+    if (!optionsOpen) return;
+    const doc = optionsBtnRef.current?.ownerDocument ?? document;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (optionsPanelRef.current?.contains(target) || optionsBtnRef.current?.contains(target))
+        return;
+      setOptionsOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOptionsOpen(false);
+    };
+    doc.addEventListener('mousedown', onPointerDown);
+    doc.addEventListener('keydown', onKeyDown);
+    return () => {
+      doc.removeEventListener('mousedown', onPointerDown);
+      doc.removeEventListener('keydown', onKeyDown);
+    };
+  }, [optionsOpen]);
 
   const handleResetZoom = useCallback(() => {
     chartRef.current?.resetZoom();
@@ -701,106 +779,21 @@ export const TimeSeriesChart = ({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-          <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-            <span
-              className="text-[10px] text-neutral-600"
-              title="Removes cloud-flagged days (shown as gray dots) from the series"
-            >
-              Remove cloudy
-            </span>
-            <div
-              className={`relative w-6 h-3.5 rounded-full transition-colors ${removeCloudy ? 'bg-brand-600' : 'bg-neutral-300'}`}
-              onClick={() => setRemoveCloudy(!removeCloudy)}
-              title="Removes cloud-flagged days (shown as gray dots) from the series"
-            >
-              <div
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${removeCloudy ? 'translate-x-3' : 'translate-x-0.5'}`}
-              />
-            </div>
-          </label>
-
-          {/* Smoothing toggle + parameters */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <label className="flex items-center gap-1 cursor-pointer">
-              <span className="text-[10px] text-neutral-600" title="Savitzky-Golay Smoothing.">
-                Smooth
-              </span>
-              <div
-                className={`relative w-6 h-3.5 rounded-full transition-colors ${smoothEnabled ? 'bg-brand-600' : 'bg-neutral-300'}`}
-                onClick={() => setSmoothEnabled(!smoothEnabled)}
-                title="Savitzky-Golay Smoothing."
-              >
-                <div
-                  className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${smoothEnabled ? 'translate-x-3' : 'translate-x-0.5'}`}
-                />
-              </div>
-            </label>
-            {smoothEnabled && (
-              <div className="flex items-center gap-1 ml-1">
-                <label
-                  className="flex items-center gap-0.5"
-                  title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
-                >
-                  <span className="text-[9px] text-neutral-500">W</span>
-                  <input
-                    type="number"
-                    min={5}
-                    max={31}
-                    step={2}
-                    value={smoothWindow}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(5, Math.min(31, v));
-                      if (v % 2 === 0) v += 1;
-                      setSmoothWindow(v);
-                      // Ensure poly order stays valid
-                      if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
-                    }}
-                    className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-                <label
-                  className="flex items-center gap-0.5"
-                  title="Polynomial order (≥ 1, must be less than window size)"
-                >
-                  <span className="text-[9px] text-neutral-500">P</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.min(5, smoothWindow - 1)}
-                    value={smoothOrder}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(1, Math.min(smoothWindow - 1, v));
-                      setSmoothOrder(v);
-                    }}
-                    className="w-8 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-
-          <label className="flex items-center gap-1 cursor-pointer flex-shrink-0">
-            <span
-              className="text-[10px] text-neutral-600"
-              title="Show or hide the per-observation dots (line is always shown)"
-            >
-              Dots
-            </span>
-            <div
-              className={`relative w-6 h-3.5 rounded-full transition-colors ${showDots ? 'bg-brand-600' : 'bg-neutral-300'}`}
-              onClick={() => setShowDots(!showDots)}
-              title="Show or hide the per-observation dots (line is always shown)"
-            >
-              <div
-                className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${showDots ? 'translate-x-3' : 'translate-x-0.5'}`}
-              />
-            </div>
-          </label>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            ref={optionsBtnRef}
+            type="button"
+            className={`flex items-center justify-center w-5 h-5 rounded-md transition-colors cursor-pointer ${optionsOpen ? 'bg-neutral-100 text-neutral-700' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'}`}
+            aria-label="Chart options"
+            aria-expanded={optionsOpen}
+            title="Chart options"
+            onClick={() => setOptionsOpen((o) => !o)}
+          >
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 6.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+              <path d="M17.3 11.8a7.6 7.6 0 0 0 0-3.6l1.5-1.2-1.5-2.6-1.8.7a7.4 7.4 0 0 0-3.1-1.8L12.1 1.4H9.1L8.8 3.3a7.4 7.4 0 0 0-3.1 1.8l-1.8-.7-1.5 2.6 1.5 1.2a7.6 7.6 0 0 0 0 3.6l-1.5 1.2 1.5 2.6 1.8-.7a7.4 7.4 0 0 0 3.1 1.8l.3 1.9h3l.3-1.9a7.4 7.4 0 0 0 3.1-1.8l1.8.7 1.5-2.6-1.5-1.2z" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -901,6 +894,86 @@ export const TimeSeriesChart = ({
           }}
         />
       </div>
+
+      {optionsOpen &&
+        createPortal(
+          <div
+            ref={optionsPanelRef}
+            className="fixed z-[10000] bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
+            style={{ top: 0, left: 0, width: OPTIONS_PANEL_WIDTH }}
+          >
+            <ToggleRow
+              option="remove-cloudy"
+              label="Remove cloudy"
+              title="Removes cloud-flagged days (shown as gray dots) from the series"
+              checked={removeCloudy}
+              onChange={setRemoveCloudy}
+            />
+
+            <ToggleRow
+              option="smooth"
+              label="Smooth"
+              title="Savitzky-Golay Smoothing."
+              checked={smoothEnabled}
+              onChange={setSmoothEnabled}
+            />
+            {smoothEnabled && (
+              <div className="flex items-center gap-2 pl-2">
+                <label
+                  className="flex items-center gap-1"
+                  title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+                >
+                  <span className="text-[9px] text-neutral-500">W</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={31}
+                    step={2}
+                    value={smoothWindow}
+                    onChange={(e) => {
+                      let v = parseInt(e.target.value, 10);
+                      if (isNaN(v)) return;
+                      v = Math.max(5, Math.min(31, v));
+                      if (v % 2 === 0) v += 1;
+                      setSmoothWindow(v);
+                      // Ensure poly order stays valid
+                      if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
+                    }}
+                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                  />
+                </label>
+                <label
+                  className="flex items-center gap-1"
+                  title="Polynomial order (≥ 1, must be less than window size)"
+                >
+                  <span className="text-[9px] text-neutral-500">P</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.min(5, smoothWindow - 1)}
+                    value={smoothOrder}
+                    onChange={(e) => {
+                      let v = parseInt(e.target.value, 10);
+                      if (isNaN(v)) return;
+                      v = Math.max(1, Math.min(smoothWindow - 1, v));
+                      setSmoothOrder(v);
+                    }}
+                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                  />
+                </label>
+              </div>
+            )}
+
+            <ToggleRow
+              option="dots"
+              label="Dots"
+              title="Show or hide the per-observation dots (line is always shown)"
+              checked={showDots}
+              onChange={setShowDots}
+            />
+          </div>,
+          optionsBtnRef.current?.ownerDocument.body ?? document.body
+        )}
 
       {infoOpen &&
         infoPos &&

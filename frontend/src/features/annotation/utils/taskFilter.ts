@@ -47,9 +47,15 @@ export interface FilteredTasks {
   suggestedIndex: number;
 }
 
+// A task the current user is actively holding via their own live soft claim. Keeps it in
+// their unassigned pool so a task they just claimed doesn't drop out of the list on re-entry.
+const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined): boolean =>
+  userId != null && getActiveClaim(task)?.user_id === userId;
+
 export const applyTaskFilter = (
   allTasks: AnnotationTaskOut[],
   filter: TaskFilter,
+  currentUserId: string | null | undefined,
   preferTaskId?: number
 ): FilteredTasks => {
   const filterByUser = filter.assignedTo.length > 0;
@@ -73,7 +79,7 @@ export const applyTaskFilter = (
         });
       const matchesUnassigned =
         wantUnassigned &&
-        isClaimable(task) &&
+        (isClaimable(task) || isHeldBy(task, currentUserId)) &&
         filter.statuses.includes(task.task_status ?? 'pending');
       if (!matchesUser && !matchesUnassigned) return false;
     } else if (!filter.statuses.includes(task.task_status ?? 'pending')) {
