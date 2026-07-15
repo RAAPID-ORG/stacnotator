@@ -93,20 +93,23 @@ export const extractLatLonFromWKT = (wkt: string): LatLon | null => {
 };
 
 /**
- * Parse a date string (YYYYMMDD or YYYY-MM-DD format)
+ * Parse a date string (YYYYMMDD or YYYY-MM-DD format).
+ *
+ * Builds a local-midnight date so the local getters callers use to format it read
+ * back the same calendar day. `new Date('2026-05-01')` would parse as UTC midnight
+ * and read back as Apr 30 anywhere west of UTC.
  */
 const parseDate = (dateStr: string): Date => {
-  if (/^\d{8}$/.test(dateStr)) {
-    const year = parseInt(dateStr.substring(0, 4), 10);
-    const month = parseInt(dateStr.substring(4, 6), 10) - 1;
-    const day = parseInt(dateStr.substring(6, 8), 10);
-    return new Date(year, month, day);
+  const match = /^(\d{4})-?(\d{2})-?(\d{2})/.exec(dateStr);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
   }
   return new Date(dateStr);
 };
 
 /**
- * Format a slice label
+ * Format a slice label. `endDate` is inclusive, as stored.
  */
 export const formatSliceLabel = (
   startDate: string,
@@ -117,9 +120,7 @@ export const formatSliceLabel = (
   const start = parseDate(startDate);
   const end = parseDate(endDate);
 
-  const endAdjusted = new Date(end);
-  endAdjusted.setDate(endAdjusted.getDate() - 1);
-  const displayEnd = endAdjusted < start ? start : endAdjusted;
+  const displayEnd = end < start ? start : end;
 
   const startMonth = start.getMonth();
   const endMonth = displayEnd.getMonth();
@@ -162,7 +163,7 @@ export const formatSliceLabel = (
 };
 
 /**
- * Format a window label
+ * Format a window label. `endDate` is inclusive, as stored.
  */
 export const formatWindowLabel = (
   startDate: string,
@@ -172,9 +173,7 @@ export const formatWindowLabel = (
   const start = parseDate(startDate);
   const end = parseDate(endDate);
 
-  const endAdjusted = new Date(end);
-  endAdjusted.setDate(endAdjusted.getDate() - 1);
-  const displayEnd = endAdjusted < start ? start : endAdjusted;
+  const displayEnd = end < start ? start : end;
 
   const startMonth = start.getMonth();
   const endMonth = displayEnd.getMonth();
