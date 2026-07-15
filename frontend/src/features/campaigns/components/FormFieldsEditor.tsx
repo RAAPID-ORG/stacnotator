@@ -70,16 +70,9 @@ interface FormFieldsEditorProps {
   value: FormField[];
   onChange: (fields: FormField[]) => void;
   readOnly?: boolean;
-  /** Hide field delete buttons (post-creation: removal would orphan stored answers). */
-  disableDelete?: boolean;
 }
 
-export const FormFieldsEditor = ({
-  value,
-  onChange,
-  readOnly = false,
-  disableDelete = false,
-}: FormFieldsEditorProps) => {
+export const FormFieldsEditor = ({ value, onChange, readOnly = false }: FormFieldsEditorProps) => {
   const titleRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   const addField = useCallback(() => {
@@ -111,7 +104,7 @@ export const FormFieldsEditor = ({
           key={field.id}
           field={field}
           readOnly={readOnly}
-          canRemove={!readOnly && !disableDelete}
+          canRemove={!readOnly}
           onChange={replaceField}
           onRemove={() => removeField(field.id)}
           titleInputRef={(el) => {

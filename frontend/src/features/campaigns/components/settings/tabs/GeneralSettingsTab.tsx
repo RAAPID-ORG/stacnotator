@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type {
   CampaignOut,
   CampaignSettingsCreate,
@@ -18,11 +18,17 @@ import {
 import { BoundingBoxEditor } from '~/features/campaigns/components/BoundingBoxEditor';
 import { FormFieldsEditor } from '~/features/campaigns/components/FormFieldsEditor';
 import { LabelsEditor } from '~/features/campaigns/components/LabelsEditor';
-import { validateFormFields, type FormField } from '~/features/campaigns/utils/formFields';
+import {
+  diffFormFields,
+  validateFormFields,
+  type FormField,
+} from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
+
+const LIST_FORMATTER = new Intl.ListFormat('en', { style: 'long', type: 'conjunction' });
 
 interface Props {
   campaign: CampaignOut;
@@ -113,23 +119,42 @@ export const GeneralSettingsTab: React.FC<Props> = ({
   };
 
   // Custom form fields local draft. Edits (same id) and adds (new id) are
-  // allowed; deletes are blocked by the editor and the backend, and the
-  // backend rejects reshaping a field that already has stored answers.
+  // allowed; a removed field is deleted on save together with every answer
+  // recorded for it, and the backend rejects reshaping a field that already
+  // has stored answers.
   const [formFieldsDraft, setFormFieldsDraft] = useState<FormField[]>(
     campaign.settings.form_fields ?? []
   );
   const [savingFormFields, setSavingFormFields] = useState(false);
-  const formFieldsChanged =
-    JSON.stringify(formFieldsDraft) !== JSON.stringify(campaign.settings.form_fields ?? []);
+  const savedFormFields = useMemo(
+    () => campaign.settings.form_fields ?? [],
+    [campaign.settings.form_fields]
+  );
+  const formFieldsChanged = JSON.stringify(formFieldsDraft) !== JSON.stringify(savedFormFields);
   const formFieldErrors = validateFormFields(formFieldsDraft);
-  const editedFormFields = formFieldsDraft.filter((f) => {
-    const original = (campaign.settings.form_fields ?? []).find((o) => o.id === f.id);
-    return original && JSON.stringify(original) !== JSON.stringify(f);
-  });
+  const formFieldsDiff = useMemo(
+    () => diffFormFields(savedFormFields, formFieldsDraft),
+    [savedFormFields, formFieldsDraft]
+  );
 
   const handleSaveFormFields = async () => {
     if (!formFieldsChanged || formFieldErrors.length > 0) return;
-    if (editedFormFields.length > 0) {
+    const { edited: editedFormFields, deleted: deletedFormFields } = formFieldsDiff;
+    // Deletion is the destructive case, so it owns the dialog when both apply.
+    if (deletedFormFields.length > 0) {
+      const names = deletedFormFields.map((f) => `"${f.title.trim() || `field ${f.id}`}"`);
+      const ok = await showConfirmDialog({
+        title: `Delete ${names.length === 1 ? 'form field' : `${names.length} form fields`}?`,
+        description:
+          `Saving deletes ${LIST_FORMATTER.format(names)} and permanently deletes every answer ` +
+          `annotators have recorded for ${names.length === 1 ? 'it' : 'them'} across all ` +
+          `annotations in this campaign. This cannot be undone.`,
+        confirmText: 'Delete and save',
+        cancelText: 'Cancel',
+        isDangerous: true,
+      });
+      if (!ok) return;
+    } else if (editedFormFields.length > 0) {
       const ok = await showConfirmDialog({
         title: 'Edit existing form fields?',
         description:
@@ -463,11 +488,11 @@ export const GeneralSettingsTab: React.FC<Props> = ({
           <p className="section-description">
             Additional questions annotators answer per annotation. You can add new fields and edit
             existing ones; editing requires confirmation since it affects how prior answers display.
-            Deleting fields is not supported (it would orphan stored answers), and a field&apos;s
-            type or options can only change while it has no answers yet.
+            Deleting a field also deletes every answer recorded for it, so it asks first. A
+            field&apos;s type or options can only change while it has no answers yet.
           </p>
         </div>
-        <FormFieldsEditor value={formFieldsDraft} onChange={setFormFieldsDraft} disableDelete />
+        <FormFieldsEditor value={formFieldsDraft} onChange={setFormFieldsDraft} />
         <div className="flex items-center gap-3 mt-3">
           <Button
             type="button"

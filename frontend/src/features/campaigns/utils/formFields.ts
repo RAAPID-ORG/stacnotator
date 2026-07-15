@@ -89,3 +89,27 @@ export function validateFormFields(fields: FormField[]): string[] {
 export function formFieldsAreValid(fields: FormField[]): boolean {
   return validateFormFields(fields).length === 0;
 }
+
+export interface FormFieldsDiff {
+  added: FormField[];
+  edited: FormField[];
+  /** Fields dropped from the draft. Saving deletes them and every answer
+   *  annotators recorded for them, so callers must confirm first. */
+  deleted: FormField[];
+}
+
+/** Compare a draft against the campaign's saved fields. Field ids are the
+ *  identity anchor (stored answers key off them), so an id present on both
+ *  sides is the same field however much its content changed. */
+export function diffFormFields(original: FormField[], draft: FormField[]): FormFieldsDiff {
+  const byId = new Map(original.map((f) => [f.id, f]));
+  const draftIds = new Set(draft.map((f) => f.id));
+  return {
+    added: draft.filter((f) => !byId.has(f.id)),
+    edited: draft.filter((f) => {
+      const before = byId.get(f.id);
+      return before !== undefined && JSON.stringify(before) !== JSON.stringify(f);
+    }),
+    deleted: original.filter((f) => !draftIds.has(f.id)),
+  };
+}

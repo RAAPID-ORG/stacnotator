@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import Text, cast, delete, func, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -682,9 +682,11 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
 def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list) -> Campaign:
     """Replace the campaign's custom form fields. Field IDs are the stability
     anchor: stored annotation answers key off them, so edit = same id, add =
-    new id. Removals are rejected outright, and shape changes (type,
-    number_type, removed category options) are rejected once a field has
-    stored answers - they would make those answers unresolvable."""
+    new id. A field missing from the list is deleted along with every answer
+    stored for it (the caller confirms that with the user). Shape changes
+    (type, number_type, removed category options) are still rejected once a
+    field has stored answers - they would make those answers unresolvable
+    rather than deliberately discarded."""
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -694,14 +696,6 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
     existing = {str(f.get("id")): f for f in (campaign.settings.form_fields or [])}
     incoming_ids = {str(field.id) for field in form_fields}
     removed = set(existing) - incoming_ids
-    if removed:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Removing form fields is not supported (would orphan stored answers). "
-                f"Missing field id(s): {sorted(removed)}"
-            ),
-        )
 
     for field in form_fields:
         old = existing.get(str(field.id))
@@ -732,6 +726,18 @@ def update_campaign_form_fields(db: Session, campaign_id: int, form_fields: list
                     f"('{field.title}'): annotations already answered it"
                 ),
             )
+
+    # Deleting a field discards the answers stored for it - `jsonb - text`
+    # drops just that key, so answers to surviving fields are untouched.
+    for key in sorted(removed):
+        db.execute(
+            update(Annotation)
+            .where(
+                Annotation.campaign_id == campaign_id,
+                Annotation.form_values.has_key(key),
+            )
+            .values(form_values=Annotation.form_values.op("-")(cast(key, Text)))
+        )
 
     campaign.settings.form_fields = [field.model_dump() for field in form_fields]
     flag_modified(campaign.settings, "form_fields")

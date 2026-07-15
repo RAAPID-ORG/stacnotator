@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.dialects import postgresql
 
 from src.annotation.constants import ANNOTATION_TASK_STATUS_PENDING
 from src.annotation.models import AnnotationTaskAssignment
@@ -41,6 +42,14 @@ def _mock_db():
     db = MagicMock()
     db.scalars.return_value.all.return_value = []
     return db
+
+
+def _compile(statement) -> str:
+    """Render a statement as the Postgres SQL it would actually run. The DB is
+    mocked here, so this is what lets us assert on emitted SQL at all."""
+    return str(
+        statement.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+    )
 
 
 class TestKrippendorffAlpha:
@@ -994,13 +1003,54 @@ class TestUpdateCampaignFormFields:
         db.commit.assert_called_once()
         db.scalar.assert_not_called()  # no shape change -> no annotation lookup
 
-    def test_removing_a_field_is_rejected(self):
+    def test_removing_a_field_drops_it_and_strips_its_stored_answers(self):
+        db = _mock_db()
+        campaign = self._campaign(db, [dict(self.CATEGORY_FIELD)])
+
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
+
+        assert [f["id"] for f in campaign.settings.form_fields] == [2]
+        db.execute.assert_called_once()
+        sql = _compile(db.execute.call_args[0][0])
+        # Discards only the removed field's key (leaving answers to surviving
+        # fields intact), and only within this campaign.
+        assert "form_values - CAST('1' AS TEXT)" in sql
+        assert "campaign_id = 1" in sql
+
+    def test_keeping_every_field_touches_no_annotation(self):
         db = _mock_db()
         self._campaign(db, [dict(self.CATEGORY_FIELD)])
 
-        with pytest.raises(HTTPException) as exc_info:
-            update_campaign_form_fields(db, 1, [TextFormField(id=2, type="text", title="Notes")])
-        assert exc_info.value.status_code == 400
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign_form_fields(db, 1, [self._category(title="Crop type")])
+
+        db.execute.assert_not_called()
+
+    def test_removing_several_fields_strips_each_of_them(self):
+        db = _mock_db()
+        second = {**self.CATEGORY_FIELD, "id": 7, "title": "Notes"}
+        self._campaign(db, [dict(self.CATEGORY_FIELD), second])
+
+        with patch("src.campaigns.service.get_campaign_full"):
+            update_campaign_form_fields(db, 1, [])
+
+        stripped = [_compile(call[0][0]) for call in db.execute.call_args_list]
+        assert len(stripped) == 2
+        assert any("CAST('1'" in sql for sql in stripped)
+        assert any("CAST('7'" in sql for sql in stripped)
+
+    def test_a_rejected_reshape_strips_nothing(self):
+        # The 409 must abort before any answer is discarded.
+        db = _mock_db()
+        self._campaign(db, [dict(self.CATEGORY_FIELD)])
+        db.scalar.return_value = 3
+
+        with pytest.raises(HTTPException):
+            update_campaign_form_fields(db, 1, [TextFormField(id=1, type="text", title="Crop")])
+
+        db.execute.assert_not_called()
+        db.commit.assert_not_called()
 
     def test_type_change_with_answers_is_rejected(self):
         db = _mock_db()

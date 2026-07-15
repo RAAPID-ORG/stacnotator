@@ -9,6 +9,7 @@ import {
   formFieldSlug,
   validateFormFields,
   formFieldsAreValid,
+  diffFormFields,
   type FormField,
 } from './formFields';
 
@@ -221,5 +222,52 @@ describe('validateFormFields', () => {
       title: `Field ${i}`,
     }));
     expect(validateFormFields(fields)).toEqual([]);
+  });
+});
+
+describe('diffFormFields', () => {
+  it('reports no changes for an identical draft', () => {
+    const fields: FormField[] = [CATEGORY, NUMBER];
+    expect(diffFormFields(fields, [...fields])).toEqual({ added: [], edited: [], deleted: [] });
+  });
+
+  it('reports a field dropped from the draft as deleted', () => {
+    const diff = diffFormFields([CATEGORY, NUMBER], [CATEGORY]);
+    expect(diff.deleted).toEqual([NUMBER]);
+    expect(diff.added).toEqual([]);
+    expect(diff.edited).toEqual([]);
+  });
+
+  it('reports a new id as added, not edited', () => {
+    const diff = diffFormFields([CATEGORY], [CATEGORY, NUMBER]);
+    expect(diff.added).toEqual([NUMBER]);
+    expect(diff.edited).toEqual([]);
+    expect(diff.deleted).toEqual([]);
+  });
+
+  it('reports a same-id content change as edited', () => {
+    const renamed = { ...CATEGORY, title: 'State' };
+    const diff = diffFormFields([CATEGORY], [renamed]);
+    expect(diff.edited).toEqual([renamed]);
+    expect(diff.deleted).toEqual([]);
+  });
+
+  it('separates a delete from an add even when they swap positions', () => {
+    // Replacing a field is a delete + add, never an edit: the new field has
+    // its own id, so the old field's stored answers are not carried over.
+    const diff = diffFormFields([CATEGORY], [NUMBER]);
+    expect(diff.deleted).toEqual([CATEGORY]);
+    expect(diff.added).toEqual([NUMBER]);
+    expect(diff.edited).toEqual([]);
+  });
+
+  it('handles clearing every field', () => {
+    const diff = diffFormFields([CATEGORY, NUMBER], []);
+    expect(diff.deleted).toEqual([CATEGORY, NUMBER]);
+  });
+
+  it('treats reordering alone as no change', () => {
+    const diff = diffFormFields([CATEGORY, NUMBER], [NUMBER, CATEGORY]);
+    expect(diff).toEqual({ added: [], edited: [], deleted: [] });
   });
 });
