@@ -22,6 +22,7 @@ from src.database import SessionLocal
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
 from src.sampling_design.router import router as sampling_design_router
+from src.tile_bulkhead import TileCapacityError
 from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
 from src.utils import generate_unique_id, initialize_earth_engine
@@ -135,6 +136,20 @@ def handle_validation_error(request: Request, exc: RequestValidationError):
             "detail": errors,
             "request_id": getattr(request.state, "request_id", None),
         },
+    )
+
+
+@app.exception_handler(TileCapacityError)
+def handle_tile_capacity(request: Request, exc: TileCapacityError):
+    """Tiles are shed, not queued forever, once the bulkhead is saturated."""
+    logger.info("Tile shed under load | path=%s", request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Tile capacity reached",
+            "request_id": getattr(request.state, "request_id", None),
+        },
+        headers={"Retry-After": "1"},
     )
 
 

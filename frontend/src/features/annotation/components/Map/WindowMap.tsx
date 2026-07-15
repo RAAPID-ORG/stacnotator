@@ -20,7 +20,10 @@ import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore } from '../../stores/map.store';
 import { usePreferencesStore } from '../../stores/preferences.store';
-import { createAnnotationDisplayLayer } from './useAnnotationTileLayer';
+import {
+  createAnnotationDisplayLayer,
+  releaseAnnotationTileSource,
+} from './useAnnotationTileLayer';
 import { crossOriginForTile, tileLoadImagery } from '../../utils/tileLoading';
 import { EMPTY_TILE_THRESHOLD } from './tilePreloader';
 
@@ -145,6 +148,7 @@ const WindowMap = ({
 
     // Annotations: read-only vector-tile display layer (same tiles as the main
     // map). Built only once campaign data is available.
+    const annotationCampaignId = campaign?.id ?? null;
     const annotationLayer = campaign
       ? createAnnotationDisplayLayer(
           campaign,
@@ -214,6 +218,7 @@ const WindowMap = ({
       map.setTarget(undefined);
       mapRef.current = null;
       tileLayerRef.current = null;
+      if (annotationCampaignId !== null) releaseAnnotationTileSource(annotationCampaignId);
       annotationTileLayerRef.current = null;
       extentSourceRef.current = null;
       overlayRef.current = null;

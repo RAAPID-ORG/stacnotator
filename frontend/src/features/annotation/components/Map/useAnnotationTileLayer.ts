@@ -111,6 +111,38 @@ function createAnnotationTileSource(
   return source;
 }
 
+// One MVT source per campaign, shared by every layer that draws its annotations.
+// Task mode renders a WindowMap per collection card, so a source-per-layer meant
+// N maps fetched the same z/x/y concurrently (each with its own CORS preflight,
+// since the bearer header makes these non-simple requests). That burst exhausts
+// the backend's deliberately small DB pool and 500s unrelated endpoints. Sharing
+// the source lets OL's tile cache collapse it to one fetch per tile.
+const sharedSources = new Map<number, { source: VectorTileSource; refs: number }>();
+
+function acquireAnnotationTileSource(
+  campaignId: number,
+  getVersion: () => number
+): VectorTileSource {
+  const entry = sharedSources.get(campaignId);
+  if (entry) {
+    entry.refs += 1;
+    return entry.source;
+  }
+  const source = createAnnotationTileSource(campaignId, getVersion);
+  sharedSources.set(campaignId, { source, refs: 1 });
+  return source;
+}
+
+/** Drop one reference taken by createAnnotationDisplayLayer/useAnnotationTileLayer.
+ * Callers must release once per layer they created, or the source outlives the
+ * campaign and keeps its tile cache alive. */
+export function releaseAnnotationTileSource(campaignId: number): void {
+  const entry = sharedSources.get(campaignId);
+  if (!entry) return;
+  entry.refs -= 1;
+  if (entry.refs <= 0) sharedSources.delete(campaignId);
+}
+
 /** Read-only display layer colouring annotations by label. Reused by the main
  * open-mode map and the secondary window maps.
  *
@@ -131,7 +163,7 @@ export function createAnnotationDisplayLayer(
   const styleCache = new Map<number, Style>();
 
   const layer = new VectorTileLayer({
-    source: createAnnotationTileSource(campaign.id, getVersion),
+    source: acquireAnnotationTileSource(campaign.id, getVersion),
     zIndex: ANNOTATION_LAYER_Z_INDEX,
     minZoom: ANNOTATION_TILE_MIN_ZOOM - 1,
     // Re-render during zoom/pan so strokes stay crisp instead of the prior
@@ -171,16 +203,16 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
     const display = createAnnotationDisplayLayer(campaign, styleOverrides, getVersion);
     display.setVisible(useMapStore.getState().showAnnotations);
 
-    // Highlight overlay: own MVT source (tiles are browser-cached so no extra
-    // network), canvas-rendered so the style fn can read the live selection Set.
-    // Selection keeps the label colour and is emphasised with a thicker stroke
-    // (no recolour), drawn on top of the display layer.
+    // Highlight overlay: shares the display layer's MVT source (no extra network),
+    // canvas-rendered so the style fn can read the live selection Set. Selection
+    // keeps the label colour and is emphasised with a thicker stroke (no
+    // recolour), drawn on top of the display layer.
     const styleByLabel = new Map<number, TileLabelStyle>(
       resolveTileLabelStyles(campaign, styleOverrides).map((s) => [s.id, s])
     );
     const highlightCache = new Map<number, Style>();
     const highlight = new VectorTileLayer({
-      source: createAnnotationTileSource(campaign.id, getVersion),
+      source: acquireAnnotationTileSource(campaign.id, getVersion),
       zIndex: HIGHLIGHT_Z_INDEX,
       updateWhileAnimating: true,
       updateWhileInteracting: true,
@@ -218,6 +250,9 @@ export function useAnnotationTileLayer(map: OLMap | null, campaign: CampaignOutF
     return () => {
       map.removeLayer(display);
       map.removeLayer(highlight);
+      // Two layers took a ref on the shared source (display + highlight).
+      releaseAnnotationTileSource(campaign.id);
+      releaseAnnotationTileSource(campaign.id);
       displayRef.current = null;
       highlightRef.current = null;
     };

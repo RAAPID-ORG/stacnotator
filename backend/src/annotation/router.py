@@ -34,6 +34,7 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
+from src.tile_bulkhead import tile_slot
 from src.utils import FunctionNameOperationIdRoute, clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -469,13 +470,14 @@ def get_all_annotations_for_campaign(
 # ============================================================================
 # Open-Mode Tiled View
 #
-# Serve open-mode annotations as vector tiles for the viewport instead of
-# loading the whole campaign upfront. The literal-path routes below are
-# declared before the `{annotation_id}` route so they are not shadowed by it.
+# Serve open-mode annotations as vector tiles for the viewport .
 # ============================================================================
 
 
-@router.get("/campaigns/{campaign_id}/annotations/tiles/{z}/{x}/{y}.pbf")
+@router.get(
+    "/campaigns/{campaign_id}/annotations/tiles/{z}/{x}/{y}.pbf",
+    dependencies=[Depends(tile_slot)],
+)
 def get_annotation_tile(
     campaign_id: int,
     z: int,

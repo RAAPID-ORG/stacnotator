@@ -82,23 +82,21 @@ def _tile_url(z=1, x=0, y=0):
 
 
 def test_proxy_rejects_missing_cookie(client):
-    app.dependency_overrides[get_db] = lambda: MagicMock()
     resp = client.get(_tile_url())
     assert resp.status_code == 401
 
 
 def test_proxy_rejects_wrong_campaign_token(client):
-    app.dependency_overrides[get_db] = lambda: MagicMock()
     token = tiler_token.mint("u1", [999])  # not CAMPAIGN_ID
     resp = client.get(_tile_url(), cookies={"tiler_token": token})
     assert resp.status_code == 403
 
 
-def test_proxy_404_when_key_not_configured(client):
+def test_proxy_404_when_key_not_configured(client, monkeypatch):
     basemap = Basemap(id=3, campaign_id=CAMPAIGN_ID, name="p", url="https://e/{z}/{x}/{y}")
     db = MagicMock()
     db.get.return_value = basemap  # encrypted_api_key is None
-    app.dependency_overrides[get_db] = lambda: db
+    monkeypatch.setattr(proxy_router, "SessionLocal", lambda: db)
     token = tiler_token.mint("u1", [CAMPAIGN_ID])
     resp = client.get(_tile_url(), cookies={"tiler_token": token})
     assert resp.status_code == 404
@@ -114,7 +112,7 @@ def test_proxy_fetches_and_returns_tile(client, crypto_key, monkeypatch):
     basemap.encrypted_api_key = crypto.encrypt("planet-secret")
     db = MagicMock()
     db.get.return_value = basemap
-    app.dependency_overrides[get_db] = lambda: db
+    monkeypatch.setattr(proxy_router, "SessionLocal", lambda: db)
 
     captured = {}
 

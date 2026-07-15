@@ -8,22 +8,40 @@ This is a separate router (not ``imagery.router``) precisely so it is *not* unde
 router's ``require_approved_user`` bearer dependency.
 """
 
+from collections.abc import Callable
+
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from src.crypto import DecryptionError, decrypt
-from src.database import get_db
+from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
+from src.tile_bulkhead import tile_db_slot
 from src.tiling import tiler_token
 from src.utils import FunctionNameOperationIdRoute
 
 router = APIRouter(tags=["Imagery Tiles"], route_class=FunctionNameOperationIdRoute)
 
 _client = httpx.AsyncClient(timeout=15.0)
+
+
+async def _read[T](lookup: Callable[[Session], T]) -> T:
+    """Resolve a tile's upstream target, holding the DB only for the lookup itself."""
+    async with tile_db_slot():
+        return await run_in_threadpool(_with_session, lookup)
+
+
+def _with_session[T](lookup: Callable[[Session], T]) -> T:
+    db = SessionLocal()
+    try:
+        return lookup(db)
+    finally:
+        db.close()
 
 
 def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
@@ -69,12 +87,15 @@ async def proxy_basemap_tile(
     z: int,
     x: int,
     y: int,
-    db: Session = Depends(get_db),
 ) -> Response:
-    basemap = db.get(Basemap, basemap_id)
-    if basemap is None or basemap.campaign_id != campaign_id:
-        raise HTTPException(status_code=404, detail="Basemap not found")
-    return await _proxy(basemap.url, basemap.encrypted_api_key, z, x, y)
+    def lookup(db: Session) -> tuple[str, str | None]:
+        basemap = db.get(Basemap, basemap_id)
+        if basemap is None or basemap.campaign_id != campaign_id:
+            raise HTTPException(status_code=404, detail="Basemap not found")
+        return basemap.url, basemap.encrypted_api_key
+
+    url, encrypted_api_key = await _read(lookup)
+    return await _proxy(url, encrypted_api_key, z, x, y)
 
 
 @router.get(
@@ -88,22 +109,25 @@ async def proxy_slice_tile(
     z: int,
     x: int,
     y: int,
-    db: Session = Depends(get_db),
 ) -> Response:
-    source = db.execute(
-        select(ImagerySource)
-        .join(ImageryCollection, ImageryCollection.source_id == ImagerySource.id)
-        .join(ImagerySlice, ImagerySlice.collection_id == ImageryCollection.id)
-        .where(ImagerySlice.id == slice_id)
-    ).scalar_one_or_none()
-    if source is None or source.campaign_id != campaign_id:
-        raise HTTPException(status_code=404, detail="Slice not found")
-    tile = db.execute(
-        select(SliceTileUrl).where(
-            SliceTileUrl.slice_id == slice_id,
-            SliceTileUrl.visualization_name == visualization_name,
-        )
-    ).scalar_one_or_none()
-    if tile is None:
-        raise HTTPException(status_code=404, detail="Tile URL not found")
-    return await _proxy(tile.tile_url, source.encrypted_api_key, z, x, y)
+    def lookup(db: Session) -> tuple[str, str | None]:
+        source = db.execute(
+            select(ImagerySource)
+            .join(ImageryCollection, ImageryCollection.source_id == ImagerySource.id)
+            .join(ImagerySlice, ImagerySlice.collection_id == ImageryCollection.id)
+            .where(ImagerySlice.id == slice_id)
+        ).scalar_one_or_none()
+        if source is None or source.campaign_id != campaign_id:
+            raise HTTPException(status_code=404, detail="Slice not found")
+        tile = db.execute(
+            select(SliceTileUrl).where(
+                SliceTileUrl.slice_id == slice_id,
+                SliceTileUrl.visualization_name == visualization_name,
+            )
+        ).scalar_one_or_none()
+        if tile is None:
+            raise HTTPException(status_code=404, detail="Tile URL not found")
+        return tile.tile_url, source.encrypted_api_key
+
+    tile_url, encrypted_api_key = await _read(lookup)
+    return await _proxy(tile_url, encrypted_api_key, z, x, y)

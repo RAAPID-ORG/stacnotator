@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # leaked session self-heals back into the pool instead of wedging it forever.
     DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: int = 15000
 
+    # Bulkhead: the most DB sessions tile requests may hold at once, per worker.
+    # Tiles are the burstiest traffic (one map per collection card, each fetching a
+    # viewport of tiles), so without a cap they drain the pool and 500 unrelated
+    # endpoints. Non-tile requests are therefore always left
+    # (DB_POOL_SIZE + DB_MAX_OVERFLOW) - this many connections. Unset = half the pool.
+    DB_TILE_MAX_CONCURRENCY: int | None = None
+    # How long a tile waits for a slot before degrading to an empty tile. Slow tiles
+    # are fine; queued-forever tiles are not (they hold sockets and pile up).
+    DB_TILE_QUEUE_TIMEOUT: float = 10.0
+
     # AnyIO threadpool size for sync routes. Must exceed (DB_POOL_SIZE +
     # DB_MAX_OVERFLOW) so a sync `get_db` dependency's cleanup is never starved of a
     # thread under load (which leaks the connection). The DB pool — not this — stays
@@ -133,6 +143,14 @@ class Settings(BaseSettings):
             "http://localhost:3000",
             "http://localhost:5173",
         ]
+
+    @computed_field
+    @property
+    def TILE_DB_SLOTS(self) -> int:
+        """Resolved tile bulkhead size: the explicit override, else half the pool."""
+        if self.DB_TILE_MAX_CONCURRENCY is not None:
+            return max(1, self.DB_TILE_MAX_CONCURRENCY)
+        return max(1, (self.DB_POOL_SIZE + self.DB_MAX_OVERFLOW) // 2)
 
     @computed_field
     @property
