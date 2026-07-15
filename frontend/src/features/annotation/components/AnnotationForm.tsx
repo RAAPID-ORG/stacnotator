@@ -341,9 +341,7 @@ export const AnnotationForm: React.FC<AnnotationFormProps> = ({
           key={field.id}
           data-form-field-id={field.id}
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-1 min-w-[10rem] ${
-            // ring-inset matches the label section and avoids the ring being
-            // clipped by the scroll container / adjacent sections.
-            activeFieldIndex === index ? 'ring-2 ring-inset ring-brand-500/40 rounded' : ''
+            activeFieldIndex === index ? 'ring-2 ring-brand-500/40 rounded' : ''
           }`}
         >
           <FieldHeader field={field} />

@@ -257,12 +257,7 @@ export const AnnotationControls = ({
 
         <div
           className={`flex flex-col gap-1.5 p-3 border-r border-b border-neutral-100 flex-[2] min-w-[10rem] ${
-            // null (on entry) and LABEL_FIELD_INDEX both mean digits target the
-            // labels, so both show the highlight. ring-inset keeps it from being
-            // clipped by the scroll container / adjacent sections.
-            activeFieldIndex === null || activeFieldIndex === LABEL_FIELD_INDEX
-              ? 'ring-2 ring-inset ring-brand-500/40 rounded'
-              : ''
+            activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
           }`}
         >
           <div className="flex items-center justify-between gap-2">

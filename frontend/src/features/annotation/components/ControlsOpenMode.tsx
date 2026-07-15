@@ -291,12 +291,7 @@ const OpenModeControls = () => {
           <>
             <div
               className={`flex flex-col gap-1.5 w-full ${
-                // null (on entry) and LABEL_FIELD_INDEX both mean digits target
-                // the labels, so both show the highlight. ring-inset keeps it
-                // from being clipped by the surrounding layout.
-                activeFieldIndex === null || activeFieldIndex === LABEL_FIELD_INDEX
-                  ? 'ring-2 ring-inset ring-brand-500/40 rounded'
-                  : ''
+                activeFieldIndex === LABEL_FIELD_INDEX ? 'ring-2 ring-brand-500/40 rounded' : ''
               }`}
             >
               <span className="font-semibold text-neutral-700 text-xs tracking-wide">Labels</span>
