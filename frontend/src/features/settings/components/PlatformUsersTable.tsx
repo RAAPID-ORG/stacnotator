@@ -13,6 +13,7 @@ export type PlatformUsersTableProps = {
   onRevokeAdmin: (userIds: string[]) => Promise<void>;
   onGrantVisitor: (userIds: string[]) => Promise<void>;
   onRevokeVisitor: (userIds: string[]) => Promise<void>;
+  onSetInternal: (userId: string, internal: boolean) => Promise<void>;
   allTilers: string[];
   onGrantTiler: (userId: string, tilerName: string) => Promise<void>;
   onRevokeTiler: (userId: string, tilerName: string) => Promise<void>;
@@ -28,6 +29,53 @@ type UserAction =
   | 'grant-visitor'
   | 'revoke-visitor';
 
+const chipCls =
+  'inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+type InternalToggleProps = {
+  user: UserOutDetailed;
+  busy: boolean;
+  onSetInternal: (userId: string, internal: boolean) => Promise<void>;
+};
+
+/** Internal marks first-party staff, who may point imagery and custom maps at
+ * managed-identity storage. Admins hold it implicitly, so their chip is read-only.
+ * Pending users have no chip: granting internal would approve them as a side effect. */
+const InternalToggle = ({ user, busy, onSetInternal }: InternalToggleProps) => {
+  if (user.is_admin) {
+    return (
+      <span
+        data-user-internal="implicit"
+        title="Admins are internal by definition"
+        className={`${chipCls} bg-brand-50 text-brand-800 border-brand-200 opacity-60`}
+      >
+        ✓ Internal
+      </span>
+    );
+  }
+
+  if (!user.is_approved) {
+    return <span className="text-xs text-neutral-400">-</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      data-user-internal={user.is_internal ? 'yes' : 'no'}
+      onClick={() => onSetInternal(user.id, !user.is_internal)}
+      disabled={busy}
+      title={user.is_internal ? 'Remove internal access' : 'Mark as internal staff'}
+      className={`${chipCls} ${
+        user.is_internal
+          ? 'bg-brand-50 text-brand-800 border-brand-200'
+          : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
+      }`}
+    >
+      {user.is_internal ? '✓ Internal' : '+ Internal'}
+    </button>
+  );
+};
+
 export const PlatformUsersTable = ({
   users,
   onApprove,
@@ -37,6 +85,7 @@ export const PlatformUsersTable = ({
   onRevokeAdmin,
   onGrantVisitor,
   onRevokeVisitor,
+  onSetInternal,
   allTilers,
   onGrantTiler,
   onRevokeTiler,
@@ -44,23 +93,30 @@ export const PlatformUsersTable = ({
 }: PlatformUsersTableProps) => {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [processingAction, setProcessingAction] = useState(false);
-  const [togglingTiler, setTogglingTiler] = useState<Set<string>>(new Set());
+  const [toggling, setToggling] = useState<Set<string>>(new Set());
 
   const showTilerColumn = allTilers.length > 0;
 
-  const toggleTiler = async (userId: string, tilerName: string, granted: boolean) => {
-    const key = `${userId}:${tilerName}`;
-    setTogglingTiler((prev) => new Set(prev).add(key));
+  const runToggle = async (key: string, action: () => Promise<void>) => {
+    setToggling((prev) => new Set(prev).add(key));
     try {
-      await (granted ? onRevokeTiler(userId, tilerName) : onGrantTiler(userId, tilerName));
+      await action();
     } finally {
-      setTogglingTiler((prev) => {
+      setToggling((prev) => {
         const next = new Set(prev);
         next.delete(key);
         return next;
       });
     }
   };
+
+  const toggleTiler = (userId: string, tilerName: string, granted: boolean) =>
+    runToggle(`tiler:${userId}:${tilerName}`, () =>
+      granted ? onRevokeTiler(userId, tilerName) : onGrantTiler(userId, tilerName)
+    );
+
+  const setInternal = (userId: string, internal: boolean) =>
+    runToggle(`internal:${userId}`, () => onSetInternal(userId, internal));
 
   const toggleUser = (userId: string) => {
     const newSelected = new Set(selectedUsers);
@@ -219,6 +275,9 @@ export const PlatformUsersTable = ({
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                 Role
               </th>
+              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
+                Internal
+              </th>
               {showTilerColumn && (
                 <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                   Tile access
@@ -232,7 +291,7 @@ export const PlatformUsersTable = ({
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
               <tr>
-                <td colSpan={showTilerColumn ? 7 : 6} className="px-4 py-10">
+                <td colSpan={showTilerColumn ? 8 : 7} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
                     <span className="text-xs text-neutral-500">Loading users…</span>
@@ -242,7 +301,7 @@ export const PlatformUsersTable = ({
             ) : users.length === 0 ? (
               <tr>
                 <td
-                  colSpan={showTilerColumn ? 7 : 6}
+                  colSpan={showTilerColumn ? 8 : 7}
                   className="px-4 py-10 text-center text-sm text-neutral-500"
                 >
                   No users found
@@ -295,12 +354,19 @@ export const PlatformUsersTable = ({
                             : 'User'}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <InternalToggle
+                      user={user}
+                      busy={toggling.has(`internal:${user.id}`) || processingAction}
+                      onSetInternal={setInternal}
+                    />
+                  </td>
                   {showTilerColumn && (
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {allTilers.map((name) => {
                           const granted = (user.allowed_tilers ?? []).includes(name);
-                          const busy = togglingTiler.has(`${user.id}:${name}`);
+                          const busy = toggling.has(`tiler:${user.id}:${name}`);
                           return (
                             <button
                               key={name}
@@ -308,7 +374,7 @@ export const PlatformUsersTable = ({
                               onClick={() => toggleTiler(user.id, name, granted)}
                               disabled={busy || processingAction}
                               title={granted ? `Revoke ${name} access` : `Grant ${name} access`}
-                              className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              className={`${chipCls} ${
                                 granted
                                   ? 'bg-brand-50 text-brand-800 border-brand-200'
                                   : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'

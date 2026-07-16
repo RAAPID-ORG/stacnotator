@@ -3863,6 +3863,66 @@ export type RevokeVisitorResponses = {
 
 export type RevokeVisitorResponse = RevokeVisitorResponses[keyof RevokeVisitorResponses];
 
+export type GrantInternalSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/grant-internal';
+};
+
+export type GrantInternalSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantInternalSingleError = GrantInternalSingleErrors[keyof GrantInternalSingleErrors];
+
+export type GrantInternalSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type GrantInternalSingleResponse = GrantInternalSingleResponses[keyof GrantInternalSingleResponses];
+
+export type RevokeInternalSingleData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/api/auth/users/{user_id}/revoke-internal';
+};
+
+export type RevokeInternalSingleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeInternalSingleError = RevokeInternalSingleErrors[keyof RevokeInternalSingleErrors];
+
+export type RevokeInternalSingleResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOutDetailed;
+};
+
+export type RevokeInternalSingleResponse = RevokeInternalSingleResponses[keyof RevokeInternalSingleResponses];
+
 export type ListAllCampaignsData = {
     body?: never;
     path?: never;

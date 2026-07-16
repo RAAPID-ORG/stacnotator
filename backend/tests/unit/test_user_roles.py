@@ -1,8 +1,9 @@
 """DB-free tests for the role predicates that gate capabilities.
 
-`is_internal` decides whether a user's tiler token carries `azure:read` (see
-auth/router.get_tiler_token), which in turn lets the tiler use its managed identity to
-read Azure custom-map COGs. Keep this honest.
+`is_internal` decides whether a user may point imagery collections and custom maps at
+internal storage, which the tiler reads with its managed identity (see the
+`_require_internal_for_internal_storage` guards in imagery/router and custom_maps/router).
+Keep this honest.
 """
 
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_INTERNAL

@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_VISITOR
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_INTERNAL, ROLE_VISITOR
 from src.auth.dependencies import (
     require_admin,
     require_approved_user,
@@ -23,6 +23,7 @@ from src.auth.service import (
     deny_user,
     grant_admin,
     grant_admin_bulk,
+    grant_internal,
     grant_visitor,
     register_user,
     revoke_admin,
@@ -303,6 +304,33 @@ class TestRevokeVisitor:
 
         db.delete.assert_not_called()
         db.commit.assert_not_called()
+
+
+class TestInternalRole:
+    """Internal is orthogonal to the admin/visitor/standard ladder: granting it
+    must not disturb a user's existing rank."""
+
+    def test_grants_internal_and_approved(self):
+        db = _mock_db()
+        user_id = uuid4()
+        db.get.return_value = _make_user(user_id=user_id)
+
+        with patch("src.auth.service._get_roles", return_value=set()):
+            grant_internal(db, user_id)
+
+        added_roles = {call[0][0].role for call in db.add.call_args_list}
+        assert added_roles == {ROLE_APPROVED, ROLE_INTERNAL}
+
+    def test_grant_internal_keeps_visitor(self):
+        db = _mock_db()
+        user_id = uuid4()
+        db.get.return_value = _make_user(user_id=user_id, roles=[ROLE_APPROVED, ROLE_VISITOR])
+
+        with patch("src.auth.service._get_roles", return_value={ROLE_APPROVED, ROLE_VISITOR}):
+            grant_internal(db, user_id)
+
+        assert db.add.call_args[0][0].role == ROLE_INTERNAL
+        db.delete.assert_not_called()
 
 
 class TestRevokeAdmin:

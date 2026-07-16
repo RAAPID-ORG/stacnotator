@@ -71,7 +71,9 @@ a managed-identity read to trusted, `internal` staff. So:
 > rendered. Non-internal campaign admins cannot (their token lacks `azure:read`).
 
 That's an accepted trade-off: `internal` staff are first-party and already trusted broadly, and
-customer campaign admins - the untrusted-for-this parties - are locked out. Isolation *between*
+customer campaign admins - the untrusted-for-this parties - are locked out. Any platform admin can
+confer `internal` from Settings > User management, so the set of people who can trigger a
+managed-identity read is only as small as the set of platform admins. Isolation *between*
 projects therefore rests on two things: granting the identity only the accounts you intend
 (RBAC), and trusting `internal` users. If projects ever need to be hard tenancy boundaries, the
 durable fix is per-campaign credentials (the tiler reads each project's storage with that

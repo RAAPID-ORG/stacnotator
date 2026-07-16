@@ -5,7 +5,13 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER, ROLE_VISITOR
+from src.auth.constants import (
+    ROLE_ADMIN,
+    ROLE_APPROVED,
+    ROLE_INTERNAL,
+    ROLE_USER,
+    ROLE_VISITOR,
+)
 from src.auth.models import User, UserRole, UserTiler
 from src.auth.providers.base import AuthenticatedUser
 from src.config import get_settings
@@ -323,6 +329,24 @@ def grant_visitor(db: Session, user_id: UUID) -> User | None:
 def revoke_visitor(db: Session, user_id: UUID) -> User | None:
     """Revoke visitor from a user; they remain a standard approved user."""
     return _revoke_role(db, user_id, ROLE_VISITOR)
+
+
+# ============================================================================
+# Internal Role Management
+# ============================================================================
+
+
+def grant_internal(db: Session, user_id: UUID) -> User | None:
+    """Mark a user as first-party staff, granting approval if needed. Internal is
+    orthogonal to the admin/visitor/standard ladder: it only unlocks pointing
+    imagery and custom maps at managed-identity storage."""
+    return _grant_role(db, user_id, ROLE_INTERNAL)
+
+
+def revoke_internal(db: Session, user_id: UUID) -> User | None:
+    """Unmark a user as first-party staff. Admins stay internal by definition, so
+    this cannot make an admin external."""
+    return _revoke_role(db, user_id, ROLE_INTERNAL)
 
 
 # ============================================================================

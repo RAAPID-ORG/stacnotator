@@ -412,3 +412,47 @@ def revoke_visitor(
     transaction.
     """
     return _bulk_response(service.revoke_visitor_bulk(db, request.user_ids))
+
+
+# ============================================================================
+# Internal Role Operations
+# ============================================================================
+
+
+@router.post("/users/{user_id}/grant-internal", response_model=UserOutDetailed)
+def grant_internal_single(
+    user_id: UUID,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Mark a single user as first-party staff (admin only).
+
+    Grants the internal and approval roles. Internal users may point imagery and
+    custom maps at internal (managed-identity) storage.
+    """
+    user = service.grant_internal(db, user_id)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user
+
+
+@router.post("/users/{user_id}/revoke-internal", response_model=UserOutDetailed)
+def revoke_internal_single(
+    user_id: UUID,
+    _: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Unmark a single user as first-party staff (admin only).
+
+    The user keeps every other role. Admins remain internal by definition.
+    """
+    user = service.revoke_internal(db, user_id)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user

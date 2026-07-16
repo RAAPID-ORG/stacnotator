@@ -16,6 +16,8 @@ import {
   editUserInfo,
   grantTilerSingle,
   revokeTilerSingle,
+  grantInternalSingle,
+  revokeInternalSingle,
   listGrantableTilers,
   type UserOutDetailed,
 } from '~/api/client';
@@ -216,6 +218,16 @@ export const SettingsPage = () => {
       applyUpdatedUser(data as UserOutDetailed | undefined);
     } catch (err) {
       handleError(err, `Failed to revoke tiler '${tilerName}'`);
+    }
+  };
+
+  const handleSetInternal = async (userId: string, internal: boolean) => {
+    const call = internal ? grantInternalSingle : revokeInternalSingle;
+    try {
+      const { data } = await call({ path: { user_id: userId } });
+      applyUpdatedUser(data as UserOutDetailed | undefined);
+    } catch (err) {
+      handleError(err, internal ? 'Failed to mark user internal' : 'Failed to unmark user');
     }
   };
 
@@ -612,6 +624,7 @@ export const SettingsPage = () => {
                       onRevokeAdmin={handleRevokeAdmin}
                       onGrantVisitor={handleGrantVisitor}
                       onRevokeVisitor={handleRevokeVisitor}
+                      onSetInternal={handleSetInternal}
                       allTilers={allTilers}
                       onGrantTiler={handleGrantTiler}
                       onRevokeTiler={handleRevokeTiler}
