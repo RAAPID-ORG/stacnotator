@@ -59,10 +59,7 @@ async function clickChartAtFraction(page: Page, fraction: number): Promise<void>
 
 function expectTile(page: Page, urlPart: string): Promise<void> {
   return page
-    .waitForResponse(
-      (r) => isTileHost(r.url()) && r.url().includes(urlPart),
-      { timeout: 3000 }
-    )
+    .waitForResponse((r) => isTileHost(r.url()) && r.url().includes(urlPart), { timeout: 3000 })
     .then(() => undefined)
     .catch(() => undefined);
 }
@@ -147,8 +144,7 @@ async function loadMonthsCampaign(page: Page, api: ApiCapture): Promise<void> {
 }
 
 // The header of the window card whose collection is currently active.
-const activeWindowTitle = (page: Page) =>
-  page.locator('.active-window .card-header').first();
+const activeWindowTitle = (page: Page) => page.locator('.active-window .card-header').first();
 
 test.describe('Chart click switches active collection (month-per-collection)', () => {
   test.beforeEach(async ({ annotationPage, api }) => {

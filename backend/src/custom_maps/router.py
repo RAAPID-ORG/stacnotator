@@ -54,6 +54,8 @@ def create_custom_map(
         raise HTTPException(
             status_code=409, detail="A custom map with this name already exists"
         ) from exc
+    except service.InvalidRenderConfig as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.patch("/{map_id}", response_model=CustomMapOut)
@@ -72,6 +74,8 @@ def update_custom_map(
         raise HTTPException(
             status_code=409, detail="A custom map with this name already exists"
         ) from exc
+    except service.InvalidRenderConfig as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if cm is None:
         raise HTTPException(status_code=404, detail="Custom map not found")
     return cm

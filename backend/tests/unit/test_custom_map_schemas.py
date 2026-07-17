@@ -1,7 +1,16 @@
 import pytest
 from pydantic import ValidationError
 
-from src.custom_maps.schemas import CustomMapCreate
+from src.custom_maps.schemas import CustomMapCreate, RenderConfig
+
+
+def test_unrenderable_config_still_parses_so_legacy_rows_stay_readable():
+    """Renderability is enforced by the service, not here. RenderConfig also types CustomMapOut,
+    so a validator on it would make rows written before that check unreadable - 500ing the whole
+    campaign GET, and leaving the offending map undeletable through the UI."""
+    assert (
+        RenderConfig.model_validate({"mode": "continuous", "rescale": [0, 1]}).colormap_name is None
+    )
 
 
 def test_continuous_create_valid():

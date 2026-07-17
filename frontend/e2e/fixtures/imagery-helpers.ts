@@ -19,14 +19,18 @@ export function isTileHost(url: string): boolean {
 export async function getCrosshairPosition(page: Page): Promise<{ lat: number; lon: number }> {
   // Reads data-lat / data-lon set directly on the crosshair DOM element in WGS84.
   // No projection math required in test code.
-  const result = await page.waitForFunction(() => {
-    const el = document.querySelector('[data-lat][data-lon]');
-    if (!el) return null;
-    const lat = parseFloat(el.getAttribute('data-lat') ?? '');
-    const lon = parseFloat(el.getAttribute('data-lon') ?? '');
-    if (isNaN(lat) || isNaN(lon)) return null;
-    return { lat, lon };
-  }, undefined, { timeout: 5000 });
+  const result = await page.waitForFunction(
+    () => {
+      const el = document.querySelector('[data-lat][data-lon]');
+      if (!el) return null;
+      const lat = parseFloat(el.getAttribute('data-lat') ?? '');
+      const lon = parseFloat(el.getAttribute('data-lon') ?? '');
+      if (isNaN(lat) || isNaN(lon)) return null;
+      return { lat, lon };
+    },
+    undefined,
+    { timeout: 5000 }
+  );
   const value = await result.jsonValue();
   if (!value) throw new Error('Crosshair position not available after timeout');
   return value as { lat: number; lon: number };
@@ -35,7 +39,7 @@ export async function getCrosshairPosition(page: Page): Promise<{ lat: number; l
 export function assertCoordsMatch(
   actual: { lat: number; lon: number },
   expected: { lat: number; lon: number },
-  label: string,
+  label: string
 ): void {
   const dLat = Math.abs(actual.lat - expected.lat);
   const dLon = Math.abs(actual.lon - expected.lon);
@@ -43,7 +47,7 @@ export function assertCoordsMatch(
     dLat < COORD_TOLERANCE && dLon < COORD_TOLERANCE,
     `[${label}] Crosshair at (${actual.lat.toFixed(4)}, ${actual.lon.toFixed(4)}) ` +
       `but expected (${expected.lat}, ${expected.lon}) - ` +
-      `dlat=${dLat.toFixed(5)}, dlon=${dLon.toFixed(5)}`,
+      `dlat=${dLat.toFixed(5)}, dlon=${dLon.toFixed(5)}`
   ).toBe(true);
 }
 
@@ -58,14 +62,12 @@ export function latLonToTile(lat: number, lon: number, z: number): { x: number; 
   const n = 2 ** z;
   const x = Math.floor(((lon + 180) / 360) * n);
   const latRad = (lat * Math.PI) / 180;
-  const y = Math.floor(
-    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n,
-  );
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
   return { x, y };
 }
 
 export function extractTileCoords(
-  requests: CapturedRequest[],
+  requests: CapturedRequest[]
 ): Array<{ z: number; x: number; y: number }> {
   const pattern = /\/(\d+)\/(\d+)\/(\d+)\?/;
   const results: Array<{ z: number; x: number; y: number }> = [];
@@ -77,7 +79,11 @@ export function extractTileCoords(
   return results;
 }
 
-export async function assertMinimapCenterAt(page: Page, taskId: number, label: string): Promise<void> {
+export async function assertMinimapCenterAt(
+  page: Page,
+  taskId: number,
+  label: string
+): Promise<void> {
   const expected = TASK_LOCATIONS[taskId];
   if (!expected) throw new Error(`No location for task ${taskId}`);
   const result = await page.waitForFunction(
@@ -91,18 +97,16 @@ export async function assertMinimapCenterAt(page: Page, taskId: number, label: s
       return { lat: actualLat, lon: actualLon };
     },
     { lat: expected.lat, lon: expected.lon, tol: 0.01 },
-    { timeout: 5000 },
+    { timeout: 5000 }
   );
   const value = await result.jsonValue();
   if (!value) {
-    const actual = await page
-      .locator('[data-tour="minimap"]')
-      .evaluate((el) => ({
-        lat: el.getAttribute('data-center-lat'),
-        lon: el.getAttribute('data-center-lon'),
-      }));
+    const actual = await page.locator('[data-tour="minimap"]').evaluate((el) => ({
+      lat: el.getAttribute('data-center-lat'),
+      lon: el.getAttribute('data-center-lon'),
+    }));
     throw new Error(
-      `[${label}] Minimap center (${actual.lat}, ${actual.lon}) not within tolerance of task ${taskId} (${expected.lat}, ${expected.lon})`,
+      `[${label}] Minimap center (${actual.lat}, ${actual.lon}) not within tolerance of task ${taskId} (${expected.lat}, ${expected.lon})`
     );
   }
 }
@@ -127,7 +131,7 @@ export async function waitForMinimapCenter(
   page: Page,
   expected: { lat: number; lon: number },
   label: string,
-  tol = COORD_TOLERANCE,
+  tol = COORD_TOLERANCE
 ): Promise<void> {
   await page
     .waitForFunction(
@@ -140,12 +144,12 @@ export async function waitForMinimapCenter(
         return Math.abs(aLat - lat) <= t && Math.abs(aLon - lon) <= t;
       },
       { lat: expected.lat, lon: expected.lon, t: tol },
-      { timeout: 5000 },
+      { timeout: 5000 }
     )
     .catch(async () => {
       const actual = await getMinimapCenter(page);
       throw new Error(
-        `[${label}] minimap centre (${actual.lat}, ${actual.lon}) never reached (${expected.lat}, ${expected.lon})`,
+        `[${label}] minimap centre (${actual.lat}, ${actual.lon}) never reached (${expected.lat}, ${expected.lon})`
       );
     });
 }
@@ -195,13 +199,30 @@ export function parseWkt(wkt: string): { type: string; lon: number; lat: number 
 }
 
 export const waitForCreate = (page: Page) =>
-  page.waitForResponse((r) => r.url().includes('/create-annotation') && r.request().method() === 'POST', { timeout: 8000 });
+  page.waitForResponse(
+    (r) => r.url().includes('/create-annotation') && r.request().method() === 'POST',
+    { timeout: 8000 }
+  );
 export const waitForUpdate = (page: Page) =>
-  page.waitForResponse((r) => /\/annotations\/\d+\/update$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT', { timeout: 8000 });
+  page.waitForResponse(
+    (r) =>
+      /\/annotations\/\d+\/update$/.test(new URL(r.url()).pathname) &&
+      r.request().method() === 'PUT',
+    { timeout: 8000 }
+  );
 export const waitForDelete = (page: Page) =>
-  page.waitForResponse((r) => /\/annotations\/\d+$/.test(new URL(r.url()).pathname) && r.request().method() === 'DELETE', { timeout: 8000 });
+  page.waitForResponse(
+    (r) =>
+      /\/annotations\/\d+$/.test(new URL(r.url()).pathname) && r.request().method() === 'DELETE',
+    { timeout: 8000 }
+  );
 export const waitForBatchDelete = (page: Page) =>
-  page.waitForResponse((r) => new URL(r.url()).pathname.endsWith('/annotations/batch-delete') && r.request().method() === 'POST', { timeout: 8000 });
+  page.waitForResponse(
+    (r) =>
+      new URL(r.url()).pathname.endsWith('/annotations/batch-delete') &&
+      r.request().method() === 'POST',
+    { timeout: 8000 }
+  );
 
 /**
  * Fit all annotations into the viewport (Space) and wait for the view to settle
@@ -210,7 +231,7 @@ export const waitForBatchDelete = (page: Page) =>
  */
 export async function fitAllAnnotations(
   page: Page,
-  center: { lat: number; lon: number },
+  center: { lat: number; lon: number }
 ): Promise<void> {
   await page.keyboard.press(' ');
   await waitForMinimapCenter(page, center, 'fit all annotations', 0.3);
@@ -235,7 +256,7 @@ export function assertTilesFetchedForTask(
   requests: CapturedRequest[],
   sinceIndex: number,
   taskId: number,
-  label: string,
+  label: string
 ): void {
   const expected = TASK_LOCATIONS[taskId];
   if (!expected) throw new Error(`No location for task ${taskId}`);
@@ -246,15 +267,13 @@ export function assertTilesFetchedForTask(
   const TILE_TOLERANCE = 2;
   const hasTileNearTask = tiles.some((t) => {
     const center = latLonToTile(expected.lat, expected.lon, t.z);
-    return (
-      Math.abs(t.x - center.x) <= TILE_TOLERANCE && Math.abs(t.y - center.y) <= TILE_TOLERANCE
-    );
+    return Math.abs(t.x - center.x) <= TILE_TOLERANCE && Math.abs(t.y - center.y) <= TILE_TOLERANCE;
   });
 
   expect(
     hasTileNearTask,
     `[${label}] Tiles loaded but none near task ${taskId} ` +
       `(${expected.lat}, ${expected.lon}). ` +
-      `Got: ${tiles.map((t) => `${t.z}/${t.x}/${t.y}`).join(', ')}`,
+      `Got: ${tiles.map((t) => `${t.z}/${t.x}/${t.y}`).join(', ')}`
   ).toBe(true);
 }

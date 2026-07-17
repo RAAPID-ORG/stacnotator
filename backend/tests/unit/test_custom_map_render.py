@@ -48,3 +48,27 @@ def test_categorical_requires_entries():
 def test_unknown_mode_raises():
     with pytest.raises(ValueError):
         build_viz_params({"mode": "bogus"})
+
+
+def test_colour_carrying_params_are_the_ones_the_frontend_rewrites():
+    """The legend's local colour override re-stamps exactly `rescale`, `colormap_name` and
+    `colormap` onto the built tile URL (frontend `customMapOverride.ts`). A new colour param
+    here would leave the server's stale value beside it - a wrong render, no error. Update
+    both sides together, then this list.
+    """
+    structural = {"assets", "asset_as_band", "bidx", "nodata"}
+    colour = {"rescale", "colormap_name", "colormap"}
+
+    for cfg in (
+        {
+            "mode": "continuous",
+            "band": 3,
+            "nodata": 0,
+            "colormap_name": "viridis",
+            "rescale": [0, 1],
+        },
+        {"mode": "categorical", "entries": [{"value": 1, "color": "#ff0000", "label": "c"}]},
+    ):
+        params = build_viz_params(cfg)
+        emitted = set(params) - {"extra_params"} | set(params.get("extra_params", {}))
+        assert emitted <= structural | colour

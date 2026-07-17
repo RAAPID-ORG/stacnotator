@@ -56,13 +56,11 @@ test.describe('internal role toggle', () => {
     await chip.click();
     expect((await granted).request().url()).toContain(`/users/${STAFF.id}/grant-internal`);
     await expect(chip).toHaveAttribute('data-user-internal', 'yes');
-    await expect(chip).toHaveText('✓ Internal');
 
     const revoked = page.waitForResponse('**/revoke-internal');
     await chip.click();
     expect((await revoked).request().url()).toContain(`/users/${STAFF.id}/revoke-internal`);
     await expect(chip).toHaveAttribute('data-user-internal', 'no');
-    await expect(chip).toHaveText('+ Internal');
   });
 
   test('admins are internal implicitly and cannot be toggled', async ({ annotationPage: page }) => {
@@ -70,7 +68,7 @@ test.describe('internal role toggle', () => {
 
     const chip = internalChip(page, ADMIN_USER.email);
     await expect(chip).toHaveAttribute('data-user-internal', 'implicit');
-    await expect(chip).toHaveText('✓ Internal');
+    await expect(chip).toContainText('Internal');
     expect(await chip.evaluate((el) => el.tagName)).toBe('SPAN');
   });
 });

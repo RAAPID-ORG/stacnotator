@@ -6,6 +6,7 @@ import {
   type LabelStyle,
   type StyleOverrides,
 } from '../utils/annotationStyle';
+import type { RenderOverride } from '../utils/customMapOverride';
 
 /**
  * Per-device user preferences. Persisted to localStorage via zustand's
@@ -55,6 +56,16 @@ interface PreferencesStore {
   annotationStyles: StyleOverrides;
   setLabelStyle: (campaignId: number, labelId: number, patch: Partial<LabelStyle>) => void;
   resetLabelStyle: (campaignId: number, labelId: number) => void;
+
+  /**
+   * Per-user colour tweaks to custom map overlays, keyed by map id (a global PK).
+   * An absent entry means "render with the campaign's config". Kept until the user
+   * resets it, so an admin editing the campaign config does not silently discard a
+   * deliberate local choice. Merge logic lives in `utils/customMapOverride.ts`.
+   */
+  customMapOverrides: Record<number, RenderOverride>;
+  setCustomMapOverride: (mapId: number, patch: RenderOverride) => void;
+  resetCustomMapOverride: (mapId: number) => void;
 }
 
 const tourKey = (accountId: string, campaignId: number) => `${accountId}:${campaignId}`;
@@ -92,6 +103,21 @@ export const usePreferencesStore = create<PreferencesStore>()(
         set((s) => ({
           annotationStyles: clearStyleOverride(s.annotationStyles, campaignId, labelId),
         })),
+
+      customMapOverrides: {},
+      setCustomMapOverride: (mapId, patch) =>
+        set((s) => ({
+          customMapOverrides: {
+            ...s.customMapOverrides,
+            [mapId]: { ...s.customMapOverrides[mapId], ...patch },
+          },
+        })),
+      resetCustomMapOverride: (mapId) =>
+        set((s) => {
+          const next = { ...s.customMapOverrides };
+          delete next[mapId];
+          return { customMapOverrides: next };
+        }),
     }),
     {
       name: 'stacnotator:preferences',

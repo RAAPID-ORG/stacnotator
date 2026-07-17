@@ -49,9 +49,7 @@ test.describe('Task Status Filtering', () => {
     // Auto-advance lands on TASK_2 (#2).
     await expect(gotoInput(page)).toHaveValue('2', { timeout: 5000 });
 
-    const req = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/annotate')
-    );
+    const req = api.requests.find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
     expect(req).toBeDefined();
     expect(req!.pathParams.annotation_task_id).toBe('100');
   });
@@ -71,9 +69,9 @@ test.describe('Task Status Filtering', () => {
     await expect(gotoInput(page)).toHaveValue(TASK_3.annotation_number.toString());
 
     // TASK_3's existing annotation is pre-populated.
-    await expect(
-      page.locator('textarea[placeholder^="Add a comment"]')
-    ).toHaveValue('Clearly forest');
+    await expect(page.locator('textarea[placeholder^="Add a comment"]')).toHaveValue(
+      'Clearly forest'
+    );
   });
 
   test('switching to done-only hides pending tasks and lands on the first done', async ({

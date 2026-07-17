@@ -58,46 +58,16 @@ export class ApiCapture {
 /** Extract path params from a URL pattern like /api/campaigns/{campaign_id}/... */
 function extractPathParams(pathname: string): Record<string, string> {
   const patterns: [RegExp, string[]][] = [
-    [
-      /^\/api\/campaigns\/(\d+)\/(\d+)\/annotate$/,
-      ['campaign_id', 'annotation_task_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/annotation-tasks$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/annotations\/(\d+)\/update$/,
-      ['campaign_id', 'annotation_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/annotations\/batch-delete$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/,
-      ['campaign_id', 'annotation_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/create-annotation$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/annotations$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/detailed$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/users$/,
-      ['campaign_id'],
-    ],
-    [
-      /^\/api\/campaigns\/(\d+)\/(\d+)\/validate$/,
-      ['campaign_id', 'annotation_task_id'],
-    ],
+    [/^\/api\/campaigns\/(\d+)\/(\d+)\/annotate$/, ['campaign_id', 'annotation_task_id']],
+    [/^\/api\/campaigns\/(\d+)\/annotation-tasks$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/annotations\/(\d+)\/update$/, ['campaign_id', 'annotation_id']],
+    [/^\/api\/campaigns\/(\d+)\/annotations\/batch-delete$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/annotations\/(\d+)$/, ['campaign_id', 'annotation_id']],
+    [/^\/api\/campaigns\/(\d+)\/create-annotation$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/annotations$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/detailed$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/users$/, ['campaign_id']],
+    [/^\/api\/campaigns\/(\d+)\/(\d+)\/validate$/, ['campaign_id', 'annotation_task_id']],
   ];
 
   for (const [re, names] of patterns) {
@@ -154,7 +124,11 @@ export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> 
 export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> {
   await page.waitForFunction(
     () => {
-      const store = (window as unknown as { __TASK_STORE__?: { getState: () => { isNavigating: boolean; isSubmitting: boolean } } }).__TASK_STORE__;
+      const store = (
+        window as unknown as {
+          __TASK_STORE__?: { getState: () => { isNavigating: boolean; isSubmitting: boolean } };
+        }
+      ).__TASK_STORE__;
       if (!store) return false;
       const s = store.getState();
       return !s.isNavigating && !s.isSubmitting;
@@ -413,7 +387,11 @@ export const test = base.extend<AnnotatorFixtures>({
 
     // GET annotation tiles -> empty MVT (mock mode renders no real tiles).
     await page.route('**/api/campaigns/*/annotations/tiles/**', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/vnd.mapbox-vector-tile', body: '' });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/vnd.mapbox-vector-tile',
+        body: '',
+      });
     });
 
     // GET annotations extent -> bbox spanning the mock annotations.
@@ -435,14 +413,12 @@ export const test = base.extend<AnnotatorFixtures>({
 
     // GET navigation batch -> mock annotations newest-first as nav items.
     await page.route('**/api/campaigns/*/annotations/navigation*', async (route) => {
-      const items = [...openAnnotations]
-        .reverse()
-        .map((a) => ({
-          id: a.id,
-          label_id: a.label_id ?? null,
-          updated_at: a.updated_at ?? '2024-01-01T00:00:00Z',
-          bbox: openAnnotationsBbox(),
-        }));
+      const items = [...openAnnotations].reverse().map((a) => ({
+        id: a.id,
+        label_id: a.label_id ?? null,
+        updated_at: a.updated_at ?? '2024-01-01T00:00:00Z',
+        bbox: openAnnotationsBbox(),
+      }));
       await route.fulfill({ json: items });
     });
 
@@ -628,7 +604,9 @@ export const test = base.extend<AnnotatorFixtures>({
     });
 
     // Verify the Submit button is visible (proves task data is fully loaded)
-    await page.locator('button', { hasText: /^(Submit|Update)$/ }).first()
+    await page
+      .locator('button', { hasText: /^(Submit|Update)$/ })
+      .first()
       .waitFor({ state: 'visible', timeout: 5000 });
 
     await use(page);

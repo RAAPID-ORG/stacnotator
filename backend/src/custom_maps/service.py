@@ -4,9 +4,10 @@ import threading
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.config import TilerCfg
 from src.custom_maps.models import CustomMap
 from src.custom_maps.render import build_viz_params
-from src.custom_maps.schemas import CustomMapCreate, CustomMapUpdate
+from src.custom_maps.schemas import CustomMapCreate, CustomMapUpdate, RenderConfig
 from src.database import SessionLocal
 from src.tiling.providers import build_tile_url, register_cog_on_tiler, resolve_tiler
 
@@ -15,6 +16,23 @@ logger = logging.getLogger(__name__)
 
 class DuplicateCustomMapName(Exception):
     pass
+
+
+class InvalidRenderConfig(Exception):
+    pass
+
+
+def _render_config_dict(render_config: RenderConfig) -> dict:
+    """`build_viz_params` is the authority on what can actually render, so run it up front:
+    an unrenderable config becomes a 422 rather than a map that saves and then serves no
+    tiles. Kept off the schema deliberately - `RenderConfig` also types `CustomMapOut`, and
+    rows predating this check must stay readable (and therefore deletable)."""
+    data = render_config.model_dump(mode="json")
+    try:
+        build_viz_params(data)
+    except ValueError as exc:
+        raise InvalidRenderConfig(str(exc)) from exc
+    return data
 
 
 def _name_taken(db: Session, campaign_id: int, name: str, exclude_id: int | None = None) -> bool:
@@ -29,7 +47,7 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
         campaign_id=campaign_id,
         name=payload.name,
         cog_url=payload.cog_url,
-        render_config=payload.render_config.model_dump(mode="json"),
+        render_config=_render_config_dict(payload.render_config),
         max_native_zoom=payload.max_native_zoom,
         mlops_url=payload.mlops_url,
         internal_storage=payload.internal_storage,
@@ -41,14 +59,21 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
     return cm
 
 
+def _stamp_tile_url(cm: CustomMap, search_id: str, tiler: TilerCfg) -> None:
+    viz_params = build_viz_params(cm.render_config)
+    cm.tile_url = build_tile_url("hosted", search_id, viz_params, tiler=tiler)
+
+
 def run_registration(db: Session, cm: CustomMap) -> None:
     try:
         tiler = resolve_tiler(None)
         search_id = register_cog_on_tiler(
             tiler, cm.cog_url, cm.campaign_id, internal_storage=cm.internal_storage
         )
-        viz_params = build_viz_params(cm.render_config)
-        cm.tile_url = build_tile_url("hosted", search_id, viz_params, tiler=tiler)
+        # A colour edit can land while the tiler call is in flight, and update_custom_map
+        # cannot restamp a map that has no search yet, so pick up the current config here.
+        db.refresh(cm, ["render_config"])
+        _stamp_tile_url(cm, search_id, tiler)
         cm.mosaic_id = search_id
         cm.status = "ready"
         cm.status_error = None
@@ -110,11 +135,11 @@ def update_custom_map(
         and _name_taken(db, campaign_id, data["name"], exclude_id=map_id)
     ):
         raise DuplicateCustomMapName(data["name"])
+    render_changed = False
+    if payload.render_config is not None:
+        cm.render_config = _render_config_dict(payload.render_config)
+        render_changed = True
     needs_reregister = False
-    if "render_config" in data and data["render_config"] is not None:
-        old_band = (cm.render_config or {}).get("band", 1)
-        cm.render_config = payload.render_config.model_dump(mode="json")
-        needs_reregister = cm.render_config.get("band", 1) != old_band
     if "cog_url" in data and data["cog_url"] != cm.cog_url:
         cm.cog_url = data["cog_url"]
         needs_reregister = True
@@ -124,9 +149,16 @@ def update_custom_map(
     for field in ("name", "max_native_zoom", "display_order", "mlops_url"):
         if field in data:
             setattr(cm, field, data[field])
+    # A failed map has no usable search, so any edit is also the retry affordance.
+    needs_reregister = needs_reregister or cm.status == "failed"
     if needs_reregister:
         cm.status = "registering"
         cm.status_error = None
+    elif render_changed and cm.mosaic_id and cm.status == "ready":
+        # No tiler call: the pgstac search keys on cog_url/campaign/internal_storage only, so
+        # colormap, rescale and band live in the tile URL alone. Anything not ready is skipped
+        # because its mosaic_id is stale or absent; its in-flight registration bakes this in.
+        _stamp_tile_url(cm, cm.mosaic_id, resolve_tiler(None))
     db.commit()
     db.refresh(cm)
     if needs_reregister:

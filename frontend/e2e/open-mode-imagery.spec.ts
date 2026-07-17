@@ -24,7 +24,7 @@ async function loadOpenModeMulti(page: Page, api: ApiCapture): Promise<void> {
   await page.waitForFunction(
     () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
     undefined,
-    { timeout: 10_000 },
+    { timeout: 10_000 }
   );
   api.clear();
 }
@@ -68,13 +68,13 @@ test.describe('Imagery in open mode', () => {
 
   test('the Sentinel-2 window card is in the DOM', async ({ annotationPage }) => {
     await expect(
-      annotationPage.locator(`[data-window-collection-id="${COLLECTION_S2.id}"]`),
+      annotationPage.locator(`[data-window-collection-id="${COLLECTION_S2.id}"]`)
     ).toBeAttached();
   });
 
   test('the timeline shows the active source collection', async ({ annotationPage }) => {
     await expect(annotationPage.locator('[data-tour="timeline-sidebar"]')).toContainText(
-      COLLECTION_S2.name,
+      COLLECTION_S2.name
     );
   });
 
@@ -95,8 +95,9 @@ test.describe('Imagery in open mode', () => {
       (window as unknown as { __prevented: boolean[] }).__prevented = [];
       document.addEventListener(
         'wheel',
-        (e) => (window as unknown as { __prevented: boolean[] }).__prevented.push(e.defaultPrevented),
-        { passive: true },
+        (e) =>
+          (window as unknown as { __prevented: boolean[] }).__prevented.push(e.defaultPrevented),
+        { passive: true }
       );
     });
 
@@ -111,7 +112,7 @@ test.describe('Imagery in open mode', () => {
     await annotationPage.keyboard.up('Control');
 
     const prevented = await annotationPage.evaluate(
-      () => (window as unknown as { __prevented: boolean[] }).__prevented,
+      () => (window as unknown as { __prevented: boolean[] }).__prevented
     );
 
     expect(prevented.length).toBeGreaterThanOrEqual(2);
@@ -171,7 +172,7 @@ test.describe('Imagery in open mode', () => {
           return Math.abs(aLat - lat) > 0.01 || Math.abs(aLon - lon) > 0.01;
         },
         { lat: start.lat, lon: start.lon },
-        { timeout: 4000 },
+        { timeout: 4000 }
       )
       .catch(() => {
         throw new Error('minimap drag did not move the main map centre');

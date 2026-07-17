@@ -14,27 +14,17 @@
 // loaded for the correct area.
 
 import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
-import {
-  TASK_1,
-  TASK_2,
-  TASK_3,
-  TASK_4,
-  TASK_5,
-  ALL_TASKS,
-} from './fixtures/mock-data';
-import {
-  assertCrosshairAt,
-  assertTilesFetchedForTask,
-} from './fixtures/imagery-helpers';
+import { TASK_1, TASK_2, TASK_3, TASK_4, TASK_5, ALL_TASKS } from './fixtures/mock-data';
+import { assertCrosshairAt, assertTilesFetchedForTask } from './fixtures/imagery-helpers';
 
 type Page = import('@playwright/test').Page;
 
 // Helpers
 
 function lastAnnotate(requests: CapturedRequest[]): CapturedRequest | undefined {
-  return [...requests].reverse().find(
-    (r) => r.method === 'POST' && r.pathname.endsWith('/annotate'),
-  );
+  return [...requests]
+    .reverse()
+    .find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
 }
 
 async function readGoToValue(page: Page): Promise<string> {
@@ -67,15 +57,13 @@ async function assertFullSync(
   api: { requests: CapturedRequest[]; clear: () => void },
   expectedTaskId: number,
   tileSnapshotIndex: number,
-  label: string,
+  label: string
 ) {
   const task = ALL_TASKS.find((t) => t.id === expectedTaskId);
   if (!task) throw new Error(`Unknown task ${expectedTaskId}`);
 
   // GoTo
-  expect(await readGoToValue(page), `[${label}] GoTo`).toBe(
-    task.annotation_number.toString(),
-  );
+  expect(await readGoToValue(page), `[${label}] GoTo`).toBe(task.annotation_number.toString());
 
   // Crosshair
   await assertCrosshairAt(page, expectedTaskId, label);
@@ -88,12 +76,8 @@ async function assertFullSync(
   await selectAndSubmit(page, '1');
   const req = lastAnnotate(api.requests);
   expect(req, `[${label}] no annotate request`).toBeDefined();
-  expect(req!.pathParams.annotation_task_id, `[${label}] task_id`).toBe(
-    expectedTaskId.toString(),
-  );
+  expect(req!.pathParams.annotation_task_id, `[${label}] task_id`).toBe(expectedTaskId.toString());
 }
-
-
 
 test.describe('Initial load', () => {
   test('crosshair + imagery at TASK_1 on load', async ({ annotationPage, api }) => {
@@ -111,7 +95,6 @@ test.describe('Initial load', () => {
   });
 });
 
-
 test.describe('Single navigation', () => {
   test('s: crosshair + imagery move to TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
@@ -121,10 +104,7 @@ test.describe('Single navigation', () => {
     await assertFullSync(page, api, TASK_2.id, snap, 'after s');
   });
 
-  test('w from task 1: wraps to TASK_2 with correct imagery', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('w from task 1: wraps to TASK_2 with correct imagery', async ({ annotationPage, api }) => {
     const page = annotationPage;
     const snap = api.requests.length;
     await page.keyboard.press('w');
@@ -142,7 +122,6 @@ test.describe('Single navigation', () => {
     await assertFullSync(page, api, TASK_2.id, snap, 'GoTo 2');
   });
 });
-
 
 test.describe('Sequential navigation', () => {
   test('s then w: crosshair + imagery back at TASK_1', async ({ annotationPage, api }) => {
@@ -169,9 +148,7 @@ test.describe('Sequential navigation', () => {
     await waitNavSettled(page);
     await assertFullSync(page, api, TASK_2.id, snap, 'GoTo 1 then s');
   });
-
 });
-
 
 test.describe('Rapid keypresses', () => {
   test('rapid s-s-s: only first fires -> TASK_2', async ({ annotationPage, api }) => {
@@ -183,23 +160,19 @@ test.describe('Rapid keypresses', () => {
     await waitNavSettled(page);
     await assertFullSync(page, api, TASK_2.id, snap, 'rapid s');
   });
-
 });
 
 test.describe('Submit auto-advance', () => {
-  test('submit task 1 -> crosshair + imagery move to TASK_2', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('submit task 1 -> crosshair + imagery move to TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
 
     await assertCrosshairAt(page, TASK_1.id, 'before submit');
 
     await page.keyboard.press('1');
     await page.keyboard.press('Enter');
-    await expect(
-      page.locator('input[type="number"][title="Press Enter to go"]'),
-    ).toHaveValue('2', { timeout: 3000 });
+    await expect(page.locator('input[type="number"][title="Press Enter to go"]')).toHaveValue('2', {
+      timeout: 3000,
+    });
 
     // After auto-advance, both crosshair AND imagery must be at TASK_2
     await assertCrosshairAt(page, TASK_2.id, 'auto-advance crosshair');
@@ -217,9 +190,7 @@ test.describe('Submit auto-advance', () => {
     expect(req).toBeDefined();
     expect(req!.pathParams.annotation_task_id).toBe('200');
   });
-
 });
-
 
 test.describe('Filter changes', () => {
   test('navigate to task 2, add done filter: crosshair resets to TASK_1', async ({
@@ -282,9 +253,7 @@ test.describe('Filter changes', () => {
     await selectAndSubmit(page, '1');
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
   });
-
 });
-
 
 test.describe('Review mode', () => {
   test('toggle review: filter widens to non-pending and crosshair jumps to first review task', async ({
@@ -357,7 +326,6 @@ test.describe('Review mode', () => {
   });
 });
 
-
 test.describe('Imagery controls do not move crosshair', () => {
   test('slice switch d: crosshair stays at TASK_1', async ({ annotationPage, api }) => {
     const page = annotationPage;
@@ -369,10 +337,7 @@ test.describe('Imagery controls do not move crosshair', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
   });
 
-  test('collection switch Shift+d: crosshair stays at TASK_1', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('collection switch Shift+d: crosshair stays at TASK_1', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await page.keyboard.press('Shift+d');
     await assertCrosshairAt(page, TASK_1.id, 'after Shift+d');
@@ -403,7 +368,6 @@ test.describe('Imagery controls do not move crosshair', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe('100');
   });
 });
-
 
 test.describe('Chaos scenarios', () => {
   test('s then d then add done filter then GoTo 2: crosshair + imagery at TASK_2', async ({
@@ -538,7 +502,6 @@ test.describe('Chaos scenarios', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
   });
 });
-
 
 test.describe('Submit body integrity', () => {
   test('label_id matches digit pressed', async ({ annotationPage, api }) => {

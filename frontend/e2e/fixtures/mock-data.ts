@@ -180,7 +180,12 @@ function makeTask(
       geometry: `POINT(${lon} ${lat})`,
     },
     assignments: opts.assignments ?? [
-      { user_id: TEST_USER_ID, status: 'pending', user_email: 'test@example.com', user_display_name: 'Test User' },
+      {
+        user_id: TEST_USER_ID,
+        status: 'pending',
+        user_email: 'test@example.com',
+        user_display_name: 'Test User',
+      },
     ],
     annotations: opts.annotations ?? [],
   };
@@ -193,7 +198,7 @@ export const TASK_1 = makeTask(100, 1, 50.45, 30.52);
 export const TASK_2 = makeTask(200, 2, 50.65, 30.75);
 
 // Task 3: done, has an existing annotation from our user
-export const TASK_3 = makeTask(300, 3, 50.30, 30.90, {
+export const TASK_3 = makeTask(300, 3, 50.3, 30.9, {
   status: 'done',
   annotations: [
     {
@@ -207,21 +212,35 @@ export const TASK_3 = makeTask(300, 3, 50.30, 30.90, {
       geometry: { id: 3010, geometry: 'POINT(30.90 50.30)' },
     },
   ],
-  assignments: [{ user_id: TEST_USER_ID, status: 'done', user_email: 'test@example.com', user_display_name: 'Test User' }],
+  assignments: [
+    {
+      user_id: TEST_USER_ID,
+      status: 'done',
+      user_email: 'test@example.com',
+      user_display_name: 'Test User',
+    },
+  ],
 });
 
 // Task 4: skipped
-export const TASK_4 = makeTask(400, 4, 50.10, 30.40, {
+export const TASK_4 = makeTask(400, 4, 50.1, 30.4, {
   status: 'skipped',
   annotations: [],
-  assignments: [{ user_id: TEST_USER_ID, status: 'skipped', user_email: 'test@example.com', user_display_name: 'Test User' }],
+  assignments: [
+    {
+      user_id: TEST_USER_ID,
+      status: 'skipped',
+      user_email: 'test@example.com',
+      user_display_name: 'Test User',
+    },
+  ],
 });
 
 // Task 5: conflicting (two annotators, different labels). Also exercises:
 //   - the current user's annotation is flagged_for_review with a flag_comment
 //   - the other annotator's annotation is is_authoritative
 // so the review-mode display can be asserted on a single task.
-export const TASK_5 = makeTask(500, 5, 50.55, 30.60, {
+export const TASK_5 = makeTask(500, 5, 50.55, 30.6, {
   status: 'conflicting',
   annotations: [
     {
@@ -248,8 +267,18 @@ export const TASK_5 = makeTask(500, 5, 50.55, 30.60, {
     },
   ],
   assignments: [
-    { user_id: TEST_USER_ID, status: 'done', user_email: 'test@example.com', user_display_name: 'Test User' },
-    { user_id: 'other-user-xyz', status: 'done', user_email: 'other@example.com', user_display_name: 'Other User' },
+    {
+      user_id: TEST_USER_ID,
+      status: 'done',
+      user_email: 'test@example.com',
+      user_display_name: 'Test User',
+    },
+    {
+      user_id: 'other-user-xyz',
+      status: 'done',
+      user_email: 'other@example.com',
+      user_display_name: 'Other User',
+    },
   ],
 });
 
@@ -263,9 +292,9 @@ export const ALL_TASKS = [TASK_1, TASK_2, TASK_3, TASK_4, TASK_5];
 export const TASK_LOCATIONS: Record<number, { lat: number; lon: number }> = {
   100: { lat: 50.45, lon: 30.52 },
   200: { lat: 50.65, lon: 30.75 },
-  300: { lat: 50.30, lon: 30.90 },
-  400: { lat: 50.10, lon: 30.40 },
-  500: { lat: 50.55, lon: 30.60 },
+  300: { lat: 50.3, lon: 30.9 },
+  400: { lat: 50.1, lon: 30.4 },
+  500: { lat: 50.55, lon: 30.6 },
 };
 
 export const MOCK_TASK_LIST = {
@@ -276,19 +305,39 @@ export const MOCK_TASK_LIST = {
 // Every migrated campaign starts with exactly one task set (default backfill
 // set), so the task set picker stays hidden until a second set is created.
 export const MOCK_TASK_SETS = [
-  { id: 1, name: 'Default', created_at: '2024-01-01T00:00:00Z', num_tasks: ALL_TASKS.length, num_labeled: 0 },
+  {
+    id: 1,
+    name: 'Default',
+    created_at: '2024-01-01T00:00:00Z',
+    num_tasks: ALL_TASKS.length,
+    num_labeled: 0,
+  },
 ];
 
 export const MOCK_CAMPAIGN_USERS = {
   campaign_id: 42,
   users: [
     {
-      user: { id: TEST_USER_ID, email: 'test@example.com', display_name: 'Test User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      user: {
+        id: TEST_USER_ID,
+        email: 'test@example.com',
+        display_name: 'Test User',
+        is_approved: true,
+        is_admin: false,
+        issuer: 'firebase',
+      },
       is_admin: false,
       is_authorative_reviewer: false,
     },
     {
-      user: { id: 'other-user-xyz', email: 'other@example.com', display_name: 'Other User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      user: {
+        id: 'other-user-xyz',
+        email: 'other@example.com',
+        display_name: 'Other User',
+        is_approved: true,
+        is_admin: false,
+        issuer: 'firebase',
+      },
       is_admin: false,
       is_authorative_reviewer: false,
     },
@@ -300,12 +349,26 @@ export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
   campaign_id: 42,
   users: [
     {
-      user: { id: TEST_USER_ID, email: 'test@example.com', display_name: 'Test User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      user: {
+        id: TEST_USER_ID,
+        email: 'test@example.com',
+        display_name: 'Test User',
+        is_approved: true,
+        is_admin: false,
+        issuer: 'firebase',
+      },
       is_admin: false,
       is_authorative_reviewer: true,
     },
     {
-      user: { id: 'other-user-xyz', email: 'other@example.com', display_name: 'Other User', is_approved: true, is_admin: false, issuer: 'firebase' },
+      user: {
+        id: 'other-user-xyz',
+        email: 'other@example.com',
+        display_name: 'Other User',
+        is_approved: true,
+        is_admin: false,
+        issuer: 'firebase',
+      },
       is_admin: false,
       is_authorative_reviewer: false,
     },
@@ -320,18 +383,19 @@ export function makeSubmitResponse(
   confidence: number
 ) {
   return {
-    annotation: labelId !== null
-      ? {
-          id: taskId * 10 + 1,
-          label_id: labelId,
-          comment,
-          created_by_user_id: TEST_USER_ID,
-          created_at: new Date().toISOString(),
-          confidence,
-          is_authoritative: false,
-          geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
-        }
-      : null,
+    annotation:
+      labelId !== null
+        ? {
+            id: taskId * 10 + 1,
+            label_id: labelId,
+            comment,
+            created_by_user_id: TEST_USER_ID,
+            created_at: new Date().toISOString(),
+            confidence,
+            is_authoritative: false,
+            geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
+          }
+        : null,
     task_status: labelId !== null ? 'done' : 'pending',
     assignment_status: labelId !== null ? 'done' : 'skipped',
   };
@@ -434,9 +498,9 @@ export const MOCK_TIMESERIES_DATA = [
   { time: '20240603', values: 0.71, cloud: 0 },
   { time: '20240617', values: 0.73, cloud: 1 }, // cloudy
   { time: '20240701', values: 0.72, cloud: 0 },
-  { time: '20240715', values: 0.70, cloud: 0 },
+  { time: '20240715', values: 0.7, cloud: 0 },
   { time: '20240729', values: 0.66, cloud: 0 },
-  { time: '20240812', values: 0.60, cloud: 0 },
+  { time: '20240812', values: 0.6, cloud: 0 },
   { time: '20240826', values: 0.53, cloud: 0 },
   { time: '20240909', values: 0.45, cloud: 1 }, // cloudy
   { time: '20240923', values: 0.37, cloud: 0 },
@@ -748,7 +812,12 @@ function makeOpenAnnotation(
 //   B (newest) is off-centre (NE) - pressing S navigates here and re-centres the map.
 //   A is exactly at the view centre - a canvas-centre click selects it (edit/delete/flag).
 //   C (oldest) is a polygon to the SW.
-export const OPEN_ANN_CENTER = makeOpenAnnotation(9001, 1, 'POINT(30.5 50.5)', '2024-06-10T10:00:00Z');
+export const OPEN_ANN_CENTER = makeOpenAnnotation(
+  9001,
+  1,
+  'POINT(30.5 50.5)',
+  '2024-06-10T10:00:00Z'
+);
 export const OPEN_ANN_NE_FLAGGED = makeOpenAnnotation(
   9002,
   1,
@@ -790,8 +859,7 @@ export function makeUpdateAnnotationResponse(existing: any, body: any) {
     ...existing,
     label_id: body?.label_id ?? existing.label_id,
     comment: body?.comment ?? existing.comment,
-    flagged_for_review:
-      body?.flagged_for_review ?? existing.flagged_for_review,
+    flagged_for_review: body?.flagged_for_review ?? existing.flagged_for_review,
     flag_comment:
       body?.flagged_for_review === false ? null : (body?.flag_comment ?? existing.flag_comment),
     updated_at: '2024-07-02T10:00:00Z',

@@ -2,30 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIsInternal } from '~/features/account/account.store';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
-import { IconTrash, IconPlus, IconExternalLink } from '~/shared/ui/Icons';
+import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
+import { ColormapSelect } from '~/shared/ui/ColormapSelect';
+import { isColormapName, type ColormapName } from '~/shared/utils/customMapColormaps';
 import {
   listCustomMaps,
   createCustomMap,
+  updateCustomMap,
   deleteCustomMap,
   type CustomMapOut,
   type CategoricalEntry,
 } from '~/api/client';
-
-const COLORMAPS = [
-  'viridis',
-  'plasma',
-  'magma',
-  'inferno',
-  'cividis',
-  'turbo',
-  'rdylgn',
-  'rdbu',
-] as const;
-
-type ColormapName = (typeof COLORMAPS)[number];
-
-const isColormapName = (value: string): value is ColormapName => COLORMAPS.some((c) => c === value);
 
 interface FormState {
   name: string;
@@ -52,6 +40,26 @@ const defaultForm = (): FormState => ({
   max_native_zoom: '',
   internal_storage: false,
 });
+
+const formFromMap = (m: CustomMapOut): FormState => {
+  const rc = m.render_config;
+  const entries = rc.entries ?? [];
+  return {
+    name: m.name,
+    cog_url: m.cog_url,
+    mlops_url: m.mlops_url ?? '',
+    mode: rc.mode,
+    colormap_name:
+      rc.colormap_name && isColormapName(rc.colormap_name) ? rc.colormap_name : 'viridis',
+    rescale_min: rc.rescale ? String(rc.rescale[0]) : '0',
+    rescale_max: rc.rescale ? String(rc.rescale[1]) : '1',
+    entries: entries.length
+      ? entries.map((e) => ({ value: String(e.value), color: e.color, label: e.label ?? '' }))
+      : defaultForm().entries,
+    max_native_zoom: m.max_native_zoom != null ? String(m.max_native_zoom) : '',
+    internal_storage: m.internal_storage ?? false,
+  };
+};
 
 interface StatusBadgeProps {
   status: CustomMapOut['status'];
@@ -105,6 +113,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
   const [form, setForm] = useState<FormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPoll = () => {
@@ -112,6 +121,24 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(defaultForm());
+  };
+
+  const startCreate = () => {
+    setForm(defaultForm());
+    setEditingId(null);
+    setShowForm(true);
+  };
+
+  const startEdit = (m: CustomMapOut) => {
+    setForm(formFromMap(m));
+    setEditingId(m.id);
+    setShowForm(true);
   };
 
   const fetchMaps = useCallback(async () => {
@@ -168,23 +195,29 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
               ),
             };
 
-      const { error } = await createCustomMap({
-        path: { campaign_id: campaignId },
-        body: {
-          name: form.name,
-          cog_url: form.cog_url,
-          render_config: renderConfig,
-          max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
-          mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
-          internal_storage: isInternal ? form.internal_storage : false,
-        },
-      });
+      const body = {
+        name: form.name,
+        cog_url: form.cog_url,
+        render_config: renderConfig,
+        max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
+        mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
+        // Omitted for non-internal users so editing a map never downgrades a flag they
+        // cannot see; the backend defaults it to false on create and leaves it on update.
+        ...(isInternal ? { internal_storage: form.internal_storage } : {}),
+      };
+
+      const { error } =
+        editingId === null
+          ? await createCustomMap({ path: { campaign_id: campaignId }, body })
+          : await updateCustomMap({
+              path: { campaign_id: campaignId, map_id: editingId },
+              body,
+            });
       if (error) {
-        handleError(error, 'Failed to add custom map');
+        handleError(error, editingId === null ? 'Failed to add custom map' : 'Failed to save map');
         return;
       }
-      setForm(defaultForm());
-      setShowForm(false);
+      closeForm();
       await fetchMaps();
     } finally {
       setSubmitting(false);
@@ -217,6 +250,8 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
   const removeEntry = (idx: number) =>
     setForm((f) => ({ ...f, entries: f.entries.filter((_, i) => i !== idx) }));
 
+  const submitLabel = submitting ? 'Saving…' : editingId === null ? 'Add map' : 'Save map';
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
@@ -224,13 +259,14 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
           <h3 className="text-sm font-semibold text-neutral-900">Custom maps</h3>
           <p className="text-xs text-neutral-500 mt-0.5">
             COG raster overlays displayed in the annotation view. Each map is registered as a mosaic
-            and served as tiles.
+            and served as tiles; annotators can recolour them for themselves from the legend without
+            changing what you set here.
           </p>
         </div>
         {!showForm && (
           <button
             type="button"
-            onClick={() => setShowForm(true)}
+            onClick={startCreate}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
             + Add map
@@ -268,6 +304,14 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 <p className="text-xs text-neutral-500 truncate font-mono">{m.cog_url}</p>
               </div>
               <StatusBadge status={m.status} statusError={m.status_error} />
+              <IconButton
+                onClick={() => startEdit(m)}
+                aria-label="Edit custom map"
+                title="Edit"
+                data-testid="edit-custom-map"
+              >
+                <IconPencil className="w-3.5 h-3.5" />
+              </IconButton>
               <IconButton
                 tone="danger"
                 onClick={() => handleDelete(m.id)}
@@ -336,14 +380,18 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
                 <strong className="font-medium text-neutral-600">
                   Cloud-Optimized GeoTIFF (COG)
                 </strong>{' '}
-                — internally tiled with overviews; a plain GeoTIFF will render slowly.
+                - internally tiled with overviews. The browser reads it directly, so a plain GeoTIFF
+                means downloading the whole file.
               </li>
               <li>Single-band raster (e.g. a class map or probability layer).</li>
-              <li>Reachable by the tiler — a public URL, or one that includes a SAS token.</li>
               <li>
-                Not validated automatically — an invalid or non-COG file may fail to register or
-                render slowly.
+                Reachable by this server - a public URL, or one that includes a SAS token. The URL
+                is never exposed to annotators.
               </li>
+              <li>
+                Any projection with a WGS84 datum (UTM zones and EPSG:4326/3857 are all handled).
+              </li>
+              <li>Not validated automatically - an invalid or non-COG file will not render.</li>
             </ul>
           </div>
 
@@ -410,20 +458,11 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-1">Colormap</label>
-                <select
+                <ColormapSelect
                   value={form.colormap_name}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (isColormapName(value)) setForm((f) => ({ ...f, colormap_name: value }));
-                  }}
+                  onChange={(colormap_name) => setForm((f) => ({ ...f, colormap_name }))}
                   className="w-full h-8 px-2.5 text-xs text-neutral-900 bg-white border border-neutral-300 rounded-md focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15 transition-colors"
-                >
-                  {COLORMAPS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-1">
@@ -508,16 +547,13 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
 
           <div className="flex items-center gap-2 pt-1">
             <Button type="submit" size="sm" disabled={submitting} data-testid="add-custom-map">
-              {submitting ? 'Adding…' : 'Add map'}
+              {submitLabel}
             </Button>
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              onClick={() => {
-                setShowForm(false);
-                setForm(defaultForm());
-              }}
+              onClick={closeForm}
               disabled={submitting}
             >
               Cancel

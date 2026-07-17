@@ -44,6 +44,15 @@ async function reloadWithCustomMap(page: Page): Promise<void> {
   await page.waitForSelector('[data-tour="controls"]', { timeout: 10_000 });
 }
 
+async function selectFirstMap(page: Page): Promise<void> {
+  await page.locator('button[title="Select overlay map"]').click();
+  await page
+    .locator('div.rounded-lg.shadow-lg button')
+    .filter({ hasText: 'Test Map' })
+    .first()
+    .click();
+}
+
 test.describe('custom map overlay', () => {
   test('select map, then toggle overlay visibility and adjust opacity', async ({
     annotationPage,
@@ -53,12 +62,7 @@ test.describe('custom map overlay', () => {
     const controls = annotationPage.getByTestId('custom-map-controls');
     await expect(controls).toBeVisible();
 
-    await annotationPage.locator('button[title="Select overlay map"]').click();
-    await annotationPage
-      .locator('div.rounded-lg.shadow-lg button')
-      .filter({ hasText: 'Test Map' })
-      .first()
-      .click();
+    await selectFirstMap(annotationPage);
 
     const toggle = annotationPage.getByTestId('custom-map-toggle');
     await expect(toggle).toBeVisible();
@@ -84,18 +88,43 @@ test.describe('custom map overlay', () => {
     await expect(opacity).toBeHidden();
   });
 
+  test('legend recolours the overlay locally and resets back to the campaign default', async ({
+    annotationPage,
+  }) => {
+    await reloadWithCustomMap(annotationPage);
+    await selectFirstMap(annotationPage);
+
+    const legend = annotationPage.getByTestId('custom-map-legend');
+    await expect(legend).toBeVisible();
+    await expect(legend).toHaveAttribute('data-customized', 'false');
+
+    // The legend is the editor: the colourbar is itself the colormap control, no mode to enter.
+    const colormap = annotationPage.getByTestId('custom-map-legend-colormap');
+    await expect(colormap).toHaveValue(READY_MAP.render_config.colormap_name);
+
+    await colormap.selectOption('magma');
+    await expect(legend).toHaveAttribute('data-customized', 'true');
+
+    // The override outlives the session: it is a per-device preference, not view state.
+    await reloadWithCustomMap(annotationPage);
+    await selectFirstMap(annotationPage);
+    await expect(legend).toHaveAttribute('data-customized', 'true');
+    await expect(annotationPage.getByTestId('custom-map-legend-colormap')).toHaveValue('magma');
+
+    await annotationPage.getByTestId('custom-map-legend-reset').click();
+    await expect(legend).toHaveAttribute('data-customized', 'false');
+    await expect(annotationPage.getByTestId('custom-map-legend-colormap')).toHaveValue(
+      READY_MAP.render_config.colormap_name
+    );
+  });
+
   test('shift+o cycles to the next map; o hides then re-enters the same map', async ({
     annotationPage,
   }) => {
     await reloadWithCustomMap(annotationPage);
 
     const selectTrigger = annotationPage.locator('button[title="Select overlay map"]');
-    await selectTrigger.click();
-    await annotationPage
-      .locator('div.rounded-lg.shadow-lg button')
-      .filter({ hasText: 'Test Map' })
-      .first()
-      .click();
+    await selectFirstMap(annotationPage);
 
     const legend = annotationPage.getByTestId('custom-map-legend');
     await expect(legend).toBeVisible();

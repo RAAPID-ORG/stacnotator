@@ -33,7 +33,7 @@ type Page = import('@playwright/test').Page;
 async function loadOpenMode(
   page: Page,
   api: ApiCapture,
-  opts: { noTimeseries?: boolean } = {},
+  opts: { noTimeseries?: boolean } = {}
 ): Promise<void> {
   await page.route('**/api/campaigns/*/detailed', async (route) => {
     await route.fulfill({
@@ -47,7 +47,7 @@ async function loadOpenMode(
   await page.waitForFunction(
     () => !!document.querySelector('[data-tour="minimap"]')?.getAttribute('data-center-lat'),
     undefined,
-    { timeout: 10_000 },
+    { timeout: 10_000 }
   );
   api.clear();
 }
@@ -80,7 +80,7 @@ test.describe('Open mode renders', () => {
     // The whole-campaign GET /annotations is gone; annotations come from
     // viewport vector tiles. Assert the bulk-load call is never made.
     const bulkLoads = api.requests.filter(
-      (r) => r.method === 'GET' && r.pathname.endsWith('/annotations'),
+      (r) => r.method === 'GET' && r.pathname.endsWith('/annotations')
     );
     expect(bulkLoads).toHaveLength(0);
     await expect(controls(annotationPage)).toBeVisible();
@@ -171,7 +171,7 @@ test.describe('Creating annotations', () => {
     await Promise.all([waitForCreate(annotationPage), clickMapCenter(annotationPage)]);
 
     const posts = api.requests.filter(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
     );
     expect(posts).toHaveLength(1);
     const body = posts[0].body;
@@ -192,7 +192,7 @@ test.describe('Creating annotations', () => {
     await Promise.all([waitForCreate(annotationPage), clickMapAt(annotationPage, 100, 0)]);
 
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
     )!.body;
     const wkt = parseWkt(body.geometry_wkt);
     expect(wkt.type).toBe('POINT');
@@ -210,7 +210,7 @@ test.describe('Creating annotations', () => {
       ]),
     ]);
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
     )!.body;
     expect(parseWkt(body.geometry_wkt).type).toBe('POLYGON');
     expect(body.label_id).toBe(2);
@@ -226,7 +226,7 @@ test.describe('Creating annotations', () => {
       ]),
     ]);
     const body = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/create-annotation')
     )!.body;
     expect(parseWkt(body.geometry_wkt).type).toBe('LINESTRING');
     expect(body.label_id).toBe(3);
@@ -268,7 +268,7 @@ test.describe.skip('Editing annotations', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`,
+      `Selected annotation #${OPEN_ANN_CENTER.id}`
     );
 
     // Alt+drag translates the whole feature.
@@ -288,14 +288,14 @@ test.describe.skip('Editing annotations', () => {
     ]);
 
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`),
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
     );
     expect(put).toBeTruthy();
     expect(put!.body.geometry_wkt).toBeTruthy();
     const moved = parseWkt(put!.body.geometry_wkt);
     const original = parseWkt(OPEN_ANN_CENTER.geometry.geometry);
     expect(Math.abs(moved.lon - original.lon) + Math.abs(moved.lat - original.lat)).toBeGreaterThan(
-      0,
+      0
     );
   });
 
@@ -344,7 +344,7 @@ test.describe.skip('Deleting annotations', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`,
+      `Selected annotation #${OPEN_ANN_CENTER.id}`
     );
 
     await Promise.all([
@@ -353,7 +353,7 @@ test.describe.skip('Deleting annotations', () => {
     ]);
 
     const del = api.requests.find(
-      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`),
+      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`)
     );
     expect(del).toBeTruthy();
     await expect(controls(annotationPage)).not.toContainText('Selected annotation #');
@@ -371,7 +371,9 @@ test.describe.skip('Multi-select and delete key', () => {
     await loadOpenMode(annotationPage, api);
   });
 
-  test('Shift+drag box-selects every annotation and shows the count', async ({ annotationPage }) => {
+  test('Shift+drag box-selects every annotation and shows the count', async ({
+    annotationPage,
+  }) => {
     await annotationPage.keyboard.press('e');
     await fitAllAnnotations(annotationPage, OPEN_MODE_CENTER);
     await boxSelectWholeCanvas(annotationPage);
@@ -404,7 +406,7 @@ test.describe.skip('Multi-select and delete key', () => {
     ]);
 
     const post = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations/batch-delete'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotations/batch-delete')
     );
     expect(post).toBeTruthy();
     expect([...(post!.body.annotation_ids as number[])].sort((a, b) => a - b)).toEqual([
@@ -428,7 +430,7 @@ test.describe.skip('Multi-select and delete key', () => {
     await Promise.all([waitForDelete(annotationPage), annotationPage.keyboard.press('Delete')]);
 
     const del = api.requests.find(
-      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`),
+      (r) => r.method === 'DELETE' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}`)
     );
     expect(del).toBeTruthy();
     expect(api.requests.some((r) => r.pathname.endsWith('/annotations/batch-delete'))).toBe(false);
@@ -452,7 +454,7 @@ test.describe.skip('Flag for review', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_CENTER.id}`,
+      `Selected annotation #${OPEN_ANN_CENTER.id}`
     );
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await expect(checkbox).not.toBeChecked();
@@ -460,7 +462,7 @@ test.describe.skip('Flag for review', () => {
     await Promise.all([waitForUpdate(annotationPage), annotationPage.keyboard.press('f')]);
 
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`),
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
     );
     expect(put).toBeTruthy();
     expect(put!.body.flagged_for_review).toBe(true);
@@ -477,7 +479,7 @@ test.describe.skip('Flag for review', () => {
     await annotationPage.keyboard.press('e');
     await clickMapCenter(annotationPage);
     await expect(controls(annotationPage)).toContainText(
-      `Selected annotation #${OPEN_ANN_NE_FLAGGED.id}`,
+      `Selected annotation #${OPEN_ANN_NE_FLAGGED.id}`
     );
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await expect(checkbox).toBeChecked();
@@ -485,8 +487,7 @@ test.describe.skip('Flag for review', () => {
     await Promise.all([waitForUpdate(annotationPage), annotationPage.keyboard.press('f')]);
     const put = api.requests.find(
       (r) =>
-        r.method === 'PUT' &&
-        r.pathname.endsWith(`/annotations/${OPEN_ANN_NE_FLAGGED.id}/update`),
+        r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_NE_FLAGGED.id}/update`)
     );
     expect(put!.body.flagged_for_review).toBe(false);
     await expect(checkbox).not.toBeChecked();
@@ -498,7 +499,7 @@ test.describe.skip('Flag for review', () => {
     const checkbox = controls(annotationPage).locator('input[type="checkbox"]');
     await Promise.all([waitForUpdate(annotationPage), checkbox.check()]);
     const put = api.requests.find(
-      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`),
+      (r) => r.method === 'PUT' && r.pathname.endsWith(`/annotations/${OPEN_ANN_CENTER.id}/update`)
     );
     expect(put!.body.flagged_for_review).toBe(true);
   });

@@ -26,9 +26,9 @@ test.describe('Authoritative submit', () => {
     annotationPage,
   }) => {
     // Default mock: current user has is_authorative_reviewer=false.
-    await expect(
-      annotationPage.locator('button', { hasText: 'Submit authoritative' })
-    ).toHaveCount(0);
+    await expect(annotationPage.locator('button', { hasText: 'Submit authoritative' })).toHaveCount(
+      0
+    );
   });
 
   test('authoritative submit POSTs is_authoritative=true after the confirm dialog', async ({
@@ -60,10 +60,7 @@ test.describe('Authoritative submit', () => {
     expect(req!.body.label_id).toBe(1); // forest
   });
 
-  test('cancelling the authoritative dialog does not POST', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('cancelling the authoritative dialog does not POST', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await elevateToAuthoritativeReviewer(page);
 
@@ -129,9 +126,7 @@ test.describe('Flag for review', () => {
 
     await page.locator('button', { hasText: 'Forest' }).first().click();
     await page.keyboard.press('f');
-    await page
-      .locator('textarea[placeholder^="Why are you flagging"]')
-      .fill('Will undo this');
+    await page.locator('textarea[placeholder^="Why are you flagging"]').fill('Will undo this');
 
     // Toggle the flag off via the button. We can't press F again here -
     // focus is on the flag textarea, so F would just insert the letter.

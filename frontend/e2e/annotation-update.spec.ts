@@ -5,12 +5,7 @@
  * the form should be pre-populated with the existing label, comment, confidence.
  * Submitting should send an "Update" and the body should reflect the changes.
  */
-import {
-  test,
-  expect,
-  waitForNavIdle,
-  type CapturedRequest,
-} from './fixtures/annotator-fixture';
+import { test, expect, waitForNavIdle, type CapturedRequest } from './fixtures/annotator-fixture';
 import { TASK_3 } from './fixtures/mock-data';
 
 /** Navigate to TASK_3 (which has a pre-existing forest annotation by the user). */
@@ -69,9 +64,7 @@ test.describe('Annotation Update', () => {
     await page.locator('button', { hasText: /^Update$/ }).click();
     await waitForNavIdle(page);
 
-    const req = api.requests.find(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/annotate')
-    );
+    const req = api.requests.find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
     expect(req).toBeDefined();
     expect(req!.pathParams.annotation_task_id).toBe(TASK_3.id.toString());
     expect(req!.body.label_id).toBe(2); // cropland
@@ -113,8 +106,7 @@ test.describe('Remove Label', () => {
 
     // And no POST to /annotate for this task (the remove flow is delete-only).
     const annotatePost = api.requests.find(
-      (r: CapturedRequest) =>
-        r.method === 'POST' && r.pathname.endsWith(`/${TASK_3.id}/annotate`)
+      (r: CapturedRequest) => r.method === 'POST' && r.pathname.endsWith(`/${TASK_3.id}/annotate`)
     );
     expect(annotatePost).toBeUndefined();
   });

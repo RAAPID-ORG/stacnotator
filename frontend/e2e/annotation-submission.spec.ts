@@ -10,9 +10,9 @@ import { LABELS } from './fixtures/mock-data';
 
 /** Return the last POST to /annotate */
 function lastAnnotateRequest(requests: CapturedRequest[]): CapturedRequest | undefined {
-  return [...requests].reverse().find(
-    (r) => r.method === 'POST' && r.pathname.endsWith('/annotate')
-  );
+  return [...requests]
+    .reverse()
+    .find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
 }
 
 test.describe('Annotation Submission', () => {

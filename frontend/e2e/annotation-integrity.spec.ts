@@ -32,9 +32,9 @@ async function expectCurrentTask(page: Page, annotationNumber: number): Promise<
 }
 
 function lastAnnotate(requests: CapturedRequest[]): CapturedRequest | undefined {
-  return [...requests].reverse().find(
-    (r) => r.method === 'POST' && r.pathname.endsWith('/annotate'),
-  );
+  return [...requests]
+    .reverse()
+    .find((r) => r.method === 'POST' && r.pathname.endsWith('/annotate'));
 }
 
 async function readGoToValue(page: Page): Promise<string> {
@@ -160,10 +160,7 @@ test.describe('Label always goes to the displayed task', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
   });
 
-  test('S → W → S (ends at TASK_2) then submit targets TASK_2', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('S → W → S (ends at TASK_2) then submit targets TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await page.keyboard.press('s');
     await waitForNavIdle(page);
@@ -182,10 +179,7 @@ test.describe('Label always goes to the displayed task', () => {
     expect(lastAnnotate(api.requests)!.pathParams.annotation_task_id).toBe(String(TASK_2.id));
   });
 
-  test('rapid S-S-S only advances once, submit targets TASK_2', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('rapid S-S-S only advances once, submit targets TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await page.keyboard.press('s');
     await page.keyboard.press('s');
@@ -267,9 +261,7 @@ test.describe('Form state loads correctly per task', () => {
     await assertCrosshairAt(page, TASK_3.id, 'restored pre-fill crosshair');
   });
 
-  test('navigating from annotated to unannotated task clears form', async ({
-    annotationPage,
-  }) => {
+  test('navigating from annotated to unannotated task clears form', async ({ annotationPage }) => {
     const page = annotationPage;
     await enableDoneFilter(page);
     await goTo(page, TASK_3.annotation_number);
@@ -333,10 +325,7 @@ test.describe('Submission body reflects what the user set after navigation', () 
     expect(req!.body.confidence).toBe(2);
   });
 
-  test('GoTo 2 then set all three - all three in POST body', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('GoTo 2 then set all three - all three in POST body', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await goTo(page, TASK_2.annotation_number);
 
@@ -364,10 +353,7 @@ test.describe('Submission body reflects what the user set after navigation', () 
     expect(lastAnnotate(api.requests)!.body.confidence).toBe(3);
   });
 
-  test('confidence increased via E key after Q reaches body', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('confidence increased via E key after Q reaches body', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await page.keyboard.press('q');
     await page.keyboard.press('q');
@@ -444,10 +430,7 @@ test.describe('Auto-advance: next task, correct imagery, clean form', () => {
     await expectCurrentTask(page, TASK_2.annotation_number);
   });
 
-  test('comment from TASK_1 does NOT carry over to TASK_2', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('comment from TASK_1 does NOT carry over to TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await setComment(page, 'task1 comment');
     await pressLabel(page, 1);
@@ -457,10 +440,7 @@ test.describe('Auto-advance: next task, correct imagery, clean form', () => {
     await expectComment(page, '');
   });
 
-  test('confidence from TASK_1 does NOT carry over to TASK_2', async ({
-    annotationPage,
-    api,
-  }) => {
+  test('confidence from TASK_1 does NOT carry over to TASK_2', async ({ annotationPage, api }) => {
     const page = annotationPage;
     await setConfidence(page, 1);
     await pressLabel(page, 1);
@@ -485,7 +465,7 @@ test.describe('Auto-advance: next task, correct imagery, clean form', () => {
     await doSubmit(page);
 
     const posts = api.requests.filter(
-      (r) => r.method === 'POST' && r.pathname.endsWith('/annotate'),
+      (r) => r.method === 'POST' && r.pathname.endsWith('/annotate')
     );
     expect(posts).toHaveLength(2);
     expect(posts[0].pathParams.annotation_task_id).toBe(String(TASK_1.id));

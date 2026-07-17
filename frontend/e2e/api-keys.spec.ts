@@ -66,10 +66,10 @@ test.describe('API key prompt', () => {
   });
 
   test('no prompt when {api_key} value is already in localStorage', async ({ annotationPage }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      { key: 'stacnotator:api-keys', value: storedApiKeys({ 'basemap:99': 'PLtest123' }) }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
+    });
 
     await reloadWithCampaign(annotationPage, { ...MOCK_CAMPAIGN, basemaps: [KEYED_BASEMAP] });
 
@@ -129,10 +129,10 @@ test.describe('multiple API keys', () => {
   test('prompt shows only the entry whose key is missing when one is already stored', async ({
     annotationPage,
   }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      { key: 'stacnotator:api-keys', value: storedApiKeys({ 'basemap:99': 'PLtest123' }) }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
+    });
 
     await reloadWithCampaign(annotationPage, {
       ...MOCK_CAMPAIGN,
@@ -148,16 +148,13 @@ test.describe('multiple API keys', () => {
   });
 
   test('no prompt when all keys are stored', async ({ annotationPage }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      {
-        key: 'stacnotator:api-keys',
-        value: storedApiKeys({
-          'basemap:99': 'PLtest123',
-          [`collection:${KEYED_COLLECTION_ID}`]: 'IMGtest456',
-        }),
-      }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({
+        'basemap:99': 'PLtest123',
+        [`collection:${KEYED_COLLECTION_ID}`]: 'IMGtest456',
+      }),
+    });
 
     await reloadWithCampaign(annotationPage, {
       ...MOCK_CAMPAIGN,
@@ -173,10 +170,10 @@ test.describe('API key tile substitution', () => {
   test('basemap tile requests contain the substituted value, not the placeholder', async ({
     annotationPage,
   }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      { key: 'stacnotator:api-keys', value: storedApiKeys({ 'basemap:99': 'PLtest123' }) }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
+    });
 
     // Listener must be created before the action that triggers the request.
     const keyedTileRequest = annotationPage.waitForRequest(
@@ -197,16 +194,13 @@ test.describe('API key tile substitution', () => {
   });
 
   test('each entry gets only its own key value', async ({ annotationPage }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      {
-        key: 'stacnotator:api-keys',
-        value: storedApiKeys({
-          'basemap:99': 'PLANET_KEY',
-          [`collection:${KEYED_COLLECTION_ID}`]: 'IMAGERY_KEY',
-        }),
-      }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({
+        'basemap:99': 'PLANET_KEY',
+        [`collection:${KEYED_COLLECTION_ID}`]: 'IMAGERY_KEY',
+      }),
+    });
 
     const planetRequest = annotationPage.waitForRequest(
       (req) => req.url().includes('api_key=PLANET_KEY'),
@@ -235,10 +229,10 @@ test.describe('API key tile substitution', () => {
   });
 
   test('keyless tile URLs are not modified when a key is stored', async ({ annotationPage }) => {
-    await annotationPage.evaluate(
-      ({ key, value }) => localStorage.setItem(key, value),
-      { key: 'stacnotator:api-keys', value: storedApiKeys({ 'basemap:99': 'PLtest123' }) }
-    );
+    await annotationPage.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: 'stacnotator:api-keys',
+      value: storedApiKeys({ 'basemap:99': 'PLtest123' }),
+    });
 
     const publicTileUrls: string[] = [];
     annotationPage.on('request', (req) => {

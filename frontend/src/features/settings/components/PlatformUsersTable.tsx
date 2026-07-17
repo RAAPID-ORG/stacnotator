@@ -30,7 +30,15 @@ type UserAction =
   | 'revoke-visitor';
 
 const chipCls =
-  'inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+/** Fixed-width slot so the chip keeps its size across states: ✓ and + have
+ * different advance widths and would otherwise shift the label on toggle. */
+const ChipMarker = ({ on }: { on: boolean }) => (
+  <span aria-hidden className="w-2 text-center leading-none">
+    {on ? '✓' : '+'}
+  </span>
+);
 
 type InternalToggleProps = {
   user: UserOutDetailed;
@@ -49,7 +57,8 @@ const InternalToggle = ({ user, busy, onSetInternal }: InternalToggleProps) => {
         title="Admins are internal by definition"
         className={`${chipCls} bg-brand-50 text-brand-800 border-brand-200 opacity-60`}
       >
-        ✓ Internal
+        <ChipMarker on />
+        Internal
       </span>
     );
   }
@@ -71,7 +80,8 @@ const InternalToggle = ({ user, busy, onSetInternal }: InternalToggleProps) => {
           : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
       }`}
     >
-      {user.is_internal ? '✓ Internal' : '+ Internal'}
+      <ChipMarker on={user.is_internal} />
+      Internal
     </button>
   );
 };

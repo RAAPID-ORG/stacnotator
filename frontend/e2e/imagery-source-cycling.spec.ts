@@ -72,7 +72,9 @@ test.describe('Visualization cycling within one source', () => {
     await falseColorTile;
   });
 
-  test('Shift+I back returns the active visualization to True Color', async ({ annotationPage }) => {
+  test('Shift+I back returns the active visualization to True Color', async ({
+    annotationPage,
+  }) => {
     const layerBtn = annotationPage.locator('[data-tour="layer-selector"] button');
     await annotationPage.keyboard.press('Shift+i');
     await expect(layerBtn).toContainText('False Color', { timeout: 3000 });
@@ -318,9 +320,7 @@ test.describe('Visualization preserved after source detour', () => {
     await useCampaign(annotationPage, api, MOCK_CAMPAIGN_MULTI_SOURCE);
   });
 
-  test('S2 false color → VHR → back restores false color (hotkeys)', async ({
-    annotationPage,
-  }) => {
+  test('S2 false color → VHR → back restores false color (hotkeys)', async ({ annotationPage }) => {
     const layerBtn = annotationPage.locator('[data-tour="layer-selector"] button');
 
     await annotationPage.keyboard.press('Shift+i');
@@ -368,5 +368,4 @@ test.describe('Visualization preserved after source detour', () => {
     await annotationPage.keyboard.press('i');
     await expect(layerBtn).toContainText('False Color', { timeout: 3000 });
   });
-
 });
