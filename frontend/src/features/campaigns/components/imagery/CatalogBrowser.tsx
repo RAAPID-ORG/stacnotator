@@ -25,11 +25,75 @@ import { extractErrorMessage, handleError } from '~/shared/utils/errorHandler';
 
 type Step = 'catalog' | 'collection' | 'configure';
 
+type TemporalPattern =
+  | 'monthly-weekly'
+  | 'monthly-monthly'
+  | 'weekly-weekly'
+  | 'yearly-monthly'
+  | 'yearly-yearly'
+  | 'custom';
+
+interface TemporalPatternOption {
+  id: Exclude<TemporalPattern, 'custom'>;
+  label: string;
+  windowInterval: number;
+  windowUnit: 'weeks' | 'months' | 'years';
+  sliceInterval: number;
+  sliceUnit: 'days' | 'weeks' | 'months' | 'years';
+}
+
+const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
+  {
+    id: 'monthly-weekly',
+    label: 'Month by month, with weekly images to choose from',
+    windowInterval: 1,
+    windowUnit: 'months',
+    sliceInterval: 1,
+    sliceUnit: 'weeks',
+  },
+  {
+    id: 'monthly-monthly',
+    label: 'Month by month, one image per month',
+    windowInterval: 1,
+    windowUnit: 'months',
+    sliceInterval: 1,
+    sliceUnit: 'months',
+  },
+  {
+    id: 'weekly-weekly',
+    label: 'Week by week, one image per week',
+    windowInterval: 1,
+    windowUnit: 'weeks',
+    sliceInterval: 1,
+    sliceUnit: 'weeks',
+  },
+  {
+    id: 'yearly-monthly',
+    label: 'Year by year, with monthly images to choose from',
+    windowInterval: 1,
+    windowUnit: 'years',
+    sliceInterval: 1,
+    sliceUnit: 'months',
+  },
+  {
+    id: 'yearly-yearly',
+    label: 'Year by year, one image per year',
+    windowInterval: 1,
+    windowUnit: 'years',
+    sliceInterval: 1,
+    sliceUnit: 'years',
+  },
+];
+
 export interface CatalogBrowserPreset {
   /** STAC collection ID within MPC (e.g. 'sentinel-2-l2a') */
   stacCollectionId: string;
   /** Human label */
   label: string;
+  /** Temporal pattern to preselect; falls back to the form defaults (monthly/weekly) */
+  temporalPattern?: Exclude<TemporalPattern, 'custom'>;
+  /** Cover to preselect; falls back to a generated cover for cloud-bearing collections */
+  coverMode?: 'nth' | 'custom';
 }
 
 /** Presets that map directly to MPC STAC collections */
@@ -38,7 +102,9 @@ export const MPC_PRESETS: CatalogBrowserPreset[] = [
   { stacCollectionId: 'landsat-c2-l2', label: 'Landsat C2 L2' },
   { stacCollectionId: 'hls2-s30', label: 'HLS Sentinel-2 (S30)' },
   { stacCollectionId: 'hls2-l30', label: 'HLS Landsat (L30)' },
-  { stacCollectionId: 'naip', label: 'NAIP' },
+  // NAIP flies each state roughly every 2-3 years and carries no cloud metadata, so
+  // sub-yearly windows produce empty slices and a composited cover buys nothing.
+  { stacCollectionId: 'naip', label: 'NAIP', temporalPattern: 'yearly-yearly', coverMode: 'nth' },
   { stacCollectionId: 'sentinel-1-grd', label: 'Sentinel-1 GRD' },
   { stacCollectionId: 'cop-dem-glo-30', label: 'Copernicus DEM 30m' },
 ];
@@ -59,57 +125,6 @@ interface CatalogBrowserProps {
    *  (post-creation edits are intentional power-user actions). */
   initialAdvanced?: boolean;
 }
-
-type TemporalPattern =
-  | 'monthly-weekly'
-  | 'monthly-monthly'
-  | 'weekly-weekly'
-  | 'yearly-monthly'
-  | 'custom';
-
-interface TemporalPatternOption {
-  id: TemporalPattern;
-  label: string;
-  windowInterval: number;
-  windowUnit: 'weeks' | 'months' | 'years';
-  sliceInterval: number;
-  sliceUnit: 'days' | 'weeks' | 'months' | 'years';
-}
-
-const TEMPORAL_PATTERNS: TemporalPatternOption[] = [
-  {
-    id: 'monthly-weekly',
-    label: 'Monthly mosaics, weekly slices',
-    windowInterval: 1,
-    windowUnit: 'months',
-    sliceInterval: 1,
-    sliceUnit: 'weeks',
-  },
-  {
-    id: 'monthly-monthly',
-    label: 'Monthly mosaics, one image per month',
-    windowInterval: 1,
-    windowUnit: 'months',
-    sliceInterval: 1,
-    sliceUnit: 'months',
-  },
-  {
-    id: 'weekly-weekly',
-    label: 'Weekly mosaics',
-    windowInterval: 1,
-    windowUnit: 'weeks',
-    sliceInterval: 1,
-    sliceUnit: 'weeks',
-  },
-  {
-    id: 'yearly-monthly',
-    label: 'Yearly mosaics, monthly slices',
-    windowInterval: 1,
-    windowUnit: 'years',
-    sliceInterval: 1,
-    sliceUnit: 'months',
-  },
-];
 
 const AdvancedToggle = ({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) => (
   <div className="flex justify-end">
@@ -351,9 +366,12 @@ export const CatalogBrowser = ({
             setItemSort('cloud_cover_asc');
             setCoverItemSort('cloud_cover_asc');
           }
-          // For imagery collections (those with cloud cover), enable custom cover by default
-          if (col.has_cloud_cover) {
-            setCoverMode('custom');
+          if (preset.temporalPattern) {
+            applyTemporalPattern(preset.temporalPattern);
+          }
+          const coverMode = preset.coverMode ?? (col.has_cloud_cover ? 'custom' : 'nth');
+          setCoverMode(coverMode);
+          if (coverMode === 'custom') {
             setCoverVisualizations(buildInitialVisualizations(col.id, 'first'));
             setActiveCoverVizIndex(0);
           }
