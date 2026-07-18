@@ -5,7 +5,12 @@ import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
 import { ColormapSelect } from '~/shared/ui/ColormapSelect';
-import { isColormapName, type ColormapName } from '~/shared/utils/customMapColormaps';
+import {
+  isColormapName,
+  nextCategoricalColor,
+  CATEGORICAL_PALETTE,
+  type ColormapName,
+} from '~/shared/utils/customMapColormaps';
 import {
   listCustomMaps,
   createCustomMap,
@@ -36,7 +41,7 @@ const defaultForm = (): FormState => ({
   colormap_name: 'viridis',
   rescale_min: '0',
   rescale_max: '1',
-  entries: [{ value: '1', color: '#3b82f6', label: '' }],
+  entries: [{ value: '1', color: CATEGORICAL_PALETTE[0], label: '' }],
   max_native_zoom: '',
   internal_storage: false,
 });
@@ -115,6 +120,16 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Focus the value field of a freshly added class entry so Enter/Add keeps the keyboard flow going.
+  const entryValueRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const pendingFocus = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (pendingFocus.current !== null) {
+      entryValueRefs.current[pendingFocus.current]?.focus();
+      pendingFocus.current = null;
+    }
+  }, [form.entries.length]);
 
   const stopPoll = () => {
     if (pollRef.current) {
@@ -242,10 +257,14 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
     }));
 
   const addEntry = () =>
-    setForm((f) => ({
-      ...f,
-      entries: [...f.entries, { value: '', color: '#6b7280', label: '' }],
-    }));
+    setForm((f) => {
+      const entries = [
+        ...f.entries,
+        { value: '', color: nextCategoricalColor(f.entries.map((e) => e.color)), label: '' },
+      ];
+      pendingFocus.current = entries.length - 1;
+      return { ...f, entries };
+    });
 
   const removeEntry = (idx: number) =>
     setForm((f) => ({ ...f, entries: f.entries.filter((_, i) => i !== idx) }));
@@ -493,55 +512,67 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
 
           {form.mode === 'categorical' && (
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-neutral-700">Class entries</span>
-                <button
-                  type="button"
-                  onClick={addEntry}
-                  className="flex items-center gap-1 text-xs text-brand-700 hover:text-brand-900 cursor-pointer"
-                >
-                  <IconPlus className="w-3 h-3" />
-                  Add
-                </button>
-              </div>
+              <span className="block text-xs font-medium text-neutral-700 mb-2">Class entries</span>
+              {/* Enter adds the next entry instead of submitting the form, so classes can be typed
+                  in one keyboard run; the new entry's value field takes focus (see pendingFocus). */}
               <ul className="space-y-2">
-                {form.entries.map((entry, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <Input
-                      size="sm"
-                      type="number"
-                      value={entry.value}
-                      onChange={(e) => updateEntry(idx, { value: e.target.value })}
-                      placeholder="Value"
-                      className="!w-20"
-                    />
-                    <input
-                      type="color"
-                      value={entry.color}
-                      onChange={(e) => updateEntry(idx, { color: e.target.value })}
-                      className="h-8 w-10 rounded border border-neutral-300 cursor-pointer p-0.5 bg-white"
-                      title="Color"
-                    />
-                    <Input
-                      size="sm"
-                      type="text"
-                      value={entry.label}
-                      onChange={(e) => updateEntry(idx, { label: e.target.value })}
-                      placeholder="Label (optional)"
-                      className="flex-1"
-                    />
-                    <IconButton
-                      tone="danger"
-                      type="button"
-                      onClick={() => removeEntry(idx)}
-                      disabled={form.entries.length <= 1}
-                      aria-label="Remove entry"
-                    >
-                      <IconTrash className="w-3.5 h-3.5" />
-                    </IconButton>
-                  </li>
-                ))}
+                {form.entries.map((entry, idx) => {
+                  const addOnEnter = (e: React.KeyboardEvent) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    addEntry();
+                  };
+                  return (
+                    <li key={idx} className="flex items-center gap-2">
+                      <Input
+                        ref={(el) => {
+                          entryValueRefs.current[idx] = el;
+                        }}
+                        size="sm"
+                        type="number"
+                        value={entry.value}
+                        onChange={(e) => updateEntry(idx, { value: e.target.value })}
+                        onKeyDown={addOnEnter}
+                        placeholder="Value"
+                        className="!w-20"
+                      />
+                      <input
+                        type="color"
+                        value={entry.color}
+                        onChange={(e) => updateEntry(idx, { color: e.target.value })}
+                        className="h-8 w-10 rounded border border-neutral-300 cursor-pointer p-0.5 bg-white"
+                        title="Color"
+                      />
+                      <Input
+                        size="sm"
+                        type="text"
+                        value={entry.label}
+                        onChange={(e) => updateEntry(idx, { label: e.target.value })}
+                        onKeyDown={addOnEnter}
+                        placeholder="Label (optional)"
+                        className="flex-1"
+                      />
+                      <IconButton
+                        tone="danger"
+                        type="button"
+                        onClick={() => removeEntry(idx)}
+                        disabled={form.entries.length <= 1}
+                        aria-label="Remove entry"
+                      >
+                        <IconTrash className="w-3.5 h-3.5" />
+                      </IconButton>
+                    </li>
+                  );
+                })}
               </ul>
+              <button
+                type="button"
+                onClick={addEntry}
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-300 py-1.5 text-xs text-brand-700 hover:border-brand-400 hover:text-brand-900 cursor-pointer"
+              >
+                <IconPlus className="w-3 h-3" />
+                Add class
+              </button>
             </div>
           )}
 

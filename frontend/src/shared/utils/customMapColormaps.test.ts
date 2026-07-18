@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { gradientFor, formatTick } from './customMapColormaps';
+import {
+  gradientFor,
+  formatTick,
+  nextCategoricalColor,
+  CATEGORICAL_PALETTE,
+} from './customMapColormaps';
 
 describe('gradientFor', () => {
   it('viridis gradient contains first and last stops', () => {
@@ -45,5 +50,23 @@ describe('formatTick', () => {
 
   it('trailing zeros stripped', () => {
     expect(formatTick(1.1)).toBe('1.1');
+  });
+});
+
+describe('nextCategoricalColor', () => {
+  it('picks the first palette colour when nothing is used', () => {
+    expect(nextCategoricalColor([])).toBe(CATEGORICAL_PALETTE[0]);
+  });
+
+  it('skips colours already in use', () => {
+    expect(nextCategoricalColor([CATEGORICAL_PALETTE[0]])).toBe(CATEGORICAL_PALETTE[1]);
+    expect(nextCategoricalColor([CATEGORICAL_PALETTE[0], CATEGORICAL_PALETTE[1]])).toBe(
+      CATEGORICAL_PALETTE[2]
+    );
+  });
+
+  it('cycles once every palette colour is taken', () => {
+    const all = [...CATEGORICAL_PALETTE];
+    expect(nextCategoricalColor(all)).toBe(CATEGORICAL_PALETTE[0]);
   });
 });
