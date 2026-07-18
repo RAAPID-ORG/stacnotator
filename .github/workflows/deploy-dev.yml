@@ -70,4 +70,7 @@ jobs:
           TILER_REPO_DIR: ${{ github.workspace }}/stacnotator-tiler
           PUBLIC_DOMAIN: ${{ vars.PUBLIC_DOMAIN_DEV }}
           EXTRA_TILERS: ${{ vars.EXTRA_TILERS_DEV }}
+          # Opt-in: set the `TILER_AZURE_SIGNING_DEV` env variable to "true" to let the tiler
+          # read internal-storage custom-map COGs via its managed identity. Unset => off.
+          TILER_AZURE_SIGNING: ${{ vars.TILER_AZURE_SIGNING_DEV }}
         run: ./azure_deploy/deploy-app.sh dev

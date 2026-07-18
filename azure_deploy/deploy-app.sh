@@ -76,6 +76,12 @@ PROJECT_NAME="stacnotator-${ENV}"
 TILER_NAME="${TILER_NAME:-hosted}"
 TILER_ALLOWS_INGEST="${TILER_ALLOWS_INGEST:-true}"
 
+# Opt-in: let the tiler sign Azure blob reads with the apps managed identity so internal-storage
+# custom-map COGs (in the per-env `custom-maps` container) are readable without a SAS. OFF by
+# default; set TILER_AZURE_SIGNING=true to activate for an env. Only when on does the tiler hand
+# AZURE_CLIENT_ID to the app so it uses the identity - off leaves the app without it.
+TILER_AZURE_SIGNING="${TILER_AZURE_SIGNING:-false}"
+
 # Optional extra tiler registry entries (inner JSON, no braces) for externally
 # hosted tilers like the GCP VM tiler - see the EXTRA_TILERS use below.
 EXTRA_TILERS="${EXTRA_TILERS:-}"
@@ -315,6 +321,7 @@ CPU="$TILER_CPU" MEMORY="$TILER_MEM" \
 MIN_REPLICAS="$TILER_MIN" MAX_REPLICAS="$TILER_MAX" \
 WEB_CONCURRENCY="$TILER_WORKERS" \
 ALLOW_STAC_API_INGEST="$TILER_ALLOWS_INGEST" \
+AZURE_SIGNING_ENABLED="$TILER_AZURE_SIGNING" \
 DB_MIN_CONN_SIZE=1 DB_MAX_CONN_SIZE="$TILER_DB_MAX_CONN" \
 WORKLOAD_PROFILE="$WORKLOAD_PROFILE" \
     "$TILER_REPO_DIR/deployment/deploy-containerapp.sh"
