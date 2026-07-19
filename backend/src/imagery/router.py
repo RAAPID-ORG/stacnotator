@@ -101,16 +101,19 @@ def save_imagery(
         editor_state=editor_state,
         user=user,
     )
+
+    pending = result["pending_registrations"]
+    if pending:
+        campaign.registration_status = "registering"
+        campaign.registration_errors = None
     db.commit()
-    response = {
+    if pending:
+        service.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
+    return {
         "sources": len(result["sources"]),
         "views": len(result["views"]),
         "basemaps": len(result["basemaps"]),
     }
-    errors = result.get("registration_errors", [])
-    if errors:
-        response["registration_errors"] = errors
-    return response
 
 
 @router.post("/{campaign_id}/new-layout", status_code=201)

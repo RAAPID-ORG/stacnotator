@@ -275,11 +275,9 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
     <section>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Custom maps</h3>
+          <h3 className="text-sm font-semibold text-neutral-900">Overlays</h3>
           <p className="text-xs text-neutral-500 mt-0.5">
-            COG raster overlays displayed in the annotation view. Each map is registered as a mosaic
-            and served as tiles; annotators can recolour them for themselves from the legend without
-            changing what you set here.
+            COG raster overlays displayed in the annotation view.
           </p>
         </div>
         {!showForm && (
@@ -294,7 +292,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
       </div>
 
       {maps.length === 0 && !showForm ? (
-        <p className="text-xs text-neutral-400 italic">No custom maps configured.</p>
+        <p className="text-xs text-neutral-400 italic">No overlays configured.</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {maps.map((m) => (

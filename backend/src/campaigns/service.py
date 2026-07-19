@@ -36,7 +36,11 @@ from src.campaigns.schemas import (
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
-from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
+from src.imagery.service import (
+    create_imagery_from_editor_state,
+    re_register_stac_collections,
+    spawn_background_mosaic_registration,
+)
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import sync_campaign_timeseries_windows
 
@@ -395,50 +399,10 @@ def create_campaign(
 
     campaign_id = campaign.id
 
-    # Background thread: mosaic registration
+    # Background thread: mosaic registration (off the request path so the
+    # commit above isn't blocked on the slow parallel STAC calls).
     if pending_registrations:
-        from src.imagery.service import _register_all_stac_browser_collections
-
-        def _background_register_mosaics():
-            bg_db = SessionLocal()
-            try:
-                logger.info("Background mosaic registration started for campaign %d", campaign_id)
-                errors = _register_all_stac_browser_collections(
-                    bg_db, pending_registrations, registration_bbox, campaign_id
-                )
-                bg_campaign = bg_db.execute(
-                    select(Campaign).where(Campaign.id == campaign_id)
-                ).scalar_one_or_none()
-                if bg_campaign:
-                    bg_campaign.registration_status = "failed" if errors else "ready"
-                    if errors:
-                        # Merge with any existing errors (embeddings may have written some)
-                        existing = bg_campaign.registration_errors or []
-                        bg_campaign.registration_errors = existing + errors
-                    bg_db.commit()
-                if errors:
-                    logger.warning(
-                        "Mosaic registration for campaign %d: %d errors", campaign_id, len(errors)
-                    )
-                else:
-                    logger.info("Mosaic registration completed for campaign %d", campaign_id)
-            except Exception as exc:
-                logger.exception("Mosaic registration failed for campaign %d", campaign_id)
-                try:
-                    bg_campaign = bg_db.execute(
-                        select(Campaign).where(Campaign.id == campaign_id)
-                    ).scalar_one_or_none()
-                    if bg_campaign:
-                        bg_campaign.registration_status = "failed"
-                        existing = bg_campaign.registration_errors or []
-                        bg_campaign.registration_errors = existing + [{"error": str(exc)}]
-                        bg_db.commit()
-                except Exception:
-                    logger.warning("Failed to persist registration error status", exc_info=True)
-            finally:
-                bg_db.close()
-
-        threading.Thread(target=_background_register_mosaics, daemon=True).start()
+        spawn_background_mosaic_registration(campaign_id, pending_registrations, registration_bbox)
 
     # Background thread: embeddings
     if embedding_year is not None:

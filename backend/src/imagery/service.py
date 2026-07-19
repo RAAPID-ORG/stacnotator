@@ -1,4 +1,6 @@
 import logging
+import threading
+from dataclasses import dataclass
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -10,6 +12,7 @@ from src.campaigns.constants import VIEW_LAYOUT_START_Y
 from src.campaigns.models import Campaign, CanvasLayout
 from src.config import get_settings
 from src.crypto import encrypt
+from src.database import SessionLocal
 from src.imagery.layouts import _layout_window_for, _sync_view_layouts
 from src.imagery.models import (
     Basemap,
@@ -118,7 +121,7 @@ def _upsert_viz_configs(
 
 
 # ============================================================================
-# Imagery Creation (new model)
+# Imagery Creation
 # ============================================================================
 
 
@@ -225,12 +228,15 @@ def save_imagery_editor_state(
 
     Reconciliation rules per entity (sources, collections, slices, views,
     basemaps): payload entry with `id` set → update in place; without `id` →
-    create; in DB but missing from payload → delete. STAC mosaic registration
-    only fires when fields that affect it (search_query, max_cloud_cover,
-    viz_params, slice date list) actually changed; pure metadata edits
-    (rename, cover_slice_index) skip the expensive re-search.
+    create; in DB but missing from payload → delete. A collection only lands in
+    the returned `pending_registrations` when fields that affect its mosaic
+    (search_query, max_cloud_cover, viz_params, slice date list) actually
+    changed; pure metadata edits (rename, cover_slice_index) skip the expensive
+    re-search and rebake viz params into the existing URLs instead.
 
-    Caller commits.
+    Caller commits, then hands `pending_registrations` to
+    spawn_background_mosaic_registration - the actual STAC calls run off the
+    request path so this transaction isn't held open across them.
     """
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
@@ -386,18 +392,11 @@ def save_imagery_editor_state(
 
     db.flush()
 
-    registration_errors: list[dict] = []
-    if pending_registrations:
-        registration_errors = _register_all_stac_browser_collections(
-            db, pending_registrations, bbox, campaign.id
-        )
-
     return {
         "sources": campaign.imagery_sources,
         "views": campaign.imagery_views,
         "basemaps": created_basemaps,
         "pending_registrations": pending_registrations,
-        "registration_errors": registration_errors,
         "bbox": bbox,
     }
 
@@ -822,6 +821,18 @@ def _sanitize_stac_error(e: Exception) -> str:
 MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
 
 
+@dataclass(frozen=True)
+class _SliceRef:
+    """Plain snapshot of the slice fields registration needs. Captured before the
+    read transaction is released so the parallel-HTTP phase never dereferences a
+    session-bound ORM object (which would reopen a transaction, off-thread)."""
+
+    id: int
+    name: str
+    start_date: str
+    end_date: str
+
+
 def _register_all_stac_browser_collections(
     db: Session,
     pending: list[tuple],
@@ -833,6 +844,10 @@ def _register_all_stac_browser_collections(
 
     Each slice's vizs are routed per provider (MPC direct vs a configured hosted
     titiler-pgstac tiler) and the absolute tile URL is baked into the SliceTileUrl rows.
+
+    The DB connection is released (commit) after the read phase and before the slow
+    parallel STAC calls, then re-acquired for the writes - otherwise the transaction
+    sits idle across the calls and Postgres reaps it at idle_in_transaction_session_timeout.
     """
     import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -903,7 +918,12 @@ def _register_all_stac_browser_collections(
 
             tasks.append(
                 {
-                    "db_slice": db_slice,
+                    "slice": _SliceRef(
+                        id=db_slice.id,
+                        name=db_slice.name,
+                        start_date=db_slice.start_date,
+                        end_date=db_slice.end_date,
+                    ),
                     "stac": stac,
                     "viz_params_by_name": slice_viz_by_name,
                     "any_uses_mpc": any_uses_mpc,
@@ -934,6 +954,11 @@ def _register_all_stac_browser_collections(
         sum(1 for t in tasks if t["any_needs_hosted"]),
     )
 
+    # Everything registration needs is now snapshotted into `tasks`; release the
+    # read transaction (returns the connection to the pool) so it isn't held idle
+    # across the slow parallel STAC calls below. The write phase re-acquires.
+    db.commit()
+
     # Collect user-facing error messages (no internal details)
     registration_errors: list[dict] = []
 
@@ -944,9 +969,9 @@ def _register_all_stac_browser_collections(
         per-visualization params. If a required registration fails after retries, the
         corresponding result is None and an error is recorded.
         """
-        db_slice = task["db_slice"]
+        slice_ref = task["slice"]
         stac = task["stac"]
-        dt_range = f"{db_slice.start_date}T00:00:00Z/{db_slice.end_date}T23:59:59Z"
+        dt_range = f"{slice_ref.start_date}T00:00:00Z/{slice_ref.end_date}T23:59:59Z"
         custom_query = task.get("search_query")
 
         def _run(fn, label: str):
@@ -964,14 +989,14 @@ def _register_all_stac_browser_collections(
                         label,
                         MAX_RETRIES,
                         task["collection_name"],
-                        db_slice.name,
+                        slice_ref.name,
                         dt_range,
                         exc_info=True,
                     )
                     registration_errors.append(
                         {
                             "collection": task["collection_name"],
-                            "slice": db_slice.name,
+                            "slice": slice_ref.name,
                             "datetime": dt_range,
                             "error": last_error,
                         }
@@ -982,13 +1007,13 @@ def _register_all_stac_browser_collections(
         hosted_search_id = None
         if task["any_uses_mpc"]:
             mpc_search_id = _run(
-                lambda: _register_mpc_slice(stac, db_slice, bbox, custom_query), "MPC"
+                lambda: _register_mpc_slice(stac, slice_ref, bbox, custom_query), "MPC"
             )
         if task["any_needs_hosted"]:
             hosted_search_id = _run(
                 lambda: _register_hosted_slice(
                     stac,
-                    db_slice,
+                    slice_ref,
                     bbox,
                     custom_query,
                     campaign_id,
@@ -996,7 +1021,7 @@ def _register_all_stac_browser_collections(
                 ),
                 "Hosted tiler",
             )
-        return db_slice.id, mpc_search_id, hosted_search_id
+        return slice_ref.id, mpc_search_id, hosted_search_id
 
     # Execute all in parallel. slice_id -> (mpc_search_id | None, hosted_search_id | None)
     results: dict[int, tuple[str | None, str | None]] = {}
@@ -1009,7 +1034,7 @@ def _register_all_stac_browser_collections(
     succeeded = sum(1 for _, (m, h) in results.items() if (m is not None or h is not None))
     logger.info("Mosaic registration complete: %d/%d slices succeeded", succeeded, len(tasks))
 
-    task_by_slice: dict[int, dict] = {t["db_slice"].id: t for t in tasks}
+    task_by_slice: dict[int, dict] = {t["slice"].id: t for t in tasks}
 
     # Emit one SliceTileUrl per visualization, routed per provider.
     for slice_id, (mpc_search_id, hosted_search_id) in results.items():
@@ -1044,6 +1069,70 @@ def _register_all_stac_browser_collections(
             )
 
     return registration_errors
+
+
+def spawn_background_mosaic_registration(
+    campaign_id: int,
+    pending_registrations: list[tuple],
+    bbox: list[float],
+) -> None:
+    """Run mosaic registration on a daemon thread with its own DB session.
+
+    Registration makes many slow parallel STAC calls; doing it inline holds the
+    request's write transaction open across them and trips the
+    idle-in-transaction backstop. The request commits the entity reconciliation
+    (and marks the campaign `registering`) first, then calls this to rebuild the
+    tile URLs and flip `registration_status` to ready/failed when done.
+
+    Collection ids are captured now, while the ORM objects are still attached to
+    the request session; the thread re-fetches them against its own session so
+    it never touches a detached or cross-thread instance.
+    """
+    reg_specs = [
+        (col.id, col_create, src_create) for col, col_create, src_create in pending_registrations
+    ]
+
+    def _run() -> None:
+        bg_db = SessionLocal()
+        try:
+            logger.info("Background mosaic registration started for campaign %d", campaign_id)
+            pending = [
+                (col, col_create, src_create)
+                for col_id, col_create, src_create in reg_specs
+                if (col := bg_db.get(ImageryCollection, col_id)) is not None
+            ]
+            errors = _register_all_stac_browser_collections(bg_db, pending, bbox, campaign_id)
+            bg_campaign = bg_db.get(Campaign, campaign_id)
+            if bg_campaign:
+                bg_campaign.registration_status = "failed" if errors else "ready"
+                if errors:
+                    # Merge with any existing errors (embeddings may have written some).
+                    bg_campaign.registration_errors = (
+                        bg_campaign.registration_errors or []
+                    ) + errors
+                bg_db.commit()
+            if errors:
+                logger.warning(
+                    "Mosaic registration for campaign %d: %d errors", campaign_id, len(errors)
+                )
+            else:
+                logger.info("Mosaic registration completed for campaign %d", campaign_id)
+        except Exception as exc:
+            logger.exception("Mosaic registration failed for campaign %d", campaign_id)
+            try:
+                bg_campaign = bg_db.get(Campaign, campaign_id)
+                if bg_campaign:
+                    bg_campaign.registration_status = "failed"
+                    bg_campaign.registration_errors = (bg_campaign.registration_errors or []) + [
+                        {"error": str(exc)}
+                    ]
+                    bg_db.commit()
+            except Exception:
+                logger.warning("Failed to persist registration error status", exc_info=True)
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def _resolved_search_body(search_query: dict | None, bbox: list[float], db_slice) -> dict:

@@ -28,12 +28,7 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'NIR', assets: ['data'], bidx: [8], rescale: '0,3000', colormap: 'viridis' },
   ],
   'sentinel-2-l2a': [
-    {
-      label: 'True Color (RGB)',
-      assets: ['B04', 'B03', 'B02'],
-      colorFormula: 'gamma RGB 3.2, saturation 0.8, sigmoidal RGB 25 0.35',
-      nodata: 0,
-    },
+    { label: 'True Color (RGB)', assets: ['visual'] },
     {
       label: 'False Color (Vegetation)',
       assets: ['B08', 'B04', 'B03'],
@@ -69,7 +64,6 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
       rescale: '-1,1',
       nodata: 0,
     },
-    { label: 'Visual (rendered)', assets: ['visual'] },
   ],
   'sentinel-2-l1c': [
     {
@@ -203,29 +197,6 @@ export const COLLECTION_PRESETS: Record<string, BandPreset[]> = {
     { label: 'EVI', assets: ['250m_16_days_EVI'], colormap: 'rdylgn', rescale: '-2000,10000' },
   ],
 };
-
-export const SENTINEL2_COLLECTION_ID = 'sentinel-2-l2a';
-// Sentinel-2 L2A gained a +1000 DN reflectance offset with processing baseline
-// 04.00 (from ~2022-01-25), so scenes before it need a different true-color
-// stretch than the current default. Boundary rounded to the month.
-export const SENTINEL2_OFFSET_START = '2022-02-01';
-export const SENTINEL2_TRUECOLOR_PRE_OFFSET = {
-  rescale: '0,3000',
-  colorFormula: 'gamma RGB 1.6, saturation 1.15, sigmoidal RGB 5 0.4',
-} as const;
-
-/** True-color override for a Sentinel-2 collection starting on `collectionStart`
- *  (YYYY-MM-DD), or null when the standard preset applies (non-S2, or on/after the
- *  offset date). Keeps pre-offset collections looking right without the user
- *  hand-tuning each month. */
-export function sentinel2TrueColorOverride(
-  collectionId: string,
-  collectionStart: string
-): typeof SENTINEL2_TRUECOLOR_PRE_OFFSET | null {
-  if (collectionId !== SENTINEL2_COLLECTION_ID) return null;
-  if (collectionStart >= SENTINEL2_OFFSET_START) return null;
-  return SENTINEL2_TRUECOLOR_PRE_OFFSET;
-}
 
 export const KNOWN_RESCALE: Record<string, string> = {
   'cop-dem-glo-30': '0,4000',
