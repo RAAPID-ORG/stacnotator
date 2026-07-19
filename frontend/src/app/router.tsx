@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
@@ -10,52 +10,52 @@ import {
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { AppLayout } from '~/features/layout/components/AppLayout';
+import { Delayed } from '~/shared/ui/Delayed';
+import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { onIdle } from '~/shared/utils/idle';
 import { NotFoundPage, RouteErrorBoundary } from './RouteError';
+import {
+  importAnnotation,
+  importCreateCampaign,
+  importCampaignOverview,
+  importCampaignSettings,
+  importCampaignTasks,
+  importReview,
+  importSdkAuth,
+  importSettings,
+  prefetchCampaignChunks,
+} from './routeChunks';
 
 // Heavy routes are code-split so the initial bundle (Home + Campaigns list)
-// doesn't include OpenLayers, Chart.js, react-markdown, etc.
+// doesn't include OpenLayers, Chart.js, react-markdown, etc. The import thunks
+// live in routeChunks.ts so the same chunk can be prefetched ahead of navigation.
 const CreateCampaignPage = lazy(() =>
-  import('~/features/campaigns/pages/CreateCampaignPage').then((m) => ({
-    default: m.CreateCampaignPage,
-  }))
+  importCreateCampaign().then((m) => ({ default: m.CreateCampaignPage }))
 );
-const AnnotationPage = lazy(() =>
-  import('src/features/annotation/pages/AnnotationPage').then((m) => ({
-    default: m.AnnotationPage,
-  }))
-);
+const AnnotationPage = lazy(() => importAnnotation().then((m) => ({ default: m.AnnotationPage })));
 const CampaignOverviewPage = lazy(() =>
-  import('~/features/campaigns/pages/CampaignOverviewPage').then((m) => ({
-    default: m.CampaignOverviewPage,
-  }))
+  importCampaignOverview().then((m) => ({ default: m.CampaignOverviewPage }))
 );
 const CampaignSettingsPage = lazy(() =>
-  import('~/features/campaigns/pages/CampaignSettingsPage').then((m) => ({
-    default: m.CampaignSettingsPage,
-  }))
+  importCampaignSettings().then((m) => ({ default: m.CampaignSettingsPage }))
 );
 const CampaignTasksPage = lazy(() =>
-  import('~/features/campaigns/pages/CampaignTasksPage').then((m) => ({
-    default: m.CampaignTasksPage,
-  }))
+  importCampaignTasks().then((m) => ({ default: m.CampaignTasksPage }))
 );
-const ReviewPage = lazy(() =>
-  import('~/features/campaigns/pages/ReviewPage').then((m) => ({ default: m.ReviewPage }))
-);
-const SettingsPage = lazy(() =>
-  import('src/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
-);
-const SdkAuthPage = lazy(() =>
-  import('~/features/auth/pages/SdkAuthPage').then((m) => ({ default: m.SdkAuthPage }))
-);
+const ReviewPage = lazy(() => importReview().then((m) => ({ default: m.ReviewPage })));
+const SettingsPage = lazy(() => importSettings().then((m) => ({ default: m.SettingsPage })));
+const SdkAuthPage = lazy(() => importSdkAuth().then((m) => ({ default: m.SdkAuthPage })));
 
-// Inline, calm fallback - sits within the AppLayout outlet so the sidebar
-// and breadcrumbs stay visible. A small spinner is less jarring than a
-// fullscreen takeover while a chunk fetches.
+// Fallback while a route's chunk fetches - sits within the AppLayout outlet so
+// the sidebar and breadcrumbs stay visible. Delayed so a warm/fast chunk shows
+// nothing at all (no flash); only a genuinely slow fetch reveals a generic page
+// skeleton, which then hands off to the page's own skeleton - never a spinner.
 const RouteFallback = () => (
-  <div className="flex-1 flex items-center justify-center py-16">
-    <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
-  </div>
+  <Delayed>
+    <SkeletonPage>
+      <SkeletonForm sections={3} />
+    </SkeletonPage>
+  </Delayed>
 );
 
 // The :campaignId segment comes from the (untrusted) URL. Validate it once here
@@ -146,4 +146,10 @@ const router = createBrowserRouter(
   )
 );
 
-export const Router = () => <RouterProvider router={router} />;
+export const Router = () => {
+  // Once the app is idle, warm the common campaign route chunks so a first
+  // navigation to them (e.g. "New campaign" right after a hard reload) resolves
+  // from cache instead of downloading the chunk behind a spinner.
+  useEffect(() => onIdle(prefetchCampaignChunks), []);
+  return <RouterProvider router={router} />;
+};

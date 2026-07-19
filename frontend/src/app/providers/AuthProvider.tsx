@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { authManager } from '~/features/auth';
+import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 
 type AuthContextValue = {
@@ -25,7 +26,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   if (!ready) {
-    return <LoadingSpinner fullScreen size="lg" />;
+    // A persisted session resolves in a few ms, so show nothing at first - only
+    // a genuinely slow resolve reveals the spinner, instead of flashing it on
+    // every reload. We still can't render the app shell here (login vs app isn't
+    // known yet), so a centered indicator is the honest placeholder.
+    return (
+      <Delayed delayMs={400}>
+        <LoadingSpinner fullScreen size="lg" />
+      </Delayed>
+    );
   }
 
   return <AuthContext value={{ auth: authManager, loggedIn }}>{children}</AuthContext>;

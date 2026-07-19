@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_approved_user
-from src.auth.service import is_admin
+from src.auth.models import User
 from src.campaigns.models import Campaign, CampaignUser
 from src.database import get_db
 
@@ -11,7 +11,7 @@ from src.database import get_db
 def require_campaign_access(
     campaign_id: int = Path(...),
     db: Session = Depends(get_db),
-    user: dict = Depends(require_approved_user),
+    user: User = Depends(require_approved_user),
 ) -> Campaign:
     """
     Verify user has access to a campaign (any role).
@@ -50,7 +50,7 @@ def require_campaign_access(
                 CampaignUser.user_id == user.id,
             )
         ).scalar_one_or_none()
-    ) or is_admin(db, user.id)
+    ) or user.is_admin
 
     if not has_access:
         raise HTTPException(
@@ -64,7 +64,7 @@ def require_campaign_access(
 def require_campaign_admin(
     campaign_id: int = Path(...),
     db: Session = Depends(get_db),
-    user: dict = Depends(require_approved_user),
+    user: User = Depends(require_approved_user),
 ) -> Campaign:
     """
     Verify user has admin access to a campaign.
@@ -95,7 +95,7 @@ def require_campaign_admin(
                 CampaignUser.is_admin,
             )
         ).scalar_one_or_none()
-    ) or is_admin(db, user.id)
+    ) or user.is_admin
 
     if not has_admin_access:
         raise HTTPException(

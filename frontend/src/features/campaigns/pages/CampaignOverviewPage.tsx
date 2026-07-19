@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { prefetchAnnotationChunk } from '~/app/routeChunks';
+import { onIdle } from '~/shared/utils/idle';
+
 import {
   getCampaign,
-  listAllCampaigns,
+  getCampaignUsers,
   listTaskSets,
   type CampaignOut,
   type TaskSetOut,
 } from '~/api/client';
+import { useAccountStore } from '~/features/account/account.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { Skeleton, SkeletonCards, SkeletonPage } from '~/shared/ui/Skeleton';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
@@ -28,6 +32,10 @@ export const CampaignOverviewPage = () => {
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 
+  // From the overview the next step is almost always the annotator, whose chunk
+  // is the heaviest. Warm it on idle so opening it doesn't wait on the download.
+  useEffect(() => onIdle(prefetchAnnotationChunk), []);
+
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
@@ -41,17 +49,16 @@ export const CampaignOverviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, taskSetsRes, campaignsListRes] = await Promise.all([
+        const [campaignRes, taskSetsRes, usersRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
-          listAllCampaigns(),
+          getCampaignUsers({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
-        // CampaignOut has no is_admin flag; the campaigns list endpoint does,
-        // so we cross-reference it here rather than adding a backend field.
-        const listEntry = campaignsListRes.data?.items.find((c) => c.id === campaignId);
-        setIsAdmin(listEntry?.is_admin ?? false);
+        const account = useAccountStore.getState().account;
+        const membership = usersRes.data?.users.find((cu) => cu.user.id === account?.id);
+        setIsAdmin((account?.is_admin ?? false) || (membership?.is_admin ?? false));
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {
@@ -63,9 +70,20 @@ export const CampaignOverviewPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading campaign..." />
-      </div>
+      <SkeletonPage>
+        <div className="surface mb-6">
+          <div className="surface-section flex items-center gap-5">
+            <Skeleton className="h-11 w-11 rounded-xl shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3.5 w-64 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-32 shrink-0" />
+          </div>
+        </div>
+        <Skeleton className="h-4 w-24 mb-3" />
+        <SkeletonCards count={3} />
+      </SkeletonPage>
     );
   }
 

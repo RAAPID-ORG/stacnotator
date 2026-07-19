@@ -15,7 +15,7 @@ import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
 } from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
@@ -447,9 +447,9 @@ export const CampaignTasksPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading tasks..." />
-      </div>
+      <SkeletonPage>
+        <SkeletonForm sections={3} />
+      </SkeletonPage>
     );
   }
 

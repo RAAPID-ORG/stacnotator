@@ -184,6 +184,10 @@ h6 {
   padding: 2rem 1.5rem;
 }
 
+:where(.overflow-auto, .overflow-y-auto):has(> .page) {
+  scrollbar-gutter: stable;
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;
