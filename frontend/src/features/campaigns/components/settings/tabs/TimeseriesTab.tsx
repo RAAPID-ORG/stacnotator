@@ -54,7 +54,6 @@ export const TimeseriesTab: React.FC<Props> = ({
   campaignMode,
   campaignSettings,
 }) => {
-
   const knownWindowNames = Array.from(
     new Set(timeseries.map((t) => t.window_name?.trim()).filter((n): n is string => !!n))
   );
