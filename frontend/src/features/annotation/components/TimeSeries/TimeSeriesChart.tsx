@@ -61,8 +61,6 @@ const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#2
 
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 
-const OPTIONS_PANEL_WIDTH = 208;
-
 interface ToggleRowProps {
   option: string;
   label: string;
@@ -116,24 +114,8 @@ export const TimeSeriesChart = ({
   const infoBtnRef = useRef<HTMLButtonElement>(null);
   const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  // Fixed anchor for the options popover, measured off the gear when it opens.
-  // The chart card clips overflow, so the panel is portalled to the body; it
-  // grows upward from just above the gear (charts usually sit low in the layout).
-  const [optionsPos, setOptionsPos] = useState<{ bottom: number; left: number } | null>(null);
   const optionsBtnRef = useRef<HTMLButtonElement>(null);
   const optionsPanelRef = useRef<HTMLDivElement>(null);
-
-  const openOptions = () => {
-    const btn = optionsBtnRef.current;
-    if (!btn) return;
-    const r = btn.getBoundingClientRect();
-    const win = btn.ownerDocument.defaultView ?? window;
-    setOptionsPos({
-      bottom: win.innerHeight - r.top + 4,
-      left: Math.max(4, r.right - OPTIONS_PANEL_WIDTH),
-    });
-    setOptionsOpen(true);
-  };
 
   useEffect(() => {
     if (!optionsOpen) return;
@@ -888,7 +870,7 @@ export const TimeSeriesChart = ({
             aria-label="Chart options"
             aria-expanded={optionsOpen}
             title="Chart options"
-            onClick={() => (optionsOpen ? setOptionsOpen(false) : openOptions())}
+            onClick={() => setOptionsOpen((o) => !o)}
           >
             <IconSliders className="w-3.5 h-3.5" />
           </button>
@@ -908,89 +890,82 @@ export const TimeSeriesChart = ({
         />
       </div>
 
-      {optionsOpen &&
-        createPortal(
-          <div
-            ref={optionsPanelRef}
-            className="fixed z-[10000] bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
-            style={{
-              bottom: optionsPos?.bottom,
-              left: optionsPos?.left,
-              width: OPTIONS_PANEL_WIDTH,
-            }}
-          >
-            <ToggleRow
-              option="remove-cloudy"
-              label="Remove cloudy"
-              title="Removes cloud-flagged days (shown as gray dots) from the series"
-              checked={removeCloudy}
-              onChange={setRemoveCloudy}
-            />
+      {optionsOpen && (
+        <div
+          ref={optionsPanelRef}
+          className="absolute right-2 top-9 z-20 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
+        >
+          <ToggleRow
+            option="remove-cloudy"
+            label="Remove cloudy"
+            title="Removes cloud-flagged days (shown as gray dots) from the series"
+            checked={removeCloudy}
+            onChange={setRemoveCloudy}
+          />
 
-            <ToggleRow
-              option="smooth"
-              label="Smooth"
-              title="Savitzky-Golay Smoothing."
-              checked={smoothEnabled}
-              onChange={setSmoothEnabled}
-            />
-            {smoothEnabled && (
-              <div className="flex items-center gap-2 pl-2">
-                <label
-                  className="flex items-center gap-1"
-                  title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
-                >
-                  <span className="text-[9px] text-neutral-500">W</span>
-                  <input
-                    type="number"
-                    min={5}
-                    max={31}
-                    step={2}
-                    value={smoothWindow}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(5, Math.min(31, v));
-                      if (v % 2 === 0) v += 1;
-                      setSmoothWindow(v);
-                      // Ensure poly order stays valid
-                      if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
-                    }}
-                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-                <label
-                  className="flex items-center gap-1"
-                  title="Polynomial order (≥ 1, must be less than window size)"
-                >
-                  <span className="text-[9px] text-neutral-500">P</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.min(5, smoothWindow - 1)}
-                    value={smoothOrder}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(1, Math.min(smoothWindow - 1, v));
-                      setSmoothOrder(v);
-                    }}
-                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-              </div>
-            )}
+          <ToggleRow
+            option="smooth"
+            label="Smooth"
+            title="Savitzky-Golay Smoothing."
+            checked={smoothEnabled}
+            onChange={setSmoothEnabled}
+          />
+          {smoothEnabled && (
+            <div className="flex items-center gap-2 pl-2">
+              <label
+                className="flex items-center gap-1"
+                title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+              >
+                <span className="text-[9px] text-neutral-500">W</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={31}
+                  step={2}
+                  value={smoothWindow}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(5, Math.min(31, v));
+                    if (v % 2 === 0) v += 1;
+                    setSmoothWindow(v);
+                    // Ensure poly order stays valid
+                    if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
+                  }}
+                  className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+              <label
+                className="flex items-center gap-1"
+                title="Polynomial order (≥ 1, must be less than window size)"
+              >
+                <span className="text-[9px] text-neutral-500">P</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.min(5, smoothWindow - 1)}
+                  value={smoothOrder}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(1, Math.min(smoothWindow - 1, v));
+                    setSmoothOrder(v);
+                  }}
+                  className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+            </div>
+          )}
 
-            <ToggleRow
-              option="dots"
-              label="Dots"
-              title="Show or hide the per-observation dots (line is always shown)"
-              checked={showDots}
-              onChange={setShowDots}
-            />
-          </div>,
-          optionsBtnRef.current?.ownerDocument.body ?? document.body
-        )}
+          <ToggleRow
+            option="dots"
+            label="Dots"
+            title="Show or hide the per-observation dots (line is always shown)"
+            checked={showDots}
+            onChange={setShowDots}
+          />
+        </div>
+      )}
 
       {infoOpen &&
         infoPos &&
