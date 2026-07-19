@@ -1,19 +1,13 @@
 import type { ReactNode } from 'react';
 
-/** A single pulsing placeholder block. Compose these to mirror a page's real
- *  layout so its structure appears instantly while data loads - a skeleton reads
- *  as faster than a centered spinner because the page doesn't visibly "pop in".
- *  Size/shape it with utility classes (h-, w-, rounded-). */
+/** {ulsing placeholder block. Size/shape it with utility classes (h-, w-, rounded-) **/
 export const Skeleton = ({ className = '' }: { className?: string }) => (
   <div
     className={`animate-pulse rounded-md bg-neutral-200/80 motion-reduce:animate-none ${className}`}
   />
 );
 
-/** Standard page chrome shared by the content pages: scroll container, `page`
- *  padding, and a header with a title/subtitle placeholder (plus an optional
- *  right-side action button placeholder). Wraps its children with a `role=status`
- *  so assistive tech announces the loading state once, not per block. */
+/** Standard page skeleton shared by the content pages **/
 export const SkeletonPage = ({
   children,
   action = true,
