@@ -31,8 +31,11 @@ class TimeSeriesCache {
   private cache = new Map<string, CacheEntry>();
   private pendingRequests = new Map<string, Promise<TimeSeriesData>>();
 
-  private getCacheKey(coordinate: LatLon): string {
-    return `${coordinate.lat.toFixed(6)},${coordinate.lon.toFixed(6)}`;
+  // Keyed by point AND the requested series, so two windows fetching different
+  // series at the same point don't share (and clobber) one entry.
+  private getCacheKey(timeseriesIds: number[], coordinate: LatLon): string {
+    const ids = [...timeseriesIds].sort((a, b) => a - b).join(',');
+    return `${coordinate.lat.toFixed(6)},${coordinate.lon.toFixed(6)}|${ids}`;
   }
 
   private isValid(entry: CacheEntry): boolean {
@@ -84,7 +87,7 @@ class TimeSeriesCache {
       return null;
     }
 
-    const cacheKey = this.getCacheKey(coordinate);
+    const cacheKey = this.getCacheKey(timeseriesIds, coordinate);
 
     // Check cache first
     const cached = this.cache.get(cacheKey);
@@ -126,7 +129,7 @@ class TimeSeriesCache {
     coordinates.forEach((coordinate) => {
       if (!coordinate || timeseriesIds.length === 0) return;
 
-      const cacheKey = this.getCacheKey(coordinate);
+      const cacheKey = this.getCacheKey(timeseriesIds, coordinate);
       const cached = this.cache.get(cacheKey);
 
       // Skip if already cached/valid or already fetching

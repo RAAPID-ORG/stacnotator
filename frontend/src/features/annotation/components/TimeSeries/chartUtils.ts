@@ -2,6 +2,25 @@
  * Utility functions for formatting and processing time series data for chart display
  */
 
+import type { TimeSeriesData } from './timeSeriesCache';
+
+/** Sorted, de-duplicated timestamps across the given series (by id), taken from
+ *  one or more data sources (main + probe reads). Scoped to `seriesIds` so a
+ *  chart's x-axis spans only its own series' dates - a 2022 window and a 2018
+ *  window each show just the years they cover instead of a shared axis. */
+export const collectSeriesLabels = (
+  seriesIds: number[],
+  ...sources: (TimeSeriesData | null | undefined)[]
+): string[] => {
+  const times = new Set<string>();
+  for (const id of seriesIds) {
+    for (const source of sources) {
+      for (const row of source?.[id] ?? []) times.add(row.time);
+    }
+  }
+  return Array.from(times).sort();
+};
+
 /**
  * Format date string to "MMM 'YY" format
  * Handles both YYYYMMDD and ISO date formats

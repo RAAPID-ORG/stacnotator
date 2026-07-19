@@ -4,7 +4,7 @@
  * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Line } from 'react-chartjs-2';
 import {
@@ -18,6 +18,7 @@ import {
   CategoryScale,
   type ChartEvent,
   type ActiveElement,
+  type ChartOptions,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
@@ -25,7 +26,12 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { Spinner } from '~/shared/ui/Spinner';
 import { IconSliders } from '~/shared/ui/Icons';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
-import { formatDateForTooltip, getOptimalMonthLabels, parseSeriesDate } from './chartUtils';
+import {
+  collectSeriesLabels,
+  formatDateForTooltip,
+  getOptimalMonthLabels,
+  parseSeriesDate,
+} from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
@@ -53,12 +59,7 @@ interface TimeSeriesChartProps {
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#22d3ee'];
 
-/** Neutral gray used for cloud-flagged observations, regardless of which
- *  series the dot belongs to. Picked from the design's neutral-400 scale so
- *  it reads as "lesser quality" without competing with any series color. */
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
-
-const OPTIONS_PANEL_WIDTH = 208;
 
 interface ToggleRowProps {
   option: string;
@@ -101,7 +102,7 @@ export const TimeSeriesChart = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [removeCloudy, setRemoveCloudy] = useState(false);
+  const [removeCloudy, setRemoveCloudy] = useState(true);
   const [showDots, setShowDots] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const [smoothEnabled, setSmoothEnabled] = useState(false);
@@ -115,30 +116,6 @@ export const TimeSeriesChart = ({
   const [optionsOpen, setOptionsOpen] = useState(false);
   const optionsBtnRef = useRef<HTMLButtonElement>(null);
   const optionsPanelRef = useRef<HTMLDivElement>(null);
-
-  // The chart usually sits at the bottom of the layout, so the panel rarely
-  // fits below the gear - flip it above when it doesn't. Measured against the
-  // button's own window, which may be a popped-out screen window.
-  useLayoutEffect(() => {
-    if (!optionsOpen || !optionsBtnRef.current || !optionsPanelRef.current) return;
-    const panel = optionsPanelRef.current;
-    const win = optionsBtnRef.current.ownerDocument.defaultView ?? window;
-    const rect = optionsBtnRef.current.getBoundingClientRect();
-
-    const spaceBelow = win.innerHeight - rect.bottom - 8;
-    const height = panel.offsetHeight;
-    const top =
-      height <= spaceBelow
-        ? rect.bottom + 4
-        : Math.max(4, Math.min(rect.top - 4 - height, win.innerHeight - height - 4));
-    const left = Math.max(
-      4,
-      Math.min(rect.right - OPTIONS_PANEL_WIDTH, win.innerWidth - OPTIONS_PANEL_WIDTH - 4)
-    );
-
-    panel.style.top = `${top}px`;
-    panel.style.left = `${left}px`;
-  }, [optionsOpen, smoothEnabled]);
 
   useEffect(() => {
     if (!optionsOpen) return;
@@ -317,17 +294,13 @@ export const TimeSeriesChart = ({
   const chartData = useMemo(() => {
     if (!data) return null;
 
-    // Union of all timestamps (from both task and probe data)
-    const labelSet = new Set<string>();
-    Object.values(data).forEach((rows: TimeSeriesRow[]) =>
-      rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
+    // x-axis labels from this chart's own series, so a 2022 window and a 2018
+    // window each span just the years they cover instead of a shared axis.
+    const labels = collectSeriesLabels(
+      timeseries.map((ts) => ts.id),
+      data,
+      probeData
     );
-    if (probeData) {
-      Object.values(probeData).forEach((rows: TimeSeriesRow[]) =>
-        rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
-      );
-    }
-    const labels = Array.from(labelSet).sort();
 
     // Get optimal month labels for x-axis
     const monthLabels = getOptimalMonthLabels(labels);
@@ -484,41 +457,55 @@ export const TimeSeriesChart = ({
   // (e.g. labels are sparse compared to slice width) snap to nearest.
   const sliceMarkerRef = useRef<{ startIdx: number; endIdx: number } | null>(null);
   useEffect(() => {
-    if (!activeSlice || !chartData?.labels.length) {
-      sliceMarkerRef.current = null;
-      chartRef.current?.update('none');
-      return;
-    }
-    const sliceStart = new Date(activeSlice.start_date).getTime();
-    const sliceEnd = new Date(activeSlice.end_date).getTime();
-    const labels = chartData.labels;
-    let startIdx = -1;
-    let endIdx = -1;
-    for (let i = 0; i < labels.length; i++) {
-      const t = parseSeriesDate(labels[i]);
-      if (t >= sliceStart && t <= sliceEnd) {
-        if (startIdx === -1) startIdx = i;
-        endIdx = i;
-      }
-    }
-    if (startIdx === -1) {
-      // No labels strictly inside the slice - snap to the nearest single label
-      let nearest = 0;
-      let bestDist = Infinity;
-      const center = (sliceStart + sliceEnd) / 2;
+    // Recompute where the active-slice band sits, then repaint ONLY if it moved.
+    // This effect fires on every timeline move, and with several timeseries
+    // windows open each one runs it - so it must stay cheap: chart.render()
+    // repaints the overlay without Chart.js reprocessing data/scales (which
+    // update() does), and the no-op guard skips redundant repaints entirely.
+    let next: { startIdx: number; endIdx: number } | null = null;
+    if (activeSlice && chartData?.labels.length) {
+      const sliceStart = new Date(activeSlice.start_date).getTime();
+      const sliceEnd = new Date(activeSlice.end_date).getTime();
+      const labels = chartData.labels;
+      let startIdx = -1;
+      let endIdx = -1;
       for (let i = 0; i < labels.length; i++) {
         const t = parseSeriesDate(labels[i]);
-        const d = Math.abs(t - center);
-        if (d < bestDist) {
-          bestDist = d;
-          nearest = i;
+        if (t >= sliceStart && t <= sliceEnd) {
+          if (startIdx === -1) startIdx = i;
+          endIdx = i;
         }
       }
-      sliceMarkerRef.current = { startIdx: nearest, endIdx: nearest };
-    } else {
-      sliceMarkerRef.current = { startIdx, endIdx };
+      if (startIdx === -1) {
+        // No labels strictly inside the slice - snap to the nearest single label
+        let nearest = 0;
+        let bestDist = Infinity;
+        const center = (sliceStart + sliceEnd) / 2;
+        for (let i = 0; i < labels.length; i++) {
+          const t = parseSeriesDate(labels[i]);
+          const d = Math.abs(t - center);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = i;
+          }
+        }
+        next = { startIdx: nearest, endIdx: nearest };
+      } else {
+        next = { startIdx, endIdx };
+      }
     }
-    chartRef.current?.update('none');
+
+    const prev = sliceMarkerRef.current;
+    const unchanged =
+      prev === next ||
+      (prev != null &&
+        next != null &&
+        prev.startIdx === next.startIdx &&
+        prev.endIdx === next.endIdx);
+    if (unchanged) return;
+
+    sliceMarkerRef.current = next;
+    chartRef.current?.render();
   }, [activeSlice, chartData?.labels]);
 
   // Inline plugin: subtle band + edge lines indicating the active map slice.
@@ -635,6 +622,101 @@ export const TimeSeriesChart = ({
       },
     }),
     []
+  );
+
+  // Memoized so its reference is stable across re-renders. react-chartjs-2 runs
+  // a full chart.update() whenever the `options` prop identity changes, so an
+  // inline object here would re-run the update pipeline on every re-render -
+  // e.g. every timeline move, times each open timeseries window. It only needs
+  // to change when the labels/click-target actually change.
+  const chartOptions = useMemo<ChartOptions<'line'>>(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: handleChartClick,
+      onHover: (event) => {
+        const target = event.native?.target as HTMLElement | undefined;
+        if (target) target.style.cursor = activeSource ? 'pointer' : 'default';
+      },
+      animation: {
+        duration: 400,
+        easing: 'easeInOutQuart',
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return '';
+              const dateStr = chartData?.labels[items[0].dataIndex];
+              return dateStr ? formatDateForTooltip(dateStr) : '';
+            },
+          },
+        },
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x',
+            onPan: () => setIsZoomed(true),
+          },
+          zoom: {
+            wheel: { enabled: true, modifierKey: 'ctrl' as const },
+            pinch: { enabled: true },
+            drag: {
+              enabled: true,
+              // Below this drag distance the gesture is a click, not a zoom. The
+              // default of 0 makes any real-pointer jitter a micro-zoom and
+              // swallows the click that selects a slice.
+              threshold: 10,
+              backgroundColor: 'rgba(37,99,235,0.1)',
+              borderColor: '#2563eb',
+              borderWidth: 1,
+            },
+            mode: 'x',
+            onZoom: () => setIsZoomed(true),
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45,
+            font: { size: 8 },
+            callback: function (_value, index) {
+              const monthLabel = chartData?.monthLabels.find((m) => m.index === index);
+              return monthLabel ? monthLabel.label : null;
+            },
+            autoSkip: false,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          min: 0,
+          max: 1,
+          ticks: {
+            font: { size: 8 },
+            maxTicksLimit: 5,
+          },
+          grid: {
+            color: '#e5e5e5',
+          },
+        },
+      },
+      elements: {
+        point: {
+          radius: 0,
+        },
+        line: {
+          borderWidth: 1.5,
+        },
+      },
+    }),
+    [handleChartClick, activeSource, chartData?.labels, chartData?.monthLabels]
   );
 
   // Error state
@@ -804,174 +886,86 @@ export const TimeSeriesChart = ({
           ref={chartRef}
           data={chartData}
           plugins={[sliceMarkerPlugin, referenceLinePlugin]}
-          options={{
-            responsive: true,
-            maintainAspectRatio: false,
-            onClick: handleChartClick,
-            onHover: (event) => {
-              const target = event.native?.target as HTMLElement | undefined;
-              if (target) target.style.cursor = activeSource ? 'pointer' : 'default';
-            },
-            animation: {
-              duration: 400,
-              easing: 'easeInOutQuart',
-            },
-            plugins: {
-              legend: {
-                display: false,
-              },
-              tooltip: {
-                callbacks: {
-                  title: (items) => {
-                    if (!items.length) return '';
-                    const dateStr = chartData.labels[items[0].dataIndex];
-                    return formatDateForTooltip(dateStr);
-                  },
-                },
-              },
-              zoom: {
-                pan: {
-                  enabled: true,
-                  mode: 'x',
-                  onPan: () => setIsZoomed(true),
-                },
-                zoom: {
-                  wheel: { enabled: true, modifierKey: 'ctrl' as const },
-                  pinch: { enabled: true },
-                  drag: {
-                    enabled: true,
-                    // Below this drag distance the gesture is a click, not a
-                    // zoom. The default of 0 makes any real-pointer jitter a
-                    // micro-zoom and swallows the click that selects a slice.
-                    threshold: 10,
-                    backgroundColor: 'rgba(37,99,235,0.1)',
-                    borderColor: '#2563eb',
-                    borderWidth: 1,
-                  },
-                  mode: 'x',
-                  onZoom: () => setIsZoomed(true),
-                },
-              },
-            },
-            scales: {
-              x: {
-                ticks: {
-                  maxRotation: 45,
-                  minRotation: 45,
-                  font: { size: 8 },
-                  callback: function (_value, index) {
-                    const monthLabel = chartData.monthLabels.find((m) => m.index === index);
-                    return monthLabel ? monthLabel.label : null;
-                  },
-                  autoSkip: false,
-                },
-                grid: {
-                  display: false,
-                },
-              },
-              y: {
-                min: 0,
-                max: 1,
-                ticks: {
-                  font: { size: 8 },
-                  maxTicksLimit: 5,
-                },
-                grid: {
-                  color: '#e5e5e5',
-                },
-              },
-            },
-            elements: {
-              point: {
-                radius: 0,
-              },
-              line: {
-                borderWidth: 1.5,
-              },
-            },
-          }}
+          options={chartOptions}
         />
       </div>
 
-      {optionsOpen &&
-        createPortal(
-          <div
-            ref={optionsPanelRef}
-            className="fixed z-[10000] bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
-            style={{ top: 0, left: 0, width: OPTIONS_PANEL_WIDTH }}
-          >
-            <ToggleRow
-              option="remove-cloudy"
-              label="Remove cloudy"
-              title="Removes cloud-flagged days (shown as gray dots) from the series"
-              checked={removeCloudy}
-              onChange={setRemoveCloudy}
-            />
+      {optionsOpen && (
+        <div
+          ref={optionsPanelRef}
+          className="absolute right-2 top-9 z-20 w-52 bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
+        >
+          <ToggleRow
+            option="remove-cloudy"
+            label="Remove cloudy"
+            title="Removes cloud-flagged days (shown as gray dots) from the series"
+            checked={removeCloudy}
+            onChange={setRemoveCloudy}
+          />
 
-            <ToggleRow
-              option="smooth"
-              label="Smooth"
-              title="Savitzky-Golay Smoothing."
-              checked={smoothEnabled}
-              onChange={setSmoothEnabled}
-            />
-            {smoothEnabled && (
-              <div className="flex items-center gap-2 pl-2">
-                <label
-                  className="flex items-center gap-1"
-                  title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
-                >
-                  <span className="text-[9px] text-neutral-500">W</span>
-                  <input
-                    type="number"
-                    min={5}
-                    max={31}
-                    step={2}
-                    value={smoothWindow}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(5, Math.min(31, v));
-                      if (v % 2 === 0) v += 1;
-                      setSmoothWindow(v);
-                      // Ensure poly order stays valid
-                      if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
-                    }}
-                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-                <label
-                  className="flex items-center gap-1"
-                  title="Polynomial order (≥ 1, must be less than window size)"
-                >
-                  <span className="text-[9px] text-neutral-500">P</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.min(5, smoothWindow - 1)}
-                    value={smoothOrder}
-                    onChange={(e) => {
-                      let v = parseInt(e.target.value, 10);
-                      if (isNaN(v)) return;
-                      v = Math.max(1, Math.min(smoothWindow - 1, v));
-                      setSmoothOrder(v);
-                    }}
-                    className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
-                  />
-                </label>
-              </div>
-            )}
+          <ToggleRow
+            option="smooth"
+            label="Smooth"
+            title="Savitzky-Golay Smoothing."
+            checked={smoothEnabled}
+            onChange={setSmoothEnabled}
+          />
+          {smoothEnabled && (
+            <div className="flex items-center gap-2 pl-2">
+              <label
+                className="flex items-center gap-1"
+                title="Window size for Savitzky-Golay smoothing (odd number ≥ 5, larger = smoother)"
+              >
+                <span className="text-[9px] text-neutral-500">W</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={31}
+                  step={2}
+                  value={smoothWindow}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(5, Math.min(31, v));
+                    if (v % 2 === 0) v += 1;
+                    setSmoothWindow(v);
+                    // Ensure poly order stays valid
+                    if (smoothOrder >= v) setSmoothOrder(Math.max(1, v - 2));
+                  }}
+                  className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+              <label
+                className="flex items-center gap-1"
+                title="Polynomial order (≥ 1, must be less than window size)"
+              >
+                <span className="text-[9px] text-neutral-500">P</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.min(5, smoothWindow - 1)}
+                  value={smoothOrder}
+                  onChange={(e) => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) return;
+                    v = Math.max(1, Math.min(smoothWindow - 1, v));
+                    setSmoothOrder(v);
+                  }}
+                  className="w-10 text-[9px] px-0.5 py-0 bg-white border border-neutral-300 rounded text-center"
+                />
+              </label>
+            </div>
+          )}
 
-            <ToggleRow
-              option="dots"
-              label="Dots"
-              title="Show or hide the per-observation dots (line is always shown)"
-              checked={showDots}
-              onChange={setShowDots}
-            />
-          </div>,
-          optionsBtnRef.current?.ownerDocument.body ?? document.body
-        )}
+          <ToggleRow
+            option="dots"
+            label="Dots"
+            title="Show or hide the per-observation dots (line is always shown)"
+            checked={showDots}
+            onChange={setShowDots}
+          />
+        </div>
+      )}
 
       {infoOpen &&
         infoPos &&

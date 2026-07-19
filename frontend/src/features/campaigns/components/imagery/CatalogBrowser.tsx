@@ -16,7 +16,12 @@ import type {
 import { createId, emptyVizParams, isItemSortOption } from './types';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
-import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
+import {
+  COLLECTION_PRESETS,
+  KNOWN_RESCALE,
+  guessRescale,
+  sentinel2TrueColorOverride,
+} from './collectionPresets';
 import type { BandPreset } from './collectionPresets';
 import { StacQueryEditor } from './StacQueryEditor';
 import { Button, Input, Select } from '~/shared/ui/forms';
@@ -747,6 +752,27 @@ export const CatalogBrowser = ({
         finalCoverIndex = Math.max(0, Math.min(coverSliceNth - 1, slices.length - 1));
       }
 
+      // Sentinel-2's pre-2022 baseline offset needs a different true-color stretch,
+      // so per-collection swap the true-color params for months before the offset.
+      // Everything else (other vizs, user edits) is carried through unchanged.
+      const tcOverride = sentinel2TrueColorOverride(selectedCollection.id, toDateStr(colStart));
+      const withOffset = (vizs: NamedVizParams[]): NamedVizParams[] =>
+        tcOverride
+          ? vizs.map((v) =>
+              v.name.toLowerCase().includes('true color')
+                ? {
+                    ...v,
+                    vizParams: {
+                      ...v.vizParams,
+                      rescale: tcOverride.rescale,
+                      colorFormula: tcOverride.colorFormula,
+                    },
+                  }
+                : v
+            )
+          : vizs;
+      const colVisualizations = withOffset(visualizations);
+
       result.push({
         id: createId(),
         name: formatWindowLabel(toDateStr(colStart), toDateStr(colEndDate), collectionPeriodUnit),
@@ -767,13 +793,13 @@ export const CatalogBrowser = ({
           mode: 'mosaic',
           maxCloudCover,
           itemSort,
-          visualizations,
-          coverVisualizations: coverMode === 'custom' ? coverVisualizations : undefined,
+          visualizations: colVisualizations,
+          coverVisualizations: coverMode === 'custom' ? withOffset(coverVisualizations) : undefined,
           coverMaxCloudCover: coverMode === 'custom' ? coverMaxCloudCover : undefined,
           coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
           searchQuery: effectiveQuery ?? undefined,
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
-          vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
+          vizUrls: colVisualizations.map((v) => ({ vizName: v.name, url: '' })),
         },
       });
 

@@ -10,7 +10,7 @@ import {
   IconPlus,
   IconWindow,
 } from '~/shared/ui/Icons';
-import { GRID_COLS } from '../utils/layoutDefaults';
+import { GRID_COLS, isMainLayoutKey } from '../utils/layoutDefaults';
 import { useWindowDragStore } from '../stores/windowDrag.store';
 
 // Panel resize bounds (px). The panel is anchored bottom-right and grows
@@ -98,10 +98,7 @@ export const HiddenWindowsPanel = () => {
   }, [campaign, view, currentLayout]);
 
   const hasVisibleWindows = useMemo(
-    () =>
-      (currentLayout ?? []).some(
-        (it) => !['main', 'timeseries', 'minimap', 'controls'].includes(it.i)
-      ),
+    () => (currentLayout ?? []).some((it) => !isMainLayoutKey(it.i)),
     [currentLayout]
   );
 
