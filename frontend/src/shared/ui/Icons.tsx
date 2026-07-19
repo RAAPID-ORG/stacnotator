@@ -24,6 +24,12 @@ export const IconPlus = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconCheck = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <path d="M4 10.5l4 4L16 6" />
+  </svg>
+);
+
 export const IconPencil = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M13.5 3.5l3 3L7 16H4v-3l9.5-9.5zM12 5l3 3" />

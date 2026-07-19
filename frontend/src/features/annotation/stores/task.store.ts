@@ -27,6 +27,12 @@ import {
 
 export type { TaskFilter, TaskStatus };
 
+export interface LoadTasksPrefetch {
+  tasks: AnnotationTaskOut[];
+  taskSets: TaskSetOut[];
+  isPublic?: boolean;
+}
+
 interface TaskStore {
   // State
   allTasks: AnnotationTaskOut[];
@@ -54,7 +60,8 @@ interface TaskStore {
   loadTasks: (
     campaignId: number,
     initialTaskId?: number,
-    initialTaskSetId?: number
+    initialTaskSetId?: number,
+    prefetched?: LoadTasksPrefetch
   ) => Promise<void>;
   submitAnnotation: (
     labelId: number | null,
@@ -187,15 +194,21 @@ export const useTaskStore = create<TaskStore>((set, get) => {
   return {
     ...initialState,
 
-    loadTasks: async (campaignId, initialTaskId, initialTaskSetId) => {
-      const [tasksRes, setsRes] = await Promise.all([
-        getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-        listTaskSets({ path: { campaign_id: campaignId } }),
-      ]);
-      const allTasks = tasksRes.data!.tasks;
-      const taskSets = setsRes.data ?? [];
+    loadTasks: async (campaignId, initialTaskId, initialTaskSetId, prefetched) => {
+      let allTasks: AnnotationTaskOut[];
+      let taskSets: TaskSetOut[];
+      if (prefetched) {
+        ({ tasks: allTasks, taskSets } = prefetched);
+      } else {
+        const [tasksRes, setsRes] = await Promise.all([
+          getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+          listTaskSets({ path: { campaign_id: campaignId } }),
+        ]);
+        allTasks = tasksRes.data!.tasks;
+        taskSets = setsRes.data ?? [];
+      }
       const currentUserId = useAccountStore.getState().account?.id;
-      const campaign = useCampaignStore.getState().campaign;
+      const isPublic = prefetched?.isPublic ?? useCampaignStore.getState().campaign?.is_public;
 
       // Only seed the filter from a deep-linked task set if it still exists;
       // a stale/removed id falls through to the usual seeding below.
@@ -245,7 +258,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         // pool of unassigned pending tasks - work that's free to pick up -
         // rather than every pending task, so tasks already handed off to a
         // reviewer don't linger in the default view.
-        const showAll = campaign?.is_public;
+        const showAll = isPublic;
         taskFilter = pendingFilter(
           showAll || !currentUserId ? [UNASSIGNED] : [currentUserId],
           effectiveSetId

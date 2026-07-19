@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
 import { getCampaign, listAllCampaigns, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -54,9 +54,9 @@ export const ReviewPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading..." />
-      </div>
+      <SkeletonPage>
+        <SkeletonRows count={8} />
+      </SkeletonPage>
     );
   }
 

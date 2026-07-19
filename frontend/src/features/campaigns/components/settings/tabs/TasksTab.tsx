@@ -209,7 +209,10 @@ export const TasksTab: React.FC<Props> = ({
 
   return (
     <div id="tab-tasks" role="tabpanel">
-      <section className={sectionCls}>
+      <section className="sticky top-0 z-20 -mx-6 -mt-6 mb-6 rounded-t-xl border-b border-neutral-100 bg-white/85 px-6 pb-4 pt-6 backdrop-blur-sm">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+          Task set
+        </p>
         <TaskScopeBar
           scope={taskScope}
           taskSets={taskSets}

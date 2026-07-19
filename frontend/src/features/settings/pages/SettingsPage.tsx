@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
-import { LoadingSpinner } from 'src/shared/ui/LoadingSpinner';
+import { Skeleton, SkeletonPage } from 'src/shared/ui/Skeleton';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/features/layout/layout.store';
@@ -356,12 +356,25 @@ export const SettingsPage = () => {
     setDisplayNameInput('');
   };
 
-  // Show loading state while account is being fetched
+  // Show a skeleton while the account is being fetched.
   if (!account) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading settings..." />
-      </div>
+      <SkeletonPage action={false}>
+        <div className="surface">
+          <div className="flex gap-4 px-6 py-2 border-b border-neutral-200">
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-8 w-16" />
+          </div>
+          <div className="surface-section space-y-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </SkeletonPage>
     );
   }
 

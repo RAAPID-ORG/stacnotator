@@ -4,6 +4,7 @@ import logging
 import firebase_admin
 from fastapi import Request
 from firebase_admin import auth, credentials
+from starlette.concurrency import run_in_threadpool
 
 from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.providers.base import AuthenticatedUser, AuthProvider
@@ -65,7 +66,7 @@ class FirebaseAuthProvider(AuthProvider):
             return None
 
         try:
-            decoded = auth.verify_id_token(token)
+            decoded = await run_in_threadpool(auth.verify_id_token, token)
 
             # Verify email is present and verified
             email = decoded.get("email")

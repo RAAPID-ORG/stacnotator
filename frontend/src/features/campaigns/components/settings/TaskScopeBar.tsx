@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { TaskSetOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
-import { IconPencil, IconTrash } from '~/shared/ui/Icons';
+import { IconCheck, IconClose, IconPencil, IconTrash } from '~/shared/ui/Icons';
 
 export type TaskScope = 'all' | number;
 
@@ -35,6 +35,11 @@ export const TaskScopeBar = ({
   const [deleting, setDeleting] = useState(false);
 
   const canDelete = taskSets.length > 1;
+
+  const cancelCreate = () => {
+    setNewName('');
+    setCreating(false);
+  };
 
   const handleCreate = async () => {
     const name = newName.trim();
@@ -137,19 +142,30 @@ export const TaskScopeBar = ({
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleCreate();
-              if (e.key === 'Escape') setCreating(false);
+              if (e.key === 'Escape') cancelCreate();
             }}
             placeholder="Set name"
-            className="h-8 px-2 border border-neutral-300 rounded-full text-sm"
+            className="h-8 px-3 border border-brand-400 rounded-full text-sm"
             autoFocus
           />
           <button
             type="button"
-            className={pillCls(false)}
+            className="h-8 w-8 flex items-center justify-center rounded-full bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 disabled:hover:bg-brand-600"
+            title="Create set"
+            aria-label="Create set"
             onClick={handleCreate}
             disabled={!newName.trim() || saving}
           >
-            Create
+            <IconCheck className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            className="h-8 w-8 flex items-center justify-center rounded-full border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:border-neutral-300"
+            title="Cancel"
+            aria-label="Cancel creating set"
+            onClick={cancelCreate}
+          >
+            <IconClose className="w-4 h-4" />
           </button>
         </span>
       ) : (

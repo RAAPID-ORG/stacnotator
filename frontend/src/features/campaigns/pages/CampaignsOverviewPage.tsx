@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { Skeleton, SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
 import { IconPlus, IconDocument, IconGlobe } from '~/shared/ui/Icons';
 import { Button, Input } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
@@ -54,9 +54,13 @@ export const CampaignsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading campaigns..." />
-      </div>
+      <SkeletonPage>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-8 flex-1 min-w-[14rem] max-w-sm" />
+        </div>
+        <SkeletonRows count={6} />
+      </SkeletonPage>
     );
   }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '~/shared/ui/forms';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import TabNavigator from '~/shared/ui/TabNavigator';
@@ -331,9 +331,9 @@ export const CampaignSettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading campaign settings..." />
-      </div>
+      <SkeletonPage>
+        <SkeletonForm sections={4} />
+      </SkeletonPage>
     );
   }
 

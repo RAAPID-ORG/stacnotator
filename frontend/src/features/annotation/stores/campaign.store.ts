@@ -3,6 +3,8 @@ import type { Layout } from 'react-grid-layout';
 import {
   getCampaignWithImageryWindows,
   getCampaignUsers,
+  getAllAnnotationTasks,
+  listTaskSets,
   createNewCanvasLayout,
   getKnnValidationStatus,
   type CampaignOutFull,
@@ -154,10 +156,11 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     set({ isLoadingCampaign: true });
 
     try {
-      const [campaignRes, usersRes, knnRes] = await Promise.all([
+      const [campaignRes, usersRes, tasksRes, setsRes] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
         getCampaignUsers({ path: { campaign_id: campaignId } }),
-        getKnnValidationStatus({ path: { campaign_id: campaignId } }),
+        getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
+        listTaskSets({ path: { campaign_id: campaignId } }),
       ]);
 
       const campaign = campaignRes.data!;
@@ -213,7 +216,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
       set({
         campaign,
-        knnValidationStatus: knnRes.data ?? null,
         selectedViewId,
         currentLayout: mergedLayout,
         savedLayout: mergedLayout,
@@ -238,8 +240,12 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // collection's cover_slice_index into activeSliceIndex.
       useMapStore.getState().setActiveCollectionId(activeCollectionId);
 
-      // Load tasks
-      await useTaskStore.getState().loadTasks(campaignId, initialTaskId, initialTaskSetId);
+      // Process the tasks fetched above; no extra round-trip.
+      await useTaskStore.getState().loadTasks(campaignId, initialTaskId, initialTaskSetId, {
+        tasks: tasksRes.data!.tasks,
+        taskSets: setsRes.data ?? [],
+        isPublic: campaign.is_public,
+      });
 
       // Zero-task campaigns have nothing to claim in Tasks mode - seed
       // straight into Explore instead, unless the caller (deep link/session
@@ -259,6 +265,9 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // loaded upfront. Seed the tile cache-busting version from the campaign
       // for every campaign, since Explore can be entered from any of them.
       useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
+
+      // Off the critical path: the tooltip it feeds isn't needed for first paint.
+      void get().refreshKnnValidationStatus();
     } catch (error) {
       handleError(error, 'Failed to load campaign');
       set({ isLoadingCampaign: false });
