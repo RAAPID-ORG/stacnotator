@@ -209,9 +209,6 @@ export const TasksTab: React.FC<Props> = ({
 
   return (
     <div id="tab-tasks" role="tabpanel">
-      {/* Sticky so the active task set stays visible while scrolling the map and
-          table below; the -mx-6/-mt-6 bleed lets the frosted bar span the full
-          surface width (its padding is p-6) and round to match the surface top. */}
       <section className="sticky top-0 z-20 -mx-6 -mt-6 mb-6 rounded-t-xl border-b border-neutral-100 bg-white/85 px-6 pb-4 pt-6 backdrop-blur-sm">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
           Task set
