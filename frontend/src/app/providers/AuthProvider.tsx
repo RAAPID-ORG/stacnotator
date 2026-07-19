@@ -26,10 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   if (!ready) {
-    // A persisted session resolves in a few ms, so show nothing at first - only
-    // a genuinely slow resolve reveals the spinner, instead of flashing it on
-    // every reload. We still can't render the app shell here (login vs app isn't
-    // known yet), so a centered indicator is the honest placeholder.
+    // Delay for smoother display without spinner first
     return (
       <Delayed delayMs={400}>
         <LoadingSpinner fullScreen size="lg" />
