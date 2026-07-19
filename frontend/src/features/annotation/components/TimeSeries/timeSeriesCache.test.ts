@@ -21,31 +21,29 @@ beforeEach(() => {
 });
 
 describe('timeSeriesCache', () => {
-  // The regression: per-window charts used to each fetch only their own window's
-  // ids, but the cache dedups by coordinate, so non-first windows got the first
-  // window's data and rendered empty. The fix has every chart request the full
-  // set - this locks in that both then receive every series with one fetch each.
-  it('two charts at the same point requesting the full set both get every series, one fetch per series', async () => {
-    const allIds = [1, 2, 3];
-
+  // The key includes the requested ids, so two windows fetching different series
+  // at the same point each get their OWN series - they don't share (and clobber)
+  // one coordinate entry, which used to leave non-first windows empty.
+  it('two windows at one point each get their own series without colliding', async () => {
     const [a, b] = await Promise.all([
-      timeSeriesCache.get(allIds, POINT),
-      timeSeriesCache.get(allIds, POINT),
+      timeSeriesCache.get([1, 2], POINT), // window A
+      timeSeriesCache.get([3], POINT), // window B
     ]);
 
-    expect(Object.keys(a!).map(Number).sort()).toEqual([1, 2, 3]);
-    expect(Object.keys(b!).map(Number).sort()).toEqual([1, 2, 3]);
-    // Deduped across the two callers: three series -> three fetches, not six.
-    expect(getTimeseriesDataMock).toHaveBeenCalledTimes(3);
-    // Each series carries its own data (not another series' rows).
-    expect(a![2][0].values).toBe(2);
+    expect(Object.keys(a!).map(Number).sort()).toEqual([1, 2]);
+    expect(Object.keys(b!).map(Number)).toEqual([3]);
+    expect(b![3][0].values).toBe(3); // B got series 3, not A's data
+    expect(getTimeseriesDataMock).toHaveBeenCalledTimes(3); // 1, 2, 3 each once
   });
 
-  it('serves a repeated point from cache without refetching', async () => {
-    await timeSeriesCache.get([1, 2], POINT);
-    await timeSeriesCache.get([1, 2], POINT);
+  it('dedupes concurrent identical requests into one fetch per series', async () => {
+    await Promise.all([timeSeriesCache.get([1, 2], POINT), timeSeriesCache.get([1, 2], POINT)]);
+    expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
+  });
 
-    // 2 series fetched once each on the first call; the second call is a cache hit.
+  it('serves a repeated point+series from cache without refetching', async () => {
+    await timeSeriesCache.get([1, 2], POINT);
+    await timeSeriesCache.get([1, 2], POINT);
     expect(getTimeseriesDataMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -10,26 +10,25 @@ from collections.abc import Iterable
 
 from src.utils import find_free_position_in_layout
 
-# The default (unnamed) timeseries window keeps the historical grid key so that
-# canvas layouts persisted before windows were splittable keep working untouched.
-DEFAULT_TIMESERIES_WINDOW_KEY = "timeseries"
+# Every timeseries belongs to a named window; series with no explicit window land
+# in this one. It's an ordinary window, not a special case - just the default the
+# schema and migration fill in.
+DEFAULT_TIMESERIES_WINDOW_NAME = "Time series"
 TIMESERIES_WINDOW_KEY_PREFIX = "timeseries:"
 
 
-def window_grid_key(window_name: str | None) -> str:
-    """Grid key for the window a timeseries belongs to. Unnamed -> default key."""
-    name = (window_name or "").strip()
-    if not name:
-        return DEFAULT_TIMESERIES_WINDOW_KEY
+def window_grid_key(window_name: str) -> str:
+    """Grid key for the window a timeseries belongs to."""
+    name = window_name.strip() or DEFAULT_TIMESERIES_WINDOW_NAME
     return f"{TIMESERIES_WINDOW_KEY_PREFIX}{name}"
 
 
 def is_timeseries_window_key(key: str) -> bool:
-    """Whether a grid key belongs to a timeseries window (default or named)."""
-    return key == DEFAULT_TIMESERIES_WINDOW_KEY or key.startswith(TIMESERIES_WINDOW_KEY_PREFIX)
+    """Whether a grid key belongs to a timeseries window."""
+    return key.startswith(TIMESERIES_WINDOW_KEY_PREFIX)
 
 
-def distinct_window_keys(window_names: Iterable[str | None]) -> list[str]:
+def distinct_window_keys(window_names: Iterable[str]) -> list[str]:
     """Ordered, de-duplicated grid keys for the given timeseries window names."""
     keys: list[str] = []
     for name in window_names:

@@ -4,7 +4,7 @@
  * Handles data fetching with caching/prefetching, rendering the chart, and UI controls.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Line } from 'react-chartjs-2';
 import {
@@ -26,7 +26,12 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { Spinner } from '~/shared/ui/Spinner';
 import { IconSliders } from '~/shared/ui/Icons';
 import { timeSeriesCache, type TimeSeriesData, type TimeSeriesRow } from './timeSeriesCache';
-import { formatDateForTooltip, getOptimalMonthLabels, parseSeriesDate } from './chartUtils';
+import {
+  collectSeriesLabels,
+  formatDateForTooltip,
+  getOptimalMonthLabels,
+  parseSeriesDate,
+} from './chartUtils';
 import { savitzkyGolay } from './savitzkyGolay';
 import type { LatLon } from '~/shared/utils/utility';
 import { useMapStore } from '../../stores/map.store';
@@ -49,21 +54,11 @@ interface TimeSeriesChartProps {
   latLon: LatLon | null;
   prefetchCoordinates?: LatLon[];
   probeLatLon?: LatLon | null; // Additional probe point for comparison (task mode)
-  /** Series ids to actually fetch, which may be a superset of `timeseries` (the
-   *  series this chart renders). When several per-window charts sit at one
-   *  point, they all pass the full campaign set here so the coordinate-keyed
-   *  cache fetches every series once and each chart slices its own from it -
-   *  otherwise the shared cache entry only holds the first window's series and
-   *  the rest render empty. Defaults to this chart's own series. */
-  fetchIds?: number[];
 }
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 const PROBE_COLORS = ['#f97316', '#84cc16', '#f43f5e', '#a78bfa', '#fb923c', '#22d3ee'];
 
-/** Neutral gray used for cloud-flagged observations, regardless of which
- *  series the dot belongs to. Picked from the design's neutral-400 scale so
- *  it reads as "lesser quality" without competing with any series color. */
 const CLOUDY_DOT_COLOR = 'rgb(162, 159, 155)';
 
 const OPTIONS_PANEL_WIDTH = 208;
@@ -102,7 +97,6 @@ export const TimeSeriesChart = ({
   latLon,
   prefetchCoordinates = [],
   probeLatLon,
-  fetchIds,
 }: TimeSeriesChartProps) => {
   const chartRef = useRef<ChartJS<'line'>>(null);
   const [data, setData] = useState<TimeSeriesData | null>(null);
@@ -110,7 +104,7 @@ export const TimeSeriesChart = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [removeCloudy, setRemoveCloudy] = useState(false);
+  const [removeCloudy, setRemoveCloudy] = useState(true);
   const [showDots, setShowDots] = useState(true);
   const [opacity, setOpacity] = useState(1);
   const [smoothEnabled, setSmoothEnabled] = useState(false);
@@ -122,32 +116,24 @@ export const TimeSeriesChart = ({
   const infoBtnRef = useRef<HTMLButtonElement>(null);
   const [infoPos, setInfoPos] = useState<{ top: number; left: number } | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // Fixed anchor for the options popover, measured off the gear when it opens.
+  // The chart card clips overflow, so the panel is portalled to the body; it
+  // grows upward from just above the gear (charts usually sit low in the layout).
+  const [optionsPos, setOptionsPos] = useState<{ bottom: number; left: number } | null>(null);
   const optionsBtnRef = useRef<HTMLButtonElement>(null);
   const optionsPanelRef = useRef<HTMLDivElement>(null);
 
-  // The chart usually sits at the bottom of the layout, so the panel rarely
-  // fits below the gear - flip it above when it doesn't. Measured against the
-  // button's own window, which may be a popped-out screen window.
-  useLayoutEffect(() => {
-    if (!optionsOpen || !optionsBtnRef.current || !optionsPanelRef.current) return;
-    const panel = optionsPanelRef.current;
-    const win = optionsBtnRef.current.ownerDocument.defaultView ?? window;
-    const rect = optionsBtnRef.current.getBoundingClientRect();
-
-    const spaceBelow = win.innerHeight - rect.bottom - 8;
-    const height = panel.offsetHeight;
-    const top =
-      height <= spaceBelow
-        ? rect.bottom + 4
-        : Math.max(4, Math.min(rect.top - 4 - height, win.innerHeight - height - 4));
-    const left = Math.max(
-      4,
-      Math.min(rect.right - OPTIONS_PANEL_WIDTH, win.innerWidth - OPTIONS_PANEL_WIDTH - 4)
-    );
-
-    panel.style.top = `${top}px`;
-    panel.style.left = `${left}px`;
-  }, [optionsOpen, smoothEnabled]);
+  const openOptions = () => {
+    const btn = optionsBtnRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const win = btn.ownerDocument.defaultView ?? window;
+    setOptionsPos({
+      bottom: win.innerHeight - r.top + 4,
+      left: Math.max(4, r.right - OPTIONS_PANEL_WIDTH),
+    });
+    setOptionsOpen(true);
+  };
 
   useEffect(() => {
     if (!optionsOpen) return;
@@ -185,10 +171,6 @@ export const TimeSeriesChart = ({
 
   const timeseriesIds = useMemo(() => timeseries.map((ts) => ts.id), [timeseries]);
 
-  // What to fetch (full set across windows if provided) vs what to render (this
-  // window's series). Falls back to own ids so single-chart callers are unchanged.
-  const idsToFetch = fetchIds && fetchIds.length > 0 ? fetchIds : timeseriesIds;
-
   // Fetch data for current location
   useEffect(() => {
     if (!latLon || timeseriesIds.length === 0) {
@@ -207,7 +189,7 @@ export const TimeSeriesChart = ({
     setOpacity(0.4);
 
     timeSeriesCache
-      .get(idsToFetch, latLon)
+      .get(timeseriesIds, latLon)
       .then((result) => {
         if (!cancelled) {
           setData(result);
@@ -235,16 +217,16 @@ export const TimeSeriesChart = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
-  }, [idsToFetch, latLon?.lat, latLon?.lon]);
+  }, [timeseriesIds, latLon?.lat, latLon?.lon]);
 
   // Prefetch upcoming coordinates
   useEffect(() => {
-    if (idsToFetch.length === 0 || prefetchCoordinates.length === 0) {
+    if (timeseriesIds.length === 0 || prefetchCoordinates.length === 0) {
       return;
     }
 
-    timeSeriesCache.prefetch(idsToFetch, prefetchCoordinates);
-  }, [idsToFetch, prefetchCoordinates]);
+    timeSeriesCache.prefetch(timeseriesIds, prefetchCoordinates);
+  }, [timeseriesIds, prefetchCoordinates]);
 
   // Fetch data for probe location (additional comparison point)
   useEffect(() => {
@@ -258,7 +240,7 @@ export const TimeSeriesChart = ({
     setIsProbeLoading(true);
 
     timeSeriesCache
-      .get(idsToFetch, probeLatLon)
+      .get(timeseriesIds, probeLatLon)
       .then((result) => {
         if (!cancelled) {
           setProbeData(result);
@@ -280,7 +262,7 @@ export const TimeSeriesChart = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
-  }, [idsToFetch, probeLatLon?.lat, probeLatLon?.lon]);
+  }, [timeseriesIds, probeLatLon?.lat, probeLatLon?.lon]);
 
   // Whether the on-map probe marker corresponds to probe series (task mode)
   // or to the main series (open mode). The Canvas passes probeLatLon=undefined
@@ -330,17 +312,13 @@ export const TimeSeriesChart = ({
   const chartData = useMemo(() => {
     if (!data) return null;
 
-    // Union of all timestamps (from both task and probe data)
-    const labelSet = new Set<string>();
-    Object.values(data).forEach((rows: TimeSeriesRow[]) =>
-      rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
+    // x-axis labels from this chart's own series, so a 2022 window and a 2018
+    // window each span just the years they cover instead of a shared axis.
+    const labels = collectSeriesLabels(
+      timeseries.map((ts) => ts.id),
+      data,
+      probeData
     );
-    if (probeData) {
-      Object.values(probeData).forEach((rows: TimeSeriesRow[]) =>
-        rows.forEach((row: TimeSeriesRow) => labelSet.add(row.time))
-      );
-    }
-    const labels = Array.from(labelSet).sort();
 
     // Get optimal month labels for x-axis
     const monthLabels = getOptimalMonthLabels(labels);
@@ -910,7 +888,7 @@ export const TimeSeriesChart = ({
             aria-label="Chart options"
             aria-expanded={optionsOpen}
             title="Chart options"
-            onClick={() => setOptionsOpen((o) => !o)}
+            onClick={() => (optionsOpen ? setOptionsOpen(false) : openOptions())}
           >
             <IconSliders className="w-3.5 h-3.5" />
           </button>
@@ -935,7 +913,11 @@ export const TimeSeriesChart = ({
           <div
             ref={optionsPanelRef}
             className="fixed z-[10000] bg-white border border-neutral-200 rounded-lg shadow-lg p-2.5 space-y-2"
-            style={{ top: 0, left: 0, width: OPTIONS_PANEL_WIDTH }}
+            style={{
+              bottom: optionsPos?.bottom,
+              left: optionsPos?.left,
+              width: OPTIONS_PANEL_WIDTH,
+            }}
           >
             <ToggleRow
               option="remove-cloudy"

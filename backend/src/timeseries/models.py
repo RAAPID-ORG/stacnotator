@@ -27,7 +27,9 @@ class TimeSeries(Base):
 
     # Time series metadata
     name: Mapped[str] = mapped_column(String, nullable=False)
-    window_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Canvas window this series renders in; every series has one (the default is
+    # "Time series"). See src/timeseries/windows.py.
+    window_name: Mapped[str] = mapped_column(String, nullable=False, server_default="Time series")
     start_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     end_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     data_source: Mapped[str] = mapped_column(String, nullable=False)  # 'MODIS', 'Landsat'

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from src.timeseries.windows import DEFAULT_TIMESERIES_WINDOW_NAME
+
 # ============================================================================
 # TimeSeries Related Schemas
 # ============================================================================
@@ -7,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 class TimeSeriesCreate(BaseModel):
     name: str
-    window_name: str | None = None
+    window_name: str = DEFAULT_TIMESERIES_WINDOW_NAME
     start_ym: str
     end_ym: str
     data_source: str
@@ -16,10 +18,8 @@ class TimeSeriesCreate(BaseModel):
 
     @field_validator("window_name")
     @classmethod
-    def normalize_window_name(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        return v.strip() or None
+    def normalize_window_name(cls, v: str) -> str:
+        return v.strip() or DEFAULT_TIMESERIES_WINDOW_NAME
 
     @field_validator("start_ym", "end_ym")
     @classmethod

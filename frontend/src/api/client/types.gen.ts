@@ -2540,7 +2540,7 @@ export type TimeSeriesCreate = {
     /**
      * Window Name
      */
-    window_name?: string | null;
+    window_name?: string;
     /**
      * Start Ym
      */
@@ -2592,7 +2592,7 @@ export type TimeSeriesOut = {
     /**
      * Window Name
      */
-    window_name?: string | null;
+    window_name?: string;
     /**
      * Start Ym
      */

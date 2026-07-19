@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { TimeSeriesOut } from '~/api/client';
-import { DEFAULT_TIMESERIES_WINDOW_TITLE, groupTimeseriesIntoWindows } from './timeseriesWindows';
+import { groupTimeseriesIntoWindows } from './timeseriesWindows';
+import { DEFAULT_TIMESERIES_WINDOW_NAME } from './layoutDefaults';
+
+const DEFAULT_KEY = `timeseries:${DEFAULT_TIMESERIES_WINDOW_NAME}`;
 
 const ts = (id: number, window_name?: string | null): TimeSeriesOut =>
   ({
@@ -19,8 +22,8 @@ describe('groupTimeseriesIntoWindows', () => {
   it('collapses unnamed series into a single default window', () => {
     const windows = groupTimeseriesIntoWindows([ts(1), ts(2, ''), ts(3, '   ')]);
     expect(windows).toHaveLength(1);
-    expect(windows[0].key).toBe('timeseries');
-    expect(windows[0].title).toBe(DEFAULT_TIMESERIES_WINDOW_TITLE);
+    expect(windows[0].key).toBe(DEFAULT_KEY);
+    expect(windows[0].title).toBe(DEFAULT_TIMESERIES_WINDOW_NAME);
     expect(windows[0].series.map((s) => s.id)).toEqual([1, 2, 3]);
   });
 
@@ -37,7 +40,7 @@ describe('groupTimeseriesIntoWindows', () => {
 
   it('preserves first-appearance order across a mix of windows', () => {
     const windows = groupTimeseriesIntoWindows([ts(1, 'Water'), ts(2), ts(3, 'Water'), ts(4)]);
-    expect(windows.map((w) => w.key)).toEqual(['timeseries:Water', 'timeseries']);
+    expect(windows.map((w) => w.key)).toEqual(['timeseries:Water', DEFAULT_KEY]);
   });
 
   it('returns nothing for no series', () => {

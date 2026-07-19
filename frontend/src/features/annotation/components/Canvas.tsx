@@ -311,15 +311,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     [campaign?.time_series]
   );
 
-  // Every per-window chart fetches this full set (then renders only its window's
-  // series) so the coordinate-keyed cache holds all series at a point and dedups
-  // across windows, instead of each window fetching a disjoint subset. Memoized
-  // for a stable identity so it doesn't retrigger the charts' fetch effects.
-  const allTimeseriesIds = useMemo(
-    () => (campaign?.time_series ?? []).map((ts) => ts.id),
-    [campaign?.time_series]
-  );
-
   // On mobile we ignore the saved desktop layout and stack everything in a
   // single column. Main + controls share the visible viewport (same height);
   // timeseries / minimap / windows follow below the fold.
@@ -644,7 +635,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
   const renderTimeseriesBody = (series: typeof campaign.time_series) => (
     <TimeSeriesChart
       timeseries={series}
-      fetchIds={allTimeseriesIds}
       latLon={timeseriesLatLon}
       prefetchCoordinates={timeseriesPrefetch}
       probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}

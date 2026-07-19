@@ -40,16 +40,15 @@ export function nextWindowSlot(layout: Layout, size: { w: number; h: number }): 
   return { i: '', x: 0, y: bottom, ...size };
 }
 
-/** The default (unnamed) timeseries window keeps this historical key so layouts
- *  persisted before timeseries were splittable across windows keep working.
- *  Named windows use `${TIMESERIES_WINDOW_KEY_PREFIX}<name>`. Mirror of backend
- *  src/timeseries/windows.py - keep in sync if either side changes. */
-export const DEFAULT_TIMESERIES_WINDOW_KEY = 'timeseries';
+/** Every timeseries window is keyed `${TIMESERIES_WINDOW_KEY_PREFIX}<name>`; a
+ *  series with no explicit window lands in the default one, named below. Mirror
+ *  of backend src/timeseries/windows.py - keep in sync if either side changes. */
 export const TIMESERIES_WINDOW_KEY_PREFIX = 'timeseries:';
+export const DEFAULT_TIMESERIES_WINDOW_NAME = 'Time series';
 
-/** Whether a grid key is a timeseries window (the default one or a named one). */
+/** Whether a grid key is a timeseries window. */
 export function isTimeseriesWindowKey(key: string): boolean {
-  return key === DEFAULT_TIMESERIES_WINDOW_KEY || key.startsWith(TIMESERIES_WINDOW_KEY_PREFIX);
+  return key.startsWith(TIMESERIES_WINDOW_KEY_PREFIX);
 }
 
 /** Fixed page chrome that lives in the main layout and is never hidden by
