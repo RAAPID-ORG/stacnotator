@@ -66,9 +66,6 @@ class FirebaseAuthProvider(AuthProvider):
             return None
 
         try:
-            # verify_id_token is a blocking call (RSA verification, plus an
-            # occasional network refresh of Google's signing certs). Run it in
-            # the threadpool so it never stalls the event loop for other requests.
             decoded = await run_in_threadpool(auth.verify_id_token, token)
 
             # Verify email is present and verified
