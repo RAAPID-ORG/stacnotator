@@ -54,8 +54,7 @@ export const TimeseriesTab: React.FC<Props> = ({
   campaignMode,
   campaignSettings,
 }) => {
-  // Window names that already exist, so the picker in StepAddTimeseries can
-  // offer them instead of making the user retype an exact match to group series.
+
   const knownWindowNames = Array.from(
     new Set(timeseries.map((t) => t.window_name?.trim()).filter((n): n is string => !!n))
   );
@@ -104,8 +103,6 @@ export const TimeseriesTab: React.FC<Props> = ({
           <p className="section-description">
             Series are grouped into the panel they appear in on the annotation page.
           </p>
-          {/* One card per window so the grouping is obvious - a bare list of
-              rows read as ungrouped even with a sub-heading. */}
           {groupExistingByWindow(timeseries).map(({ title, series }) => (
             <div key={title} className="rounded-lg border border-neutral-200 overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border-b border-neutral-200">
