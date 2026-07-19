@@ -17,12 +17,12 @@ export const DEFAULT_NEW_WINDOW_SIZE = { w: VIEW_LAYOUT_WINDOW_W, h: VIEW_LAYOUT
  *  another packs them into a tidy left-to-right, top-to-bottom grid: continue
  *  the bottom-most row while it has horizontal room, otherwise start a new row. */
 export function nextWindowSlot(layout: Layout, size: { w: number; h: number }): LayoutItem {
-  const existing = layout.filter((it) => !MAIN_LAYOUT_KEYS.has(it.i));
+  const existing = layout.filter((it) => !isMainLayoutKey(it.i));
   if (existing.length === 0) {
     // First window after a full hide: sit flush below the page chrome rather
     // than at a fixed offset, so there's no empty band above the new row.
     const chromeBottom = layout
-      .filter((it) => MAIN_LAYOUT_KEYS.has(it.i))
+      .filter((it) => isMainLayoutKey(it.i))
       .reduce((m, it) => Math.max(m, (it.y ?? 0) + (it.h ?? 0)), 0);
     return { i: '', x: 0, y: chromeBottom, ...size };
   }
@@ -40,9 +40,25 @@ export function nextWindowSlot(layout: Layout, size: { w: number; h: number }): 
   return { i: '', x: 0, y: bottom, ...size };
 }
 
-/** Keys reserved for the fixed page chrome (main map, time series chart, etc.).
- *  Items with these keys are never hidden by per-window affordances. */
-export const MAIN_LAYOUT_KEYS = new Set(['main', 'timeseries', 'minimap', 'controls']);
+/** The default (unnamed) timeseries window keeps this historical key so layouts
+ *  persisted before timeseries were splittable across windows keep working.
+ *  Named windows use `${TIMESERIES_WINDOW_KEY_PREFIX}<name>`. Mirror of backend
+ *  src/timeseries/windows.py - keep in sync if either side changes. */
+export const DEFAULT_TIMESERIES_WINDOW_KEY = 'timeseries';
+export const TIMESERIES_WINDOW_KEY_PREFIX = 'timeseries:';
+
+/** Whether a grid key is a timeseries window (the default one or a named one). */
+export function isTimeseriesWindowKey(key: string): boolean {
+  return key === DEFAULT_TIMESERIES_WINDOW_KEY || key.startsWith(TIMESERIES_WINDOW_KEY_PREFIX);
+}
+
+/** Fixed page chrome that lives in the main layout and is never hidden by
+ *  per-window affordances: the main map, minimap, controls, and every
+ *  timeseries window (default or named). */
+const BASE_MAIN_LAYOUT_KEYS = new Set(['main', 'minimap', 'controls']);
+export function isMainLayoutKey(key: string): boolean {
+  return BASE_MAIN_LAYOUT_KEYS.has(key) || isTimeseriesWindowKey(key);
+}
 
 const rectsOverlap = (
   a: { x: number; y: number; w: number; h: number },

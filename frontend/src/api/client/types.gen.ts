@@ -2538,6 +2538,10 @@ export type TimeSeriesCreate = {
      */
     name: string;
     /**
+     * Window Name
+     */
+    window_name?: string | null;
+    /**
      * Start Ym
      */
     start_ym: string;
@@ -2585,6 +2589,10 @@ export type TimeSeriesOut = {
      * Name
      */
     name: string;
+    /**
+     * Window Name
+     */
+    window_name?: string | null;
     /**
      * Start Ym
      */

@@ -4,7 +4,7 @@ import ee
 import pandas as pd
 from fastapi import HTTPException
 from googleapiclient.errors import HttpError
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -12,7 +12,7 @@ from src.campaigns.models import Campaign, CanvasLayout
 from src.config import get_settings
 from src.timeseries.models import TimeSeries
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
-from src.utils import find_free_position_in_layout
+from src.timeseries.windows import distinct_window_keys, sync_timeseries_windows_in_layout
 
 settings = get_settings()
 
@@ -244,50 +244,35 @@ def get_timeseries_data(
 # ============================================================================
 
 
-def _add_timeseries_entry_to_layout(
-    layout_data: list[dict],
-    window_width: int = 10,
-    window_height: int = 12,
-    grid_width: int = 60,
-) -> bool:
+def sync_campaign_timeseries_windows(campaign_id: int, db: Session) -> None:
     """
-    Add a single "timeseries" entry to canvas layout if it doesn't already exist.
-
-    There is always only one timeseries entry with id "timeseries" regardless of
-    how many actual timeseries exist in the campaign.
-
-    Args:
-        layout_data: Existing layout data to append to (modified in place)
-        window_width: Width of timeseries window in grid units
-        window_height: Height of timeseries window in grid units
-        grid_width: Total grid width available
-
-    Returns:
-        True if timeseries entry was added, False if it already existed
+    Reconcile every main canvas layout with the campaign's current timeseries
+    windows: one window per distinct ``window_name`` (unnamed series share the
+    default window). Called after any create/delete so windows appear as their
+    first series is added and disappear once emptied. Main layouts have
+    ``view_id = None`` (both the campaign default and per-user personal copies).
     """
-    # Check if timeseries entry already exists in the layout
-    timeseries_key = "timeseries"
-    if any(item.get("i") == timeseries_key for item in layout_data):
-        return False
+    window_names = (
+        db.execute(select(TimeSeries.window_name).where(TimeSeries.campaign_id == campaign_id))
+        .scalars()
+        .all()
+    )
+    desired_keys = distinct_window_keys(window_names)
 
-    # Find free position and add to layout
-    x, y = find_free_position_in_layout(
-        layout_data=layout_data,
-        item_width=window_width,
-        item_height=window_height,
-        grid_width=grid_width,
+    main_layouts = (
+        db.execute(
+            select(CanvasLayout).where(
+                CanvasLayout.campaign_id == campaign_id,
+                CanvasLayout.view_id.is_(None),
+            )
+        )
+        .scalars()
+        .all()
     )
 
-    layout_entry = {
-        "i": timeseries_key,
-        "x": x,
-        "y": y,
-        "w": window_width,
-        "h": window_height,
-    }
-    layout_data.append(layout_entry)
-
-    return True
+    for layout in main_layouts:
+        if sync_timeseries_windows_in_layout(layout.layout_data, desired_keys):
+            flag_modified(layout, "layout_data")
 
 
 def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeriesOut]:
@@ -306,11 +291,11 @@ def create_timeseries_bulk(
     campaign_id: int, ts_creates: list[TimeSeriesCreate], db: Session
 ) -> list[TimeSeriesOut]:
     """
-    Create multiple timeseries for a campaign and add timeseries entry to canvas layouts.
+    Create multiple timeseries for a campaign and sync the canvas windows.
 
-    This function:
-    1. Creates the timeseries database entries
-    2. Adds a single "timeseries" entry to all main canvas layouts if this is the first timeseries
+    Each series is placed in the window named by its ``window_name`` (unnamed
+    series share the default window); the main canvas layouts gain one window per
+    distinct name.
 
     Args:
         campaign_id: ID of the campaign
@@ -325,17 +310,13 @@ def create_timeseries_bulk(
     if not campaign:
         raise HTTPException(status_code=404, detail=f"Campaign with id {campaign_id} not found")
 
-    # Check if campaign already has timeseries
-    existing_count = db.execute(
-        select(func.count()).select_from(TimeSeries).where(TimeSeries.campaign_id == campaign_id)
-    ).scalar_one()
-
     # Create timeseries entries
     new_items = []
     for ts_create in ts_creates:
         ts_item = TimeSeries(
             campaign_id=campaign_id,
             name=ts_create.name,
+            window_name=ts_create.window_name,
             start_ym=ts_create.start_ym,
             end_ym=ts_create.end_ym,
             data_source=ts_create.data_source,
@@ -347,31 +328,7 @@ def create_timeseries_bulk(
     db.add_all(new_items)
     db.flush()
 
-    # If this is the first timeseries for the campaign, add timeseries entry to all main layouts
-    if existing_count == 0:
-        # Get all main canvas layouts for this campaign (default and personal)
-        # Main layouts have view_id = None
-        main_layouts = (
-            db.execute(
-                select(CanvasLayout).where(
-                    CanvasLayout.campaign_id == campaign_id,
-                    CanvasLayout.view_id.is_(None),
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        # Add single timeseries entry to all layouts
-        for layout in main_layouts:
-            added = _add_timeseries_entry_to_layout(
-                layout_data=layout.layout_data,
-                window_width=10,
-                window_height=4,
-            )
-            if added:
-                # Mark layout_data as modified so SQLAlchemy knows to update it
-                flag_modified(layout, "layout_data")
+    sync_campaign_timeseries_windows(campaign_id, db)
 
     db.commit()
     return new_items
@@ -388,10 +345,10 @@ def get_timeseries_by_id(timeseries_id: int, db: Session) -> TimeSeries:
 
 def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None:
     """
-    Delete a timeseries and update canvas layouts.
+    Delete a timeseries and sync the canvas windows.
 
-    If this is the last timeseries in the campaign, removes the "timeseries"
-    entry from all main canvas layouts (default and personal).
+    Removing the last series in a window drops that window from all main canvas
+    layouts (default and personal); other windows are left in place.
 
     Args:
         timeseries_id: ID of the timeseries to delete
@@ -412,42 +369,10 @@ def delete_timeseries(timeseries_id: int, campaign_id: int, db: Session) -> None
             detail=f"TimeSeries {timeseries_id} not found in campaign {campaign_id}",
         )
 
-    # Check if this is the last timeseries in the campaign
-    remaining_count = db.execute(
-        select(func.count())
-        .select_from(TimeSeries)
-        .where(
-            TimeSeries.campaign_id == campaign_id,
-            TimeSeries.id != timeseries_id,
-        )
-    ).scalar_one()
-
     # Delete the timeseries
     db.delete(ts_item)
     db.flush()
 
-    # If this was the last timeseries, remove the timeseries entry from all layouts
-    if remaining_count == 0:
-        timeseries_key = "timeseries"
-
-        # Get all main canvas layouts for this campaign
-        main_layouts = (
-            db.execute(
-                select(CanvasLayout).where(
-                    CanvasLayout.campaign_id == campaign_id,
-                    CanvasLayout.view_id.is_(None),
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        # Remove timeseries entry from each layout
-        for layout in main_layouts:
-            # Filter out the timeseries entry
-            layout.layout_data = [
-                item for item in layout.layout_data if item.get("i") != timeseries_key
-            ]
-            flag_modified(layout, "layout_data")
+    sync_campaign_timeseries_windows(campaign_id, db)
 
     db.commit()

@@ -20,7 +20,7 @@ import type { ImageryViewOut } from '~/api/client';
 import {
   nextWindowSlot,
   resolveDropCell,
-  MAIN_LAYOUT_KEYS,
+  isMainLayoutKey,
   DEFAULT_NEW_WINDOW_SIZE,
 } from '../utils/layoutDefaults';
 
@@ -333,7 +333,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
 
   hideAllWindows: () =>
     set((s) => ({
-      currentLayout: (s.currentLayout ?? []).filter((it) => MAIN_LAYOUT_KEYS.has(it.i)),
+      currentLayout: (s.currentLayout ?? []).filter((it) => isMainLayoutKey(it.i)),
     })),
 
   addWindow: (collectionId) =>
@@ -361,12 +361,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     }
 
     try {
-      const mainItems = currentLayout.filter((item) =>
-        ['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
-      );
-      const viewItems = currentLayout.filter(
-        (item) => !['main', 'timeseries', 'minimap', 'controls'].includes(item.i)
-      );
+      const mainItems = currentLayout.filter((item) => isMainLayoutKey(item.i));
+      const viewItems = currentLayout.filter((item) => !isMainLayoutKey(item.i));
 
       await createNewCanvasLayout({
         path: { campaign_id: campaign.id },

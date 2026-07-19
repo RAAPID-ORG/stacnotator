@@ -7,11 +7,19 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 class TimeSeriesCreate(BaseModel):
     name: str
+    window_name: str | None = None
     start_ym: str
     end_ym: str
     data_source: str
     provider: str
     ts_type: str
+
+    @field_validator("window_name")
+    @classmethod
+    def normalize_window_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return v.strip() or None
 
     @field_validator("start_ym", "end_ym")
     @classmethod

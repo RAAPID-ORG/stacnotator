@@ -27,6 +27,7 @@ class TimeSeries(Base):
 
     # Time series metadata
     name: Mapped[str] = mapped_column(String, nullable=False)
+    window_name: Mapped[str | None] = mapped_column(String, nullable=True)
     start_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     end_ym: Mapped[str] = mapped_column(String(6), nullable=False)  # YYYYMM
     data_source: Mapped[str] = mapped_column(String, nullable=False)  # 'MODIS', 'Landsat'

@@ -21,6 +21,8 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { isTimeseriesWindowKey } from '../utils/layoutDefaults';
+import { groupTimeseriesIntoWindows, type TimeseriesWindow } from '../utils/timeseriesWindows';
 import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
 import { useAccountStore } from '~/features/account/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
@@ -302,6 +304,22 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       .sort(byCollectionDate);
   }, [campaign, selectedView, currentLayout]);
 
+  // Timeseries split into one canvas window per distinct window_name; unnamed
+  // series share the default window. Each window renders its own chart.
+  const timeseriesWindows = useMemo<TimeseriesWindow[]>(
+    () => groupTimeseriesIntoWindows(campaign?.time_series ?? []),
+    [campaign?.time_series]
+  );
+
+  // Every per-window chart fetches this full set (then renders only its window's
+  // series) so the coordinate-keyed cache holds all series at a point and dedups
+  // across windows, instead of each window fetching a disjoint subset. Memoized
+  // for a stable identity so it doesn't retrigger the charts' fetch effects.
+  const allTimeseriesIds = useMemo(
+    () => (campaign?.time_series ?? []).map((ts) => ts.id),
+    [campaign?.time_series]
+  );
+
   // On mobile we ignore the saved desktop layout and stack everything in a
   // single column. Main + controls share the visible viewport (same height);
   // timeseries / minimap / windows follow below the fold.
@@ -316,8 +334,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     y += halfRows;
     items.push({ i: 'controls', x: 0, y, w: 60, h: halfRows });
     y += halfRows;
-    if (campaign.time_series.length > 0) {
-      items.push({ i: 'timeseries', x: 0, y, w: 60, h: restRows });
+    for (const tw of timeseriesWindows) {
+      items.push({ i: tw.key, x: 0, y, w: 60, h: restRows });
       y += restRows;
     }
     items.push({ i: 'minimap', x: 0, y, w: 60, h: restRows });
@@ -327,7 +345,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
       y += restRows;
     }
     return items;
-  }, [campaign, containerHeight, windowCollections]);
+  }, [campaign, containerHeight, windowCollections, timeseriesWindows]);
 
   // Screens are a desktop affordance; mobile keeps its fixed stacked layout.
   const popped = useMemo(
@@ -377,12 +395,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     const keys = Object.keys(assignment);
     if (keys.length === 0) return;
     const valid = new Set(['controls', 'minimap']);
-    if (campaign && campaign.time_series.length > 0) valid.add('timeseries');
+    for (const tw of timeseriesWindows) valid.add(tw.key);
     for (const wc of windowCollections) valid.add(String(wc.collection_id));
     for (const key of keys) {
       if (!valid.has(key)) sendCard(key, null);
     }
-  }, [assignment, campaign, windowCollections, sendCard]);
+  }, [assignment, timeseriesWindows, windowCollections, sendCard]);
 
   // react-grid-layout memoizes against the *identity* of these config props, so
   // keep them stable across renders to avoid needlessly re-firing its effects.
@@ -618,18 +636,20 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     </div>
   );
 
-  const timeseriesBody =
-    campaign.time_series.length > 0 ? (
-      <TimeSeriesChart
-        timeseries={campaign.time_series}
-        latLon={timeseriesLatLon}
-        prefetchCoordinates={visibleTasks
-          .slice(currentTaskIndex + 1, currentTaskIndex + 4)
-          .map((task) => extractCentroidFromWKT(task.geometry.geometry))
-          .filter((coord): coord is LatLon => coord !== null)}
-        probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
-      />
-    ) : null;
+  const timeseriesPrefetch = visibleTasks
+    .slice(currentTaskIndex + 1, currentTaskIndex + 4)
+    .map((task) => extractCentroidFromWKT(task.geometry.geometry))
+    .filter((coord): coord is LatLon => coord !== null);
+
+  const renderTimeseriesBody = (series: typeof campaign.time_series) => (
+    <TimeSeriesChart
+      timeseries={series}
+      fetchIds={allTimeseriesIds}
+      latLon={timeseriesLatLon}
+      prefetchCoordinates={timeseriesPrefetch}
+      probeLatLon={!isOpenMode ? probeTimeseriesPoint : undefined}
+    />
+  );
 
   const minimapBody = (
     <MiniMap
@@ -646,8 +666,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   const cardDefFor = (key: string): ScreenCard | null => {
     if (key === 'controls') return { key, title: 'Controls', body: controlsBody };
-    if (key === 'timeseries')
-      return timeseriesBody ? { key, title: 'Time series', body: timeseriesBody } : null;
+    if (isTimeseriesWindowKey(key)) {
+      const tw = timeseriesWindows.find((w) => w.key === key);
+      return tw ? { key, title: tw.title, body: renderTimeseriesBody(tw.series) } : null;
+    }
     if (key === 'minimap')
       return { key, title: 'Location', headerContent: renderMinimapHeader(), body: minimapBody };
     const wc = windowCollections.find((w) => String(w.collection_id) === key);
@@ -705,22 +727,30 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
             />
           </div>
 
-          {campaign.time_series.length > 0 && !popped.has('timeseries') && (
-            <div key="timeseries" className="grid-card group/card" data-tour="timeseries">
-              <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
-                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
-                  Time series
-                </span>
-                {showPopoutButtons && (
-                  <SendToScreenButton
-                    cardKey="timeseries"
-                    label="the time series chart"
-                    onSend={(target) => sendToScreen('timeseries', target)}
-                  />
-                )}
+          {timeseriesWindows.map((tw, idx) =>
+            popped.has(tw.key) ? null : (
+              <div
+                key={tw.key}
+                className="grid-card group/card"
+                // Keep the guided tour's single timeseries anchor on the first window.
+                {...(idx === 0 ? { 'data-tour': 'timeseries' } : {})}
+                data-timeseries-window-key={tw.key}
+              >
+                <div className={`drag-handle card-header ${isEditingLayout ? 'editable' : ''}`}>
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                    {tw.title}
+                  </span>
+                  {showPopoutButtons && (
+                    <SendToScreenButton
+                      cardKey={tw.key}
+                      label={`the ${tw.title} chart`}
+                      onSend={(target) => sendToScreen(tw.key, target)}
+                    />
+                  )}
+                </div>
+                {renderTimeseriesBody(tw.series)}
               </div>
-              {timeseriesBody}
-            </div>
+            )
           )}
 
           {!popped.has('minimap') && (

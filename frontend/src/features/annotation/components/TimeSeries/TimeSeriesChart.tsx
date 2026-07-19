@@ -18,6 +18,7 @@ import {
   CategoryScale,
   type ChartEvent,
   type ActiveElement,
+  type ChartOptions,
 } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import type { TimeSeriesOut } from '~/api/client';
@@ -48,6 +49,13 @@ interface TimeSeriesChartProps {
   latLon: LatLon | null;
   prefetchCoordinates?: LatLon[];
   probeLatLon?: LatLon | null; // Additional probe point for comparison (task mode)
+  /** Series ids to actually fetch, which may be a superset of `timeseries` (the
+   *  series this chart renders). When several per-window charts sit at one
+   *  point, they all pass the full campaign set here so the coordinate-keyed
+   *  cache fetches every series once and each chart slices its own from it -
+   *  otherwise the shared cache entry only holds the first window's series and
+   *  the rest render empty. Defaults to this chart's own series. */
+  fetchIds?: number[];
 }
 
 const COLORS = ['#2563eb', '#16a34a', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
@@ -94,6 +102,7 @@ export const TimeSeriesChart = ({
   latLon,
   prefetchCoordinates = [],
   probeLatLon,
+  fetchIds,
 }: TimeSeriesChartProps) => {
   const chartRef = useRef<ChartJS<'line'>>(null);
   const [data, setData] = useState<TimeSeriesData | null>(null);
@@ -176,6 +185,10 @@ export const TimeSeriesChart = ({
 
   const timeseriesIds = useMemo(() => timeseries.map((ts) => ts.id), [timeseries]);
 
+  // What to fetch (full set across windows if provided) vs what to render (this
+  // window's series). Falls back to own ids so single-chart callers are unchanged.
+  const idsToFetch = fetchIds && fetchIds.length > 0 ? fetchIds : timeseriesIds;
+
   // Fetch data for current location
   useEffect(() => {
     if (!latLon || timeseriesIds.length === 0) {
@@ -194,7 +207,7 @@ export const TimeSeriesChart = ({
     setOpacity(0.4);
 
     timeSeriesCache
-      .get(timeseriesIds, latLon)
+      .get(idsToFetch, latLon)
       .then((result) => {
         if (!cancelled) {
           setData(result);
@@ -222,16 +235,16 @@ export const TimeSeriesChart = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
-  }, [timeseriesIds, latLon?.lat, latLon?.lon]);
+  }, [idsToFetch, latLon?.lat, latLon?.lon]);
 
   // Prefetch upcoming coordinates
   useEffect(() => {
-    if (timeseriesIds.length === 0 || prefetchCoordinates.length === 0) {
+    if (idsToFetch.length === 0 || prefetchCoordinates.length === 0) {
       return;
     }
 
-    timeSeriesCache.prefetch(timeseriesIds, prefetchCoordinates);
-  }, [timeseriesIds, prefetchCoordinates]);
+    timeSeriesCache.prefetch(idsToFetch, prefetchCoordinates);
+  }, [idsToFetch, prefetchCoordinates]);
 
   // Fetch data for probe location (additional comparison point)
   useEffect(() => {
@@ -245,7 +258,7 @@ export const TimeSeriesChart = ({
     setIsProbeLoading(true);
 
     timeSeriesCache
-      .get(timeseriesIds, probeLatLon)
+      .get(idsToFetch, probeLatLon)
       .then((result) => {
         if (!cancelled) {
           setProbeData(result);
@@ -267,7 +280,7 @@ export const TimeSeriesChart = ({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when lat/lon change
-  }, [timeseriesIds, probeLatLon?.lat, probeLatLon?.lon]);
+  }, [idsToFetch, probeLatLon?.lat, probeLatLon?.lon]);
 
   // Whether the on-map probe marker corresponds to probe series (task mode)
   // or to the main series (open mode). The Canvas passes probeLatLon=undefined
@@ -484,41 +497,55 @@ export const TimeSeriesChart = ({
   // (e.g. labels are sparse compared to slice width) snap to nearest.
   const sliceMarkerRef = useRef<{ startIdx: number; endIdx: number } | null>(null);
   useEffect(() => {
-    if (!activeSlice || !chartData?.labels.length) {
-      sliceMarkerRef.current = null;
-      chartRef.current?.update('none');
-      return;
-    }
-    const sliceStart = new Date(activeSlice.start_date).getTime();
-    const sliceEnd = new Date(activeSlice.end_date).getTime();
-    const labels = chartData.labels;
-    let startIdx = -1;
-    let endIdx = -1;
-    for (let i = 0; i < labels.length; i++) {
-      const t = parseSeriesDate(labels[i]);
-      if (t >= sliceStart && t <= sliceEnd) {
-        if (startIdx === -1) startIdx = i;
-        endIdx = i;
-      }
-    }
-    if (startIdx === -1) {
-      // No labels strictly inside the slice - snap to the nearest single label
-      let nearest = 0;
-      let bestDist = Infinity;
-      const center = (sliceStart + sliceEnd) / 2;
+    // Recompute where the active-slice band sits, then repaint ONLY if it moved.
+    // This effect fires on every timeline move, and with several timeseries
+    // windows open each one runs it - so it must stay cheap: chart.render()
+    // repaints the overlay without Chart.js reprocessing data/scales (which
+    // update() does), and the no-op guard skips redundant repaints entirely.
+    let next: { startIdx: number; endIdx: number } | null = null;
+    if (activeSlice && chartData?.labels.length) {
+      const sliceStart = new Date(activeSlice.start_date).getTime();
+      const sliceEnd = new Date(activeSlice.end_date).getTime();
+      const labels = chartData.labels;
+      let startIdx = -1;
+      let endIdx = -1;
       for (let i = 0; i < labels.length; i++) {
         const t = parseSeriesDate(labels[i]);
-        const d = Math.abs(t - center);
-        if (d < bestDist) {
-          bestDist = d;
-          nearest = i;
+        if (t >= sliceStart && t <= sliceEnd) {
+          if (startIdx === -1) startIdx = i;
+          endIdx = i;
         }
       }
-      sliceMarkerRef.current = { startIdx: nearest, endIdx: nearest };
-    } else {
-      sliceMarkerRef.current = { startIdx, endIdx };
+      if (startIdx === -1) {
+        // No labels strictly inside the slice - snap to the nearest single label
+        let nearest = 0;
+        let bestDist = Infinity;
+        const center = (sliceStart + sliceEnd) / 2;
+        for (let i = 0; i < labels.length; i++) {
+          const t = parseSeriesDate(labels[i]);
+          const d = Math.abs(t - center);
+          if (d < bestDist) {
+            bestDist = d;
+            nearest = i;
+          }
+        }
+        next = { startIdx: nearest, endIdx: nearest };
+      } else {
+        next = { startIdx, endIdx };
+      }
     }
-    chartRef.current?.update('none');
+
+    const prev = sliceMarkerRef.current;
+    const unchanged =
+      prev === next ||
+      (prev != null &&
+        next != null &&
+        prev.startIdx === next.startIdx &&
+        prev.endIdx === next.endIdx);
+    if (unchanged) return;
+
+    sliceMarkerRef.current = next;
+    chartRef.current?.render();
   }, [activeSlice, chartData?.labels]);
 
   // Inline plugin: subtle band + edge lines indicating the active map slice.
@@ -635,6 +662,101 @@ export const TimeSeriesChart = ({
       },
     }),
     []
+  );
+
+  // Memoized so its reference is stable across re-renders. react-chartjs-2 runs
+  // a full chart.update() whenever the `options` prop identity changes, so an
+  // inline object here would re-run the update pipeline on every re-render -
+  // e.g. every timeline move, times each open timeseries window. It only needs
+  // to change when the labels/click-target actually change.
+  const chartOptions = useMemo<ChartOptions<'line'>>(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: handleChartClick,
+      onHover: (event) => {
+        const target = event.native?.target as HTMLElement | undefined;
+        if (target) target.style.cursor = activeSource ? 'pointer' : 'default';
+      },
+      animation: {
+        duration: 400,
+        easing: 'easeInOutQuart',
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return '';
+              const dateStr = chartData?.labels[items[0].dataIndex];
+              return dateStr ? formatDateForTooltip(dateStr) : '';
+            },
+          },
+        },
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x',
+            onPan: () => setIsZoomed(true),
+          },
+          zoom: {
+            wheel: { enabled: true, modifierKey: 'ctrl' as const },
+            pinch: { enabled: true },
+            drag: {
+              enabled: true,
+              // Below this drag distance the gesture is a click, not a zoom. The
+              // default of 0 makes any real-pointer jitter a micro-zoom and
+              // swallows the click that selects a slice.
+              threshold: 10,
+              backgroundColor: 'rgba(37,99,235,0.1)',
+              borderColor: '#2563eb',
+              borderWidth: 1,
+            },
+            mode: 'x',
+            onZoom: () => setIsZoomed(true),
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45,
+            font: { size: 8 },
+            callback: function (_value, index) {
+              const monthLabel = chartData?.monthLabels.find((m) => m.index === index);
+              return monthLabel ? monthLabel.label : null;
+            },
+            autoSkip: false,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          min: 0,
+          max: 1,
+          ticks: {
+            font: { size: 8 },
+            maxTicksLimit: 5,
+          },
+          grid: {
+            color: '#e5e5e5',
+          },
+        },
+      },
+      elements: {
+        point: {
+          radius: 0,
+        },
+        line: {
+          borderWidth: 1.5,
+        },
+      },
+    }),
+    [handleChartClick, activeSource, chartData?.labels, chartData?.monthLabels]
   );
 
   // Error state
@@ -804,92 +926,7 @@ export const TimeSeriesChart = ({
           ref={chartRef}
           data={chartData}
           plugins={[sliceMarkerPlugin, referenceLinePlugin]}
-          options={{
-            responsive: true,
-            maintainAspectRatio: false,
-            onClick: handleChartClick,
-            onHover: (event) => {
-              const target = event.native?.target as HTMLElement | undefined;
-              if (target) target.style.cursor = activeSource ? 'pointer' : 'default';
-            },
-            animation: {
-              duration: 400,
-              easing: 'easeInOutQuart',
-            },
-            plugins: {
-              legend: {
-                display: false,
-              },
-              tooltip: {
-                callbacks: {
-                  title: (items) => {
-                    if (!items.length) return '';
-                    const dateStr = chartData.labels[items[0].dataIndex];
-                    return formatDateForTooltip(dateStr);
-                  },
-                },
-              },
-              zoom: {
-                pan: {
-                  enabled: true,
-                  mode: 'x',
-                  onPan: () => setIsZoomed(true),
-                },
-                zoom: {
-                  wheel: { enabled: true, modifierKey: 'ctrl' as const },
-                  pinch: { enabled: true },
-                  drag: {
-                    enabled: true,
-                    // Below this drag distance the gesture is a click, not a
-                    // zoom. The default of 0 makes any real-pointer jitter a
-                    // micro-zoom and swallows the click that selects a slice.
-                    threshold: 10,
-                    backgroundColor: 'rgba(37,99,235,0.1)',
-                    borderColor: '#2563eb',
-                    borderWidth: 1,
-                  },
-                  mode: 'x',
-                  onZoom: () => setIsZoomed(true),
-                },
-              },
-            },
-            scales: {
-              x: {
-                ticks: {
-                  maxRotation: 45,
-                  minRotation: 45,
-                  font: { size: 8 },
-                  callback: function (_value, index) {
-                    const monthLabel = chartData.monthLabels.find((m) => m.index === index);
-                    return monthLabel ? monthLabel.label : null;
-                  },
-                  autoSkip: false,
-                },
-                grid: {
-                  display: false,
-                },
-              },
-              y: {
-                min: 0,
-                max: 1,
-                ticks: {
-                  font: { size: 8 },
-                  maxTicksLimit: 5,
-                },
-                grid: {
-                  color: '#e5e5e5',
-                },
-              },
-            },
-            elements: {
-              point: {
-                radius: 0,
-              },
-              line: {
-                borderWidth: 1.5,
-              },
-            },
-          }}
+          options={chartOptions}
         />
       </div>
 

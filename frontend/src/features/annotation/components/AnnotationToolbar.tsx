@@ -9,6 +9,7 @@ import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAccountStore } from '~/features/account/account.store';
 import { UNASSIGNED } from '../utils/taskFilter';
+import { isTimeseriesWindowKey } from '../utils/layoutDefaults';
 import { isAudienceMember } from '../utils/labellingPolicy';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Dropdown } from '~/shared/ui/motion';
@@ -449,9 +450,10 @@ export const AnnotationToolbar = () => {
     const { currentLayout, savedLayout } = useCampaignStore.getState();
     if (!currentLayout || !savedLayout) return false;
 
-    const mainItemKeys = ['main', 'timeseries', 'minimap'];
-    const currentMainItems = currentLayout.filter((item) => mainItemKeys.includes(item.i));
-    const savedMainItems = savedLayout.filter((item) => mainItemKeys.includes(item.i));
+    const isMainItem = (key: string) =>
+      key === 'main' || key === 'minimap' || isTimeseriesWindowKey(key);
+    const currentMainItems = currentLayout.filter((item) => isMainItem(item.i));
+    const savedMainItems = savedLayout.filter((item) => isMainItem(item.i));
 
     // Compare main layout items
     return JSON.stringify(currentMainItems) !== JSON.stringify(savedMainItems);

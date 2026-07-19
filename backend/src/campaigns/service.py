@@ -1,6 +1,7 @@
 import logging
 import threading
 from collections.abc import Iterable
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -37,7 +38,7 @@ from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import create_imagery_from_editor_state, re_register_stac_collections
 from src.timeseries.models import TimeSeries
-from src.timeseries.service import _add_timeseries_entry_to_layout
+from src.timeseries.service import sync_campaign_timeseries_windows
 
 logger = logging.getLogger(__name__)
 
@@ -317,9 +318,10 @@ def create_campaign(
 
     db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
 
-    # Create default main canvas layout for the campaign
+    # Create default main canvas layout for the campaign. Copy the template so
+    # the sync below (and any later mutation) never edits the shared constant.
     default_layout = CanvasLayout(
-        layout_data=DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
+        layout_data=deepcopy(DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT),
         user_id=None,
         campaign_id=campaign.id,
         view_id=None,
@@ -356,6 +358,7 @@ def create_campaign(
             ts_item = TimeSeries(
                 campaign_id=campaign.id,
                 name=ts_create.name,
+                window_name=ts_create.window_name,
                 start_ym=ts_create.start_ym,
                 end_ym=ts_create.end_ym,
                 data_source=ts_create.data_source,
@@ -364,16 +367,10 @@ def create_campaign(
             )
             db.add(ts_item)
 
-        # Add timeseries entry to the default layout
-        added = _add_timeseries_entry_to_layout(
-            layout_data=default_layout.layout_data,
-            window_width=10,
-            window_height=8,
-        )
-        if added:
-            flag_modified(default_layout, "layout_data")
-            db.flush()
-            db.refresh(campaign)
+        # Add one window per distinct window_name to the default layout.
+        db.flush()
+        sync_campaign_timeseries_windows(campaign.id, db)
+        db.refresh(campaign)
 
     # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
     pending_registrations: list = []

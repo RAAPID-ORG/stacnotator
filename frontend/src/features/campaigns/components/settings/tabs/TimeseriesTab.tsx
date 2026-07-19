@@ -7,6 +7,7 @@ import type {
 } from '~/api/client';
 import { StepAddTimeseries } from '~/features/campaigns/components/creation/steps/StepAddTimeseries';
 import { Button } from '~/shared/ui/forms';
+import { IconWindow } from '~/shared/ui/Icons';
 
 interface Props {
   newTimeseries: TimeSeriesCreate[];
@@ -21,6 +22,26 @@ interface Props {
   campaignSettings?: CampaignSettingsOut;
 }
 
+/** Group existing series by their window for display, unnamed series first
+ *  under the default window. Order follows first appearance. */
+function groupExistingByWindow(
+  timeseries: TimeSeriesOut[]
+): { title: string; series: TimeSeriesOut[] }[] {
+  const groups: { title: string; series: TimeSeriesOut[] }[] = [];
+  const byTitle = new Map<string, { title: string; series: TimeSeriesOut[] }>();
+  for (const ts of timeseries) {
+    const title = ts.window_name?.trim() || 'Default window';
+    let group = byTitle.get(title);
+    if (!group) {
+      group = { title, series: [] };
+      byTitle.set(title, group);
+      groups.push(group);
+    }
+    group.series.push(ts);
+  }
+  return groups;
+}
+
 export const TimeseriesTab: React.FC<Props> = ({
   newTimeseries,
   setNewTimeseries,
@@ -33,6 +54,12 @@ export const TimeseriesTab: React.FC<Props> = ({
   campaignMode,
   campaignSettings,
 }) => {
+  // Window names that already exist, so the picker in StepAddTimeseries can
+  // offer them instead of making the user retype an exact match to group series.
+  const knownWindowNames = Array.from(
+    new Set(timeseries.map((t) => t.window_name?.trim()).filter((n): n is string => !!n))
+  );
+
   return (
     <div id="tab-timeseries" role="tabpanel">
       <section className="space-y-4">
@@ -58,6 +85,7 @@ export const TimeseriesTab: React.FC<Props> = ({
           setForm={(form: Record<string, unknown>) =>
             setNewTimeseries((form.timeseries_configs as TimeSeriesCreate[]) || [])
           }
+          knownWindowNames={knownWindowNames}
         />
 
         {newTimeseries.length > 0 && (
@@ -73,25 +101,39 @@ export const TimeseriesTab: React.FC<Props> = ({
             Existing timeseries{' '}
             <span className="text-neutral-400 font-normal">({timeseries.length})</span>
           </h2>
-          <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
-            {timeseries.map((ts) => (
-              <li key={ts.id} className="flex items-start justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-neutral-900">{ts.name}</div>
-                  <div className="text-xs text-neutral-500 mt-0.5">
-                    {ts.start_ym} – {ts.end_ym}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setDeleteConfirm({ timeseriesId: ts.id })}
-                  className="text-xs text-red-600 hover:text-red-800 transition-colors cursor-pointer shrink-0"
-                  type="button"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p className="section-description">
+            Series are grouped into the panel they appear in on the annotation page.
+          </p>
+          {/* One card per window so the grouping is obvious - a bare list of
+              rows read as ungrouped even with a sub-heading. */}
+          {groupExistingByWindow(timeseries).map(({ title, series }) => (
+            <div key={title} className="rounded-lg border border-neutral-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border-b border-neutral-200">
+                <IconWindow className="w-4 h-4 text-neutral-400 shrink-0" />
+                <span className="text-sm font-medium text-neutral-800">{title}</span>
+                <span className="text-xs text-neutral-400 tabular-nums">({series.length})</span>
+              </div>
+              <ul className="divide-y divide-neutral-100">
+                {series.map((ts) => (
+                  <li key={ts.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-neutral-900">{ts.name}</div>
+                      <div className="text-xs text-neutral-500 mt-0.5">
+                        {ts.start_ym} – {ts.end_ym}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setDeleteConfirm({ timeseriesId: ts.id })}
+                      className="text-xs text-red-600 hover:text-red-800 transition-colors cursor-pointer shrink-0"
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </section>
       )}
     </div>
