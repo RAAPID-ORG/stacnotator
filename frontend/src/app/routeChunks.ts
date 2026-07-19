@@ -1,10 +1,5 @@
 // Central definitions of the code-split route chunks, plus helpers to warm them
-// ahead of navigation. Kept out of router.tsx so a page can trigger a prefetch
-// without importing the router module (which would be an import cycle).
-//
-// Each thunk is the same dynamic import router.tsx passes to lazy(), so calling
-// it early just primes the ESM/browser cache - the chunk is fetched once and the
-// later navigation resolves instantly instead of showing a Suspense spinner.
+// ahead of navigation.
 
 export const importCreateCampaign = () => import('~/features/campaigns/pages/CreateCampaignPage');
 export const importAnnotation = () => import('~/features/annotation/pages/AnnotationPage');
@@ -19,8 +14,7 @@ export const importSdkAuth = () => import('~/features/auth/pages/SdkAuthPage');
 
 /** Warm the campaign-cluster chunks (New campaign, overview, settings, tasks,
  *  review). These are the common next hops from the home/campaigns pages and are
- *  light, so they're prefetched together once the app is idle. The heavy
- *  annotation chunk is warmed separately, on intent - see prefetchAnnotationChunk. */
+ *  light, so they're prefetched together once the app is idle.*/
 export function prefetchCampaignChunks(): void {
   void importCreateCampaign();
   void importCampaignOverview();
@@ -29,9 +23,7 @@ export function prefetchCampaignChunks(): void {
   void importReview();
 }
 
-/** Warm the annotation chunk (OpenLayers, Chart.js) - the largest one, and the
- *  worst spinner. Called from the campaign overview, where the next action is
- *  almost always to open the annotator. */
+/** Warm the annotation chunk (OpenLayers, Chart.js). */
 export function prefetchAnnotationChunk(): void {
   void importAnnotation();
 }
