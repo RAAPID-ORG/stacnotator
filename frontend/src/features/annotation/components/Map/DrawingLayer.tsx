@@ -38,8 +38,7 @@ import type { Geometry } from 'ol/geom';
 import type { DrawEvent } from 'ol/interaction/Draw';
 
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
-import { formatMissingFieldsTitle, missingRequiredFields } from '../../utils/formValues';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { missingRequiredFields } from '../../utils/formValues';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
@@ -138,6 +137,8 @@ const DrawingLayer = ({
   const setEditingId = useAnnotationStore((state) => state.setEditingId);
   const styleOverrides = usePreferencesStore((state) => state.annotationStyles);
   const showAnnotations = useMapStore((state) => state.showAnnotations);
+  const draftGeometry = useTaskStore((state) => state.draftGeometry);
+  const draftLabelId = useTaskStore((state) => state.draftLabelId);
 
   const campaignId = campaign?.id ?? null;
 
@@ -173,6 +174,8 @@ const DrawingLayer = ({
   selectedLabelRef.current = selectedLabel;
   const onTimeseriesClickRef = useRef(onTimeseriesClick);
   onTimeseriesClickRef.current = onTimeseriesClick;
+  // Lets ESC distinguish aborting an in-progress sketch from closing a draft.
+  const isDrawingRef = useRef(false);
 
   // React state (drives inline edit controls overlay)
   /** OL features currently selected for editing (annotation ids as strings). */
@@ -211,6 +214,28 @@ const DrawingLayer = ({
   useEffect(() => {
     vectorLayerRef.current?.setVisible(showAnnotations);
   }, [showAnnotations]);
+
+  // Paint the open-mode draft as a dashed feature, fully derived from store
+  // state so commit/discard clears the draft and this cleanup removes it.
+  useEffect(() => {
+    const source = sourceRef.current;
+    if (!source || !draftGeometry) return;
+    const label = extendedLabels.find((l) => l.id === draftLabelId);
+    if (!label) return;
+    const feature = geoJsonFormat.readFeature(
+      { type: 'Feature', geometry: draftGeometry, properties: {} },
+      { featureProjection: 'EPSG:3857' }
+    ) as OLFeature<Geometry>;
+    feature.setStyle(buildDrawStyle(styleForLabel(label)));
+    source.addFeature(feature);
+    return () => {
+      try {
+        source.removeFeature(feature);
+      } catch {
+        /* already gone */
+      }
+    };
+  }, [draftGeometry, draftLabelId, extendedLabels, styleForLabel]);
 
   // 2. Existing annotations render via the read-only vector-tile layer (see
   // useAnnotationTileLayer). The VectorSource here holds only the transient
@@ -359,50 +384,57 @@ const DrawingLayer = ({
 
     const draw = new Draw({ source, type: olDrawType, style: drawStyle });
 
-    // Refuse the draw up front rather than at drawend: saveAnnotation would
-    // reject the finished shape and drawend discards unsaved features, so a
-    // late check costs the user the geometry they just drew.
     draw.on('drawstart', () => {
-      const missing = missingRequiredFields(
-        useCampaignStore.getState().campaign?.settings.form_fields ?? [],
-        useTaskStore.getState().formValues
-      );
-      if (missing.length > 0) {
-        draw.abortDrawing();
-        useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
-      }
+      isDrawingRef.current = true;
     });
 
     draw.on('drawend', async (evt: DrawEvent) => {
+      isDrawingRef.current = false;
       const feature = evt.feature as OLFeature<Geometry>;
 
       // Extract GeoJSON geometry (in EPSG:4326)
       const geoJSON = olFeatureToGeoJSONGeometry(feature);
-      if (!geoJSON || !selectedLabelRef.current) {
+      const label = selectedLabelRef.current;
+      if (!geoJSON || !label) {
         source.removeFeature(feature);
         return;
       }
 
-      const saved = await saveAnnotation(
-        geoJSON,
-        selectedLabelRef.current.id,
-        undefined,
-        useTaskStore.getState().formValues
-      );
-      // No-flicker handoff: keep the just-drawn feature painted until the
-      // refreshed tiles (bumped tileVersion -> source.refresh) repaint, then drop
-      // it so the tile representation takes over without a visible gap.
-      if (saved) {
-        map.once('rendercomplete', () => {
-          try {
-            source.removeFeature(feature);
-          } catch {
-            /* already gone */
-          }
-        });
-      } else {
-        source.removeFeature(feature);
+      const formFields = useCampaignStore.getState().campaign?.settings.form_fields ?? [];
+
+      // No custom fields: save now, keeping the sketch painted until the tiles
+      // repaint so the handoff has no visible gap.
+      if (formFields.length === 0) {
+        const saved = await saveAnnotation(geoJSON, label.id, undefined, {});
+        if (saved) {
+          map.once('rendercomplete', () => {
+            try {
+              source.removeFeature(feature);
+            } catch {
+              /* already gone */
+            }
+          });
+        } else {
+          source.removeFeature(feature);
+        }
+        return;
       }
+
+      // With custom fields, defer the save into a draft answered via the catalog;
+      // the sketch is dropped and the draft renders from store state instead.
+      source.removeFeature(feature);
+      const taskStore = useTaskStore.getState();
+      if (taskStore.draftGeometry !== null) {
+        // Only one draft at a time: close the open one (save if complete, else
+        // discard) before starting this one.
+        if (missingRequiredFields(formFields, taskStore.formValues).length === 0) {
+          const committed = await taskStore.commitDraft();
+          if (!committed) return;
+        } else {
+          taskStore.discardDraft();
+        }
+      }
+      useTaskStore.getState().beginDraft(geoJSON, label.id);
     });
 
     map.addInteraction(draw);
@@ -569,6 +601,11 @@ const DrawingLayer = ({
     removeAllInteractions();
     let cleanup: (() => void) | undefined;
 
+    // The catalog is annotate-only, so leaving the tool must resolve the draft.
+    if (activeTool !== 'annotate' && useTaskStore.getState().draftGeometry !== null) {
+      void useTaskStore.getState().closeDraft();
+    }
+
     if (activeTool === 'annotate' && selectedLabel) {
       if (magicWandActive && selectedLabel.geometry_type === 'polygon') {
         cleanup = setupMagicWandInteraction() ?? undefined;
@@ -588,16 +625,18 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type, magicWandActive]);
 
-  // ESC during draw cancels the in-progress geometry without leaving annotate mode
+  // Swallow ESC only while a sketch is being drawn (to abort it); once the
+  // geometry is finished ESC belongs to the panel, which closes the draft.
   useEffect(() => {
     if (activeTool !== 'annotate') return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || !isDrawingRef.current) return;
       const draw = drawInteractionRef.current;
       if (!draw) return;
       e.preventDefault();
       e.stopPropagation();
       draw.abortDrawing();
+      isDrawingRef.current = false;
     };
     // Capture phase so we beat any window listeners that might also handle ESC
     window.addEventListener('keydown', handleKeyDown, true);

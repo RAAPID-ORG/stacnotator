@@ -59,6 +59,13 @@ interface OpenAnnotationStore {
     geometry: GeoJSON.Geometry,
     meta: { labelId: number | null; comment: string | null; formValues?: FormValues }
   ) => Promise<void>;
+  /** Edit an existing annotation's label and/or custom-field answers in place
+   *  (open-mode edit tool). Geometry is left untouched. Returns true on success;
+   *  false when required fields are missing (the caller keeps the editor open). */
+  updateAnnotationDetails: (
+    annotationId: number,
+    meta: { labelId: number; formValues: FormValues }
+  ) => Promise<boolean>;
   updateAnnotationFlags: (
     annotationId: number,
     flagged: boolean,
@@ -197,6 +204,47 @@ export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({
       handleError(error, 'Failed to update annotation');
       set({ isSaving: false });
       throw error;
+    }
+  },
+
+  updateAnnotationDetails: async (annotationId, meta) => {
+    const campaign = useCampaignStore.getState().campaign;
+    if (!campaign) return false;
+
+    const missing = missingRequiredFields(campaign.settings.form_fields ?? [], meta.formValues);
+    if (missing.length > 0) {
+      useLayoutStore.getState().showAlert(formatMissingFieldsTitle(missing), 'error');
+      return false;
+    }
+
+    const detail = get().selectedAnnotationDetail;
+    set({ isSaving: true });
+    try {
+      const response = await updateAnnotationOpenmode({
+        path: { campaign_id: campaign.id, annotation_id: annotationId },
+        body: {
+          label_id: meta.labelId,
+          comment: detail?.comment ?? null,
+          geometry_wkt: null,
+          is_authoritative: null,
+          // Always send the full answer set so the backend re-checks required
+          // fields against the label; {} would clear them.
+          form_values: meta.formValues,
+        },
+      });
+      const updated = response.data!;
+      set((s) => ({
+        isSaving: false,
+        tileVersion: s.tileVersion + 1,
+        selectedAnnotationDetail:
+          s.selectedAnnotationDetail?.id === annotationId ? updated : s.selectedAnnotationDetail,
+      }));
+      useLayoutStore.getState().showAlert('Annotation updated successfully', 'success');
+      return true;
+    } catch (error) {
+      handleError(error, 'Failed to update annotation');
+      set({ isSaving: false });
+      return false;
     }
   },
 
