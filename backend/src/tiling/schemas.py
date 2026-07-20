@@ -14,6 +14,10 @@ class StacCatalogOut(BaseModel):
     tiler_name: str | None = None
     # True for catalogs we provide (MPC + platform tiler catalogs), false for external.
     provided: bool = False
+    # False when the catalog can't be used (e.g. needs auth we don't have). We still
+    # list it rather than hide it; the reason tells the user why it's disabled.
+    selectable: bool = True
+    unavailable_reason: str | None = None
 
 
 class BandInfo(BaseModel):
@@ -44,6 +48,10 @@ class StacCollectionOut(BaseModel):
     keywords: list[str] = []
     item_assets: dict[str, AssetInfo] = {}
     has_cloud_cover: bool = False
+    # False when the collection's STAC metadata couldn't be parsed. We still list it
+    # (never silently drop it); the reason tells the user why it's not selectable.
+    selectable: bool = True
+    unavailable_reason: str | None = None
 
 
 class SearchRequest(BaseModel):

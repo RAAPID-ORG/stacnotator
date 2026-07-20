@@ -191,15 +191,18 @@ def _map_stacindex_catalog(cat: dict) -> dict | None:
     if "planetarycomputer" in url:
         return None
     cat_id = cat.get("slug") or str(cat.get("id", ""))
+    auth_required = cat_id in _AUTH_REQUIRED_CATALOGS
     return {
         "id": cat_id,
         "title": cat.get("title", ""),
         "url": url,
         "summary": cat.get("summary", ""),
         "is_mpc": False,
-        "auth_required": cat_id in _AUTH_REQUIRED_CATALOGS,
+        "auth_required": auth_required,
         "tiler_name": None,
         "provided": False,
+        "selectable": not auth_required,
+        "unavailable_reason": "Requires authentication we don't have" if auth_required else None,
     }
 
 

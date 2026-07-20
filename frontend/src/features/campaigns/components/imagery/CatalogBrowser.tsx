@@ -765,11 +765,18 @@ export const CatalogBrowser = ({
           // Only hosted tiler catalogs pin a tiler; MPC is auto-routed by catalog URL.
           tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
           mode: 'mosaic',
-          maxCloudCover,
+          // Only meaningful when the collection's items carry eo:cloud_cover. Persisting
+          // it otherwise makes the tiler ingest filter on a property the items lack,
+          // dropping every item (0 items -> 204 tiles). buildQuery gates the search the
+          // same way; keep the two in sync.
+          maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
           itemSort,
           visualizations,
           coverVisualizations: coverMode === 'custom' ? coverVisualizations : undefined,
-          coverMaxCloudCover: coverMode === 'custom' ? coverMaxCloudCover : undefined,
+          coverMaxCloudCover:
+            coverMode === 'custom' && selectedCollection.has_cloud_cover
+              ? coverMaxCloudCover
+              : undefined,
           coverItemSort: coverMode === 'custom' ? coverItemSort : undefined,
           searchQuery: effectiveQuery ?? undefined,
           coverSearchQuery: coverMode === 'custom' ? (effectiveCoverQuery ?? undefined) : undefined,
@@ -805,7 +812,7 @@ export const CatalogBrowser = ({
         tiler: selectedCatalog.is_mpc ? null : (selectedCatalog.tiler_name ?? null),
         mode: 'single-item',
         itemHref: item.self_href || undefined,
-        maxCloudCover,
+        maxCloudCover: selectedCollection.has_cloud_cover ? maxCloudCover : undefined,
         visualizations,
         vizUrls: visualizations.map((v) => ({ vizName: v.name, url: '' })),
       },
@@ -909,11 +916,11 @@ export const CatalogBrowser = ({
       <button
         type="button"
         onClick={() => selectCatalog(cat)}
-        disabled={cat.auth_required}
+        disabled={!cat.selectable}
         className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
-          cat.auth_required
-            ? 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
-            : 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+          cat.selectable
+            ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+            : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
         }`}
       >
         <span className="text-sm font-medium flex items-center gap-1.5">
@@ -930,6 +937,9 @@ export const CatalogBrowser = ({
           )}
         </span>
         <p className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{cat.summary}</p>
+        {!cat.selectable && cat.unavailable_reason && !cat.auth_required && (
+          <p className="text-[11px] text-amber-600 mt-1">{cat.unavailable_reason}</p>
+        )}
       </button>
       <div className="mt-2.5">
         <InfoPopover>
@@ -1125,9 +1135,21 @@ export const CatalogBrowser = ({
                     <button
                       type="button"
                       onClick={() => selectCollection(col)}
-                      className="flex-1 text-left px-3 py-2.5 rounded-lg border border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer transition-colors"
+                      disabled={!col.selectable}
+                      className={`flex-1 text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                        col.selectable
+                          ? 'border-neutral-200 hover:border-brand-400 hover:bg-brand-50/30 cursor-pointer'
+                          : 'border-neutral-100 bg-neutral-50 text-neutral-400 cursor-not-allowed'
+                      }`}
                     >
-                      <span className="text-sm font-medium">{col.title}</span>
+                      <span className="text-sm font-medium flex items-center gap-1.5">
+                        {col.title}
+                        {!col.selectable && (
+                          <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full">
+                            Unavailable
+                          </span>
+                        )}
+                      </span>
                       <p className="text-xs text-neutral-500 mt-0.5">
                         {col.id}
                         {col.temporal_extent?.start && (
@@ -1138,6 +1160,9 @@ export const CatalogBrowser = ({
                           </>
                         )}
                       </p>
+                      {!col.selectable && col.unavailable_reason && (
+                        <p className="text-[11px] text-amber-600 mt-1">{col.unavailable_reason}</p>
+                      )}
                     </button>
                     <div className="mt-2.5">
                       <InfoPopover>

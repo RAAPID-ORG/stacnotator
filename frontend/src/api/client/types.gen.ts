@@ -2332,6 +2332,14 @@ export type StacCatalogOut = {
      * Provided
      */
     provided?: boolean;
+    /**
+     * Selectable
+     */
+    selectable?: boolean;
+    /**
+     * Unavailable Reason
+     */
+    unavailable_reason?: string | null;
 };
 
 /**
@@ -2369,6 +2377,14 @@ export type StacCollectionOut = {
      * Has Cloud Cover
      */
     has_cloud_cover?: boolean;
+    /**
+     * Selectable
+     */
+    selectable?: boolean;
+    /**
+     * Unavailable Reason
+     */
+    unavailable_reason?: string | null;
 };
 
 /**

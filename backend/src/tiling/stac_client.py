@@ -10,8 +10,26 @@ import httpx
 import planetary_computer as pc
 import pystac
 import pystac_client
+from pystac_client import CollectionClient
 
 logger = logging.getLogger(__name__)
+
+# Collections whose items carry eo:cloud_cover even though the collection metadata
+# doesn't declare the EO extension (mostly MPC), so the wizard can still offer a
+# cloud-cover filter.
+_KNOWN_CLOUD_COVER_COLLECTIONS = {
+    "sentinel-2-l2a",
+    "sentinel-2-l1c",
+    "landsat-c2-l2",
+    "landsat-c2-l1",
+    "landsat-8-c2-l2",
+    "landsat-9-c2-l2",
+    "hls2-s30",
+    "hls2-l30",
+    "modis-09A1-061",
+    "modis-09Q1-061",
+    "modis-13Q1-061",
+}
 
 
 def _is_mpc(url: str) -> bool:
@@ -66,96 +84,141 @@ def _sample_item_assets(col) -> dict:
     return _asset_defs_from_item(item) if item is not None else {}
 
 
-def list_collections(catalog_url: str) -> list[dict]:
-    """List collections from a STAC API catalog."""
-    t_open = time.time()
-    client = get_client(catalog_url, sign=False)
-    logger.info("list_collections: Client.open took %.2fs", time.time() - t_open)
+def _raw_collections(client: pystac_client.Client) -> list[dict]:
+    """Fetch the raw /collections payload (all pages) as plain dicts.
 
-    t_fetch = time.time()
-    cols = list(client.get_collections())
-    logger.info(
-        "list_collections: get_collections() fetched %d cols in %.2fs",
-        len(cols),
-        time.time() - t_fetch,
-    )
+    We can't use client.get_collections() here: it's a generator that raises on the
+    first collection with malformed STAC metadata, aborting the whole catalog. Reading
+    the raw list lets us parse each collection independently and isolate the bad ones.
+    """
+    link = client.get_single_link("data") or client.get_single_link("collections")
+    if link is None:
+        raise ValueError("catalog exposes no 'data' link to list collections")
+    stac_io = client._stac_io
+    if stac_io is None:
+        raise ValueError("catalog client has no IO to read collections")
 
-    t_parse = time.time()
-    results = []
-    for col in cols:
-        extent = col.extent
-        temporal = None
-        if extent and extent.temporal and extent.temporal.intervals:
-            interval = extent.temporal.intervals[0]
-            temporal = {
-                "start": interval[0].isoformat() if interval[0] else None,
-                "end": interval[1].isoformat() if interval[1] else None,
-            }
-        spatial = None
-        if extent and extent.spatial and extent.spatial.bboxes:
-            spatial = extent.spatial.bboxes[0]
+    out: list[dict] = []
+    href: str | None = link.href
+    seen: set[str] = set()
+    while href and href not in seen:
+        seen.add(href)
+        payload = stac_io.read_json(href)
+        out.extend(payload.get("collections", []))
+        href = next(
+            (link_.get("href") for link_ in payload.get("links", []) if link_.get("rel") == "next"),
+            None,
+        )
+    return out
 
-        item_assets = {}
-        raw_item_assets = (col.extra_fields or {}).get("item_assets", {})
-        for key, asset_def in raw_item_assets.items():
-            # eo:bands lets the wizard offer per-band selection for a single multiband
-            # asset (e.g. an 8-band COG served as one "data" asset). Order = band index.
-            eo_bands = asset_def.get("eo:bands") or []
-            item_assets[key] = {
-                "title": asset_def.get("title", key),
-                "type": asset_def.get("type", ""),
-                "roles": asset_def.get("roles", []),
-                "bands": [
-                    {"name": b.get("name", f"b{i + 1}"), "description": b.get("description")}
-                    for i, b in enumerate(eo_bands)
-                ],
-            }
 
-        # Static catalogs often omit collection-level item_assets; sample one item so
-        # the mosaic wizard still has assets to configure a visualization from.
-        if not item_assets:
-            item_assets = _sample_item_assets(col)
+def _collection_out(col: pystac.Collection) -> dict:
+    """Map a parsed collection to the wizard's shape."""
+    extent = col.extent
+    temporal = None
+    if extent and extent.temporal and extent.temporal.intervals:
+        interval = extent.temporal.intervals[0]
+        temporal = {
+            "start": interval[0].isoformat() if interval[0] else None,
+            "end": interval[1].isoformat() if interval[1] else None,
+        }
+    spatial = None
+    if extent and extent.spatial and extent.spatial.bboxes:
+        spatial = extent.spatial.bboxes[0]
 
-        # Detect eo:cloud_cover support:
-        # 1. Check summaries (some catalogs declare it explicitly)
-        # 2. Check stac_extensions for the EO extension
-        # 3. Known MPC collections that have eo:cloud_cover on their items
-        summaries = (col.extra_fields or {}).get("summaries", {})
-        extensions = (col.extra_fields or {}).get("stac_extensions", [])
-
-        _KNOWN_CLOUD_COVER_COLLECTIONS = {
-            "sentinel-2-l2a",
-            "sentinel-2-l1c",
-            "landsat-c2-l2",
-            "landsat-c2-l1",
-            "landsat-8-c2-l2",
-            "landsat-9-c2-l2",
-            "hls2-s30",
-            "hls2-l30",
-            "modis-09A1-061",
-            "modis-09Q1-061",
-            "modis-13Q1-061",
+    item_assets = {}
+    raw_item_assets = (col.extra_fields or {}).get("item_assets", {})
+    for key, asset_def in raw_item_assets.items():
+        # eo:bands lets the wizard offer per-band selection for a single multiband
+        # asset (e.g. an 8-band COG served as one "data" asset). Order = band index.
+        eo_bands = asset_def.get("eo:bands") or []
+        item_assets[key] = {
+            "title": asset_def.get("title", key),
+            "type": asset_def.get("type", ""),
+            "roles": asset_def.get("roles", []),
+            "bands": [
+                {"name": b.get("name", f"b{i + 1}"), "description": b.get("description")}
+                for i, b in enumerate(eo_bands)
+            ],
         }
 
-        has_cloud_cover = (
-            "eo:cloud_cover" in summaries
-            or any("eo" in ext.split("/")[-1].lower() for ext in extensions)
-            or col.id in _KNOWN_CLOUD_COVER_COLLECTIONS
-        )
+    # Static catalogs often omit collection-level item_assets; sample one item so
+    # the mosaic wizard still has assets to configure a visualization from.
+    if not item_assets:
+        item_assets = _sample_item_assets(col)
 
-        results.append(
-            {
-                "id": col.id,
-                "title": col.title or col.id,
-                "description": col.description or "",
-                "temporal_extent": temporal,
-                "spatial_extent": spatial,
-                "keywords": getattr(col, "keywords", []) or [],
-                "item_assets": item_assets,
-                "has_cloud_cover": has_cloud_cover,
-            }
-        )
-    logger.info("list_collections: parsed %d cols in %.2fs", len(results), time.time() - t_parse)
+    summaries = (col.extra_fields or {}).get("summaries", {})
+    extensions = (col.extra_fields or {}).get("stac_extensions", [])
+    has_cloud_cover = (
+        "eo:cloud_cover" in summaries
+        or any("eo" in ext.split("/")[-1].lower() for ext in extensions)
+        or col.id in _KNOWN_CLOUD_COVER_COLLECTIONS
+    )
+
+    return {
+        "id": col.id,
+        "title": col.title or col.id,
+        "description": col.description or "",
+        "temporal_extent": temporal,
+        "spatial_extent": spatial,
+        "keywords": getattr(col, "keywords", []) or [],
+        "item_assets": item_assets,
+        "has_cloud_cover": has_cloud_cover,
+        "selectable": True,
+        "unavailable_reason": None,
+    }
+
+
+def _unavailable_collection(raw: dict, err: Exception) -> dict:
+    """A collection we couldn't parse. Surfaced (never hidden) but not selectable, with
+    a reason, so the user still sees it exists and understands why it's unusable."""
+    reason = (
+        "Missing the required 'stac_version' field in its STAC metadata"
+        if "stac_version" not in raw
+        else "Its STAC metadata is invalid and could not be parsed"
+    )
+    logger.warning("collection %s unusable: %s (%s)", raw.get("id"), reason, err)
+    return {
+        "id": raw.get("id", "unknown"),
+        "title": raw.get("title") or raw.get("id", "unknown"),
+        "description": raw.get("description", "") or "",
+        "temporal_extent": None,
+        "spatial_extent": None,
+        "keywords": raw.get("keywords", []) or [],
+        "item_assets": {},
+        "has_cloud_cover": False,
+        "selectable": False,
+        "unavailable_reason": reason,
+    }
+
+
+def list_collections(catalog_url: str) -> list[dict]:
+    """List collections from a STAC API catalog.
+
+    Each collection is parsed independently: one with malformed STAC metadata is
+    returned as an unselectable entry (with a reason) rather than aborting the whole
+    listing. Collections are never silently dropped.
+    """
+    t0 = time.time()
+    client = get_client(catalog_url, sign=False)
+    raw_cols = _raw_collections(client)
+
+    results = []
+    for raw in raw_cols:
+        try:
+            col = CollectionClient.from_dict(raw, root=client)
+        except Exception as e:
+            results.append(_unavailable_collection(raw, e))
+            continue
+        results.append(_collection_out(col))
+
+    unusable = sum(1 for r in results if not r["selectable"])
+    logger.info(
+        "list_collections: %d collections (%d unusable) in %.2fs",
+        len(results),
+        unusable,
+        time.time() - t0,
+    )
     return results
 
 
