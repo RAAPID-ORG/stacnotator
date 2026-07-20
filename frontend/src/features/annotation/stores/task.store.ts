@@ -56,10 +56,8 @@ interface TaskStore {
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
 
-  // Open-mode draft: a geometry the annotator has just drawn but not yet saved.
-  // While a draft is open the controls panel swaps the label list for the
-  // custom-field catalog so per-geometry answers are captured before the
-  // annotation is persisted. Only used by open mode (task mode has no draft).
+  // Open-mode only (task mode has no draft): a drawn-but-unsaved geometry whose
+  // custom fields are being answered before the annotation is persisted.
   draftGeometry: GeoJSON.Geometry | null;
   draftLabelId: number | null;
 
@@ -91,14 +89,14 @@ interface TaskStore {
   setFlagComment: (comment: string) => void;
   setFormValues: (next: FormValues) => void;
   setActiveFieldIndex: (index: number | null) => void;
-  /** Open a draft for a freshly drawn geometry and reset the field answers. */
   beginDraft: (geometry: GeoJSON.Geometry, labelId: number) => void;
-  /** Drop the current draft without saving (the x button / discard). */
   discardDraft: () => void;
-  /** Persist the current draft. Returns false (and keeps the draft open) when
-   *  required fields are missing or the save fails, so callers can keep the
-   *  catalog up instead of losing the geometry. */
+  /** Returns false and keeps the draft open when required fields are missing, so
+   *  an explicit Save/Enter can prompt the user rather than lose the geometry. */
   commitDraft: () => Promise<boolean>;
+  /** Save when every required field is answered, else discard: an open-mode
+   *  annotation can't be saved incomplete, so an unfinished draft is thrown away. */
+  closeDraft: () => Promise<void>;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -622,8 +620,13 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     setFormValues: (formValues) => set({ formValues }),
     setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
 
-    beginDraft: (draftGeometry, draftLabelId) =>
-      set({ draftGeometry, draftLabelId, formValues: {}, activeFieldIndex: null }),
+    beginDraft: (draftGeometry, draftLabelId) => {
+      // Pre-focus the first field when it is required so it can be answered
+      // straight away without tabbing to it.
+      const fields = useCampaignStore.getState().campaign?.settings.form_fields ?? [];
+      const activeFieldIndex = fields[0]?.required ? 0 : null;
+      set({ draftGeometry, draftLabelId, formValues: {}, activeFieldIndex });
+    },
 
     discardDraft: () =>
       set({ draftGeometry: null, draftLabelId: null, formValues: {}, activeFieldIndex: null }),
@@ -634,8 +637,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       if (draftGeometry === null || draftLabelId === null) return true;
       draftCommitInFlight = true;
       try {
-        // saveAnnotation validates required fields itself and alerts on a miss,
-        // returning null; keep the draft up in that case so the answers survive.
+        // saveAnnotation validates required fields and returns null on a miss.
         const saved = await useAnnotationStore
           .getState()
           .saveAnnotation(draftGeometry, draftLabelId, null, formValues);
@@ -645,6 +647,17 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       } finally {
         draftCommitInFlight = false;
       }
+    },
+
+    closeDraft: async () => {
+      const { draftGeometry, formValues } = get();
+      if (draftGeometry === null) return;
+      const fields = useCampaignStore.getState().campaign?.settings.form_fields ?? [];
+      if (missingRequiredFields(fields, formValues).length > 0) {
+        get().discardDraft();
+        return;
+      }
+      await get().commitDraft();
     },
     toggleMagicWand: (labelId) =>
       set((s) => ({

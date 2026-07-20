@@ -79,14 +79,66 @@ test.describe('Open mode custom-field catalog', () => {
     await expect(controls(annotationPage)).toContainText('Labels');
   });
 
-  test('the x button discards the draft without saving', async ({ annotationPage, api }) => {
+  test('the first required field is pre-selected after drawing', async ({ annotationPage }) => {
     await annotationPage.keyboard.press('2');
     await drawPolygon(annotationPage, POLY);
     await expect(catalog(annotationPage)).toBeVisible();
 
-    await annotationPage.locator('[data-testid="draft-discard"]').click();
+    // Field 100 (Condition) is required and first, so its cell carries the
+    // active-field highlight ring; pressing a digit answers it immediately.
+    await expect(annotationPage.locator('[data-form-field-id="100"]')).toHaveClass(/ring-2/);
+    await annotationPage.keyboard.press('1'); // picks "Healthy"
+    await expect(
+      catalog(annotationPage)
+        .getByRole('button', { name: /Healthy/ })
+        .first()
+    ).toContainText('✓');
+  });
+
+  test('closing with the x discards a draft whose required fields are unfilled', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await expect(catalog(annotationPage)).toBeVisible();
+
+    await annotationPage.locator('[data-testid="draft-close"]').click();
     await expect(catalog(annotationPage)).toHaveCount(0);
     await expect(controls(annotationPage)).toContainText('Labels');
+    expect(createPosts(api)).toHaveLength(0);
+  });
+
+  test('closing with the x saves the draft when the required fields are complete', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await catalog(annotationPage)
+      .getByRole('button', { name: /Healthy/ })
+      .click();
+
+    await Promise.all([
+      waitForCreate(annotationPage),
+      annotationPage.locator('[data-testid="draft-close"]').click(),
+    ]);
+
+    const post = createPosts(api).at(-1);
+    expect(post!.body.form_values).toEqual({ '100': 1001 });
+    await expect(catalog(annotationPage)).toHaveCount(0);
+  });
+
+  test('Esc discards an incomplete draft (its geometry is not saved)', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await expect(catalog(annotationPage)).toBeVisible();
+
+    await annotationPage.keyboard.press('Escape');
+    await expect(catalog(annotationPage)).toHaveCount(0);
     expect(createPosts(api)).toHaveLength(0);
   });
 
@@ -111,5 +163,24 @@ test.describe('Open mode custom-field catalog', () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].body.form_values).toEqual({ '100': 1001 });
     await expect(catalog(annotationPage)).toBeVisible();
+  });
+
+  test('drawing a second polygon discards an incomplete first draft', async ({
+    annotationPage,
+    api,
+  }) => {
+    await annotationPage.keyboard.press('2');
+    await drawPolygon(annotationPage, POLY);
+    await expect(catalog(annotationPage)).toBeVisible();
+
+    // Second draw with the first still missing its required field: the first is
+    // thrown away (no POST) and a fresh catalog opens for the new shape.
+    await drawPolygon(annotationPage, [
+      [-30, -20],
+      [30, -20],
+      [0, 30],
+    ]);
+    await expect(catalog(annotationPage)).toBeVisible();
+    expect(createPosts(api)).toHaveLength(0);
   });
 });

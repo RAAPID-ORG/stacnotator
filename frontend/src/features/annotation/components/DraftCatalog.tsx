@@ -4,24 +4,20 @@ import type { FormField, FormValues } from '../utils/formValues';
 import { AnnotationForm } from './AnnotationForm';
 
 interface DraftCatalogProps {
-  /** Label the draft was drawn with (null only if it was somehow removed). */
   label: ExtendedLabel | null;
   fields: FormField[];
   values: FormValues;
   activeFieldIndex: number | null;
   onChange: (next: FormValues) => void;
-  /** Persist the draft. Kept async so the button can reflect the save state. */
   onSave: () => Promise<boolean> | void;
-  /** Drop the draft without saving. */
-  onDiscard: () => void;
+  onClose: () => void;
   saving: boolean;
 }
 
 /**
- * The questions catalog shown in place of the label list once a geometry has
- * been drawn in open mode. It captures the custom-field answers for that single
- * geometry; saving (Enter / the button / drawing the next shape) persists the
- * annotation, the x discards it.
+ * Questions catalog shown in place of the label list once a geometry is drawn
+ * in open mode, capturing that geometry's custom-field answers before it is
+ * saved.
  */
 export const DraftCatalog: React.FC<DraftCatalogProps> = ({
   label,
@@ -30,7 +26,7 @@ export const DraftCatalog: React.FC<DraftCatalogProps> = ({
   activeFieldIndex,
   onChange,
   onSave,
-  onDiscard,
+  onClose,
   saving,
 }) => {
   const noun = label?.geometry_type ?? 'polygon';
@@ -43,10 +39,10 @@ export const DraftCatalog: React.FC<DraftCatalogProps> = ({
         </span>
         <button
           type="button"
-          data-testid="draft-discard"
-          onClick={onDiscard}
-          title="Discard this annotation (Esc keeps it)"
-          className="flex-shrink-0 p-1 rounded text-neutral-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition-colors"
+          data-testid="draft-close"
+          onClick={onClose}
+          title="Close (unanswered required fields discard the annotation)"
+          className="flex-shrink-0 p-1 rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 cursor-pointer transition-colors"
         >
           <svg
             width="14"

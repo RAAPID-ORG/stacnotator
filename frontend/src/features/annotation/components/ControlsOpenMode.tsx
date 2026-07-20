@@ -132,7 +132,7 @@ const OpenModeControls = () => {
   const draftGeometry = useTaskStore((s) => s.draftGeometry);
   const draftLabelId = useTaskStore((s) => s.draftLabelId);
   const commitDraft = useTaskStore((s) => s.commitDraft);
-  const discardDraft = useTaskStore((s) => s.discardDraft);
+  const closeDraft = useTaskStore((s) => s.closeDraft);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
   const setFormValues = useTaskStore((s) => s.setFormValues);
@@ -173,9 +173,7 @@ const OpenModeControls = () => {
   );
   const vectorLayerShown = useMapStore((s) => s.showVectorLayer && s.activeVectorLayerId != null);
 
-  // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
-  // The label backing the open draft, if any (drives the catalog heading style).
   const draftOpen = draftGeometry !== null;
   const draftLabel = extendedLabels.find((l) => l.id === draftLabelId) || null;
 
@@ -297,7 +295,6 @@ const OpenModeControls = () => {
           </div>
         )}
 
-        {/* Once a geometry is drawn the label list is replaced by the questions catalog. */}
         {(activeTool === 'annotate' || activeTool === 'labelvector') && draftOpen && (
           <DraftCatalog
             label={draftLabel}
@@ -306,7 +303,7 @@ const OpenModeControls = () => {
             activeFieldIndex={activeFieldIndex}
             onChange={setFormValues}
             onSave={commitDraft}
-            onDiscard={discardDraft}
+            onClose={closeDraft}
             saving={isSaving}
           />
         )}
@@ -518,8 +515,7 @@ const OpenModeControls = () => {
               )}
             </div>
 
-            {/* Label-vector applies answers on click, so it keeps the inline
-                form. Annotate reveals the form only after a geometry is drawn. */}
+            {/* Label-vector applies answers on click, so it keeps the inline form. */}
             {activeTool === 'labelvector' && (
               <AnnotationForm
                 fields={formFields}

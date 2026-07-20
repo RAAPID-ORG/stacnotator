@@ -39,7 +39,6 @@ import type { DrawEvent } from 'ol/interaction/Draw';
 
 import { extendLabelsWithMetadata, type ExtendedLabel } from '../../utils/labelMetadata';
 import { missingRequiredFields } from '../../utils/formValues';
-import { useLayoutStore } from '~/features/layout/layout.store';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
@@ -138,8 +137,6 @@ const DrawingLayer = ({
   const setEditingId = useAnnotationStore((state) => state.setEditingId);
   const styleOverrides = usePreferencesStore((state) => state.annotationStyles);
   const showAnnotations = useMapStore((state) => state.showAnnotations);
-  // Open-mode draft (drawn-but-unsaved geometry). Rendered as a dashed feature
-  // until the annotator answers the custom fields and commits it.
   const draftGeometry = useTaskStore((state) => state.draftGeometry);
   const draftLabelId = useTaskStore((state) => state.draftLabelId);
 
@@ -177,8 +174,7 @@ const DrawingLayer = ({
   selectedLabelRef.current = selectedLabel;
   const onTimeseriesClickRef = useRef(onTimeseriesClick);
   onTimeseriesClickRef.current = onTimeseriesClick;
-  // True only while a sketch is actively being drawn, so ESC can distinguish
-  // "abort the in-progress sketch" from "commit the finished draft".
+  // Lets ESC distinguish aborting an in-progress sketch from closing a draft.
   const isDrawingRef = useRef(false);
 
   // React state (drives inline edit controls overlay)
@@ -219,14 +215,11 @@ const DrawingLayer = ({
     vectorLayerRef.current?.setVisible(showAnnotations);
   }, [showAnnotations]);
 
-  // Paint the open-mode draft geometry (drawn but not yet saved) as a dashed
-  // feature. Fully derived from store state so commit/discard just clears the
-  // draft and this effect's cleanup removes the feature.
+  // Paint the open-mode draft as a dashed feature, fully derived from store
+  // state so commit/discard clears the draft and this cleanup removes it.
   useEffect(() => {
     const source = sourceRef.current;
     if (!source || !draftGeometry) return;
-    // draftLabelId is always a real label id (beginDraft is called with the
-    // selected label), so a miss here means the draft is being torn down.
     const label = extendedLabels.find((l) => l.id === draftLabelId);
     if (!label) return;
     const feature = geoJsonFormat.readFeature(
@@ -409,9 +402,8 @@ const DrawingLayer = ({
 
       const formFields = useCampaignStore.getState().campaign?.settings.form_fields ?? [];
 
-      // No custom fields to answer -> save immediately (unchanged flow). Keep the
-      // just-drawn feature painted until the refreshed tiles repaint, then drop
-      // it so the tile representation takes over without a visible gap.
+      // No custom fields: save now, keeping the sketch painted until the tiles
+      // repaint so the handoff has no visible gap.
       if (formFields.length === 0) {
         const saved = await saveAnnotation(geoJSON, label.id, undefined, {});
         if (saved) {
@@ -428,27 +420,19 @@ const DrawingLayer = ({
         return;
       }
 
-      // With custom fields, defer the save: open a draft so the annotator answers
-      // the questions catalog first. The transient sketch is dropped here and the
-      // draft renders from store state (see the draft-feature effect). Drawing a
-      // new geometry commits any open draft first so its answers aren't lost.
+      // With custom fields, defer the save into a draft answered via the catalog;
+      // the sketch is dropped and the draft renders from store state instead.
       source.removeFeature(feature);
       const taskStore = useTaskStore.getState();
       if (taskStore.draftGeometry !== null) {
-        // Only one draft exists at a time. If the open one still needs required
-        // answers we can't hold both, so keep it and tell the user the new shape
-        // wasn't started (rather than dropping it with a message about the old).
-        if (missingRequiredFields(formFields, taskStore.formValues).length > 0) {
-          useLayoutStore
-            .getState()
-            .showAlert(
-              'Finish the open annotation (answer required fields or press x) before drawing another',
-              'error'
-            );
-          return;
+        // Only one draft at a time: close the open one (save if complete, else
+        // discard) before starting this one.
+        if (missingRequiredFields(formFields, taskStore.formValues).length === 0) {
+          const committed = await taskStore.commitDraft();
+          if (!committed) return;
+        } else {
+          taskStore.discardDraft();
         }
-        const committed = await taskStore.commitDraft();
-        if (!committed) return; // keep the open draft; drop this new geometry
       }
       useTaskStore.getState().beginDraft(geoJSON, label.id);
     });
@@ -617,20 +601,9 @@ const DrawingLayer = ({
     removeAllInteractions();
     let cleanup: (() => void) | undefined;
 
-    // Leaving annotate mode with an unsaved draft (the catalog is annotate-only,
-    // so it can't stay editable): save it when its required fields are answered,
-    // otherwise discard it and say so rather than dropping it silently.
+    // The catalog is annotate-only, so leaving the tool must resolve the draft.
     if (activeTool !== 'annotate' && useTaskStore.getState().draftGeometry !== null) {
-      const ts = useTaskStore.getState();
-      const fields = useCampaignStore.getState().campaign?.settings.form_fields ?? [];
-      if (missingRequiredFields(fields, ts.formValues).length === 0) {
-        void ts.commitDraft();
-      } else {
-        ts.discardDraft();
-        useLayoutStore
-          .getState()
-          .showAlert('Unsaved annotation discarded - required fields were empty', 'warning');
-      }
+      void useTaskStore.getState().closeDraft();
     }
 
     if (activeTool === 'annotate' && selectedLabel) {
@@ -652,10 +625,8 @@ const DrawingLayer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type, magicWandActive]);
 
-  // ESC during draw cancels the in-progress geometry without leaving annotate
-  // mode. Only swallow the key while a sketch is actually being drawn; once the
-  // geometry is finished (a draft is open) ESC belongs to the controls panel,
-  // which commits the draft.
+  // Swallow ESC only while a sketch is being drawn (to abort it); once the
+  // geometry is finished ESC belongs to the panel, which closes the draft.
   useEffect(() => {
     if (activeTool !== 'annotate') return;
     const handleKeyDown = (e: KeyboardEvent) => {

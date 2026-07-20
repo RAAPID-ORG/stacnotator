@@ -17,10 +17,9 @@ interface EditDetailsEditorProps {
 }
 
 /**
- * Edit an existing annotation's label and custom-field answers in the open-mode
- * edit panel. The label can only be swapped for one with the same geometry type,
- * since the drawn geometry itself is unchanged here. Mounted with a per-id key,
- * so its draft state resets when a different annotation is selected.
+ * Edit an existing annotation's label and answers in the open-mode edit panel.
+ * The label is restricted to the same geometry type since the geometry is
+ * unchanged here. Mount with a per-id key so its state resets per annotation.
  */
 export const EditDetailsEditor: React.FC<EditDetailsEditorProps> = ({
   annotation,
@@ -34,8 +33,6 @@ export const EditDetailsEditor: React.FC<EditDetailsEditorProps> = ({
 
   const selectable = labelsWithSameGeometry(labels, annotation.label_id);
 
-  // Nothing to edit here (no custom fields, and no alternative label of the same
-  // geometry type) -> keep the panel to geometry/flag controls only.
   if (fields.length === 0 && selectable.length <= 1) return null;
 
   const dirty =
