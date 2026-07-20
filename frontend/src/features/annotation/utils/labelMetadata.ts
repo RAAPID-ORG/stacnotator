@@ -26,3 +26,15 @@ export const extendLabelsWithMetadata = (labels: LabelBase[]): ExtendedLabel[] =
     geometry_type: (label.geometry_type as GeometryType) || 'polygon',
     color: LABEL_COLORS[index % LABEL_COLORS.length],
   }));
+
+/** Labels a given annotation may be re-assigned to on edit: only those whose
+ *  geometry matches the annotation's current label, since the drawn geometry
+ *  can't change type. An unknown labelId leaves the full list (no constraint). */
+export const labelsWithSameGeometry = (
+  labels: ExtendedLabel[],
+  labelId: number | null
+): ExtendedLabel[] => {
+  const current = labels.find((l) => l.id === labelId);
+  if (!current) return labels;
+  return labels.filter((l) => l.geometry_type === current.geometry_type);
+};

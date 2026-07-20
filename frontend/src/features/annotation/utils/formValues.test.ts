@@ -7,6 +7,7 @@ import {
   missingRequiredFields,
   formatMissingFieldsTitle,
   isDateRangeValue,
+  formValuesEqual,
   type FormValues,
 } from './formValues';
 
@@ -225,5 +226,38 @@ describe('isDateRangeValue', () => {
     expect(isDateRangeValue(null)).toBe(false);
     expect(isDateRangeValue('2024-01-01')).toBe(false);
     expect(isDateRangeValue(10)).toBe(false);
+  });
+});
+
+describe('formValuesEqual', () => {
+  it('treats key order as irrelevant', () => {
+    expect(formValuesEqual({ '1': 10, '2': 'a' }, { '2': 'a', '1': 10 })).toBe(true);
+  });
+
+  it('detects a differing scalar', () => {
+    expect(formValuesEqual({ '1': 10 }, { '1': 20 })).toBe(false);
+  });
+
+  it('detects a differing key set', () => {
+    expect(formValuesEqual({ '1': 10 }, { '1': 10, '2': 1 })).toBe(false);
+    expect(formValuesEqual({ '1': 10, '2': 1 }, { '1': 10 })).toBe(false);
+  });
+
+  it('compares multicategory arrays element-wise', () => {
+    expect(formValuesEqual({ '1': [10, 20] }, { '1': [10, 20] })).toBe(true);
+    expect(formValuesEqual({ '1': [10, 20] }, { '1': [20, 10] })).toBe(false);
+    expect(formValuesEqual({ '1': [10] }, { '1': [10, 20] })).toBe(false);
+  });
+
+  it('compares date ranges by both ends', () => {
+    const range = { start: '2024-01-01', end: '2024-02-01' };
+    expect(formValuesEqual({ '1': { ...range } }, { '1': { ...range } })).toBe(true);
+    expect(formValuesEqual({ '1': { ...range } }, { '1': { ...range, end: '2024-03-01' } })).toBe(
+      false
+    );
+  });
+
+  it('two empty answer sets are equal', () => {
+    expect(formValuesEqual({}, {})).toBe(true);
   });
 });

@@ -69,6 +69,7 @@ Hotkey & Shortcut drive. Complete annotation process can be done without using a
 - Each field has a title, optional description (shown on hover of a "?" icon), and a required flag
 - Required fields block submission while a label is selected; skipping stays ungated
 - Hotkeys: Tab/Shift+Tab cycle fields, number keys toggle options or focus the active input, Esc leaves the field
+- Open mode reveals the fields only after a geometry is drawn: the label list is replaced by the questions catalog for that shape, committed by drawing the next shape, Enter, Esc, or the Save button, and discarded with the x. Campaigns without fields keep the instant-save draw. Edit mode can change an annotation's answers and its label (same geometry type)
 - Export adds one column per field (`stacnotator_field_<slug>`); multi category values join into one cell; GeoJSON export carries raw values for lossless re-import
 
 ### Navigation

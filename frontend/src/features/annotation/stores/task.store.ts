@@ -56,6 +56,13 @@ interface TaskStore {
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
 
+  // Open-mode draft: a geometry the annotator has just drawn but not yet saved.
+  // While a draft is open the controls panel swaps the label list for the
+  // custom-field catalog so per-geometry answers are captured before the
+  // annotation is persisted. Only used by open mode (task mode has no draft).
+  draftGeometry: GeoJSON.Geometry | null;
+  draftLabelId: number | null;
+
   // Actions
   loadTasks: (
     campaignId: number,
@@ -84,6 +91,14 @@ interface TaskStore {
   setFlagComment: (comment: string) => void;
   setFormValues: (next: FormValues) => void;
   setActiveFieldIndex: (index: number | null) => void;
+  /** Open a draft for a freshly drawn geometry and reset the field answers. */
+  beginDraft: (geometry: GeoJSON.Geometry, labelId: number) => void;
+  /** Drop the current draft without saving (the x button / discard). */
+  discardDraft: () => void;
+  /** Persist the current draft. Returns false (and keeps the draft open) when
+   *  required fields are missing or the save fails, so callers can keep the
+   *  catalog up instead of losing the geometry. */
+  commitDraft: () => Promise<boolean>;
   toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
@@ -182,6 +197,8 @@ const initialState = {
   magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
+  draftGeometry: null as GeoJSON.Geometry | null,
+  draftLabelId: null as number | null,
 };
 
 export const useTaskStore = create<TaskStore>((set, get) => {
@@ -190,6 +207,11 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     resetMapForTaskNav();
     setTimeout(() => set({ isNavigating: false }), NAVIGATION_DEBOUNCE_MS);
   };
+
+  // Re-entrancy guard for commitDraft: the create-annotation POST is async and
+  // draftGeometry stays set until it resolves, so a second commit (e.g. a rapid
+  // next draw) would otherwise read the same draft and POST it twice.
+  let draftCommitInFlight = false;
 
   return {
     ...initialState,
@@ -599,6 +621,31 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     setFlagComment: (flagComment) => set({ flagComment }),
     setFormValues: (formValues) => set({ formValues }),
     setActiveFieldIndex: (activeFieldIndex) => set({ activeFieldIndex }),
+
+    beginDraft: (draftGeometry, draftLabelId) =>
+      set({ draftGeometry, draftLabelId, formValues: {}, activeFieldIndex: null }),
+
+    discardDraft: () =>
+      set({ draftGeometry: null, draftLabelId: null, formValues: {}, activeFieldIndex: null }),
+
+    commitDraft: async () => {
+      if (draftCommitInFlight) return false;
+      const { draftGeometry, draftLabelId, formValues } = get();
+      if (draftGeometry === null || draftLabelId === null) return true;
+      draftCommitInFlight = true;
+      try {
+        // saveAnnotation validates required fields itself and alerts on a miss,
+        // returning null; keep the draft up in that case so the answers survive.
+        const saved = await useAnnotationStore
+          .getState()
+          .saveAnnotation(draftGeometry, draftLabelId, null, formValues);
+        if (!saved) return false;
+        set({ draftGeometry: null, draftLabelId: null, formValues: {}, activeFieldIndex: null });
+        return true;
+      } finally {
+        draftCommitInFlight = false;
+      }
+    },
     toggleMagicWand: (labelId) =>
       set((s) => ({
         magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
@@ -614,6 +661,8 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         flagComment: '',
         formValues: {},
         activeFieldIndex: null,
+        draftGeometry: null,
+        draftLabelId: null,
       }),
 
     // Filter actions

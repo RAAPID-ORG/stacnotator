@@ -14,6 +14,8 @@ import { resolveLabelStyle, styleKey } from '../utils/annotationStyle';
 import { TOOL_KEYS, EXPLORE_PANEL_SHORTCUTS } from '../hotkeys';
 import { ShortcutList } from './ShortcutList';
 import { AnnotationForm } from './AnnotationForm';
+import { DraftCatalog } from './DraftCatalog';
+import { EditDetailsEditor } from './EditDetailsEditor';
 import { LABEL_FIELD_INDEX } from '../utils/formFieldNav';
 
 type OpenModeTool = 'pan' | 'annotate' | 'edit' | 'timeseries' | 'labelvector';
@@ -127,6 +129,10 @@ const OpenModeControls = () => {
   const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
   const formValues = useTaskStore((s) => s.formValues);
   const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
+  const draftGeometry = useTaskStore((s) => s.draftGeometry);
+  const draftLabelId = useTaskStore((s) => s.draftLabelId);
+  const commitDraft = useTaskStore((s) => s.commitDraft);
+  const discardDraft = useTaskStore((s) => s.discardDraft);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
   const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
   const setFormValues = useTaskStore((s) => s.setFormValues);
@@ -141,6 +147,8 @@ const OpenModeControls = () => {
   // Which label's inline style editor is currently expanded (null = none)
   const [styleEditorLabelId, setStyleEditorLabelId] = useState<number | null>(null);
   const updateAnnotationFlags = useAnnotationStore((s) => s.updateAnnotationFlags);
+  const updateAnnotationDetails = useAnnotationStore((s) => s.updateAnnotationDetails);
+  const isSaving = useAnnotationStore((s) => s.isSaving);
   // The single selected annotation's full record, fetched by id for this panel.
   const selectedAnnotation = useAnnotationStore((s) => s.selectedAnnotationDetail);
   // Local draft for the flag comment textarea so the user can type without
@@ -167,6 +175,9 @@ const OpenModeControls = () => {
 
   // Find currently selected label
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) || null;
+  // The label backing the open draft, if any (drives the catalog heading style).
+  const draftOpen = draftGeometry !== null;
+  const draftLabel = extendedLabels.find((l) => l.id === draftLabelId) || null;
 
   const handleToolSelect = (tool: OpenModeTool) => {
     setActiveTool(tool);
@@ -286,8 +297,21 @@ const OpenModeControls = () => {
           </div>
         )}
 
-        {/* Label Selection - show for annotate & label-vector tools */}
-        {(activeTool === 'annotate' || activeTool === 'labelvector') && (
+        {/* Once a geometry is drawn the label list is replaced by the questions catalog. */}
+        {(activeTool === 'annotate' || activeTool === 'labelvector') && draftOpen && (
+          <DraftCatalog
+            label={draftLabel}
+            fields={formFields}
+            values={formValues}
+            activeFieldIndex={activeFieldIndex}
+            onChange={setFormValues}
+            onSave={commitDraft}
+            onDiscard={discardDraft}
+            saving={isSaving}
+          />
+        )}
+
+        {(activeTool === 'annotate' || activeTool === 'labelvector') && !draftOpen && (
           <>
             <div
               className={`flex flex-col gap-1.5 w-full ${
@@ -494,12 +518,16 @@ const OpenModeControls = () => {
               )}
             </div>
 
-            <AnnotationForm
-              fields={formFields}
-              values={formValues}
-              onChange={setFormValues}
-              activeFieldIndex={activeFieldIndex}
-            />
+            {/* Label-vector applies answers on click, so it keeps the inline
+                form. Annotate reveals the form only after a geometry is drawn. */}
+            {activeTool === 'labelvector' && (
+              <AnnotationForm
+                fields={formFields}
+                values={formValues}
+                onChange={setFormValues}
+                activeFieldIndex={activeFieldIndex}
+              />
+            )}
 
             {/* Current selection info */}
             {selectedLabel && (
@@ -544,6 +572,14 @@ const OpenModeControls = () => {
                 <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">
                   Selected annotation #{selectedAnnotation.id}
                 </span>
+                <EditDetailsEditor
+                  key={selectedAnnotation.id}
+                  annotation={selectedAnnotation}
+                  labels={extendedLabels}
+                  fields={formFields}
+                  onSave={updateAnnotationDetails}
+                  saving={isSaving}
+                />
                 <label
                   className="flex items-center gap-1.5 cursor-pointer select-none"
                   title="Toggle flag-for-review on this annotation. Saves immediately. Press F to toggle."

@@ -87,9 +87,13 @@ export const useOpenModeKeyboard = () => {
         return;
       }
 
+      // The custom-field catalog only exists once a geometry is drawn (a draft
+      // is open); until then its fields aren't shown, so field navigation is off.
+      const draftOpen = useTaskStore.getState().draftGeometry !== null;
+
       if (
         handleFormFieldKey(e, {
-          fields: formFields,
+          fields: draftOpen ? formFields : [],
           activeIndex: activeFieldIndex,
           values: formValues,
           setValues: setFormValues,
@@ -97,6 +101,17 @@ export const useOpenModeKeyboard = () => {
         })
       ) {
         return;
+      }
+
+      // With the catalog open, Enter/Esc commit the drawn geometry (saving its
+      // answers); the label list is hidden, so digit label-select is suppressed.
+      if (draftOpen) {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          e.preventDefault();
+          void useTaskStore.getState().commitDraft();
+          return;
+        }
+        if (/^[1-9]$/.test(e.key)) return;
       }
 
       // 1-9: select label. In label-vector mode keep that tool so the

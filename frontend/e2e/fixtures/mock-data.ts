@@ -762,6 +762,35 @@ export const MOCK_CAMPAIGN_OPEN_MODE_NO_TS = {
   time_series: [],
 };
 
+// Custom form fields: one required category and one optional free-text field.
+// Drives the draw-then-answer catalog flow in open mode.
+export const OPEN_FORM_FIELDS = [
+  {
+    id: 100,
+    title: 'Condition',
+    required: true,
+    type: 'category',
+    options: [
+      { id: 1001, name: 'Healthy' },
+      { id: 1002, name: 'Damaged' },
+    ],
+  },
+  {
+    id: 101,
+    title: 'Notes',
+    required: false,
+    type: 'text',
+  },
+];
+
+/** Open-mode campaign that has custom form fields, so drawing opens the
+ *  questions catalog before the annotation is saved. */
+export const MOCK_CAMPAIGN_OPEN_MODE_FORMS = {
+  ...MOCK_CAMPAIGN_OPEN_MODE,
+  name: 'Test Campaign (Open Mode, forms)',
+  settings: { ...MOCK_CAMPAIGN.settings, labels: OPEN_LABELS, form_fields: OPEN_FORM_FIELDS },
+};
+
 /**
  * Open-mode campaign with two imagery sources (Sentinel-2 + VHR) so the I key
  * can cycle sources, plus timeseries for the probe tool.

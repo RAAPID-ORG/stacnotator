@@ -65,3 +65,24 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function isDateRangeValue(value: unknown): value is DateRangeValue {
   return isPlainObject(value) && typeof value.start === 'string' && typeof value.end === 'string';
 }
+
+function valueEqual(a: FormValue, b: FormValue): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    // multicategory ids are kept sorted (toggleMultiOption), so position compares.
+    return (
+      Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i])
+    );
+  }
+  if (isDateRangeValue(a) || isDateRangeValue(b)) {
+    return isDateRangeValue(a) && isDateRangeValue(b) && a.start === b.start && a.end === b.end;
+  }
+  return a === b;
+}
+
+/** Deep-equality for two answer sets, tolerant of key order. Used to tell
+ *  whether an edit actually changed anything before issuing a PATCH. */
+export function formValuesEqual(a: FormValues, b: FormValues): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((key) => key in b && valueEqual(a[key], b[key]));
+}
