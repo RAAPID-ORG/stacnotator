@@ -113,7 +113,7 @@ dev-restore-backup: ## Restore dev DB from a local SQL backup (use FILE="db/back
 		ls -1t db/backups/*.sql 2>/dev/null || echo "  (none found in db/backups/)"; \
 		exit 1; \
 	fi
-	./scripts/dev-restore-backup.sh $(FILE)
+	./azure_deploy/dev-restore-backup.sh $(FILE)
 
 dev-init: ## Initialize the application for development (first time setup; use FIREBASE_UID="your-uid" to specify user)
 	@echo "Setting up STAC Notator (Development Mode with Hot Reload)..."
@@ -278,7 +278,7 @@ typecheck-sdk: ## Run mypy on the Python SDK
 typecheck: typecheck-backend typecheck-frontend typecheck-sdk ## Run all type checkers
 
 ci-check: test lint format-check typecheck ## Run all CI checks locally
-ci-check-docker: test-docker lint format-check typecheck ## Run all CI checks (tests in Docker)
+ci-check-docker: test-dockerized lint format-check typecheck ## Run all CI checks (tests in Docker)
 
 ###################################################
 # Pre-commit

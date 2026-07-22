@@ -404,7 +404,7 @@ def _resolve_view_refs(
         db_collection_id = collection_id_map.get(ref.collection_id)
         if db_source_id is None or db_collection_id is None:
             # Fallback: positional lookup for the campaign-create flow that
-            # references entities by index (matches the legacy _create_views).
+            # references entities by index.
             for s_idx, s in enumerate(source_creates):
                 if str(s_idx) == ref.source_id:
                     db_source_id = source_id_map.get(str(s_idx))

@@ -18,13 +18,13 @@ MPC hosts its own TiTiler instance with free egress from their STAC catalog. Whe
 
 ### 2. Self-Hosted TiTiler
 
-We host a TiTiler service that can connect to any STAC catalog. It handles all compositing methods, pixel masking, and other advanced rendering features.
+We host a [titiler-pgstac](https://github.com/RAAPID-ORG/stacnotator-tiler) service that can serve any STAC catalog. It handles all compositing methods, pixel masking, and other advanced rendering features. The tiler keeps the items in its **own pgstac index** - the backend never stores STAC items (see [tilers.md](tilers.md)).
 
 **Flow:**
-1. During campaign creation, a STAC search is executed for each slice's date range and the campaign's bounding box.
-2. All matching items (with their bounding boxes, cloud cover, and STAC hrefs) are stored in a PostGIS-enabled database with a GiST spatial index.
-3. For each tile request, a `ST_Intersects` query finds items overlapping the requested map tile, sorted by cloud cover ASC then date DESC, limited to `max_items` (user-configurable, 1-10).
-4. TiTiler reads the COG data from remote storage, composites the mosaic, and returns the rendered tile.
+1. During campaign creation, the backend triggers an ingest on the tiler (`POST /ingest`): the tiler runs the STAC-API search for the campaign's bounding box and date range and upserts the matching items into its pgstac index. Preloaded tilers skip this step.
+2. The backend registers a search per slice (`POST /searches/register`, a CQL2 body with the slice's date range and the campaign's bounding box) and bakes the returned search id into the tile URL together with visualization parameters.
+3. For each tile request, titiler-pgstac resolves the search's items overlapping the requested map tile from pgstac, sorted by cloud cover ASC then date DESC, limited to `max_items` (user-configurable, 1-10).
+4. The tiler reads the COG data from remote storage, composites the mosaic, and returns the rendered tile.
 
 **Performance considerations:**
 - Tile rendering speed depends on network distance to the COG storage (Azure Blob, S3, etc.). Co-locating the tiler in the same cloud region as the data significantly reduces latency.
@@ -88,7 +88,7 @@ The mosaic registration process (for both MPC and self-hosted) works as follows:
 1. The frontend builds a CQL2-JSON search query with `{sliceStart}` and `{sliceEnd}` datetime placeholders, including `sortby` for item ordering.
 2. The backend replaces placeholders with actual dates per slice and injects the campaign's bounding box.
 3. For MPC: the query is POSTed to MPC's register endpoint, returning a `searchId`.
-4. For self-hosted: the query is executed via pystac-client, and matching items are stored in the database.
+4. For self-hosted: the query is registered on the tiler (`/searches/register`), returning a search id; the tiler resolves items from its own pgstac index at render time.
 
 **Cloud cover filtering** uses `isNull OR <=` to handle collections without `eo:cloud_cover` (e.g. SAR data). Items without the property pass through instead of being excluded.
 

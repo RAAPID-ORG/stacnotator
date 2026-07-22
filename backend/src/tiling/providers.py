@@ -1,6 +1,6 @@
 """Tile provider routing: pick a provider, build its tile URL, register/ingest a search.
 
-Two providers (the `self_hosted` mosaic_items tiler is retired):
+Two providers:
 
   * ``mpc``    - Microsoft Planetary Computer's own tiler (direct, free egress). The only
                  tiler special-cased in code. Used when the catalog is MPC *and* the viz is

@@ -11,10 +11,10 @@ React + Vite + OpenLayers. Handles the annotation UI, campaign creation wizard, 
 FastAPI + Gunicorn Server. Handles authentication (Firebase or local single-user mode), campaign/task management, STAC catalog browsing through STACIndex, mosaic registration, and annotation storage. Connects to the Azure Key Vault for DB credentials.
 
 ### Tiler
-Self-hosted TiTiler (FastAPI + GDAL/rasterio). Reads COGs from remote STAC catalogs, composites mosaics, and serves PNG tiles. Uses PostGIS spatial indexing for per-tile item lookups (cached from external STAC catalogs). Only used when MPC direct tiles are not available (non-MPC catalogs, advanced compositing, masking).
+Self-hosted titiler-pgstac (FastAPI + GDAL/rasterio). Reads COGs from remote STAC catalogs, composites mosaics, and serves PNG tiles. Runs over its own pgstac index for per-tile item lookups (items ingested from external STAC catalogs). Only used when MPC direct tiles are not available (non-MPC catalogs, advanced compositing, masking).
 
 ### Database
-PostgreSQL 16 with PostGIS (spatial queries for mosaic items) and pgvector (embeddings for similarity search). Stores campaigns, annotations, mosaic registrations, tile URLs, and user data.
+PostgreSQL 16 with PostGIS (task and annotation geometries) and pgvector (embeddings for similarity search). Stores campaigns, annotations, tile URLs, and user data. STAC items live in each tiler's own pgstac database, not here.
 
 ## Tile Flow
 
@@ -28,4 +28,4 @@ Infrastructure (networking, Key Vault, ACR, database, Container Apps Environment
 
 1. **Campaign creation:** Frontend builds imagery config → backend creates DB entries → background threads register mosaics (STAC searches) and fetch embeddings if applicable.
 2. **Annotation:** Frontend loads campaign → fetches tiles from MPC or tiler and tasks-geometries from backend → user annotates → annotations stored via backend REST API.
-3. **Tile request (self-hosted):** Frontend requests auth token for tiler → requests tile signed with token → tiler queries PostGIS for intersecting stac items → reads COGs → composites → returns PNG.
+3. **Tile request (self-hosted):** Frontend requests auth token for tiler → requests tile signed with token → tiler resolves the search's items from its pgstac index → reads COGs → composites → returns PNG.
