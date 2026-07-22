@@ -123,7 +123,7 @@ class TestBuildExport:
         campaign = MagicMock(id=1)
         campaign.settings.labels = {"1": {"name": "Forest"}, "2": {"name": "Water"}}
 
-        cu = MagicMock(is_admin=True, is_authorative_reviewer=False)
+        cu = MagicMock(is_admin=True, is_authoritative_reviewer=False)
         cu.user = MagicMock(email="alice@x.com", display_name="Alice")
 
         self._wire_db(

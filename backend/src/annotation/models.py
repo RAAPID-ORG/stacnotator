@@ -57,6 +57,7 @@ class AnnotationTask(Base):
         Index("idx_task_items_campaign_id", "campaign_id"),
         UniqueConstraint("campaign_id", "annotation_number"),
         Index("idx_annotation_tasks_task_set_id", "task_set_id"),
+        Index("idx_annotation_tasks_geometry_id", "geometry_id"),
         {"schema": "data"},
     )
 
@@ -119,6 +120,7 @@ class AnnotationTaskAssignment(Base):
     __tablename__ = "annotation_tasks_assignment"
     __table_args__ = (
         Index("idx_annotation_tasks_assignment_task_id", "task_id"),
+        Index("idx_annotation_tasks_assignment_user_id", "user_id"),
         UniqueConstraint("task_id", "user_id"),
         {"schema": "data"},
     )
@@ -180,6 +182,9 @@ class Annotation(Base):
     __table_args__ = (
         Index("idx_annotations_campaign_id", "campaign_id"),
         Index("idx_annotations_task_id", "annotation_task_id"),
+        Index("idx_annotations_geometry_id", "geometry_id"),
+        Index("idx_annotations_created_by_user_id", "created_by_user_id"),
+        Index("idx_annotations_imagery_slice_id", "imagery_slice_id"),
         UniqueConstraint(
             "annotation_task_id",
             "created_by_user_id",
@@ -297,6 +302,7 @@ class Embedding(Base):
             postgresql_with={"m": 16, "ef_construction": 64},
             postgresql_ops={"vector": "vector_cosine_ops"},
         ),
+        Index("idx_embeddings_annotation_task_id", "annotation_task_id"),
         {"schema": "data"},
     )
 
@@ -315,12 +321,6 @@ class Embedding(Base):
 
     # 64-D embedding vector (pgvector)
     vector = mapped_column(Vector(64), nullable=False)
-
-    # Location & time metadata (for provenance / cache lookups)
-    lat: Mapped[float] = mapped_column(sa.Float, nullable=False)
-    lon: Mapped[float] = mapped_column(sa.Float, nullable=False)
-    period_start: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    period_end: Mapped[dt_datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Relationships
     annotation_task: Mapped["AnnotationTask"] = relationship()

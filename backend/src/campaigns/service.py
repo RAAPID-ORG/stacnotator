@@ -12,6 +12,10 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.annotation import embeddings_service
+from src.annotation.geometries import (
+    delete_orphan_geometries,
+    delete_rows_and_orphan_geometries,
+)
 from src.annotation.models import Annotation, AnnotationTask, Embedding
 from src.auth.constants import ROLE_ADMIN
 from src.auth.models import User, UserRole
@@ -67,7 +71,7 @@ def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> b
             CampaignUser.user_id == user_id,
         )
     ).scalar_one_or_none()
-    return cu is not None and cu.is_authorative_reviewer
+    return cu is not None and cu.is_authoritative_reviewer
 
 
 # ============================================================================
@@ -151,7 +155,7 @@ def build_policy_context(
     return PolicyContext(
         user_id=user_id,
         is_admin=(cu is not None and cu.is_admin) or is_global_admin(db, user_id),
-        is_authoritative=cu is not None and cu.is_authorative_reviewer,
+        is_authoritative=cu is not None and cu.is_authoritative_reviewer,
         is_member=cu is not None,
         is_assigned=is_assigned,
     )
@@ -167,7 +171,7 @@ def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[boo
     """
     rows = db.execute(
         select(
-            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authorative_reviewer
+            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authoritative_reviewer
         ).where(CampaignUser.campaign_id == campaign_id)
     ).all()
     return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
@@ -348,7 +352,7 @@ def create_campaign(
         user_id=user_id,
         campaign_id=campaign.id,
         is_admin=True,
-        is_authorative_reviewer=True,
+        is_authoritative_reviewer=True,
     )
     db.add(campaign_user)
 
@@ -475,7 +479,7 @@ def add_users_to_campaign_bulk(
             user_id=user.id,
             campaign_id=campaign_id,
             is_admin=False,
-            is_authorative_reviewer=False,
+            is_authoritative_reviewer=False,
         )
         for user in users
     ]
@@ -513,7 +517,7 @@ def make_authorative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> N
             CampaignUser.campaign_id == campaign_id,
             CampaignUser.user_id == user_id,
         )
-        .values(is_authorative_reviewer=True)
+        .values(is_authoritative_reviewer=True)
     )
 
     if result.rowcount == 0:
@@ -943,9 +947,9 @@ def demote_authorative_reviewer(db: Session, campaign_id: int, user_id: UUID) ->
         .where(
             CampaignUser.campaign_id == campaign_id,
             CampaignUser.user_id == user_id,
-            CampaignUser.is_authorative_reviewer.is_(True),
+            CampaignUser.is_authoritative_reviewer.is_(True),
         )
-        .values(is_authorative_reviewer=False)
+        .values(is_authoritative_reviewer=False)
     )
 
     if result.rowcount == 0:
@@ -992,9 +996,8 @@ def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) 
             detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
         )
 
-    # Delete the tasks (annotations will be cascade deleted)
-    for task in tasks:
-        db.delete(task)
+    # Deleting a task detaches its annotations (annotation_task_id SET NULL).
+    delete_rows_and_orphan_geometries(db, tasks)
 
     db.commit()
 
@@ -1023,4 +1026,6 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     db.delete(campaign)
+    # Geometries have no campaign FK, so the cascade above cannot reach them.
+    delete_orphan_geometries(db)
     db.commit()

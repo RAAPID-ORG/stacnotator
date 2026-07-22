@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, SmallInteger, String, Text, func
+from sqlalchemy import ForeignKey, Index, Integer, SmallInteger, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import DateTime
 
@@ -17,7 +17,10 @@ class VectorLayer(Base):
     """
 
     __tablename__ = "vector_layers"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_vector_layers_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(

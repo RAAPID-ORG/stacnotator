@@ -329,7 +329,8 @@ class CampaignOutFull(CampaignOut):
 class CampaignUserOut(BaseModel):
     user: UserOut
     is_admin: bool
-    is_authorative_reviewer: bool
+    # Wire name keeps the historical typo so the generated frontend client stays stable.
+    is_authoritative_reviewer: bool = Field(serialization_alias="is_authorative_reviewer")
 
     model_config = ConfigDict(from_attributes=True)
 

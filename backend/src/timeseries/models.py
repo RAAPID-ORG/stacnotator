@@ -1,5 +1,6 @@
 from sqlalchemy import (
     ForeignKey,
+    Index,
     Integer,
     String,
 )
@@ -14,7 +15,10 @@ class TimeSeries(Base):
     """
 
     __tablename__ = "time_series"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_time_series_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

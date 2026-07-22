@@ -14,6 +14,10 @@ from src.annotation.constants import (
     CLAIM_TTL_MINUTES,
 )
 from src.annotation.forms import FormValidationError, validate_form_values
+from src.annotation.geometries import (
+    delete_orphan_geometries,
+    delete_rows_and_orphan_geometries,
+)
 from src.annotation.models import (
     Annotation,
     AnnotationGeometry,
@@ -744,12 +748,14 @@ def update_annotation(
     try:
         # Update geometry if provided
         if annotation_update.geometry_wkt is not None:
+            old_geometry_id = annotation.geometry_id
             new_geometry = AnnotationGeometry(
                 geometry=f"SRID=4326;{annotation_update.geometry_wkt}"
             )
             db.add(new_geometry)
             db.flush()  # Get new geometry ID
             annotation.geometry_id = new_geometry.id
+            delete_orphan_geometries(db, [old_geometry_id])
 
             # The imagery snapshot reflects what was viewed during this geometry
             # edit, so it only refreshes alongside a geometry change.
@@ -1052,8 +1058,7 @@ def delete_annotation(
                 assignment.status = ANNOTATION_TASK_STATUS_PENDING
                 db.add(assignment)  # Explicitly add to session to ensure update is tracked
 
-        # Delete the annotation
-        db.delete(annotation)
+        delete_rows_and_orphan_geometries(db, [annotation])
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()
 
@@ -1127,8 +1132,7 @@ def delete_annotations_bulk(
                 if (assignment.task_id, assignment.user_id) in pair_set:
                     assignment.status = ANNOTATION_TASK_STATUS_PENDING
 
-        for annotation in annotations:
-            db.delete(annotation)
+        delete_rows_and_orphan_geometries(db, annotations)
 
         bump_campaign_annotations_version(db, campaign.id)
         db.commit()

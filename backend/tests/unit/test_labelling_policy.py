@@ -439,7 +439,7 @@ def test_build_policy_context_non_member_non_admin():
 def test_build_policy_context_campaign_admin():
     campaign = _campaign()
     user_id = uuid4()
-    cu = SimpleNamespace(is_admin=True, is_authorative_reviewer=False)
+    cu = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
     db = _db_with_campaign_user(cu=cu)
 
     ctx = service.build_policy_context(db, campaign, user_id)
@@ -452,7 +452,7 @@ def test_build_policy_context_campaign_admin():
 def test_build_policy_context_authoritative_reviewer():
     campaign = _campaign()
     user_id = uuid4()
-    cu = SimpleNamespace(is_admin=False, is_authorative_reviewer=True)
+    cu = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
     db = _db_with_campaign_user(cu=cu)
 
     ctx = service.build_policy_context(db, campaign, user_id)

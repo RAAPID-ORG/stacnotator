@@ -34,7 +34,7 @@ class Campaign(Base):
     # Campaign metadata
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
@@ -137,7 +137,7 @@ class TaskSet(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
@@ -227,6 +227,9 @@ class CanvasLayout(Base):
             "(is_default = false) OR (is_default = true AND user_id IS NULL)",
             name="canvas_layouts_default_check",
         ),
+        Index("idx_canvas_layouts_campaign_id", "campaign_id"),
+        Index("idx_canvas_layouts_user_id", "user_id"),
+        Index("idx_canvas_layouts_view_id", "view_id"),
         {"schema": "data"},
     )
 
@@ -237,9 +240,9 @@ class CanvasLayout(Base):
         nullable=True,
     )
 
-    campaign_id: Mapped[int | None] = mapped_column(
+    campaign_id: Mapped[int] = mapped_column(
         ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
     )
 
     view_id: Mapped[int | None] = mapped_column(
@@ -258,7 +261,7 @@ class CanvasLayout(Base):
         nullable=False,
     )
 
-    campaign: Mapped["Campaign | None"] = relationship(
+    campaign: Mapped["Campaign"] = relationship(
         back_populates="canvas_layouts",
     )
     imagery_view: Mapped["ImageryView | None"] = relationship(  # noqa: F821
@@ -272,7 +275,10 @@ class CampaignUser(Base):
     """
 
     __tablename__ = "campaign_users"
-    __table_args__ = ({"schema": "data"},)
+    __table_args__ = (
+        Index("idx_campaign_users_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     # Composite primary key
     user_id: Mapped[UUID] = mapped_column(
@@ -286,7 +292,7 @@ class CampaignUser(Base):
 
     # User roles in campaign
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_authoritative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     user: Mapped["User"] = relationship()  # noqa: F821

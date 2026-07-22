@@ -653,7 +653,7 @@ def build_task_assignments_export(
                 "email": cu.user.email,
                 "display_name": cu.user.display_name or "",
                 "is_admin": cu.is_admin,
-                "is_authoritative_reviewer": cu.is_authorative_reviewer,
+                "is_authoritative_reviewer": cu.is_authoritative_reviewer,
             }
             for cu in campaign_users
         ),

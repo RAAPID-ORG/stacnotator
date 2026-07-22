@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from src.annotation.geometries import delete_rows_and_orphan_geometries
 from src.annotation.models import Annotation, AnnotationTask
 from src.campaigns.models import TaskSet
 
@@ -93,8 +94,7 @@ def delete_task_set(db: Session, campaign_id: int, task_set_id: int) -> None:
     tasks = db.scalars(
         select(AnnotationTask).where(AnnotationTask.task_set_id == task_set_id)
     ).all()
-    for task in tasks:
-        db.delete(task)
+    delete_rows_and_orphan_geometries(db, tasks)
     db.delete(task_set)
     db.commit()
 

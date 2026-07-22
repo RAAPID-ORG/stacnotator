@@ -608,6 +608,10 @@ def _update_collection_in_place(
             if col_create.stac_config is None:
                 for tu in list(db_sl.tile_urls):
                     db.delete(tu)
+                # Flush the deletes first: the unit of work emits same-table
+                # INSERTs before DELETEs, which would trip the (slice_id,
+                # visualization_name) unique constraint on unchanged names.
+                db.flush()
                 for t in sl_create.tile_urls:
                     db.add(
                         SliceTileUrl(

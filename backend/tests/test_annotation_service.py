@@ -173,7 +173,7 @@ class TestAddAnnotationForTask:
         # is_authoritative=True triggers a CampaignUser lookup before the
         # existing-annotation / assignment lookups.
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         db.execute.return_value.scalar_one_or_none.side_effect = [
             reviewer_cu,
             existing,
@@ -231,7 +231,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         non_reviewer_cu = MagicMock()
-        non_reviewer_cu.is_authorative_reviewer = False
+        non_reviewer_cu.is_authoritative_reviewer = False
         db.execute.return_value.scalar_one_or_none.return_value = non_reviewer_cu
 
         payload = AnnotationFromTaskCreate(
@@ -275,7 +275,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         # 1: CampaignUser lookup (reviewer check)
         # 2: existing-annotation lookup -> none
         # 3: assignment lookup -> none (reviewer is unassigned)
@@ -531,10 +531,10 @@ class TestUpdateAnnotation:
         )
         update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
-        # Should have added a new AnnotationGeometry
+        # Should have added a new AnnotationGeometry and flushed to get its id
         added_geom = db.add.call_args[0][0]
         assert isinstance(added_geom, AnnotationGeometry)
-        db.flush.assert_called_once()
+        db.flush.assert_called()
 
     def test_geometry_update_refreshes_imagery_snapshot(self):
         db = _mock_db()

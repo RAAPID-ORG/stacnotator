@@ -51,7 +51,7 @@ def _db(cu=None):
     return db
 
 
-_MEMBER = SimpleNamespace(is_admin=False, is_authorative_reviewer=False)
+_MEMBER = SimpleNamespace(is_admin=False, is_authoritative_reviewer=False)
 
 
 class TestValidateAnnotationFormValuesHelper:

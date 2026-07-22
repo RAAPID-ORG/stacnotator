@@ -276,7 +276,7 @@ class TestAddUsersToCampaignBulk:
         for m in memberships:
             assert m.campaign_id == 42
             assert m.is_admin is False
-            assert m.is_authorative_reviewer is False
+            assert m.is_authoritative_reviewer is False
         assert {m.user_id for m in memberships} == {u1, u2}
         db.commit.assert_called_once()
 

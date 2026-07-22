@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -265,6 +265,16 @@ class ImagerySourceCreate(BaseModel):
     default_zoom: int = 14
     visualizations: list[VisualizationTemplateCreate]
     collections: list[ImageryCollectionCreate]
+
+    @field_validator("visualizations")
+    @classmethod
+    def visualization_names_unique(
+        cls, v: list[VisualizationTemplateCreate]
+    ) -> list[VisualizationTemplateCreate]:
+        names = [viz.name for viz in v]
+        if len(names) != len(set(names)):
+            raise ValueError("visualization names must be unique per source")
+        return v
 
 
 class BasemapCreate(BaseModel):

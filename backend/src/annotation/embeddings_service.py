@@ -176,10 +176,6 @@ def store_embedding(
     row = EmbeddingRow(
         annotation_task_id=annotation_task_id,
         vector=fetched.vector,
-        lat=fetched.lat,
-        lon=fetched.lon,
-        period_start=fetched.period_start,
-        period_end=fetched.period_end,
     )
     db.add(row)
     db.flush()
@@ -455,10 +451,6 @@ def populate_campaign_embeddings(
         EmbeddingRow(
             annotation_task_id=int(task_id_str),
             vector=fetched.vector,
-            lat=fetched.lat,
-            lon=fetched.lon,
-            period_start=fetched.period_start,
-            period_end=fetched.period_end,
         )
         for task_id_str, fetched in all_fetched.items()
     ]
