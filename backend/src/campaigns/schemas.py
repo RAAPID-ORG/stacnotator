@@ -13,7 +13,7 @@ from pydantic import (
 
 from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
-from src.custom_maps.schemas import CustomMapOut
+from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
     CanvasLayoutOut,
@@ -22,7 +22,6 @@ from src.imagery.schemas import (
     ImageryViewOut,
 )
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
-from src.vector_layers.schemas import VectorLayerOut
 
 
 # ============================================================================

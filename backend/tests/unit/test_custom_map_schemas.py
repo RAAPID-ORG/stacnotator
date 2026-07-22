@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.custom_maps.schemas import CustomMapCreate, RenderConfig
+from src.custom_layers.schemas import CustomMapCreate, RenderConfig
 
 
 def test_unrenderable_config_still_parses_so_legacy_rows_stay_readable():

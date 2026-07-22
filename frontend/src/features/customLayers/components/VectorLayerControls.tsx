@@ -1,6 +1,6 @@
-import { useMapStore } from '../stores/map.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
 import type { VectorLayerOut } from '~/api/client';
-import HeaderSelect from './Map/HeaderSelect';
+import HeaderSelect from '~/features/annotation/components/Map/HeaderSelect';
 
 /** Header dropdown for PMTiles vector layers: one layer at a time, like overlays. */
 export function VectorLayerControls({ vectorLayers }: { vectorLayers: VectorLayerOut[] }) {

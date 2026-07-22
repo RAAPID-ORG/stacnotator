@@ -2,9 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.custom_maps import service
-from src.custom_maps.models import CustomMap
-from src.custom_maps.schemas import CustomMapCreate, CustomMapUpdate
+from src.custom_layers import service
+from src.custom_layers.models import CustomMap
+from src.custom_layers.schemas import CustomMapCreate, CustomMapUpdate
 
 CONT = {"mode": "continuous", "colormap_name": "viridis", "rescale": [0, 1]}
 
@@ -57,7 +57,7 @@ def test_run_registration_marks_failed_on_error(monkeypatch):
 
 def test_update_reregisters_when_cog_url_changes(monkeypatch):
     cm = _cm(status="ready", cog_url="https://old/a.tif")
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     spawned = []
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
 
@@ -70,7 +70,7 @@ def test_update_reregisters_when_cog_url_changes(monkeypatch):
 
 def test_update_name_only_does_not_reregister(monkeypatch):
     cm = _cm(status="ready")
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
@@ -85,7 +85,7 @@ def test_update_name_only_does_not_reregister(monkeypatch):
 def test_update_render_config_restamps_tile_url_without_reregister(monkeypatch):
     """A colour edit is URL-side only: no tiler round trip, and the map stays usable."""
     cm = _cm(status="ready", mosaic_id="search-9", tile_url="https://tiler.test/old?x=1")
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "resolve_tiler", lambda *a, **k: object())
     spawned = []
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
@@ -118,7 +118,7 @@ def test_update_does_not_restamp_a_map_whose_search_is_stale(monkeypatch):
     """mosaic_id still points at the previous search while a re-registration is in flight,
     so a colour edit must leave the URL to that registration rather than stamp the old one."""
     cm = _cm(status="registering", mosaic_id="search-old", tile_url="https://tiler.test/old")
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: None)
     monkeypatch.setattr(
         service, "build_tile_url", lambda *a, **k: pytest.fail("must not restamp a stale search")
@@ -139,7 +139,7 @@ def test_update_does_not_restamp_a_map_whose_search_is_stale(monkeypatch):
 
 def test_update_of_failed_map_retries_registration(monkeypatch):
     cm = _cm(status="failed", status_error={"error": "tiler down"})
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
     spawned = []
     monkeypatch.setattr(service, "_spawn_registration", lambda map_id: spawned.append(map_id))
@@ -155,7 +155,7 @@ def test_unrenderable_render_config_is_rejected_on_create_and_update(monkeypatch
     """Which configs are unrenderable is build_viz_params' business (tested there); this is
     only that both write paths run it and surface the failure instead of storing the config."""
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
-    monkeypatch.setattr(service, "_get", lambda *a, **k: _cm(status="ready"))
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: _cm(status="ready"))
     unrenderable = {"mode": "continuous", "rescale": [0, 1]}  # no colormap_name
 
     with pytest.raises(service.InvalidRenderConfig):
@@ -182,7 +182,7 @@ def test_create_with_taken_name_raises(monkeypatch):
 
 def test_rename_to_taken_name_raises(monkeypatch):
     cm = _cm(status="ready")
-    monkeypatch.setattr(service, "_get", lambda *a, **k: cm)
+    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: cm)
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: True)
 
     with pytest.raises(service.DuplicateCustomMapName):

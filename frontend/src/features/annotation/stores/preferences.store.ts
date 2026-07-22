@@ -6,7 +6,7 @@ import {
   type LabelStyle,
   type StyleOverrides,
 } from '../utils/annotationStyle';
-import type { RenderOverride } from '../utils/customMapOverride';
+import type { RenderOverride } from '~/features/customLayers/utils/customMapOverride';
 
 /**
  * Per-device user preferences. Persisted to localStorage via zustand's

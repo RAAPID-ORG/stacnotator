@@ -1,4 +1,4 @@
-import { useMapStore } from '../stores/map.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
 import type { VectorLayerOut } from '~/api/client';
 
 export function toggleVectorLayer(layers: VectorLayerOut[]): void {

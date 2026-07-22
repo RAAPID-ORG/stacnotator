@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { XYZLayer } from './Layer';
-import type { LayerManager } from './layerManager';
+import { XYZLayer } from '~/features/annotation/components/Map/Layer';
+import type { LayerManager } from '~/features/annotation/components/Map/layerManager';
 import type { CustomMapOut } from '~/api/client';
-import { useMapStore } from '../../stores/map.store';
-import { usePreferencesStore } from '../../stores/preferences.store';
-import { applyRenderOverride } from '../../utils/customMapOverride';
+import { useMapStore } from '~/features/annotation/stores/map.store';
+import { usePreferencesStore } from '~/features/annotation/stores/preferences.store';
+import { applyRenderOverride } from '../utils/customMapOverride';
 
 export function useCustomMapLayer(lm: LayerManager | null, customMaps: CustomMapOut[]) {
   const activeId = useMapStore((s) => s.activeCustomMapId);

@@ -2,13 +2,13 @@
  * Per-device colour tweaks to a custom map, layered over the campaign's render config.
  *
  * The backend bakes colours into `tile_url` as viz query params at registration time
- * (see `custom_maps/render.py`), so a local override has to re-stamp those params on the
+ * (see `custom_layers/render.py`), so a local override has to re-stamp those params on the
  * URL template client-side. `COLOR_PARAMS` below mirrors what that module emits, and a
  * backend test (`test_colour_carrying_params_are_the_ones_the_frontend_rewrites`) fails if
  * the two drift apart. `mode` is never overridable.
  */
 import type { CategoricalEntry, RenderConfig } from '~/api/client';
-import type { ColormapName } from '~/shared/utils/customMapColormaps';
+import type { ColormapName } from './customMapColormaps';
 
 export interface RenderOverride {
   colormap_name?: ColormapName;

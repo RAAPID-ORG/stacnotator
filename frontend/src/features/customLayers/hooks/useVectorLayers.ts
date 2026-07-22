@@ -21,7 +21,7 @@ import {
   VECTOR_LAYER_FLAG,
   VECTOR_LAYER_ID_PROP,
   VECTOR_LAYER_Z_INDEX,
-} from './mapUtils';
+} from '~/features/annotation/components/Map/mapUtils';
 
 /** Signature of a layer's render-affecting fields; a change forces a rebuild. */
 function layerSignature(layer: VectorLayerOut): string {

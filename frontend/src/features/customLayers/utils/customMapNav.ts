@@ -1,4 +1,4 @@
-import { useMapStore } from '../stores/map.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
 import type { CustomMapOut } from '~/api/client';
 
 export function readyCustomMaps(maps: CustomMapOut[]): CustomMapOut[] {

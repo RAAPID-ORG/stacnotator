@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { VectorLayerOut } from '~/api/client';
-import { useMapStore } from '../stores/map.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
 import { toggleVectorLayer, cycleVectorLayer } from './vectorLayerNav';
 
 const layer = (id: number): VectorLayerOut => ({

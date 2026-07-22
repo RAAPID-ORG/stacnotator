@@ -10,7 +10,7 @@ import {
   computeCycleSource,
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
-import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
+import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
 
 interface UseAnnotationKeyboardOptions {

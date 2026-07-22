@@ -62,7 +62,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `tiling`. Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `tiling`, `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring
@@ -86,7 +86,7 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 
 Feature-sliced under `frontend/src/`:
 - `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `auth`, `account`, `settings`, `home`, `layout`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
+- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `account`, `settings`, `home`, `layout`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
 - `shared/` — cross-feature `ui/`, `hooks/`, `utils/`
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 

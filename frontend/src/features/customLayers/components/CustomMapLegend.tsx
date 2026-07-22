@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useMapStore } from '../stores/map.store';
-import { usePreferencesStore } from '../stores/preferences.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
+import { usePreferencesStore } from '~/features/annotation/stores/preferences.store';
 import type { CustomMapOut, RenderConfig } from '~/api/client';
-import { ColormapSelect } from '~/shared/ui/ColormapSelect';
-import { gradientFor, formatTick, isColormapName } from '~/shared/utils/customMapColormaps';
+import { ColormapSelect } from './ColormapSelect';
+import { gradientFor, formatTick, isColormapName } from '../utils/customMapColormaps';
 import {
   effectiveRenderConfig,
   isCustomized,

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { CustomMapOut } from '~/api/client';
-import { useMapStore } from '../stores/map.store';
+import { useMapStore } from '~/features/annotation/stores/map.store';
 import { readyCustomMaps, toggleCustomMap, cycleCustomMap } from './customMapNav';
 
 const map = (id: number, over: Partial<CustomMapOut> = {}): CustomMapOut =>
