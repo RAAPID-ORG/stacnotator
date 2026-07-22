@@ -5,7 +5,8 @@ from types import SimpleNamespace
 import jwt
 
 from src.config import TilerCfg
-from src.tiling import providers, tiler_token
+from src.tilers import providers
+from src.tilers import tokens as tiler_token
 
 MPC = "https://planetarycomputer.microsoft.com/api/stac/v1"
 VIZ = {"assets": ["red", "green", "blue"], "rescale": "0,3000"}

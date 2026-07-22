@@ -16,8 +16,8 @@ from src.campaigns.service import list_campaigns_with_user_roles
 from src.config import get_settings
 from src.database import get_db
 from src.routing import FunctionNameOperationIdRoute
-from src.tiling import registry
-from src.tiling.tiler_token import mint as mint_tiler_token
+from src.tilers import registry
+from src.tilers.tokens import mint as mint_tiler_token
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(

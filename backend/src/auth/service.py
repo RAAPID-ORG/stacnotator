@@ -15,7 +15,7 @@ from src.auth.constants import (
 from src.auth.models import User, UserRole, UserTiler
 from src.auth.providers.base import AuthenticatedUser
 from src.config import get_settings
-from src.tiling import registry
+from src.tilers import registry
 
 settings = get_settings()
 

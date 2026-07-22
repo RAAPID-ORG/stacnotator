@@ -24,8 +24,8 @@ from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
+from src.stac_browser.router import router as stac_browser_router
 from src.tile_bulkhead import TileCapacityError
-from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
 
 settings = get_settings()
@@ -216,6 +216,6 @@ app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
 app.include_router(imagery_proxy_router, prefix="/api")
-app.include_router(tiling_router, prefix="/api")
+app.include_router(stac_browser_router, prefix="/api")
 app.include_router(custom_layers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

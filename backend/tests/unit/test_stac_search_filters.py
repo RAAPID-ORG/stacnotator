@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from src.tiling.stac_client import (
+from src.stac_browser.client import (
     bbox_intersects,
     datetime_in_range,
     parse_datetime_range,

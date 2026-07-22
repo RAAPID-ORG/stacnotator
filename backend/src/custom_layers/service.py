@@ -15,7 +15,7 @@ from src.custom_layers.schemas import (
     VectorLayerUpdate,
 )
 from src.database import SessionLocal
-from src.tiling.providers import build_tile_url, register_cog_on_tiler, resolve_tiler
+from src.tilers.providers import build_tile_url, register_cog_on_tiler, resolve_tiler
 
 logger = logging.getLogger(__name__)
 

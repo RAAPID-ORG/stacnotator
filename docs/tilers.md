@@ -14,7 +14,7 @@ A visualization of a collection is served by one of two providers:
 | **hosted** | A self-hosted [titiler-pgstac](https://github.com/RAAPID-ORG/stacnotator-tiler) tiler (TiTiler + GDAL over a pgstac index). Composites, masks, and signs private-bucket reads. | Everything else: non-MPC catalogs, or MPC catalogs with compositing/masking. |
 
 The provider is chosen automatically from the catalog and viz params (`select_provider` in
-`backend/src/tiling/providers.py`). MPC is special only here, in *routing* - it's a separate
+`backend/src/tilers/providers.py`). MPC is special only here, in *routing* - it's a separate
 service that can only serve its own catalog, so it can't be "just another hosted tiler."
 
 There can be **many** hosted tilers (e.g. one on Azure, one on a GCP VM). Each is an
@@ -85,7 +85,7 @@ project's own SAS/identity), which removes the shared deputy entirely.
 
 ## Tilers and their flags
 
-`backend/src/tiling/registry.py` is the single source of truth for which tilers exist. MPC and
+`backend/src/tilers/registry.py` is the single source of truth for which tilers exist. MPC and
 every hosted tiler are described uniformly, each with a few flags:
 
 - **`is_default` - the *default tiler*.** Exactly one hosted tiler (`Settings.DEFAULT_TILER`).

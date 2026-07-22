@@ -1,7 +1,7 @@
-"""Unit test for register_cog_on_tiler — no network, mirrors test_tiling_providers style."""
+"""Unit test for register_cog_on_tiler - no network, mirrors test_tilers_providers style."""
 
 from src.config import TilerCfg
-from src.tiling import providers
+from src.tilers import providers
 
 TILER = TilerCfg(url="https://tiler.test", allows_ingest=True)
 

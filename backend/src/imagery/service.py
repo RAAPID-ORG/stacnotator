@@ -32,7 +32,7 @@ from src.imagery.schemas import (
     ImageryViewCreate,
 )
 from src.imagery.tile_urls import _slice_viz_params, update_collection_viz_params
-from src.tiling import providers
+from src.tilers import providers
 
 logger = logging.getLogger(__name__)
 

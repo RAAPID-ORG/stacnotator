@@ -1,4 +1,4 @@
-"""Pydantic schemas for STAC browser / tiling API."""
+"""Pydantic schemas for the STAC browser API."""
 
 from pydantic import BaseModel
 

@@ -18,7 +18,7 @@ from src.imagery.schemas import (
     TilerOption,
 )
 from src.routing import FunctionNameOperationIdRoute
-from src.tiling import registry
+from src.tilers import registry
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(

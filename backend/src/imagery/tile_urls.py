@@ -7,8 +7,8 @@ from src.imagery.models import (
     ImagerySlice,
     SliceTileUrl,
 )
-from src.tiling import providers
-from src.tiling.router import build_viz_query_string
+from src.tilers import providers
+from src.tilers.providers import build_viz_query_string
 
 
 def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:

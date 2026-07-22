@@ -1,6 +1,6 @@
 # Tile Serving
 
-STACNotator supports three tile serving modes. Each collection within uses one of these depending on its source configuration.
+STACNotator supports three tile serving modes for raster imagery. Each collection within uses one of these depending on its source configuration. Vector tiles (annotations, custom vector layers) never go through a tiler - see [Vector Tiles](#vector-tiles) below.
 
 ## Tile Providers
 
@@ -46,6 +46,13 @@ Within a single collection, the slices can use different tile providers. An exam
 - **Any slice with pixel masking** (e.g. SCL mask for Sentinel-2) → routed through the self-hosted tiler.
 
 This is determined automatically during registration based on each slice's visualization parameters.
+
+## Vector Tiles
+
+Neither of these involves a tiler; they only share the z/x/y URL shape with raster tiles.
+
+- **Annotations (MVT):** the backend renders open-mode annotations itself, straight from Postgres via `ST_AsMVT`. Endpoint: `GET /api/campaigns/{id}/annotations/tiles/{z}/{x}/{y}.pbf` in `backend/src/annotation/router.py`, with the pure query/validation logic in `backend/src/annotation/tiles.py`. Auth is the regular bearer + campaign access, not the `tiler_token` cookie. Each feature carries only `annotation_id` and `label_id`; the frontend styles by label and fetches full geometry on edit.
+- **Custom vector layers (PMTiles):** campaign overlay layers (`custom_layers`) are static PMTiles files read directly from blob storage via HTTP range requests (`ol-pmtiles` in the frontend). Neither the backend nor a tiler is in the request path.
 
 ## STAC Search vs Visualization
 

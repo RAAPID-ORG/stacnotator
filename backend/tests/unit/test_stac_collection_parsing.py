@@ -1,6 +1,6 @@
 import pystac
 
-from src.tiling.stac_client import _collection_out, _unavailable_collection
+from src.stac_browser.client import _collection_out, _unavailable_collection
 
 
 def _collection(extra: dict | None = None) -> pystac.Collection:

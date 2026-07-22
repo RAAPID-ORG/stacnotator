@@ -62,7 +62,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `tiling`, `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring
@@ -72,7 +72,7 @@ Each domain module under `backend/src/<domain>/` follows the same layout:
 
 `canvas/` is a routerless domain module that owns all canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, bin-packing/reconciliation in `layout.py`, DB writes in `service.py`). Other domains contribute window keys (timeseries window names, imagery collection ids) and must never mutate `layout_data` themselves; the save endpoint stays at `imagery/router.py`'s `new-layout` for API stability.
 
-Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `tile_bulkhead.py` (caps tile traffic's share of the DB pool), `earth_engine.py` (EE init), `routing.py` (OpenAPI operation-id route class), `filenames.py` (download-filename sanitizing). `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
+Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `tile_bulkhead.py` (caps tile traffic's share of the DB pool), `earth_engine.py` (EE init), `routing.py` (OpenAPI operation-id route class), `filenames.py` (download-filename sanitizing), and the routerless `tilers/` package (tiler platform integration, consumed by `auth`, `imagery`, `custom_layers`: `registry.py` = which tilers exist incl. MPC, `providers.py` = provider selection + tile-URL building + register/ingest calls, `tokens.py` = tiler JWT mint/verify). `tilers/` never imports from feature modules; `stac_browser/` depends on it, not the reverse. `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
 
 **Auth** is pluggable via `auth/providers/` (`base.py` interface, `firebase.py`, `local.py`), selected by `AUTH_PROVIDER` (`local` = single built-in admin user, no external setup; `firebase` = multi-user). `_validate_production_config()` in `main.py` hard-fails on dev-default secrets when `ENVIRONMENT=production`.
 
@@ -82,7 +82,7 @@ An imagery **source** holds many time-period **collections** (e.g. monthly); eac
 
 ### Tile flow
 
-For MPC collections with first-valid compositing, the frontend fetches tiles **directly from MPC** (fast path, no tiler). Everything else (non-MPC catalogs, compositing/masking) goes through the self-hosted tiler, authorized by an HttpOnly `tiler_token` cookie the backend mints (HS256, shared `TILER_TOKEN_SECRET`). The dev stack runs **db + backend + frontend only**; to exercise the tiler, run the `stacnotator-tiler` repo and set `TILERS`/`DEFAULT_TILER` on the backend service. See `docs/tile-serving.md` and `docs/tilers.md`.
+For MPC collections with first-valid compositing, the frontend fetches tiles **directly from MPC** (fast path, no tiler). Everything else (non-MPC catalogs, compositing/masking) goes through the self-hosted tiler, authorized by an HttpOnly `tiler_token` cookie the backend mints (HS256, shared `TILER_TOKEN_SECRET`). The dev stack runs **db + backend + frontend only**; to exercise the tiler, run the `stacnotator-tiler` repo and set `TILERS`/`DEFAULT_TILER` on the backend service. Vector tiles never touch a tiler: annotation MVT is rendered by the backend itself (`annotation/tiles.py` + the `.pbf` endpoint in `annotation/router.py`), and PMTiles custom layers are fetched straight from storage. See `docs/tile-serving.md` and `docs/tilers.md`.
 
 ## Frontend architecture
 

@@ -4,7 +4,7 @@ import logging
 import socket
 import time
 from collections import OrderedDict
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,15 +12,15 @@ from fastapi.security import HTTPBearer
 
 from src.auth.dependencies import require_approved_user
 from src.auth.models import User
-from src.tiling import registry
-from src.tiling.schemas import (
+from src.stac_browser.client import list_collections as _list_collections
+from src.stac_browser.client import search_items
+from src.stac_browser.schemas import (
     SearchRequest,
     SearchResponse,
     StacCatalogOut,
     StacCollectionOut,
 )
-from src.tiling.stac_client import list_collections as _list_collections
-from src.tiling.stac_client import search_items
+from src.tilers import registry
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
@@ -32,7 +32,6 @@ router = APIRouter(
 
 STACINDEX_URL = "https://stacindex.org/api/catalogs"
 STACINDEX_CACHE_TTL = 3600  # 1 hour
-MPC_API_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
 _AUTH_REQUIRED_CATALOGS = {"usgs-m2m", "maxar"}
 
@@ -57,7 +56,7 @@ CURATED_CATALOGS: list[dict] = [
     _curated_catalog(
         "mpc",
         "Microsoft Planetary Computer",
-        MPC_API_URL,
+        registry.MPC_STAC_URL,
         "The Planetary Computer - petabytes of Earth observation data",
         is_mpc=True,
     ),
@@ -98,7 +97,7 @@ _INTERNAL_IP_ERROR = "Catalog URL host is not permitted"
 def _trusted_catalog_origins() -> frozenset[str]:
     """Origins always allowed regardless of resolved IP (trusted config)."""
     origins: set[str] = set()
-    candidate_urls = [MPC_API_URL]
+    candidate_urls = [registry.MPC_STAC_URL]
     with contextlib.suppress(Exception):
         candidate_urls += [
             t.stac_url for t in registry.all_tilers() if getattr(t, "stac_url", None)
@@ -300,105 +299,3 @@ def search(request: SearchRequest):
     except Exception as e:
         logger.error("STAC search failed: %s", e)
         raise HTTPException(status_code=502, detail="Search failed") from e
-
-
-def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> str:
-    """Build URL query string from viz params dict (snake_case keys).
-
-    Returns empty string if no params. When ``for_mpc`` is True, local-only
-    params (compositing, mask_layer/values, nir_band, red_band, max_items)
-    are skipped because MPC's tile endpoint doesn't understand them - those
-    only apply to our self-hosted rasterio mosaic path.
-    """
-    if not viz_params:
-        return ""
-
-    parts: list[tuple[str, str]] = []
-
-    assets = viz_params.get("assets", [])
-    for a in assets:
-        parts.append(("assets", a))
-
-    if viz_params.get("asset_as_band"):
-        parts.append(("asset_as_band", "true"))
-
-    extra_params = viz_params.get("extra_params")
-    if extra_params:
-        for k, v in extra_params.items():
-            parts.append((k, str(v)))
-
-    expression = viz_params.get("expression")
-    if expression:
-        parts.append(("expression", expression))
-
-    # bidx selects output bands from a single multiband asset (our tiler slices the
-    # composited result to these 1-based indexes - see the tiler's CompositingBackend).
-    bidx = [int(b) for b in (viz_params.get("bidx") or [])]
-
-    # Number of output bands. An expression is a comma-separated list of band
-    # expressions - one output band per term (e.g. "(B08-B04)/(B08+B04)" -> 1,
-    # "B04,B03,B02" -> 3) - which is independent of how many assets it reads.
-    # With bidx it's the number of selected bands. Otherwise each asset is one band.
-    if expression:
-        output_bands = len([term for term in expression.split(",") if term.strip()]) or 1
-    elif bidx:
-        output_bands = len(bidx)
-    else:
-        output_bands = max(len(assets), 1)
-
-    rescale = viz_params.get("rescale")
-    if rescale:
-        for _ in range(output_bands):
-            parts.append(("rescale", rescale))
-
-    # A colormap maps a single-band image to RGB, so it only applies when the
-    # output is exactly one band.
-    colormap_name = viz_params.get("colormap_name")
-    if colormap_name and output_bands == 1:
-        parts.append(("colormap_name", colormap_name))
-
-    color_formula = viz_params.get("color_formula")
-    if color_formula:
-        parts.append(("color_formula", color_formula))
-
-    resampling = viz_params.get("resampling")
-    if resampling:
-        parts.append(("resampling", resampling))
-
-    nodata = viz_params.get("nodata")
-    if nodata is not None:
-        parts.append(("nodata", str(nodata)))
-
-    # Local-only params below. MPC doesn't understand these - the tile
-    # endpoint would reject them or silently ignore, so skip entirely.
-    if for_mpc:
-        return urlencode(parts)
-
-    if bidx:
-        parts.append(("bidx", ",".join(str(b) for b in bidx)))
-
-    compositing = viz_params.get("compositing")
-    if compositing:
-        parts.append(("compositing", compositing))
-
-    mask_layer = viz_params.get("mask_layer")
-    if mask_layer:
-        parts.append(("mask_layer", mask_layer))
-
-    mask_values = viz_params.get("mask_values", [])
-    for mv in mask_values:
-        parts.append(("mask_values", str(mv)))
-
-    nir_band = viz_params.get("nir_band")
-    if nir_band:
-        parts.append(("nir_band", nir_band))
-
-    red_band = viz_params.get("red_band")
-    if red_band:
-        parts.append(("red_band", red_band))
-
-    max_items = viz_params.get("max_items")
-    if max_items is not None:
-        parts.append(("max_items", str(max(1, min(int(max_items), 10)))))
-
-    return urlencode(parts)

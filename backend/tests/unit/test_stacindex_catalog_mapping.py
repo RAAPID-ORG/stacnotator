@@ -1,4 +1,4 @@
-from src.tiling.router import _map_stacindex_catalog
+from src.stac_browser.router import _map_stacindex_catalog
 
 
 def test_uses_slug_as_id_not_numeric_id():

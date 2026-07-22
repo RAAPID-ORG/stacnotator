@@ -7,12 +7,21 @@ an import cycle.
 """
 
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from src.config import get_settings
 
 MPC = "mpc"
 HOSTED = "hosted"
 MPC_STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+
+
+def is_mpc_url(url: str) -> bool:
+    """Whether ``url`` points at the Microsoft Planetary Computer."""
+    host = (urlparse(url).hostname or "").lower()
+    return host == "planetarycomputer.microsoft.com" or host.endswith(
+        ".planetarycomputer.microsoft.com"
+    )
 
 
 @dataclass(frozen=True)

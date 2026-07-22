@@ -10,14 +10,15 @@ Two providers:
                  can ingest come from config only.
 """
 
+from urllib.parse import urlencode
+
 import httpx
 
 from src.config import TilerCfg, get_settings
-from src.tiling.registry import HOSTED as PROVIDER_HOSTED
-from src.tiling.registry import MPC as PROVIDER_MPC
-from src.tiling.router import build_viz_query_string
-from src.tiling.stac_client import _is_mpc
-from src.tiling.tiler_token import mint as mint_tiler_token
+from src.tilers.registry import HOSTED as PROVIDER_HOSTED
+from src.tilers.registry import MPC as PROVIDER_MPC
+from src.tilers.registry import is_mpc_url
+from src.tilers.tokens import mint as mint_tiler_token
 
 MPC_TILES_BASE = (
     "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/"
@@ -33,9 +34,111 @@ def mpc_eligible(viz_params: dict) -> bool:
 
 def select_provider(catalog_url: str | None, viz_params: dict) -> str:
     """Return ``"mpc"`` for MPC-eligible MPC catalogs, else ``"hosted"``."""
-    if _is_mpc(catalog_url or "") and mpc_eligible(viz_params):
+    if is_mpc_url(catalog_url or "") and mpc_eligible(viz_params):
         return PROVIDER_MPC
     return PROVIDER_HOSTED
+
+
+def build_viz_query_string(viz_params: dict | None, for_mpc: bool = False) -> str:
+    """Build URL query string from viz params dict (snake_case keys).
+
+    Returns empty string if no params. When ``for_mpc`` is True, local-only
+    params (compositing, mask_layer/values, nir_band, red_band, max_items)
+    are skipped because MPC's tile endpoint doesn't understand them - those
+    only apply to our self-hosted rasterio mosaic path.
+    """
+    if not viz_params:
+        return ""
+
+    parts: list[tuple[str, str]] = []
+
+    assets = viz_params.get("assets", [])
+    for a in assets:
+        parts.append(("assets", a))
+
+    if viz_params.get("asset_as_band"):
+        parts.append(("asset_as_band", "true"))
+
+    extra_params = viz_params.get("extra_params")
+    if extra_params:
+        for k, v in extra_params.items():
+            parts.append((k, str(v)))
+
+    expression = viz_params.get("expression")
+    if expression:
+        parts.append(("expression", expression))
+
+    # bidx selects output bands from a single multiband asset (our tiler slices the
+    # composited result to these 1-based indexes - see the tiler's CompositingBackend).
+    bidx = [int(b) for b in (viz_params.get("bidx") or [])]
+
+    # Number of output bands. An expression is a comma-separated list of band
+    # expressions - one output band per term (e.g. "(B08-B04)/(B08+B04)" -> 1,
+    # "B04,B03,B02" -> 3) - which is independent of how many assets it reads.
+    # With bidx it's the number of selected bands. Otherwise each asset is one band.
+    if expression:
+        output_bands = len([term for term in expression.split(",") if term.strip()]) or 1
+    elif bidx:
+        output_bands = len(bidx)
+    else:
+        output_bands = max(len(assets), 1)
+
+    rescale = viz_params.get("rescale")
+    if rescale:
+        for _ in range(output_bands):
+            parts.append(("rescale", rescale))
+
+    # A colormap maps a single-band image to RGB, so it only applies when the
+    # output is exactly one band.
+    colormap_name = viz_params.get("colormap_name")
+    if colormap_name and output_bands == 1:
+        parts.append(("colormap_name", colormap_name))
+
+    color_formula = viz_params.get("color_formula")
+    if color_formula:
+        parts.append(("color_formula", color_formula))
+
+    resampling = viz_params.get("resampling")
+    if resampling:
+        parts.append(("resampling", resampling))
+
+    nodata = viz_params.get("nodata")
+    if nodata is not None:
+        parts.append(("nodata", str(nodata)))
+
+    # Local-only params below. MPC doesn't understand these - the tile
+    # endpoint would reject them or silently ignore, so skip entirely.
+    if for_mpc:
+        return urlencode(parts)
+
+    if bidx:
+        parts.append(("bidx", ",".join(str(b) for b in bidx)))
+
+    compositing = viz_params.get("compositing")
+    if compositing:
+        parts.append(("compositing", compositing))
+
+    mask_layer = viz_params.get("mask_layer")
+    if mask_layer:
+        parts.append(("mask_layer", mask_layer))
+
+    mask_values = viz_params.get("mask_values", [])
+    for mv in mask_values:
+        parts.append(("mask_values", str(mv)))
+
+    nir_band = viz_params.get("nir_band")
+    if nir_band:
+        parts.append(("nir_band", nir_band))
+
+    red_band = viz_params.get("red_band")
+    if red_band:
+        parts.append(("red_band", red_band))
+
+    max_items = viz_params.get("max_items")
+    if max_items is not None:
+        parts.append(("max_items", str(max(1, min(int(max_items), 10)))))
+
+    return urlencode(parts)
 
 
 def build_tile_url(

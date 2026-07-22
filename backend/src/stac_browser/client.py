@@ -4,13 +4,14 @@ import concurrent.futures
 import logging
 import time
 from datetime import UTC, datetime
-from urllib.parse import urlparse
 
 import httpx
 import planetary_computer as pc
 import pystac
 import pystac_client
 from pystac_client import CollectionClient
+
+from src.tilers.registry import is_mpc_url
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,6 @@ _KNOWN_CLOUD_COVER_COLLECTIONS = {
 }
 
 
-def _is_mpc(url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    return host == "planetarycomputer.microsoft.com" or host.endswith(
-        ".planetarycomputer.microsoft.com"
-    )
-
-
 def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     """Get a pystac Client for the given catalog URL.
 
@@ -49,7 +43,7 @@ def get_client(catalog_url: str, sign: bool = True) -> pystac_client.Client:
     broken collection (e.g. nex-gddp-cmip6) 404s the whole listing.
     """
     kwargs = {}
-    if sign and _is_mpc(catalog_url):
+    if sign and is_mpc_url(catalog_url):
         kwargs["modifier"] = pc.sign_inplace
     return pystac_client.Client.open(catalog_url, **kwargs)
 
