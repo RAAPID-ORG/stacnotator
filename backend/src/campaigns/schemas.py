@@ -13,10 +13,10 @@ from pydantic import (
 
 from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
+from src.canvas.schemas import CanvasLayoutOut
 from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
-    CanvasLayoutOut,
     ImageryEditorStateCreate,
     ImagerySourceOut,
     ImageryViewOut,

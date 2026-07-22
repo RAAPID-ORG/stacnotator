@@ -1,7 +1,6 @@
 import logging
 import threading
 from collections.abc import Iterable
-from copy import deepcopy
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -20,14 +19,10 @@ from src.annotation.models import Annotation, AnnotationTask, Embedding
 from src.auth.constants import ROLE_ADMIN
 from src.auth.models import User, UserRole
 from src.auth.service import is_admin as is_global_admin
-from src.campaigns.constants import (
-    DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT,
-)
 from src.campaigns.models import (
     Campaign,
     CampaignSettings,
     CampaignUser,
-    CanvasLayout,
     TaskSet,
 )
 from src.campaigns.policy import PolicyContext
@@ -38,6 +33,7 @@ from src.campaigns.schemas import (
     default_labelling_policy,
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
+from src.canvas.service import new_default_main_layout
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.service import (
@@ -326,16 +322,7 @@ def create_campaign(
 
     db.add(TaskSet(campaign_id=campaign.id, name=DEFAULT_TASK_SET_NAME))
 
-    # Create default main canvas layout for the campaign. Copy the template so
-    # the sync below (and any later mutation) never edits the shared constant.
-    default_layout = CanvasLayout(
-        layout_data=deepcopy(DEFAULT_CAMPAIGN_MAIN_CANVAS_LAYOUT),
-        user_id=None,
-        campaign_id=campaign.id,
-        view_id=None,
-        is_default=True,
-    )
-    db.add(default_layout)
+    db.add(new_default_main_layout(campaign.id))
 
     # Create campaign settings
     campaign_settings = CampaignSettings(

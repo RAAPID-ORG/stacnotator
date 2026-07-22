@@ -1,6 +1,3 @@
-import re
-from calendar import monthrange
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -10,6 +7,7 @@ from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
+from src.routing import FunctionNameOperationIdRoute
 from src.timeseries import service
 from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_PROVIDERS,
@@ -22,8 +20,8 @@ from src.timeseries.schemas import (
     TimeseriesDataResponse,
     TimeseriesListResponse,
     TimeSeriesOptionsOut,
+    ym_range_to_dates,
 )
-from src.utils import FunctionNameOperationIdRoute
 
 router = APIRouter(
     tags=["Time Series"],
@@ -77,28 +75,16 @@ def get_timeseries_data(
 ):
     """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
-
-    # Verify the user has access to the campaign this timeseries belongs to
     require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
 
-    ym_pattern = re.compile(r"^\d{4}(0[1-9]|1[0-2])$")
-    if (
-        not timeseries.start_ym
-        or not timeseries.end_ym
-        or not ym_pattern.match(timeseries.start_ym)
-        or not ym_pattern.match(timeseries.end_ym)
-    ):
+    try:
+        start, end = ym_range_to_dates(timeseries.start_ym, timeseries.end_ym)
+    except ValueError as exc:
         raise HTTPException(
-            status_code=400,
-            detail="Timeseries has no valid date range configured (start_ym / end_ym must be YYYYMM format with valid month 01-12)",
-        )
+            status_code=400, detail=f"Timeseries has an invalid date range: {exc}"
+        ) from exc
 
-    start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])
-    end_year, end_month = int(timeseries.end_ym[:4]), int(timeseries.end_ym[4:6])
-    start = f"{start_year}-{start_month:02d}-01"
-    end = f"{end_year}-{end_month:02d}-{monthrange(end_year, end_month)[1]}"
-
-    # Hand the pooled connection back before the Earth Engine call.
+    # Free the pooled connection back before the slow Earth Engine call.
     ts_type, source = timeseries.ts_type, timeseries.data_source
     db.close()
 

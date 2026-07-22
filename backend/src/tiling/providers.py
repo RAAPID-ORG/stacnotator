@@ -8,9 +8,6 @@ Two providers (the `self_hosted` mosaic_items tiler is retired):
   * ``hosted`` - a titiler-pgstac tiler resolved **from config by name** (``Settings.TILERS``).
                  STACNotator is unaware of where it's hosted; the tiler's URL and whether it
                  can ingest come from config only.
-
-This is the single place that knows the per-provider URL shapes and the register/ingest
-calls, so the registration flow in ``imagery/service.py`` stays branch-light.
 """
 
 import httpx

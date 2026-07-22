@@ -6,9 +6,9 @@ from fastapi import HTTPException
 from googleapiclient.errors import HttpError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
-from src.campaigns.models import Campaign, CanvasLayout
+from src.campaigns.models import Campaign
+from src.canvas.service import sync_main_layouts
 from src.config import get_settings
 from src.timeseries.models import TimeSeries
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
@@ -18,8 +18,8 @@ settings = get_settings()
 
 
 # ============================================================================
-# Currently only Earth Engine is supported as a timeseries data source.
-# STAC catalog support is not yet implemented due to performance constraints.
+# Timeseries data fetching / processing
+# ============================================================================
 
 
 def add_ndvi_band_to_ee_image(image: ee.Image, nir: str, red: str, name: str = "NDVI") -> ee.Image:
@@ -258,21 +258,9 @@ def sync_campaign_timeseries_windows(campaign_id: int, db: Session) -> None:
         .all()
     )
     desired_keys = distinct_window_keys(window_names)
-
-    main_layouts = (
-        db.execute(
-            select(CanvasLayout).where(
-                CanvasLayout.campaign_id == campaign_id,
-                CanvasLayout.view_id.is_(None),
-            )
-        )
-        .scalars()
-        .all()
+    sync_main_layouts(
+        db, campaign_id, lambda ld: sync_timeseries_windows_in_layout(ld, desired_keys)
     )
-
-    for layout in main_layouts:
-        if sync_timeseries_windows_in_layout(layout.layout_data, desired_keys):
-            flag_modified(layout, "layout_data")
 
 
 def get_timeseries_for_campaign(campaign_id: int, db: Session) -> list[TimeSeriesOut]:

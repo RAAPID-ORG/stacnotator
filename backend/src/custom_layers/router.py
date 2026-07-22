@@ -16,7 +16,7 @@ from src.custom_layers.schemas import (
     VectorLayerUpdate,
 )
 from src.database import get_db
-from src.utils import FunctionNameOperationIdRoute
+from src.routing import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()
 

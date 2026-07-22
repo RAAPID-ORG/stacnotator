@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
+from src.canvas.schemas import CanvasLayoutOut
+
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
 # ============================================================================
@@ -128,24 +130,6 @@ class ViewCollectionRefItem(BaseModel):
     collection_id: int
     source_id: int
     show_as_window: bool = True
-
-
-class CanvasLayoutItem(BaseModel):
-    """One react-grid-layout tile: grid id and position/size in grid units."""
-
-    i: str
-    x: int
-    y: int
-    w: int
-    h: int
-
-
-class CanvasLayoutOut(BaseModel):
-    id: int
-    user_id: UUID | None
-    layout_data: list[CanvasLayoutItem]
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class ImageryViewOut(BaseModel):
@@ -343,18 +327,6 @@ class ImageryViewAddRequest(BaseModel):
 
     name: str = ""
     collection_refs: list[ViewCollectionRefItem] = []
-
-
-class CanvasLayoutCreate(BaseModel):
-    main_layout_data: list
-    view_layout_data: list | None = None
-    view_id: int | None = None
-
-
-class CanvasLayoutCreateRequest(BaseModel):
-    layout: CanvasLayoutCreate
-    should_be_default: bool = False
-    view_id: int
 
 
 class CreateImageryResponse(BaseModel):

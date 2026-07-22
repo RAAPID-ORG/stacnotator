@@ -58,7 +58,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ### Frontend API client is generated
 
-`frontend/src/api/client/*.gen.ts` is generated from the backend's OpenAPI schema — **never hand-edit it**. With the backend running, regenerate with `make dev-openapi` (`cd frontend && npm run openapi-ts`). Config in `frontend/openapi-ts.config.ts`. The backend uses `generate_unique_id` (see `backend/src/utils.py`) so generated operation/type names stay stable.
+`frontend/src/api/client/*.gen.ts` is generated from the backend's OpenAPI schema — **never hand-edit it**. With the backend running, regenerate with `make dev-openapi` (`cd frontend && npm run openapi-ts`). Config in `frontend/openapi-ts.config.ts`. The backend uses `generate_unique_id` (see `backend/src/routing.py`) so generated operation/type names stay stable.
 
 ## Backend architecture
 
@@ -68,9 +68,11 @@ Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring
 - `service.py` — orchestration: DB I/O + external calls (STAC, Earth Engine, tiler)
 - `models.py` — SQLAlchemy models; `schemas.py` — Pydantic request/response models
-- **functional-core modules** — pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/layouts.py` + `imagery/tile_urls.py`, `annotation/io.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
+- **functional-core modules** — pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/tile_urls.py`, `annotation/io.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
 
-Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `utils.py` (Earth Engine init, request-id helpers). `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
+`canvas/` is a routerless domain module that owns all canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, bin-packing/reconciliation in `layout.py`, DB writes in `service.py`). Other domains contribute window keys (timeseries window names, imagery collection ids) and must never mutate `layout_data` themselves; the save endpoint stays at `imagery/router.py`'s `new-layout` for API stability.
+
+Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `tile_bulkhead.py` (caps tile traffic's share of the DB pool), `earth_engine.py` (EE init), `routing.py` (OpenAPI operation-id route class), `filenames.py` (download-filename sanitizing). `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
 
 **Auth** is pluggable via `auth/providers/` (`base.py` interface, `firebase.py`, `local.py`), selected by `AUTH_PROVIDER` (`local` = single built-in admin user, no external setup; `firebase` = multi-user). `_validate_production_config()` in `main.py` hard-fails on dev-default secrets when `ENVIRONMENT=production`.
 

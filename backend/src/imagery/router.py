@@ -6,18 +6,19 @@ from src.auth.dependencies import require_approved_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.canvas import service as canvas_service
+from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
-from src.imagery import layouts, service
+from src.imagery import service
 from src.imagery.schemas import (
     AllowedTilersOut,
     ApiKeyStatusOut,
     ApiKeyUpdate,
-    CanvasLayoutCreateRequest,
     ImageryEditorStateCreate,
     TilerOption,
 )
+from src.routing import FunctionNameOperationIdRoute
 from src.tiling import registry
-from src.utils import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -124,7 +125,7 @@ def create_new_canvas_layout(
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
 ):
-    result = layouts.create_new_canvas_layout(
+    result = canvas_service.save_canvas_layouts(
         db=db,
         campaign_id=campaign_id,
         view_id=canvas_layout_req.view_id,

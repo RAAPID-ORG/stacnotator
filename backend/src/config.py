@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     # Shared secret for signing tiler access tokens (HS256 JWT). Must match the tilers.
     TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
 
-    # AES-256-GCM master key for encrypting provider API keys at rest (base64 of 32 bytes).
+    # AES-256-GCM master key for encrypting imagery provider API keys at rest (base64 of 32 bytes).
     # On Azure this App Setting is a Key Vault reference so the real key lives in Key Vault.
     APIKEY_ENCRYPTION_SECRET: str = "dev-apikey-secret-change-in-production"
 

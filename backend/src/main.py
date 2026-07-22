@@ -19,13 +19,14 @@ from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
 from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
+from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
+from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
 from src.tile_bulkhead import TileCapacityError
 from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
-from src.utils import generate_unique_id, initialize_earth_engine
 
 settings = get_settings()
 

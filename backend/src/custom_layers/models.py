@@ -54,10 +54,7 @@ class CustomMap(Base):
 class VectorLayer(Base):
     """A campaign-scoped PMTiles vector layer rendered client-side in open mode.
 
-    Unlike ``CustomMap`` (a COG registered on the tiler), a vector layer is just a
-    ``.pmtiles`` URL the frontend reads directly via HTTP range requests, so there
-    is no tiler registration and no status lifecycle - the row is usable as soon as
-    it is created.
+    Just a ``.pmtiles`` URL the frontend reads directly via HTTP range requests.
     """
 
     __tablename__ = "vector_layers"
@@ -72,7 +69,7 @@ class VectorLayer(Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     pmtiles_url: Mapped[str] = mapped_column(Text, nullable=False)
-    # Optional MVT source-layer name to render; null renders every layer in the file.
+    # If multi layer source: source-layer name to render. null renders every layer.
     source_layer: Mapped[str | None] = mapped_column(String, nullable=True)
     color: Mapped[str] = mapped_column(String(9), server_default="#3b82f6", nullable=False)
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)

@@ -34,8 +34,9 @@ from src.campaigns.dependencies import require_campaign_access, require_campaign
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
+from src.filenames import clean_filename
+from src.routing import FunctionNameOperationIdRoute
 from src.tile_bulkhead import tile_slot
-from src.utils import FunctionNameOperationIdRoute, clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(

@@ -8,12 +8,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.auth.models import User
-from src.campaigns.constants import VIEW_LAYOUT_START_Y
-from src.campaigns.models import Campaign, CanvasLayout
+from src.campaigns.models import Campaign
+from src.canvas.service import new_default_view_layout, sync_view_layouts
 from src.config import get_settings
 from src.crypto import encrypt
 from src.database import SessionLocal
-from src.imagery.layouts import _layout_window_for, _sync_view_layouts
 from src.imagery.models import (
     Basemap,
     CollectionStacConfig,
@@ -352,7 +351,7 @@ def save_imagery_editor_state(
             db_view.collection_refs = mapped_refs
             flag_modified(db_view, "collection_refs")
             new_window_ids = {r["collection_id"] for r in mapped_refs if r.get("show_as_window")}
-            _sync_view_layouts(
+            sync_view_layouts(
                 db,
                 db_view.id,
                 campaign.id,
@@ -368,22 +367,8 @@ def save_imagery_editor_state(
             )
             db.add(new_view)
             db.flush()
-            window_refs = [r for r in mapped_refs if r.get("show_as_window")]
-            db.add(
-                CanvasLayout(
-                    layout_data=[
-                        {
-                            "i": str(ref["collection_id"]),
-                            **_layout_window_for(idx, VIEW_LAYOUT_START_Y),
-                        }
-                        for idx, ref in enumerate(window_refs)
-                    ],
-                    user_id=None,
-                    campaign_id=campaign.id,
-                    view_id=new_view.id,
-                    is_default=True,
-                )
-            )
+            window_ids = [r["collection_id"] for r in mapped_refs if r.get("show_as_window")]
+            db.add(new_default_view_layout(campaign.id, new_view.id, window_ids))
 
     # Basemaps: replace wholesale (small list, no inbound FKs).
     db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
@@ -1462,23 +1447,8 @@ def _create_views(
         db.add(view)
         db.flush()
 
-        # Windows arrange in rows under the main canvas; gaps are kept on later
-        # edits so user customizations survive collection changes (see _sync_view_layouts).
-        window_refs = [r for r in mapped_refs if r.get("show_as_window")]
-        view_layout_data = [
-            {"i": str(ref["collection_id"]), **_layout_window_for(idx, VIEW_LAYOUT_START_Y)}
-            for idx, ref in enumerate(window_refs)
-        ]
-
-        # Create default canvas layout for this view
-        canvas_layout = CanvasLayout(
-            layout_data=view_layout_data,
-            user_id=None,
-            campaign_id=campaign_id,
-            view_id=view.id,
-            is_default=True,
-        )
-        db.add(canvas_layout)
+        window_ids = [r["collection_id"] for r in mapped_refs if r.get("show_as_window")]
+        db.add(new_default_view_layout(campaign_id, view.id, window_ids))
 
         created.append(view)
 

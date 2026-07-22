@@ -44,7 +44,8 @@ from src.campaigns.schemas import (
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
-from src.utils import FunctionNameOperationIdRoute, clean_filename
+from src.filenames import clean_filename
+from src.routing import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(

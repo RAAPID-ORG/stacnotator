@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 HEX_COLOR = r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+COLOR_BLUE = "#3b82f6"
 
 
 class CategoricalEntry(BaseModel):
@@ -11,9 +12,7 @@ class CategoricalEntry(BaseModel):
     label: str = ""
 
 
-# The one set of colormaps supported end to end: the tiler renders them (rio-tiler
-# names) AND the frontend legend can draw their gradient. Growing this set means
-# adding stops in frontend customMapColormaps.ts too, or legends stop matching tiles.
+# If extended must update customMapColormaps.ts too
 ColormapName = Literal[
     "viridis", "plasma", "magma", "inferno", "cividis", "turbo", "rdylgn", "rdbu"
 ]
@@ -25,8 +24,6 @@ class RenderConfig(BaseModel):
     nodata: float | None = None
     colormap_name: ColormapName | None = None
     rescale: tuple[float, float] | None = None
-    # Capped because the colormap is baked into every tile URL (uint8 class rasters
-    # cannot exceed 256 values anyway).
     entries: list[CategoricalEntry] | None = Field(default=None, max_length=256)
 
 
@@ -71,7 +68,7 @@ class VectorLayerCreate(BaseModel):
     name: str = Field(min_length=1)
     pmtiles_url: str = Field(min_length=1)
     source_layer: str | None = None
-    color: str = Field(default="#3b82f6", pattern=HEX_COLOR)
+    color: str = Field(default=COLOR_BLUE, pattern=HEX_COLOR)
 
 
 class VectorLayerUpdate(BaseModel):

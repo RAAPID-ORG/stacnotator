@@ -10,14 +10,12 @@ class StacCatalogOut(BaseModel):
     summary: str
     is_mpc: bool
     auth_required: bool
-    # Set for our platform tiler catalogs; picking a collection auto-targets this tiler.
-    tiler_name: str | None = None
-    # True for catalogs we provide (MPC + platform tiler catalogs), false for external.
-    provided: bool = False
-    # False when the catalog can't be used (e.g. needs auth we don't have). We still
-    # list it rather than hide it; the reason tells the user why it's disabled.
-    selectable: bool = True
-    unavailable_reason: str | None = None
+    tiler_name: str | None = (
+        None  #  Tiler that should serve this catalog tiles. Co-locate with data.
+    )
+    provided: bool = False  # Only true for MPC + our hosted + configured tilers
+    selectable: bool = True  # False if needs unhandled auth or other blocking reason
+    unavailable_reason: str | None = None  # Reason for selectable
 
 
 class BandInfo(BaseModel):
@@ -29,8 +27,6 @@ class AssetInfo(BaseModel):
     title: str
     type: str
     roles: list[str]
-    # Populated from the asset's eo:bands; lets the wizard pick bands within a single
-    # multiband asset. Empty for single-band / per-band-asset collections (e.g. MPC).
     bands: list[BandInfo] = []
 
 
@@ -48,10 +44,8 @@ class StacCollectionOut(BaseModel):
     keywords: list[str] = []
     item_assets: dict[str, AssetInfo] = {}
     has_cloud_cover: bool = False
-    # False when the collection's STAC metadata couldn't be parsed. We still list it
-    # (never silently drop it); the reason tells the user why it's not selectable.
-    selectable: bool = True
-    unavailable_reason: str | None = None
+    selectable: bool = True  # False if needs unhandled auth or other blocking reason
+    unavailable_reason: str | None = None  # Reason for selectable
 
 
 class SearchRequest(BaseModel):
@@ -60,8 +54,7 @@ class SearchRequest(BaseModel):
     bbox: list[float] | None = None
     datetime_range: str | None = None
     limit: int = 50
-    # Cursor for paging static catalogs: resume the item-link crawl from here.
-    offset: int = 0
+    offset: int = 0  # Cursor for paging static catalogs: resume the item-link crawl from here.
 
 
 class StacItemOut(BaseModel):
@@ -78,6 +71,4 @@ class StacItemOut(BaseModel):
 class SearchResponse(BaseModel):
     items: list[StacItemOut]
     count: int
-    # Next crawl offset for a static catalog when more items remain; null when the
-    # results are complete (STAC-API catalogs are server-filtered and never paged).
-    next_offset: int | None = None
+    next_offset: int | None = None  # crawl offset, null of results complete

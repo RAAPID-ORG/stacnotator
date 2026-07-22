@@ -3,7 +3,8 @@
 import typing
 from uuid import UUID
 
-from src.campaigns.models import CampaignUser, CanvasLayout
+from src.campaigns.models import CampaignUser
+from src.canvas.models import CanvasLayout
 
 
 def _get_mapped_inner(annotation):

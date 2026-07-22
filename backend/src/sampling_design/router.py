@@ -9,9 +9,9 @@ from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
+from src.routing import FunctionNameOperationIdRoute
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
-from src.utils import FunctionNameOperationIdRoute
 
 
 def _intersect_region_with_bbox(

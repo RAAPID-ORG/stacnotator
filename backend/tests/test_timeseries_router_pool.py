@@ -7,7 +7,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.auth.dependencies import require_approved_user
-from src.campaigns import dependencies as campaign_deps
 from src.database import get_db
 from src.main import app
 from src.timeseries import router as ts_router
@@ -47,9 +46,6 @@ def events(monkeypatch):
 
     app.dependency_overrides[get_db] = lambda: fake_db
     app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id=1)
-    app.dependency_overrides[campaign_deps.require_campaign_access] = lambda: SimpleNamespace(
-        id=CAMPAIGN_ID
-    )
     yield log
     app.dependency_overrides.clear()
 
