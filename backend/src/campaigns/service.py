@@ -36,11 +36,11 @@ from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
 from src.canvas.service import new_default_main_layout
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
-from src.imagery.service import (
-    create_imagery_from_editor_state,
+from src.imagery.registration import (
     re_register_stac_collections,
     spawn_background_mosaic_registration,
 )
+from src.imagery.service import create_imagery_from_editor_state
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import sync_campaign_timeseries_windows
 

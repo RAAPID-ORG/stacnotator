@@ -9,7 +9,7 @@ from src.campaigns.models import Campaign
 from src.canvas import service as canvas_service
 from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
-from src.imagery import service
+from src.imagery import registration, service
 from src.imagery.schemas import (
     AllowedTilersOut,
     ApiKeyStatusOut,
@@ -109,7 +109,7 @@ def save_imagery(
         campaign.registration_errors = None
     db.commit()
     if pending:
-        service.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
+        registration.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
     return {
         "sources": len(result["sources"]),
         "views": len(result["views"]),
@@ -150,7 +150,7 @@ def refresh_collection_imagery(
         campaign.settings.bbox_east,
         campaign.settings.bbox_north,
     ]
-    result = service.refresh_collection_imagery(db, collection_id, bbox)
+    result = registration.refresh_collection_imagery(db, collection_id, bbox)
     db.commit()
     return result
 
