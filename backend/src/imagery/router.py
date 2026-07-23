@@ -147,16 +147,34 @@ def refresh_collection_imagery(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Re-search STAC catalog with stored params and update mosaic items."""
+    """Re-search STAC catalog with stored params and re-ingest mosaic items.
+
+    Ingest is a slow per-slice HTTP call to the tiler; it runs off the request
+    path (see spawn_background_collection_refresh) so this transaction isn't
+    held open across it.
+    """
+    # Cheap synchronous existence/config check before touching campaign status. A
+    # bad or stale collection_id is the only realistic failure path left once
+    # ingest moves off-thread (per-slice tiler failures are caught and logged
+    # inside refresh_collection_imagery, never raised) - it must 404/400 here
+    # rather than only surface later as a campaign-wide registration_status
+    # "failed" that blocks annotation.
+    registration.load_refreshable_collection(db, collection_id)
     bbox = [
         campaign.settings.bbox_west,
         campaign.settings.bbox_south,
         campaign.settings.bbox_east,
         campaign.settings.bbox_north,
     ]
-    result = registration.refresh_collection_imagery(db, collection_id, bbox)
+    # Cycle-boundary clear, not a finished-work write: commits before the
+    # background thread spawns, matching save_imagery's convention.
+    campaign.registration_status = "registering"
+    campaign.registration_errors = None
     db.commit()
-    return result
+    registration.spawn_background_collection_refresh(campaign.id, collection_id, bbox)
+    # Literal, not a re-read: expire_on_commit could reload the row after the
+    # background thread has already flipped it to ready/failed.
+    return {"registration_status": "registering"}
 
 
 @router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)

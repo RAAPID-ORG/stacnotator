@@ -417,6 +417,67 @@ def spawn_background_mosaic_registration(
     threading.Thread(target=_run, daemon=True).start()
 
 
+def spawn_background_collection_refresh(
+    campaign_id: int,
+    collection_id: int,
+    bbox: list[float],
+) -> None:
+    """Run a manual collection re-ingest on a daemon thread with its own DB session.
+
+    Refresh re-ingests every slice's AOI into the hosted tiler's pgstac, one HTTP
+    call per slice, which can take minutes across a whole collection; doing it
+    inline holds the request's transaction open across those calls and trips the
+    idle-in-transaction backstop. The request marks the campaign `registering`
+    and commits first, then calls this to run the ingest and flip
+    `registration_status` to ready/failed when done - mirrors
+    spawn_background_mosaic_registration.
+    """
+
+    def _run() -> None:
+        bg_db = SessionLocal()
+        try:
+            logger.info(
+                "Background collection refresh started for campaign %d collection %d",
+                campaign_id,
+                collection_id,
+            )
+            refresh_collection_imagery(bg_db, collection_id, bbox)
+            finish_registration(
+                bg_db,
+                campaign_id,
+                status_field="registration_status",
+                status="ready",
+                errors=[],
+            )
+            bg_db.commit()
+            logger.info(
+                "Collection refresh completed for campaign %d collection %d",
+                campaign_id,
+                collection_id,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Collection refresh failed for campaign %d collection %d",
+                campaign_id,
+                collection_id,
+            )
+            try:
+                finish_registration(
+                    bg_db,
+                    campaign_id,
+                    status_field="registration_status",
+                    status="failed",
+                    errors=[{"error": f"Collection refresh: {_sanitize_stac_error(exc)}"}],
+                )
+                bg_db.commit()
+            except Exception:
+                logger.warning("Failed to persist refresh error status", exc_info=True)
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
 def _resolved_search_body(search_query: dict | None, bbox: list[float], db_slice) -> dict:
     """Deepcopy the CQL2-JSON query and inject bbox + this slice's datetime.
 
@@ -573,14 +634,13 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
     return updated
 
 
-def refresh_collection_imagery(
-    db: Session,
-    collection_id: int,
-    bbox: list[float],
-) -> dict:
-    """Re-search STAC catalog with stored params, update mosaic items.
+def load_refreshable_collection(db: Session, collection_id: int) -> ImageryCollection:
+    """Look up a collection and validate it's refreshable, raising the 404/400 this
+    has always raised for a bad id or a non-STAC-browser collection.
 
-    Returns dict with status and registered_at.
+    Shared by the request handler's synchronous pre-spawn check and
+    refresh_collection_imagery's own use below, so there is one source of truth
+    for what "refreshable" means rather than two copies that could drift.
     """
     collection = db.execute(
         select(ImageryCollection).where(ImageryCollection.id == collection_id)
@@ -591,7 +651,23 @@ def refresh_collection_imagery(
     stac = collection.stac_config
     if not stac.catalog_url or not stac.stac_collection_id:
         raise HTTPException(status_code=400, detail="Collection is not a STAC browser collection")
+    return collection
 
+
+def refresh_collection_imagery(
+    db: Session,
+    collection_id: int,
+    bbox: list[float],
+) -> dict:
+    """Re-search STAC catalog with stored params, update mosaic items.
+
+    Returns dict with status and registered_at.
+    """
+    collection = load_refreshable_collection(db, collection_id)
+    stac = collection.stac_config
+    # load_refreshable_collection already raised if any of this were falsy.
+    assert stac is not None
+    assert stac.catalog_url and stac.stac_collection_id
     slices = (
         db.execute(
             select(ImagerySlice)
