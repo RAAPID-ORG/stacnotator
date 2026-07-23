@@ -2,7 +2,11 @@
 
 Stubs threading.Thread to run the target inline (no real thread) and stubs
 SessionLocal/populate_campaign_embeddings so the transitions can be asserted
-against a plain campaign stand-in without a database.
+against a plain campaign stand-in without a database. The failure path calls
+imagery.registration.finish_registration (a Core UPDATE) rather than mutating
+the campaign object directly, so those tests assert on how it was called
+instead of on campaign attributes; finish_registration itself is covered
+against a real database in test_finish_registration.py.
 """
 
 from types import SimpleNamespace
@@ -53,10 +57,12 @@ class TestSpawnBackgroundEmbeddingComputation:
         db.commit.assert_called()
         db.close.assert_called()
 
-    def test_failure_transitions_registering_to_failed_with_sanitized_error(self, monkeypatch):
+    def test_failure_calls_finish_registration_with_prefixed_sanitized_error(self, monkeypatch):
         campaign = _make_campaign()
         db = _make_session(campaign)
         monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
+        finish_registration = MagicMock()
+        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
 
         def _raise(*a, **k):
             raise RuntimeError("GEE exploded")
@@ -65,15 +71,27 @@ class TestSpawnBackgroundEmbeddingComputation:
 
         embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-        assert campaign.embedding_status == "failed"
-        assert campaign.registration_errors == [{"error": "GEE exploded"}]
+        finish_registration.assert_called_once_with(
+            db,
+            1,
+            status_field="embedding_status",
+            status="failed",
+            errors=[{"error": "Embeddings: GEE exploded"}],
+        )
+        db.commit.assert_called()
         db.close.assert_called()
 
-    def test_failure_appends_to_existing_errors(self, monkeypatch):
+    def test_failure_does_not_read_modify_write_registration_errors(self, monkeypatch):
+        """The failure path must go through finish_registration's atomic append,
+        never through a read-then-write of campaign.registration_errors - that
+        read-modify-write is exactly what let concurrent threads clobber each
+        other's errors."""
         campaign = _make_campaign()
         campaign.registration_errors = [{"error": "prior mosaic failure"}]
         db = _make_session(campaign)
         monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
+        finish_registration = MagicMock()
+        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
 
         def _raise(*a, **k):
             raise RuntimeError("boom")
@@ -82,11 +100,16 @@ class TestSpawnBackgroundEmbeddingComputation:
 
         embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-        assert campaign.embedding_status == "failed"
-        assert campaign.registration_errors == [
-            {"error": "prior mosaic failure"},
-            {"error": "boom"},
-        ]
+        finish_registration.assert_called_once_with(
+            db,
+            1,
+            status_field="embedding_status",
+            status="failed",
+            errors=[{"error": "Embeddings: boom"}],
+        )
+        # Only finish_registration's own UPDATE writes registration_errors; this
+        # path must never have touched the ORM attribute directly.
+        assert campaign.registration_errors == [{"error": "prior mosaic failure"}]
 
     def test_missing_campaign_does_not_raise(self, monkeypatch):
         db = MagicMock()

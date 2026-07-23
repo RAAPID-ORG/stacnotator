@@ -105,6 +105,10 @@ def save_imagery(
 
     pending = result["pending_registrations"]
     if pending:
+        # Cycle-boundary clear, not a finished-work write: this commits before the
+        # background thread spawns, so it cannot race finish_registration's append.
+        # Without it, stale errors from a prior failed registration would sit under
+        # "registering" and then have new errors stacked on top indefinitely.
         campaign.registration_status = "registering"
         campaign.registration_errors = None
     db.commit()

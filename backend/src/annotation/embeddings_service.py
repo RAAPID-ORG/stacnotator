@@ -21,6 +21,7 @@ from src.annotation.models import (
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
 from src.campaigns.models import Campaign
 from src.database import SessionLocal
+from src.imagery.registration import finish_registration
 
 logger = logging.getLogger(__name__)
 
@@ -501,7 +502,9 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
     imagery.registration.spawn_background_mosaic_registration: the caller commits
     `campaign.embedding_status = "registering"` in its own transaction before
     calling this, then this thread flips it to ready/failed once
-    populate_campaign_embeddings finishes (or fails).
+    populate_campaign_embeddings finishes (or fails). The failure path uses
+    registration.finish_registration so its error append can never clobber (or be
+    clobbered by) the mosaic thread's, since both write registration_errors.
     """
     start_date = datetime(year, 1, 1)
     end_date = datetime(year, 12, 31)
@@ -521,13 +524,14 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
         except Exception as exc:
             logger.exception("Embeddings failed for campaign %d", campaign_id)
             try:
-                bg_campaign = bg_db.get(Campaign, campaign_id)
-                if bg_campaign:
-                    bg_campaign.embedding_status = "failed"
-                    bg_campaign.registration_errors = (bg_campaign.registration_errors or []) + [
-                        {"error": _sanitize_embedding_error(exc)}
-                    ]
-                    bg_db.commit()
+                finish_registration(
+                    bg_db,
+                    campaign_id,
+                    status_field="embedding_status",
+                    status="failed",
+                    errors=[{"error": f"Embeddings: {_sanitize_embedding_error(exc)}"}],
+                )
+                bg_db.commit()
             except Exception:
                 logger.warning("Failed to persist embedding error status", exc_info=True)
         finally:

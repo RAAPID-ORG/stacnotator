@@ -18,10 +18,9 @@ from datetime import datetime
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from src.campaigns.models import Campaign
 from src.config import get_settings
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
@@ -309,6 +308,51 @@ def _register_all_stac_browser_collections(
     return registration_errors
 
 
+_STATUS_FIELDS = {"registration_status", "embedding_status"}
+
+
+def finish_registration(
+    db: Session,
+    campaign_id: int,
+    *,
+    status_field: str,
+    status: str,
+    errors: list[dict],
+) -> None:
+    """Atomically flip a campaign's status field and append to registration_errors.
+
+    The mosaic thread and the embeddings thread can each finish the same campaign
+    around the same time. A read-modify-write on registration_errors (read the
+    list, append in Python, write the whole list back) lets whichever thread
+    commits second silently overwrite the other's errors. This does the append
+    inside the UPDATE itself, so both threads' errors survive no matter which
+    commits first - the single writer of registration_errors is this statement.
+
+    Does not commit; the caller commits alongside whatever else it writes in the
+    same transaction.
+    """
+    if status_field not in _STATUS_FIELDS:
+        raise ValueError(f"Unknown status_field: {status_field!r}")
+
+    # SessionLocal runs with autoflush=False: flush any ORM writes already staged
+    # on this session, or this Core statement could run without seeing them.
+    db.flush()
+    db.execute(
+        text(
+            "UPDATE data.campaigns "
+            "SET registration_errors = coalesce(registration_errors, '[]'::jsonb) "
+            "        || cast(:new_errors AS jsonb), "
+            f"    {status_field} = :status "
+            "WHERE id = :campaign_id"
+        ),
+        {
+            "new_errors": json.dumps(errors),
+            "status": status,
+            "campaign_id": campaign_id,
+        },
+    )
+
+
 def spawn_background_mosaic_registration(
     campaign_id: int,
     pending_registrations: list[tuple],
@@ -340,15 +384,14 @@ def spawn_background_mosaic_registration(
                 if (col := bg_db.get(ImageryCollection, col_id)) is not None
             ]
             errors = _register_all_stac_browser_collections(bg_db, pending, bbox, campaign_id)
-            bg_campaign = bg_db.get(Campaign, campaign_id)
-            if bg_campaign:
-                bg_campaign.registration_status = "failed" if errors else "ready"
-                if errors:
-                    # Merge with any existing errors (embeddings may have written some).
-                    bg_campaign.registration_errors = (
-                        bg_campaign.registration_errors or []
-                    ) + errors
-                bg_db.commit()
+            finish_registration(
+                bg_db,
+                campaign_id,
+                status_field="registration_status",
+                status="failed" if errors else "ready",
+                errors=errors,
+            )
+            bg_db.commit()
             if errors:
                 logger.warning(
                     "Mosaic registration for campaign %d: %d errors", campaign_id, len(errors)
@@ -358,13 +401,14 @@ def spawn_background_mosaic_registration(
         except Exception as exc:
             logger.exception("Mosaic registration failed for campaign %d", campaign_id)
             try:
-                bg_campaign = bg_db.get(Campaign, campaign_id)
-                if bg_campaign:
-                    bg_campaign.registration_status = "failed"
-                    bg_campaign.registration_errors = (bg_campaign.registration_errors or []) + [
-                        {"error": str(exc)}
-                    ]
-                    bg_db.commit()
+                finish_registration(
+                    bg_db,
+                    campaign_id,
+                    status_field="registration_status",
+                    status="failed",
+                    errors=[{"error": f"Mosaic registration: {_sanitize_stac_error(exc)}"}],
+                )
+                bg_db.commit()
             except Exception:
                 logger.warning("Failed to persist registration error status", exc_info=True)
         finally:
