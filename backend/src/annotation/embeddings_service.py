@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,8 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
+from src.campaigns.models import Campaign
+from src.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -475,3 +478,59 @@ def populate_campaign_embeddings(
         total,
     )
     return summary
+
+
+def _sanitize_embedding_error(exc: Exception) -> str:
+    """Extract a user-facing message from an embedding computation failure.
+
+    Never exposes stack traces or internal file paths (mirrors
+    imagery.registration._sanitize_stac_error for the equivalent mosaic-side errors).
+    """
+    msg = str(exc).split("\n")[0]
+    if "/" in msg and ("site-packages" in msg or "/app/" in msg):
+        return f"Embedding computation failed ({type(exc).__name__})"
+    return msg[:200] if msg else f"Embedding computation failed ({type(exc).__name__})"
+
+
+def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
+    """Run embedding computation on a daemon thread with its own DB session.
+
+    The single status protocol for embeddings background work (replaces three
+    drifted copies previously inlined in campaigns/service.py and
+    sampling_design/service.py). Mirrors
+    imagery.registration.spawn_background_mosaic_registration: the caller commits
+    `campaign.embedding_status = "registering"` in its own transaction before
+    calling this, then this thread flips it to ready/failed once
+    populate_campaign_embeddings finishes (or fails).
+    """
+    start_date = datetime(year, 1, 1)
+    end_date = datetime(year, 12, 31)
+
+    def _run() -> None:
+        bg_db = SessionLocal()
+        try:
+            logger.info(
+                "Background embeddings started for campaign %d (year %d)", campaign_id, year
+            )
+            populate_campaign_embeddings(bg_db, campaign_id, start_date, end_date)
+            bg_campaign = bg_db.get(Campaign, campaign_id)
+            if bg_campaign:
+                bg_campaign.embedding_status = "ready"
+                bg_db.commit()
+            logger.info("Embeddings completed for campaign %d", campaign_id)
+        except Exception as exc:
+            logger.exception("Embeddings failed for campaign %d", campaign_id)
+            try:
+                bg_campaign = bg_db.get(Campaign, campaign_id)
+                if bg_campaign:
+                    bg_campaign.embedding_status = "failed"
+                    bg_campaign.registration_errors = (bg_campaign.registration_errors or []) + [
+                        {"error": _sanitize_embedding_error(exc)}
+                    ]
+                    bg_db.commit()
+            except Exception:
+                logger.warning("Failed to persist embedding error status", exc_info=True)
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_run, daemon=True).start()

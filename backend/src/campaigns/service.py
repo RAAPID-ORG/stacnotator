@@ -1,7 +1,6 @@
 import logging
 import threading
 from collections.abc import Iterable
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -397,46 +396,7 @@ def create_campaign(
 
     # Background thread: embeddings
     if embedding_year is not None:
-
-        def _background_register_embeddings():
-            bg_db = SessionLocal()
-            try:
-                logger.info(
-                    "Background embeddings started for campaign %d (year %d)",
-                    campaign_id,
-                    embedding_year,
-                )
-                start_date = datetime(embedding_year, 1, 1)
-                end_date = datetime(embedding_year, 12, 31)
-                embeddings_service.populate_campaign_embeddings(
-                    bg_db, campaign_id, start_date, end_date
-                )
-                bg_campaign = bg_db.execute(
-                    select(Campaign).where(Campaign.id == campaign_id)
-                ).scalar_one_or_none()
-                if bg_campaign:
-                    bg_campaign.embedding_status = "ready"
-                    bg_db.commit()
-                logger.info("Embeddings completed for campaign %d", campaign_id)
-            except Exception as exc:
-                logger.exception("Embeddings failed for campaign %d", campaign_id)
-                try:
-                    bg_campaign = bg_db.execute(
-                        select(Campaign).where(Campaign.id == campaign_id)
-                    ).scalar_one_or_none()
-                    if bg_campaign:
-                        bg_campaign.embedding_status = "failed"
-                        existing = bg_campaign.registration_errors or []
-                        bg_campaign.registration_errors = existing + [
-                            {"error": f"Embeddings: {exc}"}
-                        ]
-                        bg_db.commit()
-                except Exception:
-                    logger.warning("Failed to persist embedding error status", exc_info=True)
-            finally:
-                bg_db.close()
-
-        threading.Thread(target=_background_register_embeddings, daemon=True).start()
+        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
 
     return get_campaign_full(db, campaign.id)
 
@@ -816,37 +776,16 @@ def update_embedding_year(
         )
         db.execute(delete(Embedding).where(Embedding.annotation_task_id.in_(task_ids_subq)))
         recomputed = True
+        # Off the request path: populate_campaign_embeddings makes slow external
+        # calls, so the caller marks "registering" now and the spawned thread
+        # flips it to ready/failed once the recomputation finishes.
+        campaign.embedding_status = "registering"
 
     db.commit()
     db.refresh(campaign)
 
     if recomputed and embedding_year is not None:
-        start_date = datetime(embedding_year, 1, 1)
-        end_date = datetime(embedding_year, 12, 31)
-
-        def _bg_embeddings():
-            bg_db = SessionLocal()
-            try:
-                embeddings_service.populate_campaign_embeddings(
-                    bg_db, campaign_id, start_date, end_date
-                )
-                bg_campaign = bg_db.get(Campaign, campaign_id)
-                if bg_campaign:
-                    bg_campaign.embedding_status = "ready"
-                    bg_db.commit()
-                logger.info(
-                    "Embeddings completed for campaign %d year %d", campaign_id, embedding_year
-                )
-            except Exception:
-                logger.exception(
-                    "Embedding recomputation failed for campaign %d year %d",
-                    campaign_id,
-                    embedding_year,
-                )
-            finally:
-                bg_db.close()
-
-        threading.Thread(target=_bg_embeddings, daemon=True).start()
+        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
 
     return {
         "embedding_year": campaign.settings.embedding_year,
