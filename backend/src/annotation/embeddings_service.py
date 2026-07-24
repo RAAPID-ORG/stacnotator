@@ -496,9 +496,7 @@ def _sanitize_embedding_error(exc: Exception) -> str:
 def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
     """Run embedding computation on a daemon thread with its own DB session.
 
-    The single status protocol for embeddings background work (replaces three
-    drifted copies previously inlined in campaigns/service.py and
-    sampling_design/service.py). Mirrors
+    The single status protocol for embeddings background work. Mirrors
     imagery.registration.spawn_background_mosaic_registration: the caller commits
     `campaign.embedding_status = "registering"` in its own transaction before
     calling this, then this thread flips it to ready/failed once

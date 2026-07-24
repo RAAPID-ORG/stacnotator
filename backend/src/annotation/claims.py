@@ -1,9 +1,7 @@
 """Soft-claim/lease protocol for unassigned annotation tasks.
 
-Moved whole out of service.py: `claim_task_for_user` and its private helper
-are a self-contained locking protocol (row lock + TTL-based lease takeover)
-that review flagged as genuinely good design - kept together rather than
-decomposed further.
+`claim_task_for_user` and its private helper form one self-contained locking
+protocol (row lock + TTL-based lease takeover) and belong together.
 """
 
 from datetime import UTC, datetime, timedelta

@@ -129,8 +129,8 @@ def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> b
 
 
 def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
-    """Read a campaign's labelling policy, falling back to the default for
-    legacy campaigns whose settings predate the labelling-policy column."""
+    """Read a campaign's labelling policy, falling back to the default when
+    the settings carry no labelling policy."""
     if campaign.settings and campaign.settings.labelling_policy:
         return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
     return default_labelling_policy()
