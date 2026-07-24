@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import embeddings_service, export, ingest, service
+from src.annotation import claims, embeddings_service, export, ingest, service, spatial
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationDensityCell,
@@ -15,7 +15,6 @@ from src.annotation.schemas import (
     AnnotationOut,
     AnnotationsExtentOut,
     AnnotationTaskListOut,
-    AnnotationTaskOut,
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
     BatchCreateAnnotationsRequest,
@@ -74,40 +73,12 @@ def complete_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationTaskSubmitResponse:
-    # Get the specific task efficiently
-    annotation_task = service.get_annotation_task_by_id(
+    return service.submit_task_annotation(
         db=db,
-        task_id=annotation_task_id,
         campaign=campaign,
-    )
-
-    if annotation_task is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Annotation task not found in this campaign",
-        )
-
-    # Persist annotation
-    result_annotation = service.add_annotation_for_task(
-        db=db,
-        annotation_task=annotation_task,
+        task_id=annotation_task_id,
         annotation_create=annotation,
         user_id=user.id,
-    )
-
-    # Re-fetch the task with all relationships for accurate status computation
-    refreshed_task = service.get_annotation_task_by_id(
-        db=db,
-        task_id=annotation_task_id,
-        campaign=campaign,
-    )
-
-    task_out = AnnotationTaskOut.model_validate(refreshed_task)
-
-    return AnnotationTaskSubmitResponse(
-        annotation=result_annotation,
-        task_status=task_out.task_status,
-        assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
     )
 
 
@@ -122,7 +93,7 @@ def claim_annotation_task(
     user: User = Depends(require_authenticated_user),
     campaign: Campaign = Depends(require_campaign_access),
 ) -> ClaimTaskResponse:
-    assignment = service.claim_task_for_user(
+    assignment = claims.claim_task_for_user(
         db=db,
         campaign_id=campaign_id,
         task_id=annotation_task_id,
@@ -340,33 +311,12 @@ def delete_annotation(
     If the annotation is linked to a task, returns updated task_status and
     assignment_status. Otherwise returns null.
     """
-    # Look up the annotation first to find its task_id before deleting
-    task_id = service.get_annotation_task_id_for_annotation(db, annotation_id, campaign.id)
-
-    service.delete_annotation(
+    return service.delete_annotation_with_status(
         db=db,
         annotation_id=annotation_id,
         campaign=campaign,
         user_id=user.id,
     )
-
-    # If it was linked to a task, return updated statuses
-    if task_id is not None:
-        refreshed_task = service.get_annotation_task_by_id(
-            db=db,
-            task_id=task_id,
-            campaign=campaign,
-        )
-        if refreshed_task:
-            task_out = AnnotationTaskOut.model_validate(refreshed_task)
-
-            return AnnotationTaskSubmitResponse(
-                annotation=None,
-                task_status=task_out.task_status,
-                assignment_status=service.get_user_assignment_status(refreshed_task, user.id),
-            )
-
-    return None
 
 
 @router.post(
@@ -492,7 +442,7 @@ def get_annotation_tile(
     styles by label and fetches full geometry by id when a feature is edited.
     """
     try:
-        tile = service.render_annotation_tile(db, campaign.id, z, x, y)
+        tile = spatial.render_annotation_tile(db, campaign.id, z, x, y)
     except InvalidTileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(
@@ -515,7 +465,7 @@ def get_annotation_ids_in_bbox(
         minx, miny, maxx, maxy = parse_bbox(bbox)
     except InvalidBBoxError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return service.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
+    return spatial.get_annotation_ids_in_bbox(db, campaign.id, minx, miny, maxx, maxy)
 
 
 @router.get(
@@ -528,7 +478,7 @@ def get_annotations_extent(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> AnnotationsExtentOut:
     """Return the bounding box of a campaign's annotations for fit-to-bounds."""
-    bbox = service.get_campaign_annotations_extent(db, campaign.id)
+    bbox = spatial.get_campaign_annotations_extent(db, campaign.id)
     return AnnotationsExtentOut(bbox=bbox)
 
 
@@ -542,7 +492,7 @@ def get_annotation_density(
     campaign: Campaign = Depends(require_campaign_access),
 ) -> list[AnnotationDensityCell]:
     """Return a coarse grid of annotation counts for the minimap overview."""
-    cells = service.get_annotation_density(db, campaign.id)
+    cells = spatial.get_annotation_density(db, campaign.id)
     return [AnnotationDensityCell(**cell) for cell in cells]
 
 

@@ -1,9 +1,8 @@
 import logging
-from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from src.annotation.completion import (
@@ -14,7 +13,6 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
     ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
-    CLAIM_TTL_MINUTES,
 )
 from src.annotation.forms import (
     FormValidationError,
@@ -35,9 +33,10 @@ from src.annotation.models import (
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationFromTaskCreate,
+    AnnotationTaskOut,
+    AnnotationTaskSubmitResponse,
     AnnotationUpdate,
 )
-from src.annotation.tiles import build_mvt_query
 from src.campaigns.models import Campaign, CampaignUser
 from src.campaigns.policy import (
     build_policy_context,
@@ -47,7 +46,6 @@ from src.campaigns.policy import (
     is_authoritative_reviewer,
     is_platform_admin,
 )
-from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -370,113 +368,61 @@ def add_annotation_for_task(
         return annotation
 
 
-def _release_other_soft_claims(
-    db: Session, campaign_id: int, user_id: UUID, keep_task_id: int
-) -> None:
-    """Enforce one active soft claim per user per campaign.
-
-    Drops the caller's other un-worked pending soft claims so that claiming a new task
-    moves the claim. Worked tasks (an annotation exists) and explicit admin assignments
-    (claimed_at is NULL) are left untouched.
+def _get_task_for_annotating(
+    db: Session, task_id: int, campaign: Campaign
+) -> AnnotationTask | None:
+    """Fetch a bare task scoped to the campaign, with just enough loaded
+    (assignments) for `add_annotation_for_task`'s policy checks - unlike
+    `get_annotation_task_by_id`, this skips the full annotations/geometry
+    joinedload tree and the counts/has_embedding attachment, all of which
+    would be thrown away by the mutation that follows.
     """
-    has_annotation = (
-        select(Annotation.id)
-        .where(
-            Annotation.annotation_task_id == AnnotationTaskAssignment.task_id,
-            Annotation.created_by_user_id == user_id,
-        )
-        .exists()
-    )
-    others = (
-        db.execute(
-            select(AnnotationTaskAssignment)
-            .join(AnnotationTask, AnnotationTask.id == AnnotationTaskAssignment.task_id)
-            .where(
-                AnnotationTask.campaign_id == campaign_id,
-                AnnotationTaskAssignment.user_id == user_id,
-                AnnotationTaskAssignment.task_id != keep_task_id,
-                AnnotationTaskAssignment.claimed_at.is_not(None),
-                AnnotationTaskAssignment.status == ANNOTATION_TASK_STATUS_PENDING,
-                ~has_annotation,
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for assignment in others:
-        db.delete(assignment)
-
-
-def claim_task_for_user(
-    db: Session,
-    campaign_id: int,
-    task_id: int,
-    user_id: UUID,
-) -> AnnotationTaskAssignment:
-    """Atomically soft-claim an unassigned task for a user.
-
-    Idempotent, and guarantees the caller holds exactly one active soft claim in the
-    campaign afterwards: any prior soft claim of theirs is released in the same
-    transaction. Refreshes the lease if the user already holds this task. Raises 409 if the
-    task is already annotated, explicitly assigned, or actively claimed by someone else; a
-    stale soft claim by another user is taken over.
-    """
-    # Row lock serializes concurrent claims on the same task; skip_locked makes a
-    # race a clean 409 instead of a block.
-    task = db.execute(
+    stmt = (
         select(AnnotationTask)
         .where(
             AnnotationTask.id == task_id,
-            AnnotationTask.campaign_id == campaign_id,
+            AnnotationTask.campaign_id == campaign.id,
         )
-        .with_for_update(skip_locked=True)
-    ).scalar_one_or_none()
+        .options(joinedload(AnnotationTask.assignments))
+    )
+    return db.scalars(stmt).unique().first()
+
+
+def submit_task_annotation(
+    db: Session,
+    campaign: Campaign,
+    task_id: int,
+    annotation_create: AnnotationFromTaskCreate,
+    user_id: UUID,
+) -> AnnotationTaskSubmitResponse:
+    """Submit (or skip) a task annotation and report the task's resulting status.
+
+    Composes `add_annotation_for_task` with a single post-commit fetch of the
+    task's full decorated tree, used to compute `task_status` and
+    `assignment_status` - the one fetch that matters is the one reflecting
+    what was just committed.
+    """
+    task = _get_task_for_annotating(db, task_id, campaign)
     if task is None:
-        raise HTTPException(status_code=409, detail="Task is no longer available")
-
-    has_annotation = db.execute(
-        select(Annotation.id).where(Annotation.annotation_task_id == task_id).limit(1)
-    ).first()
-    if has_annotation is not None:
-        raise HTTPException(status_code=409, detail="Task has already been annotated")
-
-    assignments = (
-        db.execute(
-            select(AnnotationTaskAssignment).where(AnnotationTaskAssignment.task_id == task_id)
+        raise HTTPException(
+            status_code=404,
+            detail="Annotation task not found in this campaign",
         )
-        .scalars()
-        .all()
+
+    annotation = add_annotation_for_task(
+        db=db,
+        annotation_task=task,
+        annotation_create=annotation_create,
+        user_id=user_id,
     )
 
-    mine = next((a for a in assignments if a.user_id == user_id), None)
-    if mine is not None:
-        mine.claimed_at = func.now()
-        result = mine
-    else:
-        cutoff = datetime.now(UTC) - timedelta(minutes=CLAIM_TTL_MINUTES)
-        for assignment in assignments:
-            is_stale_claim = (
-                assignment.claimed_at is not None
-                and assignment.status == ANNOTATION_TASK_STATUS_PENDING
-                and assignment.claimed_at <= cutoff
-            )
-            if not is_stale_claim:
-                raise HTTPException(status_code=409, detail="Task is no longer available")
-            db.delete(assignment)
-
-        result = AnnotationTaskAssignment(
-            task_id=task_id,
-            user_id=user_id,
-            status=ANNOTATION_TASK_STATUS_PENDING,
-            claimed_at=func.now(),
-        )
-        db.add(result)
-
-    # Move the claim: no separate release call to lose, TTL is the real backstop.
-    _release_other_soft_claims(db, campaign_id, user_id, keep_task_id=task_id)
-    db.commit()
-    db.refresh(result)
-    return result
+    refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
+    task_out = AnnotationTaskOut.model_validate(refreshed_task)
+    return AnnotationTaskSubmitResponse(
+        annotation=annotation,
+        task_status=task_out.task_status,
+        assignment_status=get_user_assignment_status(refreshed_task, user_id),
+    )
 
 
 def create_annotation(
@@ -805,126 +751,6 @@ def get_annotation_by_id(
     return annotation
 
 
-def render_annotation_tile(
-    db: Session,
-    campaign_id: int,
-    z: int,
-    x: int,
-    y: int,
-) -> bytes:
-    """Render one MVT tile of a campaign's annotations as protobuf bytes.
-
-    Returns an empty tile (zero-length bytes) when no geometry falls in the
-    tile, which OpenLayers treats as an empty tile. Zoom levels below
-    ``ANNOTATION_TILE_MIN_ZOOM`` also return empty without touching the DB, so a
-    whole-country view of dense parcels can't trigger a multi-MB, CPU-heavy query.
-    """
-    if z < get_settings().ANNOTATION_TILE_MIN_ZOOM:
-        return b""
-    sql, params = build_mvt_query(z=z, x=x, y=y, campaign_id=campaign_id)
-    tile = db.execute(text(sql), params).scalar_one()
-    return bytes(tile) if tile is not None else b""
-
-
-def get_annotation_ids_in_bbox(
-    db: Session,
-    campaign_id: int,
-    minx: float,
-    miny: float,
-    maxx: float,
-    maxy: float,
-) -> list[int]:
-    """Return ids of a campaign's annotations whose geometry intersects a bbox.
-
-    Backs box/multi-select against the tiled display: the geometry never leaves
-    the server, only the ids needed to highlight and bulk-delete. The filter
-    keeps ``g.geometry`` bare so the GiST index is used.
-    """
-    sql = text(
-        """
-        SELECT a.id
-        FROM data.annotations a
-        JOIN data.annotation_geometries g ON g.id = a.geometry_id
-        WHERE a.campaign_id = :campaign_id
-          AND g.geometry && ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326)
-        """
-    )
-    rows = db.execute(
-        sql,
-        {
-            "campaign_id": campaign_id,
-            "minx": minx,
-            "miny": miny,
-            "maxx": maxx,
-            "maxy": maxy,
-        },
-    ).scalars()
-    return list(rows)
-
-
-def get_campaign_annotations_extent(
-    db: Session,
-    campaign_id: int,
-) -> tuple[float, float, float, float] | None:
-    """Return the bounding box (minx, miny, maxx, maxy) of a campaign's
-    annotations, or None when the campaign has none. Used for fit-to-bounds
-    without loading every geometry into the client."""
-    sql = text(
-        """
-        SELECT
-            ST_XMin(ext), ST_YMin(ext), ST_XMax(ext), ST_YMax(ext)
-        FROM (
-            SELECT ST_Extent(g.geometry) AS ext
-            FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
-            WHERE a.campaign_id = :campaign_id
-        ) AS e
-        """
-    )
-    row = db.execute(sql, {"campaign_id": campaign_id}).first()
-    if row is None or row[0] is None:
-        return None
-    return (float(row[0]), float(row[1]), float(row[2]), float(row[3]))
-
-
-def get_annotation_density(
-    db: Session,
-    campaign_id: int,
-    target_cells: int = 48,
-) -> list[dict]:
-    """Aggregate a campaign's annotation centroids into a coarse grid for the
-    minimap distribution overview.
-
-    The grid is sized so the campaign's wider extent spans ~``target_cells``
-    cells; each returned cell carries its centre (EPSG:4326) and the count of
-    annotations in it. One indexed pass, tiny payload - independent of how many
-    annotations exist, so it scales where per-feature dots would not.
-    """
-    extent = get_campaign_annotations_extent(db, campaign_id)
-    if extent is None:
-        return []
-    minx, miny, maxx, maxy = extent
-    span = max(maxx - minx, maxy - miny)
-    grid = span / target_cells if span > 0 else 0.01
-
-    sql = text(
-        """
-        SELECT floor(ST_X(c) / :grid) * :grid + :grid / 2 AS lon,
-               floor(ST_Y(c) / :grid) * :grid + :grid / 2 AS lat,
-               count(*) AS n
-        FROM (
-            SELECT ST_Centroid(g.geometry) AS c
-            FROM data.annotations a
-            JOIN data.annotation_geometries g ON g.id = a.geometry_id
-            WHERE a.campaign_id = :campaign_id
-        ) AS pts
-        GROUP BY 1, 2
-        """
-    )
-    rows = db.execute(sql, {"campaign_id": campaign_id, "grid": grid}).all()
-    return [{"lon": float(r[0]), "lat": float(r[1]), "count": int(r[2])} for r in rows]
-
-
 def delete_annotation(
     db: Session,
     annotation_id: int,
@@ -994,6 +820,38 @@ def delete_annotation(
         db.rollback()
         logger.exception("Failed to delete annotation")
         raise HTTPException(status_code=500, detail="Failed to delete annotation") from e
+
+
+def delete_annotation_with_status(
+    db: Session,
+    annotation_id: int,
+    campaign: Campaign,
+    user_id: UUID,
+) -> AnnotationTaskSubmitResponse | None:
+    """Delete an annotation and, if it was task-linked, report the task's
+    resulting status; otherwise None.
+
+    The task id has to be looked up before the delete (the annotation's FK is
+    gone afterwards); the task's decorated tree is then fetched once, after
+    the delete has committed, to compute `task_status`/`assignment_status`.
+    """
+    task_id = get_annotation_task_id_for_annotation(db, annotation_id, campaign.id)
+
+    delete_annotation(db, annotation_id, campaign, user_id)
+
+    if task_id is None:
+        return None
+
+    refreshed_task = get_annotation_task_by_id(db, task_id, campaign)
+    if refreshed_task is None:
+        return None
+
+    task_out = AnnotationTaskOut.model_validate(refreshed_task)
+    return AnnotationTaskSubmitResponse(
+        annotation=None,
+        task_status=task_out.task_status,
+        assignment_status=get_user_assignment_status(refreshed_task, user_id),
+    )
 
 
 def delete_annotations_bulk(

@@ -11,6 +11,7 @@ import pytest
 from fastapi import HTTPException
 from geoalchemy2.elements import WKTElement
 
+from src.annotation.claims import claim_task_for_user
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
     ANNOTATION_TASK_STATUS_PENDING,
@@ -31,7 +32,6 @@ from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
     add_annotation_for_task,
-    claim_task_for_user,
     create_annotation,
     create_annotations_bulk,
     delete_annotation,
