@@ -17,11 +17,13 @@ from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
-from src.annotation.io import (
+from src.annotation.export import (
     FormExportSchema,
     _build_annotation_records,
     build_annotations_export,
     build_annotations_geojson_export,
+)
+from src.annotation.ingest import (
     create_annotation_tasks_from_csv,
     create_annotations_from_geojson,
 )
@@ -929,7 +931,7 @@ class TestExportAnnotatorCount:
 
     def _records(self, annotations, *, merge=False):
         with patch(
-            "src.annotation.io._compute_task_status_for_export",
+            "src.annotation.export._compute_task_status_for_export",
             return_value="done",
         ):
             records, _ = _build_annotation_records(
@@ -1025,7 +1027,7 @@ class TestExportMergeCorrectness:
 
     Exercises the real ``build_annotations_export`` / ``build_annotations_geojson_export``
     (so the conflict guard, column ordering and DataFrame/GeoJSON assembly are
-    covered) with the DB access (``_fetch_annotations_with_context``) and the
+    covered) with the DB access (``fetch_annotations_with_context``) and the
     pydantic-backed status helper patched out. Annotations/tasks/campaign are
     light ``SimpleNamespace`` stand-ins matching the attributes the export code
     actually reads.
@@ -1090,11 +1092,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1104,11 +1106,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1366,7 +1368,7 @@ class TestExportMergeCorrectness:
 
     # ---- stacnotator_counts_toward_completion ---------------------------
     #
-    # These tests patch out `_fetch_annotations_with_context` entirely (see
+    # These tests patch out `fetch_annotations_with_context` entirely (see
     # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
     # runs - the counts flag is read straight off the annotation stand-ins,
     # exactly as if it had already been attached by that helper.
@@ -1496,10 +1498,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
 
@@ -1507,10 +1509,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
 

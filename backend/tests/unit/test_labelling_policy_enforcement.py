@@ -13,11 +13,13 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+from src.annotation.completion import (
+    attach_counts_toward_completion_flat,
+    attach_counts_toward_completion_tree,
+)
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
-    _attach_counts_toward_completion,
     add_annotation_for_task,
-    attach_counts_toward_completion_flat,
     create_annotation,
     create_annotations_bulk,
     update_annotation,
@@ -332,7 +334,7 @@ class TestAttachCountsTowardCompletion:
         ]
         db.scalars.return_value.all.return_value = []  # no extra platform admins
 
-        _attach_counts_toward_completion(db, campaign, [assigned_task, unassigned_task])
+        attach_counts_toward_completion_tree(db, campaign, [assigned_task, unassigned_task])
 
         assert (
             assigned_task.annotations[0].counts_toward_completion is True
@@ -346,7 +348,7 @@ class TestAttachCountsTowardCompletion:
 
     def test_no_tasks_is_a_noop(self):
         db = MagicMock()
-        _attach_counts_toward_completion(db, _campaign(LabellingPolicy()), [])
+        attach_counts_toward_completion_tree(db, _campaign(LabellingPolicy()), [])
         db.execute.assert_not_called()
         db.scalars.assert_not_called()
 

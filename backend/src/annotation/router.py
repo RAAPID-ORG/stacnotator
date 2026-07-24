@@ -7,8 +7,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.annotation import embeddings_service, service
-from src.annotation import io as annotation_io
+from src.annotation import embeddings_service, export, ingest, service
 from src.annotation.schemas import (
     AnnotationCreate,
     AnnotationDensityCell,
@@ -199,7 +198,7 @@ async def ingest_annotation_tasks_from_csv(
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    annotation_io.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
+    ingest.create_annotation_tasks_from_csv(db, campaign.id, contents, task_set_id)
 
 
 @router.post("/campaigns/{campaign_id}/ingest-annotation-task-geojson")
@@ -222,7 +221,7 @@ async def ingest_annotation_tasks_from_geojson(
 
     require_task_set(db, campaign.id, task_set_id, status_code=400)
     contents = await file.read()
-    num_created = annotation_io.create_annotation_tasks_from_geojson(
+    num_created = ingest.create_annotation_tasks_from_geojson(
         db, campaign.id, contents, task_set_id
     )
     return {"num_tasks_created": num_created}
@@ -247,7 +246,7 @@ async def ingest_annotations_from_geojson(
         raise HTTPException(status_code=400, detail="File must be a .geojson or .json file")
 
     contents = await file.read()
-    num_created = annotation_io.create_annotations_from_geojson(db, campaign, contents, user.id)
+    num_created = ingest.create_annotations_from_geojson(db, campaign, contents, user.id)
     return {"num_annotations_created": num_created}
 
 
@@ -409,7 +408,7 @@ def export_annotations(
     row. Tasks with disagreement (conflict) cause the request to fail
     with HTTP 400 - resolve the conflicts first.
     """
-    annotations_df = annotation_io.build_annotations_export(
+    annotations_df = export.build_annotations_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
     campaign_name_cleaned = clean_filename(campaign.name)
@@ -437,7 +436,7 @@ def export_annotations_geojson(
 
     See ``export_annotations`` for the meaning of ``merge_on_agreement``.
     """
-    geojson = annotation_io.build_annotations_geojson_export(
+    geojson = export.build_annotations_geojson_export(
         db, campaign, merge_on_agreement=merge_on_agreement
     )
     campaign_name_cleaned = clean_filename(campaign.name)

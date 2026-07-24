@@ -2,7 +2,7 @@
 
 from pydantic import TypeAdapter
 
-from src.annotation.io import FormExportSchema, form_export_columns, format_form_value
+from src.annotation.export import FormExportSchema, form_export_columns, format_form_value
 from src.campaigns.form_fields import FormField
 
 _ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
