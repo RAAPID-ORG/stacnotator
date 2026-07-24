@@ -56,34 +56,6 @@ def list_tilers(user: User = Depends(require_approved_user)):
     )
 
 
-@router.post("/{campaign_id}/imagery", status_code=201)
-def create_imagery(
-    campaign_id: int,
-    editor_state: ImageryEditorStateCreate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
-    db: Session = Depends(get_db),
-):
-    """Create imagery for a fresh campaign. Used by the campaign-create flow."""
-    _require_internal_for_internal_storage(editor_state, user)
-    result = service.create_imagery_from_editor_state(
-        db,
-        campaign=campaign,
-        editor_state=editor_state,
-        user=user,
-    )
-    db.commit()
-    response = {
-        "sources": len(result["sources"]),
-        "views": len(result["views"]),
-        "basemaps": len(result["basemaps"]),
-    }
-    errors = result.get("registration_errors", [])
-    if errors:
-        response["registration_errors"] = errors
-    return response
-
-
 @router.put("/{campaign_id}/imagery")
 def save_imagery(
     campaign_id: int,
