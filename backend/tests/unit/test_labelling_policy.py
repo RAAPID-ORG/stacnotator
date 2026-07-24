@@ -18,8 +18,12 @@ from src.campaigns import service
 from src.campaigns.models import Campaign, CampaignSettings
 from src.campaigns.policy import (
     PolicyContext,
+    build_policy_context,
     context_from_role_map,
     counts_toward_completion,
+    get_campaign_role_map,
+    get_labelling_policy,
+    get_platform_admin_ids,
     is_allowed,
 )
 from src.campaigns.schemas import (
@@ -319,12 +323,12 @@ def test_update_labelling_policy_missing_campaign_raises_404():
 def test_get_labelling_policy_returns_default_when_settings_missing():
     campaign = Campaign(id=1, name="x", mode="tasks")
     campaign.settings = None
-    assert service.get_labelling_policy(campaign) == default_labelling_policy()
+    assert get_labelling_policy(campaign) == default_labelling_policy()
 
 
 def test_get_labelling_policy_returns_default_when_column_empty():
     campaign = _campaign()  # labelling_policy={} per the shared helper
-    assert service.get_labelling_policy(campaign) == default_labelling_policy()
+    assert get_labelling_policy(campaign) == default_labelling_policy()
 
 
 def test_get_labelling_policy_reads_stored_policy():
@@ -335,7 +339,7 @@ def test_get_labelling_policy_reads_stored_policy():
         "assigned_tasks": {"kinds": ["members"], "user_ids": []},
         "complete_assigned": {"kinds": ["admins"], "user_ids": []},
     }
-    policy = service.get_labelling_policy(campaign)
+    policy = get_labelling_policy(campaign)
     assert policy.explore.kinds == ["anyone"]
     assert policy.complete_assigned.kinds == ["admins"]
 
@@ -387,14 +391,14 @@ def test_get_campaign_role_map_builds_dict_from_rows():
     db = MagicMock()
     db.execute.return_value.all.return_value = [(user_a, True, False), (user_b, False, True)]
 
-    role_map = service.get_campaign_role_map(db, campaign_id=1)
+    role_map = get_campaign_role_map(db, campaign_id=1)
 
     assert role_map == {user_a: (True, False), user_b: (False, True)}
 
 
 def test_get_platform_admin_ids_empty_input_skips_query():
     db = MagicMock()
-    assert service.get_platform_admin_ids(db, []) == set()
+    assert get_platform_admin_ids(db, []) == set()
     db.scalars.assert_not_called()
 
 
@@ -403,7 +407,7 @@ def test_get_platform_admin_ids_returns_matching_set():
     db = MagicMock()
     db.scalars.return_value.all.return_value = [admin_id]
 
-    result = service.get_platform_admin_ids(db, [admin_id, other_id])
+    result = get_platform_admin_ids(db, [admin_id, other_id])
 
     assert result == {admin_id}
 
@@ -429,7 +433,7 @@ def test_build_policy_context_non_member_non_admin():
     user_id = uuid4()
     db = _db_with_campaign_user(cu=None)
 
-    ctx = service.build_policy_context(db, campaign, user_id)
+    ctx = build_policy_context(db, campaign, user_id)
 
     assert ctx == PolicyContext(
         user_id=user_id, is_admin=False, is_authoritative=False, is_member=False, is_assigned=False
@@ -442,7 +446,7 @@ def test_build_policy_context_campaign_admin():
     cu = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
     db = _db_with_campaign_user(cu=cu)
 
-    ctx = service.build_policy_context(db, campaign, user_id)
+    ctx = build_policy_context(db, campaign, user_id)
 
     assert ctx.is_member is True
     assert ctx.is_admin is True
@@ -455,7 +459,7 @@ def test_build_policy_context_authoritative_reviewer():
     cu = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
     db = _db_with_campaign_user(cu=cu)
 
-    ctx = service.build_policy_context(db, campaign, user_id)
+    ctx = build_policy_context(db, campaign, user_id)
 
     assert ctx.is_authoritative is True
     assert ctx.is_admin is False
@@ -466,7 +470,7 @@ def test_build_policy_context_platform_admin_without_campaign_membership():
     user_id = uuid4()
     db = _db_with_campaign_user(cu=None, is_platform_admin=True)
 
-    ctx = service.build_policy_context(db, campaign, user_id)
+    ctx = build_policy_context(db, campaign, user_id)
 
     assert ctx.is_admin is True
     assert ctx.is_member is False
@@ -477,7 +481,7 @@ def test_build_policy_context_no_task_is_never_assigned():
     user_id = uuid4()
     db = _db_with_campaign_user(cu=None)
 
-    ctx = service.build_policy_context(db, campaign, user_id, task=None)
+    ctx = build_policy_context(db, campaign, user_id, task=None)
 
     assert ctx.is_assigned is False
 
@@ -488,7 +492,7 @@ def test_build_policy_context_assigned_when_user_holds_any_assignment():
     db = _db_with_campaign_user(cu=None)
     task = SimpleNamespace(assignments=[SimpleNamespace(user_id=user_id)])
 
-    ctx = service.build_policy_context(db, campaign, user_id, task=task)
+    ctx = build_policy_context(db, campaign, user_id, task=task)
 
     assert ctx.is_assigned is True
 
@@ -499,7 +503,7 @@ def test_build_policy_context_not_assigned_when_task_assigned_to_others():
     db = _db_with_campaign_user(cu=None)
     task = SimpleNamespace(assignments=[SimpleNamespace(user_id=uuid4())])
 
-    ctx = service.build_policy_context(db, campaign, user_id, task=task)
+    ctx = build_policy_context(db, campaign, user_id, task=task)
 
     assert ctx.is_assigned is False
 

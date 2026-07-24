@@ -1,6 +1,5 @@
 import logging
 import threading
-from collections.abc import Iterable
 from typing import Any
 from uuid import UUID
 
@@ -15,20 +14,18 @@ from src.annotation.geometries import (
     delete_rows_and_orphan_geometries,
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.auth.constants import ROLE_ADMIN
-from src.auth.models import User, UserRole
-from src.auth.service import is_admin as is_global_admin
+from src.auth.models import User
 from src.campaigns.models import (
     Campaign,
     CampaignSettings,
     CampaignUser,
     TaskSet,
 )
-from src.campaigns.policy import PolicyContext
+from src.campaigns.policy import _reject_anyone_kind_if_private, _strip_anyone_kind
+from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
     CampaignSettingsCreate,
     LabellingPolicy,
-    PolicyAudience,
     default_labelling_policy,
 )
 from src.campaigns.task_sets import DEFAULT_TASK_SET_NAME
@@ -55,135 +52,6 @@ def list_campaigns(db: Session) -> list[Campaign]:
     """Retrieve all campaigns ordered by creation date (newest first)."""
     stmt = select(Campaign).order_by(Campaign.created_at.desc())
     return db.scalars(stmt).all()
-
-
-def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> bool:
-    """True if the user has the explicit authoritative-reviewer flag on this
-    campaign."""
-    cu = db.execute(
-        select(CampaignUser).where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
-    ).scalar_one_or_none()
-    return cu is not None and cu.is_authoritative_reviewer
-
-
-# ============================================================================
-# Labelling Policy Evaluation
-# ============================================================================
-
-
-def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
-    """Read a campaign's labelling policy, falling back to the default for
-    legacy campaigns whose settings predate the labelling-policy column."""
-    if campaign.settings and campaign.settings.labelling_policy:
-        return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-    return default_labelling_policy()
-
-
-def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> None:
-    """'anyone' only makes sense once the campaign itself is public - enforce
-    this invariant at every write of a labelling policy (campaign creation
-    and the PATCH .../labelling-policy endpoint), not just one of them."""
-    axes = (
-        policy.explore,
-        policy.unassigned_tasks,
-        policy.assigned_tasks,
-        policy.complete_assigned,
-    )
-    if any("anyone" in axis.kinds for axis in axes) and not is_public:
-        raise HTTPException(
-            status_code=400,
-            detail="The 'anyone' audience is only allowed for public campaigns",
-        )
-
-
-def _strip_anyone_kind(policy: LabellingPolicy) -> LabellingPolicy:
-    """Drop 'anyone' from every axis of `policy`. Used when a campaign flips
-    private, so a stored policy never keeps granting anonymous/any-visitor
-    access after the invariant enforced on write (`_reject_anyone_kind_if_private`)
-    stops applying to it."""
-    return LabellingPolicy(
-        explore=PolicyAudience(
-            kinds=[k for k in policy.explore.kinds if k != "anyone"],
-            user_ids=policy.explore.user_ids,
-        ),
-        unassigned_tasks=PolicyAudience(
-            kinds=[k for k in policy.unassigned_tasks.kinds if k != "anyone"],
-            user_ids=policy.unassigned_tasks.user_ids,
-        ),
-        assigned_tasks=PolicyAudience(
-            kinds=[k for k in policy.assigned_tasks.kinds if k != "anyone"],
-            user_ids=policy.assigned_tasks.user_ids,
-        ),
-        complete_assigned=policy.complete_assigned,
-    )
-
-
-def build_policy_context(
-    db: Session,
-    campaign: Campaign,
-    user_id: UUID,
-    task: AnnotationTask | None = None,
-) -> PolicyContext:
-    """Build a PolicyContext for one user's request against one campaign.
-
-    Used for real-time enforcement (a single annotate/create/update call), so
-    it does its own lookups rather than taking pre-fetched maps - contrast
-    with `get_campaign_role_map` / `context_from_role_map`, which amortize the
-    same lookups across many annotations (task lists, exports).
-
-    `task.assignments` must already be loaded (joinedload/selectinload) when
-    `task` is given; `is_assigned` is true if the user holds ANY assignment on
-    it (primary or review), per the labelling-policy spec.
-    """
-    cu = db.scalars(
-        select(CampaignUser).where(
-            CampaignUser.campaign_id == campaign.id,
-            CampaignUser.user_id == user_id,
-        )
-    ).first()
-    is_assigned = task is not None and any(
-        assignment.user_id == user_id for assignment in (task.assignments or [])
-    )
-    return PolicyContext(
-        user_id=user_id,
-        is_admin=(cu is not None and cu.is_admin) or is_global_admin(db, user_id),
-        is_authoritative=cu is not None and cu.is_authoritative_reviewer,
-        is_member=cu is not None,
-        is_assigned=is_assigned,
-    )
-
-
-def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[bool, bool]]:
-    """One query giving every campaign member's (is_admin, is_authoritative)
-    flags, keyed by user id. Membership itself is `user_id in role_map`.
-
-    Meant to be fetched once per request and reused across many
-    `context_from_role_map` calls (see campaigns.policy) instead of a
-    per-annotation CampaignUser lookup.
-    """
-    rows = db.execute(
-        select(
-            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authoritative_reviewer
-        ).where(CampaignUser.campaign_id == campaign_id)
-    ).all()
-    return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
-
-
-def get_platform_admin_ids(db: Session, user_ids: Iterable[UUID]) -> set[UUID]:
-    """Subset of `user_ids` holding the global admin role, in one query."""
-    candidates = {uid for uid in user_ids if uid is not None}
-    if not candidates:
-        return set()
-    return set(
-        db.scalars(
-            select(UserRole.user_id).where(
-                UserRole.role == ROLE_ADMIN, UserRole.user_id.in_(candidates)
-            )
-        ).all()
-    )
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:

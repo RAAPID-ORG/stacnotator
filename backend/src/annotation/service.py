@@ -31,18 +31,20 @@ from src.annotation.schemas import (
     AnnotationUpdate,
 )
 from src.annotation.tiles import build_mvt_query
-from src.auth.service import is_admin as is_platform_admin
 from src.campaigns.form_fields import FormField
 from src.campaigns.models import Campaign, CampaignUser
-from src.campaigns.policy import context_from_role_map, counts_toward_completion, is_allowed
-from src.campaigns.schemas import LabellingPolicy
-from src.campaigns.service import (
+from src.campaigns.policy import (
     build_policy_context,
+    context_from_role_map,
+    counts_toward_completion,
     get_campaign_role_map,
     get_labelling_policy,
     get_platform_admin_ids,
+    is_allowed,
     is_authoritative_reviewer,
+    is_platform_admin,
 )
+from src.campaigns.schemas import LabellingPolicy
 from src.config import get_settings
 
 FORM_FIELDS_ADAPTER: TypeAdapter[list[FormField]] = TypeAdapter(list[FormField])
