@@ -14,6 +14,7 @@ from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_SOURCES,
     SUPPORTED_TIMESERIES_TYPES,
 )
+from src.timeseries.ndvi_ee import RateLimited, UpstreamFailed
 from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
@@ -88,14 +89,25 @@ def get_timeseries_data(
     ts_type, source = timeseries.ts_type, timeseries.data_source
     db.close()
 
-    timeseries_data_df = service.get_timeseries_data(
-        ts_type=ts_type,
-        source=source,
-        latitude=latitude,
-        longitude=longitude,
-        start_date=start,
-        end_date=end,
-    )
+    try:
+        timeseries_data_df = service.get_timeseries_data(
+            ts_type=ts_type,
+            source=source,
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start,
+            end_date=end,
+        )
+    except RateLimited as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Earth Engine is rate-limiting requests. Please retry in a moment.",
+        ) from exc
+    except UpstreamFailed as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Earth Engine request failed: {exc}",
+        ) from exc
 
     return TimeseriesDataResponse(
         timeseries_id=timeseries_id, data=timeseries_data_df.to_dict(orient="records")
