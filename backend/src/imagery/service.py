@@ -24,7 +24,6 @@ from src.imagery.schemas import (
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
-    ImageryViewCreate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
 
@@ -147,65 +146,16 @@ def create_imagery_from_editor_state(
     editor_state: ImageryEditorStateCreate,
     user: User,
 ) -> dict:
+    """Persist the full imagery editor state (sources, collections, slices,
+    views, basemaps) for a freshly created campaign.
+
+    A campaign with no existing imagery reduces the save/reconcile flow to pure
+    creation, so this is a thin entry point over `save_imagery_editor_state`.
+    Returns the same dict (keys 'sources', 'views', 'basemaps',
+    'pending_registrations', 'bbox'). Does NOT commit - caller commits and then
+    hands 'pending_registrations' to spawn_background_mosaic_registration.
     """
-    Persist the full imagery editor state (sources, views, basemaps) for a campaign.
-    Handles frontend-to-DB id mapping so views can reference DB-assigned collection/source ids.
-
-    Returns dict with keys 'sources', 'views', 'basemaps' containing ORM objects.
-    Does NOT commit - caller is responsible for commit.
-    """
-    if not campaign.settings:
-        raise HTTPException(status_code=404, detail="Campaign settings not found")
-
-    _authorize_tilers(user, editor_state)
-
-    bbox = [
-        campaign.settings.bbox_west,
-        campaign.settings.bbox_south,
-        campaign.settings.bbox_east,
-        campaign.settings.bbox_north,
-    ]
-
-    # Mapping: frontend temp id -> DB id
-    source_id_map: dict[str, int] = {}  # fe_source_id -> db source id
-    collection_id_map: dict[str, int] = {}  # fe_collection_id -> db collection id
-
-    # Track stac_browser collections that need mosaic registration
-    pending_registrations: list[tuple[ImageryCollection, object, ImagerySourceCreate]] = []
-
-    created_sources: list[ImagerySource] = []
-    for src_idx, src_create in enumerate(editor_state.sources):
-        source, pending = _create_source(db, campaign.id, src_create, src_idx, bbox)
-        db.flush()
-
-        # Build id map using index as frontend key (frontend sends ordered lists)
-        source_id_map[str(src_idx)] = source.id
-        for col_idx, col in enumerate(source.collections):
-            collection_id_map[f"{src_idx}:{col_idx}"] = col.id
-
-        pending_registrations.extend(pending)
-        created_sources.append(source)
-
-    created_basemaps = _create_basemaps(db, campaign.id, editor_state.basemaps)
-    db.flush()
-
-    created_views = _create_views(
-        db,
-        campaign.id,
-        editor_state.views,
-        editor_state.sources,
-        source_id_map,
-        collection_id_map,
-    )
-    db.flush()
-
-    return {
-        "sources": created_sources,
-        "views": created_views,
-        "basemaps": created_basemaps,
-        "pending_registrations": pending_registrations,
-        "bbox": bbox,
-    }
+    return save_imagery_editor_state(db, campaign=campaign, editor_state=editor_state, user=user)
 
 
 def save_imagery_editor_state(
@@ -782,78 +732,4 @@ def _create_basemaps(
         )
         db.add(obj)
         created.append(obj)
-    return created
-
-
-def _create_views(
-    db: Session,
-    campaign_id: int,
-    views: list[ImageryViewCreate],
-    source_creates: list[ImagerySourceCreate],
-    source_id_map: dict[str, int],
-    collection_id_map: dict[str, int],
-) -> list[ImageryView]:
-    """
-    Create views and map frontend temp ids to DB ids in collection_refs.
-
-    The frontend sends collection_refs with source_id / collection_id as frontend temp strings.
-    We map them to DB-assigned integer ids.
-    """
-    created = []
-    for view_idx, view_create in enumerate(views):
-        mapped_refs = []
-        for ref in view_create.collection_refs:
-            # Frontend sends source_id and collection_id as temp identifiers.
-            # We need to map them to the DB-assigned integer ids.
-            fe_source_id = ref.source_id
-            fe_collection_id = ref.collection_id
-
-            # Look up db ids
-            db_source_id = source_id_map.get(fe_source_id)
-            if db_source_id is None:
-                # Try to find by iterating source_creates and matching
-                for s_idx, s in enumerate(source_creates):
-                    if s.name == fe_source_id or str(s_idx) == fe_source_id:
-                        db_source_id = source_id_map.get(str(s_idx))
-                        break
-
-            # For collection, find by composite key
-            db_collection_id = None
-            for key, val in collection_id_map.items():
-                s_idx_str, c_idx_str = key.split(":")
-                if source_id_map.get(s_idx_str) == db_source_id:
-                    # Check if the collection index matches
-                    s_idx = int(s_idx_str)
-                    c_idx = int(c_idx_str)
-                    if s_idx < len(source_creates):
-                        src_cols = source_creates[s_idx].collections
-                        if c_idx < len(src_cols):
-                            col = src_cols[c_idx]
-                            if col.name == fe_collection_id or str(c_idx) == fe_collection_id:
-                                db_collection_id = val
-                                break
-
-            if db_source_id and db_collection_id:
-                mapped_refs.append(
-                    {
-                        "collection_id": db_collection_id,
-                        "source_id": db_source_id,
-                        "show_as_window": ref.show_as_window,
-                    }
-                )
-
-        view = ImageryView(
-            campaign_id=campaign_id,
-            name=view_create.name,
-            display_order=view_idx,
-            collection_refs=mapped_refs,
-        )
-        db.add(view)
-        db.flush()
-
-        window_ids = [r["collection_id"] for r in mapped_refs if r.get("show_as_window")]
-        db.add(new_default_view_layout(campaign_id, view.id, window_ids))
-
-        created.append(view)
-
     return created
