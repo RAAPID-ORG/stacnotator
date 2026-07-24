@@ -19,6 +19,7 @@ from src.imagery.models import (
     SliceTileUrl,
     VisualizationTemplate,
 )
+from src.imagery.registration import RegistrationSpec
 from src.imagery.schemas import (
     BasemapCreate,
     ImageryCollectionCreate,
@@ -48,6 +49,25 @@ def set_source_api_key(db: Session, campaign_id: int, source_id: int, value: str
 
 def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
     return bool(col_create.has_dedicated_cover)
+
+
+def _registration_spec(
+    collection: ImageryCollection,
+    col_create: ImageryCollectionCreate,
+    src_create: ImagerySourceCreate,
+) -> RegistrationSpec:
+    """Snapshot the plain fields `_register_all_stac_browser_collections` needs
+    for one collection, decoupling the deferred registration from the ORM
+    objects and request session that produced it."""
+    assert col_create.stac_config is not None
+    return RegistrationSpec(
+        collection_id=collection.id,
+        collection_name=collection.name,
+        stac_config=col_create.stac_config,
+        has_dedicated_cover=col_create.has_dedicated_cover,
+        cover_slice_index=col_create.cover_slice_index,
+        source_viz_names=[v.name for v in src_create.visualizations],
+    )
 
 
 def _upsert_viz_configs(
@@ -245,7 +265,7 @@ def save_imagery_editor_state(
     collection_id_map: dict[str, int] = {
         str(c.id): c.id for s in campaign.imagery_sources for c in s.collections
     }
-    pending_registrations: list[tuple] = []
+    pending_registrations: list[RegistrationSpec] = []
 
     for src_idx, src_create in enumerate(editor_state.sources):
         if src_create.id and src_create.id in existing_sources:
@@ -406,7 +426,7 @@ def _update_source_in_place(
     src_create: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> list[tuple]:
+) -> list[RegistrationSpec]:
     """Update source metadata + viz templates, then reconcile collections.
     Returns pending STAC registrations from any new or re-registered collections."""
     db_src.name = src_create.name
@@ -438,7 +458,7 @@ def _update_source_in_place(
                 )
             )
 
-    pending: list[tuple] = []
+    pending: list[RegistrationSpec] = []
     for col_idx, col_create in enumerate(src_create.collections):
         existing_col = (
             next((c for c in db_src.collections if c.id == col_create.id), None)
@@ -470,9 +490,9 @@ def _update_collection_in_place(
     col_idx: int,
     src_create: ImagerySourceCreate,
     bbox: list[float],
-) -> tuple | None:
+) -> RegistrationSpec | None:
     """Update a collection's metadata, slices, and stac_config. Returns a
-    pending-registration tuple if mosaic re-search is required."""
+    RegistrationSpec if mosaic re-search is required."""
     db_col.name = col_create.name
     db_col.cover_slice_index = col_create.cover_slice_index
     db_col.has_dedicated_cover = col_create.has_dedicated_cover
@@ -587,7 +607,7 @@ def _update_collection_in_place(
             for tu in list(sl.tile_urls):
                 db.delete(tu)
         db.flush()
-        return (db_col, col_create, src_create)
+        return _registration_spec(db_col, col_create, src_create)
 
     # No search/slice changes - just rebake viz params into existing URLs.
     viz_by_name = {
@@ -609,10 +629,10 @@ def _create_source(
     src: ImagerySourceCreate,
     src_idx: int,
     bbox: list[float],
-) -> tuple[ImagerySource, list[tuple]]:
+) -> tuple[ImagerySource, list[RegistrationSpec]]:
     """Create a single ImagerySource with all its children.
     Returns (source, pending_registrations)."""
-    pending: list[tuple] = []
+    pending: list[RegistrationSpec] = []
     source = ImagerySource(
         campaign_id=campaign_id,
         name=src.name,
@@ -651,12 +671,12 @@ def _create_collection_record(
     col_create: ImageryCollectionCreate,
     col_idx: int,
     bbox: list[float],
-) -> tuple[ImageryCollection, tuple | None]:
+) -> tuple[ImageryCollection, RegistrationSpec | None]:
     """Persist a single collection (stac_config, slices, tile_urls) for a source.
 
-    Returns (collection, pending_stac_browser_entry). The second item is a tuple
-    suitable for `registration._register_all_stac_browser_collections`, or None
-    if the collection doesn't need deferred registration.
+    Returns (collection, pending_registration_spec). The second item is a
+    RegistrationSpec for `registration._register_all_stac_browser_collections`,
+    or None if the collection doesn't need deferred registration.
     """
     collection = ImageryCollection(
         source_id=source.id,
@@ -706,14 +726,14 @@ def _create_collection_record(
                 )
             )
 
-    pending_entry: tuple | None = None
+    pending_entry: RegistrationSpec | None = None
     if (
         col_create.stac_config
         and col_create.stac_config.catalog_url
         and col_create.stac_config.stac_collection_id
         and col_create.slices
     ):
-        pending_entry = (collection, col_create, src_create)
+        pending_entry = _registration_spec(collection, col_create, src_create)
     return collection, pending_entry
 
 

@@ -4,7 +4,7 @@ Owns everything that talks to the outside world to turn stored collections into
 servable tile URLs: the parallel slice registration with retries, the background
 thread that runs it off the request path, bbox-change re-registration, and the
 manual refresh endpoint's re-ingest. Editor-state persistence lives in
-``service.py``; it only hands over ``pending_registrations`` tuples.
+``service.py``; it only hands over ``RegistrationSpec`` snapshots.
 """
 
 import copy
@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from src.config import get_settings
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
+from src.imagery.schemas import CollectionStacConfigCreate
 from src.imagery.tile_urls import _slice_viz_params
 from src.tilers import providers
 
@@ -39,8 +40,8 @@ def _sanitize_stac_error(e: Exception) -> str:
     internal paths, credentials, or stack traces.
     """
     if isinstance(e, HTTPException):
-        # register_mosaic_sync raises HTTPException with a curated detail
-        # (e.g. "No items found ..."); surface the detail alone.
+        # load_refreshable_collection raises HTTPException with a curated detail
+        # (e.g. "Collection not found ..."); surface the detail alone.
         return str(e.detail)
     if isinstance(e, httpx.HTTPStatusError):
         status = e.response.status_code
@@ -73,9 +74,27 @@ class _SliceRef:
     end_date: str
 
 
+@dataclass(frozen=True)
+class RegistrationSpec:
+    """Plain snapshot of what mosaic registration needs for one collection.
+
+    Built by the imagery-editor save flow at the point a collection is
+    created or its search-affecting fields change, and handed to
+    ``spawn_background_mosaic_registration``. Carries only plain data so the
+    background thread never needs to touch a request-scoped ORM object.
+    """
+
+    collection_id: int
+    collection_name: str
+    stac_config: CollectionStacConfigCreate
+    has_dedicated_cover: bool
+    cover_slice_index: int
+    source_viz_names: list[str]
+
+
 def _register_all_stac_browser_collections(
     db: Session,
-    pending: list[tuple],
+    pending: list[RegistrationSpec],
     bbox: list[float],
     campaign_id: int,
 ) -> list[dict]:
@@ -94,19 +113,15 @@ def _register_all_stac_browser_collections(
 
     # Build a flat list of tasks
     tasks: list[dict] = []
-    for collection, col_create, src_create in pending:
-        stac = col_create.stac_config
+    for spec in pending:
+        stac = spec.stac_config
 
         # Validate viz name parity between source and stac_config
-        source_names = [v.name for v in src_create.visualizations]
         stac_names = [v.name for v in stac.visualizations]
-        if set(source_names) != set(stac_names):
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Visualization name mismatch in collection '{collection.name}': "
-                    f"source has {source_names}, stac_config has {stac_names}"
-                ),
+        if set(spec.source_viz_names) != set(stac_names):
+            raise ValueError(
+                f"Visualization name mismatch in collection '{spec.collection_name}': "
+                f"source has {spec.source_viz_names}, stac_config has {stac_names}"
             )
 
         # Per-visualization params dicts for URL baking
@@ -125,7 +140,7 @@ def _register_all_stac_browser_collections(
         db_slices = (
             db.execute(
                 select(ImagerySlice)
-                .where(ImagerySlice.collection_id == collection.id)
+                .where(ImagerySlice.collection_id == spec.collection_id)
                 .order_by(ImagerySlice.display_order)
             )
             .scalars()
@@ -133,7 +148,7 @@ def _register_all_stac_browser_collections(
         )
 
         for sl_idx, db_slice in enumerate(db_slices):
-            is_cover = col_create.has_dedicated_cover and sl_idx == col_create.cover_slice_index
+            is_cover = spec.has_dedicated_cover and sl_idx == spec.cover_slice_index
 
             # Effective per-viz params for this slice (cover override if present)
             slice_viz_by_name: dict[str, dict] = {
@@ -165,7 +180,7 @@ def _register_all_stac_browser_collections(
                     "viz_params_by_name": slice_viz_by_name,
                     "any_uses_mpc": any_uses_mpc,
                     "any_needs_hosted": any_needs_hosted,
-                    "collection_name": collection.name,
+                    "collection_name": spec.collection_name,
                     "tiler_name": stac.tiler or get_settings().DEFAULT_TILER,
                     "search_query": cover_search_query
                     if (is_cover and cover_search_query)
@@ -182,7 +197,7 @@ def _register_all_stac_browser_collections(
         try:
             tilers_by_name[name] = providers.resolve_tiler(name)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Unknown tiler '{name}'") from None
+            raise ValueError(f"Unknown tiler '{name}'") from None
 
     logger.info(
         "Registering %d mosaic slices in parallel (%d need MPC, %d need hosted)",
@@ -355,7 +370,7 @@ def finish_registration(
 
 def spawn_background_mosaic_registration(
     campaign_id: int,
-    pending_registrations: list[tuple],
+    pending_registrations: list[RegistrationSpec],
     bbox: list[float],
 ) -> None:
     """Run mosaic registration on a daemon thread with its own DB session.
@@ -366,24 +381,18 @@ def spawn_background_mosaic_registration(
     (and marks the campaign `registering`) first, then calls this to rebuild the
     tile URLs and flip `registration_status` to ready/failed when done.
 
-    Collection ids are captured now, while the ORM objects are still attached to
-    the request session; the thread re-fetches them against its own session so
-    it never touches a detached or cross-thread instance.
+    ``pending_registrations`` is already plain data (see `RegistrationSpec`), so
+    the thread hands it straight to registration without touching any ORM
+    object from the request session.
     """
-    reg_specs = [
-        (col.id, col_create, src_create) for col, col_create, src_create in pending_registrations
-    ]
 
     def _run() -> None:
         bg_db = SessionLocal()
         try:
             logger.info("Background mosaic registration started for campaign %d", campaign_id)
-            pending = [
-                (col, col_create, src_create)
-                for col_id, col_create, src_create in reg_specs
-                if (col := bg_db.get(ImageryCollection, col_id)) is not None
-            ]
-            errors = _register_all_stac_browser_collections(bg_db, pending, bbox, campaign_id)
+            errors = _register_all_stac_browser_collections(
+                bg_db, pending_registrations, bbox, campaign_id
+            )
             finish_registration(
                 bg_db,
                 campaign_id,

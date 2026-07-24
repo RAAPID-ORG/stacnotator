@@ -33,6 +33,7 @@ from src.canvas.service import new_default_main_layout
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.registration import (
+    RegistrationSpec,
     re_register_stac_collections,
     spawn_background_mosaic_registration,
 )
@@ -235,7 +236,7 @@ def create_campaign(
         db.refresh(campaign)
 
     # Create imagery structure (sources, collections, slices, views - no STAC calls yet)
-    pending_registrations: list = []
+    pending_registrations: list[RegistrationSpec] = []
     registration_bbox: list[float] = []
     if imagery_editor_state:
         imagery_result = create_imagery_from_editor_state(
