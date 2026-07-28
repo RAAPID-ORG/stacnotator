@@ -234,6 +234,77 @@ def get_annotation_task_id_for_annotation(
 # ============================================================================
 
 
+def _flag_comment_for(flagged_for_review: bool | None, flag_comment: str | None) -> str | None:
+    """Enforce the flag invariant: `flag_comment` may only survive when
+    `flagged_for_review` is true (mirrors the DB CheckConstraint
+    `annotations_flag_comment_requires_flag`). The single place this rule is
+    expressed in Python - every write path below routes through it.
+    """
+    return flag_comment if flagged_for_review else None
+
+
+def annotation_values(
+    *,
+    label_id: int | None,
+    comment: str | None,
+    confidence: int | None,
+    flagged_for_review: bool | None,
+    flag_comment: str | None,
+    form_values: dict | None = None,
+    is_authoritative: bool | None = None,
+) -> dict:
+    """Column values shared by every annotation write path (fresh creates and
+    the resubmit-in-place update in `add_annotation_for_task`).
+
+    `is_authoritative` is omitted from the result when None rather than
+    defaulted to False, so a caller doing a partial update (an already
+    existing annotation) can apply this dict via `setattr` in a loop without
+    resetting a field the request didn't touch.
+    """
+    flagged = flagged_for_review or False
+    values: dict = {
+        "label_id": label_id,
+        "comment": comment,
+        "confidence": confidence,
+        "flagged_for_review": flagged,
+        "flag_comment": _flag_comment_for(flagged, flag_comment),
+        "form_values": form_values,
+    }
+    if is_authoritative is not None:
+        values["is_authoritative"] = is_authoritative
+    return values
+
+
+def _standalone_annotation(
+    geometry_id: int,
+    campaign: Campaign,
+    user_id: UUID,
+    item: AnnotationCreate,
+    form_values: dict | None,
+) -> Annotation:
+    """Build one task-less Annotation row. Shared by `create_annotation` and
+    `create_annotations_bulk` so the column list lives in one place even
+    though the two callers insert via different DB calls (single vs batch)."""
+    return Annotation(
+        geometry_id=geometry_id,
+        campaign_id=campaign.id,
+        created_by_user_id=user_id,
+        annotation_task_id=None,  # Standalone annotation
+        imagery_slice_id=item.imagery_slice_id,
+        imagery_source_name=item.imagery_source_name,
+        imagery_start_date=item.imagery_start_date,
+        imagery_end_date=item.imagery_end_date,
+        **annotation_values(
+            label_id=item.label_id,
+            comment=item.comment,
+            confidence=item.confidence,
+            flagged_for_review=item.flagged_for_review,
+            flag_comment=item.flag_comment,
+            form_values=form_values,
+        ),
+    )
+
+
 def add_annotation_for_task(
     db: Session,
     annotation_task: AnnotationTask,
@@ -318,17 +389,18 @@ def add_annotation_for_task(
                 assignment.status = ANNOTATION_TASK_STATUS_SKIPPED
         else:
             # Update existing annotation with new label/comment
-            existing_annotation.label_id = annotation_create.label_id
-            existing_annotation.comment = annotation_create.comment
-            existing_annotation.created_by_user_id = user_id
-            existing_annotation.confidence = annotation_create.confidence
-            if annotation_create.is_authoritative is not None:
-                existing_annotation.is_authoritative = annotation_create.is_authoritative
-            existing_annotation.flagged_for_review = annotation_create.flagged_for_review or False
-            existing_annotation.flag_comment = (
-                annotation_create.flag_comment if annotation_create.flagged_for_review else None
+            values = annotation_values(
+                label_id=annotation_create.label_id,
+                comment=annotation_create.comment,
+                confidence=annotation_create.confidence,
+                flagged_for_review=annotation_create.flagged_for_review,
+                flag_comment=annotation_create.flag_comment,
+                form_values=normalized_form_values,
+                is_authoritative=annotation_create.is_authoritative,
             )
-            existing_annotation.form_values = normalized_form_values
+            for field, value in values.items():
+                setattr(existing_annotation, field, value)
+            existing_annotation.created_by_user_id = user_id
             if assignment:
                 assignment.status = ANNOTATION_TASK_STATUS_DONE
             annotation = existing_annotation
@@ -337,18 +409,18 @@ def add_annotation_for_task(
         if annotation_create.label_id is not None or annotation_create.comment is not None:
             annotation = Annotation(
                 geometry_id=annotation_task.geometry_id,
-                label_id=annotation_create.label_id,
-                comment=annotation_create.comment,
                 annotation_task_id=annotation_task.id,
                 campaign_id=annotation_task.campaign_id,
                 created_by_user_id=user_id,
-                confidence=annotation_create.confidence,
-                is_authoritative=annotation_create.is_authoritative or False,
-                flagged_for_review=annotation_create.flagged_for_review or False,
-                flag_comment=(
-                    annotation_create.flag_comment if annotation_create.flagged_for_review else None
+                **annotation_values(
+                    label_id=annotation_create.label_id,
+                    comment=annotation_create.comment,
+                    confidence=annotation_create.confidence,
+                    flagged_for_review=annotation_create.flagged_for_review,
+                    flag_comment=annotation_create.flag_comment,
+                    form_values=normalized_form_values,
+                    is_authoritative=annotation_create.is_authoritative,
                 ),
-                form_values=normalized_form_values,
             )
             db.add(annotation)
 
@@ -464,23 +536,8 @@ def create_annotation(
         db.flush()  # Get geometry ID
 
         # Create annotation
-        annotation = Annotation(
-            geometry_id=geometry.id,
-            label_id=annotation_create.label_id,
-            comment=annotation_create.comment,
-            campaign_id=campaign.id,
-            created_by_user_id=user_id,
-            confidence=annotation_create.confidence,
-            annotation_task_id=None,  # Standalone annotation
-            flagged_for_review=annotation_create.flagged_for_review or False,
-            flag_comment=(
-                annotation_create.flag_comment if annotation_create.flagged_for_review else None
-            ),
-            form_values=normalized_form_values,
-            imagery_slice_id=annotation_create.imagery_slice_id,
-            imagery_source_name=annotation_create.imagery_source_name,
-            imagery_start_date=annotation_create.imagery_start_date,
-            imagery_end_date=annotation_create.imagery_end_date,
+        annotation = _standalone_annotation(
+            geometry.id, campaign, user_id, annotation_create, normalized_form_values
         )
         db.add(annotation)
         bump_campaign_annotations_version(db, campaign.id)
@@ -536,22 +593,7 @@ def create_annotations_bulk(
         db.flush()  # assign geometry ids
 
         annotations = [
-            Annotation(
-                geometry_id=geometry.id,
-                label_id=a.label_id,
-                comment=a.comment,
-                campaign_id=campaign.id,
-                created_by_user_id=user_id,
-                confidence=a.confidence,
-                annotation_task_id=None,  # Standalone annotations
-                flagged_for_review=a.flagged_for_review or False,
-                flag_comment=a.flag_comment if a.flagged_for_review else None,
-                form_values=form_values,
-                imagery_slice_id=a.imagery_slice_id,
-                imagery_source_name=a.imagery_source_name,
-                imagery_start_date=a.imagery_start_date,
-                imagery_end_date=a.imagery_end_date,
-            )
+            _standalone_annotation(geometry.id, campaign, user_id, a, form_values)
             for a, geometry, form_values in zip(
                 annotations_create, geometries, normalized_form_values, strict=True
             )
@@ -667,8 +709,9 @@ def update_annotation(
 
         if annotation_update.flagged_for_review is not None:
             annotation.flagged_for_review = annotation_update.flagged_for_review
-            if not annotation_update.flagged_for_review:
-                annotation.flag_comment = None
+            annotation.flag_comment = _flag_comment_for(
+                annotation.flagged_for_review, annotation.flag_comment
+            )
         if annotation_update.flag_comment is not None and annotation.flagged_for_review:
             annotation.flag_comment = annotation_update.flag_comment
 

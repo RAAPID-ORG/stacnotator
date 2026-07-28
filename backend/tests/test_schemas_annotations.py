@@ -1,5 +1,7 @@
 """Tests for annotation task status computation logic."""
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 from geoalchemy2.elements import WKTElement
@@ -20,29 +22,42 @@ def _make_annotation(user_id, label_id, is_authoritative=False):
 
 
 def _make_task(assignments, annotations, task_id=1):
-    """Build an AnnotationTaskOut from simple assignment/annotation dicts."""
-    return AnnotationTaskOut(
+    """Validate an AnnotationTaskOut from ORM-shaped fakes built out of the
+    same assignment/annotation dicts used to call compute_task_status_value
+    directly (see TestComputeTaskStatusValue), so both paths run on
+    identical inputs. AnnotationTaskOut is only ever validated from real ORM
+    rows in production, hence the attribute-bearing SimpleNamespace wrapper."""
+    assignment_rows = [SimpleNamespace(is_review=False, claimed_at=None, **a) for a in assignments]
+    annotation_rows = [
+        SimpleNamespace(
+            id=i,
+            comment=None,
+            confidence=None,
+            flagged_for_review=False,
+            flag_comment=None,
+            created_at=datetime(2025, 1, 1, tzinfo=UTC),
+            updated_at=datetime(2025, 1, 1, tzinfo=UTC),
+            counts_toward_completion=None,
+            form_values=None,
+            imagery_slice_id=None,
+            imagery_source_name=None,
+            imagery_start_date=None,
+            imagery_end_date=None,
+            creator=None,
+            **a,
+        )
+        for i, a in enumerate(annotations, start=1)
+    ]
+    fake_task = SimpleNamespace(
         id=task_id,
         annotation_number=1,
         task_set_id=1,
-        geometry={"id": 1, "geometry": WKTElement("POINT(0 0)", srid=4326)},
-        assignments=assignments,
-        annotations=[
-            {
-                "id": i,
-                "comment": None,
-                "created_at": "2025-01-01T00:00:00",
-                "updated_at": "2025-01-01T00:00:00",
-                "confidence": None,
-                "is_authoritative": False,
-                "flagged_for_review": False,
-                "flag_comment": None,
-                # Spread last so caller-provided values (e.g. is_authoritative) win.
-                **a,
-            }
-            for i, a in enumerate(annotations, start=1)
-        ],
+        geometry=SimpleNamespace(id=1, geometry=WKTElement("POINT(0 0)", srid=4326)),
+        assignments=assignment_rows,
+        annotations=annotation_rows,
+        has_embedding=False,
     )
+    return AnnotationTaskOut.model_validate(fake_task)
 
 
 class TestTaskStatusComputation:

@@ -26,7 +26,7 @@ from src.annotation.models import (
     Annotation,
     AnnotationTask,
 )
-from src.annotation.schemas import compute_task_status_value
+from src.annotation.schemas import compute_task_status_value, task_status_inputs
 from src.auth.models import User
 from src.campaigns.form_fields import CategoryFormField, DateFormField, FormField, form_field_slug
 from src.campaigns.models import Campaign
@@ -236,19 +236,7 @@ def _compute_task_status_for_export(
     """
     if task is None:
         return None
-    assignment_list = [
-        {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
-        for a in (task.assignments or [])
-    ]
-    annotation_list = [
-        {
-            "label_id": a.label_id,
-            "created_by_user_id": a.created_by_user_id,
-            "is_authoritative": a.is_authoritative,
-            "counts_toward_completion": getattr(a, "counts_toward_completion", None),
-        }
-        for a in task_anns
-    ]
+    assignment_list, annotation_list = task_status_inputs(task.assignments or [], task_anns)
     return compute_task_status_value(assignment_list, annotation_list)
 
 

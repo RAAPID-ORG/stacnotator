@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 from fastapi import HTTPException
 from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
@@ -251,6 +252,88 @@ def create_annotation_tasks_from_csv(
         ) from None
 
 
+class GeoJSONParseError(Exception):
+    """Raised by `parse_geojson_features` on any structurally invalid input.
+
+    `status_code` is the HTTP status the caller should map this to: 413 for
+    an oversized upload, 400 for anything else.
+    """
+
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def parse_geojson_features(
+    contents: bytes, max_size: int, *, allow_bare_geometry: bool = True
+) -> list[tuple[BaseGeometry, dict]]:
+    """Parse and validate GeoJSON bytes into (geometry, properties) pairs.
+
+    Accepts a FeatureCollection or a single Feature; when `allow_bare_geometry`
+    is true (the task importer's original behavior) a bare geometry object is
+    also accepted, wrapped as one feature with empty properties. Only Point /
+    Polygon / MultiPolygon geometries are allowed; each is repaired with
+    `buffer(0)` if invalid and rejected if that leaves it empty. Shared by
+    both GeoJSON importers below so the size guard and parse/validate logic
+    exist once - `allow_bare_geometry` keeps each importer's original
+    top-level acceptance set intact.
+    """
+    if len(contents) > max_size:
+        raise GeoJSONParseError(
+            f"File too large. Maximum size: {max_size / 1024 / 1024:.0f}MB",
+            status_code=413,
+        )
+
+    try:
+        geojson = json.loads(contents.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise GeoJSONParseError("Invalid GeoJSON file") from exc
+
+    if geojson.get("type") == "FeatureCollection":
+        features = geojson.get("features", [])
+    elif geojson.get("type") == "Feature":
+        features = [geojson]
+    elif allow_bare_geometry and geojson.get("type") in (
+        "Point",
+        "Polygon",
+        "MultiPolygon",
+        "LineString",
+    ):
+        features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
+    else:
+        raise GeoJSONParseError("Unsupported GeoJSON type")
+
+    if not features:
+        raise GeoJSONParseError("GeoJSON contains no features")
+
+    allowed_types = {"Point", "Polygon", "MultiPolygon"}
+    parsed: list[tuple[BaseGeometry, dict]] = []
+
+    for idx, feat in enumerate(features):
+        geom_json = feat.get("geometry")
+        if not geom_json:
+            raise GeoJSONParseError(f"Feature {idx} has no geometry")
+        geom_type = geom_json.get("type")
+        if geom_type not in allowed_types:
+            raise GeoJSONParseError(
+                f"Feature {idx}: unsupported geometry type '{geom_type}'. "
+                f"Allowed: {sorted(allowed_types)}"
+            )
+
+        try:
+            geom = shape(geom_json)
+            if not geom.is_valid:
+                geom = geom.buffer(0)
+            if geom.is_empty:
+                raise ValueError("empty geometry")
+        except Exception as exc:
+            raise GeoJSONParseError(f"Feature {idx}: invalid geometry – {exc}") from exc
+
+        parsed.append((geom, feat.get("properties") or {}))
+
+    return parsed
+
+
 def create_annotation_tasks_from_geojson(
     db: Session,
     campaign_id: int,
@@ -276,62 +359,13 @@ def create_annotation_tasks_from_geojson(
     Raises:
         HTTPException: On invalid input or DB failure
     """
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024:.0f}MB",
-        )
-
     try:
-        geojson = json.loads(contents.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=400, detail="Invalid GeoJSON file") from exc
+        features = parse_geojson_features(contents, MAX_FILE_SIZE)
+    except GeoJSONParseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
-    if geojson.get("type") == "FeatureCollection":
-        features = geojson.get("features", [])
-    elif geojson.get("type") == "Feature":
-        features = [geojson]
-    elif geojson.get("type") in ("Point", "Polygon", "MultiPolygon", "LineString"):
-        features = [{"type": "Feature", "geometry": geojson, "properties": {}}]
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported GeoJSON type")
-
-    if not features:
-        raise HTTPException(status_code=400, detail="GeoJSON contains no features")
-
-    allowed_types = {"Point", "Polygon", "MultiPolygon"}
-    geometry_wkts: list[str] = []
-    raw_data: list[dict] = []
-
-    for idx, feat in enumerate(features):
-        geom_json = feat.get("geometry")
-        if not geom_json:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx} has no geometry",
-            )
-        geom_type = geom_json.get("type")
-        if geom_type not in allowed_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx}: unsupported geometry type '{geom_type}'. "
-                f"Allowed: {sorted(allowed_types)}",
-            )
-
-        try:
-            geom = shape(geom_json)
-            if not geom.is_valid:
-                geom = geom.buffer(0)
-            if geom.is_empty:
-                raise ValueError("empty geometry")
-        except Exception as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx}: invalid geometry – {exc}",
-            ) from exc
-
-        geometry_wkts.append(geom.wkt)
-        raw_data.append(feat.get("properties") or {})
+    geometry_wkts = [geom.wkt for geom, _ in features]
+    raw_data = [properties for _, properties in features]
 
     return insert_tasks(db, campaign_id, task_set_id, geometry_wkts, raw_data)
 
@@ -359,37 +393,19 @@ def create_annotations_from_geojson(
         Number of annotations created
     """
 
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large. Maximum size: {MAX_FILE_SIZE / 1024 / 1024:.0f}MB",
-        )
-
     try:
-        geojson = json.loads(contents.decode("utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=400, detail="Invalid GeoJSON file") from exc
-
-    if geojson.get("type") == "FeatureCollection":
-        features = geojson.get("features", [])
-    elif geojson.get("type") == "Feature":
-        features = [geojson]
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported GeoJSON type")
-
-    if not features:
-        raise HTTPException(status_code=400, detail="GeoJSON contains no features")
+        features = parse_geojson_features(contents, MAX_FILE_SIZE, allow_bare_geometry=False)
+    except GeoJSONParseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     fields = campaign_form_fields(campaign)
-    allowed_types = {"Point", "Polygon", "MultiPolygon"}
     geometry_records: list[dict] = []
     label_ids: list[int] = []
     source_ids: list[int | None] = []
     form_values_list: list[dict | None] = []
     seen_source_ids: set[int] = set()
 
-    for idx, feat in enumerate(features):
-        properties = feat.get("properties") or {}
+    for idx, (geom, properties) in enumerate(features):
         raw_label = properties.get("stacnotator_label_id")
         if raw_label is None:
             raise HTTPException(
@@ -438,29 +454,6 @@ def create_annotations_from_geojson(
                     detail=f"Feature {idx}: duplicate id {source_id} within the file",
                 )
             seen_source_ids.add(source_id)
-
-        geom_json = feat.get("geometry")
-        if not geom_json:
-            raise HTTPException(status_code=400, detail=f"Feature {idx} has no geometry")
-        geom_type = geom_json.get("type")
-        if geom_type not in allowed_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx}: unsupported geometry type '{geom_type}'. "
-                f"Allowed: {sorted(allowed_types)}",
-            )
-
-        try:
-            geom = shape(geom_json)
-            if not geom.is_valid:
-                geom = geom.buffer(0)
-            if geom.is_empty:
-                raise ValueError("empty geometry")
-        except Exception as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Feature {idx}: invalid geometry – {exc}",
-            ) from exc
 
         geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
         label_ids.append(label_id)

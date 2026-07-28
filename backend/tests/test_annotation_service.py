@@ -1803,6 +1803,18 @@ class TestCreateAnnotationsFromGeojson:
         assert "stacnotator_label_id" in exc.value.detail
         db.execute.assert_not_called()
 
+    def test_rejects_bare_geometry(self):
+        """Unlike the task importer, a bare geometry object (no Feature or
+        FeatureCollection wrapper) is not a supported top-level shape here -
+        this importer only ever accepted FeatureCollection/Feature."""
+        db = MagicMock()
+        contents = json.dumps({"type": "Point", "coordinates": [10.0, 20.0]}).encode("utf-8")
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Unsupported GeoJSON type"
+        db.execute.assert_not_called()
+
     def test_rejects_label_not_in_campaign(self):
         db = MagicMock()
         contents = self._fc([self._feature(99)])
