@@ -36,6 +36,73 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
 REQUIRED_COLUMNS = {"id", "lat", "lon"}
 
 
+def insert_tasks(
+    db: Session,
+    campaign_id: int,
+    task_set_id: int,
+    geometry_wkts: list[str],
+    raw_source_data: list[dict] | None,
+) -> int:
+    """
+    Bulk-insert geometries and their annotation tasks for a campaign.
+
+    Task numbers are assigned contiguously starting after the campaign's
+    current max annotation_number, in geometry_wkts order. Geometries are
+    stored as WGS84 (SRID=4326); pass plain WKT without the SRID prefix.
+
+    Args:
+        db: Database session
+        campaign_id: ID of campaign to create tasks for
+        task_set_id: ID of task set to assign created tasks to
+        geometry_wkts: Plain WKT for each task's geometry
+        raw_source_data: Per-task source data, aligned with geometry_wkts,
+            or None if no source data applies to any task
+
+    Returns:
+        Number of tasks created
+
+    Raises:
+        HTTPException: On DB failure; commits on success
+    """
+    max_annotation_number = db.scalar(
+        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
+            AnnotationTask.campaign_id == campaign_id
+        )
+    )
+    source_data: list[dict | None] = (
+        list(raw_source_data) if raw_source_data is not None else [None] * len(geometry_wkts)
+    )
+
+    try:
+        geometry_result = db.execute(
+            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
+            [{"geometry": f"SRID=4326;{wkt}"} for wkt in geometry_wkts],
+        )
+        geometry_ids = [row.id for row in geometry_result]
+
+        task_records = [
+            {
+                "annotation_number": max_annotation_number + i + 1,
+                "campaign_id": campaign_id,
+                "geometry_id": geometry_id,
+                "raw_source_data": rd,
+                "task_set_id": task_set_id,
+            }
+            for i, (geometry_id, rd) in enumerate(zip(geometry_ids, source_data, strict=True))
+        ]
+
+        db.execute(insert(AnnotationTask), task_records)
+        db.commit()
+        return len(task_records)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Import failed. No geometries or task items were created.",
+        ) from None
+
+
 def create_annotation_tasks_from_csv(
     db: Session,
     campaign_id: int,
@@ -233,7 +300,7 @@ def create_annotation_tasks_from_geojson(
         raise HTTPException(status_code=400, detail="GeoJSON contains no features")
 
     allowed_types = {"Point", "Polygon", "MultiPolygon"}
-    geometry_records: list[dict] = []
+    geometry_wkts: list[str] = []
     raw_data: list[dict] = []
 
     for idx, feat in enumerate(features):
@@ -263,43 +330,10 @@ def create_annotation_tasks_from_geojson(
                 detail=f"Feature {idx}: invalid geometry – {exc}",
             ) from exc
 
-        geometry_records.append({"geometry": f"SRID=4326;{geom.wkt}"})
+        geometry_wkts.append(geom.wkt)
         raw_data.append(feat.get("properties") or {})
 
-    max_num = db.scalar(
-        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
-            AnnotationTask.campaign_id == campaign_id
-        )
-    )
-
-    try:
-        geo_result = db.execute(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            geometry_records,
-        )
-        geometry_ids = [row.id for row in geo_result]
-
-        task_records = [
-            {
-                "annotation_number": max_num + i + 1,
-                "campaign_id": campaign_id,
-                "geometry_id": gid,
-                "raw_source_data": rd,
-                "task_set_id": task_set_id,
-            }
-            for i, (gid, rd) in enumerate(zip(geometry_ids, raw_data, strict=True))
-        ]
-
-        db.execute(insert(AnnotationTask), task_records)
-        db.commit()
-        return len(task_records)
-
-    except Exception:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Import failed. No geometries or task items were created.",
-        ) from None
+    return insert_tasks(db, campaign_id, task_set_id, geometry_wkts, raw_data)
 
 
 def create_annotations_from_geojson(

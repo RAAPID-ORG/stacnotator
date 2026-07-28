@@ -10,8 +10,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
-# Strip before length/blank checks so " " is rejected and a padded title cannot
-# exceed the cap on whitespace alone.
 ShortName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 
 

@@ -8,11 +8,10 @@ import geopandas as gpd
 import numpy as np
 from fastapi import HTTPException, UploadFile
 from shapely.geometry import MultiPolygon, Point, Polygon, box
-from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from src.annotation import embeddings_service
-from src.annotation.models import AnnotationGeometry, AnnotationTask
+from src.annotation.ingest import insert_tasks
 from src.campaigns.models import Campaign
 
 logger = logging.getLogger(__name__)
@@ -325,62 +324,20 @@ def create_tasks_from_sampling_strategy(
             f"Currently supported: ['random']",
         )
 
-    # Get the current max annotation_number for this campaign
-    max_annotation_number = db.scalar(
-        select(func.coalesce(func.max(AnnotationTask.annotation_number), 0)).where(
-            AnnotationTask.campaign_id == campaign_id
-        )
-    )
-
-    # Create geometry records
-    geometry_records = [
-        {"geometry": f"SRID=4326;POINT({point.x} {point.y})"} for point in sample_points
+    geometry_wkts = [f"POINT({point.x} {point.y})" for point in sample_points]
+    raw_source_data = [
+        {"sampling_strategy": strategy_type, "lon": point.x, "lat": point.y}
+        for point in sample_points
     ]
+    num_created = insert_tasks(db, campaign_id, task_set_id, geometry_wkts, raw_source_data)
 
-    try:
-        # Insert geometries and get IDs
-        geometry_result = db.execute(
-            insert(AnnotationGeometry).returning(AnnotationGeometry.id),
-            geometry_records,
-        )
-        geometry_ids = [row.id for row in geometry_result]
-
-        # Create task items
-        task_records = [
-            {
-                "annotation_number": max_annotation_number + i + 1,
-                "campaign_id": campaign_id,
-                "geometry_id": geometry_id,
-                "raw_source_data": {
-                    "sampling_strategy": strategy_type,
-                    "lon": point.x,
-                    "lat": point.y,
-                },
-                "task_set_id": task_set_id,
-            }
-            for i, (geometry_id, point) in enumerate(zip(geometry_ids, sample_points, strict=True))
-        ]
-
-        db.execute(insert(AnnotationTask), task_records)
-        db.flush()
-
-        campaign = db.get(Campaign, campaign_id)
-        embedding_year = (
-            campaign.settings.embedding_year if campaign and campaign.settings else None
-        )
-        if embedding_year is not None and campaign is not None:
-            # Off the request path: the spawned thread flips this to ready/failed
-            # once populate_campaign_embeddings finishes (or fails).
-            campaign.embedding_status = "registering"
-
+    campaign = db.get(Campaign, campaign_id)
+    embedding_year = campaign.settings.embedding_year if campaign and campaign.settings else None
+    if embedding_year is not None and campaign is not None:
+        # Off the request path: the spawned thread flips this to ready/failed
+        # once populate_campaign_embeddings finishes (or fails).
+        campaign.embedding_status = "registering"
         db.commit()
+        embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
 
-        if embedding_year is not None:
-            embeddings_service.spawn_background_embedding_computation(campaign_id, embedding_year)
-
-        return len(task_records)
-
-    except Exception as e:
-        db.rollback()
-        logger.exception("Failed to create tasks for campaign %d", campaign_id)
-        raise HTTPException(status_code=500, detail="Failed to create tasks") from e
+    return num_created
