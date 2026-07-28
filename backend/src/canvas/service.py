@@ -9,12 +9,11 @@ from collections.abc import Callable
 from copy import deepcopy
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from src.campaigns.models import Campaign, CampaignUser
 from src.canvas.layout import (
     DEFAULT_MAIN_CANVAS_LAYOUT,
     VIEW_LAYOUT_START_Y,
@@ -196,11 +195,11 @@ def save_canvas_layouts(
     view_id: int | None = None,
     should_be_default: bool = False,
 ) -> dict:
-    """Create or update the caller's (or the campaign default) canvas layouts."""
+    """Create or update the caller's (or the campaign default) canvas layouts.
 
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if not campaign:
-        raise HTTPException(status_code=404, detail=f"Campaign {campaign_id} not found")
+    Callers must have already checked campaign access and, when
+    ``should_be_default`` is set, campaign-admin authorization.
+    """
 
     if view_id is not None:
         view = db.execute(
@@ -211,20 +210,6 @@ def save_canvas_layouts(
         if not view:
             raise HTTPException(
                 status_code=404, detail=f"View {view_id} not found in campaign {campaign_id}"
-            )
-
-    if should_be_default:
-        has_admin_access = db.execute(
-            select(CampaignUser).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id == user_id,
-                CampaignUser.is_admin,
-            )
-        ).scalar_one_or_none()
-        if not has_admin_access:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only campaign admins can modify default layouts",
             )
 
     main_items = [item.model_dump() for item in layout_data.main_layout_data]

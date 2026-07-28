@@ -101,6 +101,8 @@ def create_new_canvas_layout(
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
 ):
+    if canvas_layout_req.should_be_default:
+        require_campaign_admin(campaign_id=campaign_id, db=db, user=user)
     result = canvas_service.save_canvas_layouts(
         db=db,
         campaign_id=campaign_id,
