@@ -6,6 +6,8 @@ from urllib.parse import quote_plus
 from pydantic import BaseModel, Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
+
 
 class TilerCfg(BaseModel):
     """A titiler-pgstac tiler endpoint.
@@ -123,26 +125,16 @@ class Settings(BaseSettings):
         v = self.cors_origins_raw
         if isinstance(v, list):
             return v
-        if isinstance(v, str):
-            # Skip empty strings
-            if not v.strip():
-                return [
-                    "http://localhost:3000",
-                    "http://localhost:5173",
-                ]
-            # Try to parse as JSON first
-            try:
-                parsed = json.loads(v)
-                if isinstance(parsed, list):
-                    return parsed
-            except (json.JSONDecodeError, ValueError):
-                pass
-            # Handle comma-separated string
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return [
-            "http://localhost:3000",
-            "http://localhost:5173",
-        ]
+        if not v.strip():
+            return _DEFAULT_CORS_ORIGINS
+        # Try to parse as JSON first, else fall back to a comma-separated string.
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
 
     @computed_field
     @property

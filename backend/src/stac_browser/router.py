@@ -6,6 +6,7 @@ from fastapi.security import HTTPBearer
 
 from src.auth.dependencies import require_approved_user
 from src.auth.models import User
+from src.routing import FunctionNameOperationIdRoute
 from src.stac_browser.catalogs import (
     COLLECTIONS_CACHE_TTL,
     _cache_get,
@@ -29,6 +30,7 @@ router = APIRouter(
     prefix="/stac",
     tags=["STAC Browser"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
+    route_class=FunctionNameOperationIdRoute,
 )
 
 

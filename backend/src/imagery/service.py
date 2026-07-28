@@ -47,10 +47,6 @@ def set_source_api_key(db: Session, campaign_id: int, source_id: int, value: str
     return source
 
 
-def _payload_has_dedicated_cover(col_create: ImageryCollectionCreate) -> bool:
-    return bool(col_create.has_dedicated_cover)
-
-
 def _registration_spec(
     collection: ImageryCollection,
     col_create: ImageryCollectionCreate,
@@ -499,7 +495,7 @@ def _update_collection_in_place(
     db_col.display_order = col_idx
 
     needs_reregistration = False
-    has_cover = _payload_has_dedicated_cover(col_create)
+    has_cover = bool(col_create.has_dedicated_cover)
 
     if col_create.stac_config:
         if db_col.stac_config is None:
@@ -688,7 +684,7 @@ def _create_collection_record(
     db.add(collection)
     db.flush()
 
-    has_cover = _payload_has_dedicated_cover(col_create)
+    has_cover = bool(col_create.has_dedicated_cover)
 
     if col_create.stac_config:
         db.add(

@@ -1,22 +1,20 @@
 from abc import ABC, abstractmethod
+from typing import NotRequired, TypedDict
 
 from fastapi import Request
 
 
-class AuthenticatedUser(dict):
+class AuthenticatedUser(TypedDict):
     """
     Normalized user data from external authentication provider.
 
     Provides a consistent interface regardless of the underlying
     authentication service (Firebase, Auth0, etc.).
-
-    Attributes:
-        uid: Unique identifier from the auth provider
-        email: User's email address (optional)
     """
 
     uid: str
     email: str | None
+    name: NotRequired[str]
 
 
 class AuthProvider(ABC):
@@ -28,9 +26,13 @@ class AuthProvider(ABC):
 
     Attributes:
         name: Unique identifier for this auth provider
+        bootstrap_roles: Roles granted automatically the first time a user
+            registers through this provider (empty for providers where roles
+            are assigned separately, e.g. by an admin).
     """
 
     name: str
+    bootstrap_roles: tuple[str, ...] = ()
 
     @abstractmethod
     async def authenticate(self, request: Request) -> AuthenticatedUser | None:

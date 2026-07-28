@@ -24,7 +24,6 @@ class CanvasLayoutOut(BaseModel):
 class CanvasLayoutCreate(BaseModel):
     main_layout_data: list[CanvasLayoutItem]
     view_layout_data: list[CanvasLayoutItem] | None = None
-    view_id: int | None = None
 
 
 class CanvasLayoutCreateRequest(BaseModel):

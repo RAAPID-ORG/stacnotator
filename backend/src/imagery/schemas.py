@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
 
 from src.canvas.schemas import CanvasLayoutOut
 
@@ -138,34 +138,30 @@ class ImageryViewOut(BaseModel):
     display_order: int
     collection_refs: list[ViewCollectionRefItem]
 
+    # Populated by from_orm; stay None on any other construction path (e.g. a
+    # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
+    # they don't reappear as writable input fields on this output-only schema.
+    _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+    _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+
     @computed_field
     @property
     def default_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_default_canvas_layout"):
-            return self._default_canvas_layout
-        return None
+        return self._default_canvas_layout
 
     @computed_field
     @property
     def personal_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_personal_canvas_layout"):
-            return self._personal_canvas_layout
-        return None
+        return self._personal_canvas_layout
 
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None):
-        default_layout = None
-        personal_layout = None
-        if hasattr(obj, "canvas_layouts"):
-            for layout in obj.canvas_layouts:
-                if layout.is_default and layout.user_id is None:
-                    default_layout = CanvasLayoutOut.model_validate(layout)
-                elif user_id and layout.user_id == user_id:
-                    personal_layout = CanvasLayoutOut.model_validate(layout)
-
+    def from_orm(cls, obj, user_id: UUID | None = None) -> "ImageryViewOut":
         instance = cls.model_validate(obj)
-        instance._default_canvas_layout = default_layout
-        instance._personal_canvas_layout = personal_layout
+        for layout in getattr(obj, "canvas_layouts", []):
+            if layout.is_default and layout.user_id is None:
+                instance._default_canvas_layout = CanvasLayoutOut.model_validate(layout)
+            elif user_id and layout.user_id == user_id:
+                instance._personal_canvas_layout = CanvasLayoutOut.model_validate(layout)
         return instance
 
     model_config = ConfigDict(from_attributes=True)

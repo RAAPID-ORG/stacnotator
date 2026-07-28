@@ -2,6 +2,7 @@ import logging
 
 from fastapi import Request
 
+from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
 from src.auth.providers.base import AuthenticatedUser, AuthProvider
 from src.config import get_settings
 
@@ -18,6 +19,7 @@ class LocalAuthProvider(AuthProvider):
     """
 
     name = "local"
+    bootstrap_roles = (ROLE_USER, ROLE_APPROVED, ROLE_ADMIN)
 
     def __init__(self):
         if settings.ENVIRONMENT == "production":

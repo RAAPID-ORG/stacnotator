@@ -31,10 +31,6 @@ class FetchedEmbedding:
     """Raw embedding fetched from an external provider (not yet persisted)."""
 
     vector: list[float]
-    period_start: datetime
-    period_end: datetime
-    lat: float
-    lon: float
 
 
 _ALPHAEARTH_BANDS = [f"A{i:02d}" for i in range(64)]
@@ -132,13 +128,7 @@ def _fetch_alphaearth_gee_batch(
             zero_vector_points.append({"id": pid, "lat": coords[1], "lon": coords[0]})
             continue
 
-        results[pid] = FetchedEmbedding(
-            vector=vector,
-            period_start=start_date,
-            period_end=end_date,
-            lat=coords[1],
-            lon=coords[0],
-        )
+        results[pid] = FetchedEmbedding(vector=vector)
 
     # Diagnostic: distinguish "dropped by sampleRegions" from "all-zero vector".
     # Both are deterministic "no data" - retrying won't help; these are real
@@ -169,21 +159,6 @@ def _fetch_alphaearth_gee_batch(
         )
 
     return results
-
-
-def store_embedding(
-    db: Session,
-    annotation_task_id: int,
-    fetched: FetchedEmbedding,
-) -> EmbeddingRow:
-    """Persist a fetched embedding and link it to an annotation task."""
-    row = EmbeddingRow(
-        annotation_task_id=annotation_task_id,
-        vector=fetched.vector,
-    )
-    db.add(row)
-    db.flush()
-    return row
 
 
 def find_nearest_labeled_embeddings(
@@ -238,7 +213,7 @@ def knn_label_agrees(
 
     neighbor_labels = [lbl for _, lbl, _ in nearest]
     most_common = max(set(neighbor_labels), key=neighbor_labels.count)
-    logger.info("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
+    logger.debug("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
     return most_common == label_id
 
 

@@ -510,8 +510,8 @@ class TestBulkRoleOperations:
         with patch("src.auth.service._get_roles", side_effect=lambda _db, uid: roles[uid]):
             result = grant_admin_bulk(db, [u1, u2])
 
-        assert result["success"] == [user1]
-        assert result["skipped"] == [user2]  # already admin
+        assert result.success == [user1]
+        assert result.already_in_state == [user2]  # already admin
         db.delete.assert_called_once_with(visitor_row)  # visitor cleared on promotion
 
 
