@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session, joinedload
 from src.annotation.models import Annotation
 from src.auth.models import User
 from src.campaigns.models import Campaign
-from src.campaigns.schemas import AnnotatorInfo, CampaignStatistics, PairwiseAgreement
+from src.campaigns.schemas import (
+    AnnotatorInfo,
+    CampaignStatistics,
+    PairwiseAgreement,
+    label_id_to_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -166,21 +171,7 @@ def get_campaign_statistics(
         )
 
     # Get label mapping
-    labels = campaign.settings.labels or {}
-    label_id_to_name = {}
-    if isinstance(labels, dict):
-        for label_id, label_data in labels.items():
-            if isinstance(label_data, dict):
-                label_id_to_name[int(label_id)] = label_data.get("name", f"Label {label_id}")
-            else:
-                label_id_to_name[int(label_id)] = str(label_data)
-    elif isinstance(labels, list):
-        for label_data in labels:
-            if isinstance(label_data, dict):
-                lid = label_data.get("id")
-                lname = label_data.get("name", f"Label {lid}")
-                if lid is not None:
-                    label_id_to_name[int(lid)] = lname
+    label_names = label_id_to_name(campaign.settings.labels if campaign.settings else None)
 
     # Batch fetch users
     user_ids = {ann.created_by_user_id for ann in annotations}
@@ -213,7 +204,7 @@ def get_campaign_statistics(
         label_dist = defaultdict(int)
         for ann in user_annots:
             if ann.label_id is not None:
-                label_name = label_id_to_name.get(ann.label_id, f"Unknown ({ann.label_id})")
+                label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")
                 label_dist[label_name] += 1
 
         annotator_list.append(
@@ -233,7 +224,7 @@ def get_campaign_statistics(
     overall_label_dist = defaultdict(int)
     for ann in annotations:
         if ann.label_id is not None:
-            label_name = label_id_to_name.get(ann.label_id, f"Unknown ({ann.label_id})")
+            label_name = label_names.get(ann.label_id, f"Unknown ({ann.label_id})")
             overall_label_dist[label_name] += 1
 
     # Count tasks with multiple annotations

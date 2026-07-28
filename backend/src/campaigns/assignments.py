@@ -16,7 +16,11 @@ from src.annotation.constants import (
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
 from src.campaigns.models import Campaign, CampaignUser
-from src.campaigns.schemas import AssignTasksToUsersRequest, AssignTasksToUsersResult
+from src.campaigns.schemas import (
+    AssignTasksToUsersRequest,
+    AssignTasksToUsersResult,
+    label_id_to_name,
+)
 
 ASSIGNMENTS_CSV_COLUMNS = [
     "annotation_number",
@@ -91,7 +95,9 @@ def _seed_assignment_status(
     return seeded
 
 
-def _verify_campaign_members(db: Session, campaign_id: int, user_ids: set[UUID]) -> None:
+def _verify_campaign_members(
+    db: Session, campaign_id: int, user_ids: set[UUID], role: str = "Users"
+) -> None:
     if not user_ids:
         return
     found = set(
@@ -106,14 +112,16 @@ def _verify_campaign_members(db: Session, campaign_id: int, user_ids: set[UUID])
     if missing:
         raise HTTPException(
             status_code=400,
-            detail=f"Users not assigned to campaign: {', '.join(str(uid) for uid in missing)}",
+            detail=f"{role} not assigned to campaign: {', '.join(str(uid) for uid in missing)}",
         )
 
 
-def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> None:
+def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]) -> list[int]:
+    """Raise 404 if any task_id isn't in the campaign; otherwise return the
+    (unique) found ids so callers who already need them skip a second query."""
     if not task_ids:
-        return
-    found = set(
+        return []
+    found = list(
         db.scalars(
             select(AnnotationTask.id).where(
                 AnnotationTask.id.in_(task_ids),
@@ -121,12 +129,13 @@ def _verify_tasks_in_campaign(db: Session, campaign_id: int, task_ids: list[int]
             )
         ).all()
     )
-    missing = set(task_ids) - found
+    missing = set(task_ids) - set(found)
     if missing:
         raise HTTPException(
             status_code=404,
             detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing)}",
         )
+    return found
 
 
 def _eligible_task_ids(db: Session, campaign_id: int, task_set_id: int | None = None) -> list[int]:
@@ -285,18 +294,7 @@ def unassign_users_from_tasks(
     if not task_ids:
         return 0
 
-    # Verify all tasks belong to the campaign
-    stmt = select(AnnotationTask.id).where(
-        AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
-    )
-    found_task_ids = set(db.scalars(stmt).all())
-    missing_task_ids = set(task_ids) - found_task_ids
-
-    if missing_task_ids:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
-        )
+    _verify_tasks_in_campaign(db, campaign_id, task_ids)
 
     where_clauses = [AnnotationTaskAssignment.task_id.in_(task_ids)]
     if user_ids is not None:
@@ -307,24 +305,6 @@ def unassign_users_from_tasks(
     result = db.execute(delete(AnnotationTaskAssignment).where(*where_clauses))
     db.commit()
     return result.rowcount or 0
-
-
-def _verify_reviewers_are_campaign_members(
-    db: Session, campaign_id: int, reviewer_ids: list[UUID]
-) -> None:
-    stmt = select(CampaignUser).where(
-        CampaignUser.campaign_id == campaign_id, CampaignUser.user_id.in_(reviewer_ids)
-    )
-    campaign_users = db.scalars(stmt).all()
-
-    found_user_ids = {cu.user_id for cu in campaign_users}
-    missing_user_ids = set(reviewer_ids) - found_user_ids
-
-    if missing_user_ids:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Reviewers not assigned to campaign: {', '.join(str(uid) for uid in missing_user_ids)}",
-        )
 
 
 def _reviewable_tasks(
@@ -442,7 +422,7 @@ def assign_reviewers_percentage(
             detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
         )
 
-    _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
+    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
 
     reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
@@ -492,7 +472,7 @@ def assign_reviewers_fixed(
             detail=f"Not enough reviewers in pool. Need at least {num_reviewers}, got {len(reviewer_ids)}",
         )
 
-    _verify_reviewers_are_campaign_members(db, campaign_id, reviewer_ids)
+    _verify_campaign_members(db, campaign_id, set(reviewer_ids), role="Reviewers")
 
     reviewable_tasks = _reviewable_tasks(db, campaign_id, task_set_id)
     if not reviewable_tasks:
@@ -568,13 +548,7 @@ def assign_reviewers_manual(
 
 
 def _label_id_to_name(campaign: Campaign) -> dict[int, str]:
-    labels = (campaign.settings.labels if campaign.settings else None) or {}
-    mapping: dict[int, str] = {}
-    if isinstance(labels, dict):
-        for label_id, data in labels.items():
-            name = data.get("name") if isinstance(data, dict) else str(data)
-            mapping[int(label_id)] = name or f"Label {label_id}"
-    return mapping
+    return label_id_to_name(campaign.settings.labels if campaign.settings else None)
 
 
 def build_task_assignments_export(

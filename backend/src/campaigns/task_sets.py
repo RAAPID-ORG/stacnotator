@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.annotation.geometries import delete_rows_and_orphan_geometries
 from src.annotation.models import Annotation, AnnotationTask
+from src.campaigns import assignments
 from src.campaigns.models import TaskSet
 
 DEFAULT_TASK_SET_NAME = "Default"
@@ -103,20 +104,7 @@ def move_tasks_to_set(db: Session, campaign_id: int, task_set_id: int, task_ids:
     require_task_set(db, campaign_id, task_set_id)
     if not task_ids:
         return 0
-    found = set(
-        db.scalars(
-            select(AnnotationTask.id).where(
-                AnnotationTask.id.in_(task_ids),
-                AnnotationTask.campaign_id == campaign_id,
-            )
-        ).all()
-    )
-    missing = set(task_ids) - found
-    if missing:
-        raise HTTPException(
-            status_code=404,
-            detail=(f"Tasks not found in campaign: {', '.join(str(t) for t in sorted(missing))}"),
-        )
+    found = assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
     db.execute(
         update(AnnotationTask)
         .where(AnnotationTask.id.in_(task_ids))

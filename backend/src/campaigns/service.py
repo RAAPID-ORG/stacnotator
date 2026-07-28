@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import ARRAY, Text, cast, delete, func, select, update
+from sqlalchemy import ARRAY, Text, cast, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -15,6 +15,7 @@ from src.annotation.geometries import (
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
 from src.auth.models import User
+from src.campaigns import assignments
 from src.campaigns.models import (
     Campaign,
     CampaignSettings,
@@ -24,6 +25,7 @@ from src.campaigns.models import (
 from src.campaigns.policy import _reject_anyone_kind_if_private, _strip_anyone_kind
 from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
+    CampaignListItemOut,
     CampaignSettingsCreate,
     LabellingPolicy,
     default_labelling_policy,
@@ -49,66 +51,66 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def list_campaigns(db: Session) -> list[Campaign]:
-    """Retrieve all campaigns ordered by creation date (newest first)."""
-    stmt = select(Campaign).order_by(Campaign.created_at.desc())
-    return db.scalars(stmt).all()
-
-
-def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:
+def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignListItemOut]:
     """
     Retrieve campaigns visible to the user, with role information.
 
     Visibility rules:
     - Platform admins see ALL campaigns.
     - Regular users see public campaigns + campaigns they are a member/admin of.
-
-    Returns list of dicts containing campaign data plus is_admin/is_member flags.
     """
     stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
     campaigns = db.scalars(stmt).unique().all()
 
-    # Check if user is a global platform admin
     user_is_global_admin = is_global_admin(db, user_id)
 
-    if user_is_global_admin:
-        # If user is global admin, they are admin of all campaigns
-        results = []
-        for campaign in campaigns:
-            results.append(
-                {
-                    "campaign": campaign,
-                    "is_admin": True,
-                    "is_member": True,
-                }
-            )
-        return results
-
-    results = []
+    results: list[CampaignListItemOut] = []
     for campaign in campaigns:
-        is_admin = False
-        is_member = False
+        is_admin = user_is_global_admin
+        is_member = user_is_global_admin
 
-        for campaign_user in campaign.users:
-            if campaign_user.user_id == user_id:
-                is_member = True
-                if campaign_user.is_admin:
-                    is_admin = True
-                break
+        if not user_is_global_admin:
+            for campaign_user in campaign.users:
+                if campaign_user.user_id == user_id:
+                    is_member = True
+                    is_admin = campaign_user.is_admin
+                    break
 
-        # Only include public campaigns or campaigns the user is a member of
-        if not campaign.is_public and not is_member:
-            continue
+            # Only include public campaigns or campaigns the user is a member of
+            if not campaign.is_public and not is_member:
+                continue
 
         results.append(
-            {
-                "campaign": campaign,
-                "is_admin": is_admin,
-                "is_member": is_member,
-            }
+            CampaignListItemOut(
+                id=campaign.id,
+                name=campaign.name,
+                created_at=campaign.created_at,
+                is_admin=is_admin,
+                is_member=is_member,
+                is_public=campaign.is_public,
+                registration_status=campaign.registration_status,
+                embedding_status=campaign.embedding_status,
+            )
         )
 
     return results
+
+
+def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
+    """Campaign ids visible to the user (same visibility rules as
+    list_campaigns_with_user_roles), without the joinedload of campaign users
+    or role bookkeeping - for callers like tiler-token minting that only need
+    the ids to scope a token."""
+    if is_global_admin(db, user_id):
+        return list(db.scalars(select(Campaign.id)).all())
+
+    stmt = (
+        select(Campaign.id)
+        .outerjoin(CampaignUser, CampaignUser.campaign_id == Campaign.id)
+        .where(or_(Campaign.is_public, CampaignUser.user_id == user_id))
+        .distinct()
+    )
+    return list(db.scalars(stmt).all())
 
 
 # Eager-load options covering every relationship that CampaignOut(+Full) serializes.
@@ -144,11 +146,6 @@ def get_campaign_full(db: Session, campaign_id: int) -> Campaign:
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     return campaign
-
-
-def get_campaign_with_layouts(db: Session, campaign_id: int) -> Campaign:
-    """Alias for get_campaign_full - used by the /detailed endpoint."""
-    return get_campaign_full(db, campaign_id)
 
 
 def create_campaign(
@@ -776,20 +773,12 @@ def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) 
     if not task_ids:
         return 0
 
-    # Verify all tasks belong to the campaign
-    stmt = select(AnnotationTask).where(
-        AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
-    )
-    tasks = db.scalars(stmt).all()
-
-    found_task_ids = {task.id for task in tasks}
-    missing_task_ids = set(task_ids) - found_task_ids
-
-    if missing_task_ids:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Tasks not found in campaign: {', '.join(str(tid) for tid in missing_task_ids)}",
+    assignments._verify_tasks_in_campaign(db, campaign_id, task_ids)
+    tasks = db.scalars(
+        select(AnnotationTask).where(
+            AnnotationTask.id.in_(task_ids), AnnotationTask.campaign_id == campaign_id
         )
+    ).all()
 
     # Deleting a task detaches its annotations (annotation_task_id SET NULL).
     delete_rows_and_orphan_geometries(db, tasks)

@@ -12,7 +12,7 @@ from src.auth.schemas import (
     BulkUserActionResponse,
     UserOutDetailed,
 )
-from src.campaigns.service import list_campaigns_with_user_roles
+from src.campaigns.service import visible_campaign_ids
 from src.config import get_settings
 from src.database import get_db
 from src.routing import FunctionNameOperationIdRoute
@@ -62,7 +62,7 @@ def get_tiler_token(
 ):
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (approved users only)."""
     settings = get_settings()
-    campaigns = [str(row["campaign"].id) for row in list_campaigns_with_user_roles(db, user.id)]
+    campaigns = [str(cid) for cid in visible_campaign_ids(db, user.id)]
     token = mint_tiler_token(user.id, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
     response.set_cookie(
         key="tiler_token",
