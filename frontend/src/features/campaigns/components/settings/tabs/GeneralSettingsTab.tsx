@@ -24,7 +24,7 @@ import {
   type FormField,
 } from '~/features/campaigns/utils/formFields';
 import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 

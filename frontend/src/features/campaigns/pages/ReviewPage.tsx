@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useState } from 'react';
 import { SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
 import { getCampaign, listAllCampaigns, type CampaignOut } from '~/api/client';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
-import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();

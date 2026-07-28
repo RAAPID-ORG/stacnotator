@@ -2,12 +2,12 @@ import { useState, useLayoutEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Toaster } from 'sonner';
-import { AppSidebar } from 'src/features/layout/components/AppSidebar';
+import { AppSidebar } from 'src/app/AppSidebar';
 import { ConfirmDialog } from 'src/shared/ui/ConfirmDialog';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
 import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
-import { useLayoutStore } from 'src/features/layout/layout.store';
+import { useLayoutStore } from 'src/shared/stores/layout.store';
 
 const ANNOTATION_ROUTE = /^\/campaigns\/\d+\/annotate/;
 

@@ -10,8 +10,8 @@ import {
   type AnnotationTaskOut,
   type TaskSetOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import type { TaskStatus } from '~/shared/utils/taskStatus';
 import { useAnnotationStore } from './annotation.store';

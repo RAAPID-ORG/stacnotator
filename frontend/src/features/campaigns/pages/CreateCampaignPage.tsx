@@ -3,8 +3,8 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate } from '~/api/client';
 import { createCampaign } from '~/api/client';
 import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/components/LabellingPolicyEditor';
-import { useLayoutStore } from '~/features/layout/layout.store';
-import { useCanCreateCampaigns } from '~/features/account/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { useCanCreateCampaigns } from '~/shared/stores/account.store';
 import {
   validateFullForm,
   type FullValidationResult,

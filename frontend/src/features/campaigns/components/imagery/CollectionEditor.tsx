@@ -15,7 +15,7 @@ import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
 import { getCollections, listTilers, type AssetInfo, type TilerOption } from '~/api/client';
-import { useIsInternal } from '~/features/account/account.store';
+import { useIsInternal } from '~/shared/stores/account.store';
 
 interface CollectionEditorProps {
   collection: CollectionItem;

@@ -87,9 +87,9 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 ## Frontend architecture
 
 Feature-sliced under `frontend/src/`:
-- `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `account`, `settings`, `home`, `layout`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
-- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`
+- `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
+- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
+- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`)
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 
 The annotation feature is the heart of the app. Two campaign modes drive parallel component sets: **Task Mode** (predefined locations, `ControlsTaskMode`/`TaskModeMap`) and **Open Mode** (free-form, `ControlsOpenMode`/`OpenModeMap`). Maps are OpenLayers (`features/annotation/components/Map/`): `layerManager.ts`, `useSliceLayers.ts`, and tile prefetching (`tilePreloader.ts`, `useTilePreloading.ts`). State is Zustand stores. The whole annotation workflow supports keyboard hotkeys.

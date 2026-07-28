@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
-import { useAccountStore } from 'src/features/account/account.store';
+import { useAccountStore } from 'src/shared/stores/account.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export const LogoutButton = () => {

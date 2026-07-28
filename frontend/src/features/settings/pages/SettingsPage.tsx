@@ -3,7 +3,7 @@ import { PlatformUsersTable } from '~/features/settings/components/PlatformUsers
 import { Skeleton, SkeletonPage } from 'src/shared/ui/Skeleton';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Button, Field, Input } from '~/shared/ui/forms';
-import { useLayoutStore } from 'src/features/layout/layout.store';
+import { useLayoutStore } from 'src/shared/stores/layout.store';
 import {
   listUsers,
   approveUsersBulk,
@@ -21,7 +21,7 @@ import {
   listGrantableTilers,
   type UserOutDetailed,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { authManager, AUTH_PROVIDERS } from 'src/features/auth/index';
 import {
   PasswordRequirementsList,

@@ -10,10 +10,10 @@ import GeneralSettingsTab from '~/features/campaigns/components/settings/tabs/Ge
 import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab';
 import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
-import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';

@@ -10,8 +10,8 @@ import {
   type CampaignOutFull,
   type KnnValidationStatusOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useMapStore } from './map.store';
 import { useTaskStore } from './task.store';

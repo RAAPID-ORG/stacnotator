@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { CampaignCreate, CampaignUserOut, LabellingPolicy } from '~/api/client';
 import { Input } from '~/shared/ui/forms';
-import { useLayoutStore } from '~/features/layout/layout.store';
-import { useAccountStore } from '~/features/account/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import {
   DEFAULT_LABELLING_POLICY,
   LabellingPolicyEditor,

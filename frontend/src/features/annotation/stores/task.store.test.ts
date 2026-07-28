@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { useTaskStore } from './task.store';
 import { useCampaignStore } from './campaign.store';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import type { AnnotationTaskOut, CampaignOutFull } from '~/api/client';
 
 const REQUIRED_FIELD = {

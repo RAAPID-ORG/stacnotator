@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { ExportDropdown } from '~/features/campaigns/components/review/ExportDropdown';
 import { ImportFeaturesSection } from '~/features/campaigns/components/settings/ImportFeaturesSection';
 import { Button } from '~/shared/ui/forms';
@@ -17,9 +17,9 @@ import {
 } from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
-import { useCampaignIdParam } from '~/features/campaigns/hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { FadeIn } from '~/shared/ui/motion';

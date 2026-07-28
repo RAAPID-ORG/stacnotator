@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '~/app/providers/AuthProvider';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { authManager, AUTH_PROVIDERS } from '~/features/auth/index';
 import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';

@@ -9,8 +9,8 @@ import {
   type CampaignOut,
   type CampaignUserOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { OpenModeDistributionMap } from './OpenModeDistributionMap';

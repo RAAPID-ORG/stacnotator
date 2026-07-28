@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { exportAnnotations, exportAnnotationsGeojson, type CampaignOut } from '~/api/client';
 import { Dropdown } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useIsInternal } from '~/features/account/account.store';
+import { useIsInternal } from '~/shared/stores/account.store';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';

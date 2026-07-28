@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 
 const SIDEBAR_TRANSITION_MS = 220;
 

@@ -6,7 +6,7 @@ import { ApprovalPendingScreen } from './ApprovalPendingScreen';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
 /**
