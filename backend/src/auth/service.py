@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import NamedTuple
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -9,16 +10,11 @@ from src.auth.constants import (
     ROLE_ADMIN,
     ROLE_APPROVED,
     ROLE_INTERNAL,
-    ROLE_USER,
     ROLE_VISITOR,
 )
 from src.auth.models import User, UserRole, UserTiler
 from src.auth.providers.base import AuthenticatedUser
-from src.config import get_settings
-from src.tiling import registry
-
-settings = get_settings()
-
+from src.tilers import registry
 
 # ============================================================================
 # Internal Helper Functions
@@ -142,7 +138,12 @@ def _get_user_by_email(db: Session, email: str) -> User | None:
 # ============================================================================
 
 
-def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
+def register_user(
+    db: Session,
+    token: AuthenticatedUser,
+    issuer: str,
+    bootstrap_roles: tuple[str, ...] = (),
+) -> User:
     """
     Register or retrieve user from external authentication token.
 
@@ -153,6 +154,8 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
         db: Database session
         token: Authenticated user data from external provider
         issuer: Name of the authentication provider
+        bootstrap_roles: Roles to grant on first registration, from the
+            provider's bootstrap_roles (e.g. local auth grants itself admin)
 
     Returns:
         User object (existing or newly created)
@@ -166,30 +169,30 @@ def register_user(db: Session, token: AuthenticatedUser, issuer: str) -> User:
     if user:
         return user
 
-    if not token.get("email"):
+    email = token.get("email")
+    if not email:
         raise ValueError("Cannot register user without email from authentication provider")
 
-    if _get_user_by_email(db, token["email"]):
+    if _get_user_by_email(db, email):
         raise HTTPException(
             status_code=409,
             detail="An account with this email already exists under a different login method.",
         )
 
-    display_name = token.get("name") or token["email"].split("@")[0]
+    display_name = token.get("name") or email.split("@")[0]
 
     user = User(
         issuer=issuer,
         external_uid=token["uid"],
-        email=token["email"],
+        email=email,
         display_name=display_name,
     )
 
     db.add(user)
     db.flush()
 
-    if issuer == "local":
-        for role in (ROLE_USER, ROLE_APPROVED, ROLE_ADMIN):
-            db.add(UserRole(user_id=user.id, role=role))
+    for role in bootstrap_roles:
+        db.add(UserRole(user_id=user.id, role=role))
 
     for tiler_name in registry.default_access_names():
         db.add(UserTiler(user_id=user.id, tiler_name=tiler_name))
@@ -351,10 +354,16 @@ def revoke_internal(db: Session, user_id: UUID) -> User | None:
 
 # ============================================================================
 # Bulk Operations
-#
-# Every bulk operation returns the same shape so the router can map them
-# uniformly: {"success": [User], "not_found": [str], "skipped": [User]}.
 # ============================================================================
+
+
+class BulkRoleChangeResult(NamedTuple):
+    """Outcome of a bulk role change, shaped to match BulkUserActionResponse
+    (`already_in_state` covers users who already held/lacked the role)."""
+
+    success: list[User]
+    not_found: list[str]
+    already_in_state: list[User]
 
 
 def _bulk_grant_role(
@@ -363,10 +372,10 @@ def _bulk_grant_role(
     role: str,
     *,
     also_remove: tuple[str, ...] = (),
-) -> dict:
+) -> BulkRoleChangeResult:
     """Grant `role` to many users in one transaction, ensuring approval and
     clearing any `also_remove` roles. Users who already hold `role` are skipped."""
-    success, not_found, skipped = [], [], []
+    success, not_found, already_in_state = [], [], []
 
     for user_id in user_ids:
         user = db.get(User, user_id)
@@ -376,7 +385,7 @@ def _bulk_grant_role(
 
         roles = _get_roles(db, user_id)
         if role in roles:
-            skipped.append(user)
+            already_in_state.append(user)
             continue
 
         _apply_grant(db, user_id, role, roles, also_remove)
@@ -387,7 +396,7 @@ def _bulk_grant_role(
         for user in success:
             db.refresh(user)
 
-    return {"success": success, "not_found": not_found, "skipped": skipped}
+    return BulkRoleChangeResult(success, not_found, already_in_state)
 
 
 def _bulk_revoke_role(
@@ -396,11 +405,11 @@ def _bulk_revoke_role(
     role: str,
     *,
     guard: Callable[[list[User]], None] | None = None,
-) -> dict:
+) -> BulkRoleChangeResult:
     """Remove `role` from many users in one transaction. Users without `role`
     are skipped. An optional `guard` receives the users about to be revoked and
     may raise to abort before anything is deleted."""
-    success, not_found, skipped = [], [], []
+    success, not_found, already_in_state = [], [], []
     targets = []
 
     for user_id in user_ids:
@@ -414,7 +423,7 @@ def _bulk_revoke_role(
         if role_row:
             targets.append((user, role_row))
         else:
-            skipped.append(user)
+            already_in_state.append(user)
 
     if guard:
         guard([user for user, _ in targets])
@@ -428,25 +437,25 @@ def _bulk_revoke_role(
         for user in success:
             db.refresh(user)
 
-    return {"success": success, "not_found": not_found, "skipped": skipped}
+    return BulkRoleChangeResult(success, not_found, already_in_state)
 
 
-def approve_users_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def approve_users_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Grant approval to multiple users."""
     return _bulk_grant_role(db, user_ids, ROLE_APPROVED)
 
 
-def revoke_approval_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def revoke_approval_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Revoke approval from multiple users."""
     return _bulk_revoke_role(db, user_ids, ROLE_APPROVED)
 
 
-def grant_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def grant_admin_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Grant admin to multiple users, granting approval and clearing visitor."""
     return _bulk_grant_role(db, user_ids, ROLE_ADMIN, also_remove=(ROLE_VISITOR,))
 
 
-def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Revoke admin from multiple users, refusing to remove the last admin."""
 
     def keep_one_admin(users_to_revoke: list[User]) -> None:
@@ -462,12 +471,12 @@ def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> dict:
     return _bulk_revoke_role(db, user_ids, ROLE_ADMIN, guard=keep_one_admin)
 
 
-def grant_visitor_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def grant_visitor_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Grant visitor to multiple users, granting approval if needed."""
     return _bulk_grant_role(db, user_ids, ROLE_VISITOR)
 
 
-def revoke_visitor_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def revoke_visitor_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Revoke visitor from multiple users; each remains a standard approved user."""
     return _bulk_revoke_role(db, user_ids, ROLE_VISITOR)
 
@@ -516,9 +525,9 @@ def deny_user(db: Session, user_id: UUID) -> User | None:
     return user
 
 
-def deny_users_bulk(db: Session, user_ids: list[UUID]) -> dict:
+def deny_users_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
     """Deny (delete) multiple unapproved users. Approved or admin users are skipped."""
-    success, not_found, skipped = [], [], []
+    success, not_found, already_in_state = [], [], []
 
     for user_id in user_ids:
         user = db.get(User, user_id)
@@ -527,7 +536,7 @@ def deny_users_bulk(db: Session, user_ids: list[UUID]) -> dict:
             continue
 
         if has_role(db, user_id, ROLE_APPROVED) or has_role(db, user_id, ROLE_ADMIN):
-            skipped.append(user)
+            already_in_state.append(user)
             continue
 
         db.delete(user)
@@ -536,7 +545,7 @@ def deny_users_bulk(db: Session, user_ids: list[UUID]) -> dict:
     if success:
         db.commit()
 
-    return {"success": success, "not_found": not_found, "skipped": skipped}
+    return BulkRoleChangeResult(success, not_found, already_in_state)
 
 
 # ============================================================================

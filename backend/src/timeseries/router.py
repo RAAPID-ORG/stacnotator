@@ -1,6 +1,3 @@
-import re
-from calendar import monthrange
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -16,19 +13,19 @@ from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_SOURCES,
     SUPPORTED_TIMESERIES_TYPES,
 )
+from src.timeseries.ndvi_ee import RateLimited, UpstreamFailed
 from src.timeseries.schemas import (
     TimeseriesBulkCreateRequest,
     TimeseriesBulkCreateResponse,
     TimeseriesDataResponse,
     TimeseriesListResponse,
     TimeSeriesOptionsOut,
+    ym_range_to_dates,
 )
-from src.utils import FunctionNameOperationIdRoute
 
 router = APIRouter(
     tags=["Time Series"],
     dependencies=[Depends(HTTPBearer()), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
@@ -77,39 +74,38 @@ def get_timeseries_data(
 ):
     """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)
-
-    # Verify the user has access to the campaign this timeseries belongs to
     require_campaign_access(campaign_id=timeseries.campaign_id, db=db, user=user)
 
-    ym_pattern = re.compile(r"^\d{4}(0[1-9]|1[0-2])$")
-    if (
-        not timeseries.start_ym
-        or not timeseries.end_ym
-        or not ym_pattern.match(timeseries.start_ym)
-        or not ym_pattern.match(timeseries.end_ym)
-    ):
+    try:
+        start, end = ym_range_to_dates(timeseries.start_ym, timeseries.end_ym)
+    except ValueError as exc:
         raise HTTPException(
-            status_code=400,
-            detail="Timeseries has no valid date range configured (start_ym / end_ym must be YYYYMM format with valid month 01-12)",
-        )
+            status_code=400, detail=f"Timeseries has an invalid date range: {exc}"
+        ) from exc
 
-    start_year, start_month = int(timeseries.start_ym[:4]), int(timeseries.start_ym[4:6])
-    end_year, end_month = int(timeseries.end_ym[:4]), int(timeseries.end_ym[4:6])
-    start = f"{start_year}-{start_month:02d}-01"
-    end = f"{end_year}-{end_month:02d}-{monthrange(end_year, end_month)[1]}"
-
-    # Hand the pooled connection back before the Earth Engine call.
+    # Free the pooled connection back before the slow Earth Engine call.
     ts_type, source = timeseries.ts_type, timeseries.data_source
     db.close()
 
-    timeseries_data_df = service.get_timeseries_data(
-        ts_type=ts_type,
-        source=source,
-        latitude=latitude,
-        longitude=longitude,
-        start_date=start,
-        end_date=end,
-    )
+    try:
+        timeseries_data_df = service.get_timeseries_data(
+            ts_type=ts_type,
+            source=source,
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start,
+            end_date=end,
+        )
+    except RateLimited as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Earth Engine is rate-limiting requests. Please retry in a moment.",
+        ) from exc
+    except UpstreamFailed as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Earth Engine request failed: {exc}",
+        ) from exc
 
     return TimeseriesDataResponse(
         timeseries_id=timeseries_id, data=timeseries_data_df.to_dict(orient="records")

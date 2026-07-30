@@ -4,7 +4,7 @@ import 'src/styles/app.css';
 import { RootErrorFallback } from 'src/shared/ui/RootErrorFallback';
 import { ErrorBoundary } from 'react-error-boundary';
 import { client } from 'src/api/client/client.gen';
-import { setupClientInterceptors } from 'src/api/hey-api';
+import { setupClientInterceptors } from 'src/features/auth/core/interceptors';
 import { AuthProvider } from 'src/app/providers/AuthProvider';
 import { AuthGate } from 'src/features/auth/ui/AuthGate';
 

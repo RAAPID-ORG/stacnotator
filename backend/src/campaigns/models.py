@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
@@ -19,6 +20,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
+if TYPE_CHECKING:
+    from src.canvas.models import CanvasLayout
+
 
 class Campaign(Base):
     """
@@ -34,7 +38,7 @@ class Campaign(Base):
     # Campaign metadata
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
@@ -137,7 +141,7 @@ class TaskSet(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=False),
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
@@ -211,68 +215,16 @@ class CampaignSettings(Base):
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
 
 
-class CanvasLayout(Base):
-    """
-    Stores UI canvas layout configuration for views or campaign settings.
-    Can be user-specific (personal layout) or serve as a default layout (is_default=True).
-
-    Layout types:
-    - Campaign main layout: campaign_id set, view_id NULL
-    - View-specific layout: campaign_id set, view_id set
-    """
-
-    __tablename__ = "canvas_layouts"
-    __table_args__ = (
-        CheckConstraint(
-            "(is_default = false) OR (is_default = true AND user_id IS NULL)",
-            name="canvas_layouts_default_check",
-        ),
-        {"schema": "data"},
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    user_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    campaign_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    view_id: Mapped[int | None] = mapped_column(
-        ForeignKey("data.imagery_views.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-
-    is_default: Mapped[bool] = mapped_column(
-        server_default="false",
-        nullable=False,
-    )
-
-    layout_data: Mapped[list] = mapped_column(
-        JSONB,
-        server_default="[]",
-        nullable=False,
-    )
-
-    campaign: Mapped["Campaign | None"] = relationship(
-        back_populates="canvas_layouts",
-    )
-    imagery_view: Mapped["ImageryView | None"] = relationship(  # noqa: F821
-        back_populates="canvas_layouts",
-    )
-
-
 class CampaignUser(Base):
     """
     Association table linking users to campaigns with role-based access.
     """
 
     __tablename__ = "campaign_users"
-    __table_args__ = ({"schema": "data"},)
+    __table_args__ = (
+        Index("idx_campaign_users_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     # Composite primary key
     user_id: Mapped[UUID] = mapped_column(
@@ -286,7 +238,7 @@ class CampaignUser(Base):
 
     # User roles in campaign
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    is_authorative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_authoritative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     user: Mapped["User"] = relationship()  # noqa: F821

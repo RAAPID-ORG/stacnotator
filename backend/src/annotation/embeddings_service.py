@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +19,8 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
+from src.database import SessionLocal
+from src.imagery.registration import finish_registration, sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +30,6 @@ class FetchedEmbedding:
     """Raw embedding fetched from an external provider (not yet persisted)."""
 
     vector: list[float]
-    period_start: datetime
-    period_end: datetime
-    lat: float
-    lon: float
 
 
 _ALPHAEARTH_BANDS = [f"A{i:02d}" for i in range(64)]
@@ -128,13 +127,7 @@ def _fetch_alphaearth_gee_batch(
             zero_vector_points.append({"id": pid, "lat": coords[1], "lon": coords[0]})
             continue
 
-        results[pid] = FetchedEmbedding(
-            vector=vector,
-            period_start=start_date,
-            period_end=end_date,
-            lat=coords[1],
-            lon=coords[0],
-        )
+        results[pid] = FetchedEmbedding(vector=vector)
 
     # Diagnostic: distinguish "dropped by sampleRegions" from "all-zero vector".
     # Both are deterministic "no data" - retrying won't help; these are real
@@ -165,25 +158,6 @@ def _fetch_alphaearth_gee_batch(
         )
 
     return results
-
-
-def store_embedding(
-    db: Session,
-    annotation_task_id: int,
-    fetched: FetchedEmbedding,
-) -> EmbeddingRow:
-    """Persist a fetched embedding and link it to an annotation task."""
-    row = EmbeddingRow(
-        annotation_task_id=annotation_task_id,
-        vector=fetched.vector,
-        lat=fetched.lat,
-        lon=fetched.lon,
-        period_start=fetched.period_start,
-        period_end=fetched.period_end,
-    )
-    db.add(row)
-    db.flush()
-    return row
 
 
 def find_nearest_labeled_embeddings(
@@ -238,7 +212,7 @@ def knn_label_agrees(
 
     neighbor_labels = [lbl for _, lbl, _ in nearest]
     most_common = max(set(neighbor_labels), key=neighbor_labels.count)
-    logger.info("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
+    logger.debug("Neighbor labels: %s, most common: %s", neighbor_labels, most_common)
     return most_common == label_id
 
 
@@ -455,10 +429,6 @@ def populate_campaign_embeddings(
         EmbeddingRow(
             annotation_task_id=int(task_id_str),
             vector=fetched.vector,
-            lat=fetched.lat,
-            lon=fetched.lon,
-            period_start=fetched.period_start,
-            period_end=fetched.period_end,
         )
         for task_id_str, fetched in all_fetched.items()
     ]
@@ -483,3 +453,63 @@ def populate_campaign_embeddings(
         total,
     )
     return summary
+
+
+def _sanitize_embedding_error(exc: Exception) -> str:
+    """Extract a user-facing message from an embedding computation failure.
+
+    Never exposes stack traces or internal file paths (mirrors
+    imagery.registration._sanitize_stac_error for the equivalent mosaic-side errors).
+    """
+    return sanitize_error_message(exc, fallback="Embedding computation failed")
+
+
+def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
+    """Run embedding computation on a daemon thread with its own DB session.
+
+    The single status protocol for embeddings background work. Mirrors
+    imagery.registration.spawn_background_mosaic_registration: the caller commits
+    `campaign.embedding_status = "registering"` in its own transaction before
+    calling this, then this thread flips it to ready/failed once
+    populate_campaign_embeddings finishes (or fails). Both transitions go
+    through registration.finish_registration so its error append can never
+    clobber (or be clobbered by) the mosaic thread's, since both write
+    registration_errors.
+    """
+    start_date = datetime(year, 1, 1)
+    end_date = datetime(year, 12, 31)
+
+    def _run() -> None:
+        bg_db = SessionLocal()
+        try:
+            logger.info(
+                "Background embeddings started for campaign %d (year %d)", campaign_id, year
+            )
+            populate_campaign_embeddings(bg_db, campaign_id, start_date, end_date)
+            finish_registration(
+                bg_db,
+                campaign_id,
+                status_field="embedding_status",
+                status="ready",
+                errors=[],
+            )
+            bg_db.commit()
+            logger.info("Embeddings completed for campaign %d", campaign_id)
+        except Exception as exc:
+            logger.exception("Embeddings failed for campaign %d", campaign_id)
+            bg_db.rollback()
+            try:
+                finish_registration(
+                    bg_db,
+                    campaign_id,
+                    status_field="embedding_status",
+                    status="failed",
+                    errors=[{"error": f"Embeddings: {_sanitize_embedding_error(exc)}"}],
+                )
+                bg_db.commit()
+            except Exception:
+                logger.warning("Failed to persist embedding error status", exc_info=True)
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_run, daemon=True).start()

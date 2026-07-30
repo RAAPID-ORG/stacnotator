@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from src.annotation import service
+from src.annotation import spatial
 from src.auth.dependencies import require_approved_user
 from src.campaigns.dependencies import require_campaign_access
 from src.database import get_db
@@ -18,7 +18,7 @@ def client(monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError("underlying cause we need to see")
 
-    monkeypatch.setattr(service, "render_annotation_tile", boom)
+    monkeypatch.setattr(spatial, "render_annotation_tile", boom)
     app.dependency_overrides[get_db] = lambda: None
     app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id=1)
     app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)

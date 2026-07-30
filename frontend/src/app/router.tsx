@@ -9,7 +9,7 @@ import {
 } from 'react-router-dom';
 import { CampaignsPage } from 'src/features/campaigns/pages/CampaignsOverviewPage';
 import { HomePage } from 'src/features/home/pages/HomePage';
-import { AppLayout } from '~/features/layout/components/AppLayout';
+import { AppLayout } from '~/app/AppLayout';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { onIdle } from '~/shared/utils/idle';

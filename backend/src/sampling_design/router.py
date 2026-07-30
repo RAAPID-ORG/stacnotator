@@ -11,7 +11,6 @@ from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
-from src.utils import FunctionNameOperationIdRoute
 
 
 def _intersect_region_with_bbox(
@@ -47,7 +46,6 @@ router = APIRouter(
     prefix="/campaigns/{campaign_id}/sampling",
     tags=["Sampling Design"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

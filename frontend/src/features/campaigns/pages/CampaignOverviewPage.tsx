@@ -11,15 +11,15 @@ import {
   type CampaignOut,
   type TaskSetOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useAccountStore } from '~/shared/stores/account.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Skeleton, SkeletonCards, SkeletonPage } from '~/shared/ui/Skeleton';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
-import { useCampaignIdParam } from '../hooks/useCampaignIdParam';
+import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();

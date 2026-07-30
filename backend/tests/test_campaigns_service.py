@@ -1,5 +1,6 @@
 """Tests for campaign service layer (campaigns/service.py)."""
 
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -276,7 +277,7 @@ class TestAddUsersToCampaignBulk:
         for m in memberships:
             assert m.campaign_id == 42
             assert m.is_admin is False
-            assert m.is_authorative_reviewer is False
+            assert m.is_authoritative_reviewer is False
         assert {m.user_id for m in memberships} == {u1, u2}
         db.commit.assert_called_once()
 
@@ -303,10 +304,6 @@ def _stub_scalars(db, results_in_order):
         return chain
 
     db.scalars.side_effect = _scalars_side_effect
-
-
-def _make_campaign_user_rows(campaign_id, user_ids):
-    return [MagicMock(spec=CampaignUser, user_id=uid, campaign_id=campaign_id) for uid in user_ids]
 
 
 def _make_tasks(task_ids):
@@ -344,7 +341,7 @@ class TestAssignReviewersPercentage:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 [],
             ],
         )
@@ -358,7 +355,7 @@ class TestAssignReviewersPercentage:
         u_in, u_out = uuid4(), uuid4()
         _stub_scalars(
             db,
-            [_make_campaign_user_rows(campaign_id=1, user_ids=[u_in])],
+            [[u_in]],
         )
 
         with pytest.raises(HTTPException) as exc_info:
@@ -374,7 +371,7 @@ class TestAssignReviewersPercentage:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 tasks,
                 [],
             ],
@@ -399,7 +396,7 @@ class TestAssignReviewersPercentage:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 tasks,
                 [existing],
             ],
@@ -425,7 +422,7 @@ class TestAssignReviewersPercentage:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                [annotator, r1, r2],
                 tasks,
                 existing,
             ],
@@ -458,7 +455,7 @@ class TestAssignReviewersPercentage:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                [annotator, r1, r2],
                 tasks,
                 existing,
             ],
@@ -503,7 +500,7 @@ class TestAssignReviewersFixed:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 _make_tasks([10, 20]),
             ],
         )
@@ -518,7 +515,7 @@ class TestAssignReviewersFixed:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 _make_tasks([10, 20, 30]),
                 [],
             ],
@@ -547,7 +544,7 @@ class TestAssignReviewersFixed:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                [annotator, r1, r2],
                 tasks,
                 existing,
             ],
@@ -579,7 +576,7 @@ class TestAssignReviewersFixed:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                [annotator, r1, r2],
                 tasks,
                 existing,
             ],
@@ -615,7 +612,7 @@ class TestReviewerTopUp:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2, r3]),
+                [annotator, r1, r2, r3],
                 _make_tasks([10]),
                 existing,
             ],
@@ -645,7 +642,7 @@ class TestReviewerTopUp:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[annotator, r1, r2]),
+                [annotator, r1, r2],
                 _make_tasks([10]),
                 existing,
             ],
@@ -667,7 +664,7 @@ class TestReviewerTopUp:
         _stub_scalars(
             db,
             [
-                _make_campaign_user_rows(campaign_id=1, user_ids=[u1]),
+                [u1],
                 [],  # _reviewable_tasks returns nothing
             ],
         )
@@ -794,8 +791,11 @@ class TestListCampaignsVisibility:
     def _make_campaign(self, cid, is_public=False, members=None):
         campaign = MagicMock()
         campaign.id = cid
+        campaign.name = f"Campaign {cid}"
+        campaign.created_at = datetime(2024, 1, 1)
         campaign.is_public = is_public
-        campaign.created_at = MagicMock()
+        campaign.registration_status = "ready"
+        campaign.embedding_status = "ready"
         campaign.users = members or []
         return campaign
 
@@ -830,7 +830,7 @@ class TestListCampaignsVisibility:
         finally:
             svc.is_global_admin = original
 
-        campaign_ids = [r["campaign"].id for r in results]
+        campaign_ids = [r.id for r in results]
         assert 1 in campaign_ids  # member
         assert 2 in campaign_ids  # public
         assert 3 not in campaign_ids  # private, not member
@@ -852,8 +852,8 @@ class TestListCampaignsVisibility:
             svc.is_global_admin = original
 
         assert len(results) == 1
-        assert results[0]["is_member"] is False
-        assert results[0]["is_admin"] is False
+        assert results[0].is_member is False
+        assert results[0].is_admin is False
 
     def test_platform_admin_sees_all_campaigns(self):
         db = _mock_db()

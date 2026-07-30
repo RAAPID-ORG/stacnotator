@@ -17,8 +17,8 @@ from src.auth.models import User, UserTiler
 from src.auth.service import grant_tiler, revoke_tiler
 from src.config import TilerCfg
 from src.imagery import service
-from src.tiling import registry
-from src.tiling.router import _tiler_catalogs
+from src.stac_browser.router import _tiler_catalogs
+from src.tilers import registry
 
 
 def _settings(default="azure"):

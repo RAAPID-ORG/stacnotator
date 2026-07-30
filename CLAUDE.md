@@ -58,19 +58,21 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ### Frontend API client is generated
 
-`frontend/src/api/client/*.gen.ts` is generated from the backend's OpenAPI schema — **never hand-edit it**. With the backend running, regenerate with `make dev-openapi` (`cd frontend && npm run openapi-ts`). Config in `frontend/openapi-ts.config.ts`. The backend uses `generate_unique_id` (see `backend/src/utils.py`) so generated operation/type names stay stable.
+`frontend/src/api/client/*.gen.ts` is generated from the backend's OpenAPI schema — **never hand-edit it**. With the backend running, regenerate with `make dev-openapi` (`cd frontend && npm run openapi-ts`). Config in `frontend/openapi-ts.config.ts`. The backend uses `generate_unique_id` (see `backend/src/routing.py`) so generated operation/type names stay stable.
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `tiling`. Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring
 - `service.py` — orchestration: DB I/O + external calls (STAC, Earth Engine, tiler)
 - `models.py` — SQLAlchemy models; `schemas.py` — Pydantic request/response models
-- **functional-core modules** — pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/layouts.py` + `imagery/tile_urls.py`, `annotation/io.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
+- **functional-core modules** — pure logic extracted out of `service.py` so it can be unit-tested without a DB: `campaigns/assignments.py` + `campaigns/statistics.py`, `imagery/tile_urls.py`, `annotation/io.py`, `canvas/layout.py`. When adding logic, prefer extending these pure cores over fattening `service.py`.
 
-Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `utils.py` (Earth Engine init, request-id helpers). `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
+`canvas/` is a routerless domain module that owns all canvas-layout state (the `CanvasLayout` model, the react-grid-layout item schema, bin-packing/reconciliation in `layout.py`, DB writes in `service.py`). Other domains contribute window keys (timeseries window names, imagery collection ids) and must never mutate `layout_data` themselves; the save endpoint stays at `imagery/router.py`'s `new-layout` for API stability.
+
+Cross-cutting: `config.py` (pydantic-settings `Settings`, env-driven; `get_settings()` is `@lru_cache`d), `database.py` (`SessionLocal`), `crypto.py` (AES-256-GCM at-rest encryption of provider API keys), `tile_bulkhead.py` (caps tile traffic's share of the DB pool), `earth_engine.py` (EE init), `routing.py` (OpenAPI operation-id route class), `filenames.py` (download-filename sanitizing), and the routerless `tilers/` package (tiler platform integration, consumed by `auth`, `imagery`, `custom_layers`: `registry.py` = which tilers exist incl. MPC, `providers.py` = provider selection + tile-URL building + register/ingest calls, `tokens.py` = tiler JWT mint/verify). `tilers/` never imports from feature modules; `stac_browser/` depends on it, not the reverse. `main.py` also defines request-id middleware and the global exception handlers that wrap every error with a `request_id`.
 
 **Auth** is pluggable via `auth/providers/` (`base.py` interface, `firebase.py`, `local.py`), selected by `AUTH_PROVIDER` (`local` = single built-in admin user, no external setup; `firebase` = multi-user). `_validate_production_config()` in `main.py` hard-fails on dev-default secrets when `ENVIRONMENT=production`.
 
@@ -80,14 +82,14 @@ An imagery **source** holds many time-period **collections** (e.g. monthly); eac
 
 ### Tile flow
 
-For MPC collections with first-valid compositing, the frontend fetches tiles **directly from MPC** (fast path, no tiler). Everything else (non-MPC catalogs, compositing/masking) goes through the self-hosted tiler, authorized by an HttpOnly `tiler_token` cookie the backend mints (HS256, shared `TILER_TOKEN_SECRET`). The dev stack runs **db + backend + frontend only**; to exercise the tiler, run the `stacnotator-tiler` repo and set `TILERS`/`DEFAULT_TILER` on the backend service. See `docs/tile-serving.md` and `docs/tilers.md`.
+For MPC collections with first-valid compositing, the frontend fetches tiles **directly from MPC** (fast path, no tiler). Everything else (non-MPC catalogs, compositing/masking) goes through the self-hosted tiler, authorized by an HttpOnly `tiler_token` cookie the backend mints (HS256, shared `TILER_TOKEN_SECRET`). The dev stack runs **db + backend + frontend only**; to exercise the tiler, run the `stacnotator-tiler` repo and set `TILERS`/`DEFAULT_TILER` on the backend service. Vector tiles never touch a tiler: annotation MVT is rendered by the backend itself (`annotation/tiles.py` + the `.pbf` endpoint in `annotation/router.py`), and PMTiles custom layers are fetched straight from storage. See `docs/tile-serving.md` and `docs/tilers.md`.
 
 ## Frontend architecture
 
 Feature-sliced under `frontend/src/`:
-- `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `auth`, `account`, `settings`, `home`, `layout`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
-- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`
+- `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
+- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
+- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`)
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 
 The annotation feature is the heart of the app. Two campaign modes drive parallel component sets: **Task Mode** (predefined locations, `ControlsTaskMode`/`TaskModeMap`) and **Open Mode** (free-form, `ControlsOpenMode`/`OpenModeMap`). Maps are OpenLayers (`features/annotation/components/Map/`): `layerManager.ts`, `useSliceLayers.ts`, and tile prefetching (`tilePreloader.ts`, `useTilePreloading.ts`). State is Zustand stores. The whole annotation workflow supports keyboard hotkeys.

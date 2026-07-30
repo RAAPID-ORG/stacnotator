@@ -15,7 +15,7 @@ from src.imagery import proxy_router
 from src.imagery.models import Basemap
 from src.imagery.router import bearer
 from src.main import app
-from src.tiling import tiler_token
+from src.tilers import tokens as tiler_token
 
 CAMPAIGN_ID = 7
 _VALID_KEY = base64.b64encode(b"k" * 32).decode()

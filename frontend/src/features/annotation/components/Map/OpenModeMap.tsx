@@ -33,8 +33,8 @@ import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
-import { useCustomMapLayer } from './useCustomMapLayer';
-import { useVectorLayers } from './useVectorLayers';
+import { useCustomMapLayer } from '~/features/customLayers/hooks/useCustomMapLayer';
+import { useVectorLayers } from '~/features/customLayers/hooks/useVectorLayers';
 import { useAnnotationTileLayer } from './useAnnotationTileLayer';
 import VectorLabelLayer from './VectorLabelLayer';
 

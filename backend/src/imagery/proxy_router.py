@@ -22,10 +22,9 @@ from src.database import SessionLocal
 from src.imagery.models import Basemap, ImageryCollection, ImagerySlice, ImagerySource, SliceTileUrl
 from src.imagery.proxy import build_upstream_tile_url
 from src.tile_bulkhead import tile_db_slot
-from src.tiling import tiler_token
-from src.utils import FunctionNameOperationIdRoute
+from src.tilers import tokens
 
-router = APIRouter(tags=["Imagery Tiles"], route_class=FunctionNameOperationIdRoute)
+router = APIRouter(tags=["Imagery Tiles"])
 
 _client = httpx.AsyncClient(timeout=15.0)
 
@@ -50,7 +49,7 @@ def require_tile_access(request: Request, campaign_id: int = Path(...)) -> None:
     if not token:
         raise HTTPException(status_code=401, detail="Missing tiler session")
     try:
-        claims = tiler_token.verify(token)
+        claims = tokens.verify(token)
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid tiler session") from None
     if str(campaign_id) not in claims.get("campaigns", []):

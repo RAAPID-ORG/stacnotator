@@ -8,7 +8,7 @@ can be unit-tested without a database (tests/unit/test_timeseries_windows.py).
 
 from collections.abc import Iterable
 
-from src.utils import find_free_position_in_layout
+from src.canvas.layout import reconcile_layout
 
 # Every timeseries belongs to a named window; series with no explicit window land
 # in this one. It's an ordinary window, not a special case - just the default the
@@ -44,7 +44,6 @@ def sync_timeseries_windows_in_layout(
     *,
     window_width: int = 10,
     window_height: int = 8,
-    grid_width: int = 60,
 ) -> bool:
     """Reconcile a canvas layout's timeseries windows with ``desired_keys``.
 
@@ -53,33 +52,11 @@ def sync_timeseries_windows_in_layout(
     moved to another window). Non-timeseries entries are left untouched. Mutates
     ``layout_data`` in place; returns True if it changed anything.
     """
-    desired = set(desired_keys)
-    changed = False
-
-    # Drop timeseries windows that are no longer wanted.
-    kept: list[dict] = []
-    for item in layout_data:
-        key = item.get("i")
-        if isinstance(key, str) and is_timeseries_window_key(key) and key not in desired:
-            changed = True
-            continue
-        kept.append(item)
-    if changed:
-        layout_data[:] = kept
-
-    # Add any desired window that isn't placed yet, packing around what exists.
-    present = {item.get("i") for item in layout_data}
-    for key in desired_keys:
-        if key in present:
-            continue
-        x, y = find_free_position_in_layout(
-            layout_data=layout_data,
-            item_width=window_width,
-            item_height=window_height,
-            grid_width=grid_width,
-        )
-        layout_data.append({"i": key, "x": x, "y": y, "w": window_width, "h": window_height})
-        present.add(key)
-        changed = True
-
-    return changed
+    return reconcile_layout(
+        layout_data,
+        managed=is_timeseries_window_key,
+        keep=set(desired_keys),
+        add=desired_keys,
+        item_width=window_width,
+        item_height=window_height,
+    )

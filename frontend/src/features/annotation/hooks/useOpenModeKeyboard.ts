@@ -3,10 +3,10 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useTaskStore } from '../stores/task.store';
 import { useMapStore } from '../stores/map.store';
 import { useAnnotationStore } from '../stores/annotation.store';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
-import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
-import { toggleVectorLayer, cycleVectorLayer } from '../utils/vectorLayerNav';
+import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
+import { toggleVectorLayer, cycleVectorLayer } from '~/features/customLayers/utils/vectorLayerNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
 
 /**

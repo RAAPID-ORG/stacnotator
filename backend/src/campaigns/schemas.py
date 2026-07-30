@@ -7,22 +7,20 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    computed_field,
     field_validator,
 )
 
 from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
-from src.custom_maps.schemas import CustomMapOut
+from src.canvas.schemas import CanvasLayoutOut
+from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
 from src.imagery.schemas import (
     BasemapOut,
-    CanvasLayoutOut,
     ImageryEditorStateCreate,
     ImagerySourceOut,
     ImageryViewOut,
 )
 from src.timeseries.schemas import TimeSeriesCreate, TimeSeriesOut
-from src.vector_layers.schemas import VectorLayerOut
 
 
 # ============================================================================
@@ -44,6 +42,22 @@ class LabelBase(BaseModel):
     id: int  # ID that is used for annotation
     name: str
     geometry_type: Literal["point", "polygon", "line"] | None = None
+
+
+def label_id_to_name(labels: dict | None) -> dict[int, str]:
+    """Decode a campaign's labels JSONB into {label_id: display_name}.
+
+    Handles both the current per-label object format
+    ({"1": {"name": "Forest", "geometry_type": "polygon"}}) and the legacy
+    format where the value was just the name string ({"1": "Forest"}).
+    """
+    mapping: dict[int, str] = {}
+    if not isinstance(labels, dict):
+        return mapping
+    for label_id, data in labels.items():
+        name = data.get("name") if isinstance(data, dict) else str(data)
+        mapping[int(label_id)] = name or f"Label {label_id}"
+    return mapping
 
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
@@ -174,22 +188,17 @@ class CampaignSettingsOut(BaseModel):
         New format: {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, name: "Forest", geometry_type: "polygon"}]
         Legacy format: {"1": "Forest"} -> [{id: 1, name: "Forest", geometry_type: None}]
         """
-        if isinstance(v, dict):
-            result = []
-            for k, vv in v.items():
-                if isinstance(vv, dict):
-                    result.append(
-                        LabelBase(
-                            id=int(k),
-                            name=vv.get("name", ""),
-                            geometry_type=vv.get("geometry_type"),
-                        )
-                    )
-                else:
-                    # Legacy format: value is just the name string
-                    result.append(LabelBase(id=int(k), name=str(vv)))
-            return result
-        return v
+        if not isinstance(v, dict):
+            return v
+        names = label_id_to_name(v)
+        return [
+            LabelBase(
+                id=int(k),
+                name=names[int(k)],
+                geometry_type=vv.get("geometry_type") if isinstance(vv, dict) else None,
+            )
+            for k, vv in v.items()
+        ]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -272,19 +281,12 @@ class CampaignListItemOut(BaseModel):
 class CampaignOutFull(CampaignOut):
     """Campaign with canvas layout information extracted."""
 
-    @computed_field
-    @property
-    def default_main_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_default_main_canvas_layout"):
-            return self._default_main_canvas_layout
-        return None
-
-    @computed_field
-    @property
-    def personal_main_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_personal_main_canvas_layout"):
-            return self._personal_main_canvas_layout
-        return None
+    default_main_canvas_layout: Annotated[
+        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
+    ]
+    personal_main_canvas_layout: Annotated[
+        CanvasLayoutOut | None, Field(json_schema_extra={"readOnly": True})
+    ]
 
     @classmethod
     def from_orm(cls, obj, user_id: UUID | None = None):
@@ -304,32 +306,32 @@ class CampaignOutFull(CampaignOut):
             for view in obj.imagery_views:
                 views_list.append(ImageryViewOut.from_orm(view, user_id=user_id))
 
-        base_data = {
-            "id": obj.id,
-            "name": obj.name,
-            "created_at": obj.created_at,
-            "mode": obj.mode,
-            "is_public": obj.is_public,
-            "annotations_version": obj.annotations_version,
-            "settings": obj.settings,
-            "time_series": obj.time_series,
-            "imagery_sources": obj.imagery_sources,
-            "imagery_views": views_list,
-            "basemaps": obj.basemaps,
-            "custom_maps": obj.custom_maps,
-            "vector_layers": obj.vector_layers,
-        }
-
-        instance = cls.model_validate(base_data)
-        instance._default_main_canvas_layout = default_layout
-        instance._personal_main_canvas_layout = personal_layout
-        return instance
+        return cls.model_validate(
+            {
+                "id": obj.id,
+                "name": obj.name,
+                "created_at": obj.created_at,
+                "mode": obj.mode,
+                "is_public": obj.is_public,
+                "annotations_version": obj.annotations_version,
+                "settings": obj.settings,
+                "time_series": obj.time_series,
+                "imagery_sources": obj.imagery_sources,
+                "imagery_views": views_list,
+                "basemaps": obj.basemaps,
+                "custom_maps": obj.custom_maps,
+                "vector_layers": obj.vector_layers,
+                "default_main_canvas_layout": default_layout,
+                "personal_main_canvas_layout": personal_layout,
+            }
+        )
 
 
 class CampaignUserOut(BaseModel):
     user: UserOut
     is_admin: bool
-    is_authorative_reviewer: bool
+    # Wire name keeps the historical typo so the generated frontend client stays stable.
+    is_authoritative_reviewer: bool = Field(serialization_alias="is_authorative_reviewer")
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -12,29 +12,25 @@ from src.auth.schemas import (
     BulkUserActionResponse,
     UserOutDetailed,
 )
-from src.campaigns.service import list_campaigns_with_user_roles
+from src.campaigns.service import visible_campaign_ids
 from src.config import get_settings
 from src.database import get_db
-from src.tiling import registry
-from src.tiling.tiler_token import mint as mint_tiler_token
-from src.utils import FunctionNameOperationIdRoute
+from src.tilers import registry
+from src.tilers.tokens import mint as mint_tiler_token
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
     dependencies=[Depends(bearer)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
-def _bulk_response(result: dict) -> BulkUserActionResponse:
-    """Map a bulk service result ({success, not_found, skipped}) to the response."""
-    return BulkUserActionResponse(
-        success=result["success"],
-        not_found=result["not_found"],
-        already_in_state=result["skipped"],
-    )
+def _user_or_404(user: User | None) -> User:
+    """Unwrap a service call's optional result, or raise the standard 404."""
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
 
 # ============================================================================
@@ -62,7 +58,7 @@ def get_tiler_token(
 ):
     """Set a short-lived, campaign-scoped tiler HttpOnly cookie (approved users only)."""
     settings = get_settings()
-    campaigns = [str(row["campaign"].id) for row in list_campaigns_with_user_roles(db, user.id)]
+    campaigns = [str(cid) for cid in visible_campaign_ids(db, user.id)]
     token = mint_tiler_token(user.id, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
     response.set_cookie(
         key="tiler_token",
@@ -113,12 +109,7 @@ def edit_user_info(
             status_code=403, detail="Not authorized to edit this user's information"
         )
 
-    updated_user = service.edit_user_info(db, user_id, new_display_name)
-
-    if updated_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return updated_user
+    return _user_or_404(service.edit_user_info(db, user_id, new_display_name))
 
 
 # ============================================================================
@@ -137,12 +128,7 @@ def approve_user(
 
     Grants approval role to the specified user.
     """
-    approved_user = service.approve_user(db, user_id)
-
-    if approved_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return approved_user
+    return _user_or_404(service.approve_user(db, user_id))
 
 
 @router.post("/users/{user_id}/revoke", response_model=UserOutDetailed)
@@ -156,12 +142,7 @@ def revoke_user(
 
     Removes approval role from the specified user.
     """
-    revoked_user = service.revoke_approval(db, user_id)
-
-    if revoked_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return revoked_user
+    return _user_or_404(service.revoke_approval(db, user_id))
 
 
 @router.post("/users/{user_id}/deny", response_model=UserOutDetailed)
@@ -176,12 +157,7 @@ def deny_user(
     Permanently removes users who have not been approved yet.
     Cannot be used on approved users or admins.
     """
-    denied_user = service.deny_user(db, user_id)
-
-    if denied_user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return denied_user
+    return _user_or_404(service.deny_user(db, user_id))
 
 
 @router.post("/users/approve", response_model=BulkUserActionResponse)
@@ -195,7 +171,7 @@ def approve_users_bulk(
 
     Grants approval role to all specified users in a single transaction.
     """
-    return _bulk_response(service.approve_users_bulk(db, request.user_ids))
+    return service.approve_users_bulk(db, request.user_ids)
 
 
 @router.post("/users/revoke", response_model=BulkUserActionResponse)
@@ -209,7 +185,7 @@ def revoke_users_bulk(
 
     Removes approval role from all specified users in a single transaction.
     """
-    return _bulk_response(service.revoke_approval_bulk(db, request.user_ids))
+    return service.revoke_approval_bulk(db, request.user_ids)
 
 
 @router.post("/users/deny", response_model=BulkUserActionResponse)
@@ -224,7 +200,7 @@ def deny_users_bulk(
     Permanently removes users who have not been approved yet.
     Users who are already approved or are admins will not be deleted.
     """
-    return _bulk_response(service.deny_users_bulk(db, request.user_ids))
+    return service.deny_users_bulk(db, request.user_ids)
 
 
 # ============================================================================
@@ -243,12 +219,7 @@ def grant_admin_single(
 
     Grants admin and approval roles to the specified user.
     """
-    user = service.grant_admin(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.grant_admin(db, user_id))
 
 
 @router.post("/users/{user_id}/revoke-admin", response_model=UserOutDetailed)
@@ -263,12 +234,7 @@ def revoke_admin_single(
     Removes admin role from the specified user.
     Prevents revoking admin from the last admin user.
     """
-    user = service.revoke_admin(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.revoke_admin(db, user_id))
 
 
 def _validate_grantable_tiler(tiler_name: str) -> None:
@@ -291,10 +257,7 @@ def grant_tiler_single(
 ):
     """Grant a user access to an extra hosted tiler (admin only)."""
     _validate_grantable_tiler(tiler_name)
-    user = service.grant_tiler(db, user_id, tiler_name)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return _user_or_404(service.grant_tiler(db, user_id, tiler_name))
 
 
 @router.delete("/users/{user_id}/tilers/{tiler_name}", response_model=UserOutDetailed)
@@ -306,10 +269,7 @@ def revoke_tiler_single(
 ):
     """Revoke a user's access to an extra hosted tiler (admin only)."""
     _validate_grantable_tiler(tiler_name)
-    user = service.revoke_tiler(db, user_id, tiler_name)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
+    return _user_or_404(service.revoke_tiler(db, user_id, tiler_name))
 
 
 @router.post("/users/grant-admin", response_model=BulkUserActionResponse)
@@ -323,7 +283,7 @@ def grant_admin(
 
     Grants admin and approval roles to all specified users in a single transaction.
     """
-    return _bulk_response(service.grant_admin_bulk(db, request.user_ids))
+    return service.grant_admin_bulk(db, request.user_ids)
 
 
 @router.post("/users/revoke-admin", response_model=BulkUserActionResponse)
@@ -338,7 +298,7 @@ def revoke_admin(
     Removes admin role from all specified users in a single transaction.
     Prevents revoking admin from all users if it would leave no admins.
     """
-    return _bulk_response(service.revoke_admin_bulk(db, request.user_ids))
+    return service.revoke_admin_bulk(db, request.user_ids)
 
 
 # ============================================================================
@@ -357,12 +317,7 @@ def grant_visitor_single(
 
     Grants the visitor and approval roles. Visitors cannot create campaigns.
     """
-    user = service.grant_visitor(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.grant_visitor(db, user_id))
 
 
 @router.post("/users/{user_id}/revoke-visitor", response_model=UserOutDetailed)
@@ -376,12 +331,7 @@ def revoke_visitor_single(
 
     The user remains approved (standard) and regains campaign-creation access.
     """
-    user = service.revoke_visitor(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.revoke_visitor(db, user_id))
 
 
 @router.post("/users/grant-visitor", response_model=BulkUserActionResponse)
@@ -396,7 +346,7 @@ def grant_visitor(
     Grants the visitor and approval roles to all specified users in a single
     transaction.
     """
-    return _bulk_response(service.grant_visitor_bulk(db, request.user_ids))
+    return service.grant_visitor_bulk(db, request.user_ids)
 
 
 @router.post("/users/revoke-visitor", response_model=BulkUserActionResponse)
@@ -411,7 +361,7 @@ def revoke_visitor(
     Each user remains approved (standard). Processes all users in a single
     transaction.
     """
-    return _bulk_response(service.revoke_visitor_bulk(db, request.user_ids))
+    return service.revoke_visitor_bulk(db, request.user_ids)
 
 
 # ============================================================================
@@ -431,12 +381,7 @@ def grant_internal_single(
     Grants the internal and approval roles. Internal users may point imagery and
     custom maps at internal (managed-identity) storage.
     """
-    user = service.grant_internal(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.grant_internal(db, user_id))
 
 
 @router.post("/users/{user_id}/revoke-internal", response_model=UserOutDetailed)
@@ -450,9 +395,4 @@ def revoke_internal_single(
 
     The user keeps every other role. Admins remain internal by definition.
     """
-    user = service.revoke_internal(db, user_id)
-
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
+    return _user_or_404(service.revoke_internal(db, user_id))

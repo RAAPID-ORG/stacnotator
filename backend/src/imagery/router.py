@@ -6,24 +6,23 @@ from src.auth.dependencies import require_approved_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.canvas import service as canvas_service
+from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
-from src.imagery import layouts, service
+from src.imagery import registration, service
 from src.imagery.schemas import (
     AllowedTilersOut,
     ApiKeyStatusOut,
     ApiKeyUpdate,
-    CanvasLayoutCreateRequest,
     ImageryEditorStateCreate,
     TilerOption,
 )
-from src.tiling import registry
-from src.utils import FunctionNameOperationIdRoute
+from src.tilers import registry
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Imagery"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
@@ -55,34 +54,6 @@ def list_tilers(user: User = Depends(require_approved_user)):
     )
 
 
-@router.post("/{campaign_id}/imagery", status_code=201)
-def create_imagery(
-    campaign_id: int,
-    editor_state: ImageryEditorStateCreate,
-    campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
-    db: Session = Depends(get_db),
-):
-    """Create imagery for a fresh campaign. Used by the campaign-create flow."""
-    _require_internal_for_internal_storage(editor_state, user)
-    result = service.create_imagery_from_editor_state(
-        db,
-        campaign=campaign,
-        editor_state=editor_state,
-        user=user,
-    )
-    db.commit()
-    response = {
-        "sources": len(result["sources"]),
-        "views": len(result["views"]),
-        "basemaps": len(result["basemaps"]),
-    }
-    errors = result.get("registration_errors", [])
-    if errors:
-        response["registration_errors"] = errors
-    return response
-
-
 @router.put("/{campaign_id}/imagery")
 def save_imagery(
     campaign_id: int,
@@ -104,11 +75,15 @@ def save_imagery(
 
     pending = result["pending_registrations"]
     if pending:
+        # Cycle-boundary clear, not a finished-work write: this commits before the
+        # background thread spawns, so it cannot race finish_registration's append.
+        # Without it, stale errors from a prior failed registration would sit under
+        # "registering" and then have new errors stacked on top indefinitely.
         campaign.registration_status = "registering"
         campaign.registration_errors = None
     db.commit()
     if pending:
-        service.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
+        registration.spawn_background_mosaic_registration(campaign.id, pending, result["bbox"])
     return {
         "sources": len(result["sources"]),
         "views": len(result["views"]),
@@ -124,7 +99,9 @@ def create_new_canvas_layout(
     campaign: Campaign = Depends(require_campaign_access),
     user: User = Depends(require_approved_user),
 ):
-    result = layouts.create_new_canvas_layout(
+    if canvas_layout_req.should_be_default:
+        require_campaign_admin(campaign_id=campaign_id, db=db, user=user)
+    result = canvas_service.save_canvas_layouts(
         db=db,
         campaign_id=campaign_id,
         view_id=canvas_layout_req.view_id,
@@ -142,16 +119,34 @@ def refresh_collection_imagery(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Re-search STAC catalog with stored params and update mosaic items."""
+    """Re-search STAC catalog with stored params and re-ingest mosaic items.
+
+    Ingest is a slow per-slice HTTP call to the tiler; it runs off the request
+    path (see spawn_background_collection_refresh) so this transaction isn't
+    held open across it.
+    """
+    # Cheap synchronous existence/config check before touching campaign status. A
+    # bad or stale collection_id is the only realistic failure path left once
+    # ingest moves off-thread (per-slice tiler failures are caught and logged
+    # inside refresh_collection_imagery, never raised) - it must 404/400 here
+    # rather than only surface later as a campaign-wide registration_status
+    # "failed" that blocks annotation.
+    registration.load_refreshable_collection(db, collection_id, campaign.id)
     bbox = [
         campaign.settings.bbox_west,
         campaign.settings.bbox_south,
         campaign.settings.bbox_east,
         campaign.settings.bbox_north,
     ]
-    result = service.refresh_collection_imagery(db, collection_id, bbox)
+    # Cycle-boundary clear, not a finished-work write: commits before the
+    # background thread spawns, matching save_imagery's convention.
+    campaign.registration_status = "registering"
+    campaign.registration_errors = None
     db.commit()
-    return result
+    registration.spawn_background_collection_refresh(campaign.id, collection_id, bbox)
+    # Literal, not a re-read: expire_on_commit could reload the row after the
+    # background thread has already flipped it to ready/failed.
+    return {"registration_status": "registering"}
 
 
 @router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)

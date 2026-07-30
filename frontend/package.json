@@ -22,7 +22,6 @@
     "esbuild": "^0.28.1"
   },
   "dependencies": {
-    "@types/leaflet": "^1.9.21",
     "chart.js": "^4.5.1",
     "chartjs-plugin-zoom": "^2.2.0",
     "firebase": "^12.7.0",
@@ -48,6 +47,7 @@
     "@hey-api/openapi-ts": "0.89.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.13",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

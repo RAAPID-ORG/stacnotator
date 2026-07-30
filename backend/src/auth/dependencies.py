@@ -45,7 +45,7 @@ async def require_authenticated_user(
         )
 
     # Ensure user exists in DB (creates if first login)
-    user = service.register_user(db, auth_user, auth_provider.name)
+    user = service.register_user(db, auth_user, auth_provider.name, auth_provider.bootstrap_roles)
     return user
 
 

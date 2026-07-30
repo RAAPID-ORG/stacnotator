@@ -44,14 +44,13 @@ from src.campaigns.schemas import (
     UpdateSampleExtentRequest,
 )
 from src.database import get_db
-from src.utils import FunctionNameOperationIdRoute, clean_filename
+from src.filenames import clean_filename
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     prefix="/campaigns",
     tags=["Campaigns"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
@@ -60,24 +59,8 @@ def list_all_campaigns(
     db: Session = Depends(get_db),
     user: User = Depends(require_approved_user),
 ):
-    campaign_data = service.list_campaigns_with_user_roles(db, user_id=user.id)
-
-    # Convert to response schema with role information
-    items = []
-    for data in campaign_data:
-        campaign = data["campaign"]
-        items.append(
-            {
-                "id": campaign.id,
-                "name": campaign.name,
-                "created_at": campaign.created_at,
-                "is_admin": data["is_admin"],
-                "is_member": data["is_member"],
-                "is_public": campaign.is_public,
-            }
-        )
-
-    return {"items": items}
+    items = service.list_campaigns_with_user_roles(db, user_id=user.id)
+    return CampaignsListResponse(items=items)
 
 
 @router.get("/{campaign_id}", response_model=CampaignOut)
@@ -134,7 +117,7 @@ def get_campaign_with_imagery_windows(
     db: Session = Depends(get_db),
 ):
     """Get campaign with detailed imagery views and layouts (both default and personal)"""
-    campaign_with_layouts = service.get_campaign_with_layouts(db, campaign_id)
+    campaign_with_layouts = service.get_campaign_full(db, campaign_id)
     return CampaignOutFull.from_orm(campaign_with_layouts, user_id=user.id)
 
 
@@ -348,7 +331,7 @@ def assign_tasks_to_users(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing."""
+    """Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks."""
     if req.task_set_id is not None:
         task_sets.require_task_set(db, campaign.id, req.task_set_id, status_code=400)
     return assignments.assign_tasks_to_users(db, campaign_id, req)
@@ -628,14 +611,10 @@ def get_campaign_statistics_endpoint(
     Get comprehensive statistics for a campaign.
 
     Returns:
-    - Overall campaign metrics (total annotations, users, tasks)
+    - Overall campaign metrics (total annotations, tasks with multiple annotations)
     - Krippendorff's Alpha for inter-annotator agreement
-    - Overall confidence and label distributions
-    - Per-user statistics including:
-        - Total annotations
-        - Average confidence
-        - Confidence distribution
-        - Label distribution
-        - Agreement with majority vote
+    - Overall label distribution
+    - Per-annotator stats (total annotations, label distribution)
+    - Pairwise agreement percentage between every pair of annotators
     """
     return statistics.get_campaign_statistics(campaign_id, db)

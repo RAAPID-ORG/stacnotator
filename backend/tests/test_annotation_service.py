@@ -11,17 +11,20 @@ import pytest
 from fastapi import HTTPException
 from geoalchemy2.elements import WKTElement
 
+from src.annotation.claims import claim_task_for_user
 from src.annotation.constants import (
     ANNOTATION_TASK_STATUS_DONE,
     ANNOTATION_TASK_STATUS_PENDING,
     ANNOTATION_TASK_STATUS_SKIPPED,
     CLAIM_TTL_MINUTES,
 )
-from src.annotation.io import (
+from src.annotation.export import (
     FormExportSchema,
     _build_annotation_records,
     build_annotations_export,
     build_annotations_geojson_export,
+)
+from src.annotation.ingest import (
     create_annotation_tasks_from_csv,
     create_annotations_from_geojson,
 )
@@ -29,7 +32,6 @@ from src.annotation.models import Annotation, AnnotationGeometry, AnnotationTask
 from src.annotation.schemas import AnnotationCreate, AnnotationFromTaskCreate, AnnotationUpdate
 from src.annotation.service import (
     add_annotation_for_task,
-    claim_task_for_user,
     create_annotation,
     create_annotations_bulk,
     delete_annotation,
@@ -173,7 +175,7 @@ class TestAddAnnotationForTask:
         # is_authoritative=True triggers a CampaignUser lookup before the
         # existing-annotation / assignment lookups.
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         db.execute.return_value.scalar_one_or_none.side_effect = [
             reviewer_cu,
             existing,
@@ -231,7 +233,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         non_reviewer_cu = MagicMock()
-        non_reviewer_cu.is_authorative_reviewer = False
+        non_reviewer_cu.is_authoritative_reviewer = False
         db.execute.return_value.scalar_one_or_none.return_value = non_reviewer_cu
 
         payload = AnnotationFromTaskCreate(
@@ -275,7 +277,7 @@ class TestAddAnnotationForTask:
         task = _make_task()
 
         reviewer_cu = MagicMock()
-        reviewer_cu.is_authorative_reviewer = True
+        reviewer_cu.is_authoritative_reviewer = True
         # 1: CampaignUser lookup (reviewer check)
         # 2: existing-annotation lookup -> none
         # 3: assignment lookup -> none (reviewer is unassigned)
@@ -531,10 +533,10 @@ class TestUpdateAnnotation:
         )
         update_annotation(db, 5, payload, user_id, campaign=_make_campaign())
 
-        # Should have added a new AnnotationGeometry
+        # Should have added a new AnnotationGeometry and flushed to get its id
         added_geom = db.add.call_args[0][0]
         assert isinstance(added_geom, AnnotationGeometry)
-        db.flush.assert_called_once()
+        db.flush.assert_called()
 
     def test_geometry_update_refreshes_imagery_snapshot(self):
         db = _mock_db()
@@ -929,7 +931,7 @@ class TestExportAnnotatorCount:
 
     def _records(self, annotations, *, merge=False):
         with patch(
-            "src.annotation.io._compute_task_status_for_export",
+            "src.annotation.export._compute_task_status_for_export",
             return_value="done",
         ):
             records, _ = _build_annotation_records(
@@ -1025,7 +1027,7 @@ class TestExportMergeCorrectness:
 
     Exercises the real ``build_annotations_export`` / ``build_annotations_geojson_export``
     (so the conflict guard, column ordering and DataFrame/GeoJSON assembly are
-    covered) with the DB access (``_fetch_annotations_with_context``) and the
+    covered) with the DB access (``fetch_annotations_with_context``) and the
     pydantic-backed status helper patched out. Annotations/tasks/campaign are
     light ``SimpleNamespace`` stand-ins matching the attributes the export code
     actually reads.
@@ -1090,11 +1092,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1104,11 +1106,11 @@ class TestExportMergeCorrectness:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, email_map or {}),
             ),
             patch(
-                "src.annotation.io._compute_task_status_for_export",
+                "src.annotation.export._compute_task_status_for_export",
                 return_value="done",
             ),
         ):
@@ -1366,7 +1368,7 @@ class TestExportMergeCorrectness:
 
     # ---- stacnotator_counts_toward_completion ---------------------------
     #
-    # These tests patch out `_fetch_annotations_with_context` entirely (see
+    # These tests patch out `fetch_annotations_with_context` entirely (see
     # `_csv`/`_geojson`), so `attach_counts_toward_completion_flat` never
     # runs - the counts flag is read straight off the annotation stand-ins,
     # exactly as if it had already been attached by that helper.
@@ -1496,10 +1498,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_export(MagicMock(), campaign, merge_on_agreement=merge)
 
@@ -1507,10 +1509,10 @@ class TestExportFormFields:
         campaign = campaign or self._campaign()
         with (
             patch(
-                "src.annotation.io._fetch_annotations_with_context",
+                "src.annotation.export.fetch_annotations_with_context",
                 return_value=(annotations, {}),
             ),
-            patch("src.annotation.io._compute_task_status_for_export", return_value="done"),
+            patch("src.annotation.export._compute_task_status_for_export", return_value="done"),
         ):
             return build_annotations_geojson_export(MagicMock(), campaign, merge_on_agreement=merge)
 
@@ -1799,6 +1801,18 @@ class TestCreateAnnotationsFromGeojson:
             create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
         assert exc.value.status_code == 400
         assert "stacnotator_label_id" in exc.value.detail
+        db.execute.assert_not_called()
+
+    def test_rejects_bare_geometry(self):
+        """Unlike the task importer, a bare geometry object (no Feature or
+        FeatureCollection wrapper) is not a supported top-level shape here -
+        this importer only ever accepted FeatureCollection/Feature."""
+        db = MagicMock()
+        contents = json.dumps({"type": "Point", "coordinates": [10.0, 20.0]}).encode("utf-8")
+        with pytest.raises(HTTPException) as exc:
+            create_annotations_from_geojson(db, self._campaign(), contents, uuid4())
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Unsupported GeoJSON type"
         db.execute.assert_not_called()
 
     def test_rejects_label_not_in_campaign(self):

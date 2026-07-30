@@ -3,8 +3,8 @@ import type { ImageryController } from './controller';
 import { SourcesTab } from './SourcesTab';
 import { ViewLayoutTab } from './ViewLayoutTab';
 import { BasemapList } from './BasemapList';
-import { CustomMapsEditor } from './CustomMapsEditor';
-import { VectorLayersEditor } from './VectorLayersEditor';
+import { CustomMapsEditor } from '~/features/customLayers/components/CustomMapsEditor';
+import { VectorLayersEditor } from '~/features/customLayers/components/VectorLayersEditor';
 import { SourceEditor } from './SourceEditor';
 
 export type ImagerySetupSections = 'sources-only' | 'view-layout-only' | 'all';

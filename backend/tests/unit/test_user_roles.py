@@ -2,7 +2,7 @@
 
 `is_internal` decides whether a user may point imagery collections and custom maps at
 internal storage, which the tiler reads with its managed identity (see the
-`_require_internal_for_internal_storage` guards in imagery/router and custom_maps/router).
+`_require_internal_for_internal_storage` guards in imagery/router and custom_layers/router).
 Keep this honest.
 """
 

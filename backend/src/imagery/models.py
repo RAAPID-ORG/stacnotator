@@ -1,7 +1,10 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    Index,
     Integer,
     SmallInteger,
     String,
@@ -13,6 +16,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
+if TYPE_CHECKING:
+    from src.canvas.models import CanvasLayout
+
 
 class ImagerySource(Base):
     """
@@ -23,6 +29,7 @@ class ImagerySource(Base):
     __tablename__ = "imagery_sources"
     __table_args__ = (
         CheckConstraint("default_zoom BETWEEN 0 AND 22", name="source_zoom_check"),
+        Index("idx_imagery_sources_campaign_id", "campaign_id"),
         {"schema": "data"},
     )
 
@@ -60,7 +67,10 @@ class VisualizationTemplate(Base):
     """Named visualization option belonging to a source (e.g. 'True Color', 'NDVI')."""
 
     __tablename__ = "visualization_templates"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        UniqueConstraint("source_id", "name", name="uq_visualization_templates_source_name"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int] = mapped_column(
@@ -80,7 +90,10 @@ class ImageryCollection(Base):
     """
 
     __tablename__ = "imagery_collections"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_collections_source_id", "source_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int] = mapped_column(
@@ -176,7 +189,10 @@ class ImagerySlice(Base):
     """
 
     __tablename__ = "imagery_slices"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_slices_collection_id", "collection_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     collection_id: Mapped[int] = mapped_column(
@@ -199,7 +215,10 @@ class SliceTileUrl(Base):
     """Resolved XYZ tile URL for a specific slice + visualization combination."""
 
     __tablename__ = "slice_tile_urls"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        UniqueConstraint("slice_id", "visualization_name", name="uq_slice_tile_urls_slice_viz"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     slice_id: Mapped[int] = mapped_column(
@@ -220,7 +239,10 @@ class Basemap(Base):
     """Static XYZ basemap layer for a campaign (e.g. OSM, satellite)."""
 
     __tablename__ = "basemaps"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_basemaps_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(
@@ -251,7 +273,10 @@ class ImageryView(Base):
     """
 
     __tablename__ = "imagery_views"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_imagery_views_campaign_id", "campaign_id"),
+        {"schema": "data"},
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[int] = mapped_column(
@@ -265,7 +290,7 @@ class ImageryView(Base):
     collection_refs: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")  # noqa: F821
-    canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(  # noqa: F821
+    canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(
         "CanvasLayout",
         foreign_keys="[CanvasLayout.view_id]",
         back_populates="imagery_view",

@@ -33,7 +33,7 @@ import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
-import { useCustomMapLayer } from './useCustomMapLayer';
+import { useCustomMapLayer } from '~/features/customLayers/hooks/useCustomMapLayer';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';

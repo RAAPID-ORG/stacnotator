@@ -57,11 +57,6 @@ class User(Base):
         server_default=func.current_timestamp(),
         nullable=False,
     )
-    last_login: Mapped[str] = mapped_column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=False,
-    )
 
     # Relationships
     roles = relationship(

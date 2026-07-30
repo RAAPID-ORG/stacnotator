@@ -6,6 +6,8 @@ from urllib.parse import quote_plus
 from pydantic import BaseModel, Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_DEFAULT_CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5173"]
+
 
 class TilerCfg(BaseModel):
     """A titiler-pgstac tiler endpoint.
@@ -84,7 +86,7 @@ class Settings(BaseSettings):
     # Shared secret for signing tiler access tokens (HS256 JWT). Must match the tilers.
     TILER_TOKEN_SECRET: str = "dev-tiler-secret-change-in-production"
 
-    # AES-256-GCM master key for encrypting provider API keys at rest (base64 of 32 bytes).
+    # AES-256-GCM master key for encrypting imagery provider API keys at rest (base64 of 32 bytes).
     # On Azure this App Setting is a Key Vault reference so the real key lives in Key Vault.
     APIKEY_ENCRYPTION_SECRET: str = "dev-apikey-secret-change-in-production"
 
@@ -123,26 +125,16 @@ class Settings(BaseSettings):
         v = self.cors_origins_raw
         if isinstance(v, list):
             return v
-        if isinstance(v, str):
-            # Skip empty strings
-            if not v.strip():
-                return [
-                    "http://localhost:3000",
-                    "http://localhost:5173",
-                ]
-            # Try to parse as JSON first
-            try:
-                parsed = json.loads(v)
-                if isinstance(parsed, list):
-                    return parsed
-            except (json.JSONDecodeError, ValueError):
-                pass
-            # Handle comma-separated string
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return [
-            "http://localhost:3000",
-            "http://localhost:5173",
-        ]
+        if not v.strip():
+            return _DEFAULT_CORS_ORIGINS
+        # Try to parse as JSON first, else fall back to a comma-separated string.
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
 
     @computed_field
     @property

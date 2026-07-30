@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Literal, TypedDict
+from typing import Literal, Protocol, TypedDict
 from uuid import UUID
 
 from geoalchemy2.shape import to_shape
@@ -171,6 +172,45 @@ def compute_task_status_value(assignment_list: list[dict], annotation_list: list
     return TASK_STATUS_DONE if len(labels) == 1 else TASK_STATUS_CONFLICTING
 
 
+class _AssignmentRow(Protocol):
+    user_id: UUID
+    status: str
+    is_review: bool
+
+
+class _AnnotationRow(Protocol):
+    label_id: int | None
+    created_by_user_id: UUID
+    is_authoritative: bool
+
+
+def task_status_inputs(
+    assignments: Sequence[_AssignmentRow], annotations: Sequence[_AnnotationRow]
+) -> tuple[list[dict], list[dict]]:
+    """Convert ORM assignment/annotation rows into the plain-dict shape
+    `compute_task_status_value` consumes.
+
+    The single seam between ORM rows and that pure function - shared by
+    `AnnotationTaskOut`'s validator below and the export path
+    (annotation/export.py), so neither hand-rolls its own conversion.
+    `counts_toward_completion` is read via `getattr` since it's an attribute
+    attached at request time (annotation/completion.py), not a mapped column.
+    """
+    assignment_list = [
+        {"user_id": a.user_id, "status": a.status, "is_review": a.is_review} for a in assignments
+    ]
+    annotation_list = [
+        {
+            "label_id": a.label_id,
+            "created_by_user_id": a.created_by_user_id,
+            "is_authoritative": a.is_authoritative,
+            "counts_toward_completion": getattr(a, "counts_toward_completion", None),
+        }
+        for a in annotations
+    ]
+    return assignment_list, annotation_list
+
+
 class AnnotationTaskOut(BaseModel):
     id: int
     annotation_number: int
@@ -204,63 +244,19 @@ class AnnotationTaskOut(BaseModel):
                        authoritative reviewer has submitted a label that
                        overrides the assignment-based aggregation.
         - conflicting: Every assignee labeled and labels disagree
+
+        Only reachable via `model_validate` on an ORM `AnnotationTask` (the
+        only way this model is ever built in production - see
+        service.py's `AnnotationTaskOut.model_validate` calls). Anything
+        without an `assignments` attribute is passed through untouched and
+        keeps the field's `pending` default.
         """
-        # Handle both ORM objects and dicts
-        if hasattr(data, "assignments"):
-            assignments = data.assignments or []
-            annotations = data.annotations or []
-            # Access ORM attributes
-            assignment_list = [
-                {"user_id": a.user_id, "status": a.status, "is_review": a.is_review}
-                for a in assignments
-            ]
-            annotation_list = [
-                {
-                    "label_id": a.label_id,
-                    "created_by_user_id": a.created_by_user_id,
-                    "is_authoritative": a.is_authoritative,
-                    "counts_toward_completion": getattr(a, "counts_toward_completion", None),
-                }
-                for a in annotations
-            ]
-        elif isinstance(data, dict):
-            assignment_list = [
-                (
-                    {
-                        "user_id": a.user_id,
-                        "status": a.status,
-                        "is_review": getattr(a, "is_review", False),
-                    }
-                    if hasattr(a, "user_id")
-                    else a
-                )
-                for a in (data.get("assignments") or [])
-            ]
-            annotation_list = [
-                (
-                    {
-                        "label_id": a.label_id,
-                        "created_by_user_id": a.created_by_user_id,
-                        "is_authoritative": getattr(a, "is_authoritative", False),
-                        "counts_toward_completion": getattr(a, "counts_toward_completion", None),
-                    }
-                    if hasattr(a, "label_id")
-                    else a
-                )
-                for a in (data.get("annotations") or [])
-            ]
-        else:
+        if not hasattr(data, "assignments"):
             return data
-
-        status = compute_task_status_value(assignment_list, annotation_list)
-
-        # Set the computed status on the data
-        if hasattr(data, "__dict__"):
-            # ORM model - inject into the dict that pydantic will use
-            data.__dict__["task_status"] = status
-        elif isinstance(data, dict):
-            data["task_status"] = status
-
+        assignment_list, annotation_list = task_status_inputs(
+            data.assignments or [], data.annotations or []
+        )
+        data.__dict__["task_status"] = compute_task_status_value(assignment_list, annotation_list)
         return data
 
     model_config = ConfigDict(from_attributes=True)

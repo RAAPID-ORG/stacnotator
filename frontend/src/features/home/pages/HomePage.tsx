@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLayoutStore } from 'src/features/layout/layout.store';
-import { useCanCreateCampaigns } from '~/features/account/account.store';
+import { useLayoutStore } from 'src/shared/stores/layout.store';
+import { useCanCreateCampaigns } from '~/shared/stores/account.store';
 import { IconPlay } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 

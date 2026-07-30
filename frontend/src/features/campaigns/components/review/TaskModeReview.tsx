@@ -8,7 +8,7 @@ import {
   type CampaignOut,
   type TaskSetOut,
 } from '~/api/client';
-import { useAccountStore } from '~/features/account/account.store';
+import { useAccountStore } from '~/shared/stores/account.store';
 import {
   countTasksByStatus,
   formatTaskStatus,

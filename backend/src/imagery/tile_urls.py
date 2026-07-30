@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,8 +9,25 @@ from src.imagery.models import (
     ImagerySlice,
     SliceTileUrl,
 )
-from src.tiling import providers
-from src.tiling.router import build_viz_query_string
+from src.tilers import providers
+from src.tilers.providers import build_viz_query_string
+
+
+def rebake_mpc_url(url: str, viz_params: dict) -> str:
+    """Replace the viz query params on an MPC tile URL, keeping collection/pixel_selection.
+
+    Those two params identify the MPC mosaic search behind the URL and must survive a
+    viz-only update; every other existing query param is dropped and rebuilt from
+    ``viz_params``.
+    """
+    viz_qs = build_viz_query_string(viz_params, for_mpc=True)
+    parsed = urlparse(url)
+    existing = parse_qs(parsed.query, keep_blank_values=True)
+    kept = {k: v[0] for k, v in existing.items() if k in ("collection", "pixel_selection")}
+    new_qs = urlencode(list(kept.items()))
+    if viz_qs:
+        new_qs = f"{new_qs}&{viz_qs}" if new_qs else viz_qs
+    return urlunparse(parsed._replace(query=new_qs))
 
 
 def _slice_viz_params(stac, viz_name: str, is_cover: bool) -> dict:
@@ -38,8 +57,6 @@ def update_collection_viz_params(
     Updates the collection's CollectionVizConfig rows and reconstructs the
     query-string portion of all SliceTileUrl rows.
     """
-    from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
     if not viz_by_name:
         return
 
@@ -127,16 +144,7 @@ def update_collection_viz_params(
                 continue
 
             if tu.tile_provider == "mpc":
-                viz_qs = build_viz_query_string(params, for_mpc=True)
-                parsed = urlparse(tu.tile_url)
-                existing = parse_qs(parsed.query, keep_blank_values=True)
-                kept = {
-                    k: v[0] for k, v in existing.items() if k in ("collection", "pixel_selection")
-                }
-                new_qs = urlencode(list(kept.items()))
-                if viz_qs:
-                    new_qs = f"{new_qs}&{viz_qs}" if new_qs else viz_qs
-                tu.tile_url = urlunparse(parsed._replace(query=new_qs))
+                tu.tile_url = rebake_mpc_url(tu.tile_url, params)
             elif tu.tile_provider and tu.mosaic_id:
                 # Hosted tiler: rebuild the absolute URL with the new viz params (no re-search).
                 tiler = providers.resolve_tiler(tu.tile_provider)

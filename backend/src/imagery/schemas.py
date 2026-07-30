@@ -1,6 +1,8 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field, field_validator
+
+from src.canvas.schemas import CanvasLayoutOut
 
 # ============================================================================
 # Slice / Collection / Source - Output Schemas
@@ -130,58 +132,36 @@ class ViewCollectionRefItem(BaseModel):
     show_as_window: bool = True
 
 
-class CanvasLayoutItem(BaseModel):
-    """One react-grid-layout tile: grid id and position/size in grid units."""
-
-    i: str
-    x: int
-    y: int
-    w: int
-    h: int
-
-
-class CanvasLayoutOut(BaseModel):
-    id: int
-    user_id: UUID | None
-    layout_data: list[CanvasLayoutItem]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class ImageryViewOut(BaseModel):
     id: int
     name: str
     display_order: int
     collection_refs: list[ViewCollectionRefItem]
 
+    # Populated by from_orm; stay None on any other construction path (e.g. a
+    # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
+    # they don't reappear as writable input fields on this output-only schema.
+    _default_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+    _personal_canvas_layout: CanvasLayoutOut | None = PrivateAttr(default=None)
+
     @computed_field
     @property
     def default_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_default_canvas_layout"):
-            return self._default_canvas_layout
-        return None
+        return self._default_canvas_layout
 
     @computed_field
     @property
     def personal_canvas_layout(self) -> CanvasLayoutOut | None:
-        if hasattr(self, "_personal_canvas_layout"):
-            return self._personal_canvas_layout
-        return None
+        return self._personal_canvas_layout
 
     @classmethod
-    def from_orm(cls, obj, user_id: UUID | None = None):
-        default_layout = None
-        personal_layout = None
-        if hasattr(obj, "canvas_layouts"):
-            for layout in obj.canvas_layouts:
-                if layout.is_default and layout.user_id is None:
-                    default_layout = CanvasLayoutOut.model_validate(layout)
-                elif user_id and layout.user_id == user_id:
-                    personal_layout = CanvasLayoutOut.model_validate(layout)
-
+    def from_orm(cls, obj, user_id: UUID | None = None) -> "ImageryViewOut":
         instance = cls.model_validate(obj)
-        instance._default_canvas_layout = default_layout
-        instance._personal_canvas_layout = personal_layout
+        for layout in getattr(obj, "canvas_layouts", []):
+            if layout.is_default and layout.user_id is None:
+                instance._default_canvas_layout = CanvasLayoutOut.model_validate(layout)
+            elif user_id and layout.user_id == user_id:
+                instance._personal_canvas_layout = CanvasLayoutOut.model_validate(layout)
         return instance
 
     model_config = ConfigDict(from_attributes=True)
@@ -266,6 +246,16 @@ class ImagerySourceCreate(BaseModel):
     visualizations: list[VisualizationTemplateCreate]
     collections: list[ImageryCollectionCreate]
 
+    @field_validator("visualizations")
+    @classmethod
+    def visualization_names_unique(
+        cls, v: list[VisualizationTemplateCreate]
+    ) -> list[VisualizationTemplateCreate]:
+        names = [viz.name for viz in v]
+        if len(names) != len(set(names)):
+            raise ValueError("visualization names must be unique per source")
+        return v
+
 
 class BasemapCreate(BaseModel):
     id: int | None = None
@@ -333,18 +323,6 @@ class ImageryViewAddRequest(BaseModel):
 
     name: str = ""
     collection_refs: list[ViewCollectionRefItem] = []
-
-
-class CanvasLayoutCreate(BaseModel):
-    main_layout_data: list
-    view_layout_data: list | None = None
-    view_id: int | None = None
-
-
-class CanvasLayoutCreateRequest(BaseModel):
-    layout: CanvasLayoutCreate
-    should_be_default: bool = False
-    view_id: int
 
 
 class CreateImageryResponse(BaseModel):

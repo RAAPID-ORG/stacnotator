@@ -17,16 +17,16 @@ from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
-from src.custom_maps.router import router as custom_maps_router
+from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
+from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
+from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
+from src.stac_browser.router import router as stac_browser_router
 from src.tile_bulkhead import TileCapacityError
-from src.tiling.router import router as tiling_router
 from src.timeseries.router import router as timeseries_router
-from src.utils import generate_unique_id, initialize_earth_engine
-from src.vector_layers.router import router as vector_layers_router
 
 settings = get_settings()
 
@@ -216,7 +216,6 @@ app.include_router(timeseries_router, prefix="/api")
 app.include_router(sampling_design_router, prefix="/api")
 app.include_router(imagery_router, prefix="/api")
 app.include_router(imagery_proxy_router, prefix="/api")
-app.include_router(tiling_router, prefix="/api")
-app.include_router(custom_maps_router, prefix="/api")
-app.include_router(vector_layers_router, prefix="/api")
+app.include_router(stac_browser_router, prefix="/api")
+app.include_router(custom_layers_router, prefix="/api")
 # Tile serving (mosaic tiles, STAC/COG tiles) is handled by the separate tiler service

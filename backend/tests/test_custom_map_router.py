@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from src.auth.dependencies import require_approved_user
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
-from src.custom_maps import router as cm_router
-from src.custom_maps import service
+from src.custom_layers import router as cm_router
+from src.custom_layers import service
 from src.database import get_db
 from src.main import app
 

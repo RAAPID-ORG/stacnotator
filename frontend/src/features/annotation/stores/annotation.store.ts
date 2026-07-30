@@ -8,7 +8,7 @@ import {
   getAnnotation as getAnnotationApi,
   type AnnotationOut,
 } from '~/api/client';
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { convertGeoJSONToWKT } from '~/shared/utils/utility';
 import { resolveActiveImagerySnapshot } from '../utils/imagerySnapshot';

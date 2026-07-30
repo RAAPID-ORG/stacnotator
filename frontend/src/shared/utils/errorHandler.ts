@@ -1,4 +1,4 @@
-import { useLayoutStore } from '~/features/layout/layout.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 

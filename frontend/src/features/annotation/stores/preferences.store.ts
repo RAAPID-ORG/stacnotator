@@ -6,7 +6,7 @@ import {
   type LabelStyle,
   type StyleOverrides,
 } from '../utils/annotationStyle';
-import type { RenderOverride } from '../utils/customMapOverride';
+import type { RenderOverride } from '~/features/customLayers/utils/customMapOverride';
 
 /**
  * Per-device user preferences. Persisted to localStorage via zustand's
@@ -41,8 +41,7 @@ interface PreferencesStore {
   /**
    * Sparse map of (account, campaign) pairs the user has already dismissed
    * the guided tour for. Key format: `${accountId}:${campaignId}`. Absent
-   * key means "not seen". Read via `hasSeenTour` (which also migrates from
-   * the legacy per-key localStorage entries).
+   * key means "not seen". Read via `hasSeenTour`.
    */
   tourSeenByCampaign: Record<string, true>;
   markTourSeen: (accountId: string, campaignId: number) => void;
