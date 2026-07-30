@@ -2,11 +2,11 @@
 
 Stubs threading.Thread to run the target inline (no real thread) and stubs
 SessionLocal/populate_campaign_embeddings so the transitions can be asserted
-against a plain campaign stand-in without a database. The failure path calls
-imagery.registration.finish_registration (a Core UPDATE) rather than mutating
-the campaign object directly, so those tests assert on how it was called
-instead of on campaign attributes; finish_registration itself is covered
-against a real database in test_finish_registration.py.
+against a plain campaign stand-in without a database. Both the success and
+failure paths call imagery.registration.finish_registration (a Core UPDATE)
+rather than mutating the campaign object directly, so those tests assert on
+how it was called instead of on campaign attributes; finish_registration
+itself is covered against a real database in test_finish_registration.py.
 """
 
 from types import SimpleNamespace
@@ -44,16 +44,23 @@ def _make_session(campaign):
 
 
 class TestSpawnBackgroundEmbeddingComputation:
-    def test_success_transitions_registering_to_ready(self, monkeypatch):
+    def test_success_finishes_embedding_status_ready_with_no_errors(self, monkeypatch):
         campaign = _make_campaign()
         db = _make_session(campaign)
         monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
         monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", lambda *a, **k: {})
+        finish_registration = MagicMock()
+        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
 
         embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-        assert campaign.embedding_status == "ready"
-        assert campaign.registration_errors is None
+        finish_registration.assert_called_once_with(
+            db,
+            1,
+            status_field="embedding_status",
+            status="ready",
+            errors=[],
+        )
         db.commit.assert_called()
         db.close.assert_called()
 

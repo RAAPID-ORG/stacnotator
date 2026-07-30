@@ -9,7 +9,6 @@ from src.campaigns.dependencies import require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
-from src.routing import FunctionNameOperationIdRoute
 from src.sampling_design import service
 from src.sampling_design.schemas import GenerateTasksResponse, SamplingStrategyConfig
 
@@ -47,7 +46,6 @@ router = APIRouter(
     prefix="/campaigns/{campaign_id}/sampling",
     tags=["Sampling Design"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

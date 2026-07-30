@@ -17,14 +17,12 @@ from src.imagery.schemas import (
     ImageryEditorStateCreate,
     TilerOption,
 )
-from src.routing import FunctionNameOperationIdRoute
 from src.tilers import registry
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Imagery"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

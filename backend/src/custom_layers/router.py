@@ -16,7 +16,6 @@ from src.custom_layers.schemas import (
     VectorLayerUpdate,
 )
 from src.database import get_db
-from src.routing import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()
 
@@ -24,7 +23,6 @@ custom_maps_router = APIRouter(
     prefix="/campaigns/{campaign_id}/custom-maps",
     tags=["Custom Maps"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
@@ -104,7 +102,6 @@ vector_layers_router = APIRouter(
     prefix="/campaigns/{campaign_id}/vector-layers",
     tags=["Vector Layers"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

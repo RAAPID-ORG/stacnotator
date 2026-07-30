@@ -33,14 +33,12 @@ from src.campaigns.models import Campaign
 from src.campaigns.task_sets import require_task_set
 from src.database import get_db
 from src.filenames import clean_filename
-from src.routing import FunctionNameOperationIdRoute
 from src.tile_bulkhead import tile_slot
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Annotations"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 logger = logging.getLogger(__name__)

@@ -19,9 +19,8 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
-from src.campaigns.models import Campaign
 from src.database import SessionLocal
-from src.imagery.registration import finish_registration
+from src.imagery.registration import finish_registration, sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -462,10 +461,7 @@ def _sanitize_embedding_error(exc: Exception) -> str:
     Never exposes stack traces or internal file paths (mirrors
     imagery.registration._sanitize_stac_error for the equivalent mosaic-side errors).
     """
-    msg = str(exc).split("\n")[0]
-    if "/" in msg and ("site-packages" in msg or "/app/" in msg):
-        return f"Embedding computation failed ({type(exc).__name__})"
-    return msg[:200] if msg else f"Embedding computation failed ({type(exc).__name__})"
+    return sanitize_error_message(exc, fallback="Embedding computation failed")
 
 
 def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
@@ -475,9 +471,10 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
     imagery.registration.spawn_background_mosaic_registration: the caller commits
     `campaign.embedding_status = "registering"` in its own transaction before
     calling this, then this thread flips it to ready/failed once
-    populate_campaign_embeddings finishes (or fails). The failure path uses
-    registration.finish_registration so its error append can never clobber (or be
-    clobbered by) the mosaic thread's, since both write registration_errors.
+    populate_campaign_embeddings finishes (or fails). Both transitions go
+    through registration.finish_registration so its error append can never
+    clobber (or be clobbered by) the mosaic thread's, since both write
+    registration_errors.
     """
     start_date = datetime(year, 1, 1)
     end_date = datetime(year, 12, 31)
@@ -489,10 +486,14 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
                 "Background embeddings started for campaign %d (year %d)", campaign_id, year
             )
             populate_campaign_embeddings(bg_db, campaign_id, start_date, end_date)
-            bg_campaign = bg_db.get(Campaign, campaign_id)
-            if bg_campaign:
-                bg_campaign.embedding_status = "ready"
-                bg_db.commit()
+            finish_registration(
+                bg_db,
+                campaign_id,
+                status_field="embedding_status",
+                status="ready",
+                errors=[],
+            )
+            bg_db.commit()
             logger.info("Embeddings completed for campaign %d", campaign_id)
         except Exception as exc:
             logger.exception("Embeddings failed for campaign %d", campaign_id)

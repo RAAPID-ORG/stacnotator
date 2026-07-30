@@ -7,7 +7,6 @@ from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.database import get_db
-from src.routing import FunctionNameOperationIdRoute
 from src.timeseries import service
 from src.timeseries.constants import (
     SUPPORTED_TIMESERIES_PROVIDERS,
@@ -27,7 +26,6 @@ from src.timeseries.schemas import (
 router = APIRouter(
     tags=["Time Series"],
     dependencies=[Depends(HTTPBearer()), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

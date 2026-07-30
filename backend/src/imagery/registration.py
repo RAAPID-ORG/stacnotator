@@ -33,6 +33,18 @@ logger = logging.getLogger(__name__)
 MPC_REGISTER_URL = "https://planetarycomputer.microsoft.com/api/data/v1/mosaic/register"
 
 
+def sanitize_error_message(exc: Exception, *, fallback: str) -> str:
+    """Generic-exception sanitizing tail shared by the mosaic and embedding paths.
+
+    Only exposes the exception type + first line, never internal paths,
+    credentials, or stack traces.
+    """
+    msg = str(exc).split("\n")[0]
+    if "/" in msg and ("site-packages" in msg or "/app/" in msg):
+        return f"{fallback} ({type(exc).__name__})"
+    return msg[:200] if msg else f"{fallback} ({type(exc).__name__})"
+
+
 def _sanitize_stac_error(e: Exception) -> str:
     """Extract a user-facing error message from a STAC registration exception.
 
@@ -54,12 +66,7 @@ def _sanitize_stac_error(e: Exception) -> str:
         except Exception:
             logger.debug("Could not parse tile server error response", exc_info=True)
         return f"HTTP {status} from tile server"
-    # Generic: only expose the exception type + first line
-    msg = str(e).split("\n")[0]
-    # Strip file paths
-    if "/" in msg and ("site-packages" in msg or "/app/" in msg):
-        return f"Registration failed ({type(e).__name__})"
-    return msg[:200] if msg else f"Registration failed ({type(e).__name__})"
+    return sanitize_error_message(e, fallback="Registration failed")
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,6 @@ from src.auth.schemas import (
 from src.campaigns.service import visible_campaign_ids
 from src.config import get_settings
 from src.database import get_db
-from src.routing import FunctionNameOperationIdRoute
 from src.tilers import registry
 from src.tilers.tokens import mint as mint_tiler_token
 
@@ -24,7 +23,6 @@ router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
     dependencies=[Depends(bearer)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 

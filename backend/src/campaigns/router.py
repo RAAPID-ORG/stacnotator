@@ -45,14 +45,12 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db
 from src.filenames import clean_filename
-from src.routing import FunctionNameOperationIdRoute
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     prefix="/campaigns",
     tags=["Campaigns"],
     dependencies=[Depends(bearer), Depends(require_approved_user)],
-    route_class=FunctionNameOperationIdRoute,
 )
 
 
