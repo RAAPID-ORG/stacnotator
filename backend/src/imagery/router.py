@@ -133,7 +133,7 @@ def refresh_collection_imagery(
     # inside refresh_collection_imagery, never raised) - it must 404/400 here
     # rather than only surface later as a campaign-wide registration_status
     # "failed" that blocks annotation.
-    registration.load_refreshable_collection(db, collection_id)
+    registration.load_refreshable_collection(db, collection_id, campaign.id)
     bbox = [
         campaign.settings.bbox_west,
         campaign.settings.bbox_south,

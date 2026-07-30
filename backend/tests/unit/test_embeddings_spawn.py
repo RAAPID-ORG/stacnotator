@@ -81,6 +81,29 @@ class TestSpawnBackgroundEmbeddingComputation:
         db.commit.assert_called()
         db.close.assert_called()
 
+    def test_failure_rolls_back_poisoned_session_before_finish_registration(self, monkeypatch):
+        """A DB error mid-computation leaves the session's transaction invalid;
+        finish_registration's own db.flush() would raise PendingRollbackError
+        unless the session is rolled back first."""
+        campaign = _make_campaign()
+        db = _make_session(campaign)
+        calls: list[str] = []
+        db.rollback.side_effect = lambda: calls.append("rollback")
+        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
+        finish_registration = MagicMock(
+            side_effect=lambda *a, **k: calls.append("finish_registration")
+        )
+        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
+
+        def _raise(*a, **k):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", _raise)
+
+        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+
+        assert calls == ["rollback", "finish_registration"]
+
     def test_failure_does_not_read_modify_write_registration_errors(self, monkeypatch):
         """The failure path must go through finish_registration's atomic append,
         never through a read-then-write of campaign.registration_errors - that

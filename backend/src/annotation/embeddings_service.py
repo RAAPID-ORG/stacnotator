@@ -496,6 +496,7 @@ def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
             logger.info("Embeddings completed for campaign %d", campaign_id)
         except Exception as exc:
             logger.exception("Embeddings failed for campaign %d", campaign_id)
+            bg_db.rollback()
             try:
                 finish_registration(
                     bg_db,

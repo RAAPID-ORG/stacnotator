@@ -115,3 +115,27 @@ class TestSpawnBackgroundMosaicRegistration:
         )
         db.commit.assert_called()
         db.close.assert_called()
+
+    def test_failure_rolls_back_poisoned_session_before_finish_registration(self, monkeypatch):
+        """A DB error mid-registration leaves the session's transaction invalid;
+        finish_registration's own db.flush() would raise PendingRollbackError
+        unless the session is rolled back first."""
+        db = _make_session()
+        calls: list[str] = []
+        db.rollback.side_effect = lambda: calls.append("rollback")
+        monkeypatch.setattr(registration, "SessionLocal", lambda: db)
+
+        def _raise(*a, **k):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(registration, "_register_all_stac_browser_collections", _raise)
+        finish_registration = MagicMock(
+            side_effect=lambda *a, **k: calls.append("finish_registration")
+        )
+        monkeypatch.setattr(registration, "finish_registration", finish_registration)
+
+        registration.spawn_background_mosaic_registration(
+            campaign_id=1, pending_registrations=[_make_spec()], bbox=[0, 0, 1, 1]
+        )
+
+        assert calls == ["rollback", "finish_registration"]

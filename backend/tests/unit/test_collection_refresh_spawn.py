@@ -82,6 +82,30 @@ class TestSpawnBackgroundCollectionRefresh:
         db.commit.assert_called()
         db.close.assert_called()
 
+    def test_failure_rolls_back_poisoned_session_before_finish_registration(self, monkeypatch):
+        """A DB error mid-refresh leaves the session's transaction invalid;
+        finish_registration's own db.flush() would raise PendingRollbackError
+        unless the session is rolled back first."""
+        db = _make_session()
+        calls: list[str] = []
+        db.rollback.side_effect = lambda: calls.append("rollback")
+        monkeypatch.setattr(registration, "SessionLocal", lambda: db)
+
+        def _raise(*a, **k):
+            raise RuntimeError("tiler exploded")
+
+        monkeypatch.setattr(registration, "refresh_collection_imagery", _raise)
+        finish_registration = MagicMock(
+            side_effect=lambda *a, **k: calls.append("finish_registration")
+        )
+        monkeypatch.setattr(registration, "finish_registration", finish_registration)
+
+        registration.spawn_background_collection_refresh(
+            campaign_id=1, collection_id=7, bbox=[0, 0, 1, 1]
+        )
+
+        assert calls == ["rollback", "finish_registration"]
+
     def test_failure_when_finish_registration_itself_raises_still_closes_session(self, monkeypatch):
         """The commit-of-last-resort in the except block can itself fail (e.g. DB
         down); the session must still be closed rather than leaked."""

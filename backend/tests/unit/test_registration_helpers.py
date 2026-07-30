@@ -14,11 +14,17 @@ build real SQLAlchemy rows, `existing` is a `SimpleNamespace` stand-in - no DB, 
 """
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import httpx
+import pytest
 from fastapi import HTTPException
 
-from src.imagery.registration import _inject_datetime_into_query, _sanitize_stac_error
+from src.imagery.registration import (
+    _inject_datetime_into_query,
+    _sanitize_stac_error,
+    load_refreshable_collection,
+)
 from src.imagery.schemas import CollectionStacConfigCreate, NamedVizParamsCreate, VizParamsCreate
 from src.imagery.service import _stac_config_changed
 
@@ -190,6 +196,30 @@ def test_sanitize_error_generic_truncates_to_200_chars():
 
 def test_sanitize_error_generic_empty_message_falls_back_to_type_name():
     assert _sanitize_stac_error(Exception()) == "Registration failed (Exception)"
+
+
+# ============================================================================
+# load_refreshable_collection - query scoping
+# ============================================================================
+
+
+def test_load_refreshable_collection_scopes_query_to_campaign():
+    """C2 regression: the query must join through ImagerySource and filter on
+    campaign_id, so a collection_id belonging to a different campaign can never
+    match - a cross-campaign refresh must 404 rather than reach the collection."""
+    db = MagicMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        load_refreshable_collection(db, collection_id=42, campaign_id=99)
+
+    assert exc_info.value.status_code == 404
+    stmt = db.execute.call_args[0][0]
+    compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+    assert "imagery_sources" in compiled
+    assert "campaign_id" in compiled
+    assert "42" in compiled
+    assert "99" in compiled
 
 
 # ============================================================================

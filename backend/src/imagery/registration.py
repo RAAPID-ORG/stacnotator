@@ -409,6 +409,7 @@ def spawn_background_mosaic_registration(
                 logger.info("Mosaic registration completed for campaign %d", campaign_id)
         except Exception as exc:
             logger.exception("Mosaic registration failed for campaign %d", campaign_id)
+            bg_db.rollback()
             try:
                 finish_registration(
                     bg_db,
@@ -450,7 +451,7 @@ def spawn_background_collection_refresh(
                 campaign_id,
                 collection_id,
             )
-            refresh_collection_imagery(bg_db, collection_id, bbox)
+            refresh_collection_imagery(bg_db, collection_id, campaign_id, bbox)
             finish_registration(
                 bg_db,
                 campaign_id,
@@ -470,6 +471,7 @@ def spawn_background_collection_refresh(
                 campaign_id,
                 collection_id,
             )
+            bg_db.rollback()
             try:
                 finish_registration(
                     bg_db,
@@ -643,16 +645,28 @@ def re_register_stac_collections(db: Session, campaign_id: int, bbox: list[float
     return updated
 
 
-def load_refreshable_collection(db: Session, collection_id: int) -> ImageryCollection:
-    """Look up a collection and validate it's refreshable, raising the 404/400 this
-    has always raised for a bad id or a non-STAC-browser collection.
+def load_refreshable_collection(
+    db: Session, collection_id: int, campaign_id: int
+) -> ImageryCollection:
+    """Look up a collection scoped to its owning campaign and validate it's
+    refreshable, raising the 404/400 this has always raised for a bad id or a
+    non-STAC-browser collection.
+
+    The join through ImagerySource.campaign_id keeps this scoped to the caller's
+    authorized campaign, so an admin of one campaign can't refresh (and
+    re-ingest with their own bbox) a collection belonging to another.
 
     Shared by the request handler's synchronous pre-spawn check and
     refresh_collection_imagery's own use below, so there is one source of truth
     for what "refreshable" means rather than two copies that could drift.
     """
     collection = db.execute(
-        select(ImageryCollection).where(ImageryCollection.id == collection_id)
+        select(ImageryCollection)
+        .join(ImagerySource, ImageryCollection.source_id == ImagerySource.id)
+        .where(
+            ImageryCollection.id == collection_id,
+            ImagerySource.campaign_id == campaign_id,
+        )
     ).scalar_one_or_none()
     if not collection or not collection.stac_config:
         raise HTTPException(status_code=404, detail="Collection not found or no STAC config")
@@ -666,13 +680,14 @@ def load_refreshable_collection(db: Session, collection_id: int) -> ImageryColle
 def refresh_collection_imagery(
     db: Session,
     collection_id: int,
+    campaign_id: int,
     bbox: list[float],
 ) -> dict:
     """Re-search STAC catalog with stored params, update mosaic items.
 
     Returns dict with status and registered_at.
     """
-    collection = load_refreshable_collection(db, collection_id)
+    collection = load_refreshable_collection(db, collection_id, campaign_id)
     stac = collection.stac_config
     # load_refreshable_collection already raised if any of this were falsy.
     assert stac is not None
