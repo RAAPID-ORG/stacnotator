@@ -187,13 +187,22 @@ interface FieldProps {
   error?: ReactNode;
   required?: boolean;
   className?: string;
+  htmlFor?: string;
   children: ReactNode;
 }
 
-export const Field = ({ label, hint, error, required, className, children }: FieldProps) => (
+export const Field = ({
+  label,
+  hint,
+  error,
+  required,
+  className,
+  htmlFor,
+  children,
+}: FieldProps) => (
   <div className={`space-y-1.5 ${className ?? ''}`}>
     {label && (
-      <label className="block text-xs font-medium text-neutral-700">
+      <label htmlFor={htmlFor} className="block text-xs font-medium text-neutral-700">
         {label}
         {required && <span className="text-red-600 ml-0.5">*</span>}
       </label>

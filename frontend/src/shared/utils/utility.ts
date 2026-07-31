@@ -66,6 +66,20 @@ export const capitalizeFirst = (str: string): string => {
 };
 
 /**
+ * Case-insensitive substring match of a search query against a user's
+ * display name or email. An empty query matches everyone.
+ */
+export const userMatchesQuery = (
+  user: { display_name: string; email: string },
+  rawQuery: string
+): boolean => {
+  const query = rawQuery.trim().toLowerCase();
+  return (
+    user.display_name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+  );
+};
+
+/**
  * Extract latitude and longitude from a WKT POINT string
  * Supports both 2D and 3D (POINT Z) formats
  * @param wkt - Well-Known Text string in POINT format

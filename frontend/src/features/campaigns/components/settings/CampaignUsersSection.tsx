@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Button, Field, Select } from '~/shared/ui/forms';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Field, Input } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
+import { userMatchesQuery } from '~/shared/utils/utility';
 import {
   addUsersToCampaign,
   getCampaignUsers,
@@ -33,6 +34,28 @@ export const CampaignUsersSection = ({
 
   const [selectedUserId, setSelectedUserId] = useState('');
   const [addingUser, setAddingUser] = useState(false);
+  const [userQuery, setUserQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [pickerOpen]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    document
+      .getElementById(`campaign-user-option-${activeIndex}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [pickerOpen, activeIndex]);
 
   useEffect(() => {
     loadUsers();
@@ -92,6 +115,7 @@ export const CampaignUsersSection = ({
       await loadUsers();
 
       setSelectedUserId('');
+      setUserQuery('');
       const msg = `${selectedUser.display_name} added to campaign`;
       onSuccess?.(msg);
     } catch (err) {
@@ -205,6 +229,19 @@ export const CampaignUsersSection = ({
   // Filter out users already in the campaign
   const availableUsers = allUsers.filter((u) => !users.some((cu) => cu.user.id === u.id));
 
+  // Once a user is picked the input holds their label; ignore it as a filter
+  // so reopening the picker shows the full list again.
+  const matchingUsers = availableUsers.filter((u) =>
+    userMatchesQuery(u, selectedUserId ? '' : userQuery)
+  );
+  const activeUserIndex = Math.min(activeIndex, Math.max(matchingUsers.length - 1, 0));
+
+  const pickUser = (user: UserOutDetailed) => {
+    setSelectedUserId(user.id);
+    setUserQuery(`${user.display_name} (${user.email})`);
+    setPickerOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -238,21 +275,80 @@ export const CampaignUsersSection = ({
           </p>
         </div>
         <div className="flex gap-3 items-end">
-          <Field label="Select user" className="flex-1">
-            <Select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              disabled={addingUser || availableUsers.length === 0}
-            >
-              <option value="">
-                {availableUsers.length === 0 ? 'No users available' : 'Select a user…'}
-              </option>
-              {availableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.display_name} ({user.email})
-                </option>
-              ))}
-            </Select>
+          <Field label="Select user" htmlFor="campaign-user-search" className="flex-1">
+            <div className="relative" ref={pickerRef}>
+              <Input
+                id="campaign-user-search"
+                role="combobox"
+                aria-expanded={pickerOpen}
+                aria-controls="campaign-user-listbox"
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  pickerOpen && matchingUsers.length > 0
+                    ? `campaign-user-option-${activeUserIndex}`
+                    : undefined
+                }
+                value={userQuery}
+                onChange={(e) => {
+                  setUserQuery(e.target.value);
+                  setSelectedUserId('');
+                  setActiveIndex(0);
+                  setPickerOpen(true);
+                }}
+                onFocus={() => setPickerOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setPickerOpen(false);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (pickerOpen) {
+                      setActiveIndex(Math.min(activeUserIndex + 1, matchingUsers.length - 1));
+                    } else {
+                      setPickerOpen(true);
+                    }
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setActiveIndex(Math.max(activeUserIndex - 1, 0));
+                  } else if (e.key === 'Enter' && pickerOpen && matchingUsers[activeUserIndex]) {
+                    e.preventDefault();
+                    pickUser(matchingUsers[activeUserIndex]);
+                  }
+                }}
+                placeholder={
+                  availableUsers.length === 0 ? 'No users available' : 'Search by name or email…'
+                }
+                disabled={addingUser || availableUsers.length === 0}
+              />
+              {pickerOpen && availableUsers.length > 0 && (
+                <div
+                  id="campaign-user-listbox"
+                  role="listbox"
+                  className="absolute z-20 mt-1 w-full bg-white border border-neutral-300 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+                >
+                  {matchingUsers.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-neutral-500">No users match your search</p>
+                  ) : (
+                    matchingUsers.map((user, index) => (
+                      <button
+                        key={user.id}
+                        id={`campaign-user-option-${index}`}
+                        role="option"
+                        aria-selected={user.id === selectedUserId}
+                        type="button"
+                        onClick={() => pickUser(user)}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                          index === activeUserIndex ? 'bg-brand-50' : ''
+                        } ${user.id === selectedUserId ? 'text-brand-800' : 'text-neutral-900'}`}
+                      >
+                        <div className="font-medium">{user.display_name}</div>
+                        <div className="text-neutral-500">{user.email}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </Field>
           <Button onClick={handleAddUser} disabled={addingUser || !selectedUserId}>
             {addingUser ? 'Adding…' : 'Add user'}

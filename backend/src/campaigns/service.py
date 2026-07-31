@@ -76,7 +76,8 @@ def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[Campaig
         campaign_id: ID of the campaign
 
     Returns:
-        List of campaign user associations with user data loaded
+        List of campaign user associations with user data loaded,
+        sorted by display name (email fallback)
     """
     stmt = (
         select(CampaignUser)
@@ -84,7 +85,8 @@ def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[Campaig
         .options(joinedload(CampaignUser.user))
     )
 
-    return db.scalars(stmt).unique().all()
+    users = db.scalars(stmt).unique().all()
+    return sorted(users, key=lambda cu: (cu.user.display_name or cu.user.email).lower())
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[dict]:

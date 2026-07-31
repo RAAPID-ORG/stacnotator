@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
-import { extractCentroidFromWKT } from '~/shared/utils/utility';
+import { extractCentroidFromWKT, userMatchesQuery } from '~/shared/utils/utility';
 import {
   countTasksByStatus,
   getUserTaskStatuses,
@@ -39,7 +39,10 @@ export const AnnotationTasksTable = ({
   const [isBatchUnassigning, setIsBatchUnassigning] = useState(false);
   const [confirmBatchUnassign, setConfirmBatchUnassign] = useState(false);
   const [showUserSelectForTask, setShowUserSelectForTask] = useState<number | null>(null);
+  const [userQuery, setUserQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const matchingUsers = campaignUsers.filter((cu) => userMatchesQuery(cu.user, userQuery));
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -322,11 +325,12 @@ export const AnnotationTasksTable = ({
                           ref={showUserSelectForTask === task.id ? dropdownRef : null}
                         >
                           <button
-                            onClick={() =>
+                            onClick={() => {
+                              setUserQuery('');
                               setShowUserSelectForTask(
                                 showUserSelectForTask === task.id ? null : task.id
-                              )
-                            }
+                              );
+                            }}
                             disabled={isAssigning}
                             className="inline-block px-2 py-1 rounded text-xs bg-neutral-200 text-neutral-700 hover:bg-green-100 hover:text-green-700 transition-colors disabled:opacity-50 font-medium"
                             title="Add user to task"
@@ -341,7 +345,19 @@ export const AnnotationTasksTable = ({
                                 <div className="text-xs font-medium text-neutral-700 mb-2 px-2">
                                   Manage users for task #{task.annotation_number}
                                 </div>
-                                {campaignUsers.map((user) => {
+                                <input
+                                  value={userQuery}
+                                  onChange={(e) => setUserQuery(e.target.value)}
+                                  placeholder="Search by name or email…"
+                                  autoFocus
+                                  className="w-full mb-2 px-3 py-1.5 text-xs border border-neutral-300 rounded-md placeholder:text-neutral-400 focus:outline-none focus:border-brand-600"
+                                />
+                                {matchingUsers.length === 0 && (
+                                  <p className="px-3 py-2 text-xs text-neutral-500">
+                                    No users match your search
+                                  </p>
+                                )}
+                                {matchingUsers.map((user) => {
                                   const isAlreadyAssigned = task.assignments?.some(
                                     (a) => a.user_id === user.user.id
                                   );
