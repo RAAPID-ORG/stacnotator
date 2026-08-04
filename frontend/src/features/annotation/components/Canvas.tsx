@@ -23,7 +23,7 @@ import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
 import { isTimeseriesWindowKey } from '../utils/layoutDefaults';
 import { groupTimeseriesIntoWindows, type TimeseriesWindow } from '../utils/timeseriesWindows';
-import { getActiveClaim, UNASSIGNED } from '../utils/taskFilter';
+import { computeTaskProgress, getActiveClaim } from '../utils/taskFilter';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
@@ -231,23 +231,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
-  const { totalTasksForCounter, completedTasksForCounter } = useMemo(() => {
-    const tasksInAssignmentScope = allTasks.filter((task) => {
-      if (taskFilter.assignedTo.length === 0) return true;
-      const assignments = task.assignments || [];
-      if (taskFilter.assignedTo.includes(UNASSIGNED) && assignments.length === 0) return true;
-      return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
-    });
-    return {
-      totalTasksForCounter: tasksInAssignmentScope.length,
-      completedTasksForCounter: tasksInAssignmentScope.filter(
-        (task) =>
-          task.task_status === 'done' ||
-          task.task_status === 'skipped' ||
-          task.task_status === 'conflicting'
-      ).length,
-    };
-  }, [allTasks, taskFilter.assignedTo]);
+  const { total: totalTasksForCounter, completed: completedTasksForCounter } = useMemo(
+    () => computeTaskProgress(allTasks, taskFilter.assignedTo),
+    [allTasks, taskFilter.assignedTo]
+  );
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = workMode === 'explore';

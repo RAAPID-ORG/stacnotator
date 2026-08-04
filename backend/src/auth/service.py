@@ -204,8 +204,8 @@ def register_user(
 
 
 def get_all_users(db: Session) -> list[User]:
-    """Retrieve all users in the system."""
-    stmt = select(User)
+    """Retrieve all users in the system, sorted by display name (email fallback)."""
+    stmt = select(User).order_by(func.lower(func.coalesce(User.display_name, User.email)))
     return list(db.scalars(stmt).all())
 
 

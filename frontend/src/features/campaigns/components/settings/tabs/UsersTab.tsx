@@ -10,8 +10,10 @@ interface Props {
 }
 
 export const UsersTab: React.FC<Props> = ({ campaignId, onError, onSuccess }) => {
+  // pb matches the picker dropdown's max height (max-h-64) so an open list
+  // near the end of the page can always be scrolled fully into view.
   return (
-    <div id="tab-users" role="tabpanel">
+    <div id="tab-users" role="tabpanel" className="pb-64">
       <CampaignUsersSection campaignId={campaignId} onError={onError} onSuccess={onSuccess} />
     </div>
   );

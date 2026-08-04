@@ -47,6 +47,54 @@ export interface FilteredTasks {
   suggestedIndex: number;
 }
 
+export interface TaskProgress {
+  total: number;
+  completed: number;
+}
+
+type TaskProgressInput = Pick<AnnotationTaskOut, 'task_status' | 'assignments'>;
+
+const RESOLVED_TASK_STATUSES = ['done', 'skipped', 'conflicting'];
+
+const isResolvedTask = (task: TaskProgressInput): boolean =>
+  RESOLVED_TASK_STATUSES.includes(task.task_status ?? '');
+
+/**
+ * Progress within the assignment scope of `assignedTo` (all tasks when empty;
+ * the UNASSIGNED sentinel matches tasks without assignments). Scoped to users,
+ * completion follows their own assignment status - matching the per-user
+ * semantics of applyTaskFilter - because the task-level status lags at
+ * 'partial' until co-assignees act (e.g. on review assignments) and must not
+ * hold back the scoped users' progress.
+ */
+export const computeTaskProgress = (
+  allTasks: TaskProgressInput[],
+  assignedTo: string[]
+): TaskProgress => {
+  if (assignedTo.length === 0) {
+    return {
+      total: allTasks.length,
+      completed: allTasks.filter(isResolvedTask).length,
+    };
+  }
+
+  const wantUnassigned = assignedTo.includes(UNASSIGNED);
+  let total = 0;
+  let completed = 0;
+  for (const task of allTasks) {
+    const assignments = task.assignments || [];
+    const scopedAssignments = assignments.filter((a) => assignedTo.includes(a.user_id));
+    if (scopedAssignments.length > 0) {
+      total += 1;
+      if (scopedAssignments.every((a) => a.status !== 'pending')) completed += 1;
+    } else if (wantUnassigned && assignments.length === 0) {
+      total += 1;
+      if (isResolvedTask(task)) completed += 1;
+    }
+  }
+  return { total, completed };
+};
+
 // A task the current user is actively holding via their own live soft claim. Keeps it in
 // their unassigned pool so a task they just claimed doesn't drop out of the list on re-entry.
 const isHeldBy = (task: AnnotationTaskOut, userId: string | null | undefined): boolean =>

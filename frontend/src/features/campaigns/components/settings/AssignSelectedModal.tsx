@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { CampaignUserOut } from '~/api/client';
-import { Button } from '~/shared/ui/forms';
+import { Button, Input } from '~/shared/ui/forms';
+import { searchUsers } from '~/shared/utils/utility';
 
 type AssignSelectedMode = 'every-user-every-task' | 'distribute-evenly';
 
@@ -23,16 +24,20 @@ export const AssignSelectedModal = ({
 }: Props) => {
   const [mode, setMode] = useState<AssignSelectedMode>('every-user-every-task');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [userQuery, setUserQuery] = useState('');
   const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setMode('every-user-every-task');
       setSelectedUsers([]);
+      setUserQuery('');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const matchingUsers = searchUsers(campaignUsers, (cu) => cu.user, userQuery);
 
   const handleToggleUser = (userId: string) => {
     setSelectedUsers((prev) =>
@@ -100,8 +105,17 @@ export const AssignSelectedModal = ({
 
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-2">Select users</label>
+            <Input
+              value={userQuery}
+              onChange={(e) => setUserQuery(e.target.value)}
+              placeholder="Search by name or email…"
+              className="mb-2"
+            />
             <div className="space-y-2 max-h-72 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-              {campaignUsers.map((user) => (
+              {matchingUsers.length === 0 && (
+                <p className="px-1 py-2 text-xs text-neutral-500">No users match your search</p>
+              )}
+              {matchingUsers.map((user) => (
                 <label
                   key={user.user.id}
                   className="flex items-center gap-3 p-2 bg-neutral-50 rounded-lg cursor-pointer"
