@@ -48,7 +48,6 @@ The manual CLI path below is the fallback for local deploys and first-time envir
 - **Infrastructure** deployed by Platform Engineers via Terraform (RG, ACR, KV, DB, CAE) for both prod and dev
 - **Contributor** role on the project resource group
 - **Azure CLI** logged in (`az login`) and within VPN
-- **Docker** installed for building images
 - **Node.js** installed for building the frontend
 
 ## First-Time Setup for local deployments (ONE TIME per environment)
@@ -91,7 +90,7 @@ make az-deploy-dev
 
 The script will:
 1. Discover infrastructure (ACR, KV, CAE) from the resource group
-2. Build and push Docker images (backend + tiler) to ACR
+2. Build images server-side in ACR (`az acr build`, backend + tiler)
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
 4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
 5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
