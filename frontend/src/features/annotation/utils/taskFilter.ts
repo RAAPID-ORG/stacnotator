@@ -13,6 +13,47 @@ export interface FilteredTasks {
   suggestedIndex: number;
 }
 
+export interface TaskProgress {
+  total: number;
+  completed: number;
+}
+
+type TaskProgressInput = Pick<AnnotationTaskOut, 'task_status' | 'assignments'>;
+
+const RESOLVED_TASK_STATUSES = ['done', 'skipped', 'conflicting'];
+
+/**
+ * Progress within the assignment scope of `assignedTo` (all tasks when empty).
+ * Scoped to users, completion follows their own assignment status - matching
+ * the per-user semantics of applyTaskFilter - because the task-level status
+ * lags at 'partial' until co-assignees act (e.g. on review assignments) and
+ * must not hold back the scoped users' progress.
+ */
+export const computeTaskProgress = (
+  allTasks: TaskProgressInput[],
+  assignedTo: string[]
+): TaskProgress => {
+  if (assignedTo.length === 0) {
+    return {
+      total: allTasks.length,
+      completed: allTasks.filter((t) => RESOLVED_TASK_STATUSES.includes(t.task_status ?? ''))
+        .length,
+    };
+  }
+
+  const scoped = allTasks.filter((t) =>
+    (t.assignments || []).some((a) => assignedTo.includes(a.user_id))
+  );
+  return {
+    total: scoped.length,
+    completed: scoped.filter((t) =>
+      (t.assignments || [])
+        .filter((a) => assignedTo.includes(a.user_id))
+        .every((a) => a.status !== 'pending')
+    ).length,
+  };
+};
+
 export const applyTaskFilter = (
   allTasks: AnnotationTaskOut[],
   filter: TaskFilter,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AnnotationTaskOut, CampaignUserOut } from '~/api/client';
-import { extractCentroidFromWKT, userMatchesQuery } from '~/shared/utils/utility';
+import { extractCentroidFromWKT, searchUsers } from '~/shared/utils/utility';
 import {
   countTasksByStatus,
   getUserTaskStatuses,
@@ -42,7 +42,7 @@ export const AnnotationTasksTable = ({
   const [userQuery, setUserQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const matchingUsers = campaignUsers.filter((cu) => userMatchesQuery(cu.user, userQuery));
+  const matchingUsers = searchUsers(campaignUsers, (cu) => cu.user, userQuery);
 
   // Close dropdown when clicking outside
   useEffect(() => {

@@ -56,6 +56,24 @@ test.describe('Imagery and Visualization', () => {
     await expect(counter).toContainText('5');
   });
 
+  test('completing a review assignment advances the counter while the task stays partial', async ({
+    annotationPage,
+  }) => {
+    const page = annotationPage;
+    const counter = page.locator('[data-tour="main-map"]').getByText(/\d+\s+of\s+\d+\s+done/i);
+    await expect(counter).toContainText('3 of 5');
+
+    // TASK_2 is shared with a co-assignee who has not acted, so submitting
+    // leaves the task-level status at 'partial'. The user's own progress
+    // counter must still move.
+    await page.keyboard.press('s');
+    await waitForNavIdle(page);
+    await page.locator('button', { hasText: 'Forest' }).first().click();
+    await page.locator('button', { hasText: 'Submit' }).first().click();
+
+    await expect(counter).toContainText('4 of 5');
+  });
+
   test('a grid card is rendered for each collection_ref with show_as_window=true', async ({
     annotationPage,
   }) => {

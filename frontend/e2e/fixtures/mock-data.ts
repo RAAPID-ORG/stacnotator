@@ -177,8 +177,15 @@ function makeTask(
 // Task 1: pending, no annotations
 export const TASK_1 = makeTask(100, 1, 50.45, 30.52);
 
-// Task 2: pending, no annotations (different location)
-export const TASK_2 = makeTask(200, 2, 50.65, 30.75);
+// Task 2: pending review assignment - shared with a co-assignee who has not
+// acted yet, so a submission by our user leaves the task-level status at
+// 'partial' (see makeSubmitResponse).
+export const TASK_2 = makeTask(200, 2, 50.65, 30.75, {
+  assignments: [
+    { user_id: TEST_USER_ID, status: 'pending', user_email: 'test@example.com', user_display_name: 'Test User' },
+    { user_id: 'other-user-xyz', status: 'pending', user_email: 'other@example.com', user_display_name: 'Other User' },
+  ],
+});
 
 // Task 3: done, has an existing annotation from our user
 export const TASK_3 = makeTask(300, 3, 50.30, 30.90, {
@@ -294,13 +301,20 @@ export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
   ],
 };
 
-/** Standard submit response after annotating a task */
+/** Standard submit response after annotating a task. Mirrors the backend's
+ * aggregation: a label submission resolves the task only when no co-assignee
+ * is still pending, otherwise the task-level status stays 'partial'. */
 export function makeSubmitResponse(
   taskId: number,
   labelId: number | null,
   comment: string | null,
   confidence: number
 ) {
+  const task = ALL_TASKS.find((t) => t.id === taskId);
+  const coAssigneePending = (task?.assignments ?? []).some(
+    (a: { user_id: string; status: string }) =>
+      a.user_id !== TEST_USER_ID && a.status === 'pending'
+  );
   return {
     annotation: labelId !== null
       ? {
@@ -314,7 +328,14 @@ export function makeSubmitResponse(
           geometry: { id: taskId * 10 + 2, geometry: 'POINT(0 0)' },
         }
       : null,
-    task_status: labelId !== null ? 'done' : 'pending',
+    task_status:
+      labelId === null
+        ? coAssigneePending
+          ? 'pending'
+          : 'skipped'
+        : coAssigneePending
+          ? 'partial'
+          : 'done',
     assignment_status: labelId !== null ? 'done' : 'skipped',
   };
 }

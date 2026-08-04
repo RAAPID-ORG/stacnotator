@@ -65,18 +65,35 @@ export const capitalizeFirst = (str: string): string => {
   return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
+type SearchableUser = { display_name: string; email: string };
+
+const userMatchRank = (user: SearchableUser, query: string): number => {
+  const name = user.display_name.toLowerCase();
+  const email = user.email.toLowerCase();
+  if (name.startsWith(query) || email.startsWith(query)) return 0;
+  if (name.split(/\s+/).some((word) => word.startsWith(query))) return 1;
+  if (name.includes(query) || email.includes(query)) return 2;
+  return -1;
+};
+
 /**
- * Case-insensitive substring match of a search query against a user's
- * display name or email. An empty query matches everyone.
+ * Case-insensitive user search over display name and email. Results are
+ * ranked: full prefix matches first, then name-word prefixes, then substring
+ * matches, preserving the incoming order within each tier. An empty query
+ * returns all items unchanged.
  */
-export const userMatchesQuery = (
-  user: { display_name: string; email: string },
+export const searchUsers = <T>(
+  items: T[],
+  getUser: (item: T) => SearchableUser,
   rawQuery: string
-): boolean => {
+): T[] => {
   const query = rawQuery.trim().toLowerCase();
-  return (
-    user.display_name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
-  );
+  if (!query) return items;
+  return items
+    .map((item) => ({ item, rank: userMatchRank(getUser(item), query) }))
+    .filter(({ rank }) => rank >= 0)
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ item }) => item);
 };
 
 /**

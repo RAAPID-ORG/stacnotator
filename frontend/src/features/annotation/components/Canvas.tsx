@@ -19,6 +19,7 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { computeTaskProgress } from '../utils/taskFilter';
 import { HiddenWindowsPanel } from './HiddenWindowsPanel';
 import { WindowDropController } from './WindowDropController';
 import { IconEyeSlash } from '~/shared/ui/Icons';
@@ -90,22 +91,10 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
 
   // Counter scope: assignedTo filter only, ignoring the status filter so the
   // progress number reflects the user's full workload, not the filtered view.
-  const { totalTasksForCounter, completedTasksForCounter } = useMemo(() => {
-    const tasksInAssignmentScope = allTasks.filter((task) => {
-      if (taskFilter.assignedTo.length === 0) return true;
-      const assignments = task.assignments || [];
-      return assignments.some((a) => taskFilter.assignedTo.includes(a.user_id));
-    });
-    return {
-      totalTasksForCounter: tasksInAssignmentScope.length,
-      completedTasksForCounter: tasksInAssignmentScope.filter(
-        (task) =>
-          task.task_status === 'done' ||
-          task.task_status === 'skipped' ||
-          task.task_status === 'conflicting'
-      ).length,
-    };
-  }, [allTasks, taskFilter.assignedTo]);
+  const { total: totalTasksForCounter, completed: completedTasksForCounter } = useMemo(
+    () => computeTaskProgress(allTasks, taskFilter.assignedTo),
+    [allTasks, taskFilter.assignedTo]
+  );
 
   const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = campaign?.mode === 'open';

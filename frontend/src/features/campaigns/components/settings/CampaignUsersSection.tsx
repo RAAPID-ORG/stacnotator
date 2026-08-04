@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
-import { userMatchesQuery } from '~/shared/utils/utility';
+import { searchUsers } from '~/shared/utils/utility';
 import {
   addUsersToCampaign,
   getCampaignUsers,
@@ -231,9 +231,7 @@ export const CampaignUsersSection = ({
 
   // Once a user is picked the input holds their label; ignore it as a filter
   // so reopening the picker shows the full list again.
-  const matchingUsers = availableUsers.filter((u) =>
-    userMatchesQuery(u, selectedUserId ? '' : userQuery)
-  );
+  const matchingUsers = searchUsers(availableUsers, (u) => u, selectedUserId ? '' : userQuery);
   const activeUserIndex = Math.min(activeIndex, Math.max(matchingUsers.length - 1, 0));
 
   const pickUser = (user: UserOutDetailed) => {
