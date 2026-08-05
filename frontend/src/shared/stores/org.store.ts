@@ -6,6 +6,8 @@ import { persist } from 'zustand/middleware';
 interface OrgState {
   activeOrgId: number | null;
   setActiveOrgId: (id: number | null) => void;
+  /** Clears the persisted choice: it belongs to the signed-in user, not the device. */
+  reset: () => void;
 }
 
 export const useOrgStore = create<OrgState>()(
@@ -13,6 +15,7 @@ export const useOrgStore = create<OrgState>()(
     (set) => ({
       activeOrgId: null,
       setActiveOrgId: (id) => set({ activeOrgId: id }),
+      reset: () => set({ activeOrgId: null }),
     }),
     { name: 'active-org' }
   )

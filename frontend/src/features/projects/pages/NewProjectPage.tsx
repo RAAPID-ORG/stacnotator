@@ -17,7 +17,7 @@ export const NewProjectPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { orgs: organizations, loading } = useOrganizations({ approvedOnly: true });
+  const { orgs: organizations, loading, error, refresh } = useOrganizations({ approvedOnly: true });
 
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [name, setName] = useState('');
@@ -80,7 +80,19 @@ export const NewProjectPage = () => {
           </div>
         </header>
 
-        {organizations.length === 0 ? (
+        {organizations.length === 0 && error ? (
+          <div className="surface">
+            <div className="surface-section text-center py-16">
+              <p className="text-base text-neutral-800 font-medium mb-1">
+                Could not load organizations
+              </p>
+              <p className="text-sm text-neutral-500 mb-5">{error}</p>
+              <Button variant="secondary" onClick={() => refresh()}>
+                Try again
+              </Button>
+            </div>
+          </div>
+        ) : organizations.length === 0 ? (
           <div className="surface">
             <div className="surface-section text-center py-16">
               <p className="text-base text-neutral-800 font-medium mb-1">

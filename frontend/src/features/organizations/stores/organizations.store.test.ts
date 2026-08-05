@@ -31,7 +31,13 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 describe('useOrganizationsStore', () => {
   beforeEach(() => {
     respond.mockReset();
-    useOrganizationsStore.setState({ items: [], loading: true, loaded: false, inFlight: null });
+    useOrganizationsStore.setState({
+      items: [],
+      loading: true,
+      loaded: false,
+      error: null,
+      inFlight: null,
+    });
   });
 
   it('fetches once no matter how many consumers ask', async () => {
@@ -97,5 +103,35 @@ describe('useOrganizationsStore', () => {
     expect(respond).toHaveBeenCalledTimes(2);
 
     logged.mockRestore();
+  });
+
+  it('reports a failed fetch as an error and clears it once one succeeds', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    respond.mockRejectedValue(new Error('offline'));
+
+    await useOrganizationsStore.getState().ensureLoaded();
+    // An empty list with an error is a failure, not a viewer without organizations.
+    expect(useOrganizationsStore.getState().error).toBeTruthy();
+    expect(useOrganizationsStore.getState().items).toEqual([]);
+
+    respond.mockResolvedValue(listing(org(1, 'Acme')));
+    await useOrganizationsStore.getState().refresh();
+    expect(useOrganizationsStore.getState().error).toBeNull();
+
+    logged.mockRestore();
+  });
+
+  it('reset drops the previous viewer list so the next one refetches', async () => {
+    respond.mockResolvedValue(listing(org(1, 'Acme')));
+    await useOrganizationsStore.getState().ensureLoaded();
+
+    useOrganizationsStore.getState().reset();
+    expect(useOrganizationsStore.getState().items).toEqual([]);
+    expect(useOrganizationsStore.getState().loaded).toBe(false);
+
+    respond.mockResolvedValue(listing(org(2, 'Other org')));
+    await useOrganizationsStore.getState().ensureLoaded();
+    expect(respond).toHaveBeenCalledTimes(2);
+    expect(useOrganizationsStore.getState().items).toEqual([org(2, 'Other org')]);
   });
 });

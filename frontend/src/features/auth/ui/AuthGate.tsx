@@ -6,6 +6,8 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';
 import { useAccountStore } from '~/shared/stores/account.store';
+import { useOrgStore } from '~/shared/stores/org.store';
+import { useOrganizationsStore } from '~/features/organizations/stores/organizations.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
 /**
@@ -31,7 +33,11 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
           await auth.getIdToken(); // warm session
           await fetchAccount();
         } else {
+          // Every sign-out path lands here, so this is where identity-scoped
+          // state is dropped - all of it, or the next user inherits the rest.
           clear();
+          useOrganizationsStore.getState().reset();
+          useOrgStore.getState().reset();
         }
       } catch (e) {
         handleError(e, 'AuthGate init error', { showUser: false });

@@ -106,7 +106,7 @@ export const OrganizationPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const { orgId } = useParams();
   const organizationId = Number(orgId);
-  const { orgs, loading, refresh } = useOrganizations();
+  const { orgs, loading, error, refresh } = useOrganizations();
 
   const org = orgs.find((o) => o.id === organizationId);
 
@@ -118,6 +118,24 @@ export const OrganizationPage = () => {
     return (
       <div className="flex-1 overflow-auto">
         <div className="page text-sm text-neutral-500">Loading organization…</div>
+      </div>
+    );
+  }
+
+  if (!org && error) {
+    return (
+      <div className="flex-1 overflow-auto">
+        <FadeIn className="page">
+          <header className="page-header">
+            <div>
+              <h1 className="page-title">Organization</h1>
+              <p className="page-subtitle">Could not load organizations. {error}</p>
+            </div>
+          </header>
+          <Button variant="secondary" onClick={() => refresh()}>
+            Try again
+          </Button>
+        </FadeIn>
       </div>
     );
   }

@@ -38,6 +38,17 @@ describe('useOrgStore', () => {
     expect(useOrgStore.getState().activeOrgId).toBeNull();
   });
 
+  it('reset clears the selection so it does not follow the next user', () => {
+    useOrgStore.getState().setActiveOrgId(4);
+
+    useOrgStore.getState().reset();
+
+    expect(useOrgStore.getState().activeOrgId).toBeNull();
+    expect(JSON.parse(localStorage.getItem('active-org') ?? '')).toMatchObject({
+      state: { activeOrgId: null },
+    });
+  });
+
   it('persists the active organization under the "active-org" key', () => {
     useOrgStore.getState().setActiveOrgId(9);
 

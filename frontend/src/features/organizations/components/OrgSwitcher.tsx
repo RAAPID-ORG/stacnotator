@@ -22,10 +22,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
 
   useEffect(() => {
     if (loading) return;
-    const reconciled = reconcileActiveOrgId(
-      orgs.map((o) => o.id),
-      activeOrgId
-    );
+    const reconciled = reconcileActiveOrgId(orgs, activeOrgId);
     if (reconciled !== activeOrgId) setActiveOrgId(reconciled);
   }, [loading, orgs, activeOrgId, setActiveOrgId]);
 
