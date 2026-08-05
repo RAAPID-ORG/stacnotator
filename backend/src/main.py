@@ -23,6 +23,7 @@ from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
 from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
+from src.projects.router import router as projects_router
 from src.routing import generate_unique_id
 from src.sampling_design.router import router as sampling_design_router
 from src.stac_browser.router import router as stac_browser_router
@@ -212,6 +213,7 @@ def readyz():
 # Include actual routers from each module with /api prefix
 app.include_router(auth_router, prefix="/api")
 app.include_router(organizations_router, prefix="/api")
+app.include_router(projects_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(annotations_router, prefix="/api")
 app.include_router(timeseries_router, prefix="/api")
