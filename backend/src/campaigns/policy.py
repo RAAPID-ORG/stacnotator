@@ -69,8 +69,8 @@ def context_from_role_map(
 ) -> PolicyContext:
     """Build a PolicyContext from pre-fetched, campaign-wide lookups.
 
-    `role_map` is `{user_id: (is_admin, is_authoritative)}` for every
-    CampaignUser of one campaign; `platform_admin_ids` is the subset of a
+    `role_map` is `{user_id: (is_admin, is_authoritative)}` for every project
+    membership backing one campaign; `platform_admin_ids` is the subset of a
     candidate user set holding the global admin role. Both are fetched once
     per request (see get_campaign_role_map / get_platform_admin_ids below) so
     evaluating many annotations' authors - e.g. a whole task list or export -

@@ -112,6 +112,7 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
 # response into thousands of cross-region round-trips.
 _CAMPAIGN_FULL_LOAD_OPTIONS = (
     joinedload(Campaign.settings),
+    joinedload(Campaign.project),
     selectinload(Campaign.canvas_layouts),
     selectinload(Campaign.time_series),
     selectinload(Campaign.basemaps),

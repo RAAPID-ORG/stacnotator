@@ -32,10 +32,12 @@ from src.campaigns.schemas import (
     UpdateLabellingPolicyRequest,
     default_labelling_policy,
 )
+from src.projects.models import Project
 
 
 def _campaign(is_public: bool = False) -> Campaign:
-    campaign = Campaign(id=1, name="x", mode="tasks", is_public=is_public)
+    campaign = Campaign(id=1, name="x", mode="tasks")
+    campaign.project = Project(id=1, is_public=is_public)
     campaign.settings = CampaignSettings(campaign_id=1, labelling_policy={})
     return campaign
 

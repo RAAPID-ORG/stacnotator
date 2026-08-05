@@ -831,13 +831,6 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     assert len(added_task_sets) == 1
     assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME
 
-    from src.campaigns.models import CampaignUser
-
-    added_campaign_users = [
-        call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], CampaignUser)
-    ]
-    assert added_campaign_users == []
-
 
 class TestUpdateCampaignFormFields:
     CATEGORY_FIELD = {

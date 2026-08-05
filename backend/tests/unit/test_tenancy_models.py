@@ -56,3 +56,19 @@ def test_org_membership_defaults_active_non_admin():
     cols = OrganizationUser.__table__.columns
     assert cols["status"].server_default.arg == "active"
     assert not cols["is_admin"].nullable
+
+
+def test_campaign_user_model_is_gone():
+    import src.campaigns.models as campaign_models
+
+    assert not hasattr(campaign_models, "CampaignUser")
+
+
+def test_campaign_is_public_delegates_to_project():
+    from src.projects.models import Project
+
+    campaign = Campaign()
+    campaign.project = Project()
+    campaign.project.is_public = True
+    assert campaign.is_public is True
+    assert "is_public" not in Campaign.__table__.columns
