@@ -10,6 +10,7 @@ interface OrganizationsState {
   items: OrganizationOut[];
   /** True until the first fetch settles, and while a fetch is in flight. */
   loading: boolean;
+  /** Set once a fetch succeeds. A failure leaves it false so the next consumer retries. */
   loaded: boolean;
   inFlight: Promise<void> | null;
   /** Fetches once; later callers join the in-flight fetch or get the loaded list. */
@@ -24,11 +25,11 @@ export const useOrganizationsStore = create<OrganizationsState>((set, get) => {
     set({ loading: true });
     try {
       const { data } = await listOrganizations();
-      set({ items: data?.items ?? [] });
+      set({ items: data?.items ?? [], loaded: true });
     } catch (err) {
       handleError(err, 'Failed to load organizations', { showUser: false });
     } finally {
-      set({ loading: false, loaded: true });
+      set({ loading: false });
     }
   };
 
