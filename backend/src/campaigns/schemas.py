@@ -10,7 +10,6 @@ from pydantic import (
     field_validator,
 )
 
-from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
 from src.canvas.schemas import CanvasLayoutOut
 from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
@@ -245,6 +244,10 @@ class CampaignOut(BaseModel):
     registration_errors: list[dict] | None = None
     annotations_version: int = 0
 
+    viewer_is_admin: bool = False
+    viewer_is_member: bool = False
+    viewer_is_authoritative_reviewer: bool = False
+
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
     imagery_views: list[ImageryViewOut]
@@ -259,10 +262,7 @@ class CampaignOut(BaseModel):
 class CampaignCreate(BaseModel):
     name: str
     mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
-    project_id: int | None = None  # None triggers the legacy wrapping-project shim
-    # Only seeds the legacy wrapping project created when project_id is omitted;
-    # both is_public here and the shim are removed with Phase 2.
-    is_public: bool = False
+    project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
@@ -333,39 +333,17 @@ class CampaignOutFull(CampaignOut):
         )
 
 
-class CampaignUserOut(BaseModel):
-    user: UserOut
-    is_admin: bool
-    # Wire name keeps the historical typo so the generated frontend client stays stable.
-    is_authoritative_reviewer: bool = Field(serialization_alias="is_authorative_reviewer")
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # ============================================================================
 # Specific Request / Response Schemas
 # ============================================================================
-
-
-class AssignUsersToCampaignRequest(BaseModel):
-    user_ids: list[UUID]
 
 
 class CampaignsListResponse(BaseModel):
     items: list[CampaignListItemOut]
 
 
-class CampaignUsersResponse(BaseModel):
-    campaign_id: int
-    users: list[CampaignUserOut]
-
-
 class UpdateCampaignNameRequest(BaseModel):
     name: str
-
-
-class UpdateCampaignVisibilityRequest(BaseModel):
-    is_public: bool
 
 
 class UpdateCampaignGuideRequest(BaseModel):

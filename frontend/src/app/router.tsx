@@ -7,11 +7,10 @@ import {
   Route,
   RouterProvider,
 } from 'react-router-dom';
-import { getCampaign } from '~/api/client';
 import { HomePage } from 'src/features/home/pages/HomePage';
 import { ProjectsPage } from 'src/features/projects/pages/ProjectsPage';
 import { AppLayout } from '~/app/AppLayout';
-import { campaignPath, projectsPath } from '~/app/routes';
+import { projectsPath } from '~/app/routes';
 import { Delayed } from '~/shared/ui/Delayed';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { onIdle } from '~/shared/utils/idle';
@@ -79,29 +78,6 @@ const requireId = (raw: string | undefined) => {
 const requireCampaignId = ({ params }: LoaderFunctionArgs) => requireId(params.campaignId);
 const requireProjectId = ({ params }: LoaderFunctionArgs) => requireId(params.projectId);
 const requireOrgId = ({ params }: LoaderFunctionArgs) => requireId(params.orgId);
-
-// The API client is configured with throwOnError, so an unreadable campaign
-// (gone, or not visible to this user) has to be turned back into "no project".
-const resolveProjectId = async (campaignId: number) => {
-  try {
-    const res = await getCampaign({ path: { campaign_id: campaignId } });
-    return res.data?.project_id;
-  } catch {
-    return undefined;
-  }
-};
-
-// Campaign URLs used to be project-less. Resolve the owning project from the
-// API and forward, so old links and bookmarks keep working.
-async function redirectLegacyCampaign({ params, request }: LoaderFunctionArgs) {
-  const campaignId = Number(params.campaignId);
-  if (!Number.isInteger(campaignId) || campaignId <= 0) throw redirect(projectsPath());
-  const projectId = await resolveProjectId(campaignId);
-  if (!projectId) throw redirect(projectsPath());
-  const sub = params['*'] ? `/${params['*']}` : '';
-  const { search, hash } = new URL(request.url);
-  throw redirect(`${campaignPath(projectId, campaignId)}${sub}${search}${hash}`);
-}
 
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation
 // can be intercepted via useBlocker - see useUnsavedChangesGuard.
@@ -197,9 +173,6 @@ const router = createBrowserRouter(
           </Suspense>
         }
       />
-      <Route path="campaigns" loader={() => redirect(projectsPath())} />
-      <Route path="campaigns/new" loader={() => redirect(projectsPath())} />
-      <Route path="campaigns/:campaignId/*" loader={redirectLegacyCampaign} />
       <Route
         path="settings"
         element={

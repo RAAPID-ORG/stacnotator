@@ -125,18 +125,6 @@ export const CampaignSettingsPage = () => {
     }
   }, [campaign, projectId, setBreadcrumbs]);
 
-  // Task management moved to its own page - honor old ?tab=tasks deep links
-  // (e.g. bookmarks, the annotator empty-state CTA) by forwarding them.
-  // Bulk import moved to the Annotations page - honor old ?tab=annotations
-  // deep links the same way.
-  useEffect(() => {
-    if (tabParam === 'tasks') {
-      navigate(campaignPath(projectId, campaignId, 'tasks'), { replace: true });
-    } else if (tabParam === 'annotations') {
-      navigate(campaignPath(projectId, campaignId, 'annotations'), { replace: true });
-    }
-  }, [tabParam, campaignId, projectId, navigate]);
-
   // Load campaign data (core data only)
   useEffect(() => {
     const loadCampaign = async () => {

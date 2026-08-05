@@ -9,7 +9,7 @@ test.describe('empty-slice no-data alert', () => {
     await annotationPage.route('**/tiles.example.com/**', (route) =>
       route.fulfill({ status: 204 })
     );
-    await annotationPage.goto('/campaigns/42/annotate?mode=tasks');
+    await annotationPage.goto('/projects/7/campaigns/42/annotate?mode=tasks');
     await annotationPage.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
     await expect(annotationPage.getByText('No imagery', { exact: true }).first()).toBeVisible({
       timeout: 15_000,

@@ -110,36 +110,6 @@ def create_project(
     return project
 
 
-def create_wrapping_project(db: Session, *, name: str, is_public: bool, user: User) -> int:
-    """Legacy shim: the pre-projects frontend creates campaigns without a
-    project_id, so wrap the campaign in its own project in the user's oldest
-    org - mirroring the migration backfill. Removed with Phase 2."""
-    membership = db.scalars(
-        select(OrganizationUser)
-        .join(Organization, Organization.id == OrganizationUser.organization_id)
-        .where(
-            OrganizationUser.user_id == user.id,
-            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-            Organization.status == ORG_STATUS_APPROVED,
-        )
-        .order_by(OrganizationUser.created_at)
-    ).first()
-    if membership is None:
-        raise HTTPException(status_code=403, detail="Join an organization to create campaigns")
-    # create_project commits the project before the caller creates its campaign, so a
-    # failed campaign create leaves an empty project behind. Accepted for this legacy
-    # shim; Phase 2 removes the shim (and this gap) entirely.
-    project = create_project(
-        db,
-        organization_id=membership.organization_id,
-        name=name,
-        description=None,
-        is_public=is_public,
-        user=user,
-    )
-    return project.id
-
-
 def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
     projects = db.scalars(select(Project).order_by(Project.created_at.desc())).all()
     memberships = {

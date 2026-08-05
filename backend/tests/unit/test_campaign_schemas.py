@@ -28,14 +28,14 @@ def _minimal_settings() -> dict:
 
 def test_campaign_create_mode_tasks_accepted():
     data = CampaignCreate(
-        name="x", mode="tasks", settings=CampaignSettingsCreate(**_minimal_settings())
+        name="x", mode="tasks", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
     )
     assert data.mode == "tasks"
 
 
 def test_campaign_create_mode_open_accepted():
     data = CampaignCreate(
-        name="x", mode="open", settings=CampaignSettingsCreate(**_minimal_settings())
+        name="x", mode="open", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
     )
     assert data.mode == "open"
 
@@ -43,30 +43,40 @@ def test_campaign_create_mode_open_accepted():
 def test_campaign_create_mode_invalid_rejected():
     with pytest.raises(ValidationError):
         CampaignCreate(
-            name="x", mode="open-world", settings=CampaignSettingsCreate(**_minimal_settings())
+            name="x",
+            mode="open-world",
+            project_id=1,
+            settings=CampaignSettingsCreate(**_minimal_settings()),
         )
 
 
 def test_campaign_create_mode_arbitrary_string_rejected():
     with pytest.raises(ValidationError):
         CampaignCreate(
-            name="x", mode="bogus", settings=CampaignSettingsCreate(**_minimal_settings())
+            name="x",
+            mode="bogus",
+            project_id=1,
+            settings=CampaignSettingsCreate(**_minimal_settings()),
         )
 
 
 def test_campaign_create_mode_defaults_to_tasks():
-    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    data = CampaignCreate(
+        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
     assert data.mode == "tasks"
 
 
 def test_campaign_create_labelling_policy_defaults_to_none():
-    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    data = CampaignCreate(
+        name="x", project_id=1, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
     assert data.labelling_policy is None
 
 
-def test_campaign_create_project_id_defaults_to_none():
-    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
-    assert data.project_id is None
+def test_campaign_create_requires_project_id():
+    with pytest.raises(ValidationError):
+        CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
 
 
 def test_campaign_create_project_id_round_trips():
@@ -110,6 +120,13 @@ def test_campaign_out_exposes_project_id():
 def test_campaign_out_full_from_orm_carries_project_id():
     out = CampaignOutFull.from_orm(_campaign_orm_stub(project_id=7))
     assert out.project_id == 7
+
+
+def test_campaign_out_full_viewer_role_flags_default_to_false():
+    out = CampaignOutFull.from_orm(_campaign_orm_stub())
+    assert not out.viewer_is_admin
+    assert not out.viewer_is_member
+    assert not out.viewer_is_authoritative_reviewer
 
 
 def test_assign_reviewers_pattern_percentage_accepted():
