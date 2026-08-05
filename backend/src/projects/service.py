@@ -10,7 +10,7 @@ from src.annotation.geometries import delete_orphan_geometries
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.campaigns.policy import strip_anyone_kind
-from src.campaigns.schemas import LabellingPolicy
+from src.campaigns.schemas import CampaignListItemOut, LabellingPolicy
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
@@ -177,6 +177,31 @@ def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
         out.campaign_count = counts.get(project.id, 0)
         items.append(out)
     return items
+
+
+def list_project_campaigns(db: Session, project: Project, user: User) -> list[CampaignListItemOut]:
+    membership = db.get(ProjectUser, (user.id, project.id))
+    is_member = user.is_admin or membership is not None
+    is_admin = user.is_admin or (membership is not None and membership.is_admin)
+    campaigns = db.scalars(
+        select(Campaign)
+        .where(Campaign.project_id == project.id)
+        .order_by(Campaign.created_at.desc())
+    ).all()
+    return [
+        CampaignListItemOut(
+            id=c.id,
+            name=c.name,
+            created_at=c.created_at,
+            project_id=project.id,
+            is_admin=is_admin,
+            is_member=is_member,
+            is_public=project.is_public,
+            registration_status=c.registration_status,
+            embedding_status=c.embedding_status,
+        )
+        for c in campaigns
+    ]
 
 
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:

@@ -2,6 +2,8 @@
 (projects/service.py). Mirrors the campaign-level membership tests that used
 to live in test_campaigns_service.py before that logic moved to the project."""
 
+from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -14,6 +16,7 @@ from src.projects.service import (
     add_users_by_ids,
     demote_admin,
     demote_authoritative_reviewer,
+    list_project_campaigns,
     make_admin,
     make_authoritative_reviewer,
     remove_user,
@@ -315,3 +318,78 @@ class TestUpdateProjectVisibility:
         with pytest.raises(HTTPException) as exc_info:
             update_project(db, 999, is_public=True)
         assert exc_info.value.status_code == 404
+
+
+class TestListProjectCampaigns:
+    def _campaign(self, campaign_id: int, created_at: datetime) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=campaign_id,
+            name=f"Campaign {campaign_id}",
+            created_at=created_at,
+            registration_status="ready",
+            embedding_status="ready",
+        )
+
+    def _db_with(self, db, campaigns, membership):
+        db.scalars.return_value.all.return_value = campaigns
+        db.get.return_value = membership
+
+    def test_maps_campaigns_with_project_visibility(self):
+        db = _mock_db()
+        project = SimpleNamespace(id=4, is_public=True)
+        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=False))
+
+        items = list_project_campaigns(db, project, user)
+
+        assert [i.id for i in items] == [1]
+        assert items[0].project_id == 4
+        assert items[0].is_public is True
+        assert items[0].is_member is True
+        assert items[0].is_admin is False
+        assert items[0].registration_status == "ready"
+
+    def test_project_admin_membership_marks_is_admin(self):
+        db = _mock_db()
+        project = SimpleNamespace(id=4, is_public=False)
+        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=True))
+
+        items = list_project_campaigns(db, project, user)
+
+        assert items[0].is_admin is True
+        assert items[0].is_member is True
+
+    def test_non_member_on_public_project_is_neither_member_nor_admin(self):
+        db = _mock_db()
+        project = SimpleNamespace(id=4, is_public=True)
+        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
+
+        items = list_project_campaigns(db, project, user)
+
+        assert items[0].is_member is False
+        assert items[0].is_admin is False
+
+    def test_platform_admin_is_member_and_admin_without_membership(self):
+        db = _mock_db()
+        project = SimpleNamespace(id=4, is_public=False)
+        user = SimpleNamespace(id=uuid4(), is_admin=True)
+        self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
+
+        items = list_project_campaigns(db, project, user)
+
+        assert items[0].is_member is True
+        assert items[0].is_admin is True
+
+    def test_queries_project_campaigns_newest_first(self):
+        db = _mock_db()
+        project = SimpleNamespace(id=4, is_public=False)
+        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        self._db_with(db, [], ProjectUser(is_admin=False))
+
+        list_project_campaigns(db, project, user)
+
+        statement = str(db.scalars.call_args.args[0])
+        assert "campaigns.project_id = " in statement
+        assert statement.endswith("ORDER BY data.campaigns.created_at DESC")

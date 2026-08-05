@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.auth.schemas import UserOut
+from src.campaigns.schemas import CampaignsListResponse
 from src.database import get_db
 from src.organizations.schemas import AddUsersByEmailResult
 from src.projects import service
@@ -91,6 +92,16 @@ def delete_project(
     project: Project = Depends(require_project_admin),
 ):
     service.delete_project(db, project_id)
+
+
+@router.get("/{project_id}/campaigns", response_model=CampaignsListResponse)
+def list_project_campaigns(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+    project: Project = Depends(require_project_access),
+):
+    return CampaignsListResponse(items=service.list_project_campaigns(db, project, user))
 
 
 @router.get("/{project_id}/users", response_model=ProjectUsersResponse)

@@ -235,6 +235,7 @@ class CampaignSettingsCreate(BaseModel):
 
 class CampaignOut(BaseModel):
     id: int
+    project_id: int
     name: str
     created_at: datetime
     mode: Literal["tasks", "open"]
@@ -313,6 +314,7 @@ class CampaignOutFull(CampaignOut):
         return cls.model_validate(
             {
                 "id": obj.id,
+                "project_id": obj.project_id,
                 "name": obj.name,
                 "created_at": obj.created_at,
                 "mode": obj.mode,
