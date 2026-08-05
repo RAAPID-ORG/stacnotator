@@ -38,7 +38,16 @@ from src.imagery.schemas import (
     ViewCollectionRefCreate,
     VisualizationTemplateCreate,
 )
+from src.organizations.models import (
+    MEMBER_STATUS_ACTIVE,
+    ORG_STATUS_APPROVED,
+    Organization,
+    OrganizationTiler,
+    OrganizationUser,
+)
+from src.projects.models import Project, ProjectUser
 from src.sampling_design.service import generate_random_points
+from src.tilers import registry
 from src.timeseries.models import TimeSeries  # noqa: F401 - keeps SQLAlchemy mapper happy
 from src.timeseries.schemas import TimeSeriesCreate
 
@@ -129,6 +138,54 @@ def _ensure_user(db, firebase_uid: str | None = None) -> User:
     return user
 
 
+def _ensure_dev_org_and_project(db, user) -> Project:
+    """Create or retrieve the Dev Org and its project.
+
+    Returns the Project so campaigns can be created under it.
+    """
+    org = db.scalar(select(Organization).where(Organization.name == "Dev Org"))
+    if org is None:
+        org = Organization(
+            name="Dev Org",
+            description="Local development organization",
+            status=ORG_STATUS_APPROVED,
+            allows_internal_storage=True,
+            created_by=user.id,
+        )
+        db.add(org)
+        db.flush()
+        db.add(
+            OrganizationUser(
+                user_id=user.id,
+                organization_id=org.id,
+                is_admin=True,
+                status=MEMBER_STATUS_ACTIVE,
+            )
+        )
+        for tiler_name in registry.all_names():
+            db.add(OrganizationTiler(organization_id=org.id, tiler_name=tiler_name))
+    project = db.scalar(select(Project).where(Project.organization_id == org.id))
+    if project is None:
+        project = Project(
+            organization_id=org.id,
+            name="Ukraine Crops",
+            description="Seeded sample project",
+            created_by=user.id,
+        )
+        db.add(project)
+        db.flush()
+        db.add(
+            ProjectUser(
+                user_id=user.id,
+                project_id=project.id,
+                is_admin=True,
+                is_authoritative_reviewer=True,
+            )
+        )
+    db.commit()
+    return project
+
+
 def seed_dev_data(firebase_uid: str | None = None):
     """Seed development data into the database.
 
@@ -151,6 +208,7 @@ def seed_dev_data(firebase_uid: str | None = None):
         db.commit()
 
         user = _ensure_user(db, firebase_uid)
+        project = _ensure_dev_org_and_project(db, user)
 
         # One Sentinel-2 imagery source spanning all of 2024.
         # One collection with 12 monthly slices, each with two visualization URL templates.
@@ -255,6 +313,7 @@ def seed_dev_data(firebase_uid: str | None = None):
             db,
             name=CAMPAIGN_NAME,
             mode="tasks",
+            project_id=project.id,
             settings=settings,
             user_id=user.id,
             imagery_editor_state=imagery_editor_state,
@@ -314,6 +373,7 @@ def seed_dev_data(firebase_uid: str | None = None):
             db,
             name=OPEN_CAMPAIGN_NAME,
             mode="open",
+            project_id=project.id,
             settings=settings,
             user_id=user.id,
             imagery_editor_state=imagery_editor_state,
@@ -341,16 +401,12 @@ def clear_dev_data():
     try:
         logger.info("Clearing development data...")
 
-        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
-            campaign = db.execute(
-                select(Campaign).where(Campaign.name == name)
-            ).scalar_one_or_none()
-
-            if campaign:
-                db.delete(campaign)
-                logger.info("Deleted campaign: %s", name)
-            else:
-                logger.info("No campaign found: %s", name)
+        org = db.scalar(select(Organization).where(Organization.name == "Dev Org"))
+        if org:
+            db.delete(org)
+            logger.info("Deleted Dev Org (cascade removes projects and campaigns)")
+        else:
+            logger.info("No Dev Org found")
 
         db.commit()
         logger.info("Development data cleared.")
