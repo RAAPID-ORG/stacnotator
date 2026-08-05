@@ -18,6 +18,8 @@ import {
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectsPath } from '~/app/routes';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -48,6 +50,7 @@ import {
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
+  const projectId = useProjectIdParam();
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
   const [showImport, setShowImport] = useState(false);
@@ -72,12 +75,12 @@ export const CampaignTasksPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}` },
+        { label: 'Projects', path: projectsPath() },
+        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaign.id) },
         { label: 'Tasks' },
       ]);
     }
-  }, [campaign, setBreadcrumbs]);
+  }, [campaign, projectId, setBreadcrumbs]);
 
   const reloadTaskSets = useCallback(async () => {
     const { data, error } = await listTaskSets({ path: { campaign_id: campaignId } });
@@ -483,7 +486,7 @@ export const CampaignTasksPage = () => {
                 disabled={annotationTasks.length === 0}
                 hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
               />
-              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
+              <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
                 Start annotating
               </Button>
             </div>

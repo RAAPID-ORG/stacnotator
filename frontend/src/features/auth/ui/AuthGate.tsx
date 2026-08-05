@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { EmailVerificationScreen } from './EmailVerificationScreen';
 import { LoginScreen } from './LoginScreen';
-import { ApprovalPendingScreen } from './ApprovalPendingScreen';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import { Button } from '~/shared/ui/forms';
 import { AuthCard } from './AuthCard';
@@ -72,8 +71,6 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
   }
 
   if (!account) return <LoadingSpinner fullScreen text="Loading account…" />;
-
-  if (!account.is_approved) return <ApprovalPendingScreen />;
 
   return <>{children}</>;
 };

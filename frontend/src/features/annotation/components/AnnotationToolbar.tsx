@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { exportAnnotations, exportAnnotationsGeojson } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
+import { campaignPath } from '~/app/routes';
 import { useTaskStore, type TaskStatus } from '../stores/task.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -758,7 +759,7 @@ export const AnnotationToolbar = () => {
           )}
           {/* Navigate to the campaign's Annotations page */}
           <button
-            onClick={() => navigate(`/campaigns/${campaign.id}/annotations`)}
+            onClick={() => navigate(campaignPath(campaign.project_id, campaign.id, 'annotations'))}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
             type="button"
             title="Go to Annotations page"
@@ -777,7 +778,7 @@ export const AnnotationToolbar = () => {
         {/* Campaign Settings Button (admin only) */}
         {isCampaignAdmin && (
           <button
-            onClick={() => navigate(`/campaigns/${campaign.id}/settings`)}
+            onClick={() => navigate(campaignPath(campaign.project_id, campaign.id, 'settings'))}
             className="flex items-center gap-1 desktop:gap-2 px-2 desktop:px-3 py-1.5 text-sm text-neutral-700 bg-white hover:bg-neutral-50 rounded transition-colors"
             type="button"
             title="Campaign Settings"

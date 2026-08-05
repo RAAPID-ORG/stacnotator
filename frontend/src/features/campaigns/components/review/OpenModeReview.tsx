@@ -9,6 +9,7 @@ import {
   type CampaignOut,
   type CampaignUserOut,
 } from '~/api/client';
+import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst, extractCentroidFromWKT } from '~/shared/utils/utility';
@@ -41,6 +42,7 @@ export const OpenModeReview = ({
   subHeader,
 }: OpenModeReviewProps) => {
   const navigate = useNavigate();
+  const annotatePath = campaignPath(campaign.project_id, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
@@ -241,10 +243,10 @@ export const OpenModeReview = ({
     const centroid = extractCentroidFromWKT(ann.geometry.geometry);
     if (centroid) {
       navigate(
-        `/campaigns/${campaignId}/annotate?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`
+        `${annotatePath}?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`
       );
     } else {
-      navigate(`/campaigns/${campaignId}/annotate?review=true`);
+      navigate(`${annotatePath}?review=true`);
     }
   };
 
@@ -290,9 +292,7 @@ export const OpenModeReview = ({
               disabled={annotations.length === 0}
               showMergeToggle={false}
             />
-            <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-              Start annotating
-            </Button>
+            <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
           </div>
         </header>
 

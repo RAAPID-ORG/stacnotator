@@ -8,6 +8,8 @@ import {
   type CampaignOut,
   type TaskSetOut,
 } from '~/api/client';
+import { campaignPath } from '~/app/routes';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
 import {
   countTasksByStatus,
@@ -83,6 +85,8 @@ export const TaskModeReview = ({
   onOpenReviewerAssign,
 }: TaskModeReviewProps) => {
   const navigate = useNavigate();
+  const projectId = useProjectIdParam();
+  const annotatePath = campaignPath(projectId, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
   const isExternallyDriven = tasksProp !== undefined;
 
@@ -244,7 +248,7 @@ export const TaskModeReview = ({
   }, [statusFilter, setFilter, selectedUserIds, selectedConfidences, flaggedOnly]);
 
   const handleNavigateToTask = (taskId: number) => {
-    navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
+    navigate(`${annotatePath}?task=${taskId}&review=true`);
   };
 
   const handleToggleTask = (taskId: number) => {
@@ -323,9 +327,7 @@ export const TaskModeReview = ({
                 disabled={tasks.length === 0}
                 hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
               />
-              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-                Start annotating
-              </Button>
+              <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
             </div>
           </header>
         )}

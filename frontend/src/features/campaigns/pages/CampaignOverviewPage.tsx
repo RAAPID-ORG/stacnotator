@@ -20,9 +20,12 @@ import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectsPath } from '~/app/routes';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
+  const projectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
@@ -39,7 +42,7 @@ export const CampaignOverviewPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
+        { label: 'Projects', path: projectsPath() },
         { label: capitalizeFirst(campaign.name) },
       ]);
     }
@@ -111,7 +114,7 @@ export const CampaignOverviewPage = () => {
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="secondary"
-              onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
+              onClick={() => navigate(campaignPath(projectId, campaignId, 'annotations'))}
             >
               Annotations
             </Button>
@@ -119,7 +122,7 @@ export const CampaignOverviewPage = () => {
               <Button
                 variant="secondary"
                 leading={<IconGear className="w-4 h-4" />}
-                onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
+                onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}
               >
                 Settings
               </Button>
@@ -131,9 +134,12 @@ export const CampaignOverviewPage = () => {
           className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
           role="button"
           tabIndex={0}
-          onClick={() => navigate(`/campaigns/${campaignId}/annotate?mode=explore`)}
+          onClick={() =>
+            navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+          }
           onKeyDown={(e) => {
-            if (e.key === 'Enter') navigate(`/campaigns/${campaignId}/annotate?mode=explore`);
+            if (e.key === 'Enter')
+              navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
           }}
         >
           <div className="surface-section flex items-center gap-5">
@@ -147,7 +153,9 @@ export const CampaignOverviewPage = () => {
               </p>
             </div>
             <Button
-              onClick={() => navigate(`/campaigns/${campaignId}/annotate?mode=explore`)}
+              onClick={() =>
+                navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+              }
               className="shrink-0"
             >
               Start exploring
@@ -161,7 +169,7 @@ export const CampaignOverviewPage = () => {
             {isAdmin && (
               <Button
                 variant="secondary"
-                onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+                onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
               >
                 Add tasks
               </Button>
@@ -182,7 +190,7 @@ export const CampaignOverviewPage = () => {
                 {isAdmin && (
                   <Button
                     variant="secondary"
-                    onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+                    onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                   >
                     Add tasks
                   </Button>
@@ -195,8 +203,14 @@ export const CampaignOverviewPage = () => {
                 <AllTasksCard
                   totalLabeled={totalLabeled}
                   totalTasks={totalTasks}
-                  onOpen={() => navigate(`/campaigns/${campaignId}/annotate?mode=tasks`)}
-                  onManage={isAdmin ? () => navigate(`/campaigns/${campaignId}/tasks`) : undefined}
+                  onOpen={() =>
+                    navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
+                  }
+                  onManage={
+                    isAdmin
+                      ? () => navigate(campaignPath(projectId, campaignId, 'tasks'))
+                      : undefined
+                  }
                 />
               </MotionListItem>
               {taskSets.map((set, index) => (
@@ -204,11 +218,16 @@ export const CampaignOverviewPage = () => {
                   <TaskSetCard
                     taskSet={set}
                     onOpen={() =>
-                      navigate(`/campaigns/${campaignId}/annotate?mode=tasks&taskSet=${set.id}`)
+                      navigate(
+                        `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
+                      )
                     }
                     onManage={
                       isAdmin
-                        ? () => navigate(`/campaigns/${campaignId}/tasks?taskSet=${set.id}`)
+                        ? () =>
+                            navigate(
+                              `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                            )
                         : undefined
                     }
                   />

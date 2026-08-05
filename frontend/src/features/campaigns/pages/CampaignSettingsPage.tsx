@@ -11,6 +11,8 @@ import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab
 import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -41,6 +43,7 @@ const isSettingsTab = (t: string | null): t is SettingsTab =>
 
 export const CampaignSettingsPage = () => {
   const campaignId = useCampaignIdParam();
+  const projectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
@@ -112,12 +115,12 @@ export const CampaignSettingsPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}` },
+        { label: 'Projects', path: projectsPath() },
+        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaign.id) },
         { label: 'Settings' },
       ]);
     }
-  }, [campaign, setBreadcrumbs]);
+  }, [campaign, projectId, setBreadcrumbs]);
 
   // Task management moved to its own page - honor old ?tab=tasks deep links
   // (e.g. bookmarks, the annotator empty-state CTA) by forwarding them.
@@ -125,11 +128,11 @@ export const CampaignSettingsPage = () => {
   // deep links the same way.
   useEffect(() => {
     if (tabParam === 'tasks') {
-      navigate(`/campaigns/${campaignId}/tasks`, { replace: true });
+      navigate(campaignPath(projectId, campaignId, 'tasks'), { replace: true });
     } else if (tabParam === 'annotations') {
-      navigate(`/campaigns/${campaignId}/annotations`, { replace: true });
+      navigate(campaignPath(projectId, campaignId, 'annotations'), { replace: true });
     }
-  }, [tabParam, campaignId, navigate]);
+  }, [tabParam, campaignId, projectId, navigate]);
 
   // Load campaign data (core data only)
   useEffect(() => {
@@ -296,7 +299,7 @@ export const CampaignSettingsPage = () => {
       setShowDeleteCampaignDialog(false);
 
       // Navigate to campaigns list after successful deletion
-      navigate('/campaigns');
+      navigate(projectPath(projectId));
     } catch (err) {
       handleError(err, 'Failed to delete campaign');
     } finally {
@@ -362,7 +365,7 @@ export const CampaignSettingsPage = () => {
                 </Button>
               ) : (
                 <Button
-                  onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
+                  onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}
                   disabled={isAnyRegistering}
                   title={
                     isAnyRegistering ? 'Waiting for background setup to complete...' : undefined

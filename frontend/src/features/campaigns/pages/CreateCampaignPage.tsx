@@ -4,6 +4,8 @@ import type { CampaignCreate } from '~/api/client';
 import { createCampaign } from '~/api/client';
 import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import { useCanCreateCampaigns } from '~/shared/stores/account.store';
 import {
   validateFullForm,
@@ -23,6 +25,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
+  const projectId = useProjectIdParam();
   const canCreateCampaigns = useCanCreateCampaigns();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
@@ -30,8 +33,12 @@ export const CreateCampaignPage = () => {
   const hideLoadingOverlay = useLayoutStore((s) => s.hideLoadingOverlay);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Campaigns', path: '/campaigns' }, { label: 'New Campaign' }]);
-  }, [setBreadcrumbs]);
+    setBreadcrumbs([
+      { label: 'Projects', path: projectsPath() },
+      { label: 'Project', path: projectPath(projectId) },
+      { label: 'New Campaign' },
+    ]);
+  }, [projectId, setBreadcrumbs]);
 
   const [step, setStep] = useState(1);
   const [showValidation, setShowValidation] = useState(false);
@@ -121,16 +128,15 @@ export const CreateCampaignPage = () => {
     try {
       showLoadingOverlay('Creating campaign...');
       const { data: campaign } = await createCampaign({ body: form });
-      const status = (campaign as Record<string, unknown>)?.registration_status;
-      if (status === 'registering') {
+      if (campaign?.registration_status === 'registering') {
         showAlert('Campaign created. Mosaic registration is running in the background...', 'info');
       } else {
         showAlert('Campaign created successfully', 'success');
       }
       if (campaign) {
-        navigate(`/campaigns/${(campaign as Record<string, unknown>).id}/settings`);
+        navigate(campaignPath(campaign.project_id, campaign.id, 'settings'));
       } else {
-        navigate('/campaigns');
+        navigate(projectPath(projectId));
       }
     } catch (err) {
       handleError(err, 'Failed to create campaign');
@@ -141,7 +147,7 @@ export const CreateCampaignPage = () => {
   };
 
   if (!canCreateCampaigns) {
-    return <Navigate to="/campaigns" replace />;
+    return <Navigate to={projectPath(projectId)} replace />;
   }
 
   return (
@@ -168,7 +174,7 @@ export const CreateCampaignPage = () => {
           <Button
             variant="secondary"
             disabled={isSubmitting}
-            onClick={step === 1 ? () => navigate('/campaigns') : () => setStep(step - 1)}
+            onClick={step === 1 ? () => navigate(projectPath(projectId)) : () => setStep(step - 1)}
           >
             {step === 1 ? 'Cancel' : 'Back'}
           </Button>

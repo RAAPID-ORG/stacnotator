@@ -11,6 +11,11 @@ export const importCampaignTasks = () => import('~/features/campaigns/pages/Camp
 export const importReview = () => import('~/features/campaigns/pages/ReviewPage');
 export const importSettings = () => import('~/features/settings/pages/SettingsPage');
 export const importSdkAuth = () => import('~/features/auth/pages/SdkAuthPage');
+export const importNewProject = () => import('~/features/projects/pages/NewProjectPage');
+export const importProject = () => import('~/features/projects/pages/ProjectPage');
+export const importNewOrganization = () =>
+  import('~/features/organizations/pages/NewOrganizationPage');
+export const importOrganization = () => import('~/features/organizations/pages/OrganizationPage');
 
 /** Warm the campaign-cluster chunks (New campaign, overview, settings, tasks,
  *  review). These are the common next hops from the home/campaigns pages and are

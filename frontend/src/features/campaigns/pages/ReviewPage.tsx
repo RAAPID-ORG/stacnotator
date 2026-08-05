@@ -8,9 +8,12 @@ import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectsPath } from '~/app/routes';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
+  const projectId = useProjectIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -23,12 +26,12 @@ export const ReviewPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}` },
+        { label: 'Projects', path: projectsPath() },
+        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaignId) },
         { label: 'Annotations' },
       ]);
     }
-  }, [campaign, campaignId, setBreadcrumbs]);
+  }, [campaign, campaignId, projectId, setBreadcrumbs]);
 
   useEffect(() => {
     const load = async () => {

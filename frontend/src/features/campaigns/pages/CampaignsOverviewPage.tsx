@@ -8,6 +8,7 @@ import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useCanCreateCampaigns } from '~/shared/stores/account.store';
 import { listAllCampaigns, type CampaignListItemOut } from '~/api/client';
+import { campaignPath, projectsPath } from '~/app/routes';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -77,7 +78,7 @@ export const CampaignsPage = () => {
           </div>
           {canCreateCampaigns && (
             <Button
-              onClick={() => navigate('/campaigns/new')}
+              onClick={() => navigate(projectsPath())}
               leading={<IconPlus className="w-4 h-4" />}
             >
               New campaign
@@ -99,7 +100,7 @@ export const CampaignsPage = () => {
               </p>
               {canCreateCampaigns && (
                 <Button
-                  onClick={() => navigate('/campaigns/new')}
+                  onClick={() => navigate(projectsPath())}
                   leading={<IconPlus className="w-4 h-4" />}
                 >
                   Create campaign
@@ -147,7 +148,7 @@ export const CampaignsPage = () => {
                     <MotionListItem key={campaign.id} index={index}>
                       <CampaignRow
                         campaign={campaign}
-                        onOpen={() => navigate(`/campaigns/${campaign.id}`)}
+                        onOpen={() => navigate(campaignPath(campaign.project_id, campaign.id))}
                       />
                     </MotionListItem>
                   ))}
