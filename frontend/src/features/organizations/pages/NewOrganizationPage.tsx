@@ -7,10 +7,12 @@ import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
 import { handleError } from '~/shared/utils/errorHandler';
+import { useOrganizations } from '../hooks/useOrganizations';
 
 export const NewOrganizationPage = () => {
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
+  const { refresh } = useOrganizations();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
@@ -41,6 +43,7 @@ export const NewOrganizationPage = () => {
         setError('The server did not return the new organization');
         return;
       }
+      await refresh();
       if (data.status === 'pending') {
         setRequestedName(data.name);
         setName('');
