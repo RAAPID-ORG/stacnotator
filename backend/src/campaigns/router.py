@@ -55,17 +55,19 @@ router = APIRouter(
 
 def _with_viewer_roles[T: CampaignOut](out: T, db: Session, user: User, project_id: int) -> T:
     """Stamp the caller's own roles on the owning project onto a campaign
-    response, so clients don't need a second round-trip to the member list."""
-    if user.is_admin:
-        out.viewer_is_admin = True
-        out.viewer_is_member = True
-        out.viewer_is_authoritative_reviewer = True
-        return out
+    response, so clients don't need a second round-trip to the member list.
+
+    Each flag mirrors what enforcement actually grants. Platform admins clear the
+    admin check everywhere, but the authoritative-reviewer check reads the
+    membership row alone (campaigns/policy.py:is_authoritative_reviewer), so a
+    platform admin without that row must not be offered authoritative submit.
+    """
     membership = db.get(ProjectUser, (user.id, project_id))
-    if membership is not None:
-        out.viewer_is_admin = membership.is_admin
-        out.viewer_is_member = True
-        out.viewer_is_authoritative_reviewer = membership.is_authoritative_reviewer
+    out.viewer_is_admin = user.is_admin or (membership is not None and membership.is_admin)
+    out.viewer_is_member = user.is_admin or membership is not None
+    out.viewer_is_authoritative_reviewer = (
+        membership is not None and membership.is_authoritative_reviewer
+    )
     return out
 
 

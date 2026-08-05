@@ -29,14 +29,27 @@ def _db(membership):
 
 
 class TestViewerRoleFlags:
-    def test_platform_admin_gets_all_flags_without_membership(self):
+    def test_platform_admin_is_admin_and_member_without_membership(self):
         db = _db(None)
 
         out = _with_viewer_roles(_out(), db, _user(is_admin=True), PROJECT_ID)
 
         assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
+
+    def test_platform_admin_is_not_authoritative_without_the_membership_flag(self):
+        """Enforcement reads the membership row alone for authoritative submit, so
+        claiming the role here would hand a platform admin a button that 403s."""
+        for membership in (None, SimpleNamespace(is_admin=False, is_authoritative_reviewer=False)):
+            out = _with_viewer_roles(_out(), _db(membership), _user(is_admin=True), PROJECT_ID)
+
+            assert out.viewer_is_authoritative_reviewer is False
+
+    def test_platform_admin_is_authoritative_when_the_membership_grants_it(self):
+        membership = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
+
+        out = _with_viewer_roles(_out(), _db(membership), _user(is_admin=True), PROJECT_ID)
+
         assert out.viewer_is_authoritative_reviewer is True
-        db.get.assert_not_called()
 
     def test_project_admin_gets_admin_and_member_flags(self):
         membership = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
