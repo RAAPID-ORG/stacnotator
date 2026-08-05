@@ -3,63 +3,72 @@ dependency wiring. Direct function calls with a mocked db, mirroring
 tests/test_auth_service.py's TestListUsersVisibility style."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from uuid import uuid4
 
-import pytest
-from fastapi import HTTPException
+from src.campaigns.router import _with_viewer_roles
+from src.campaigns.schemas import CampaignOut
 
-from src.campaigns.router import update_campaign_visibility
-from src.campaigns.schemas import UpdateCampaignVisibilityRequest
-
-CAMPAIGN_ID = 7
 PROJECT_ID = 3
 
 
-def _campaign(**kw):
-    base = dict(id=CAMPAIGN_ID, project_id=PROJECT_ID)
-    base.update(kw)
-    return SimpleNamespace(**base)
+def _out() -> CampaignOut:
+    return CampaignOut.model_construct()
 
 
-def _mock_db(sibling_count: int):
+def _user(is_admin: bool):
+    return SimpleNamespace(id=uuid4(), is_admin=is_admin)
+
+
+def _db(membership):
     db = MagicMock()
-    db.scalar.return_value = sibling_count
+    db.get.return_value = membership
     return db
 
 
-class TestUpdateCampaignVisibilityShim:
-    def test_multi_campaign_project_rejects_with_400(self):
-        db = _mock_db(sibling_count=2)
+class TestViewerRoleFlags:
+    def test_platform_admin_gets_all_flags_without_membership(self):
+        db = _db(None)
 
-        with (
-            patch("src.campaigns.router.projects_service.update_project") as update_project,
-            pytest.raises(HTTPException) as exc_info,
-        ):
-            update_campaign_visibility(
-                campaign_id=CAMPAIGN_ID,
-                req=UpdateCampaignVisibilityRequest(is_public=True),
-                db=db,
-                campaign=_campaign(),
-            )
+        out = _with_viewer_roles(_out(), db, _user(is_admin=True), PROJECT_ID)
 
-        assert exc_info.value.status_code == 400
-        assert "project settings" in exc_info.value.detail
-        update_project.assert_not_called()
+        assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
+        assert out.viewer_is_authoritative_reviewer is True
+        db.get.assert_not_called()
 
-    def test_single_campaign_project_delegates_to_project_update(self):
-        db = _mock_db(sibling_count=1)
-        expected = _campaign()
+    def test_project_admin_gets_admin_and_member_flags(self):
+        membership = SimpleNamespace(is_admin=True, is_authoritative_reviewer=False)
+        user = _user(is_admin=False)
+        db = _db(membership)
 
-        with (
-            patch("src.campaigns.router.projects_service.update_project") as update_project,
-            patch("src.campaigns.router.service.get_campaign_full", return_value=expected),
-        ):
-            result = update_campaign_visibility(
-                campaign_id=CAMPAIGN_ID,
-                req=UpdateCampaignVisibilityRequest(is_public=True),
-                db=db,
-                campaign=_campaign(),
-            )
+        out = _with_viewer_roles(_out(), db, user, PROJECT_ID)
 
-        assert result is expected
-        update_project.assert_called_once_with(db, PROJECT_ID, is_public=True)
+        assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
+        assert out.viewer_is_authoritative_reviewer is False
+        assert db.get.call_args.args[1] == (user.id, PROJECT_ID)
+
+    def test_authoritative_reviewer_flag_comes_from_membership(self):
+        membership = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
+        db = _db(membership)
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
+
+        assert out.viewer_is_admin is False
+        assert (out.viewer_is_member, out.viewer_is_authoritative_reviewer) == (True, True)
+
+    def test_plain_member_gets_member_flag_only(self):
+        membership = SimpleNamespace(is_admin=False, is_authoritative_reviewer=False)
+        db = _db(membership)
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
+
+        assert out.viewer_is_member is True
+        assert (out.viewer_is_admin, out.viewer_is_authoritative_reviewer) == (False, False)
+
+    def test_non_member_gets_no_flags(self):
+        db = _db(None)
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
+
+        assert (out.viewer_is_admin, out.viewer_is_member) == (False, False)
+        assert out.viewer_is_authoritative_reviewer is False

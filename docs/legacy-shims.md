@@ -8,22 +8,7 @@ tests that pin it. Ordered roughly by how easy they are to retire.
 Each entry lists: what old thing it supports, where the code lives, how to check whether
 the legacy case still occurs in real data, and how to remove it.
 
-## 1. `is_authorative_reviewer` wire-name typo
-
-- **Supports:** API stability. The field is spelled correctly in Python
-  (`is_authoritative_reviewer`) but serialized under the historical typo so the generated
-  frontend client keeps working.
-- **Code:** `backend/src/campaigns/schemas.py` (`CampaignUserOut`,
-  `serialization_alias="is_authorative_reviewer"`).
-- **Consumers:** generated client (`frontend/src/api/client/types.gen.ts`) plus
-  `campaign.store.ts`, `StepCampaign.tsx`, `CampaignUsersSection.tsx`,
-  `TaskAssignmentModal.tsx`, `ReviewerAssignmentModal.tsx`.
-- **Data check:** none needed, no stored data involved.
-- **Removal:** one coordinated PR. Drop the alias, regenerate the client
-  (`make dev-openapi`), rename the field in the five frontend files. Breaks any external
-  API consumer relying on the typo, so mention it in the release notes.
-
-## 2. Legacy bare-string label format
+## 1. Legacy bare-string label format
 
 - **Supports:** `campaign_settings.labels` rows written before labels became objects.
   Old shape `{"1": "Forest"}`, new shape
@@ -40,7 +25,7 @@ the legacy case still occurs in real data, and how to remove it.
   `{"name": <value>, "geometry_type": null}`, then delete the else-branch so a non-dict
   value fails loudly. No dedicated test pins the legacy branch.
 
-## 3. Labelling-policy default fallback
+## 2. Labelling-policy default fallback
 
 - **Supports:** campaigns whose settings predate the `labelling_policy` column.
 - **Code:** `backend/src/campaigns/service.py` (`get_labelling_policy`).
@@ -59,7 +44,7 @@ the legacy case still occurs in real data, and how to remove it.
   reduce the function to `LabellingPolicy.model_validate(campaign.settings.labelling_policy)`
   and delete the fallback tests. If any campaign lacks a settings row, backfill one first.
 
-## 4. Frontend fallback window layout for campaigns without stored view layouts
+## 3. Frontend fallback window layout for campaigns without stored view layouts
 
 - **Supports:** campaigns created before view layouts were persisted server-side; the
   frontend generates a default grid on the fly.
@@ -77,7 +62,7 @@ the legacy case still occurs in real data, and how to remove it.
   porting the frontend grid math). Then delete `generateFallbackWindowLayout` and the
   fallback branch so `buildMergedLayout` trusts the stored layout.
 
-## 5. Permissive `RenderConfig` parsing for custom maps
+## 4. Permissive `RenderConfig` parsing for custom maps
 
 - **Supports:** custom-map rows written before the service-level renderability check
   existed. Renderability is deliberately not enforced in the schema because `RenderConfig`
@@ -99,19 +84,7 @@ the legacy case still occurs in real data, and how to remove it.
   still reasonable defense-in-depth; the decision point is whether reads should ever trust
   the DB less than writes. Either way the "legacy rows" justification disappears.
 
-## 6. Old `?tab=` deep-link redirects on the settings page
-
-- **Supports:** external bookmarks to `?tab=tasks` (task management moved to its own page)
-  and `?tab=annotations` (bulk import moved to the Annotations page). No internal link
-  generates these params anymore (verified by grep).
-- **Code:** `frontend/src/features/campaigns/pages/CampaignSettingsPage.tsx` (the
-  `tabParam` redirect effect).
-- **Data check:** none possible, the "data" is users' bookmarks.
-- **Removal:** time-based. Delete the effect after a deprecation window (suggested: one or
-  two releases after the pages moved). Landing on settings without a redirect is a mild
-  degradation, not a break.
-
-## 7. `counts_toward_completion` tri-state (None counts as True)
+## 5. `counts_toward_completion` tri-state (None counts as True)
 
 - **Supports:** two things at once, only one of which is legacy.
   None means "not applicable" for standalone annotations (deliberate, see
@@ -128,52 +101,14 @@ the legacy case still occurs in real data, and how to remove it.
   callers of `_conflicting_task_numbers` / `compute_task_status_value` first; if all
   already attach, tighten the checks and repurpose the test to assert the strict behavior.
 
-## 8. Campaign-level membership/visibility endpoints delegating to projects
-
-- **Supports:** the frontend and any external API consumer that still calls the
-  campaign-scoped membership/visibility endpoints from before organizations and
-  projects existed, instead of the new project-scoped ones.
-- **Code:** `backend/src/campaigns/router.py` - `add_users_to_campaign`,
-  `make_user_campaign_admin`, `make_user_authorative_reviewer`, `get_campaign_users`,
-  `update_campaign_visibility`, `remove_user_from_campaign`, `demote_campaign_admin`,
-  `demote_authorative_reviewer` all delegate to `src/projects/service.py` using
-  `campaign.project_id`. The demote endpoints now return 200 idempotently on a user who
-  doesn't hold the role, where the pre-projects campaign-scoped versions 404d. Note
-  `update_campaign_visibility` additionally 400s when the owning project has more than one
-  campaign, since flipping the whole project would silently change sibling campaigns too.
-- **Data check:** none needed, no stored data involved - this is routing/behavior only.
-- **Removal:** once the frontend calls the `/projects/{project_id}/...` endpoints directly
-  (`backend/src/projects/router.py`), delete the campaign-scoped wrappers and the
-  campaign_id -> project_id indirection in their tests.
-
-## 9. `CampaignCreate.project_id=None` auto-creates a wrapping project
-
-- **Supports:** the pre-projects frontend, which creates campaigns without a
-  `project_id`. `create_wrapping_project` wraps the new campaign in its own
-  single-campaign project inside the user's oldest approved org.
-- **Code:** `backend/src/campaigns/router.py` (`create_campaign`),
-  `backend/src/projects/service.py` (`create_wrapping_project`).
-- **Data check:** none needed, no stored data involved.
-- **Removal:** once the frontend's campaign-creation wizard always sends a
-  `project_id` (post organization/project UI rollout), require `project_id` in
-  `CampaignCreate` and delete `create_wrapping_project`.
-
-## 10. `Campaign.is_public` delegates to the owning project
-
-- **Supports:** every read path that still asks a campaign whether it is
-  public, from when visibility lived on the campaign row itself. Visibility
-  now lives on `data.projects.is_public`; the property is a compatibility
-  read, not stored state.
-- **Code:** `backend/src/campaigns/models.py` (`Campaign.is_public` property).
-- **Data check:** none needed, the property always reflects the current project row.
-- **Removal:** once every caller reads `campaign.project.is_public` (or the
-  project directly) instead of `campaign.is_public`, delete the property.
-
 ## Not shims (checked, no action)
 
 - Standalone annotations reading `counts_toward_completion` back as None is by design
-  ("not applicable"), only the unset-means-counts half of entry 7 is legacy.
+  ("not applicable"), only the unset-means-counts half of entry 5 is legacy.
 - The guided-tour localStorage migration in `preferences.store.ts` was already removed;
   a stale comment claiming otherwise was cleaned up alongside this doc.
+- `Campaign.is_public` (`backend/src/campaigns/models.py`) reads through to the owning
+  project's `is_public`. Visibility is stored once, on `data.projects`; the property is the
+  campaign-side view of it, not a compatibility read for old data.
 - Alembic migrations that mention legacy schema (`*_drop_legacy_*`, `*_retire_*`) are
   immutable history, not live compat code.

@@ -591,7 +591,7 @@ export const test = base.extend<AnnotatorFixtures>({
     });
 
     // Navigate & wait for app to be ready
-    await page.goto('/campaigns/42/annotate');
+    await page.goto('/projects/7/campaigns/42/annotate');
 
     // Wait for the annotation toolbar to render (data-tour="toolbar" on the <header>)
     await page.waitForSelector('[data-tour="toolbar"]', {
