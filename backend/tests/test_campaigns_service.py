@@ -19,19 +19,13 @@ from src.campaigns.assignments import (
     assign_tasks_to_users,
 )
 from src.campaigns.form_fields import CategoryFormField, TextFormField
-from src.campaigns.models import CampaignUser
-from src.campaigns.schemas import AssignTasksToUsersRequest, default_labelling_policy
+from src.campaigns.schemas import AssignTasksToUsersRequest
 from src.campaigns.service import (
-    add_users_to_campaign_bulk,
     delete_campaign,
-    demote_admin,
     list_campaigns_with_user_roles,
-    make_admin,
-    remove_user_from_campaign,
     update_campaign_bbox,
     update_campaign_form_fields,
     update_campaign_name,
-    update_campaign_visibility,
 )
 from src.campaigns.statistics import (
     _calculate_krippendorff_alpha,
@@ -210,76 +204,6 @@ class TestUpdateCampaignBbox:
         with pytest.raises(HTTPException) as exc_info:
             update_campaign_bbox(db, 1, -10, -20, 10, 20)
         assert exc_info.value.status_code == 404
-
-
-class TestMakeAdmin:
-    def test_user_not_in_campaign_raises_404(self):
-        db = _mock_db()
-        result_mock = MagicMock()
-        result_mock.rowcount = 0
-        db.execute.return_value = result_mock
-
-        with pytest.raises(HTTPException) as exc_info:
-            make_admin(db, 1, uuid4())
-        assert exc_info.value.status_code == 404
-
-
-class TestDemoteAdmin:
-    def test_not_admin_raises_404(self):
-        db = _mock_db()
-        result_mock = MagicMock()
-        result_mock.rowcount = 0
-        db.execute.return_value = result_mock
-        db.scalar.return_value = None  # user is not an admin — guard passes through
-
-        with pytest.raises(HTTPException) as exc_info:
-            demote_admin(db, 1, uuid4())
-        assert exc_info.value.status_code == 404
-
-
-class TestRemoveUserFromCampaign:
-    def test_user_not_assigned_raises_404(self):
-        db = _mock_db()
-        result_mock = MagicMock()
-        result_mock.rowcount = 0
-        db.execute.return_value = result_mock
-        db.scalar.return_value = None  # user is not a member — guard passes through
-
-        with pytest.raises(HTTPException) as exc_info:
-            remove_user_from_campaign(db, 1, uuid4())
-        assert exc_info.value.status_code == 404
-
-
-class TestAddUsersToCampaignBulk:
-    def test_missing_users_raises_404(self):
-        db = _mock_db()
-        u1, u2 = uuid4(), uuid4()
-        found_user = MagicMock()
-        found_user.id = u1
-        db.scalars.return_value.all.return_value = [found_user]
-
-        with pytest.raises(HTTPException) as exc_info:
-            add_users_to_campaign_bulk(db, 1, [u1, u2])
-        assert exc_info.value.status_code == 404
-
-    def test_all_found_creates_one_membership_per_user(self):
-        db = _mock_db()
-        u1, u2 = uuid4(), uuid4()
-        user_a, user_b = MagicMock(id=u1), MagicMock(id=u2)
-        db.scalars.return_value.all.return_value = [user_a, user_b]
-
-        add_users_to_campaign_bulk(db, campaign_id=42, user_ids=[u1, u2])
-
-        db.add_all.assert_called_once()
-        memberships = db.add_all.call_args[0][0]
-        assert len(memberships) == 2
-        assert all(isinstance(m, CampaignUser) for m in memberships)
-        for m in memberships:
-            assert m.campaign_id == 42
-            assert m.is_admin is False
-            assert m.is_authoritative_reviewer is False
-        assert {m.user_id for m in memberships} == {u1, u2}
-        db.commit.assert_called_once()
 
 
 class TestDeleteCampaign:
@@ -714,113 +638,59 @@ class TestAssignReviewersManual:
         assert exc_info.value.status_code == 400
 
 
-class TestUpdateCampaignVisibility:
-    def test_makes_campaign_public(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.is_public = False
-        db.get.return_value = campaign
-
-        update_campaign_visibility(db, 1, True)
-        assert campaign.is_public is True
-        db.commit.assert_called_once()
-
-    def test_makes_campaign_private(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.is_public = True
-        campaign.settings.labelling_policy = default_labelling_policy(is_public=True).model_dump(
-            mode="json"
-        )
-        db.get.return_value = campaign
-
-        update_campaign_visibility(db, 1, False)
-        assert campaign.is_public is False
-        db.commit.assert_called_once()
-
-    def test_makes_campaign_private_strips_anyone_from_stored_policy(self):
-        """A policy written while public may grant 'anyone' access; that
-        invariant is only valid for public campaigns, so flipping private
-        must strip it rather than leave a stale grant in place."""
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.is_public = True
-        campaign.settings.labelling_policy = default_labelling_policy(is_public=True).model_dump(
-            mode="json"
-        )
-        db.get.return_value = campaign
-
-        update_campaign_visibility(db, 1, False)
-
-        policy = campaign.settings.labelling_policy
-        assert "anyone" not in policy["explore"]["kinds"]
-        assert "anyone" not in policy["unassigned_tasks"]["kinds"]
-        assert "anyone" not in policy["assigned_tasks"]["kinds"]
-        assert policy["explore"]["kinds"] == ["members"]
-        # complete_assigned never had 'anyone' to begin with; unaffected.
-        assert set(policy["complete_assigned"]["kinds"]) == {
-            "assignees",
-            "admins",
-            "authoritative",
-        }
-
-    def test_making_public_does_not_touch_stored_policy(self):
-        db = _mock_db()
-        campaign = MagicMock()
-        campaign.is_public = False
-        original_policy = default_labelling_policy(is_public=False).model_dump(mode="json")
-        campaign.settings.labelling_policy = original_policy
-        db.get.return_value = campaign
-
-        update_campaign_visibility(db, 1, True)
-
-        assert campaign.settings.labelling_policy == original_policy
-
-    def test_not_found_raises_404(self):
-        db = _mock_db()
-        db.get.return_value = None
-
-        with pytest.raises(HTTPException) as exc_info:
-            update_campaign_visibility(db, 999, True)
-        assert exc_info.value.status_code == 404
-
-
 class TestListCampaignsVisibility:
-    """Verify list_campaigns_with_user_roles respects public/private."""
+    """Verify list_campaigns_with_user_roles respects public/private,
+    resolving membership through the owning project's ProjectUser rows."""
 
-    def _make_campaign(self, cid, is_public=False, members=None):
+    def _make_campaign(self, cid, project_id, is_public=False):
         campaign = MagicMock()
         campaign.id = cid
         campaign.name = f"Campaign {cid}"
         campaign.created_at = datetime(2024, 1, 1)
-        campaign.is_public = is_public
+        campaign.project_id = project_id
+        campaign.project = MagicMock(is_public=is_public)
         campaign.registration_status = "ready"
         campaign.embedding_status = "ready"
-        campaign.users = members or []
         return campaign
 
-    def _make_member(self, user_id, is_admin=False):
-        cu = MagicMock()
-        cu.user_id = user_id
-        cu.is_admin = is_admin
-        return cu
+    def _make_membership(self, project_id, is_admin=False):
+        pu = MagicMock()
+        pu.project_id = project_id
+        pu.is_admin = is_admin
+        return pu
+
+    def _stub(self, db, campaigns, memberships):
+        """First db.scalars(...) call is the Campaign query (chained
+        .unique().all()); the second is the ProjectUser query, iterated
+        directly by the dict comprehension in list_campaigns_with_user_roles."""
+        calls = {"i": 0}
+
+        def side_effect(*_args, **_kwargs):
+            i = calls["i"]
+            calls["i"] += 1
+            if i == 0:
+                chain = MagicMock()
+                chain.unique.return_value.all.return_value = campaigns
+                return chain
+            return memberships
+
+        db.scalars.side_effect = side_effect
 
     def test_regular_user_sees_public_and_member_campaigns(self):
         db = _mock_db()
         user_id = uuid4()
 
-        member = self._make_member(user_id)
-        private_member = self._make_campaign(1, is_public=False, members=[member])
-        public_non_member = self._make_campaign(2, is_public=True, members=[])
-        private_non_member = self._make_campaign(3, is_public=False, members=[])
+        membership = self._make_membership(project_id=1)
+        private_member = self._make_campaign(1, project_id=1, is_public=False)
+        public_non_member = self._make_campaign(2, project_id=2, is_public=True)
+        private_non_member = self._make_campaign(3, project_id=3, is_public=False)
 
-        db.scalars.return_value.unique.return_value.all.return_value = [
-            private_member,
-            public_non_member,
-            private_non_member,
-        ]
+        self._stub(
+            db,
+            campaigns=[private_member, public_non_member, private_non_member],
+            memberships=[membership],
+        )
 
-        # Patch is_global_admin to return False
         import src.campaigns.service as svc
 
         original = svc.is_global_admin
@@ -839,8 +709,8 @@ class TestListCampaignsVisibility:
         db = _mock_db()
         user_id = uuid4()
 
-        public_campaign = self._make_campaign(1, is_public=True, members=[])
-        db.scalars.return_value.unique.return_value.all.return_value = [public_campaign]
+        public_campaign = self._make_campaign(1, project_id=1, is_public=True)
+        self._stub(db, campaigns=[public_campaign], memberships=[])
 
         import src.campaigns.service as svc
 
@@ -859,12 +729,9 @@ class TestListCampaignsVisibility:
         db = _mock_db()
         user_id = uuid4()
 
-        private_campaign = self._make_campaign(1, is_public=False, members=[])
-        public_campaign = self._make_campaign(2, is_public=True, members=[])
-        db.scalars.return_value.unique.return_value.all.return_value = [
-            private_campaign,
-            public_campaign,
-        ]
+        private_campaign = self._make_campaign(1, project_id=1, is_public=False)
+        public_campaign = self._make_campaign(2, project_id=2, is_public=True)
+        self._stub(db, campaigns=[private_campaign, public_campaign], memberships=[])
 
         import src.campaigns.service as svc
 
@@ -941,6 +808,7 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     db = MagicMock()
     mock_settings = MagicMock()
     mock_settings.embedding_year = None
+    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
 
     def mock_refresh(obj):
         obj.settings = mock_settings
@@ -952,6 +820,7 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
             db,
             name="c",
             mode="tasks",
+            project_id=1,
             settings=CampaignSettingsCreate(**sample_settings_data),
             user_id=sample_user_id,
         )
@@ -961,6 +830,13 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     ]
     assert len(added_task_sets) == 1
     assert added_task_sets[0].name == DEFAULT_TASK_SET_NAME
+
+    from src.campaigns.models import CampaignUser
+
+    added_campaign_users = [
+        call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], CampaignUser)
+    ]
+    assert added_campaign_users == []
 
 
 class TestUpdateCampaignFormFields:

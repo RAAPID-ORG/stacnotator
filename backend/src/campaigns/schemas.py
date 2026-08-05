@@ -258,6 +258,9 @@ class CampaignOut(BaseModel):
 class CampaignCreate(BaseModel):
     name: str
     mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
+    project_id: int | None = None  # None triggers the legacy wrapping-project shim
+    # Only seeds the legacy wrapping project created when project_id is omitted;
+    # both is_public here and the shim are removed with Phase 2.
     is_public: bool = False
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
@@ -269,6 +272,7 @@ class CampaignListItemOut(BaseModel):
     id: int
     name: str
     created_at: datetime
+    project_id: int
     is_admin: bool = False
     is_member: bool = False
     is_public: bool = False

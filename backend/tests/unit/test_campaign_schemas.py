@@ -54,6 +54,18 @@ def test_campaign_create_labelling_policy_defaults_to_none():
     assert data.labelling_policy is None
 
 
+def test_campaign_create_project_id_defaults_to_none():
+    data = CampaignCreate(name="x", settings=CampaignSettingsCreate(**_minimal_settings()))
+    assert data.project_id is None
+
+
+def test_campaign_create_project_id_round_trips():
+    data = CampaignCreate(
+        name="x", project_id=3, settings=CampaignSettingsCreate(**_minimal_settings())
+    )
+    assert data.project_id == 3
+
+
 def test_assign_reviewers_pattern_percentage_accepted():
     req = AssignReviewersRequest(
         pattern="percentage", percentage=50.0, num_reviewers=1, reviewer_ids=[]

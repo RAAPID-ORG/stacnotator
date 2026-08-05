@@ -543,6 +543,7 @@ def _db_capturing_campaign_settings() -> MagicMock:
 
 def test_create_campaign_rejects_anyone_for_private_campaign():
     db = MagicMock()
+    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
     policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
 
     with pytest.raises(HTTPException) as exc_info:
@@ -550,7 +551,7 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
             db,
             name="x",
             mode="tasks",
-            is_public=False,
+            project_id=1,
             settings=_campaign_settings_create(),
             user_id=uuid4(),
             labelling_policy=policy,
@@ -562,13 +563,14 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
 
 def test_create_campaign_allows_anyone_for_public_campaign():
     db = _db_capturing_campaign_settings()
+    db.get.return_value = MagicMock(is_public=True)  # db.get(Project, project_id)
     policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
 
     service.create_campaign(
         db,
         name="x",
         mode="tasks",
-        is_public=True,
+        project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
         labelling_policy=policy,
@@ -578,17 +580,18 @@ def test_create_campaign_allows_anyone_for_public_campaign():
 
 
 def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
-    """create_campaign with no explicit policy on a public campaign should
+    """create_campaign with no explicit policy on a public project should
     thread is_public into the default, granting 'anyone' on the three
     labellable axes - not the private default, which would immediately be
-    inconsistent with a public campaign."""
+    inconsistent with a public project."""
     db = _db_capturing_campaign_settings()
+    db.get.return_value = MagicMock(is_public=True)  # db.get(Project, project_id)
 
     service.create_campaign(
         db,
         name="x",
         mode="tasks",
-        is_public=True,
+        project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
     )
@@ -602,12 +605,13 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
 
 def test_create_campaign_no_explicit_policy_private_gets_private_default():
     db = _db_capturing_campaign_settings()
+    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
 
     service.create_campaign(
         db,
         name="x",
         mode="tasks",
-        is_public=False,
+        project_id=1,
         settings=_campaign_settings_create(),
         user_id=uuid4(),
     )

@@ -7,7 +7,10 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user, require_campaign_creation_permission
+from src.auth.dependencies import (
+    require_approved_user,
+    require_campaign_creation_permission,  # noqa: F401 - unused until Task 8 removes it
+)
 from src.auth.models import User
 from src.campaigns import assignments, service, statistics, task_sets
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -45,6 +48,8 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db
 from src.filenames import clean_filename
+from src.projects import service as projects_service
+from src.projects.dependencies import assert_project_admin
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -80,20 +85,27 @@ def get_campaign(
 def create_campaign(
     campaign: CampaignCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_campaign_creation_permission),
+    user: User = Depends(require_approved_user),
 ):
-    result = service.create_campaign(
+    project_id = campaign.project_id
+    if project_id is None:
+        # Legacy shim for the pre-projects frontend; removed with Phase 2.
+        project_id = projects_service.create_wrapping_project(
+            db, name=campaign.name, is_public=campaign.is_public, user=user
+        )
+    else:
+        assert_project_admin(db, user, project_id)
+    return service.create_campaign(
         db,
         name=campaign.name,
         mode=campaign.mode,
-        is_public=campaign.is_public,
+        project_id=project_id,
         settings=campaign.settings,
         user_id=user.id,
         imagery_editor_state=campaign.imagery_editor_state,
         timeseries_configs=campaign.timeseries_configs,
         labelling_policy=campaign.labelling_policy,
     )
-    return result
 
 
 @router.post(
@@ -106,7 +118,7 @@ def add_users_to_campaign(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    service.add_users_to_campaign_bulk(db, campaign.id, users_to_assign.user_ids)
+    projects_service.add_users_by_ids(db, campaign.project_id, users_to_assign.user_ids)
 
 
 @router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)
@@ -131,7 +143,7 @@ def make_user_campaign_admin(
     campaign: Campaign = Depends(require_campaign_admin),
     db: Session = Depends(get_db),
 ):
-    return service.make_admin(db, campaign.id, new_admin_user_id)
+    return projects_service.make_admin(db, campaign.project_id, new_admin_user_id)
 
 
 @router.post(
@@ -145,7 +157,9 @@ def make_user_authorative_reviewer(
     db: Session = Depends(get_db),
 ):
     """Give a user the authorative reviewer role, enabling him to review other annotations."""
-    return service.make_authorative_reviewer(db, campaign.id, new_authorative_reviewer_id)
+    return projects_service.make_authoritative_reviewer(
+        db, campaign.project_id, new_authorative_reviewer_id
+    )
 
 
 @router.get("/{campaign_id}/users", response_model=CampaignUsersResponse)
@@ -160,7 +174,7 @@ def get_campaign_users(
     up the current user's admin / reviewer flags on load, and review mode
     already surfaces other annotators anyway, so the list isn't sensitive.
     """
-    users = assignments.get_campaign_users_with_roles(db, campaign_id)
+    users = projects_service.get_project_users(db, campaign.project_id)
     return CampaignUsersResponse(campaign_id=campaign.id, users=users)
 
 
@@ -182,7 +196,8 @@ def update_campaign_visibility(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Toggle a campaign between public and private. Only campaign admins can change this."""
-    return service.update_campaign_visibility(db, campaign_id, req.is_public)
+    projects_service.update_project(db, campaign.project_id, is_public=req.is_public)
+    return service.get_campaign_full(db, campaign_id)
 
 
 @router.patch("/{campaign_id}/guide", response_model=CampaignOut)
@@ -287,7 +302,7 @@ def remove_user_from_campaign(
     Note: This only removes the user's access to the campaign.
     All annotations created by the user are preserved and remain in the campaign.
     """
-    service.remove_user_from_campaign(db, campaign_id, user_id)
+    projects_service.remove_user(db, campaign.project_id, user_id)
 
 
 @router.post(
@@ -301,7 +316,7 @@ def demote_campaign_admin(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Demote an admin user to member role"""
-    service.demote_admin(db, campaign_id, user_id)
+    projects_service.demote_admin(db, campaign.project_id, user_id)
     return {"message": "User demoted from Admin."}
 
 
@@ -316,7 +331,7 @@ def demote_authorative_reviewer(
     campaign: Campaign = Depends(require_campaign_admin),
 ):
     """Demote an authoritative reviewer to basic member"""
-    service.demote_authorative_reviewer(db, campaign_id, user_id)
+    projects_service.demote_authoritative_reviewer(db, campaign.project_id, user_id)
     return {"message": "User demoted from authoritative reviewer."}
 
 

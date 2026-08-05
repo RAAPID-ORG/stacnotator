@@ -15,12 +15,13 @@ from src.annotation.constants import (
 )
 from src.annotation.models import Annotation, AnnotationTask, AnnotationTaskAssignment
 from src.auth.models import User
-from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
     label_id_to_name,
 )
+from src.projects.models import ProjectUser
 
 ASSIGNMENTS_CSV_COLUMNS = [
     "annotation_number",
@@ -35,26 +36,6 @@ USERS_CSV_COLUMNS = ["email", "display_name", "is_admin", "is_authoritative_revi
 _IMPORT_REQUIRED_COLUMNS = {"annotation_number", "assignees", "reviewers"}
 _MAX_REPORTED_ERRORS = 50
 _SKIPPED_LABEL = "SKIPPED"
-
-
-def get_campaign_users_with_roles(db: Session, campaign_id: int) -> list[CampaignUser]:
-    """
-    Args:
-        db: Database session
-        campaign_id: ID of the campaign
-
-    Returns:
-        List of campaign user associations with user data loaded,
-        sorted by display name (email fallback)
-    """
-    stmt = (
-        select(CampaignUser)
-        .where(CampaignUser.campaign_id == campaign_id)
-        .options(joinedload(CampaignUser.user))
-    )
-
-    users = db.scalars(stmt).unique().all()
-    return sorted(users, key=lambda cu: (cu.user.display_name or cu.user.email).lower())
 
 
 def _seed_assignment_status(
@@ -104,10 +85,9 @@ def _verify_campaign_members(
         return
     found = set(
         db.scalars(
-            select(CampaignUser.user_id).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id.in_(user_ids),
-            )
+            select(ProjectUser.user_id)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id, ProjectUser.user_id.in_(user_ids))
         ).all()
     )
     missing = user_ids - found
@@ -622,19 +602,26 @@ def build_task_assignments_export(
 
     assignments_df = pd.DataFrame(assignment_records, columns=ASSIGNMENTS_CSV_COLUMNS)
 
-    campaign_users = get_campaign_users_with_roles(db, campaign_id)
-    user_records = sorted(
-        (
-            {
-                "email": cu.user.email,
-                "display_name": cu.user.display_name or "",
-                "is_admin": cu.is_admin,
-                "is_authoritative_reviewer": cu.is_authoritative_reviewer,
-            }
-            for cu in campaign_users
-        ),
-        key=lambda record: record["email"],
+    campaign_users: list[ProjectUser] = sorted(
+        db.scalars(
+            select(ProjectUser)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id)
+            .options(joinedload(ProjectUser.user))
+        )
+        .unique()
+        .all(),
+        key=lambda pu: pu.user.email,
     )
+    user_records = [
+        {
+            "email": pu.user.email,
+            "display_name": pu.user.display_name or "",
+            "is_admin": pu.is_admin,
+            "is_authoritative_reviewer": pu.is_authoritative_reviewer,
+        }
+        for pu in campaign_users
+    ]
     users_df = pd.DataFrame(user_records, columns=USERS_CSV_COLUMNS)
 
     return assignments_df, users_df
@@ -726,7 +713,9 @@ def import_task_assignments(db: Session, campaign_id: int, file_bytes: bytes) ->
 
     member_ids = set(
         db.scalars(
-            select(CampaignUser.user_id).where(CampaignUser.campaign_id == campaign_id)
+            select(ProjectUser.user_id)
+            .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+            .where(Campaign.id == campaign_id)
         ).all()
     )
     non_members = sorted(
