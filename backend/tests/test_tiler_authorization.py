@@ -13,6 +13,11 @@ from fastapi import HTTPException
 
 from src.config import TilerCfg
 from src.imagery import service
+from src.imagery.schemas import (
+    CollectionStacConfigCreate,
+    NamedVizParamsCreate,
+    VizParamsCreate,
+)
 from src.organizations.service import set_org_tilers
 from src.projects.service import get_project_tilers
 from src.stac_browser.router import _tiler_catalogs
@@ -51,10 +56,25 @@ def _org(names=SEEDED, allows_internal_storage=False):
     )
 
 
-def _editor_state(tiler, catalog_url="https://earth-search.example/v1"):
-    col = SimpleNamespace(
-        name="c1", stac_config=SimpleNamespace(catalog_url=catalog_url, tiler=tiler)
+MPC_CATALOG = "https://planetarycomputer.microsoft.com/api/stac/v1"
+OTHER_CATALOG = "https://earth-search.example/v1"
+
+
+def _editor_state(tiler, catalog_url=OTHER_CATALOG, viz=None, cover_viz=None):
+    """One collection with one visualization. Default viz is first-valid compositing,
+    i.e. MPC-eligible - so the catalog URL alone decides the routing."""
+    stac = CollectionStacConfigCreate(
+        catalog_url=catalog_url,
+        tiler=tiler,
+        visualizations=[
+            NamedVizParamsCreate(
+                name="rgb",
+                viz_params=viz or VizParamsCreate(compositing="first"),
+                cover_viz_params=cover_viz,
+            )
+        ],
     )
+    col = SimpleNamespace(name="c1", stac_config=stac)
     return SimpleNamespace(sources=[SimpleNamespace(collections=[col])])
 
 
@@ -151,6 +171,46 @@ def test_authorize_blocks_default_tiler_when_org_has_none(settings):
     with pytest.raises(HTTPException) as exc:
         service._authorize_tilers(_org(()), _editor_state(None))
     assert exc.value.status_code == 403
+
+
+# --- _authorize_tilers: MPC routing (catalog URL + viz eligibility, not the tiler field) ---
+
+
+def test_authorize_allows_mpc_collection_for_mpc_only_org(settings):
+    # Pure MPC imagery never touches a hosted tiler, so an org allowed only 'mpc' can
+    # configure it - the resolved default hosted tiler is irrelevant here.
+    service._authorize_tilers(_org(("mpc",)), _editor_state(None, catalog_url=MPC_CATALOG))
+
+
+def test_authorize_blocks_mpc_collection_when_org_lacks_mpc(settings):
+    with pytest.raises(HTTPException) as exc:
+        service._authorize_tilers(_org(("azure",)), _editor_state(None, catalog_url=MPC_CATALOG))
+    assert exc.value.status_code == 403
+    assert "mpc" in exc.value.detail
+
+
+def test_authorize_checks_hosted_tiler_for_mpc_catalog_needing_compositing(settings):
+    # Median compositing is not MPC-eligible: the collection routes to the hosted tiler,
+    # so an MPC-only org is refused and the message names the hosted tiler.
+    state = _editor_state(None, catalog_url=MPC_CATALOG, viz=VizParamsCreate(compositing="median"))
+    with pytest.raises(HTTPException) as exc:
+        service._authorize_tilers(_org(("mpc",)), state)
+    assert exc.value.status_code == 403
+    assert "azure" in exc.value.detail
+
+    service._authorize_tilers(_org(("mpc", "azure")), state)
+
+
+def test_authorize_checks_hosted_tiler_for_masked_cover_viz(settings):
+    # The cover slice renders with cover_viz_params; masking there forces the hosted path
+    # even though the main viz is MPC-eligible.
+    state = _editor_state(
+        None, catalog_url=MPC_CATALOG, cover_viz=VizParamsCreate(mask_layer="scl")
+    )
+    with pytest.raises(HTTPException) as exc:
+        service._authorize_tilers(_org(("mpc",)), state)
+    assert exc.value.status_code == 403
+    assert "azure" in exc.value.detail
 
 
 def test_authorize_ignores_non_stac_collections(settings):
