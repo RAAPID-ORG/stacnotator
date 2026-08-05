@@ -80,7 +80,7 @@ describe('useOrganizationsStore', () => {
     expect(useOrganizationsStore.getState().inFlight).toBeNull();
   });
 
-  it('stops loading on a failed fetch and recovers on the next refresh', async () => {
+  it('stops loading on a failed fetch and retries on the next ensureLoaded', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
     respond.mockRejectedValue(new Error('offline'));
 
@@ -89,8 +89,12 @@ describe('useOrganizationsStore', () => {
     expect(useOrganizationsStore.getState().items).toEqual([]);
 
     respond.mockResolvedValue(listing(org(1, 'Acme')));
-    await useOrganizationsStore.getState().refresh();
+    await useOrganizationsStore.getState().ensureLoaded();
+    expect(respond).toHaveBeenCalledTimes(2);
     expect(useOrganizationsStore.getState().items).toEqual([org(1, 'Acme')]);
+
+    await useOrganizationsStore.getState().ensureLoaded();
+    expect(respond).toHaveBeenCalledTimes(2);
 
     logged.mockRestore();
   });
