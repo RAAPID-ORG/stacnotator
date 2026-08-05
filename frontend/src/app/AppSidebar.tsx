@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
+import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -153,6 +154,8 @@ export const AppSidebar = ({
             {!collapsed && <span className="truncate">Projects</span>}
           </button>
         </nav>
+
+        {!collapsed && <OrgSwitcher onNavigate={() => setMobileOpen?.(false)} />}
 
         <div className="p-3 border-t border-neutral-200 mt-auto">
           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
