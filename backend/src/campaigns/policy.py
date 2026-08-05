@@ -75,13 +75,18 @@ def context_from_role_map(
     per request (see get_campaign_role_map / get_platform_admin_ids below) so
     evaluating many annotations' authors - e.g. a whole task list or export -
     costs two queries total instead of one per annotation.
+
+    A platform admin counts as a member of every campaign, membership row or
+    not, so a members-only axis grants them the same access the campaign's
+    `viewer_is_member` flag advertises.
     """
     is_admin, is_authoritative = role_map.get(user_id, (False, False))
+    is_platform = user_id in platform_admin_ids
     return PolicyContext(
         user_id=user_id,
-        is_admin=is_admin or user_id in platform_admin_ids,
+        is_admin=is_admin or is_platform,
         is_authoritative=is_authoritative,
-        is_member=user_id in role_map,
+        is_member=user_id in role_map or is_platform,
         is_assigned=is_assigned,
     )
 
@@ -186,6 +191,10 @@ def build_policy_context(
     `task.assignments` must already be loaded (joinedload/selectinload) when
     `task` is given; `is_assigned` is true if the user holds ANY assignment on
     it (primary or review), per the labelling-policy spec.
+
+    A platform admin counts as a member of every campaign, membership row or
+    not, so a members-only axis grants them the same access the campaign's
+    `viewer_is_member` flag advertises.
     """
     pu = db.scalars(
         select(ProjectUser).where(
@@ -193,14 +202,15 @@ def build_policy_context(
             ProjectUser.user_id == user_id,
         )
     ).first()
+    is_platform = is_platform_admin(db, user_id)
     is_assigned = task is not None and any(
         assignment.user_id == user_id for assignment in (task.assignments or [])
     )
     return PolicyContext(
         user_id=user_id,
-        is_admin=(pu is not None and pu.is_admin) or is_platform_admin(db, user_id),
+        is_admin=(pu is not None and pu.is_admin) or is_platform,
         is_authoritative=pu is not None and pu.is_authoritative_reviewer,
-        is_member=pu is not None,
+        is_member=pu is not None or is_platform,
         is_assigned=is_assigned,
     )
 

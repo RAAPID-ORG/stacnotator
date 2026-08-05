@@ -176,7 +176,11 @@ def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate)
             if registry.HOSTED not in routes:
                 continue
 
-            name = stac.tiler or settings.DEFAULT_TILER
+            # 'mpc' in the tiler field is not a hosted pin - the wizard offers it as a
+            # discoverable tiler, MPC routing is decided above, and whatever still needs
+            # a hosted tiler falls back to the default one.
+            pinned = None if stac.tiler == registry.MPC else stac.tiler
+            name = pinned or settings.DEFAULT_TILER
             if name is None:
                 continue
             if name not in settings.TILERS:

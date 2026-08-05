@@ -166,7 +166,7 @@ export const CollectionEditor = ({
     const sb = collection.data;
     if (!sb.catalogUrl || !sb.stacCollectionId) return;
     let cancelled = false;
-    getCollections({ query: { catalog_url: sb.catalogUrl } })
+    getCollections({ query: { catalog_url: sb.catalogUrl, project_id: projectId } })
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
         const match = data.find((c) => c.id === sb.stacCollectionId);
@@ -180,7 +180,7 @@ export const CollectionEditor = ({
     return () => {
       cancelled = true;
     };
-  }, [collection.data]);
+  }, [collection.data, projectId]);
 
   const typeLabel = collection.data.type === 'stac_browser' ? 'Catalog' : 'XYZ';
 

@@ -26,6 +26,31 @@ depends_on: str | Sequence[str] | None = None
 LEGACY_ORG_NAME = "NASA Harvest"
 
 
+def _assert_hosted_tilers_configured() -> None:
+    """The legacy org inherits exactly the tilers this environment knows about, so
+    migrating an existing deployment with an empty TILERS env would silently strip
+    every campaign of its hosted imagery. Only checked when a legacy org was actually
+    created; offline (--sql) renders skip it, having no rows to look at."""
+    if op.get_context().as_sql:
+        return
+    if registry.all_names() != [registry.MPC]:
+        return
+    org_exists = (
+        op.get_bind()
+        .execute(
+            sa.text("SELECT 1 FROM data.organizations WHERE name = :name"),
+            {"name": LEGACY_ORG_NAME},
+        )
+        .first()
+        is not None
+    )
+    if org_exists:
+        raise RuntimeError(
+            "TILERS is not configured; the legacy org would lose hosted tiler access "
+            "- set TILERS before migrating"
+        )
+
+
 def upgrade() -> None:
     op.create_table(
         "organizations",
@@ -184,6 +209,7 @@ def upgrade() -> None:
         WHERE o.name = '{LEGACY_ORG_NAME}'
         """
     )
+    _assert_hosted_tilers_configured()
     for tiler_name in registry.all_names():
         op.execute(
             f"""

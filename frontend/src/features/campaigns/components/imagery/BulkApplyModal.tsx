@@ -221,7 +221,7 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
     const d = sbData(first);
     if (!d.catalogUrl || !d.stacCollectionId) return;
     let cancelled = false;
-    getCollections({ query: { catalog_url: d.catalogUrl } })
+    getCollections({ query: { catalog_url: d.catalogUrl, project_id: controller.projectId } })
       .then(({ data, error }) => {
         if (cancelled || error || !data) return;
         const match = data.find((c) => c.id === d.stacCollectionId);
@@ -232,7 +232,7 @@ export const BulkApplyModal = ({ source, controller, focus, onClose }: BulkApply
     return () => {
       cancelled = true;
     };
-  }, [first]);
+  }, [first, controller.projectId]);
 
   if (focus.kind === 'viz') {
     return (

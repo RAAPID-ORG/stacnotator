@@ -20,7 +20,7 @@ from src.imagery.schemas import (
 )
 from src.organizations.service import set_org_tilers
 from src.projects.service import get_project_tilers
-from src.stac_browser.router import _tiler_catalogs
+from src.stac_browser.router import _authorize_catalog, _tiler_catalogs
 from src.tilers import registry
 
 
@@ -122,6 +122,30 @@ def test_tiler_catalogs_includes_allowed(settings):
     assert cat["url"] == "https://gcp/stac"
 
 
+# --- catalog browsing (collections / item search hit the same allowlist) --------
+
+
+def _project(names=SEEDED):
+    return SimpleNamespace(organization=_org(names))
+
+
+def test_browsing_a_platform_catalog_requires_the_org_to_have_that_tiler(settings):
+    with pytest.raises(HTTPException) as exc:
+        _authorize_catalog("https://gcp/stac", _project())
+    assert exc.value.status_code == 403
+    assert "tiler-gcp" in exc.value.detail
+
+
+def test_browsing_a_platform_catalog_allowed_for_a_granted_org(settings):
+    _authorize_catalog("https://gcp/stac/collections", _project(("mpc", "azure", "tiler-gcp")))
+
+
+def test_browsing_public_catalogs_is_unrestricted(settings):
+    # MPC and third-party catalogs are public: nothing to scope them to.
+    _authorize_catalog(MPC_CATALOG, _project(()))
+    _authorize_catalog(OTHER_CATALOG, _project(()))
+
+
 # --- project tiler options (the wizard's only tiler-discovery endpoint) ----------
 
 
@@ -211,6 +235,24 @@ def test_authorize_checks_hosted_tiler_for_masked_cover_viz(settings):
         service._authorize_tilers(_org(("mpc",)), state)
     assert exc.value.status_code == 403
     assert "azure" in exc.value.detail
+
+
+def test_authorize_treats_explicit_mpc_tiler_as_no_hosted_pin(settings):
+    # The wizard offers 'mpc' as a pickable tiler, so it can land in the tiler field.
+    # It is not a hosted tiler name: MPC membership decides, and 'mpc' must not 400.
+    service._authorize_tilers(_org(("mpc",)), _editor_state("mpc", catalog_url=MPC_CATALOG))
+
+
+def test_authorize_falls_back_to_default_tiler_when_mpc_pinned_but_hosted_routed(settings):
+    # Median compositing forces the hosted path even with tiler='mpc' pinned, so the
+    # default hosted tiler is what gets checked.
+    state = _editor_state("mpc", catalog_url=MPC_CATALOG, viz=VizParamsCreate(compositing="median"))
+    with pytest.raises(HTTPException) as exc:
+        service._authorize_tilers(_org(("mpc",)), state)
+    assert exc.value.status_code == 403
+    assert "azure" in exc.value.detail
+
+    service._authorize_tilers(_org(("mpc", "azure")), state)
 
 
 def test_authorize_ignores_non_stac_collections(settings):

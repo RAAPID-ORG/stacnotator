@@ -40,11 +40,14 @@ def client():
     return TestClient(app)
 
 
-def _override_auth(allows_internal_storage: bool = False):
+def _override_auth(allows_internal_storage: bool = False, allowed_tiler_names=("mpc", "azure")):
     campaign = SimpleNamespace(
         id=CAMPAIGN_ID,
         project=SimpleNamespace(
-            organization=SimpleNamespace(allows_internal_storage=allows_internal_storage)
+            organization=SimpleNamespace(
+                allows_internal_storage=allows_internal_storage,
+                allowed_tiler_names=list(allowed_tiler_names),
+            )
         ),
     )
     app.dependency_overrides[get_db] = lambda: MagicMock()
@@ -147,6 +150,59 @@ def test_create_duplicate_name_returns_409(client, monkeypatch):
     }
     r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=body)
     assert r.status_code == 409
+
+
+@pytest.fixture()
+def hosted_tiler(monkeypatch):
+    """A deployment whose default tiler is 'azure' - custom maps register there."""
+    monkeypatch.setattr(cm_router, "get_settings", lambda: SimpleNamespace(DEFAULT_TILER="azure"))
+
+
+_CREATE_BODY = {
+    "name": "cropland",
+    "cog_url": "https://x/y.tif",
+    "render_config": CONT,
+}
+
+
+def test_create_allowed_when_org_may_use_the_default_tiler(client, monkeypatch, hosted_tiler):
+    _override_auth(allowed_tiler_names=("mpc", "azure"))
+    monkeypatch.setattr(service, "create_custom_map", lambda db, cid, payload: _map_obj())
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=_CREATE_BODY)
+    assert r.status_code == 201, r.text
+
+
+def test_create_rejected_when_org_lacks_the_default_tiler(client, monkeypatch, hosted_tiler):
+    _override_auth(allowed_tiler_names=("mpc",))
+    called = []
+    monkeypatch.setattr(
+        service, "create_custom_map", lambda db, cid, payload: called.append(payload)
+    )
+    r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=_CREATE_BODY)
+    assert r.status_code == 403, r.text
+    assert "azure" in r.json()["detail"]
+    assert called == []  # rejected before anything is written or registered
+
+
+def test_update_allowed_when_org_may_use_the_default_tiler(client, monkeypatch, hosted_tiler):
+    _override_auth(allowed_tiler_names=("mpc", "azure"))
+    monkeypatch.setattr(service, "update_custom_map", lambda db, cid, mid, payload: _map_obj())
+    r = client.patch(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps/1", json={"name": "renamed"})
+    assert r.status_code == 200, r.text
+
+
+def test_update_rejected_when_org_lacks_the_default_tiler(client, monkeypatch, hosted_tiler):
+    _override_auth(allowed_tiler_names=("mpc",))
+    called = []
+    monkeypatch.setattr(
+        service, "update_custom_map", lambda db, cid, mid, payload: called.append(payload)
+    )
+    r = client.patch(
+        f"/api/campaigns/{CAMPAIGN_ID}/custom-maps/1", json={"cog_url": "https://x/new.tif"}
+    )
+    assert r.status_code == 403, r.text
+    assert "azure" in r.json()["detail"]
+    assert called == []
 
 
 def test_rename_to_duplicate_returns_409(client, monkeypatch):

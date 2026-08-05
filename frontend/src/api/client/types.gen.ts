@@ -6601,6 +6601,12 @@ export type GetCollectionsData = {
          * STAC API URL
          */
         catalog_url: string;
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
     };
     url: '/api/stac/collections';
 };
@@ -6628,7 +6634,14 @@ export type GetCollectionsResponse = GetCollectionsResponses[keyof GetCollection
 export type SearchData = {
     body: SearchRequest;
     path?: never;
-    query?: never;
+    query: {
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
+    };
     url: '/api/stac/search';
 };
 

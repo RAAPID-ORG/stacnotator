@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.config import get_settings
 from src.custom_layers import service
 from src.custom_layers.schemas import (
     CustomMapCreate,
@@ -35,6 +36,19 @@ def _require_internal_storage_allowed(internal_storage: bool | None, campaign: C
         )
 
 
+def _require_tiler_allowed(campaign: Campaign) -> None:
+    """Registration always puts a custom map on the default hosted tiler, so the
+    owning organization must be allowed to use it. A deployment without a default
+    tiler has nothing to authorize - registration then fails on its own."""
+    tiler_name = get_settings().DEFAULT_TILER
+    if tiler_name is None or tiler_name in campaign.project.organization.allowed_tiler_names:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"Your organization is not authorized to use tiler '{tiler_name}'",
+    )
+
+
 @custom_maps_router.get("", response_model=list[CustomMapOut])
 def list_custom_maps(
     campaign_id: int,
@@ -52,6 +66,7 @@ def create_custom_map(
     db: Session = Depends(get_db),
 ):
     _require_internal_storage_allowed(payload.internal_storage, campaign)
+    _require_tiler_allowed(campaign)
     try:
         return service.create_custom_map(db, campaign_id, payload)
     except service.DuplicateCustomMapName as exc:
@@ -71,6 +86,7 @@ def update_custom_map(
     db: Session = Depends(get_db),
 ):
     _require_internal_storage_allowed(payload.internal_storage, campaign)
+    _require_tiler_allowed(campaign)
     try:
         cm = service.update_custom_map(db, campaign_id, map_id, payload)
     except service.DuplicateCustomMapName as exc:

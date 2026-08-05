@@ -377,6 +377,16 @@ def test_context_from_role_map_platform_admin_without_campaign_admin_flag():
     assert ctx.is_admin is True
 
 
+def test_context_from_role_map_platform_admin_is_a_member_without_a_row():
+    """Platform admins are members everywhere, matching the viewer_is_member flag
+    the campaign endpoints report - a members-only axis must let them through."""
+    user_id = uuid4()
+    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids={user_id})
+
+    assert ctx.is_member is True
+    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
+
+
 def test_context_from_role_map_passes_through_is_assigned():
     user_id = uuid4()
     ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set(), is_assigned=True)
@@ -468,6 +478,8 @@ def test_build_policy_context_authoritative_reviewer():
 
 
 def test_build_policy_context_platform_admin_without_campaign_membership():
+    """Platform admins are members everywhere, matching the viewer_is_member flag
+    the campaign endpoints report - a members-only axis must let them through."""
     campaign = _campaign()
     user_id = uuid4()
     db = _db_with_campaign_user(cu=None, is_platform_admin=True)
@@ -475,7 +487,8 @@ def test_build_policy_context_platform_admin_without_campaign_membership():
     ctx = build_policy_context(db, campaign, user_id)
 
     assert ctx.is_admin is True
-    assert ctx.is_member is False
+    assert ctx.is_member is True
+    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
 
 
 def test_build_policy_context_no_task_is_never_assigned():
