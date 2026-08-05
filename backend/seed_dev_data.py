@@ -408,6 +408,17 @@ def clear_dev_data():
         else:
             logger.info("No Dev Org found")
 
+        for name in (CAMPAIGN_NAME, OPEN_CAMPAIGN_NAME):
+            campaign = db.execute(
+                select(Campaign).where(Campaign.name == name)
+            ).scalar_one_or_none()
+
+            if campaign:
+                db.delete(campaign)
+                logger.info("Deleted campaign: %s", name)
+            else:
+                logger.info("No campaign found: %s", name)
+
         db.commit()
         logger.info("Development data cleared.")
 
