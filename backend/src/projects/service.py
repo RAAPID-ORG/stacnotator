@@ -224,8 +224,9 @@ def update_project(
     if description is not None:
         project.description = description
     if is_public is not None:
+        was_public = project.is_public
         project.is_public = is_public
-        if not is_public:
+        if was_public and not is_public:
             _strip_anyone_from_campaign_policies(db, project)
     db.commit()
     db.refresh(project)
