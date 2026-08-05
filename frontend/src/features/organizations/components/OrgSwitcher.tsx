@@ -12,7 +12,7 @@ export type OrgSwitcherProps = {
 };
 
 const menuItemClass =
-  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs text-neutral-700 rounded-md ' +
+  'flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] text-neutral-700 rounded-md ' +
   'transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:bg-neutral-100';
 
 export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
@@ -104,33 +104,54 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
         <div className="h-8 rounded-md bg-neutral-100 animate-pulse" />
       ) : (
         <div className="relative" ref={containerRef}>
-          <button
-            ref={triggerRef}
-            type="button"
-            data-testid="org-switcher"
-            aria-label="Active organization"
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown' && !open) {
-                e.preventDefault();
-                setOpen(true);
-              }
-            }}
-            className="flex w-full items-center gap-2 h-8 px-2 text-xs text-neutral-700 bg-white border border-neutral-300 rounded-md shadow-sm cursor-pointer transition-colors hover:bg-neutral-50 focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15"
-          >
-            <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-            <span className="flex-1 min-w-0 truncate text-left font-medium">
-              {activeOrg?.name ?? 'No organization'}
-            </span>
-            {activeOrg?.status === 'pending' && <Badge tone="yellow">Pending</Badge>}
-            <IconChevronDown
-              className={`w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform ${
-                open ? 'rotate-180' : ''
-              }`}
-            />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              ref={triggerRef}
+              type="button"
+              data-testid="org-switcher"
+              aria-label="Active organization"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown' && !open) {
+                  e.preventDefault();
+                  setOpen(true);
+                }
+              }}
+              className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-[11px] text-neutral-700 bg-white border border-neutral-300 rounded-md shadow-sm cursor-pointer transition-colors hover:bg-neutral-50 focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15"
+            >
+              <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <span
+                className="flex-1 min-w-0 truncate text-left font-medium"
+                title={activeOrg?.name}
+              >
+                {activeOrg?.name ?? 'No organization'}
+              </span>
+              {activeOrg?.status === 'pending' && <Badge tone="yellow">Pending</Badge>}
+              <IconChevronDown
+                className={`w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform ${
+                  open ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {activeOrg?.is_admin && (
+              <button
+                type="button"
+                data-testid="org-switcher-manage"
+                aria-label="Manage organization"
+                title="Manage organization"
+                onClick={() => {
+                  setOpen(false);
+                  navigate(organizationPath(activeOrg.id));
+                  onNavigate?.();
+                }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center bg-white border border-neutral-300 rounded-md shadow-sm cursor-pointer transition-colors hover:bg-neutral-50 focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15"
+              >
+                <IconGear className="w-3.5 h-3.5 text-neutral-400" />
+              </button>
+            )}
+          </div>
 
           {open && (
             <div
