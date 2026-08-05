@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import type { CampaignUserOut } from '~/api/client';
+import type { ProjectUserOut } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
 
 interface ReviewerAssignmentModalProps {
   show: boolean;
   onClose: () => void;
-  campaignUsers: CampaignUserOut[];
+  projectUsers: ProjectUserOut[];
   onAssign: (pattern: AssignmentPattern) => Promise<void>;
   totalTasks: number;
 }
@@ -27,7 +27,7 @@ export type AssignmentPattern =
 export function ReviewerAssignmentModal({
   show,
   onClose,
-  campaignUsers,
+  projectUsers,
   onAssign,
   totalTasks,
 }: ReviewerAssignmentModalProps) {
@@ -47,10 +47,10 @@ export function ReviewerAssignmentModal({
   };
 
   const handleSelectAllReviewers = () => {
-    if (selectedReviewers.length === campaignUsers.length) {
+    if (selectedReviewers.length === projectUsers.length) {
       setSelectedReviewers([]);
     } else {
-      setSelectedReviewers(campaignUsers.map((u) => u.user.id));
+      setSelectedReviewers(projectUsers.map((u) => u.user.id));
     }
   };
 
@@ -211,11 +211,11 @@ export function ReviewerAssignmentModal({
               onClick={handleSelectAllReviewers}
               className="text-sm text-brand-700 hover:text-brand-600 mb-3"
             >
-              {selectedReviewers.length === campaignUsers.length ? 'Deselect All' : 'Select All'}
+              {selectedReviewers.length === projectUsers.length ? 'Deselect All' : 'Select All'}
             </button>
 
             <div className="space-y-2 max-h-64 overflow-y-auto border border-neutral-300 rounded-lg p-3">
-              {campaignUsers.map((cu) => (
+              {projectUsers.map((cu) => (
                 <label
                   key={cu.user.id}
                   className="flex items-center p-3 bg-neutral-50 rounded-lg cursor-pointer hover:bg-neutral-100"
@@ -232,7 +232,7 @@ export function ReviewerAssignmentModal({
                     {cu.is_admin && (
                       <span className="text-xs text-brand-700 font-semibold">Admin</span>
                     )}
-                    {cu.is_authorative_reviewer && (
+                    {cu.is_authoritative_reviewer && (
                       <span className="text-xs text-purple-500 font-semibold ml-2">
                         Authoritative Reviewer
                       </span>

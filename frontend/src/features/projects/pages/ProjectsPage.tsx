@@ -17,13 +17,13 @@ import {
   PROJECT_FILTERS,
   type ProjectFilter,
 } from '../components/projectFilters';
-import { useApprovedOrganizations } from '../components/useApprovedOrganizations';
+import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 
 export const ProjectsPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { organizations } = useApprovedOrganizations();
+  const { orgs: organizations } = useOrganizations({ approvedOnly: true });
 
   const [projects, setProjects] = useState<ProjectOut[]>([]);
   const [loading, setLoading] = useState(true);

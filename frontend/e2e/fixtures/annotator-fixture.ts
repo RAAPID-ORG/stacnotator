@@ -12,8 +12,8 @@ import {
   MOCK_CAMPAIGN,
   MOCK_TASK_LIST,
   MOCK_TASK_SETS,
-  MOCK_CAMPAIGN_USERS,
-  MOCK_CAMPAIGN_USERS_AUTHORITATIVE,
+  MOCK_PROJECT_USERS,
+  MOCK_PROJECT_USERS_AUTHORITATIVE,
   ALL_TASKS,
   makeSubmitResponse,
   makeDeleteResponse,
@@ -66,7 +66,7 @@ function extractPathParams(pathname: string): Record<string, string> {
     [/^\/api\/campaigns\/(\d+)\/create-annotation$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/detailed$/, ['campaign_id']],
-    [/^\/api\/campaigns\/(\d+)\/users$/, ['campaign_id']],
+    [/^\/api\/projects\/(\d+)\/users$/, ['project_id']],
     [/^\/api\/campaigns\/(\d+)\/(\d+)\/validate$/, ['campaign_id', 'annotation_task_id']],
   ];
 
@@ -102,15 +102,15 @@ async function parseBody(route: Route): Promise<any> {
  * Source exposes `__TASK_STORE__` to window in dev/test mode.
  */
 /**
- * Re-mock the campaign-users endpoint so the current user is an authoritative
+ * Re-mock the project-users endpoint so the current user is an authoritative
  * reviewer, then reload the page so the campaign store picks it up. Must be
  * called on a page that already went through `annotationPage` setup.
  */
 export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> {
   // Re-registered routes take precedence (Playwright runs in LIFO order).
-  await page.route('**/api/campaigns/*/users', async (route) => {
+  await page.route('**/api/projects/*/users', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
-    await route.fulfill({ json: MOCK_CAMPAIGN_USERS_AUTHORITATIVE });
+    await route.fulfill({ json: MOCK_PROJECT_USERS_AUTHORITATIVE });
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
@@ -243,10 +243,10 @@ export const test = base.extend<AnnotatorFixtures>({
       await route.fulfill({ json: MOCK_CAMPAIGN });
     });
 
-    // GET /api/campaigns/:id/users
-    await page.route('**/api/campaigns/*/users', async (route) => {
+    // GET /api/projects/:id/users
+    await page.route('**/api/projects/*/users', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
-      await route.fulfill({ json: MOCK_CAMPAIGN_USERS });
+      await route.fulfill({ json: MOCK_PROJECT_USERS });
     });
 
     // GET /api/campaigns/:id/annotation-tasks

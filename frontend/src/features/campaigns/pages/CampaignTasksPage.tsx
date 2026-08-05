@@ -29,7 +29,7 @@ import { FadeIn } from '~/shared/ui/motion';
 import {
   getAllAnnotationTasks,
   getCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   ingestAnnotationTasksFromCsv,
   ingestAnnotationTasksFromGeojson,
   assignTasksToUsers,
@@ -43,8 +43,8 @@ import {
   moveTasksToSet,
   type AnnotationTaskOut,
   type CampaignOut,
-  type CampaignUserOut,
   type GenerateTasksResponse,
+  type ProjectUserOut,
   type TaskSetOut,
 } from '~/api/client';
 
@@ -62,7 +62,7 @@ export const CampaignTasksPage = () => {
 
   const [annotationTasks, setAnnotationTasks] = useState<AnnotationTaskOut[]>([]);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [taskFile, setTaskFile] = useState<File | null>(new File([], ''));
   const [uploadingTasks, setUploadingTasks] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
@@ -103,14 +103,20 @@ export const CampaignTasksPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, tasksRes, usersRes] = await Promise.all([
+        const [campaignRes, tasksRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
-          getCampaignUsers({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);
         setAnnotationTasks(tasksRes.data?.tasks ?? []);
-        setCampaignUsers(usersRes.data?.users ?? []);
+        // Assignable users are the owning project's members, so this has to
+        // wait for the campaign to know which project to ask about.
+        if (campaignRes.data) {
+          const usersRes = await getProjectUsers({
+            path: { project_id: campaignRes.data.project_id },
+          });
+          setProjectUsers(usersRes.data?.users ?? []);
+        }
         await reloadTaskSets();
       } catch (err) {
         handleError(err, 'Failed to load campaign');
@@ -141,8 +147,8 @@ export const CampaignTasksPage = () => {
   };
 
   const isAdmin = useMemo(
-    () => campaignUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
-    [campaignUsers, currentUser]
+    () => projectUsers.some((u) => u.user.id === currentUser?.id && u.is_admin),
+    [projectUsers, currentUser]
   );
 
   const scopedAnnotationTasks = useMemo(
@@ -512,6 +518,7 @@ export const CampaignTasksPage = () => {
           <div className="surface surface-unclipped">
             <div className="p-6">
               <TasksTab
+                campaign={campaign}
                 scopedTasks={scopedAnnotationTasks}
                 totalTasks={annotationTasks.length}
                 taskFile={taskFile}
@@ -525,8 +532,6 @@ export const CampaignTasksPage = () => {
                 onAssignSelected={setAssignSelectedTaskIds}
                 handleBatchUnassignTasks={handleBatchUnassignTasks}
                 handleDeleteTasks={handleDeleteTasks}
-                campaignId={campaignId}
-                campaignName={campaign.name}
                 onAssignmentsImported={reloadAnnotationTasks}
                 taskSets={taskSets}
                 taskScope={taskScope}
@@ -549,14 +554,14 @@ export const CampaignTasksPage = () => {
         isOpen={showAssignmentModal}
         onClose={() => setShowAssignmentModal(false)}
         tasks={scopedAnnotationTasks}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         onAssign={handleBulkAssignTasks}
       />
 
       <AssignSelectedModal
         isOpen={assignSelectedTaskIds.length > 0}
         numTasks={assignSelectedTaskIds.length}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         taskIds={assignSelectedTaskIds}
         onAssign={handleAssignSelected}
         onCancel={() => setAssignSelectedTaskIds([])}
@@ -565,7 +570,7 @@ export const CampaignTasksPage = () => {
       <ReviewerAssignmentModal
         show={showReviewerModal}
         onClose={() => setShowReviewerModal(false)}
-        campaignUsers={campaignUsers}
+        projectUsers={projectUsers}
         onAssign={handleAssignReviewers}
         totalTasks={scopedAnnotationTasks.length}
       />

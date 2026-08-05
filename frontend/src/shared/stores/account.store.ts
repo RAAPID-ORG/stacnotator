@@ -30,9 +30,5 @@ export const useAccountStore = create<AccountState>((set) => ({
   clear: () => set({ account: null, loading: false, error: null, emailNotVerified: false }),
 }));
 
-// Visitors can not create campaigns
-export const useCanCreateCampaigns = () =>
-  useAccountStore((s) => !s.account?.is_visitor || !!s.account?.is_admin);
-
 // Only internal staff may point maps/imagery at internal (managed-identity) storage.
 export const useIsInternal = () => useAccountStore((s) => !!s.account?.is_internal);

@@ -10,14 +10,14 @@ import { IconPlus } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
-import { useApprovedOrganizations } from '../components/useApprovedOrganizations';
+import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 
 export const NewProjectPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { organizations, loading } = useApprovedOrganizations();
+  const { orgs: organizations, loading } = useOrganizations({ approvedOnly: true });
 
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [name, setName] = useState('');

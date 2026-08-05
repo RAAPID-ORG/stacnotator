@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Layout } from 'react-grid-layout';
 import {
   getCampaignWithImageryWindows,
-  getCampaignUsers,
+  getProjectUsers,
   getAllAnnotationTasks,
   listTaskSets,
   createNewCanvasLayout,
@@ -69,7 +69,7 @@ interface CampaignStore {
   isReviewMode: boolean;
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
-  /** Whether the current user is a CampaignUser of this campaign (any role).
+  /** Whether the current user is a member of the campaign's project (any role).
    *  Feeds the 'members' kind of labelling-policy audience checks. */
   isCampaignMember: boolean;
   /** Client-side work style within the annotation UI, independent of the
@@ -156,21 +156,22 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     set({ isLoadingCampaign: true });
 
     try {
-      const [campaignRes, usersRes, tasksRes, setsRes] = await Promise.all([
+      const [campaignRes, tasksRes, setsRes] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
-        getCampaignUsers({ path: { campaign_id: campaignId } }),
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
         listTaskSets({ path: { campaign_id: campaignId } }),
       ]);
 
       const campaign = campaignRes.data!;
-      const campaignUsers = usersRes.data?.users ?? [];
+      // Roles live on the owning project, which only the loaded campaign names.
+      const usersRes = await getProjectUsers({ path: { project_id: campaign.project_id } });
+      const projectUsers = usersRes.data?.users ?? [];
       const currentUserId = useAccountStore.getState().account?.id;
 
-      const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
-      const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
-      const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
-      const isCampaignMember = currentCampaignUser != null;
+      const membership = projectUsers.find((pu) => pu.user.id === currentUserId);
+      const isAuthoritativeReviewer = membership?.is_authoritative_reviewer ?? false;
+      const isCampaignAdmin = membership?.is_admin ?? false;
+      const isCampaignMember = membership != null;
 
       // View & layout
       const firstView = campaign.imagery_views[0];

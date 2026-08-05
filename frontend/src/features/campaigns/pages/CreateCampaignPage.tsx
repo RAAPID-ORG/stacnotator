@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import type { CampaignCreate } from '~/api/client';
-import { createCampaign } from '~/api/client';
+import type { CampaignCreate, ProjectOut, ProjectUserOut } from '~/api/client';
+import { createCampaign, getProject, getProjectUsers } from '~/api/client';
 import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/components/LabellingPolicyEditor';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
-import { useCanCreateCampaigns } from '~/shared/stores/account.store';
+import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import {
   validateFullForm,
   type FullValidationResult,
@@ -26,7 +26,6 @@ import { handleError } from '~/shared/utils/errorHandler';
 export const CreateCampaignPage = () => {
   const navigate = useNavigate();
   const projectId = useProjectIdParam();
-  const canCreateCampaigns = useCanCreateCampaigns();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const showLoadingOverlay = useLayoutStore((s) => s.showLoadingOverlay);
@@ -44,8 +43,33 @@ export const CreateCampaignPage = () => {
   const [showValidation, setShowValidation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [project, setProject] = useState<ProjectOut | null>(null);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
+  const [loadingProject, setLoadingProject] = useState(true);
+
+  useEffect(() => {
+    const loadProject = async () => {
+      try {
+        setLoadingProject(true);
+        const [projectRes, usersRes] = await Promise.all([
+          getProject({ path: { project_id: projectId } }),
+          getProjectUsers({ path: { project_id: projectId } }),
+        ]);
+        setProject(projectRes.data ?? null);
+        setProjectUsers(usersRes.data?.users ?? []);
+      } catch (err) {
+        handleError(err, 'Failed to load project');
+      } finally {
+        setLoadingProject(false);
+      }
+    };
+
+    loadProject();
+  }, [projectId]);
+
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
+    project_id: projectId,
     settings: {
       labels: [],
       bbox_west: -17.5,
@@ -89,7 +113,14 @@ export const CreateCampaignPage = () => {
     const stepComponent = currentStepConfig[step - 1]?.component;
     switch (stepComponent) {
       case 'StepCampaign':
-        return <StepCampaign form={form} setForm={setForm} />;
+        return (
+          <StepCampaign
+            form={form}
+            setForm={setForm}
+            projectIsPublic={project?.is_public ?? false}
+            members={projectUsers}
+          />
+        );
       case 'StepSettings':
         return <StepSettings form={form} setForm={setForm} />;
       case 'StepImagery':
@@ -146,7 +177,16 @@ export const CreateCampaignPage = () => {
     }
   };
 
-  if (!canCreateCampaigns) {
+  if (loadingProject) {
+    return (
+      <SkeletonPage>
+        <SkeletonForm sections={3} />
+      </SkeletonPage>
+    );
+  }
+
+  // Only project admins may add campaigns to a project.
+  if (!project?.is_admin) {
     return <Navigate to={projectPath(projectId)} replace />;
   }
 

@@ -7,10 +7,16 @@ import {
   TaskScopeBar,
   type TaskScope,
 } from '~/features/campaigns/components/settings/TaskScopeBar';
-import type { AnnotationTaskOut, GenerateTasksResponse, TaskSetOut } from '~/api/client';
+import type {
+  AnnotationTaskOut,
+  CampaignOut,
+  GenerateTasksResponse,
+  TaskSetOut,
+} from '~/api/client';
 import { Button } from '~/shared/ui/forms';
 
 interface Props {
+  campaign: CampaignOut;
   // Already filtered to the active scope by the page (single source of truth).
   scopedTasks: AnnotationTaskOut[];
   totalTasks: number;
@@ -25,8 +31,6 @@ interface Props {
   onAssignSelected: (taskIds: number[]) => void;
   handleBatchUnassignTasks: (taskIds: number[]) => Promise<void>;
   handleDeleteTasks: (taskIds: number[]) => Promise<void>;
-  campaignId: number;
-  campaignName: string;
   onAssignmentsImported: () => Promise<void>;
   taskSets: TaskSetOut[];
   taskScope: TaskScope;
@@ -44,6 +48,7 @@ interface Props {
 }
 
 export const TasksTab: React.FC<Props> = ({
+  campaign,
   scopedTasks,
   totalTasks,
   taskFile,
@@ -57,8 +62,6 @@ export const TasksTab: React.FC<Props> = ({
   onAssignSelected,
   handleBatchUnassignTasks,
   handleDeleteTasks,
-  campaignId,
-  campaignName,
   onAssignmentsImported,
   taskSets,
   taskScope,
@@ -69,6 +72,7 @@ export const TasksTab: React.FC<Props> = ({
   onMoveTasks,
   bbox,
 }) => {
+  const campaignId = campaign.id;
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';
 
@@ -179,6 +183,7 @@ export const TasksTab: React.FC<Props> = ({
     <section className={sectionCls}>
       {scopedTasks.length > 0 ? (
         <TaskModeReview
+          campaign={campaign}
           campaignId={campaignId}
           tasks={scopedTasks}
           taskSets={taskSets}
@@ -235,7 +240,7 @@ export const TasksTab: React.FC<Props> = ({
       {taskScope === 'all' && totalTasks > 0 && (
         <TaskAssignmentsExportImport
           campaignId={campaignId}
-          campaignName={campaignName}
+          campaignName={campaign.name}
           onImported={onAssignmentsImported}
         />
       )}

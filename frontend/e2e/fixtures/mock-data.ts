@@ -131,6 +131,7 @@ const DEFAULT_LAYOUT = {
 // Full campaign object
 export const MOCK_CAMPAIGN = {
   id: 42,
+  project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
   mode: 'tasks',
@@ -331,8 +332,8 @@ export const MOCK_TASK_SETS = [
   },
 ];
 
-export const MOCK_CAMPAIGN_USERS = {
-  campaign_id: 42,
+export const MOCK_PROJECT_USERS = {
+  project_id: 7,
   users: [
     {
       user: {
@@ -344,7 +345,7 @@ export const MOCK_CAMPAIGN_USERS = {
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
     {
       user: {
@@ -356,14 +357,14 @@ export const MOCK_CAMPAIGN_USERS = {
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
   ],
 };
 
 /** Variant where the current user is an authoritative reviewer. */
-export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
-  campaign_id: 42,
+export const MOCK_PROJECT_USERS_AUTHORITATIVE = {
+  project_id: 7,
   users: [
     {
       user: {
@@ -375,7 +376,7 @@ export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: true,
+      is_authoritative_reviewer: true,
     },
     {
       user: {
@@ -387,7 +388,7 @@ export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
   ],
 };

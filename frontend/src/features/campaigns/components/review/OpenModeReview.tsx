@@ -4,10 +4,10 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import {
   batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   type AnnotationOut,
   type CampaignOut,
-  type CampaignUserOut,
+  type ProjectUserOut,
 } from '~/api/client';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -47,7 +47,7 @@ export const OpenModeReview = ({
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [annotations, setAnnotations] = useState<AnnotationOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
 
@@ -72,8 +72,8 @@ export const OpenModeReview = ({
         setAnnotations(annotationsRes.data || []);
 
         try {
-          const usersRes = await getCampaignUsers({ path: { campaign_id: campaignId } });
-          setCampaignUsers(usersRes.data?.users || []);
+          const usersRes = await getProjectUsers({ path: { project_id: campaign.project_id } });
+          setProjectUsers(usersRes.data?.users || []);
         } catch {
           /* empty */
         }
@@ -84,7 +84,7 @@ export const OpenModeReview = ({
       }
     };
     loadData();
-  }, [campaignId]);
+  }, [campaignId, campaign.project_id]);
 
   const uniqueUsers = useMemo((): UserInfo[] => {
     const m = new Map<string, UserInfo>();
@@ -155,8 +155,8 @@ export const OpenModeReview = ({
   }, [annotations]);
 
   const isCampaignAdmin = useMemo(
-    () => !!campaignUsers.find((cu) => cu.user.id === currentUser?.id && cu.is_admin),
-    [campaignUsers, currentUser?.id]
+    () => !!projectUsers.find((pu) => pu.user.id === currentUser?.id && pu.is_admin),
+    [projectUsers, currentUser?.id]
   );
 
   // Mirror backend rule (annotation/service.py:delete_annotations_bulk):

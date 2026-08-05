@@ -14,7 +14,6 @@ import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
-import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -23,19 +22,19 @@ import { FadeIn } from '~/shared/ui/motion';
 import {
   createTimeseriesForCampaign,
   getCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   deleteCampaign,
   deleteTimeseries,
   type CampaignOut,
-  type CampaignUserOut,
   type ImagerySourceOut,
+  type ProjectUserOut,
   type TimeSeriesCreate,
   type TimeSeriesOut,
   updateCampaignName,
   updateCampaignBbox,
 } from '~/api/client';
 
-const SETTINGS_TABS = ['general', 'imagery', 'users', 'timeseries'] as const;
+const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const isSettingsTab = (t: string | null): t is SettingsTab =>
@@ -61,7 +60,7 @@ export const CampaignSettingsPage = () => {
   // Form states
   const [campaignName, setCampaignName] = useState('');
   const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [timeseries, setTimeseries] = useState<TimeSeriesOut[]>([]);
   const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
 
@@ -191,26 +190,26 @@ export const CampaignSettingsPage = () => {
     return () => clearInterval(interval);
   }, [isAnyRegistering, campaignId, showAlert]);
 
-  // Load campaign users when the users tab is active, or the general tab
-  // (labelling access needs the member list for the "selected members"
-  // picker). Re-fetches every time the tab becomes active so changes made
-  // in the users tab (add / remove / promote) stay current.
+  // The general tab's labelling access needs the project's member list for the
+  // "selected members" picker. Re-fetched whenever the tab becomes active so
+  // membership changes made in project settings stay current.
+  const campaignProjectId = campaign?.project_id;
   useEffect(() => {
-    if (activeTab !== 'users' && activeTab !== 'general') return;
+    if (activeTab !== 'general' || campaignProjectId === undefined) return;
 
     const loadUsers = async () => {
       try {
-        const { data } = await getCampaignUsers({
-          path: { campaign_id: campaignId },
+        const { data } = await getProjectUsers({
+          path: { project_id: campaignProjectId },
         });
-        setCampaignUsers(data!.users);
+        setProjectUsers(data!.users);
       } catch (err) {
-        handleError(err, 'Failed to load campaign users');
+        handleError(err, 'Failed to load project members');
       }
     };
 
     loadUsers();
-  }, [activeTab, campaignId]);
+  }, [activeTab, campaignProjectId]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -353,7 +352,7 @@ export const CampaignSettingsPage = () => {
           <header className="page-header">
             <div>
               <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
-              <p className="page-subtitle">Manage your campaign settings, imagery, and users.</p>
+              <p className="page-subtitle">Manage your campaign settings and imagery.</p>
             </div>
             <div className="flex gap-2">
               {imageryController.isDirty ? (
@@ -510,7 +509,6 @@ export const CampaignSettingsPage = () => {
                 { id: 'general', label: 'General Settings' },
                 { id: 'imagery', label: 'Imagery' },
                 { id: 'timeseries', label: 'Timeseries' },
-                { id: 'users', label: 'Users' },
               ]}
               activeId={activeTab}
               onChange={setActiveTab}
@@ -532,7 +530,7 @@ export const CampaignSettingsPage = () => {
                   }
                   onOpenDelete={() => setShowDeleteCampaignDialog(true)}
                   onCampaignUpdated={(updated) => setCampaign(updated)}
-                  campaignUsers={campaignUsers}
+                  projectUsers={projectUsers}
                 />
               )}
 
@@ -552,15 +550,6 @@ export const CampaignSettingsPage = () => {
                   imagery={imagery}
                   campaignMode={campaign?.mode || 'tasks'}
                   campaignSettings={campaign?.settings || {}}
-                />
-              )}
-
-              {activeTab === 'users' && (
-                <UsersTab
-                  campaignId={campaignId}
-                  onError={(msg) => showAlert(msg, 'error')}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  campaignUsers={campaignUsers}
                 />
               )}
             </div>

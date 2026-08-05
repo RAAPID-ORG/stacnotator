@@ -6,7 +6,7 @@ import { onIdle } from '~/shared/utils/idle';
 
 import {
   getCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   listTaskSets,
   type CampaignOut,
   type TaskSetOut,
@@ -56,15 +56,19 @@ export const CampaignOverviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, taskSetsRes, usersRes] = await Promise.all([
+        const [campaignRes, taskSetsRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
-          getCampaignUsers({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
         const account = useAccountStore.getState().account;
-        const membership = usersRes.data?.users.find((cu) => cu.user.id === account?.id);
+        // Admin rights come from the owning project, so this has to wait for
+        // the campaign to know which project to ask about.
+        const usersRes = campaignRes.data
+          ? await getProjectUsers({ path: { project_id: campaignRes.data.project_id } })
+          : null;
+        const membership = usersRes?.data?.users.find((pu) => pu.user.id === account?.id);
         setIsAdmin((account?.is_admin ?? false) || (membership?.is_admin ?? false));
       } catch (err) {
         handleError(err, 'Failed to load campaign');
