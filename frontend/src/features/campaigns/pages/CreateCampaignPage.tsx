@@ -2,7 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { CampaignCreate, ProjectOut, ProjectUserOut } from '~/api/client';
 import { createCampaign, getProject, getProjectUsers } from '~/api/client';
-import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/components/LabellingPolicyEditor';
+import {
+  DEFAULT_LABELLING_POLICY,
+  withAnyoneSeeded,
+} from '~/features/campaigns/utils/labellingPolicy';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
@@ -47,26 +50,6 @@ export const CreateCampaignPage = () => {
   const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
 
-  useEffect(() => {
-    const loadProject = async () => {
-      try {
-        setLoadingProject(true);
-        const [projectRes, usersRes] = await Promise.all([
-          getProject({ path: { project_id: projectId } }),
-          getProjectUsers({ path: { project_id: projectId } }),
-        ]);
-        setProject(projectRes.data ?? null);
-        setProjectUsers(usersRes.data?.users ?? []);
-      } catch (err) {
-        handleError(err, 'Failed to load project');
-      } finally {
-        setLoadingProject(false);
-      }
-    };
-
-    loadProject();
-  }, [projectId]);
-
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
     project_id: projectId,
@@ -81,6 +64,36 @@ export const CreateCampaignPage = () => {
     timeseries_configs: [],
     labelling_policy: DEFAULT_LABELLING_POLICY,
   });
+
+  // Runs before the wizard is interactive (a skeleton covers the load), so
+  // seeding the policy here can't overwrite anything the user picked.
+  useEffect(() => {
+    const loadProject = async () => {
+      try {
+        setLoadingProject(true);
+        const [projectRes, usersRes] = await Promise.all([
+          getProject({ path: { project_id: projectId } }),
+          getProjectUsers({ path: { project_id: projectId } }),
+        ]);
+        setProject(projectRes.data ?? null);
+        setProjectUsers(usersRes.data?.users ?? []);
+        if (projectRes.data?.is_public) {
+          setForm((current) => ({
+            ...current,
+            labelling_policy: withAnyoneSeeded(
+              current.labelling_policy ?? DEFAULT_LABELLING_POLICY
+            ),
+          }));
+        }
+      } catch (err) {
+        handleError(err, 'Failed to load project');
+      } finally {
+        setLoadingProject(false);
+      }
+    };
+
+    loadProject();
+  }, [projectId]);
 
   const [imageryState, setImageryState] = useState<ImageryStepState>(createInitialImageryState);
 

@@ -52,16 +52,6 @@ const AXES: {
 
 const emptyAudience: PolicyAudience = { kinds: [], user_ids: [] };
 
-// Matches backend/src/campaigns/schemas.py default_labelling_policy(): any
-// member can label anything; completion stays with assignees/admins/
-// authoritative. Used to seed a new campaign in the wizard.
-export const DEFAULT_LABELLING_POLICY: LabellingPolicy = {
-  explore: { kinds: ['members'], user_ids: [] },
-  unassigned_tasks: { kinds: ['members'], user_ids: [] },
-  assigned_tasks: { kinds: ['members'], user_ids: [] },
-  complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
-};
-
 const memberName = (u: ProjectUserOut) => u.user.display_name || u.user.email;
 
 interface LabellingPolicyEditorProps {

@@ -1,10 +1,8 @@
 import type { CampaignCreate, ProjectUserOut } from '~/api/client';
 import { Input } from '~/shared/ui/forms';
 import { useAccountStore } from '~/shared/stores/account.store';
-import {
-  DEFAULT_LABELLING_POLICY,
-  LabellingPolicyEditor,
-} from '~/features/campaigns/components/LabellingPolicyEditor';
+import { LabellingPolicyEditor } from '~/features/campaigns/components/LabellingPolicyEditor';
+import { DEFAULT_LABELLING_POLICY } from '~/features/campaigns/utils/labellingPolicy';
 
 const MEMBERS_HINT = 'Members come from the project - manage them under the project’s Members tab.';
 
