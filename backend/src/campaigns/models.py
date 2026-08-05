@@ -22,6 +22,7 @@ from src.database import Base
 
 if TYPE_CHECKING:
     from src.canvas.models import CanvasLayout
+    from src.projects.models import Project
 
 
 class Campaign(Base):
@@ -60,7 +61,12 @@ class Campaign(Base):
     # affected tiles without a manual purge.
     annotations_version: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
 
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False
+    )
+
     # Relationships
+    project: Mapped["Project"] = relationship(back_populates="campaigns")
     settings: Mapped["CampaignSettings"] = relationship(
         back_populates="campaign",
         uselist=False,
