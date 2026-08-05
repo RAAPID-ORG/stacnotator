@@ -96,6 +96,32 @@ export const searchUsers = <T>(
     .map(({ item }) => item);
 };
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export interface ParsedEmails {
+  emails: string[];
+  invalid: string[];
+}
+
+/** Splits pasted text on commas/semicolons/whitespace, dedupes
+ *  case-insensitively and separates entries that cannot be an address. */
+export const parseEmailList = (raw: string): ParsedEmails => {
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  const invalid: string[] = [];
+
+  for (const token of raw.split(/[\s,;]+/)) {
+    if (!token) continue;
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (EMAIL_PATTERN.test(token)) emails.push(token);
+    else invalid.push(token);
+  }
+
+  return { emails, invalid };
+};
+
 /**
  * Extract latitude and longitude from a WKT POINT string
  * Supports both 2D and 3D (POINT Z) formats

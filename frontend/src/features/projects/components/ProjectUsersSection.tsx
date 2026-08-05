@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
-import { searchUsers } from '~/shared/utils/utility';
+import { parseEmailList, searchUsers } from '~/shared/utils/utility';
 import {
   addProjectUsers,
   addProjectUsersByIds,
@@ -22,20 +22,6 @@ interface ProjectUsersSectionProps {
   projectId: number;
   canManage: boolean;
 }
-
-const parseEmails = (raw: string): string[] => {
-  const seen = new Set<string>();
-  const emails: string[] = [];
-  for (const token of raw.split(/[\s,;]+/)) {
-    const email = token.trim();
-    if (!email) continue;
-    const key = email.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    emails.push(email);
-  }
-  return emails;
-};
 
 const userLabel = (user: UserOut) => user.display_name || user.email;
 
@@ -58,6 +44,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   const [emailsText, setEmailsText] = useState('');
   const [addingEmails, setAddingEmails] = useState(false);
   const [emailResult, setEmailResult] = useState<AddUsersByEmailResult | null>(null);
+  const [malformedEmails, setMalformedEmails] = useState<string[]>([]);
 
   const loadUsers = useCallback(async () => {
     const { data } = await getProjectUsers({ path: { project_id: projectId } });
@@ -151,8 +138,12 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   };
 
   const handleAddEmails = async () => {
-    const emails = parseEmails(emailsText);
-    if (emails.length === 0) return;
+    const { emails, invalid } = parseEmailList(emailsText);
+    setMalformedEmails(invalid);
+    if (emails.length === 0) {
+      setEmailResult(null);
+      return;
+    }
 
     try {
       setAddingEmails(true);
@@ -383,14 +374,22 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
               <Button
                 data-testid="member-emails-submit"
                 onClick={handleAddEmails}
-                disabled={addingEmails || parseEmails(emailsText).length === 0}
+                disabled={addingEmails || emailsText.trim() === ''}
               >
                 {addingEmails ? 'Adding…' : 'Add by email'}
               </Button>
             </div>
-            {emailResult && (
+            {(malformedEmails.length > 0 || emailResult) && (
               <div className="space-y-2 text-xs">
-                {emailResult.added.length > 0 && (
+                {malformedEmails.length > 0 && (
+                  <div
+                    data-testid="add-result-malformed"
+                    className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700"
+                  >
+                    Not an email address: {malformedEmails.join(', ')}
+                  </div>
+                )}
+                {emailResult && emailResult.added.length > 0 && (
                   <div
                     data-testid="add-result-added"
                     className="px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-green-800"
@@ -400,7 +399,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     {emailResult.added.map((u) => u.email).join(', ')}
                   </div>
                 )}
-                {emailResult.unknown_emails.length > 0 && (
+                {emailResult && emailResult.unknown_emails.length > 0 && (
                   <div
                     data-testid="add-result-unknown"
                     className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800"

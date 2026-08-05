@@ -12,7 +12,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge } from '~/shared/ui/Badge';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
-import { parseEmailList } from '../utils/organizations';
+import { parseEmailList } from '~/shared/utils/utility';
 
 export type OrganizationMembersProps = {
   organizationId: number;

@@ -37,7 +37,7 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
     name.trim() !== project.name || description.trim() !== (project.description ?? '');
 
   const applyUpdate = async (
-    body: { name?: string; description?: string | null; is_public?: boolean },
+    body: { name?: string; description?: string; is_public?: boolean },
     successMessage: string
   ) => {
     try {
@@ -59,7 +59,7 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
       return;
     }
     await applyUpdate(
-      { name: trimmed, description: description.trim() || null },
+      { name: trimmed, description: description.trim() },
       'Project details updated'
     );
   };
