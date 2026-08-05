@@ -3,8 +3,12 @@
 Pure functional core (no DB, no FastAPI): every access decision that depends
 on a project's visibility scope - dependencies, list/detail flags, tiler token
 scoping, labelling-policy contexts - resolves through these helpers so the
-rule exists exactly once. Callers fetch the inputs (row membership, active org
-membership, platform-admin standing) themselves.
+rule exists exactly once.
+
+Input contract: `is_active_org_member` is the RAW membership fact - the viewer
+holds an active membership in the (approved) owning organization, fetched via
+organizations.service.is_active_org_member. The helpers apply the org-public
+visibility scope themselves; callers must never pre-and it with visibility.
 """
 
 from typing import Literal, NamedTuple
@@ -31,7 +35,7 @@ class ProjectFlags(NamedTuple):
 def has_project_access(
     *,
     visibility: str,
-    is_org_member: bool,
+    is_active_org_member: bool,
     is_member: bool,
     is_platform_admin: bool,
 ) -> bool:
@@ -40,14 +44,14 @@ def has_project_access(
         is_platform_admin
         or is_member
         or visibility == VISIBILITY_PUBLIC
-        or (visibility == VISIBILITY_ORGANIZATION and is_org_member)
+        or (visibility == VISIBILITY_ORGANIZATION and is_active_org_member)
     )
 
 
 def is_policy_member(
     *,
     visibility: str,
-    is_org_member: bool,
+    is_active_org_member: bool,
     is_member: bool,
     is_platform_admin: bool,
 ) -> bool:
@@ -56,14 +60,16 @@ def is_policy_member(
     Platform-public access alone never grants membership - the 'anyone'
     audience is the only door open to that crowd."""
     return (
-        is_platform_admin or is_member or (visibility == VISIBILITY_ORGANIZATION and is_org_member)
+        is_platform_admin
+        or is_member
+        or (visibility == VISIBILITY_ORGANIZATION and is_active_org_member)
     )
 
 
 def resolve_project_flags(
     *,
     visibility: str,
-    is_org_member: bool,
+    is_active_org_member: bool,
     is_member: bool,
     member_is_admin: bool,
     is_platform_admin: bool,
@@ -73,10 +79,10 @@ def resolve_project_flags(
     display membership (the frontend renders those rows as "Org access")."""
     has_access = has_project_access(
         visibility=visibility,
-        is_org_member=is_org_member,
+        is_active_org_member=is_active_org_member,
         is_member=is_member,
         is_platform_admin=is_platform_admin,
     )
-    visible = has_access or is_org_member
+    visible = has_access or is_active_org_member
     is_admin = is_platform_admin or (is_member and member_is_admin)
     return ProjectFlags(visible, has_access, is_member or is_platform_admin, is_admin)

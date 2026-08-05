@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.database import get_db
-from src.organizations.service import grants_org_access
+from src.organizations.service import is_active_org_member
 from src.projects.access import has_project_access
 from src.projects.models import Project, ProjectUser
 
@@ -35,7 +35,7 @@ def require_project_access(
     project, membership = _get_project_and_membership(project_id, db, user)
     if has_project_access(
         visibility=project.visibility,
-        is_org_member=grants_org_access(db, user.id, project),
+        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
         is_member=membership is not None,
         is_platform_admin=user.is_admin,
     ):

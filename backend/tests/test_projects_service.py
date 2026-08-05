@@ -374,7 +374,7 @@ class TestListProjectCampaigns:
 
     def _db_with(self, db, campaigns, membership, org_membership=None):
         db.scalars.return_value.all.return_value = campaigns
-        # grants_org_access (org-public projects only) reads db.scalars().first().
+        # is_active_org_member (org-public projects only) reads db.scalars().first().
         db.scalars.return_value.first.return_value = org_membership
         db.get.return_value = membership
 

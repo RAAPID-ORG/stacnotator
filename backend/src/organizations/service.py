@@ -16,7 +16,6 @@ from src.organizations.models import (
     OrganizationTiler,
     OrganizationUser,
 )
-from src.projects.access import VISIBILITY_ORGANIZATION
 from src.projects.models import Project, ProjectUser
 from src.tilers import registry
 
@@ -34,26 +33,21 @@ def normalize_emails(emails: list[str]) -> list[str]:
 
 
 def is_active_org_member(db: Session, user_id: UUID, organization_id: int) -> bool:
-    """The org-membership input to the access rule in projects/access.py:
-    an active (not pending) membership row in the given org."""
+    """The raw org-membership input to the access rule in projects/access.py:
+    an active (not pending) membership row in an APPROVED org. Pending or
+    rejected orgs grant nothing, so their members get no org-public access."""
     return (
         db.scalars(
-            select(OrganizationUser).where(
+            select(OrganizationUser)
+            .join(Organization, Organization.id == OrganizationUser.organization_id)
+            .where(
                 OrganizationUser.user_id == user_id,
                 OrganizationUser.organization_id == organization_id,
                 OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                Organization.status == ORG_STATUS_APPROVED,
             )
         ).first()
         is not None
-    )
-
-
-def grants_org_access(db: Session, user_id: UUID, project: Project) -> bool:
-    """Whether org membership alone opens this project: org-public visibility
-    plus an active membership in the owning org. The one DB-backed composition
-    of the pure rule's org input, shared by every per-project access check."""
-    return project.visibility == VISIBILITY_ORGANIZATION and is_active_org_member(
-        db, user_id, project.organization_id
     )
 
 
@@ -264,26 +258,38 @@ def consume_invites_for_new_user(db: Session, user: User) -> None:
         )
     ).all()
     now = datetime.now(UTC)
+    # Track per-target grants: under autoflush=False a pending add is invisible
+    # to db.get, so a duplicate invite for one target (pre-index rows, races)
+    # would otherwise insert a second membership and abort the registration.
+    granted_orgs: set[int] = set()
+    granted_projects: set[int] = set()
     for invite in invites:
         org_id, project_id = invite.organization_id, invite.project_id
-        if org_id is not None and db.get(OrganizationUser, (user.id, org_id)) is None:
-            db.add(
-                OrganizationUser(
-                    user_id=user.id,
-                    organization_id=org_id,
-                    is_admin=False,
-                    status=MEMBER_STATUS_ACTIVE,
+        if org_id is not None:
+            if org_id not in granted_orgs and db.get(OrganizationUser, (user.id, org_id)) is None:
+                db.add(
+                    OrganizationUser(
+                        user_id=user.id,
+                        organization_id=org_id,
+                        is_admin=False,
+                        status=MEMBER_STATUS_ACTIVE,
+                    )
                 )
-            )
-        elif project_id is not None and db.get(ProjectUser, (user.id, project_id)) is None:
-            db.add(
-                ProjectUser(
-                    user_id=user.id,
-                    project_id=project_id,
-                    is_admin=False,
-                    is_authoritative_reviewer=False,
+            granted_orgs.add(org_id)
+        elif project_id is not None:
+            if (
+                project_id not in granted_projects
+                and db.get(ProjectUser, (user.id, project_id)) is None
+            ):
+                db.add(
+                    ProjectUser(
+                        user_id=user.id,
+                        project_id=project_id,
+                        is_admin=False,
+                        is_authoritative_reviewer=False,
+                    )
                 )
-            )
+            granted_projects.add(project_id)
         invite.consumed_at = now
         invite.consumed_by = user.id
 

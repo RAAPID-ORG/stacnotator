@@ -10,7 +10,7 @@ from fastapi import HTTPException
 def _build_db(campaign_result, membership_result, org_membership=None):
     """Build a mock db where successive db.execute().scalar_one_or_none()
     calls return campaign_result, then membership_result. The active-org
-    membership lookup (grants_org_access) reads db.scalars().first()."""
+    membership lookup (is_active_org_member) reads db.scalars().first()."""
     results = [campaign_result, membership_result]
     call_index = {"i": 0}
 

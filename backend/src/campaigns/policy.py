@@ -21,9 +21,14 @@ from src.auth.constants import ROLE_ADMIN
 from src.auth.models import UserRole
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience, default_labelling_policy
-from src.organizations.models import MEMBER_STATUS_ACTIVE, OrganizationUser
-from src.organizations.service import grants_org_access
-from src.projects.access import VISIBILITY_ORGANIZATION
+from src.organizations.models import (
+    MEMBER_STATUS_ACTIVE,
+    ORG_STATUS_APPROVED,
+    Organization,
+    OrganizationUser,
+)
+from src.organizations.service import is_active_org_member
+from src.projects.access import VISIBILITY_ORGANIZATION, is_policy_member
 from src.projects.models import ProjectUser
 
 
@@ -100,16 +105,19 @@ def context_from_role_map(
 
 
 def get_org_public_member_ids(db: Session, campaign: Campaign) -> set[UUID]:
-    """Active members of the owning organization, when (and only when) the
-    campaign's project is org-public - the amortized counterpart of
-    `grants_org_access` for `context_from_role_map`. Empty set otherwise."""
+    """Active members of the owning APPROVED organization, when (and only
+    when) the campaign's project is org-public - the amortized counterpart of
+    `is_active_org_member` for `context_from_role_map`. Empty set otherwise."""
     if campaign.project.visibility != VISIBILITY_ORGANIZATION:
         return set()
     return set(
         db.scalars(
-            select(OrganizationUser.user_id).where(
+            select(OrganizationUser.user_id)
+            .join(Organization, Organization.id == OrganizationUser.organization_id)
+            .where(
                 OrganizationUser.organization_id == campaign.project.organization_id,
                 OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                Organization.status == ORG_STATUS_APPROVED,
             )
         ).all()
     )
@@ -231,7 +239,12 @@ def build_policy_context(
     is_assigned = task is not None and any(
         assignment.user_id == user_id for assignment in (task.assignments or [])
     )
-    is_member = pu is not None or is_platform or grants_org_access(db, user_id, campaign.project)
+    is_member = is_policy_member(
+        visibility=campaign.project.visibility,
+        is_active_org_member=is_active_org_member(db, user_id, campaign.project.organization_id),
+        is_member=pu is not None,
+        is_platform_admin=is_platform,
+    )
     return PolicyContext(
         user_id=user_id,
         is_admin=(pu is not None and pu.is_admin) or is_platform,

@@ -422,12 +422,18 @@ def test_get_org_public_member_ids_empty_without_org_public_visibility():
     db.scalars.assert_not_called()
 
 
-def test_get_org_public_member_ids_reads_active_members_for_org_public():
+def test_get_org_public_member_ids_reads_active_members_of_the_approved_org():
     member_id = uuid4()
     db = MagicMock()
     db.scalars.return_value.all.return_value = [member_id]
 
     assert get_org_public_member_ids(db, _campaign("organization")) == {member_id}
+
+    stmt = db.scalars.call_args.args[0]
+    text = str(stmt)
+    params = list(stmt.compile().params.values())
+    assert "JOIN data.organizations" in text
+    assert "active" in params and "approved" in params
 
 
 # ============================================================================

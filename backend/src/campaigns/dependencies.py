@@ -6,7 +6,7 @@ from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.database import get_db
-from src.organizations.service import grants_org_access
+from src.organizations.service import is_active_org_member
 from src.projects.access import has_project_access
 from src.projects.models import ProjectUser
 
@@ -57,7 +57,7 @@ def require_campaign_access(
 
     if not has_project_access(
         visibility=campaign.project.visibility,
-        is_org_member=grants_org_access(db, user.id, campaign.project),
+        is_active_org_member=is_active_org_member(db, user.id, campaign.project.organization_id),
         is_member=membership is not None,
         is_platform_admin=user.is_admin,
     ):

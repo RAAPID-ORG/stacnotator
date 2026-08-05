@@ -6,12 +6,14 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.dialects import postgresql
 
 from src.organizations.models import Invite, Organization, OrganizationUser
 from src.organizations.service import (
     add_users_by_email,
     consume_invites_for_new_user,
     invite_emails,
+    is_active_org_member,
     revoke_invite,
     update_organization,
 )
@@ -58,6 +60,31 @@ class TestUpdateOrganization:
 
 def _added(db, model):
     return [call.args[0] for call in db.add.call_args_list if isinstance(call.args[0], model)]
+
+
+class TestIsActiveOrgMember:
+    """The org-membership input to the access rule: an ACTIVE row in an
+    APPROVED org. An active member of a pending org gets no org-public access."""
+
+    def test_requires_active_membership_in_an_approved_org(self):
+        db = _mock_db()
+        db.scalars.return_value.first.return_value = None
+
+        assert is_active_org_member(db, uuid4(), 5) is False
+
+        stmt = db.scalars.call_args.args[0]
+        text = str(
+            stmt.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True})
+        )
+        assert "JOIN data.organizations ON data.organizations.id = " in text
+        assert "data.organization_users.status = 'active'" in text
+        assert "data.organizations.status = 'approved'" in text
+
+    def test_matching_row_means_membership(self):
+        db = _mock_db()
+        db.scalars.return_value.first.return_value = MagicMock()
+
+        assert is_active_org_member(db, uuid4(), 5) is True
 
 
 class TestInviteEmails:
@@ -195,6 +222,23 @@ class TestConsumeInvitesForNewUser:
         stmt = db.scalars.call_args.args[0]
         compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
         assert "mixed@x.org" in compiled
+
+    def test_duplicate_invites_for_one_target_grant_one_membership_and_consume_both(self):
+        """A read-then-insert race can leave two unconsumed invites for the same
+        email+target; consumption must stay idempotent per target or the second
+        add blows up registration on the membership PK, permanently."""
+        db = _mock_db()
+        user = self._user()
+        first = Invite(id=1, email="new@x.org", organization_id=5)
+        second = Invite(id=2, email="new@x.org", organization_id=5)
+        db.scalars.return_value.all.return_value = [first, second]
+        db.get.return_value = None  # autoflush=False: the pending add stays invisible
+
+        consume_invites_for_new_user(db, user)
+
+        assert len(_added(db, OrganizationUser)) == 1
+        assert first.consumed_at is not None and second.consumed_at is not None
+        assert second.consumed_by == user.id
 
     def test_never_commits_itself(self):
         """Consumption runs inside register_user's transaction; a commit here

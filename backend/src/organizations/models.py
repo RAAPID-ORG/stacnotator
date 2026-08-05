@@ -15,6 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -137,6 +138,16 @@ class Invite(Base):
             name="invites_exactly_one_target_check",
         ),
         Index("invites_email_idx", "email"),
+        # One pending invite per email+target; COALESCE folds the NULL half of
+        # the XOR pair so duplicates collide (ids are Identity, never 0).
+        Index(
+            "invites_pending_target_uniq",
+            "email",
+            text("COALESCE(organization_id, 0)"),
+            text("COALESCE(project_id, 0)"),
+            unique=True,
+            postgresql_where=text("consumed_at IS NULL"),
+        ),
         {"schema": "data"},
     )
 

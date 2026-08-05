@@ -27,7 +27,7 @@ def _db(membership, project=None, org_membership=None):
     project = project or SimpleNamespace(visibility="private", organization_id=5)
     db = MagicMock()
     db.get.side_effect = lambda model, key: membership if model is ProjectUser else project
-    # grants_org_access reads the active-org-membership row via db.scalars.
+    # is_active_org_member reads the active-org-membership row via db.scalars.
     db.scalars.return_value.first.return_value = org_membership
     return db
 

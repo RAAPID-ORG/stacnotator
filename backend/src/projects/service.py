@@ -17,7 +17,6 @@ from src.organizations.models import (
     OrganizationUser,
 )
 from src.organizations.service import (
-    grants_org_access,
     invite_emails,
     is_active_org_member,
     normalize_emails,
@@ -39,21 +38,6 @@ def _get_project(db: Session, project_id: int) -> Project:
     return project
 
 
-def _active_membership_in_approved_org(
-    db: Session, user_id: UUID, organization_id: int
-) -> OrganizationUser | None:
-    return db.scalars(
-        select(OrganizationUser)
-        .join(Organization, Organization.id == OrganizationUser.organization_id)
-        .where(
-            OrganizationUser.user_id == user_id,
-            OrganizationUser.organization_id == organization_id,
-            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
-            Organization.status == ORG_STATUS_APPROVED,
-        )
-    ).first()
-
-
 def create_project(
     db: Session,
     *,
@@ -71,7 +55,7 @@ def create_project(
     if not user.is_admin:
         if org.status != ORG_STATUS_APPROVED:
             raise HTTPException(status_code=403, detail="Organization is not approved yet")
-        if _active_membership_in_approved_org(db, user.id, organization_id) is None:
+        if not is_active_org_member(db, user.id, organization_id):
             raise HTTPException(status_code=403, detail="You are not a member of this organization")
 
     project = Project(
@@ -104,9 +88,12 @@ def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
     }
     org_ids = set(
         db.scalars(
-            select(OrganizationUser.organization_id).where(
+            select(OrganizationUser.organization_id)
+            .join(Organization, Organization.id == OrganizationUser.organization_id)
+            .where(
                 OrganizationUser.user_id == user.id,
                 OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                Organization.status == ORG_STATUS_APPROVED,
             )
         )
     )
@@ -119,7 +106,7 @@ def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
         membership = memberships.get(project.id)
         flags = resolve_project_flags(
             visibility=project.visibility,
-            is_org_member=project.organization_id in org_ids,
+            is_active_org_member=project.organization_id in org_ids,
             is_member=membership is not None,
             member_is_admin=membership.is_admin if membership else False,
             is_platform_admin=viewer_is_platform_admin,
@@ -139,7 +126,7 @@ def list_project_campaigns(db: Session, project: Project, user: User) -> list[Ca
     membership = db.get(ProjectUser, (user.id, project.id))
     is_member = is_policy_member(
         visibility=project.visibility,
-        is_org_member=grants_org_access(db, user.id, project),
+        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
         is_member=membership is not None,
         is_platform_admin=user.is_admin,
     )
@@ -169,7 +156,7 @@ def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
     membership = db.get(ProjectUser, (user.id, project.id))
     flags = resolve_project_flags(
         visibility=project.visibility,
-        is_org_member=is_active_org_member(db, user.id, project.organization_id),
+        is_active_org_member=is_active_org_member(db, user.id, project.organization_id),
         is_member=membership is not None,
         member_is_admin=membership.is_admin if membership else False,
         is_platform_admin=user.is_admin,

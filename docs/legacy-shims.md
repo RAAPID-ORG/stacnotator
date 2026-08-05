@@ -108,7 +108,8 @@ the legacy case still occurs in real data, and how to remove it.
 - The guided-tour localStorage migration in `preferences.store.ts` was already removed;
   a stale comment claiming otherwise was cleaned up alongside this doc.
 - `Campaign.is_public` (`backend/src/campaigns/models.py`) reads through to the owning
-  project's `is_public`. Visibility is stored once, on `data.projects`; the property is the
-  campaign-side view of it, not a compatibility read for old data.
+  project's `visibility` and is true only for the `public` scope (org-public does not
+  count). Visibility is stored once, on `data.projects`; the property is the campaign-side
+  view of it, not a compatibility read for old data.
 - Alembic migrations that mention legacy schema (`*_drop_legacy_*`, `*_retire_*`) are
   immutable history, not live compat code.

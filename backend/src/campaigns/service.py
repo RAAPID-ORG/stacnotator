@@ -38,7 +38,12 @@ from src.imagery.registration import (
     spawn_background_mosaic_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
-from src.organizations.models import MEMBER_STATUS_ACTIVE, OrganizationUser
+from src.organizations.models import (
+    MEMBER_STATUS_ACTIVE,
+    ORG_STATUS_APPROVED,
+    Organization,
+    OrganizationUser,
+)
 from src.projects.access import (
     VISIBILITY_ORGANIZATION,
     VISIBILITY_PUBLIC,
@@ -72,9 +77,12 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignL
     }
     org_ids = set(
         db.scalars(
-            select(OrganizationUser.organization_id).where(
+            select(OrganizationUser.organization_id)
+            .join(Organization, Organization.id == OrganizationUser.organization_id)
+            .where(
                 OrganizationUser.user_id == user_id,
                 OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                Organization.status == ORG_STATUS_APPROVED,
             )
         )
     )
@@ -83,17 +91,17 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignL
     results: list[CampaignListItemOut] = []
     for campaign in campaigns:
         membership = memberships.get(campaign.project_id)
-        is_org_member = campaign.project.organization_id in org_ids
+        is_active_org_member = campaign.project.organization_id in org_ids
         if not has_project_access(
             visibility=campaign.project.visibility,
-            is_org_member=is_org_member,
+            is_active_org_member=is_active_org_member,
             is_member=membership is not None,
             is_platform_admin=user_is_global_admin,
         ):
             continue
         is_member = is_policy_member(
             visibility=campaign.project.visibility,
-            is_org_member=is_org_member,
+            is_active_org_member=is_active_org_member,
             is_member=membership is not None,
             is_platform_admin=user_is_global_admin,
         )
@@ -122,18 +130,26 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
     if is_global_admin(db, user_id):
         return list(db.scalars(select(Campaign.id)).all())
 
-    active_org_ids = select(OrganizationUser.organization_id).where(
-        OrganizationUser.user_id == user_id,
-        OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+    active_org_ids = (
+        select(OrganizationUser.organization_id)
+        .join(Organization, Organization.id == OrganizationUser.organization_id)
+        .where(
+            OrganizationUser.user_id == user_id,
+            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            Organization.status == ORG_STATUS_APPROVED,
+        )
     )
     stmt = (
         select(Campaign.id)
         .join(Project, Project.id == Campaign.project_id)
-        .outerjoin(ProjectUser, ProjectUser.project_id == Project.id)
+        .outerjoin(
+            ProjectUser,
+            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user_id),
+        )
         .where(
             or_(
                 Project.visibility == VISIBILITY_PUBLIC,
-                ProjectUser.user_id == user_id,
+                ProjectUser.user_id.is_not(None),
                 and_(
                     Project.visibility == VISIBILITY_ORGANIZATION,
                     Project.organization_id.in_(active_org_ids),

@@ -20,7 +20,7 @@ def _db(project, membership, org_membership=None):
 
     db = MagicMock()
     db.execute.side_effect = _execute
-    # grants_org_access reads the active-org-membership row via db.scalars.
+    # is_active_org_member reads the active-org-membership row via db.scalars.
     db.scalars.return_value.first.return_value = org_membership
     return db
 

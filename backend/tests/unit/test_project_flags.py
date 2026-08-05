@@ -17,7 +17,7 @@ from src.projects.access import (
 def _flags(**kw):
     defaults = dict(
         visibility="private",
-        is_org_member=False,
+        is_active_org_member=False,
         is_member=False,
         member_is_admin=False,
         is_platform_admin=False,
@@ -41,12 +41,12 @@ def test_public_project_grants_access_to_everyone():
 
 
 def test_org_member_on_private_project_sees_listing_but_gets_no_access():
-    f = _flags(visibility="private", is_org_member=True)
+    f = _flags(visibility="private", is_active_org_member=True)
     assert f.visible and not f.has_access
 
 
 def test_org_member_on_org_public_project_gets_access_without_membership():
-    f = _flags(visibility="organization", is_org_member=True)
+    f = _flags(visibility="organization", is_active_org_member=True)
     assert f.visible and f.has_access
     assert not f.is_member and not f.is_admin
 
@@ -74,25 +74,25 @@ def test_platform_admin_gets_everything():
 
 def test_cross_org_external_member_still_visible():
     # Invited into a project of an org the user does not belong to.
-    f = _flags(is_member=True, is_org_member=False)
+    f = _flags(is_member=True, is_active_org_member=False)
     assert f.visible and f.has_access
 
 
 def test_has_project_access_matches_flags_matrix():
     for visibility in PROJECT_VISIBILITIES:
-        for is_org_member in (False, True):
+        for is_active_org_member in (False, True):
             for is_member in (False, True):
                 for is_platform_admin in (False, True):
                     assert (
                         has_project_access(
                             visibility=visibility,
-                            is_org_member=is_org_member,
+                            is_active_org_member=is_active_org_member,
                             is_member=is_member,
                             is_platform_admin=is_platform_admin,
                         )
                         is _flags(
                             visibility=visibility,
-                            is_org_member=is_org_member,
+                            is_active_org_member=is_active_org_member,
                             is_member=is_member,
                             is_platform_admin=is_platform_admin,
                         ).has_access
@@ -101,27 +101,33 @@ def test_has_project_access_matches_flags_matrix():
 
 def test_policy_member_row_membership_and_platform_admin():
     assert is_policy_member(
-        visibility="private", is_org_member=False, is_member=True, is_platform_admin=False
+        visibility="private", is_active_org_member=False, is_member=True, is_platform_admin=False
     )
     assert is_policy_member(
-        visibility="private", is_org_member=False, is_member=False, is_platform_admin=True
+        visibility="private", is_active_org_member=False, is_member=False, is_platform_admin=True
     )
 
 
 def test_policy_member_org_public_grants_member_standing_to_org_members():
     assert is_policy_member(
-        visibility="organization", is_org_member=True, is_member=False, is_platform_admin=False
+        visibility="organization",
+        is_active_org_member=True,
+        is_member=False,
+        is_platform_admin=False,
     )
     assert not is_policy_member(
-        visibility="organization", is_org_member=False, is_member=False, is_platform_admin=False
+        visibility="organization",
+        is_active_org_member=False,
+        is_member=False,
+        is_platform_admin=False,
     )
 
 
 def test_policy_member_platform_public_alone_is_not_membership():
     # 'anyone' stays the only audience open to the platform-public crowd.
     assert not is_policy_member(
-        visibility="public", is_org_member=False, is_member=False, is_platform_admin=False
+        visibility="public", is_active_org_member=False, is_member=False, is_platform_admin=False
     )
     assert not is_policy_member(
-        visibility="public", is_org_member=True, is_member=False, is_platform_admin=False
+        visibility="public", is_active_org_member=True, is_member=False, is_platform_admin=False
     )

@@ -80,9 +80,18 @@ def upgrade() -> None:
         schema="data",
     )
     op.create_index("invites_email_idx", "invites", ["email"], schema="data")
+    # One pending invite per email+target. COALESCE folds the NULL half of the
+    # XOR target pair (Postgres treats NULLs as distinct in unique indexes);
+    # ids are Identity-generated and never 0.
+    op.execute(
+        "CREATE UNIQUE INDEX invites_pending_target_uniq ON data.invites "
+        "(email, COALESCE(organization_id, 0), COALESCE(project_id, 0)) "
+        "WHERE consumed_at IS NULL"
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP INDEX data.invites_pending_target_uniq")
     op.drop_index("invites_email_idx", "invites", schema="data")
     op.drop_table("invites", schema="data")
 

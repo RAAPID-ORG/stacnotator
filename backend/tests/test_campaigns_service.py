@@ -26,6 +26,7 @@ from src.campaigns.service import (
     update_campaign_bbox,
     update_campaign_form_fields,
     update_campaign_name,
+    visible_campaign_ids,
 )
 from src.campaigns.statistics import (
     _calculate_krippendorff_alpha,
@@ -754,6 +755,54 @@ class TestListCampaignsVisibility:
         results = self._list(db, user_id, is_global_admin=True)
 
         assert len(results) == 2
+
+
+class TestVisibleCampaignIds:
+    """Compiled-SQL assertions for the tiler-token scope - the one place the
+    access rule is re-encoded as SQL, so the three OR branches are pinned
+    against drift from projects/access.py."""
+
+    def _statement(self):
+        db = _mock_db()
+        db.execute.return_value.first.return_value = None  # not a platform admin
+
+        visible_campaign_ids(db, uuid4())
+
+        return db.scalars.call_args.args[0]
+
+    def test_platform_admin_gets_every_campaign_unfiltered(self):
+        db = _mock_db()
+        db.execute.return_value.first.return_value = ("admin",)
+
+        visible_campaign_ids(db, uuid4())
+
+        assert "WHERE" not in str(db.scalars.call_args.args[0])
+
+    def test_membership_branch_joins_on_the_user_and_requires_a_row(self):
+        text = _compile(self._statement())
+        assert (
+            "LEFT OUTER JOIN data.project_users ON data.project_users.project_id = "
+            "data.projects.id AND data.project_users.user_id = " in text
+        )
+        assert "data.project_users.user_id IS NOT NULL" in text
+
+    def test_public_and_org_public_branches_scope_by_visibility(self):
+        text = _compile(self._statement())
+        assert "data.projects.visibility = 'public'" in text
+        assert "data.projects.visibility = 'organization'" in text
+        assert (
+            "data.projects.organization_id IN (SELECT data.organization_users.organization_id"
+            in text
+        )
+
+    def test_org_public_branch_requires_active_membership_in_an_approved_org(self):
+        text = _compile(self._statement())
+        assert (
+            "JOIN data.organizations ON data.organizations.id = "
+            "data.organization_users.organization_id" in text
+        )
+        assert "data.organization_users.status = 'active'" in text
+        assert "data.organizations.status = 'approved'" in text
 
 
 class TestDistributeEvenly:

@@ -14,7 +14,10 @@ class ProjectOut(BaseModel):
     description: str | None = None
     visibility: ProjectVisibility
     created_at: datetime
-    # Viewer-relative flags, filled by the service.
+    # Viewer-relative flags, filled by the service. is_member is row membership
+    # (plus platform admin) ONLY - unlike a campaign's viewer_is_member it does
+    # not include org-public standing; org-public viewers show has_access
+    # without is_member (the "Org access" rows).
     is_admin: bool = False
     is_member: bool = False
     has_access: bool = False
