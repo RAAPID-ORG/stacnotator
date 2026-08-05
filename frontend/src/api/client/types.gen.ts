@@ -43,9 +43,9 @@ export type AddUsersByEmailResult = {
      */
     added: Array<UserOut>;
     /**
-     * Unknown Emails
+     * Invited Emails
      */
-    unknown_emails: Array<string>;
+    invited_emails: Array<string>;
 };
 
 /**
@@ -2023,6 +2023,34 @@ export type InternalStorageUpdateRequest = {
 };
 
 /**
+ * InviteOut
+ */
+export type InviteOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * InvitesListResponse
+ */
+export type InvitesListResponse = {
+    /**
+     * Items
+     */
+    items: Array<InviteOut>;
+};
+
+/**
  * KnnValidationStatusOut
  *
  * Summary of what the KNN label validator has available.
@@ -2334,9 +2362,9 @@ export type ProjectCreate = {
      */
     description?: string | null;
     /**
-     * Is Public
+     * Visibility
      */
-    is_public?: boolean;
+    visibility?: 'private' | 'organization' | 'public';
 };
 
 /**
@@ -2360,9 +2388,9 @@ export type ProjectOut = {
      */
     description?: string | null;
     /**
-     * Is Public
+     * Visibility
      */
-    is_public: boolean;
+    visibility: 'private' | 'organization' | 'public';
     /**
      * Created At
      */
@@ -2415,9 +2443,9 @@ export type ProjectUpdateRequest = {
      */
     description?: string | null;
     /**
-     * Is Public
+     * Visibility
      */
-    is_public?: boolean | null;
+    visibility?: 'private' | 'organization' | 'public' | null;
 };
 
 /**
@@ -4065,6 +4093,70 @@ export type AddOrganizationUsersResponses = {
 
 export type AddOrganizationUsersResponse = AddOrganizationUsersResponses[keyof AddOrganizationUsersResponses];
 
+export type ListOrganizationInvitesData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/invites';
+};
+
+export type ListOrganizationInvitesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOrganizationInvitesError = ListOrganizationInvitesErrors[keyof ListOrganizationInvitesErrors];
+
+export type ListOrganizationInvitesResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvitesListResponse;
+};
+
+export type ListOrganizationInvitesResponse = ListOrganizationInvitesResponses[keyof ListOrganizationInvitesResponses];
+
+export type RevokeOrganizationInviteData = {
+    body?: never;
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+        /**
+         * Invite Id
+         */
+        invite_id: number;
+    };
+    query?: never;
+    url: '/api/organizations/{organization_id}/invites/{invite_id}';
+};
+
+export type RevokeOrganizationInviteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeOrganizationInviteError = RevokeOrganizationInviteErrors[keyof RevokeOrganizationInviteErrors];
+
+export type RevokeOrganizationInviteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeOrganizationInviteResponse = RevokeOrganizationInviteResponses[keyof RevokeOrganizationInviteResponses];
+
 export type MakeOrganizationAdminData = {
     body?: never;
     path: {
@@ -4477,6 +4569,70 @@ export type AddProjectUsersResponses = {
 };
 
 export type AddProjectUsersResponse = AddProjectUsersResponses[keyof AddProjectUsersResponses];
+
+export type ListProjectInvitesData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/invites';
+};
+
+export type ListProjectInvitesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListProjectInvitesError = ListProjectInvitesErrors[keyof ListProjectInvitesErrors];
+
+export type ListProjectInvitesResponses = {
+    /**
+     * Successful Response
+     */
+    200: InvitesListResponse;
+};
+
+export type ListProjectInvitesResponse = ListProjectInvitesResponses[keyof ListProjectInvitesResponses];
+
+export type RevokeProjectInviteData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+        /**
+         * Invite Id
+         */
+        invite_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/invites/{invite_id}';
+};
+
+export type RevokeProjectInviteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeProjectInviteError = RevokeProjectInviteErrors[keyof RevokeProjectInviteErrors];
+
+export type RevokeProjectInviteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeProjectInviteResponse = RevokeProjectInviteResponses[keyof RevokeProjectInviteResponses];
 
 export type AddProjectUsersByIdsData = {
     body: AddProjectUsersByIdsRequest;

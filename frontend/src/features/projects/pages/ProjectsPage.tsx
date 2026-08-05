@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { listProjects, type ProjectOut } from '~/api/client';
-import { newProjectPath, projectPath } from '~/app/routes';
+import { newOrganizationPath, newProjectPath, projectPath } from '~/app/routes';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Input } from '~/shared/ui/forms';
@@ -12,6 +12,7 @@ import { Skeleton, SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { ProjectRow } from '../components/ProjectRow';
 import {
+  defaultProjectFilter,
   filterProjects,
   PROJECT_FILTER_LABELS,
   PROJECT_FILTERS,
@@ -23,11 +24,12 @@ export const ProjectsPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((s) => s.setBreadcrumbs);
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
-  const { orgs: organizations } = useOrganizations({ approvedOnly: true });
+  const { orgs: memberships, loading: orgsLoading, error: orgsError } = useOrganizations();
+  const { orgs: approvedOrgs } = useOrganizations({ approvedOnly: true });
 
   const [projects, setProjects] = useState<ProjectOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<ProjectFilter>('mine');
+  const [filter, setFilter] = useState<ProjectFilter>(() => defaultProjectFilter(activeOrgId));
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -49,12 +51,15 @@ export const ProjectsPage = () => {
     fetchProjects();
   }, []);
 
+  const belongsToAnyOrg = memberships.length > 0;
+
   const filtered = useMemo(
-    () => filterProjects(projects, { filter, activeOrgId, query }),
-    [projects, filter, activeOrgId, query]
+    () => filterProjects(projects, { filter, activeOrgId, belongsToAnyOrg, query }),
+    [projects, filter, activeOrgId, belongsToAnyOrg, query]
   );
 
-  const canCreateProject = organizations.length > 0;
+  const canCreateProject = approvedOrgs.length > 0;
+  const showCreationGating = !canCreateProject && !orgsLoading && orgsError === null;
   const needsOrgSelection = filter === 'organization' && activeOrgId === null;
 
   if (loading) {
@@ -89,6 +94,25 @@ export const ProjectsPage = () => {
             </Button>
           )}
         </header>
+
+        {showCreationGating && (
+          <div
+            data-testid="org-gating-panel"
+            className="mb-4 flex flex-wrap items-center gap-4 px-4 py-3 rounded-lg border border-brand-200 bg-brand-50/50"
+          >
+            <div className="flex-1 min-w-[16rem]">
+              <p className="text-sm font-medium text-neutral-900">
+                Creating projects needs an organization
+              </p>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Ask an organization admin to add you, or request a new organization for your team.
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => navigate(newOrganizationPath())}>
+              Request an organization
+            </Button>
+          </div>
+        )}
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="inline-flex bg-white border border-neutral-200 rounded-md p-0.5 shadow-sm">

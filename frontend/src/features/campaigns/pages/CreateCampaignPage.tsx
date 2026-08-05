@@ -77,7 +77,7 @@ export const CreateCampaignPage = () => {
         ]);
         setProject(projectRes.data ?? null);
         setProjectUsers(usersRes.data?.users ?? []);
-        if (projectRes.data?.is_public) {
+        if (projectRes.data?.visibility === 'public') {
           setForm((current) => ({
             ...current,
             labelling_policy: withAnyoneSeeded(
@@ -130,7 +130,7 @@ export const CreateCampaignPage = () => {
           <StepCampaign
             form={form}
             setForm={setForm}
-            projectIsPublic={project?.is_public ?? false}
+            projectIsPublic={project?.visibility === 'public'}
             members={projectUsers}
           />
         );

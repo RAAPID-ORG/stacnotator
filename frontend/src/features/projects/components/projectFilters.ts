@@ -14,31 +14,57 @@ export const PROJECT_FILTER_LABELS: Record<ProjectFilter, string> = {
 interface FilterOptions {
   filter: ProjectFilter;
   activeOrgId: number | null;
+  /** Whether the viewer belongs to at least one organization (any status). */
+  belongsToAnyOrg: boolean;
   query?: string;
 }
 
-/** Visibility is already resolved by the backend, so these are presentation
- *  filters over what came back. `organization` yields nothing without an
- *  active organization - the page prompts the user to pick one. */
+/** The filter the page starts on: members work inside their active
+ *  organization; without one, only platform-public projects are browsable. */
+export const defaultProjectFilter = (activeOrgId: number | null): ProjectFilter =>
+  activeOrgId === null ? 'public' : 'mine';
+
+/** Access is already resolved by the backend, so these are presentation
+ *  filters over what came back. With an active organization the filters scope
+ *  to it; without one only platform-public projects show - except for viewers
+ *  in no organization at all, whose explicit memberships (external invites)
+ *  stay visible so they are not stranded. `organization` yields nothing
+ *  without an active organization - the page prompts the user to pick one. */
 export const filterProjects = (
   projects: ProjectOut[],
-  { filter, activeOrgId, query = '' }: FilterOptions
+  { filter, activeOrgId, belongsToAnyOrg, query = '' }: FilterOptions
 ): ProjectOut[] => {
   const needle = query.trim().toLowerCase();
 
   return projects.filter((project) => {
     if (needle && !project.name.toLowerCase().includes(needle)) return false;
 
+    const isPublic = project.visibility === 'public';
+
+    if (activeOrgId === null) {
+      const visible = isPublic || (!belongsToAnyOrg && !!project.is_member);
+      if (!visible) return false;
+      switch (filter) {
+        case 'mine':
+          return !!project.is_member;
+        case 'organization':
+          return false;
+        case 'public':
+          return isPublic;
+        case 'all':
+          return true;
+      }
+    }
+
     switch (filter) {
       case 'mine':
-        if (!project.is_member) return false;
-        return activeOrgId === null || project.organization_id === activeOrgId;
+        return !!project.is_member && project.organization_id === activeOrgId;
       case 'organization':
-        return activeOrgId !== null && project.organization_id === activeOrgId;
+        return project.organization_id === activeOrgId;
       case 'public':
-        return !!project.is_public;
+        return isPublic;
       case 'all':
-        return true;
+        return isPublic || !!project.is_member || project.organization_id === activeOrgId;
     }
   });
 };

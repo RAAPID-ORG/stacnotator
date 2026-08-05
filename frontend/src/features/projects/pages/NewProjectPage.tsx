@@ -11,6 +11,10 @@ import { FadeIn } from '~/shared/ui/motion';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
+import {
+  ProjectVisibilityPicker,
+  type ProjectVisibility,
+} from '../components/ProjectVisibilityPicker';
 
 export const NewProjectPage = () => {
   const navigate = useNavigate();
@@ -22,7 +26,7 @@ export const NewProjectPage = () => {
   const [organizationId, setOrganizationId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
+  const [visibility, setVisibility] = useState<ProjectVisibility>('private');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,7 +52,7 @@ export const NewProjectPage = () => {
           organization_id: organizationId,
           name: name.trim(),
           description: description.trim() || null,
-          is_public: isPublic,
+          visibility,
         },
       });
       showAlert('Project created', 'success');
@@ -99,7 +103,8 @@ export const NewProjectPage = () => {
                 No organization to create in
               </p>
               <p className="text-sm text-neutral-500 mb-5">
-                Projects live inside an organization. Request one to get started.
+                Projects live inside an organization. Ask an organization admin to add you, or
+                request a new organization for your team.
               </p>
               <Button
                 onClick={() => navigate(newOrganizationPath())}
@@ -150,20 +155,9 @@ export const NewProjectPage = () => {
                 />
               </Field>
 
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="mt-1 text-brand-700 focus:ring-brand-600"
-                />
-                <span className="flex-1">
-                  <span className="block font-medium text-sm text-neutral-900">Public project</span>
-                  <span className="block text-sm text-neutral-600">
-                    Public projects can be worked on by anyone registered on the platform.
-                  </span>
-                </span>
-              </label>
+              <Field label="Visibility">
+                <ProjectVisibilityPicker value={visibility} onChange={setVisibility} />
+              </Field>
             </div>
 
             <div className="surface-section flex items-center justify-end gap-3">

@@ -3,8 +3,10 @@ import {
   addOrganizationUsers,
   demoteOrganizationAdmin,
   getOrganizationUsers,
+  listOrganizationInvites,
   makeOrganizationAdmin,
   removeOrganizationMember,
+  revokeOrganizationInvite,
   type AddUsersByEmailResult,
   type OrganizationUserOut,
 } from '~/api/client';
@@ -13,6 +15,7 @@ import { Badge } from '~/shared/ui/Badge';
 import { Button, Field, Textarea } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 import { parseEmailList } from '~/shared/utils/utility';
+import { INVITE_SIGNUP_NOTE, PendingInvites } from './PendingInvites';
 
 export type OrganizationMembersProps = {
   organizationId: number;
@@ -36,6 +39,23 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
   const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState<AddUsersByEmailResult | null>(null);
   const [malformed, setMalformed] = useState<string[]>([]);
+  const [invitesReload, setInvitesReload] = useState(0);
+
+  const loadInvites = useCallback(async () => {
+    const { data } = await listOrganizationInvites({
+      path: { organization_id: organizationId },
+    });
+    return data?.items ?? [];
+  }, [organizationId]);
+
+  const revokeInvite = useCallback(
+    async (inviteId: number) => {
+      await revokeOrganizationInvite({
+        path: { organization_id: organizationId, invite_id: inviteId },
+      });
+    },
+    [organizationId]
+  );
 
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -113,6 +133,7 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
       });
       setAddResult(data ?? null);
       setEmailsText('');
+      setInvitesReload((n) => n + 1);
       await loadMembers();
       setError(null);
     } catch (err) {
@@ -127,7 +148,8 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
       <section className="surface-section">
         <h2 className="section-heading">Add members</h2>
         <p className="section-description">
-          Paste one or more email addresses, separated by commas, spaces, or newlines.
+          Paste one or more email addresses, separated by commas, spaces, or newlines. Addresses
+          without an account yet are invited automatically. {INVITE_SIGNUP_NOTE}
         </p>
         <div className="space-y-3 max-w-xl">
           <Field label="Emails" htmlFor="org-member-emails">
@@ -159,17 +181,27 @@ export const OrganizationMembers = ({ organizationId }: OrganizationMembersProps
               </ul>
             </div>
           )}
-          {addResult && addResult.unknown_emails.length > 0 && (
-            <div className="text-xs text-yellow-800">
-              <p className="font-medium">Not registered yet - invites ship in a later release.</p>
+          {addResult && addResult.invited_emails.length > 0 && (
+            <div
+              data-testid="add-result-invited"
+              className="text-xs px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
+            >
+              <p className="font-medium">Invited</p>
               <ul className="list-disc pl-4 mt-1 space-y-0.5">
-                {addResult.unknown_emails.map((email) => (
+                {addResult.invited_emails.map((email) => (
                   <li key={email}>{email}</li>
                 ))}
               </ul>
+              <p className="mt-1">{INVITE_SIGNUP_NOTE}</p>
             </div>
           )}
         </div>
+        <PendingInvites
+          listInvites={loadInvites}
+          revokeInvite={revokeInvite}
+          reloadKey={invitesReload}
+          className="mt-6 max-w-xl"
+        />
       </section>
 
       <section className="surface-section">

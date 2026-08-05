@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Field, Input, Switch, Textarea } from '~/shared/ui/forms';
+import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { AnimatedDialog } from '~/shared/ui/motion';
 import { Spinner } from '~/shared/ui/Spinner';
@@ -9,14 +9,16 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { projectsPath } from '~/app/routes';
 import { deleteProject, updateProject, type ProjectOut } from '~/api/client';
+import {
+  LEAVE_PUBLIC_WARNING,
+  ProjectVisibilityPicker,
+  type ProjectVisibility,
+} from './ProjectVisibilityPicker';
 
 interface ProjectSettingsSectionProps {
   project: ProjectOut;
   onUpdated: (project: ProjectOut) => void;
 }
-
-const GO_PRIVATE_WARNING =
-  'Making the project private strips public-audience permissions from its campaigns.';
 
 export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSectionProps) => {
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
   const [saving, setSaving] = useState(false);
-  const [confirmGoPrivate, setConfirmGoPrivate] = useState(false);
+  const [pendingVisibility, setPendingVisibility] = useState<ProjectVisibility | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
     name.trim() !== project.name || description.trim() !== (project.description ?? '');
 
   const applyUpdate = async (
-    body: { name?: string; description?: string; is_public?: boolean },
+    body: { name?: string; description?: string; visibility?: ProjectVisibility },
     successMessage: string
   ) => {
     try {
@@ -64,17 +66,27 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
     );
   };
 
-  const handleVisibilityChange = async (isPublic: boolean) => {
-    if (!isPublic) {
-      setConfirmGoPrivate(true);
+  const visibilityMessage = (visibility: ProjectVisibility) =>
+    visibility === 'public'
+      ? 'Project is now public'
+      : visibility === 'organization'
+        ? 'Project is now visible to its organization'
+        : 'Project is now private';
+
+  const handleVisibilityChange = async (visibility: ProjectVisibility) => {
+    if (visibility === project.visibility) return;
+    if (project.visibility === 'public') {
+      setPendingVisibility(visibility);
       return;
     }
-    await applyUpdate({ is_public: true }, 'Project is now public');
+    await applyUpdate({ visibility }, visibilityMessage(visibility));
   };
 
-  const handleConfirmGoPrivate = async () => {
-    setConfirmGoPrivate(false);
-    await applyUpdate({ is_public: false }, 'Project is now private');
+  const handleConfirmLeavePublic = async () => {
+    if (pendingVisibility === null) return;
+    const visibility = pendingVisibility;
+    setPendingVisibility(null);
+    await applyUpdate({ visibility }, visibilityMessage(visibility));
   };
 
   const handleDelete = async () => {
@@ -129,16 +141,17 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
         <div>
           <h2 className="section-heading">Visibility</h2>
           <p className="section-description">
-            Public projects are visible to every signed-in user. {GO_PRIVATE_WARNING}
+            Who can open this project and work on its campaigns. Changes apply immediately.
           </p>
         </div>
-        <Switch
-          checked={project.is_public}
-          onChange={handleVisibilityChange}
-          disabled={saving}
-          label={project.is_public ? 'Public project' : 'Private project'}
-          aria-label="Public project"
-        />
+        <div className="max-w-xl">
+          <ProjectVisibilityPicker
+            value={project.visibility}
+            onChange={handleVisibilityChange}
+            disabled={saving}
+            name="project-visibility-settings"
+          />
+        </div>
       </section>
 
       <section className={sectionCls}>
@@ -156,14 +169,16 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
       </section>
 
       <ConfirmDialog
-        isOpen={confirmGoPrivate}
-        title="Make project private?"
-        description={GO_PRIVATE_WARNING}
-        confirmText="Make private"
+        isOpen={pendingVisibility !== null}
+        title="Leave public visibility?"
+        description={LEAVE_PUBLIC_WARNING}
+        confirmText={
+          pendingVisibility === 'organization' ? 'Restrict to organization' : 'Make private'
+        }
         isDangerous
         isLoading={saving}
-        onConfirm={handleConfirmGoPrivate}
-        onCancel={() => setConfirmGoPrivate(false)}
+        onConfirm={handleConfirmLeavePublic}
+        onCancel={() => setPendingVisibility(null)}
       />
 
       <DeleteProjectDialog

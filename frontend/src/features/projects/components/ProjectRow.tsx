@@ -5,7 +5,7 @@ const roleLabel = (project: ProjectOut) => {
   if (project.is_admin) return 'Admin';
   if (project.is_member) return 'Member';
   if (!project.has_access) return 'Listed';
-  return 'Public';
+  return project.visibility === 'organization' ? 'Org access' : 'Public';
 };
 
 export const ProjectRow = ({ project, onOpen }: { project: ProjectOut; onOpen: () => void }) => {
@@ -32,7 +32,7 @@ export const ProjectRow = ({ project, onOpen }: { project: ProjectOut; onOpen: (
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-neutral-900 truncate">{project.name}</h3>
-          {project.is_public && (
+          {project.visibility === 'public' && (
             <span title="Public project" aria-label="Public project">
               <IconGlobe className="w-3.5 h-3.5 text-brand-500 shrink-0" />
             </span>

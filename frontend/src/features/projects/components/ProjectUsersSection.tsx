@@ -8,15 +8,21 @@ import {
   demoteProjectAdmin,
   demoteProjectAuthoritativeReviewer,
   getProjectUsers,
+  listProjectInvites,
   listUsers,
   makeProjectAdmin,
   makeProjectAuthoritativeReviewer,
   removeProjectUser,
+  revokeProjectInvite,
   type AddUsersByEmailResult,
   type ProjectUserOut,
   type UserOut,
 } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
+import {
+  INVITE_SIGNUP_NOTE,
+  PendingInvites,
+} from '~/features/organizations/components/PendingInvites';
 
 interface ProjectUsersSectionProps {
   projectId: number;
@@ -45,6 +51,19 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
   const [addingEmails, setAddingEmails] = useState(false);
   const [emailResult, setEmailResult] = useState<AddUsersByEmailResult | null>(null);
   const [malformedEmails, setMalformedEmails] = useState<string[]>([]);
+  const [invitesReload, setInvitesReload] = useState(0);
+
+  const loadInvites = useCallback(async () => {
+    const { data } = await listProjectInvites({ path: { project_id: projectId } });
+    return data?.items ?? [];
+  }, [projectId]);
+
+  const handleRevokeInvite = useCallback(
+    async (inviteId: number) => {
+      await revokeProjectInvite({ path: { project_id: projectId, invite_id: inviteId } });
+    },
+    [projectId]
+  );
 
   const loadUsers = useCallback(async () => {
     const { data } = await getProjectUsers({ path: { project_id: projectId } });
@@ -153,6 +172,7 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
       });
       setEmailResult(data ?? null);
       setEmailsText('');
+      setInvitesReload((n) => n + 1);
       await refetchAfterMutation();
     } catch (err) {
       handleError(err, 'Failed to add users by email');
@@ -356,8 +376,8 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
             <div>
               <h2 className="section-heading">Add by email</h2>
               <p className="section-description">
-                Paste one or more email addresses, separated by commas, spaces or newlines. People
-                outside your organization can be added as long as they already have an account.
+                Paste one or more email addresses, separated by commas, spaces or newlines.
+                Addresses without an account yet are invited automatically. {INVITE_SIGNUP_NOTE}
               </p>
             </div>
             <Field label="Email addresses" htmlFor="member-emails-input">
@@ -399,17 +419,21 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
                     {emailResult.added.map((u) => u.email).join(', ')}
                   </div>
                 )}
-                {emailResult && emailResult.unknown_emails.length > 0 && (
+                {emailResult && emailResult.invited_emails.length > 0 && (
                   <div
-                    data-testid="add-result-unknown"
-                    className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800"
+                    data-testid="add-result-invited"
+                    className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800"
                   >
-                    No account found for {emailResult.unknown_emails.join(', ')}. Email invites ship
-                    in a later release, so ask them to sign up first.
+                    Invited {emailResult.invited_emails.join(', ')}. {INVITE_SIGNUP_NOTE}
                   </div>
                 )}
               </div>
             )}
+            <PendingInvites
+              listInvites={loadInvites}
+              revokeInvite={handleRevokeInvite}
+              reloadKey={invitesReload}
+            />
           </section>
         </>
       )}
