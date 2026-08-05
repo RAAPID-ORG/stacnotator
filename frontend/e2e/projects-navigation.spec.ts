@@ -11,33 +11,35 @@ const openProjects = async (page: import('@playwright/test').Page) => {
   await Promise.all([page.waitForResponse(ROUTE.projects), page.goto('/projects')]);
 };
 
-/** A fresh session has no active organization; pick one through the switcher
- *  the way a user would. */
-const activateOrg = async (page: import('@playwright/test').Page) => {
-  await page.getByTestId('org-switcher').click();
-  await page.getByRole('menuitemradio', { name: MOCK_ORG.name }).click();
-};
-
 test.describe('Projects list', () => {
-  test('without an active organization the default filter is public and members-only projects stay hidden', async ({
+  test('a first run auto-activates the approved organization and defaults to my projects', async ({
     appPage,
   }) => {
     await openProjects(appPage);
+
+    await expect(appPage.getByTestId('org-switcher')).toContainText(MOCK_ORG.name);
+    await expect(appPage.getByTestId('project-filter-mine')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(appPage.getByTestId('project-row')).toHaveCount(1);
+    await expect(appPage.getByTestId('project-row')).toContainText(MOCK_PROJECT.name);
+  });
+
+  test('choosing "No organization" switches the default to public and hides members-only projects', async ({
+    appPage,
+  }) => {
+    await openProjects(appPage);
+
+    await expect(appPage.getByTestId('org-switcher')).toContainText(MOCK_ORG.name);
+    await appPage.getByTestId('org-switcher').click();
+    await appPage.getByRole('menuitemradio', { name: 'No organization' }).click();
 
     await expect(appPage.getByTestId('project-filter-public')).toHaveAttribute(
       'aria-pressed',
       'true'
     );
     await expect(appPage.getByTestId('project-row')).toHaveCount(0);
-  });
-
-  test('activating an organization scopes "mine" to its memberships', async ({ appPage }) => {
-    await openProjects(appPage);
-    await activateOrg(appPage);
-    await appPage.getByTestId('project-filter-mine').click();
-
-    await expect(appPage.getByTestId('project-row')).toHaveCount(1);
-    await expect(appPage.getByTestId('project-row')).toContainText(MOCK_PROJECT.name);
   });
 
   test('the "organization" filter shows every org project and an org member opens an org-public row', async ({
@@ -52,7 +54,6 @@ test.describe('Projects list', () => {
     });
 
     await openProjects(appPage);
-    await activateOrg(appPage);
     await appPage.getByTestId('project-filter-organization').click();
 
     await expect(appPage.getByTestId('project-row')).toHaveCount(3);
@@ -75,7 +76,6 @@ test.describe('Projects list', () => {
 
   test('the "all" filter adds listed projects, which cannot be opened', async ({ appPage }) => {
     await openProjects(appPage);
-    await activateOrg(appPage);
     await appPage.getByTestId('project-filter-all').click();
 
     await expect(appPage.getByTestId('project-row')).toHaveCount(3);
@@ -90,8 +90,6 @@ test.describe('Projects list', () => {
 
   test('opening a project lands on its campaigns tab', async ({ appPage }) => {
     await openProjects(appPage);
-    await activateOrg(appPage);
-    await appPage.getByTestId('project-filter-mine').click();
 
     await Promise.all([
       appPage.waitForResponse(ROUTE.projectCampaigns),

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getProject,
@@ -9,32 +9,58 @@ import {
 import { campaignPath, projectPath } from '~/app/routes';
 import { Tooltip } from '~/shared/ui/Tooltip';
 
-interface ProjectNavInfo {
-  project: ProjectOut | null;
+export interface ProjectNavInfo {
+  project: ProjectOut;
   campaigns: CampaignListItemOut[];
 }
 
-/** One parallel fetch per project id for the whole session: the sidebar must
- *  not add request waterfalls on top of the pages that load the same data. */
-const navInfoCache = new Map<number, Promise<ProjectNavInfo>>();
+const navInfoCache = new Map<number, ProjectNavInfo>();
+const pendingLoads = new Set<number>();
+const listeners = new Set<() => void>();
 
-const loadNavInfo = (projectId: number): Promise<ProjectNavInfo> => {
-  const cached = navInfoCache.get(projectId);
-  if (cached) return cached;
-  const pending = Promise.all([
+const notify = () => listeners.forEach((listener) => listener());
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+/** Pages that already fetched the project (ProjectPage) feed the sidebar so
+ *  it never double-fetches and immediately reflects renames or campaign-list
+ *  changes. */
+export const primeNavInfo = (projectId: number, info: ProjectNavInfo) => {
+  navInfoCache.set(projectId, info);
+  notify();
+};
+
+/** The cache is identity-scoped; sign-out drops it alongside the org stores. */
+export const clearNavInfoCache = () => {
+  navInfoCache.clear();
+  pendingLoads.clear();
+  notify();
+};
+
+/** Fallback for deep entry (straight into a campaign route) where ProjectPage
+ *  never mounted to prime the cache: one parallel fetch per project id. */
+const ensureNavInfo = (projectId: number) => {
+  if (navInfoCache.has(projectId) || pendingLoads.has(projectId)) return;
+  pendingLoads.add(projectId);
+  Promise.all([
     getProject({ path: { project_id: projectId } }),
     listProjectCampaigns({ path: { project_id: projectId } }),
   ])
-    .then(([projectRes, campaignsRes]) => ({
-      project: projectRes.data ?? null,
-      campaigns: campaignsRes.data?.items ?? [],
-    }))
-    .catch(() => {
-      navInfoCache.delete(projectId);
-      return { project: null, campaigns: [] };
-    });
-  navInfoCache.set(projectId, pending);
-  return pending;
+    .then(([projectRes, campaignsRes]) => {
+      if (projectRes.data) {
+        primeNavInfo(projectId, {
+          project: projectRes.data,
+          campaigns: campaignsRes.data?.items ?? [],
+        });
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => pendingLoads.delete(projectId));
 };
 
 const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
@@ -67,20 +93,19 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   const projectId = match ? Number(match[1]) : null;
   const campaignId = match?.[2] ? Number(match[2]) : null;
 
-  const [info, setInfo] = useState<ProjectNavInfo | null>(null);
+  // On the project index ProjectPage is about to prime the cache with its own
+  // fetches; only deeper routes need the standalone fallback load.
+  const onProjectIndexRoute = projectId !== null && location.pathname === projectPath(projectId);
+
+  const info = useSyncExternalStore(subscribe, () =>
+    projectId === null ? undefined : navInfoCache.get(projectId)
+  );
 
   useEffect(() => {
-    if (projectId === null) return;
-    let cancelled = false;
-    loadNavInfo(projectId).then((loaded) => {
-      if (!cancelled) setInfo(loaded);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
+    if (projectId !== null && !onProjectIndexRoute) ensureNavInfo(projectId);
+  }, [projectId, onProjectIndexRoute]);
 
-  if (projectId === null || info?.project == null || info.project.id !== projectId) return null;
+  if (projectId === null || info === undefined) return null;
 
   const { project } = info;
   const campaign = campaignId === null ? null : info.campaigns.find((c) => c.id === campaignId);

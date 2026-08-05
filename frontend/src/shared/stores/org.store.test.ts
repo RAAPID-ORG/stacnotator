@@ -22,12 +22,13 @@ const { useOrgStore } = await import('./org.store');
 describe('useOrgStore', () => {
   beforeEach(() => {
     entries.clear();
-    useOrgStore.setState({ activeOrgId: null });
+    useOrgStore.setState({ activeOrgId: null, hasChosenOrg: false });
   });
 
-  it('starts with no active organization', () => {
+  it('starts with no active organization and no choice made', () => {
     expect(useOrgStore.getInitialState().activeOrgId).toBeNull();
     expect(useOrgStore.getState().activeOrgId).toBeNull();
+    expect(useOrgStore.getState().hasChosenOrg).toBe(false);
   });
 
   it('round-trips the active organization id', () => {
@@ -38,14 +39,24 @@ describe('useOrgStore', () => {
     expect(useOrgStore.getState().activeOrgId).toBeNull();
   });
 
-  it('reset clears the selection so it does not follow the next user', () => {
+  it('marks any selection as chosen, including "No organization"', () => {
+    useOrgStore.getState().setActiveOrgId(null);
+    expect(useOrgStore.getState().hasChosenOrg).toBe(true);
+
+    useOrgStore.setState({ hasChosenOrg: false });
+    useOrgStore.getState().setActiveOrgId(4);
+    expect(useOrgStore.getState().hasChosenOrg).toBe(true);
+  });
+
+  it('reset clears selection and marker so the next login re-defaults', () => {
     useOrgStore.getState().setActiveOrgId(4);
 
     useOrgStore.getState().reset();
 
     expect(useOrgStore.getState().activeOrgId).toBeNull();
+    expect(useOrgStore.getState().hasChosenOrg).toBe(false);
     expect(JSON.parse(localStorage.getItem('active-org') ?? '')).toMatchObject({
-      state: { activeOrgId: null },
+      state: { activeOrgId: null, hasChosenOrg: false },
     });
   });
 

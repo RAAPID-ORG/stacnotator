@@ -4,6 +4,7 @@ import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Switch } from '~/shared/ui/forms';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
+import { accessDraftChanges, type AccessDraft } from './orgAccessDraft';
 
 export type PlatformOrganizationsTableProps = {
   organizations: OrganizationOut[];
@@ -25,15 +26,6 @@ const STATUS_TONES: Record<string, BadgeTone> = {
 const rowActionCls =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
-/** Everything the per-row access editor may change, edited as one draft and
- *  applied together on Save so nothing flips on a bare click. */
-type AccessEditor = {
-  organizationId: number;
-  initialTilers: string[];
-  selectedTilers: string[];
-  internalStorage: boolean;
-};
-
 const COL_SPAN = 4;
 
 export const PlatformOrganizationsTable = ({
@@ -49,7 +41,7 @@ export const PlatformOrganizationsTable = ({
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
   const showAlert = useLayoutStore((s) => s.showAlert);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [editor, setEditor] = useState<AccessEditor | null>(null);
+  const [editor, setEditor] = useState<AccessDraft | null>(null);
   const [savingAccess, setSavingAccess] = useState(false);
 
   const run = async (organizationId: number, message: string, action: () => Promise<void>) => {
@@ -112,10 +104,10 @@ export const PlatformOrganizationsTable = ({
 
   const saveAccess = async (organization: OrganizationOut) => {
     if (!editor) return;
-    const tilersChanged =
-      editor.selectedTilers.length !== editor.initialTilers.length ||
-      editor.selectedTilers.some((name) => !editor.initialTilers.includes(name));
-    const storageChanged = editor.internalStorage !== organization.allows_internal_storage;
+    const { tilersChanged, storageChanged } = accessDraftChanges(
+      editor,
+      organization.allows_internal_storage
+    );
 
     setSavingAccess(true);
     try {

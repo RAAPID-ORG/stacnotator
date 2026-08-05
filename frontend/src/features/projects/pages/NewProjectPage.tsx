@@ -11,10 +11,8 @@ import { FadeIn } from '~/shared/ui/motion';
 import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
-import {
-  ProjectVisibilityPicker,
-  type ProjectVisibility,
-} from '../components/ProjectVisibilityPicker';
+import { ProjectVisibilityPicker } from '../components/ProjectVisibilityPicker';
+import { type ProjectVisibility } from '../components/projectVisibility';
 
 export const NewProjectPage = () => {
   const navigate = useNavigate();

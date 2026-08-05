@@ -1,6 +1,4 @@
-import type { ProjectOut } from '~/api/client';
-
-export type ProjectVisibility = ProjectOut['visibility'];
+import type { ProjectVisibility } from './projectVisibility';
 
 const OPTIONS: { value: ProjectVisibility; label: string; description: string }[] = [
   {
@@ -21,9 +19,6 @@ const OPTIONS: { value: ProjectVisibility; label: string; description: string }[
       'Anyone signed in to the platform can open this project and work on its campaigns.',
   },
 ];
-
-export const LEAVE_PUBLIC_WARNING =
-  'Leaving public strips the "anyone" audience from the permissions of every campaign in this project. People outside the project lose their working access.';
 
 interface ProjectVisibilityPickerProps {
   value: ProjectVisibility;

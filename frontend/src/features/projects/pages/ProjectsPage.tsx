@@ -29,7 +29,10 @@ export const ProjectsPage = () => {
 
   const [projects, setProjects] = useState<ProjectOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<ProjectFilter>(() => defaultProjectFilter(activeOrgId));
+  // Until the user picks a filter it tracks the active org, which may still be
+  // resolving on first run (auto-select of the first approved org).
+  const [userFilter, setUserFilter] = useState<ProjectFilter | null>(null);
+  const filter = userFilter ?? defaultProjectFilter(activeOrgId);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -122,7 +125,7 @@ export const ProjectsPage = () => {
                 type="button"
                 data-testid={`project-filter-${key}`}
                 aria-pressed={filter === key}
-                onClick={() => setFilter(key)}
+                onClick={() => setUserFilter(key)}
                 className={`px-3 h-7 text-xs font-medium rounded transition-colors ${
                   filter === key
                     ? 'bg-brand-50 text-brand-800'

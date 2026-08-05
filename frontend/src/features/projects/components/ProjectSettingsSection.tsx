@@ -9,11 +9,12 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { projectsPath } from '~/app/routes';
 import { deleteProject, updateProject, type ProjectOut } from '~/api/client';
+import { ProjectVisibilityPicker } from './ProjectVisibilityPicker';
 import {
   LEAVE_PUBLIC_WARNING,
-  ProjectVisibilityPicker,
+  requiresLeavePublicConfirm,
   type ProjectVisibility,
-} from './ProjectVisibilityPicker';
+} from './projectVisibility';
 
 interface ProjectSettingsSectionProps {
   project: ProjectOut;
@@ -75,7 +76,7 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
 
   const handleVisibilityChange = async (visibility: ProjectVisibility) => {
     if (visibility === project.visibility) return;
-    if (project.visibility === 'public') {
+    if (requiresLeavePublicConfirm(project.visibility, visibility)) {
       setPendingVisibility(visibility);
       return;
     }

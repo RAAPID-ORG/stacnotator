@@ -8,6 +8,7 @@ import { AuthCard } from './AuthCard';
 import { useAccountStore } from '~/shared/stores/account.store';
 import { useOrgStore } from '~/shared/stores/org.store';
 import { useOrganizationsStore } from '~/features/organizations/stores/organizations.store';
+import { clearNavInfoCache } from '~/app/SidebarProjectNav';
 import { handleError } from '~/shared/utils/errorHandler';
 
 /**
@@ -38,6 +39,7 @@ export const AuthGate = ({ children }: { children: ReactNode }) => {
           clear();
           useOrganizationsStore.getState().reset();
           useOrgStore.getState().reset();
+          clearNavInfoCache();
         }
       } catch (e) {
         handleError(e, 'AuthGate init error', { showUser: false });

@@ -19,6 +19,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
   const navigate = useNavigate();
   const { orgs, loading } = useOrganizations();
   const activeOrgId = useOrgStore((s) => s.activeOrgId);
+  const hasChosenOrg = useOrgStore((s) => s.hasChosenOrg);
   const setActiveOrgId = useOrgStore((s) => s.setActiveOrgId);
 
   const [open, setOpen] = useState(false);
@@ -28,9 +29,9 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
 
   useEffect(() => {
     if (loading) return;
-    const reconciled = reconcileActiveOrgId(orgs, activeOrgId);
+    const reconciled = reconcileActiveOrgId(orgs, activeOrgId, hasChosenOrg);
     if (reconciled !== activeOrgId) setActiveOrgId(reconciled);
-  }, [loading, orgs, activeOrgId, setActiveOrgId]);
+  }, [loading, orgs, activeOrgId, hasChosenOrg, setActiveOrgId]);
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +50,10 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
   );
 
   useEffect(() => {
-    if (open) menuItems()[0]?.focus();
+    if (!open) return;
+    const items = menuItems();
+    const active = items.find((item) => item.getAttribute('aria-checked') === 'true');
+    (active ?? items[0])?.focus();
   }, [open, menuItems]);
 
   const close = () => {
@@ -60,6 +64,12 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
   const handleMenuKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key === 'Tab') {
+      // Refocus the trigger without cancelling the default, so Tab and
+      // Shift-Tab leave the closed menu in natural document order.
       close();
       return;
     }

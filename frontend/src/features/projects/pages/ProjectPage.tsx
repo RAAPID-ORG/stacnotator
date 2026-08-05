@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { campaignPath, newCampaignPath, projectsPath } from '~/app/routes';
+import { primeNavInfo } from '~/app/SidebarProjectNav';
 import {
   getProject,
   listProjectCampaigns,
@@ -50,6 +51,12 @@ export const ProjectPage = () => {
         if (cancelled) return;
         setProject(projectRes.data ?? null);
         setCampaigns(campaignsRes.data?.items ?? []);
+        if (projectRes.data) {
+          primeNavInfo(projectId, {
+            project: projectRes.data,
+            campaigns: campaignsRes.data?.items ?? [],
+          });
+        }
       } catch (err) {
         if (!cancelled) handleError(err, 'Failed to load project');
       } finally {
@@ -78,6 +85,12 @@ export const ProjectPage = () => {
   }
 
   if (!project) return null;
+
+  // Keeps the sidebar nav in step with renames and other settings updates.
+  const handleProjectUpdated = (updated: ProjectOut) => {
+    setProject(updated);
+    primeNavInfo(projectId, { project: updated, campaigns });
+  };
 
   const isAdmin = project.is_admin ?? false;
   const canSeeMembers = isAdmin || (project.is_member ?? false);
@@ -142,7 +155,7 @@ export const ProjectPage = () => {
             )}
 
             {activeTab === 'settings' && (
-              <ProjectSettingsSection project={project} onUpdated={setProject} />
+              <ProjectSettingsSection project={project} onUpdated={handleProjectUpdated} />
             )}
           </div>
         </div>
