@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
+import { SidebarProjectNav } from '~/app/SidebarProjectNav';
 import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
 
@@ -128,6 +129,8 @@ export const AppSidebar = ({
             </svg>
             {!collapsed && <span className="truncate">Projects</span>}
           </button>
+
+          {!collapsed && <SidebarProjectNav onNavigate={() => setMobileOpen?.(false)} />}
         </nav>
 
         {!collapsed && <OrgSwitcher onNavigate={() => setMobileOpen?.(false)} />}
