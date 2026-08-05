@@ -44,7 +44,6 @@ def save_imagery(
     campaign_id: int,
     editor_state: ImageryEditorStateCreate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Upsert the campaign's full imagery editor state. Used by the settings
@@ -55,7 +54,6 @@ def save_imagery(
         db,
         campaign=campaign,
         editor_state=editor_state,
-        user=user,
     )
 
     pending = result["pending_registrations"]

@@ -14,7 +14,6 @@ from src.annotation.geometries import (
     delete_rows_and_orphan_geometries,
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.auth.models import User
 from src.campaigns import assignments
 from src.campaigns.models import (
     Campaign,
@@ -230,7 +229,6 @@ def create_campaign(
             db,
             campaign=campaign,
             editor_state=imagery_editor_state,
-            user=db.get(User, user_id),
         )
         pending_registrations = imagery_result.get("pending_registrations", [])
         registration_bbox = imagery_result.get("bbox", [])

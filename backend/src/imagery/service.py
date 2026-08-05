@@ -3,7 +3,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.canvas.service import new_default_view_layout, sync_view_layouts
 from src.config import get_settings
@@ -22,12 +21,14 @@ from src.imagery.models import (
 from src.imagery.registration import RegistrationSpec
 from src.imagery.schemas import (
     BasemapCreate,
+    CollectionStacConfigCreate,
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
 from src.organizations.models import Organization
+from src.tilers import providers, registry
 
 
 def set_basemap_api_key(db: Session, campaign_id: int, basemap_id: int, value: str) -> Basemap:
@@ -132,9 +133,35 @@ def _upsert_viz_configs(
 # ============================================================================
 
 
+def _collection_providers(stac: CollectionStacConfigCreate) -> set[str]:
+    """Providers a collection's tiles will actually come from, decided exactly as
+    registration decides it (catalog URL + per-viz MPC eligibility). Cover overrides
+    count too: they render the cover slice. A collection without visualizations still
+    routes somewhere, so it is judged on empty params."""
+    viz_params = [
+        params.model_dump()
+        for viz in stac.visualizations
+        for params in (viz.viz_params, viz.cover_viz_params)
+        if params is not None
+    ] or [{}]
+    return {providers.select_provider(stac.catalog_url, p) for p in viz_params}
+
+
+def _forbidden(tiler_name: str, collection_name: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            f"Your organization is not authorized to use tiler '{tiler_name}' "
+            f"(collection '{collection_name}')"
+        ),
+    )
+
+
 def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
-    """Reject the whole save up front (before any writes) if a collection names a tiler the
-    owning organization may not use: unknown tiler => 400, outside its allowlist => 403."""
+    """Reject the whole save up front (before any writes) if a collection would be served
+    by a tiler the owning organization may not use: unknown hosted tiler => 400, provider
+    outside its allowlist => 403. MPC-routed collections are checked against 'mpc'; the
+    hosted tiler is only checked when something actually needs it."""
     settings = get_settings()
     allowed = set(org.allowed_tiler_names)
     for src in editor_state.sources:
@@ -142,6 +169,13 @@ def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate)
             stac = col.stac_config
             if not stac or not stac.catalog_url:
                 continue
+
+            routes = _collection_providers(stac)
+            if registry.MPC in routes and registry.MPC not in allowed:
+                raise _forbidden(registry.MPC, col.name)
+            if registry.HOSTED not in routes:
+                continue
+
             name = stac.tiler or settings.DEFAULT_TILER
             if name is None:
                 continue
@@ -151,13 +185,7 @@ def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate)
                     detail=f"Unknown tiler '{name}' for collection '{col.name}'",
                 )
             if name not in allowed:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=(
-                        f"Your organization is not authorized to use tiler '{name}' "
-                        f"(collection '{col.name}')"
-                    ),
-                )
+                raise _forbidden(name, col.name)
 
 
 def create_imagery_from_editor_state(
@@ -165,7 +193,6 @@ def create_imagery_from_editor_state(
     *,
     campaign: Campaign,
     editor_state: ImageryEditorStateCreate,
-    user: User,
 ) -> dict:
     """Persist the full imagery editor state (sources, collections, slices,
     views, basemaps) for a freshly created campaign.
@@ -176,7 +203,7 @@ def create_imagery_from_editor_state(
     'pending_registrations', 'bbox'). Does NOT commit - caller commits and then
     hands 'pending_registrations' to spawn_background_mosaic_registration.
     """
-    return save_imagery_editor_state(db, campaign=campaign, editor_state=editor_state, user=user)
+    return save_imagery_editor_state(db, campaign=campaign, editor_state=editor_state)
 
 
 def save_imagery_editor_state(
@@ -184,7 +211,6 @@ def save_imagery_editor_state(
     *,
     campaign: Campaign,
     editor_state: ImageryEditorStateCreate,
-    user: User,
 ) -> dict:
     """Upsert the full imagery editor state in a single transaction.
 
