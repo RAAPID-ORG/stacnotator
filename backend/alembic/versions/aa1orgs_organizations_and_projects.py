@@ -169,7 +169,7 @@ def upgrade() -> None:
            OR EXISTS (SELECT 1 FROM data.campaigns)
         """
     )
-    # Approved users become members; platform admins become org admins.
+    # Approved users and admins become members; platform admins become org admins.
     op.execute(
         f"""
         INSERT INTO data.organization_users (user_id, organization_id, is_admin, status)
@@ -179,7 +179,7 @@ def upgrade() -> None:
                    WHERE a.user_id = approved.user_id AND a.role = 'admin'
                ),
                'active'
-        FROM (SELECT DISTINCT user_id FROM auth.user_roles WHERE role = 'approved') approved
+        FROM (SELECT DISTINCT user_id FROM auth.user_roles WHERE role IN ('approved', 'admin')) approved
         CROSS JOIN data.organizations o
         WHERE o.name = '{LEGACY_ORG_NAME}'
         """
