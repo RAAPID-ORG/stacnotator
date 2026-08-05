@@ -39,6 +39,23 @@ class ProjectUpdateRequest(BaseModel):
     is_public: bool | None = None
 
 
+class TilerOption(BaseModel):
+    """A tiler the owning organization may use, from the unified registry."""
+
+    name: str
+    kind: str  # "mpc" | "hosted"
+    url: str | None = None  # browser-facing URL (hosted only; null for MPC)
+    is_default: bool  # default hosted pick for non-MPC collections
+
+
+class ProjectTilersOut(BaseModel):
+    """What the imagery wizard may configure for a project: the organization's
+    tiler allowlist and whether its imagery may sit in internal storage."""
+
+    tilers: list[TilerOption]
+    allows_internal_storage: bool
+
+
 class ProjectUserOut(BaseModel):
     user: UserOut
     is_admin: bool

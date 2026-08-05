@@ -82,16 +82,14 @@ def list_users(
     """
     List users in the system.
 
-    Platform admins get the full detailed record (including pending/denied
-    users, email, issuer, external_uid, allowed_tilers). Other approved users
-    get only the plain id/email/display_name for approved users - needed so
-    campaign admins can pick members to add to their campaigns, without
-    exposing every user's account details.
+    Platform admins get the full detailed record (email, issuer, external_uid).
+    Everyone else gets only the plain id/email/display_name - needed so org and
+    project admins can pick members to add, without exposing account details.
     """
     users = service.get_all_users(db)
     if user.is_admin:
         return users
-    return [UserOut.model_validate(u) for u in users if u.is_approved]
+    return [UserOut.model_validate(u) for u in users]
 
 
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)
@@ -116,97 +114,6 @@ def edit_user_info(
 
 
 # ============================================================================
-#  User Approval Operations
-# ============================================================================
-
-
-@router.post("/users/{user_id}/approve", response_model=UserOutDetailed)
-def approve_user(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Approve a single user (admin only).
-
-    Grants approval role to the specified user.
-    """
-    return _user_or_404(service.approve_user(db, user_id))
-
-
-@router.post("/users/{user_id}/revoke", response_model=UserOutDetailed)
-def revoke_user(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Revoke approval from a single user (admin only).
-
-    Removes approval role from the specified user.
-    """
-    return _user_or_404(service.revoke_approval(db, user_id))
-
-
-@router.post("/users/{user_id}/deny", response_model=UserOutDetailed)
-def deny_user(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Deny (delete) an unapproved user from the system (admin only).
-
-    Permanently removes users who have not been approved yet.
-    Cannot be used on approved users or admins.
-    """
-    return _user_or_404(service.deny_user(db, user_id))
-
-
-@router.post("/users/approve", response_model=BulkUserActionResponse)
-def approve_users_bulk(
-    request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Approve multiple users (admin only).
-
-    Grants approval role to all specified users in a single transaction.
-    """
-    return service.approve_users_bulk(db, request.user_ids)
-
-
-@router.post("/users/revoke", response_model=BulkUserActionResponse)
-def revoke_users_bulk(
-    request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Revoke approval from multiple users (admin only).
-
-    Removes approval role from all specified users in a single transaction.
-    """
-    return service.revoke_approval_bulk(db, request.user_ids)
-
-
-@router.post("/users/deny", response_model=BulkUserActionResponse)
-def deny_users_bulk(
-    request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Deny (delete) multiple unapproved users from the system (admin only).
-
-    Permanently removes users who have not been approved yet.
-    Users who are already approved or are admins will not be deleted.
-    """
-    return service.deny_users_bulk(db, request.user_ids)
-
-
-# ============================================================================
 # Admin Role Operations
 # ============================================================================
 
@@ -217,11 +124,7 @@ def grant_admin_single(
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Grant admin role to a single user (admin only).
-
-    Grants admin and approval roles to the specified user.
-    """
+    """Grant the platform admin role to a single user (admin only)."""
     return _user_or_404(service.grant_admin(db, user_id))
 
 
@@ -240,39 +143,10 @@ def revoke_admin_single(
     return _user_or_404(service.revoke_admin(db, user_id))
 
 
-def _validate_grantable_tiler(tiler_name: str) -> None:
-    if not registry.is_known(tiler_name):
-        raise HTTPException(status_code=400, detail=f"Unknown tiler '{tiler_name}'")
-
-
 @router.get("/grantable-tilers", response_model=list[str])
 def list_grantable_tilers(_: dict = Depends(require_admin)):
-    """All configured tilers an admin can toggle per user (MPC + hosted)."""
+    """All configured tilers an admin can grant to an organization (MPC + hosted)."""
     return registry.all_names()
-
-
-@router.post("/users/{user_id}/tilers/{tiler_name}", response_model=UserOutDetailed)
-def grant_tiler_single(
-    user_id: UUID,
-    tiler_name: str,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Grant a user access to an extra hosted tiler (admin only)."""
-    _validate_grantable_tiler(tiler_name)
-    return _user_or_404(service.grant_tiler(db, user_id, tiler_name))
-
-
-@router.delete("/users/{user_id}/tilers/{tiler_name}", response_model=UserOutDetailed)
-def revoke_tiler_single(
-    user_id: UUID,
-    tiler_name: str,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """Revoke a user's access to an extra hosted tiler (admin only)."""
-    _validate_grantable_tiler(tiler_name)
-    return _user_or_404(service.revoke_tiler(db, user_id, tiler_name))
 
 
 @router.post("/users/grant-admin", response_model=BulkUserActionResponse)
@@ -281,11 +155,7 @@ def grant_admin(
     _: dict = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """
-    Grant admin role to multiple users (admin only).
-
-    Grants admin and approval roles to all specified users in a single transaction.
-    """
+    """Grant the platform admin role to multiple users in one transaction (admin only)."""
     return service.grant_admin_bulk(db, request.user_ids)
 
 
@@ -302,100 +172,3 @@ def revoke_admin(
     Prevents revoking admin from all users if it would leave no admins.
     """
     return service.revoke_admin_bulk(db, request.user_ids)
-
-
-# ============================================================================
-# Visitor Role Operations
-# ============================================================================
-
-
-@router.post("/users/{user_id}/grant-visitor", response_model=UserOutDetailed)
-def grant_visitor_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Grant visitor role to a single user (admin only).
-
-    Grants the visitor and approval roles. Visitors cannot create campaigns.
-    """
-    return _user_or_404(service.grant_visitor(db, user_id))
-
-
-@router.post("/users/{user_id}/revoke-visitor", response_model=UserOutDetailed)
-def revoke_visitor_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Revoke visitor role from a single user (admin only).
-
-    The user remains approved (standard) and regains campaign-creation access.
-    """
-    return _user_or_404(service.revoke_visitor(db, user_id))
-
-
-@router.post("/users/grant-visitor", response_model=BulkUserActionResponse)
-def grant_visitor(
-    request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Grant visitor role to multiple users (admin only).
-
-    Grants the visitor and approval roles to all specified users in a single
-    transaction.
-    """
-    return service.grant_visitor_bulk(db, request.user_ids)
-
-
-@router.post("/users/revoke-visitor", response_model=BulkUserActionResponse)
-def revoke_visitor(
-    request: BulkUserActionRequest,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Revoke visitor role from multiple users (admin only).
-
-    Each user remains approved (standard). Processes all users in a single
-    transaction.
-    """
-    return service.revoke_visitor_bulk(db, request.user_ids)
-
-
-# ============================================================================
-# Internal Role Operations
-# ============================================================================
-
-
-@router.post("/users/{user_id}/grant-internal", response_model=UserOutDetailed)
-def grant_internal_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Mark a single user as first-party staff (admin only).
-
-    Grants the internal and approval roles. Internal users may point imagery and
-    custom maps at internal (managed-identity) storage.
-    """
-    return _user_or_404(service.grant_internal(db, user_id))
-
-
-@router.post("/users/{user_id}/revoke-internal", response_model=UserOutDetailed)
-def revoke_internal_single(
-    user_id: UUID,
-    _: dict = Depends(require_admin),
-    db: Session = Depends(get_db),
-):
-    """
-    Unmark a single user as first-party staff (admin only).
-
-    The user keeps every other role. Admins remain internal by definition.
-    """
-    return _user_or_404(service.revoke_internal(db, user_id))

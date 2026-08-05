@@ -20,7 +20,7 @@ from shapely.geometry import box as shapely_box
 from sqlalchemy import insert, select
 
 from src.annotation.models import AnnotationGeometry, AnnotationTask, AnnotationTaskAssignment
-from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_USER
+from src.auth.constants import ROLE_ADMIN, ROLE_USER
 from src.auth.models import User, UserRole
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import CampaignSettingsCreate, LabelBase
@@ -124,13 +124,10 @@ def _ensure_user(db, firebase_uid: str | None = None) -> User:
         db.add(user)
         db.flush()
         db.add(UserRole(user_id=user.id, role=ROLE_USER))
-        db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
         db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
         db.flush()
     else:
         logger.info("Using existing user: %s", user.email)
-        if not user.is_approved:
-            db.add(UserRole(user_id=user.id, role=ROLE_APPROVED))
         if not user.is_admin:
             db.add(UserRole(user_id=user.id, role=ROLE_ADMIN))
         db.flush()

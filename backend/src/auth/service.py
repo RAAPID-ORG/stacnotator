@@ -6,15 +6,9 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from src.auth.constants import (
-    ROLE_ADMIN,
-    ROLE_APPROVED,
-    ROLE_INTERNAL,
-    ROLE_VISITOR,
-)
-from src.auth.models import User, UserRole, UserTiler
+from src.auth.constants import ROLE_ADMIN
+from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
-from src.tilers import registry
 
 # ============================================================================
 # Internal Helper Functions
@@ -27,62 +21,20 @@ def _get_roles(db: Session, user_id: UUID) -> set[str]:
     return set(db.scalars(stmt).all())
 
 
-def _delete_role(db: Session, user_id: UUID, role: str) -> bool:
-    """Delete a role row from a user if present. Does not commit. Returns True if deleted."""
-    stmt = select(UserRole).where(UserRole.user_id == user_id, UserRole.role == role)
-    existing = db.scalar(stmt)
-    if existing:
-        db.delete(existing)
-        return True
-    return False
-
-
 def _admin_count(db: Session) -> int:
     """Count total number of admin users in the system."""
     stmt = select(func.count()).select_from(UserRole).where(UserRole.role == ROLE_ADMIN)
     return db.scalar(stmt) or 0
 
 
-def _apply_grant(
-    db: Session,
-    user_id: UUID,
-    role: str,
-    roles: set[str],
-    also_remove: tuple[str, ...],
-) -> bool:
-    """Ensure a user holds `role` (and approval) and clear `also_remove` roles.
-
-    `roles` is the user's current role set. Stages changes without committing;
-    returns True if anything was staged. This is the single place that encodes
-    grant policy (e.g. admins/visitors are always approved), shared by the
-    single-user and bulk grant helpers.
-    """
-    changed = False
-    if ROLE_APPROVED not in roles:
-        db.add(UserRole(user_id=user_id, role=ROLE_APPROVED))
-        changed = True
-    if role != ROLE_APPROVED and role not in roles:
-        db.add(UserRole(user_id=user_id, role=role))
-        changed = True
-    for stale in also_remove:
-        if _delete_role(db, user_id, stale):
-            changed = True
-    return changed
-
-
-def _grant_role(
-    db: Session,
-    user_id: UUID,
-    role: str,
-    *,
-    also_remove: tuple[str, ...] = (),
-) -> User | None:
-    """Grant `role` to a single user, ensuring approval and clearing `also_remove`."""
+def _grant_role(db: Session, user_id: UUID, role: str) -> User | None:
+    """Grant `role` to a single user. Users who already hold it are returned unchanged."""
     user = db.get(User, user_id)
     if not user:
         return None
 
-    if _apply_grant(db, user_id, role, _get_roles(db, user_id), also_remove):
+    if role not in _get_roles(db, user_id):
+        db.add(UserRole(user_id=user_id, role=role))
         db.commit()
         db.refresh(user)
 
@@ -194,9 +146,6 @@ def register_user(
     for role in bootstrap_roles:
         db.add(UserRole(user_id=user.id, role=role))
 
-    for tiler_name in registry.default_access_names():
-        db.add(UserTiler(user_id=user.id, tiler_name=tiler_name))
-
     db.commit()
     db.refresh(user)
 
@@ -238,40 +187,14 @@ def is_admin(db: Session, user_id: UUID) -> bool:
     return has_role(db, user_id, ROLE_ADMIN)
 
 
-def is_approved(db: Session, user_id: UUID) -> bool:
-    """Check if user has approved role."""
-    return has_role(db, user_id, ROLE_APPROVED)
-
-
-def is_visitor(db: Session, user_id: UUID) -> bool:
-    """Check if user has visitor role (approved but cannot create campaigns)."""
-    return has_role(db, user_id, ROLE_VISITOR)
-
-
-# ============================================================================
-# User Approval Management
-# ============================================================================
-
-
-def approve_user(db: Session, user_id: UUID) -> User | None:
-    """Grant approval to a user, required to access most application features."""
-    return _grant_role(db, user_id, ROLE_APPROVED)
-
-
-def revoke_approval(db: Session, user_id: UUID) -> User | None:
-    """Revoke approval from a user, removing access to most application features."""
-    return _revoke_role(db, user_id, ROLE_APPROVED)
-
-
 # ============================================================================
 # Admin Role Management
 # ============================================================================
 
 
 def grant_admin(db: Session, user_id: UUID) -> User | None:
-    """Grant admin to a user, granting approval and clearing visitor (admins can
-    create campaigns, so they cannot be visitors)."""
-    return _grant_role(db, user_id, ROLE_ADMIN, also_remove=(ROLE_VISITOR,))
+    """Grant platform admin to a user."""
+    return _grant_role(db, user_id, ROLE_ADMIN)
 
 
 def revoke_admin(db: Session, user_id: UUID) -> User | None:
@@ -291,67 +214,6 @@ def revoke_admin(db: Session, user_id: UUID) -> User | None:
 # ============================================================================
 
 
-def grant_tiler(db: Session, user_id: UUID, tiler_name: str) -> User | None:
-    """Grant a user access to an extra hosted tiler. Idempotent; returns the user
-    (or None if the user doesn't exist)."""
-    user = db.get(User, user_id)
-    if not user:
-        return None
-    if db.get(UserTiler, (user_id, tiler_name)) is None:
-        db.add(UserTiler(user_id=user_id, tiler_name=tiler_name))
-        db.commit()
-        db.refresh(user)
-    return user
-
-
-def revoke_tiler(db: Session, user_id: UUID, tiler_name: str) -> User | None:
-    """Revoke a user's access to an extra hosted tiler. Idempotent; returns the user
-    (or None if the user doesn't exist)."""
-    user = db.get(User, user_id)
-    if not user:
-        return None
-    row = db.get(UserTiler, (user_id, tiler_name))
-    if row is not None:
-        db.delete(row)
-        db.commit()
-        db.refresh(user)
-    return user
-
-
-# ============================================================================
-# Visitor Role Management
-# ============================================================================
-
-
-def grant_visitor(db: Session, user_id: UUID) -> User | None:
-    """Grant visitor to a user (approved, but cannot create campaigns), granting
-    approval if needed. Has no effect on admins, who retain campaign creation."""
-    return _grant_role(db, user_id, ROLE_VISITOR)
-
-
-def revoke_visitor(db: Session, user_id: UUID) -> User | None:
-    """Revoke visitor from a user; they remain a standard approved user."""
-    return _revoke_role(db, user_id, ROLE_VISITOR)
-
-
-# ============================================================================
-# Internal Role Management
-# ============================================================================
-
-
-def grant_internal(db: Session, user_id: UUID) -> User | None:
-    """Mark a user as first-party staff, granting approval if needed. Internal is
-    orthogonal to the admin/visitor/standard ladder: it only unlocks pointing
-    imagery and custom maps at managed-identity storage."""
-    return _grant_role(db, user_id, ROLE_INTERNAL)
-
-
-def revoke_internal(db: Session, user_id: UUID) -> User | None:
-    """Unmark a user as first-party staff. Admins stay internal by definition, so
-    this cannot make an admin external."""
-    return _revoke_role(db, user_id, ROLE_INTERNAL)
-
-
 # ============================================================================
 # Bulk Operations
 # ============================================================================
@@ -366,15 +228,9 @@ class BulkRoleChangeResult(NamedTuple):
     already_in_state: list[User]
 
 
-def _bulk_grant_role(
-    db: Session,
-    user_ids: list[UUID],
-    role: str,
-    *,
-    also_remove: tuple[str, ...] = (),
-) -> BulkRoleChangeResult:
-    """Grant `role` to many users in one transaction, ensuring approval and
-    clearing any `also_remove` roles. Users who already hold `role` are skipped."""
+def _bulk_grant_role(db: Session, user_ids: list[UUID], role: str) -> BulkRoleChangeResult:
+    """Grant `role` to many users in one transaction. Users who already hold
+    `role` are skipped."""
     success, not_found, already_in_state = [], [], []
 
     for user_id in user_ids:
@@ -383,12 +239,11 @@ def _bulk_grant_role(
             not_found.append(str(user_id))
             continue
 
-        roles = _get_roles(db, user_id)
-        if role in roles:
+        if role in _get_roles(db, user_id):
             already_in_state.append(user)
             continue
 
-        _apply_grant(db, user_id, role, roles, also_remove)
+        db.add(UserRole(user_id=user_id, role=role))
         success.append(user)
 
     if success:
@@ -440,19 +295,9 @@ def _bulk_revoke_role(
     return BulkRoleChangeResult(success, not_found, already_in_state)
 
 
-def approve_users_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Grant approval to multiple users."""
-    return _bulk_grant_role(db, user_ids, ROLE_APPROVED)
-
-
-def revoke_approval_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Revoke approval from multiple users."""
-    return _bulk_revoke_role(db, user_ids, ROLE_APPROVED)
-
-
 def grant_admin_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Grant admin to multiple users, granting approval and clearing visitor."""
-    return _bulk_grant_role(db, user_ids, ROLE_ADMIN, also_remove=(ROLE_VISITOR,))
+    """Grant platform admin to multiple users."""
+    return _bulk_grant_role(db, user_ids, ROLE_ADMIN)
 
 
 def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
@@ -469,83 +314,6 @@ def revoke_admin_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult
             )
 
     return _bulk_revoke_role(db, user_ids, ROLE_ADMIN, guard=keep_one_admin)
-
-
-def grant_visitor_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Grant visitor to multiple users, granting approval if needed."""
-    return _bulk_grant_role(db, user_ids, ROLE_VISITOR)
-
-
-def revoke_visitor_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Revoke visitor from multiple users; each remains a standard approved user."""
-    return _bulk_revoke_role(db, user_ids, ROLE_VISITOR)
-
-
-# ============================================================================
-# User Denial (Deletion of Unapproved Users)
-# ============================================================================
-
-
-def deny_user(db: Session, user_id: UUID) -> User | None:
-    """
-    Deny (delete) an unapproved user from the system.
-
-    This permanently removes users who have not yet been approved.
-    Prevents deletion of approved users or admins.
-
-    Args:
-        db: Database session
-        user_id: User ID to deny/delete
-
-    Returns:
-        The deleted user object, or None if user not found
-
-    Raises:
-        HTTPException 409: If user is already approved or is an admin
-    """
-    user = db.get(User, user_id)
-    if not user:
-        return None
-
-    # Prevent deletion of approved or admin users
-    if has_role(db, user_id, ROLE_APPROVED):
-        raise HTTPException(
-            status_code=409, detail="Cannot deny an approved user. Use revoke approval instead."
-        )
-
-    if has_role(db, user_id, ROLE_ADMIN):
-        raise HTTPException(
-            status_code=409, detail="Cannot deny an admin user. Revoke admin role first."
-        )
-
-    # Delete the user (roles will be cascade deleted)
-    db.delete(user)
-    db.commit()
-
-    return user
-
-
-def deny_users_bulk(db: Session, user_ids: list[UUID]) -> BulkRoleChangeResult:
-    """Deny (delete) multiple unapproved users. Approved or admin users are skipped."""
-    success, not_found, already_in_state = [], [], []
-
-    for user_id in user_ids:
-        user = db.get(User, user_id)
-        if not user:
-            not_found.append(str(user_id))
-            continue
-
-        if has_role(db, user_id, ROLE_APPROVED) or has_role(db, user_id, ROLE_ADMIN):
-            already_in_state.append(user)
-            continue
-
-        db.delete(user)
-        success.append(user)
-
-    if success:
-        db.commit()
-
-    return BulkRoleChangeResult(success, not_found, already_in_state)
 
 
 # ============================================================================

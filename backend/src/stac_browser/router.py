@@ -1,11 +1,15 @@
 import logging
 import time
+from collections.abc import Collection
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
+from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
+from src.database import get_db
+from src.projects.dependencies import require_project_access
 from src.stac_browser.catalogs import (
     COLLECTIONS_CACHE_TTL,
     _cache_get,
@@ -33,18 +37,28 @@ router = APIRouter(
 
 
 @router.get("/catalogs", response_model=list[StacCatalogOut])
-async def list_catalogs(user: User = Depends(require_authenticated_user)):
-    """Browsable catalogs: the user's platform tiler catalogs first, then public ones
-    (MPC + StacIndex). Platform catalogs carry ``tiler_name`` so the wizard auto-targets
-    the tiler; others route to the default tiler."""
-    return [*_tiler_catalogs(user), *await public_catalogs()]
+async def list_catalogs(
+    project_id: int = Query(..., description="Project the wizard is configuring imagery for"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
+):
+    """Browsable catalogs: the project organization's platform tiler catalogs first, then
+    public ones (MPC + StacIndex). Platform catalogs carry ``tiler_name`` so the wizard
+    auto-targets the tiler; others route to the default tiler."""
+    project = require_project_access(project_id=project_id, db=db, user=user)
+    return [
+        *_tiler_catalogs(project.organization.allowed_tiler_names),
+        *await public_catalogs(),
+    ]
 
 
-def _tiler_catalogs(user: User) -> list[dict]:
-    """Platform tiler catalogs the user may use. Excludes MPC (a public catalog below)."""
+def _tiler_catalogs(allowed_tiler_names: Collection[str]) -> list[dict]:
+    """Platform tiler catalogs the organization may use. Excludes MPC (a public catalog
+    below)."""
+    allowed = set(allowed_tiler_names)
     out = []
     for tiler in registry.browsable_tilers():
-        if tiler.kind == registry.MPC or not user.can_use_tiler(tiler.name):
+        if tiler.kind == registry.MPC or tiler.name not in allowed:
             continue
         out.append(
             {

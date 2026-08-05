@@ -27,6 +27,7 @@ from src.imagery.schemas import (
     ImagerySourceCreate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
+from src.organizations.models import Organization
 
 
 def set_basemap_api_key(db: Session, campaign_id: int, basemap_id: int, value: str) -> Basemap:
@@ -131,26 +132,30 @@ def _upsert_viz_configs(
 # ============================================================================
 
 
-def _authorize_tilers(user: User, editor_state: ImageryEditorStateCreate) -> None:
-    """Reject the whole save up front (before any writes) if the user names a tiler they
-    may not use: unknown tiler => 400, ungranted extra => 403."""
+def _authorize_tilers(org: Organization, editor_state: ImageryEditorStateCreate) -> None:
+    """Reject the whole save up front (before any writes) if a collection names a tiler the
+    owning organization may not use: unknown tiler => 400, outside its allowlist => 403."""
     settings = get_settings()
+    allowed = set(org.allowed_tiler_names)
     for src in editor_state.sources:
         for col in src.collections:
             stac = col.stac_config
             if not stac or not stac.catalog_url:
                 continue
             name = stac.tiler or settings.DEFAULT_TILER
-            if name is not None and name not in settings.TILERS:
+            if name is None:
+                continue
+            if name not in settings.TILERS:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Unknown tiler '{name}' for collection '{col.name}'",
                 )
-            if name is not None and not user.can_use_tiler(name):
+            if name not in allowed:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=(
-                        f"You are not authorized to use tiler '{name}' (collection '{col.name}')"
+                        f"Your organization is not authorized to use tiler '{name}' "
+                        f"(collection '{col.name}')"
                     ),
                 )
 
@@ -198,7 +203,7 @@ def save_imagery_editor_state(
     if not campaign.settings:
         raise HTTPException(status_code=404, detail="Campaign settings not found")
 
-    _authorize_tilers(user, editor_state)
+    _authorize_tilers(campaign.project.organization, editor_state)
 
     bbox = [
         campaign.settings.bbox_west,

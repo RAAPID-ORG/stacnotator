@@ -11,13 +11,10 @@ from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
 from src.imagery import registration, service
 from src.imagery.schemas import (
-    AllowedTilersOut,
     ApiKeyStatusOut,
     ApiKeyUpdate,
     ImageryEditorStateCreate,
-    TilerOption,
 )
-from src.tilers import registry
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -26,32 +23,20 @@ router = APIRouter(
 )
 
 
-def _require_internal_for_internal_storage(
-    editor_state: ImageryEditorStateCreate, user: User
+def _require_internal_storage_allowed(
+    editor_state: ImageryEditorStateCreate, campaign: Campaign
 ) -> None:
-    """Only internal staff may point a collection at internal (managed-identity) storage."""
-    if user.is_internal:
+    """Only organizations cleared for it may point a collection at internal
+    (managed-identity) storage."""
+    if campaign.project.organization.allows_internal_storage:
         return
     for source in editor_state.sources:
         for col in source.collections:
             if col.stac_config and col.stac_config.internal_storage:
                 raise HTTPException(
                     status_code=403,
-                    detail="Only internal users can mark imagery as internal storage",
+                    detail="This organization cannot mark imagery as internal storage",
                 )
-
-
-@router.get("/imagery/tilers", response_model=AllowedTilersOut)
-def list_tilers(user: User = Depends(require_authenticated_user)):
-    """Tilers the current user may use."""
-    allowed = set(user.allowed_tilers)
-    return AllowedTilersOut(
-        tilers=[
-            TilerOption(name=t.name, kind=t.kind, url=t.url, is_default=t.is_default)
-            for t in registry.all_tilers()
-            if t.name in allowed
-        ]
-    )
 
 
 @router.put("/{campaign_id}/imagery")
@@ -65,7 +50,7 @@ def save_imagery(
     """Upsert the campaign's full imagery editor state. Used by the settings
     edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, views, and basemaps in a single transaction."""
-    _require_internal_for_internal_storage(editor_state, user)
+    _require_internal_storage_allowed(editor_state, campaign)
     result = service.save_imagery_editor_state(
         db,
         campaign=campaign,
