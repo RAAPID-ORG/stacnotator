@@ -37,7 +37,7 @@ from src.annotation.schemas import (
     AnnotationTaskSubmitResponse,
     AnnotationUpdate,
 )
-from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.models import Campaign
 from src.campaigns.policy import (
     build_policy_context,
     counts_toward_completion,
@@ -46,6 +46,7 @@ from src.campaigns.policy import (
     is_authoritative_reviewer,
     is_platform_admin,
 )
+from src.projects.models import ProjectUser
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +61,15 @@ def get_user_assignment_status(task: AnnotationTask, user_id: UUID) -> str:
 
 
 def _is_campaign_admin(db: Session, user_id: UUID, campaign_id: int) -> bool:
-    """Check if a user is an admin of the given campaign or a platform admin."""
+    """Check if a user is an admin of the given campaign's project, or a
+    platform admin."""
     campaign_admin = db.execute(
-        select(CampaignUser).where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-            CampaignUser.is_admin,
+        select(ProjectUser)
+        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+        .where(
+            Campaign.id == campaign_id,
+            ProjectUser.user_id == user_id,
+            ProjectUser.is_admin,
         )
     ).scalar_one_or_none()
     return campaign_admin is not None or is_platform_admin(db, user_id)

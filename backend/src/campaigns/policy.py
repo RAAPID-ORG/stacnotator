@@ -18,8 +18,9 @@ from sqlalchemy.orm import Session
 
 from src.auth.constants import ROLE_ADMIN
 from src.auth.models import UserRole
-from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.models import Campaign
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience, default_labelling_policy
+from src.projects.models import ProjectUser
 
 
 @dataclass(frozen=True)
@@ -117,15 +118,14 @@ def is_platform_admin(db: Session, user_id: UUID) -> bool:
 
 
 def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> bool:
-    """True if the user has the explicit authoritative-reviewer flag on this
-    campaign."""
-    cu = db.execute(
-        select(CampaignUser).where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
+    """True if the user holds the authoritative-reviewer flag on the
+    campaign's project."""
+    pu = db.execute(
+        select(ProjectUser)
+        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+        .where(Campaign.id == campaign_id, ProjectUser.user_id == user_id)
     ).scalar_one_or_none()
-    return cu is not None and cu.is_authoritative_reviewer
+    return pu is not None and pu.is_authoritative_reviewer
 
 
 def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
@@ -187,10 +187,10 @@ def build_policy_context(
     `task` is given; `is_assigned` is true if the user holds ANY assignment on
     it (primary or review), per the labelling-policy spec.
     """
-    cu = db.scalars(
-        select(CampaignUser).where(
-            CampaignUser.campaign_id == campaign.id,
-            CampaignUser.user_id == user_id,
+    pu = db.scalars(
+        select(ProjectUser).where(
+            ProjectUser.project_id == campaign.project_id,
+            ProjectUser.user_id == user_id,
         )
     ).first()
     is_assigned = task is not None and any(
@@ -198,25 +198,26 @@ def build_policy_context(
     )
     return PolicyContext(
         user_id=user_id,
-        is_admin=(cu is not None and cu.is_admin) or is_platform_admin(db, user_id),
-        is_authoritative=cu is not None and cu.is_authoritative_reviewer,
-        is_member=cu is not None,
+        is_admin=(pu is not None and pu.is_admin) or is_platform_admin(db, user_id),
+        is_authoritative=pu is not None and pu.is_authoritative_reviewer,
+        is_member=pu is not None,
         is_assigned=is_assigned,
     )
 
 
 def get_campaign_role_map(db: Session, campaign_id: int) -> dict[UUID, tuple[bool, bool]]:
     """One query giving every campaign member's (is_admin, is_authoritative)
-    flags, keyed by user id. Membership itself is `user_id in role_map`.
+    flags, keyed by user id - roles come from the owning project. Membership
+    itself is `user_id in role_map`.
 
     Meant to be fetched once per request and reused across many
-    `context_from_role_map` calls instead of a per-annotation CampaignUser
+    `context_from_role_map` calls instead of a per-annotation ProjectUser
     lookup.
     """
     rows = db.execute(
-        select(
-            CampaignUser.user_id, CampaignUser.is_admin, CampaignUser.is_authoritative_reviewer
-        ).where(CampaignUser.campaign_id == campaign_id)
+        select(ProjectUser.user_id, ProjectUser.is_admin, ProjectUser.is_authoritative_reviewer)
+        .join(Campaign, Campaign.project_id == ProjectUser.project_id)
+        .where(Campaign.id == campaign_id)
     ).all()
     return {user_id: (is_admin, is_authoritative) for user_id, is_admin, is_authoritative in rows}
 

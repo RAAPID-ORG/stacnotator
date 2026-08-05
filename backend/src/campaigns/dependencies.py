@@ -1,11 +1,21 @@
 from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.auth.dependencies import require_approved_user
 from src.auth.models import User
-from src.campaigns.models import Campaign, CampaignUser
+from src.campaigns.models import Campaign
 from src.database import get_db
+from src.projects.models import ProjectUser
+
+
+def _get_campaign(db: Session, campaign_id: int) -> Campaign:
+    campaign = db.execute(
+        select(Campaign).options(joinedload(Campaign.project)).where(Campaign.id == campaign_id)
+    ).scalar_one_or_none()
+    if campaign is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
+    return campaign
 
 
 def require_campaign_access(
@@ -16,9 +26,9 @@ def require_campaign_access(
     """
     Verify user has access to a campaign (any role).
 
-    Access is granted if:
-    - The campaign is public, OR
-    - The user is a member of the campaign, OR
+    Access resolves through the owning project: granted if
+    - The campaign's project is public, OR
+    - The user is a member of the campaign's project, OR
     - The user is a platform admin.
 
     Args:
@@ -32,22 +42,16 @@ def require_campaign_access(
     Raises:
         HTTPException: 404 if campaign not found, 403 if access denied
     """
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if campaign is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found",
-        )
+    campaign = _get_campaign(db, campaign_id)
 
-    # Public campaigns are accessible to all authenticated users
-    if campaign.is_public:
+    if campaign.project.is_public:
         return campaign
 
     has_access = (
         db.execute(
-            select(CampaignUser).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id == user.id,
+            select(ProjectUser).where(
+                ProjectUser.project_id == campaign.project_id,
+                ProjectUser.user_id == user.id,
             )
         ).scalar_one_or_none()
     ) or user.is_admin
@@ -69,6 +73,9 @@ def require_campaign_admin(
     """
     Verify user has admin access to a campaign.
 
+    Admin rights resolve through the owning project: granted if the user is
+    flagged admin on the campaign's project, or is a platform admin.
+
     Args:
         campaign_id: ID of the campaign to check admin access for
         db: Database session
@@ -80,19 +87,14 @@ def require_campaign_admin(
     Raises:
         HTTPException: 404 if campaign not found, 403 if not an admin
     """
-    campaign = db.execute(select(Campaign).where(Campaign.id == campaign_id)).scalar_one_or_none()
-    if campaign is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Campaign not found",
-        )
+    campaign = _get_campaign(db, campaign_id)
 
     has_admin_access = (
         db.execute(
-            select(CampaignUser).where(
-                CampaignUser.campaign_id == campaign_id,
-                CampaignUser.user_id == user.id,
-                CampaignUser.is_admin,
+            select(ProjectUser).where(
+                ProjectUser.project_id == campaign.project_id,
+                ProjectUser.user_id == user.id,
+                ProjectUser.is_admin,
             )
         ).scalar_one_or_none()
     ) or user.is_admin
