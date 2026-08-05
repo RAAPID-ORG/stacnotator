@@ -597,7 +597,6 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     - Timeseries
     - Annotations
     - Annotation task items
-    - Campaign user associations
 
     Args:
         db: Database session

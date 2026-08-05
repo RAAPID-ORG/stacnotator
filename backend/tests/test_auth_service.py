@@ -573,8 +573,23 @@ class TestListUsersVisibility:
         ):
             result = list_users(user=viewer, db=_mock_db())
 
-        assert approved in result
-        assert pending not in result
+        assert len(result) == 1
+        assert result[0].id == approved.id
+        assert result[0].email == approved.email
+
+    def test_non_admin_gets_plain_user_out_not_detailed_fields(self):
+        """Non-admins must not get email issuer/external_uid/allowed_tilers -
+        only the basic id/email/display_name shape."""
+        viewer = _make_user(roles=[ROLE_APPROVED])
+        approved = _make_user(roles=[ROLE_APPROVED])
+
+        with patch(
+            "src.auth.router.service.get_all_users",
+            return_value=[approved],
+        ):
+            result = list_users(user=viewer, db=_mock_db())
+
+        assert set(type(result[0]).model_fields) == {"id", "email", "display_name"}
 
 
 class TestEditUserInfoAuthorization:

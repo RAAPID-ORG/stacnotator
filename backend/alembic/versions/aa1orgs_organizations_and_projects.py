@@ -15,7 +15,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 
-from alembic import context, op
+from alembic import op
 from src.tilers import registry
 
 revision: str = "aa1orgs"
@@ -184,20 +184,13 @@ def upgrade() -> None:
         WHERE o.name = '{LEGACY_ORG_NAME}'
         """
     )
-    if not context.is_offline_mode():
-        conn = op.get_bind()
-        org_id = conn.execute(
-            sa.text("SELECT id FROM data.organizations WHERE name = :n"), {"n": LEGACY_ORG_NAME}
-        ).scalar()
-        if org_id is not None:
-            for tiler_name in registry.all_names():
-                conn.execute(
-                    sa.text(
-                        "INSERT INTO data.organization_tilers (organization_id, tiler_name) "
-                        "VALUES (:o, :t)"
-                    ),
-                    {"o": org_id, "t": tiler_name},
-                )
+    for tiler_name in registry.all_names():
+        op.execute(
+            f"""
+            INSERT INTO data.organization_tilers (organization_id, tiler_name)
+            SELECT id, '{tiler_name}' FROM data.organizations WHERE name = '{LEGACY_ORG_NAME}'
+            """
+        )
     # One single-campaign project per campaign, carrying name/visibility/age.
     op.execute(
         f"""

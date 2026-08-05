@@ -9,7 +9,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from src.annotation.geometries import delete_orphan_geometries
 from src.auth.models import User
 from src.campaigns.models import Campaign
-from src.campaigns.policy import _strip_anyone_kind
+from src.campaigns.policy import strip_anyone_kind
 from src.campaigns.schemas import LabellingPolicy
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
@@ -126,6 +126,9 @@ def create_wrapping_project(db: Session, *, name: str, is_public: bool, user: Us
     ).first()
     if membership is None:
         raise HTTPException(status_code=403, detail="Join an organization to create campaigns")
+    # create_project commits the project before the caller creates its campaign, so a
+    # failed campaign create leaves an empty project behind. Accepted for this legacy
+    # shim; Phase 2 removes the shim (and this gap) entirely.
     project = create_project(
         db,
         organization_id=membership.organization_id,
@@ -206,7 +209,7 @@ def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:
     for campaign in project.campaigns:
         if campaign.settings and campaign.settings.labelling_policy:
             policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-            campaign.settings.labelling_policy = _strip_anyone_kind(policy).model_dump(mode="json")
+            campaign.settings.labelling_policy = strip_anyone_kind(policy).model_dump(mode="json")
             flag_modified(campaign.settings, "labelling_policy")
 
 

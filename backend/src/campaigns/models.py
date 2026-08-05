@@ -29,7 +29,10 @@ class Campaign(Base):
     """
 
     __tablename__ = "campaigns"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_campaigns_project_id", "project_id"),
+        {"schema": "data"},
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

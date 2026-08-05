@@ -112,7 +112,11 @@ def update_organization(
     db: Session, organization_id: int, *, name: str | None, description: str | None
 ) -> Organization:
     org = _get_org(db, organization_id)
-    if name is not None:
+    if name is not None and name != org.name:
+        if db.scalar(select(Organization).where(Organization.name == name)):
+            raise HTTPException(
+                status_code=409, detail="An organization with this name already exists"
+            )
         org.name = name
     if description is not None:
         org.description = description

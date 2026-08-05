@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
@@ -192,7 +193,20 @@ def update_campaign_visibility(
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
 ):
-    """Toggle a campaign between public and private. Only campaign admins can change this."""
+    """Toggle a campaign between public and private. Only campaign admins can change this.
+
+    This shim flips the whole owning project's visibility, so it is rejected
+    once the project holds more than one campaign - flipping it here would
+    silently publish/hide siblings the caller isn't looking at.
+    """
+    sibling_count = db.scalar(
+        select(func.count()).select_from(Campaign).where(Campaign.project_id == campaign.project_id)
+    )
+    if (sibling_count or 0) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="This campaign shares a project with others; change visibility via the project settings",
+        )
     projects_service.update_project(db, campaign.project_id, is_public=req.is_public)
     return service.get_campaign_full(db, campaign_id)
 

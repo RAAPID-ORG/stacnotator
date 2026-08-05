@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_admin, require_authenticated_user
 from src.auth.models import User
+from src.auth.schemas import UserOut
 from src.database import get_db
 from src.organizations import service
 from src.organizations.dependencies import require_org_admin, require_org_member
@@ -19,6 +20,7 @@ from src.organizations.schemas import (
     OrganizationsListResponse,
     OrganizationTilersOut,
     OrganizationUpdateRequest,
+    OrganizationUserOut,
     OrganizationUsersResponse,
     SetOrganizationTilersRequest,
 )
@@ -104,9 +106,9 @@ def get_organization_users(
     db: Session = Depends(get_db),
     org: Organization = Depends(require_org_member),
 ):
-    return OrganizationUsersResponse(
-        organization_id=organization_id, users=service.get_org_users(db, organization_id)
-    )
+    org_users = service.get_org_users(db, organization_id)
+    users = [OrganizationUserOut.model_validate(ou) for ou in org_users]
+    return OrganizationUsersResponse(organization_id=organization_id, users=users)
 
 
 @router.post("/{organization_id}/users", response_model=AddUsersByEmailResult)
@@ -117,7 +119,8 @@ def add_organization_users(
     org: Organization = Depends(require_org_admin),
 ):
     added, unknown = service.add_users_by_email(db, organization_id, body.emails)
-    return AddUsersByEmailResult(added=added, unknown_emails=unknown)
+    users = [UserOut.model_validate(u) for u in added]
+    return AddUsersByEmailResult(added=users, unknown_emails=unknown)
 
 
 @router.post("/{organization_id}/users/{user_id}/make-admin", status_code=204)

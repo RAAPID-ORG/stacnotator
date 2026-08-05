@@ -156,7 +156,7 @@ def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> 
 _STRIPPABLE_AXES = ("explore", "unassigned_tasks", "assigned_tasks")
 
 
-def _strip_anyone_kind(policy: LabellingPolicy) -> LabellingPolicy:
+def strip_anyone_kind(policy: LabellingPolicy) -> LabellingPolicy:
     """Drop 'anyone' from every axis of `policy`. Used when a campaign flips
     private, so a stored policy never keeps granting anonymous/any-visitor
     access after the invariant enforced on write (`_reject_anyone_kind_if_private`)

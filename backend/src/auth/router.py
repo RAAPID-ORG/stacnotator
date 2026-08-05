@@ -10,6 +10,7 @@ from src.auth.models import User
 from src.auth.schemas import (
     BulkUserActionRequest,
     BulkUserActionResponse,
+    UserOut,
     UserOutDetailed,
 )
 from src.campaigns.service import visible_campaign_ids
@@ -73,7 +74,7 @@ def get_tiler_token(
     return {"expires_in": TILER_TOKEN_TTL}
 
 
-@router.get("/users", response_model=list[UserOutDetailed])
+@router.get("/users", response_model=list[UserOutDetailed] | list[UserOut])
 def list_users(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
@@ -81,14 +82,16 @@ def list_users(
     """
     List users in the system.
 
-    Platform admins see all users (including pending/denied). Other approved
-    users see only approved users - needed so campaign admins can pick members
-    to add to their campaigns.
+    Platform admins get the full detailed record (including pending/denied
+    users, email, issuer, external_uid, allowed_tilers). Other approved users
+    get only the plain id/email/display_name for approved users - needed so
+    campaign admins can pick members to add to their campaigns, without
+    exposing every user's account details.
     """
     users = service.get_all_users(db)
     if user.is_admin:
         return users
-    return [u for u in users if u.is_approved]
+    return [UserOut.model_validate(u) for u in users if u.is_approved]
 
 
 @router.patch("/users/{user_id}", response_model=UserOutDetailed)

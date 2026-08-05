@@ -62,7 +62,7 @@ The in-repo `backend/.venv` is stale. Always run backend tooling via `uv run` (`
 
 ## Backend architecture
 
-FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
+FastAPI app in `backend/src/main.py` mounts one router per domain module under `/api`: `auth`, `organizations`, `projects`, `campaigns`, `annotation`, `timeseries`, `sampling_design`, `imagery` (+ `imagery/proxy_router`), `stac_browser` (STAC catalog browsing for the campaign wizard: catalog list, collections, item search), `custom_layers` (campaign overlay layers: COG custom maps + PMTiles vector layers). Tile *serving* lives in the separate tiler service — this backend only registers mosaics and mints tiler access tokens.
 
 Each domain module under `backend/src/<domain>/` follows the same layout:
 - `router.py` — FastAPI endpoints, dependency wiring

@@ -128,6 +128,47 @@ the legacy case still occurs in real data, and how to remove it.
   callers of `_conflicting_task_numbers` / `compute_task_status_value` first; if all
   already attach, tighten the checks and repurpose the test to assert the strict behavior.
 
+## 8. Campaign-level membership/visibility endpoints delegating to projects
+
+- **Supports:** the frontend and any external API consumer that still calls the
+  campaign-scoped membership/visibility endpoints from before organizations and
+  projects existed, instead of the new project-scoped ones.
+- **Code:** `backend/src/campaigns/router.py` - `add_users_to_campaign`,
+  `make_user_campaign_admin`, `make_user_authorative_reviewer`, `get_campaign_users`,
+  `update_campaign_visibility`, `remove_user_from_campaign`, `demote_campaign_admin`,
+  `demote_authorative_reviewer` all delegate to `src/projects/service.py` using
+  `campaign.project_id`. The demote endpoints now return 200 idempotently on a user who
+  doesn't hold the role, where the pre-projects campaign-scoped versions 404d. Note
+  `update_campaign_visibility` additionally 400s when the owning project has more than one
+  campaign, since flipping the whole project would silently change sibling campaigns too.
+- **Data check:** none needed, no stored data involved - this is routing/behavior only.
+- **Removal:** once the frontend calls the `/projects/{project_id}/...` endpoints directly
+  (`backend/src/projects/router.py`), delete the campaign-scoped wrappers and the
+  campaign_id -> project_id indirection in their tests.
+
+## 9. `CampaignCreate.project_id=None` auto-creates a wrapping project
+
+- **Supports:** the pre-projects frontend, which creates campaigns without a
+  `project_id`. `create_wrapping_project` wraps the new campaign in its own
+  single-campaign project inside the user's oldest approved org.
+- **Code:** `backend/src/campaigns/router.py` (`create_campaign`),
+  `backend/src/projects/service.py` (`create_wrapping_project`).
+- **Data check:** none needed, no stored data involved.
+- **Removal:** once the frontend's campaign-creation wizard always sends a
+  `project_id` (post organization/project UI rollout), require `project_id` in
+  `CampaignCreate` and delete `create_wrapping_project`.
+
+## 10. `Campaign.is_public` delegates to the owning project
+
+- **Supports:** every read path that still asks a campaign whether it is
+  public, from when visibility lived on the campaign row itself. Visibility
+  now lives on `data.projects.is_public`; the property is a compatibility
+  read, not stored state.
+- **Code:** `backend/src/campaigns/models.py` (`Campaign.is_public` property).
+- **Data check:** none needed, the property always reflects the current project row.
+- **Removal:** once every caller reads `campaign.project.is_public` (or the
+  project directly) instead of `campaign.is_public`, delete the property.
+
 ## Not shims (checked, no action)
 
 - Standalone annotations reading `counts_toward_completion` back as None is by design
