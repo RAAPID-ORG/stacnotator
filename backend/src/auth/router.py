@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth import service
-from src.auth.dependencies import require_admin, require_approved_user, require_authenticated_user
+from src.auth.dependencies import require_admin, require_authenticated_user
 from src.auth.models import User
 from src.auth.schemas import (
     BulkUserActionRequest,
@@ -53,10 +53,10 @@ TILER_TOKEN_TTL = 3600  # 1 hour
 @router.get("/tiler-token")
 def get_tiler_token(
     response: Response,
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    """Set a short-lived, campaign-scoped tiler HttpOnly cookie (approved users only)."""
+    """Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only)."""
     settings = get_settings()
     campaigns = [str(cid) for cid in visible_campaign_ids(db, user.id)]
     token = mint_tiler_token(user.id, campaigns, scope=["tiles:read"], ttl=TILER_TOKEN_TTL)
@@ -75,7 +75,7 @@ def get_tiler_token(
 
 @router.get("/users", response_model=list[UserOutDetailed])
 def list_users(
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """

@@ -7,10 +7,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import (
-    require_approved_user,
-    require_campaign_creation_permission,  # noqa: F401 - unused until Task 8 removes it
-)
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns import assignments, service, statistics, task_sets
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
@@ -55,14 +52,14 @@ bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     prefix="/campaigns",
     tags=["Campaigns"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
 @router.get("/", response_model=CampaignsListResponse)
 def list_all_campaigns(
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ):
     items = service.list_campaigns_with_user_roles(db, user_id=user.id)
     return CampaignsListResponse(items=items)
@@ -85,7 +82,7 @@ def get_campaign(
 def create_campaign(
     campaign: CampaignCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ):
     project_id = campaign.project_id
     if project_id is None:
@@ -125,7 +122,7 @@ def add_users_to_campaign(
 def get_campaign_with_imagery_windows(
     campaign_id: int,
     campaign: Campaign = Depends(require_campaign_access),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     """Get campaign with detailed imagery views and layouts (both default and personal)"""

@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src import crypto
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_admin
 from src.database import get_db
 from src.imagery import proxy_router
@@ -36,7 +36,7 @@ def client():
 
 def _override_admin_auth(db):
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id="u1")
+    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id="u1")
     app.dependency_overrides[require_campaign_admin] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
     app.dependency_overrides[bearer] = lambda: None
 

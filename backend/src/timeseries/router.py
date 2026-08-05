@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
@@ -25,7 +25,7 @@ from src.timeseries.schemas import (
 
 router = APIRouter(
     tags=["Time Series"],
-    dependencies=[Depends(HTTPBearer()), Depends(require_approved_user)],
+    dependencies=[Depends(HTTPBearer()), Depends(require_authenticated_user)],
 )
 
 
@@ -70,7 +70,7 @@ def get_timeseries_data(
     latitude: float,
     longitude: float,
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ):
     """Fetch the actual timeseries data from an external provider based on the timeseries config."""
     timeseries = service.get_timeseries_by_id(timeseries_id, db)

@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.security import HTTPBearer
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.stac_browser.catalogs import (
     COLLECTIONS_CACHE_TTL,
@@ -28,12 +28,12 @@ bearer = HTTPBearer()
 router = APIRouter(
     prefix="/stac",
     tags=["STAC Browser"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
 @router.get("/catalogs", response_model=list[StacCatalogOut])
-async def list_catalogs(user: User = Depends(require_approved_user)):
+async def list_catalogs(user: User = Depends(require_authenticated_user)):
     """Browsable catalogs: the user's platform tiler catalogs first, then public ones
     (MPC + StacIndex). Platform catalogs carry ``tiler_name`` so the wizard auto-targets
     the tiler; others route to the default tiler."""

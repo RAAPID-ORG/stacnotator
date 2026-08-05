@@ -26,7 +26,7 @@ from src.annotation.schemas import (
     ValidateLabelSubmissionsResponse,
 )
 from src.annotation.tiles import InvalidBBoxError, InvalidTileError, parse_bbox
-from src.auth.dependencies import require_approved_user, require_authenticated_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
@@ -38,7 +38,7 @@ from src.tile_bulkhead import tile_slot
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Annotations"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 logger = logging.getLogger(__name__)

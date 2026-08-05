@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.custom_layers import router as cm_router
 from src.custom_layers import service
@@ -42,7 +42,7 @@ def client():
 
 def _override_auth(is_internal: bool = False):
     app.dependency_overrides[get_db] = lambda: MagicMock()
-    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(
+    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(
         id="u1", is_internal=is_internal
     )
     app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)

@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.database import get_db
@@ -21,7 +21,7 @@ def _get_campaign(db: Session, campaign_id: int) -> Campaign:
 def require_campaign_access(
     campaign_id: int = Path(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ) -> Campaign:
     """
     Verify user has access to a campaign (any role).
@@ -34,7 +34,7 @@ def require_campaign_access(
     Args:
         campaign_id: ID of the campaign to check access for
         db: Database session
-        user: Authenticated and approved user
+        user: Authenticated user
 
     Returns:
         Campaign object if access is granted
@@ -68,7 +68,7 @@ def require_campaign_access(
 def require_campaign_admin(
     campaign_id: int = Path(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ) -> Campaign:
     """
     Verify user has admin access to a campaign.
@@ -79,7 +79,7 @@ def require_campaign_admin(
     Args:
         campaign_id: ID of the campaign to check admin access for
         db: Database session
-        user: Authenticated and approved user
+        user: Authenticated user
 
     Returns:
         Campaign object if admin access is granted

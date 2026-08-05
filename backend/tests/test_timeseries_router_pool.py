@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.database import get_db
 from src.main import app
 from src.timeseries import router as ts_router
@@ -45,7 +45,7 @@ def events(monkeypatch):
     monkeypatch.setattr(ts_router, "require_campaign_access", lambda **kw: None)
 
     app.dependency_overrides[get_db] = lambda: fake_db
-    app.dependency_overrides[require_approved_user] = lambda: SimpleNamespace(id=1)
+    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id=1)
     yield log
     app.dependency_overrides.clear()
 

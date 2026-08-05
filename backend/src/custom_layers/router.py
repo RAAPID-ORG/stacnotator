@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
@@ -22,7 +22,7 @@ bearer = HTTPBearer()
 custom_maps_router = APIRouter(
     prefix="/campaigns/{campaign_id}/custom-maps",
     tags=["Custom Maps"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
@@ -49,7 +49,7 @@ def create_custom_map(
     campaign_id: int,
     payload: CustomMapCreate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     _require_internal_for_internal_storage(payload.internal_storage, user)
@@ -69,7 +69,7 @@ def update_custom_map(
     map_id: int,
     payload: CustomMapUpdate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
     _require_internal_for_internal_storage(payload.internal_storage, user)
@@ -101,7 +101,7 @@ def delete_custom_map(
 vector_layers_router = APIRouter(
     prefix="/campaigns/{campaign_id}/vector-layers",
     tags=["Vector Layers"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 

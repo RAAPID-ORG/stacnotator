@@ -10,9 +10,7 @@ from fastapi import HTTPException
 from src.auth.constants import ROLE_ADMIN, ROLE_APPROVED, ROLE_INTERNAL, ROLE_VISITOR
 from src.auth.dependencies import (
     require_admin,
-    require_approved_user,
     require_authenticated_user,
-    require_campaign_creation_permission,
 )
 from src.auth.exceptions import ExternalAuthEmailNotVerified
 from src.auth.models import User, UserRole
@@ -432,24 +430,6 @@ class TestDenyUser:
         assert result is None
 
 
-class TestRequireApprovedUser:
-    def test_approved_user_passes(self):
-        user = _make_user(roles=[ROLE_APPROVED])
-        db = _mock_db()
-
-        result = asyncio.run(require_approved_user(user=user, db=db))
-        assert result is user
-
-    def test_unapproved_user_raises_403(self):
-        user = _make_user(roles=[])
-        db = _mock_db()
-
-        with pytest.raises(HTTPException) as exc_info:
-            asyncio.run(require_approved_user(user=user, db=db))
-
-        assert exc_info.value.status_code == 403
-
-
 class TestRequireAdmin:
     def test_admin_passes(self):
         user = _make_user(roles=[ROLE_APPROVED, ROLE_ADMIN])
@@ -513,32 +493,6 @@ class TestBulkRoleOperations:
         assert result.success == [user1]
         assert result.already_in_state == [user2]  # already admin
         db.delete.assert_called_once_with(visitor_row)  # visitor cleared on promotion
-
-
-class TestRequireCampaignCreationPermission:
-    def test_standard_approved_user_passes(self):
-        user = _make_user(roles=[ROLE_APPROVED])
-        db = _mock_db()
-
-        result = require_campaign_creation_permission(user=user, db=db)
-        assert result is user
-
-    def test_visitor_raises_403(self):
-        user = _make_user(roles=[ROLE_APPROVED, ROLE_VISITOR])
-        db = _mock_db()
-
-        with pytest.raises(HTTPException) as exc_info:
-            require_campaign_creation_permission(user=user, db=db)
-
-        assert exc_info.value.status_code == 403
-        assert "visitor" in exc_info.value.detail.lower()
-
-    def test_admin_visitor_still_passes(self):
-        user = _make_user(roles=[ROLE_APPROVED, ROLE_VISITOR, ROLE_ADMIN])
-        db = _mock_db()
-
-        result = require_campaign_creation_permission(user=user, db=db)
-        assert result is user
 
 
 class TestRequireAuthenticatedUser:
