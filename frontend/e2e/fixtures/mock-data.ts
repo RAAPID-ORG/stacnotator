@@ -336,6 +336,58 @@ export const MOCK_TASK_SETS = [
   },
 ];
 
+export const MOCK_ORG = {
+  id: 3,
+  name: 'Test Org',
+  description: null,
+  status: 'approved',
+  allows_internal_storage: false,
+  is_admin: true,
+};
+
+export const MOCK_PROJECT = {
+  id: 7,
+  organization_id: MOCK_ORG.id,
+  name: 'Test Project',
+  description: 'Holds the test campaign',
+  is_public: false,
+  created_at: '2024-01-01T00:00:00Z',
+  is_admin: true,
+  is_member: true,
+  has_access: true,
+  campaign_count: 1,
+};
+
+/** Same organization, no membership: the row is listed but cannot be opened. */
+export const MOCK_PROJECT_LISTED = {
+  id: 8,
+  organization_id: MOCK_ORG.id,
+  name: 'Neighbour Project',
+  description: null,
+  is_public: false,
+  created_at: '2024-01-02T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: false,
+  campaign_count: 2,
+};
+
+export const MOCK_PROJECT_CAMPAIGNS = {
+  items: [
+    {
+      id: 42,
+      name: 'Test Campaign',
+      created_at: '2024-01-01T00:00:00Z',
+      project_id: MOCK_PROJECT.id,
+      is_admin: true,
+      is_member: true,
+      is_public: false,
+      registration_status: 'ready',
+      embedding_status: 'ready',
+    },
+  ],
+};
+
 export const MOCK_PROJECT_USERS = {
   project_id: 7,
   users: [
