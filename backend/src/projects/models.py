@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import (
     TIMESTAMP,
     Boolean,
+    CheckConstraint,
     ForeignKey,
     Identity,
     Index,
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.organizations.models import Organization
+from src.projects.access import VISIBILITY_PRIVATE
 
 if TYPE_CHECKING:
     from src.auth.models import User
@@ -30,6 +32,10 @@ class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (
         Index("projects_organization_id_idx", "organization_id"),
+        CheckConstraint(
+            "visibility IN ('private', 'organization', 'public')",
+            name="projects_visibility_check",
+        ),
         {"schema": "data"},
     )
 
@@ -39,7 +45,9 @@ class Project(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
+    visibility: Mapped[str] = mapped_column(
+        String(20), server_default=VISIBILITY_PRIVATE, nullable=False
+    )
     created_by: Mapped[UUID | None] = mapped_column(
         ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
     )

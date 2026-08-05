@@ -1,4 +1,3 @@
-from typing import NamedTuple
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -17,34 +16,19 @@ from src.organizations.models import (
     Organization,
     OrganizationUser,
 )
-from src.organizations.service import normalize_emails
+from src.organizations.service import (
+    grants_org_access,
+    is_active_org_member,
+    normalize_emails,
+)
+from src.projects.access import (
+    VISIBILITY_PUBLIC,
+    is_policy_member,
+    resolve_project_flags,
+)
 from src.projects.models import Project, ProjectUser
 from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
 from src.tilers import registry
-
-
-class ProjectFlags(NamedTuple):
-    visible: bool
-    has_access: bool
-    is_member: bool
-    is_admin: bool
-
-
-def resolve_project_flags(
-    *,
-    is_public: bool,
-    is_org_member: bool,
-    is_member: bool,
-    member_is_admin: bool,
-    is_platform_admin: bool,
-) -> ProjectFlags:
-    """Pure visibility/permission matrix for one (project, viewer) pair.
-    Org members see the project listed without access; access needs
-    membership, a public project, or platform admin."""
-    is_admin = is_platform_admin or (is_member and member_is_admin)
-    has_access = is_public or is_member or is_platform_admin
-    visible = has_access or is_org_member
-    return ProjectFlags(visible, has_access, is_member or is_platform_admin, is_admin)
 
 
 def _get_project(db: Session, project_id: int) -> Project:
@@ -75,7 +59,7 @@ def create_project(
     organization_id: int,
     name: str,
     description: str | None,
-    is_public: bool,
+    visibility: str,
     user: User,
 ) -> Project:
     """Any active member of an approved org may create a project in it and
@@ -93,7 +77,7 @@ def create_project(
         organization_id=organization_id,
         name=name,
         description=description,
-        is_public=is_public,
+        visibility=visibility,
         created_by=user.id,
     )
     db.add(project)
@@ -133,7 +117,7 @@ def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
     for project in projects:
         membership = memberships.get(project.id)
         flags = resolve_project_flags(
-            is_public=project.is_public,
+            visibility=project.visibility,
             is_org_member=project.organization_id in org_ids,
             is_member=membership is not None,
             member_is_admin=membership.is_admin if membership else False,
@@ -152,7 +136,12 @@ def list_projects_for_user(db: Session, user: User) -> list[ProjectOut]:
 
 def list_project_campaigns(db: Session, project: Project, user: User) -> list[CampaignListItemOut]:
     membership = db.get(ProjectUser, (user.id, project.id))
-    is_member = user.is_admin or membership is not None
+    is_member = is_policy_member(
+        visibility=project.visibility,
+        is_org_member=grants_org_access(db, user.id, project),
+        is_member=membership is not None,
+        is_platform_admin=user.is_admin,
+    )
     is_admin = user.is_admin or (membership is not None and membership.is_admin)
     campaigns = db.scalars(
         select(Campaign)
@@ -167,7 +156,7 @@ def list_project_campaigns(db: Session, project: Project, user: User) -> list[Ca
             project_id=project.id,
             is_admin=is_admin,
             is_member=is_member,
-            is_public=project.is_public,
+            is_public=project.visibility == VISIBILITY_PUBLIC,
             registration_status=c.registration_status,
             embedding_status=c.embedding_status,
         )
@@ -178,9 +167,8 @@ def list_project_campaigns(db: Session, project: Project, user: User) -> list[Ca
 def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
     membership = db.get(ProjectUser, (user.id, project.id))
     flags = resolve_project_flags(
-        is_public=project.is_public,
-        is_org_member=_active_membership_in_approved_org(db, user.id, project.organization_id)
-        is not None,
+        visibility=project.visibility,
+        is_org_member=is_active_org_member(db, user.id, project.organization_id),
         is_member=membership is not None,
         member_is_admin=membership.is_admin if membership else False,
         is_platform_admin=user.is_admin,
@@ -199,9 +187,10 @@ def get_project_out(db: Session, project: Project, user: User) -> ProjectOut:
 
 
 def _strip_anyone_from_campaign_policies(db: Session, project: Project) -> None:
-    """Flipping a project private invalidates the 'anyone' audience on every
-    campaign policy inside it - same invariant update_campaign_visibility
-    enforced per campaign before projects existed."""
+    """Leaving platform-public visibility (for 'organization' or 'private')
+    invalidates the 'anyone' audience on every campaign policy inside the
+    project - same invariant update_campaign_visibility enforced per campaign
+    before projects existed."""
     for campaign in project.campaigns:
         if campaign.settings and campaign.settings.labelling_policy:
             policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
@@ -215,17 +204,17 @@ def update_project(
     *,
     name: str | None = None,
     description: str | None = None,
-    is_public: bool | None = None,
+    visibility: str | None = None,
 ) -> Project:
     project = _get_project(db, project_id)
     if name is not None:
         project.name = name
     if description is not None:
         project.description = description
-    if is_public is not None:
-        was_public = project.is_public
-        project.is_public = is_public
-        if was_public and not is_public:
+    if visibility is not None:
+        was_public = project.visibility == VISIBILITY_PUBLIC
+        project.visibility = visibility
+        if was_public and visibility != VISIBILITY_PUBLIC:
             _strip_anyone_from_campaign_policies(db, project)
     db.commit()
     db.refresh(project)

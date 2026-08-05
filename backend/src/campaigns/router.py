@@ -42,8 +42,10 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db
 from src.filenames import clean_filename
+from src.organizations.service import grants_org_access
+from src.projects.access import is_policy_member
 from src.projects.dependencies import assert_project_admin
-from src.projects.models import ProjectUser
+from src.projects.models import Project, ProjectUser
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
@@ -61,10 +63,18 @@ def _with_viewer_roles[T: CampaignOut](out: T, db: Session, user: User, project_
     admin check everywhere, but the authoritative-reviewer check reads the
     membership row alone (campaigns/policy.py:is_authoritative_reviewer), so a
     platform admin without that row must not be offered authoritative submit.
+    Org-public projects grant active org members member standing (no roles),
+    matching build_policy_context.
     """
     membership = db.get(ProjectUser, (user.id, project_id))
+    project = db.get(Project, project_id)
     out.viewer_is_admin = user.is_admin or (membership is not None and membership.is_admin)
-    out.viewer_is_member = user.is_admin or membership is not None
+    out.viewer_is_member = project is not None and is_policy_member(
+        visibility=project.visibility,
+        is_org_member=grants_org_access(db, user.id, project),
+        is_member=membership is not None,
+        is_platform_admin=user.is_admin,
+    )
     out.viewer_is_authoritative_reviewer = (
         membership is not None and membership.is_authoritative_reviewer
     )

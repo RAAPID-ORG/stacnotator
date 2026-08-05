@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.auth.schemas import UserOut
+from src.projects.access import VISIBILITY_PRIVATE, ProjectVisibility
 
 
 class ProjectOut(BaseModel):
@@ -11,7 +12,7 @@ class ProjectOut(BaseModel):
     organization_id: int
     name: str
     description: str | None = None
-    is_public: bool
+    visibility: ProjectVisibility
     created_at: datetime
     # Viewer-relative flags, filled by the service.
     is_admin: bool = False
@@ -30,13 +31,13 @@ class ProjectCreate(BaseModel):
     organization_id: int
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    is_public: bool = False
+    visibility: ProjectVisibility = VISIBILITY_PRIVATE
 
 
 class ProjectUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    is_public: bool | None = None
+    visibility: ProjectVisibility | None = None
 
 
 class TilerOption(BaseModel):

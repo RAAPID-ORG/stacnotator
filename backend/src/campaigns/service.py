@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import ARRAY, Text, cast, delete, func, or_, select, update
+from sqlalchemy import ARRAY, Text, and_, cast, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -38,6 +38,13 @@ from src.imagery.registration import (
     spawn_background_mosaic_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
+from src.organizations.models import MEMBER_STATUS_ACTIVE, OrganizationUser
+from src.projects.access import (
+    VISIBILITY_ORGANIZATION,
+    VISIBILITY_PUBLIC,
+    has_project_access,
+    is_policy_member,
+)
 from src.projects.models import Project, ProjectUser
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import sync_campaign_timeseries_windows
@@ -52,8 +59,9 @@ logger = logging.getLogger(__name__)
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignListItemOut]:
     """Campaigns visible to the user with role info, resolved through the
-    owning project. Platform admins see all; others see public projects'
-    campaigns plus campaigns of projects they belong to."""
+    owning project. Platform admins see all; others see platform-public
+    projects' campaigns, campaigns of projects they belong to, and org-public
+    campaigns of orgs they are active members of."""
     stmt = (
         select(Campaign).options(joinedload(Campaign.project)).order_by(Campaign.created_at.desc())
     )
@@ -62,15 +70,34 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignL
         pu.project_id: pu
         for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user_id))
     }
+    org_ids = set(
+        db.scalars(
+            select(OrganizationUser.organization_id).where(
+                OrganizationUser.user_id == user_id,
+                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            )
+        )
+    )
     user_is_global_admin = is_global_admin(db, user_id)
 
     results: list[CampaignListItemOut] = []
     for campaign in campaigns:
         membership = memberships.get(campaign.project_id)
-        is_member = user_is_global_admin or membership is not None
-        is_admin = user_is_global_admin or (membership is not None and membership.is_admin)
-        if not user_is_global_admin and not campaign.project.is_public and not is_member:
+        is_org_member = campaign.project.organization_id in org_ids
+        if not has_project_access(
+            visibility=campaign.project.visibility,
+            is_org_member=is_org_member,
+            is_member=membership is not None,
+            is_platform_admin=user_is_global_admin,
+        ):
             continue
+        is_member = is_policy_member(
+            visibility=campaign.project.visibility,
+            is_org_member=is_org_member,
+            is_member=membership is not None,
+            is_platform_admin=user_is_global_admin,
+        )
+        is_admin = user_is_global_admin or (membership is not None and membership.is_admin)
         results.append(
             CampaignListItemOut(
                 id=campaign.id,
@@ -79,7 +106,7 @@ def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignL
                 project_id=campaign.project_id,
                 is_admin=is_admin,
                 is_member=is_member,
-                is_public=campaign.project.is_public,
+                is_public=campaign.project.visibility == VISIBILITY_PUBLIC,
                 registration_status=campaign.registration_status,
                 embedding_status=campaign.embedding_status,
             )
@@ -95,11 +122,24 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
     if is_global_admin(db, user_id):
         return list(db.scalars(select(Campaign.id)).all())
 
+    active_org_ids = select(OrganizationUser.organization_id).where(
+        OrganizationUser.user_id == user_id,
+        OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+    )
     stmt = (
         select(Campaign.id)
         .join(Project, Project.id == Campaign.project_id)
         .outerjoin(ProjectUser, ProjectUser.project_id == Project.id)
-        .where(or_(Project.is_public, ProjectUser.user_id == user_id))
+        .where(
+            or_(
+                Project.visibility == VISIBILITY_PUBLIC,
+                ProjectUser.user_id == user_id,
+                and_(
+                    Project.visibility == VISIBILITY_ORGANIZATION,
+                    Project.organization_id.in_(active_org_ids),
+                ),
+            )
+        )
         .distinct()
     )
     return list(db.scalars(stmt).all())
@@ -176,7 +216,7 @@ def create_campaign(
     project = db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    is_public = project.is_public
+    is_public = project.visibility == VISIBILITY_PUBLIC
     resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
     _reject_anyone_kind_if_private(resolved_policy, is_public)
 

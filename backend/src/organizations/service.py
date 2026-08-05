@@ -14,6 +14,7 @@ from src.organizations.models import (
     OrganizationTiler,
     OrganizationUser,
 )
+from src.projects.access import VISIBILITY_ORGANIZATION
 from src.projects.models import Project, ProjectUser
 from src.tilers import registry
 
@@ -28,6 +29,30 @@ def normalize_emails(emails: list[str]) -> list[str]:
             seen.add(normalized)
             out.append(normalized)
     return out
+
+
+def is_active_org_member(db: Session, user_id: UUID, organization_id: int) -> bool:
+    """The org-membership input to the access rule in projects/access.py:
+    an active (not pending) membership row in the given org."""
+    return (
+        db.scalars(
+            select(OrganizationUser).where(
+                OrganizationUser.user_id == user_id,
+                OrganizationUser.organization_id == organization_id,
+                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            )
+        ).first()
+        is not None
+    )
+
+
+def grants_org_access(db: Session, user_id: UUID, project: Project) -> bool:
+    """Whether org membership alone opens this project: org-public visibility
+    plus an active membership in the owning org. The one DB-backed composition
+    of the pure rule's org input, shared by every per-project access check."""
+    return project.visibility == VISIBILITY_ORGANIZATION and is_active_org_member(
+        db, user_id, project.organization_id
+    )
 
 
 def _get_org(db: Session, organization_id: int) -> Organization:

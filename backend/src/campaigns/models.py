@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
     from src.canvas.models import CanvasLayout
@@ -124,8 +125,10 @@ class Campaign(Base):
 
     @property
     def is_public(self) -> bool:
-        """Campaign visibility is the owning project's visibility."""
-        return self.project.is_public
+        """Platform-public standing, resolved through the owning project.
+        Org-public visibility deliberately does not count: the 'anyone'
+        audience stays tied to platform-public projects only."""
+        return self.project.visibility == VISIBILITY_PUBLIC
 
 
 class TaskSet(Base):

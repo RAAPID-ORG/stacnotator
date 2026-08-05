@@ -17,6 +17,7 @@ from src.campaigns.policy import (
     counts_toward_completion,
     get_campaign_role_map,
     get_labelling_policy,
+    get_org_public_member_ids,
     get_platform_admin_ids,
 )
 from src.campaigns.schemas import LabellingPolicy
@@ -28,6 +29,7 @@ def _counting_context(
     role_map: dict[UUID, tuple[bool, bool]],
     admin_ids: set[UUID],
     assigned_ids: set[UUID],
+    org_member_ids: set[UUID],
 ) -> bool:
     """Whether one task-linked annotation's label counts toward its task's
     completion, per the campaign's labelling policy."""
@@ -36,6 +38,7 @@ def _counting_context(
         role_map,
         admin_ids,
         is_assigned=annotation.created_by_user_id in assigned_ids,
+        org_member_ids=org_member_ids,
     )
     return counts_toward_completion(policy, bool(assigned_ids), ctx)
 
@@ -55,12 +58,13 @@ def attach_counts_toward_completion_tree(
     role_map = get_campaign_role_map(db, campaign.id)
     author_ids = {ann.created_by_user_id for task in tasks for ann in (task.annotations or [])}
     admin_ids = get_platform_admin_ids(db, author_ids)
+    org_member_ids = get_org_public_member_ids(db, campaign)
 
     for task in tasks:
         assigned_ids = {a.user_id for a in (task.assignments or [])}
         for ann in task.annotations or []:
             ann.counts_toward_completion = _counting_context(
-                ann, policy, role_map, admin_ids, assigned_ids
+                ann, policy, role_map, admin_ids, assigned_ids, org_member_ids
             )
 
 
@@ -81,9 +85,10 @@ def attach_counts_toward_completion_flat(
     policy = get_labelling_policy(campaign)
     role_map = get_campaign_role_map(db, campaign.id)
     admin_ids = get_platform_admin_ids(db, {a.created_by_user_id for a in task_linked})
+    org_member_ids = get_org_public_member_ids(db, campaign)
 
     for ann in task_linked:
         assigned_ids = {a.user_id for a in (ann.annotation_task.assignments or [])}
         ann.counts_toward_completion = _counting_context(
-            ann, policy, role_map, admin_ids, assigned_ids
+            ann, policy, role_map, admin_ids, assigned_ids, org_member_ids
         )

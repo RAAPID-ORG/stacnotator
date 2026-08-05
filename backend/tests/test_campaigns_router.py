@@ -10,6 +10,7 @@ from uuid import uuid4
 from src.campaigns import router as campaigns_router
 from src.campaigns.router import _with_viewer_roles
 from src.campaigns.schemas import CampaignOut, UpdateCampaignLabelsRequest
+from src.projects.models import ProjectUser
 
 PROJECT_ID = 3
 
@@ -22,9 +23,12 @@ def _user(is_admin: bool):
     return SimpleNamespace(id=uuid4(), is_admin=is_admin)
 
 
-def _db(membership):
+def _db(membership, project=None, org_membership=None):
+    project = project or SimpleNamespace(visibility="private", organization_id=5)
     db = MagicMock()
-    db.get.return_value = membership
+    db.get.side_effect = lambda model, key: membership if model is ProjectUser else project
+    # grants_org_access reads the active-org-membership row via db.scalars.
+    db.scalars.return_value.first.return_value = org_membership
     return db
 
 
@@ -60,7 +64,7 @@ class TestViewerRoleFlags:
 
         assert (out.viewer_is_admin, out.viewer_is_member) == (True, True)
         assert out.viewer_is_authoritative_reviewer is False
-        assert db.get.call_args.args[1] == (user.id, PROJECT_ID)
+        assert db.get.call_args_list[0].args[1] == (user.id, PROJECT_ID)
 
     def test_authoritative_reviewer_flag_comes_from_membership(self):
         membership = SimpleNamespace(is_admin=False, is_authoritative_reviewer=True)
@@ -87,6 +91,25 @@ class TestViewerRoleFlags:
 
         assert (out.viewer_is_admin, out.viewer_is_member) == (False, False)
         assert out.viewer_is_authoritative_reviewer is False
+
+    def test_org_member_on_org_public_project_is_member_without_roles(self):
+        """Org-public access must advertise the member standing enforcement
+        grants (build_policy_context), and nothing more."""
+        project = SimpleNamespace(visibility="organization", organization_id=5)
+        db = _db(None, project=project, org_membership=SimpleNamespace())
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
+
+        assert out.viewer_is_member is True
+        assert (out.viewer_is_admin, out.viewer_is_authoritative_reviewer) == (False, False)
+
+    def test_non_org_member_on_org_public_project_gets_no_flags(self):
+        project = SimpleNamespace(visibility="organization", organization_id=5)
+        db = _db(None, project=project)
+
+        out = _with_viewer_roles(_out(), db, _user(is_admin=False), PROJECT_ID)
+
+        assert out.viewer_is_member is False
 
 
 def _campaign_row():

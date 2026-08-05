@@ -23,6 +23,7 @@ from src.campaigns.policy import (
     counts_toward_completion,
     get_campaign_role_map,
     get_labelling_policy,
+    get_org_public_member_ids,
     get_platform_admin_ids,
     is_allowed,
 )
@@ -35,9 +36,9 @@ from src.campaigns.schemas import (
 from src.projects.models import Project
 
 
-def _campaign(is_public: bool = False) -> Campaign:
+def _campaign(visibility: str = "private") -> Campaign:
     campaign = Campaign(id=1, name="x", mode="tasks")
-    campaign.project = Project(id=1, is_public=is_public)
+    campaign.project = Project(id=1, visibility=visibility, organization_id=5)
     campaign.settings = CampaignSettings(campaign_id=1, labelling_policy={})
     return campaign
 
@@ -258,7 +259,7 @@ def test_counts_toward_completion_uses_unassigned_tasks_axis_for_unassigned_task
 
 
 def test_update_labelling_policy_rejects_anyone_for_private_campaign():
-    campaign = _campaign(is_public=False)
+    campaign = _campaign(visibility="private")
     db = MagicMock()
     db.get.return_value = campaign
 
@@ -275,7 +276,7 @@ def test_update_labelling_policy_rejects_anyone_for_private_campaign():
 
 
 def test_update_labelling_policy_allows_anyone_for_public_campaign():
-    campaign = _campaign(is_public=True)
+    campaign = _campaign(visibility="public")
     db = MagicMock()
     db.get.return_value = campaign
 
@@ -291,7 +292,7 @@ def test_update_labelling_policy_allows_anyone_for_public_campaign():
 
 
 def test_update_labelling_policy_persists_without_anyone_on_private_campaign():
-    campaign = _campaign(is_public=False)
+    campaign = _campaign(visibility="private")
     db = MagicMock()
     db.get.return_value = campaign
 
@@ -391,6 +392,42 @@ def test_context_from_role_map_passes_through_is_assigned():
     user_id = uuid4()
     ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set(), is_assigned=True)
     assert ctx.is_assigned is True
+
+
+def test_context_from_role_map_org_member_ids_grant_member_standing_only():
+    user_id = uuid4()
+    ctx = context_from_role_map(
+        user_id, role_map={}, platform_admin_ids=set(), org_member_ids={user_id}
+    )
+    assert ctx.is_member is True
+    assert ctx.is_admin is False
+    assert ctx.is_authoritative is False
+
+
+def test_context_from_role_map_defaults_to_no_org_standing():
+    user_id = uuid4()
+    ctx = context_from_role_map(user_id, role_map={}, platform_admin_ids=set())
+    assert ctx.is_member is False
+
+
+# ============================================================================
+# get_org_public_member_ids: the amortized org-public standing lookup
+# ============================================================================
+
+
+def test_get_org_public_member_ids_empty_without_org_public_visibility():
+    db = MagicMock()
+    for visibility in ("private", "public"):
+        assert get_org_public_member_ids(db, _campaign(visibility)) == set()
+    db.scalars.assert_not_called()
+
+
+def test_get_org_public_member_ids_reads_active_members_for_org_public():
+    member_id = uuid4()
+    db = MagicMock()
+    db.scalars.return_value.all.return_value = [member_id]
+
+    assert get_org_public_member_ids(db, _campaign("organization")) == {member_id}
 
 
 # ============================================================================
@@ -523,6 +560,36 @@ def test_build_policy_context_not_assigned_when_task_assigned_to_others():
     assert ctx.is_assigned is False
 
 
+def test_build_policy_context_org_member_on_org_public_campaign_is_member():
+    """Org-public projects grant active org members the same member standing
+    enforcement advertises via viewer_is_member - no roles attached."""
+    campaign = _campaign(visibility="organization")
+    user_id = uuid4()
+    db = MagicMock()
+    lookups = iter([None, SimpleNamespace()])  # no ProjectUser row, active org membership
+
+    db.scalars.side_effect = lambda *_a, **_k: MagicMock(
+        first=MagicMock(return_value=next(lookups))
+    )
+    db.execute.return_value.first.return_value = None  # not a platform admin
+
+    ctx = build_policy_context(db, campaign, user_id)
+
+    assert ctx.is_member is True
+    assert ctx.is_admin is False
+    assert ctx.is_authoritative is False
+    assert is_allowed(PolicyAudience(kinds=["members"]), ctx) is True
+
+
+def test_build_policy_context_non_org_member_on_org_public_campaign_is_not_member():
+    campaign = _campaign(visibility="organization")
+    db = _db_with_campaign_user(cu=None)  # both lookups come back empty
+
+    ctx = build_policy_context(db, campaign, uuid4())
+
+    assert ctx.is_member is False
+
+
 # ============================================================================
 # create_campaign: 'anyone' invariant enforced at creation, not just PATCH
 # ============================================================================
@@ -558,7 +625,7 @@ def _db_capturing_campaign_settings() -> MagicMock:
 
 def test_create_campaign_rejects_anyone_for_private_campaign():
     db = MagicMock()
-    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
+    db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
     policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
 
     with pytest.raises(HTTPException) as exc_info:
@@ -578,7 +645,7 @@ def test_create_campaign_rejects_anyone_for_private_campaign():
 
 def test_create_campaign_allows_anyone_for_public_campaign():
     db = _db_capturing_campaign_settings()
-    db.get.return_value = MagicMock(is_public=True)  # db.get(Project, project_id)
+    db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
     policy = LabellingPolicy(explore=PolicyAudience(kinds=["anyone"]))
 
     service.create_campaign(
@@ -600,7 +667,7 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
     labellable axes - not the private default, which would immediately be
     inconsistent with a public project."""
     db = _db_capturing_campaign_settings()
-    db.get.return_value = MagicMock(is_public=True)  # db.get(Project, project_id)
+    db.get.return_value = MagicMock(visibility="public")  # db.get(Project, project_id)
 
     service.create_campaign(
         db,
@@ -620,7 +687,7 @@ def test_create_campaign_no_explicit_policy_public_gets_anyone_default():
 
 def test_create_campaign_no_explicit_policy_private_gets_private_default():
     db = _db_capturing_campaign_settings()
-    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
+    db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
 
     service.create_campaign(
         db,

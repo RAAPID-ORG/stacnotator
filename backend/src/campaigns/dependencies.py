@@ -6,6 +6,8 @@ from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.models import Campaign
 from src.database import get_db
+from src.organizations.service import grants_org_access
+from src.projects.access import has_project_access
 from src.projects.models import ProjectUser
 
 
@@ -27,7 +29,9 @@ def require_campaign_access(
     Verify user has access to a campaign (any role).
 
     Access resolves through the owning project: granted if
-    - The campaign's project is public, OR
+    - The campaign's project is platform-public, OR
+    - The project is org-public and the user is an active member of the
+      owning organization, OR
     - The user is a member of the campaign's project, OR
     - The user is a platform admin.
 
@@ -44,19 +48,19 @@ def require_campaign_access(
     """
     campaign = _get_campaign(db, campaign_id)
 
-    if campaign.project.is_public:
-        return campaign
+    membership = db.execute(
+        select(ProjectUser).where(
+            ProjectUser.project_id == campaign.project_id,
+            ProjectUser.user_id == user.id,
+        )
+    ).scalar_one_or_none()
 
-    has_access = (
-        db.execute(
-            select(ProjectUser).where(
-                ProjectUser.project_id == campaign.project_id,
-                ProjectUser.user_id == user.id,
-            )
-        ).scalar_one_or_none()
-    ) or user.is_admin
-
-    if not has_access:
+    if not has_project_access(
+        visibility=campaign.project.visibility,
+        is_org_member=grants_org_access(db, user.id, campaign.project),
+        is_member=membership is not None,
+        is_platform_admin=user.is_admin,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this campaign",

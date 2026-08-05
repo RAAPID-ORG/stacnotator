@@ -52,7 +52,7 @@ def create_project(
         organization_id=body.organization_id,
         name=body.name,
         description=body.description,
-        is_public=body.is_public,
+        visibility=body.visibility,
         user=user,
     )
     return service.get_project_out(db, project, user)
@@ -81,7 +81,7 @@ def update_project(
         project_id,
         name=body.name,
         description=body.description,
-        is_public=body.is_public,
+        visibility=body.visibility,
     )
     return service.get_project_out(db, updated, user)
 

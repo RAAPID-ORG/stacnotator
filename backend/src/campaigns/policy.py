@@ -8,6 +8,7 @@ import from src.annotation or campaigns.service.
 """
 
 from collections.abc import Iterable, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
@@ -20,6 +21,9 @@ from src.auth.constants import ROLE_ADMIN
 from src.auth.models import UserRole
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience, default_labelling_policy
+from src.organizations.models import MEMBER_STATUS_ACTIVE, OrganizationUser
+from src.organizations.service import grants_org_access
+from src.projects.access import VISIBILITY_ORGANIZATION
 from src.projects.models import ProjectUser
 
 
@@ -66,6 +70,7 @@ def context_from_role_map(
     role_map: dict[UUID, tuple[bool, bool]],
     platform_admin_ids: set[UUID],
     is_assigned: bool = False,
+    org_member_ids: AbstractSet[UUID] = frozenset(),
 ) -> PolicyContext:
     """Build a PolicyContext from pre-fetched, campaign-wide lookups.
 
@@ -78,7 +83,10 @@ def context_from_role_map(
 
     A platform admin counts as a member of every campaign, membership row or
     not, so a members-only axis grants them the same access the campaign's
-    `viewer_is_member` flag advertises.
+    `viewer_is_member` flag advertises. `org_member_ids` extends the same
+    member standing (no roles) to active org members when the owning project
+    is org-public - pass `get_org_public_member_ids` for it, or leave the
+    empty default for private/platform-public projects.
     """
     is_admin, is_authoritative = role_map.get(user_id, (False, False))
     is_platform = user_id in platform_admin_ids
@@ -86,8 +94,24 @@ def context_from_role_map(
         user_id=user_id,
         is_admin=is_admin or is_platform,
         is_authoritative=is_authoritative,
-        is_member=user_id in role_map or is_platform,
+        is_member=user_id in role_map or is_platform or user_id in org_member_ids,
         is_assigned=is_assigned,
+    )
+
+
+def get_org_public_member_ids(db: Session, campaign: Campaign) -> set[UUID]:
+    """Active members of the owning organization, when (and only when) the
+    campaign's project is org-public - the amortized counterpart of
+    `grants_org_access` for `context_from_role_map`. Empty set otherwise."""
+    if campaign.project.visibility != VISIBILITY_ORGANIZATION:
+        return set()
+    return set(
+        db.scalars(
+            select(OrganizationUser.user_id).where(
+                OrganizationUser.organization_id == campaign.project.organization_id,
+                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            )
+        ).all()
     )
 
 
@@ -194,7 +218,8 @@ def build_policy_context(
 
     A platform admin counts as a member of every campaign, membership row or
     not, so a members-only axis grants them the same access the campaign's
-    `viewer_is_member` flag advertises.
+    `viewer_is_member` flag advertises. Active members of the owning org get
+    the same member standing (no roles) when the project is org-public.
     """
     pu = db.scalars(
         select(ProjectUser).where(
@@ -206,11 +231,12 @@ def build_policy_context(
     is_assigned = task is not None and any(
         assignment.user_id == user_id for assignment in (task.assignments or [])
     )
+    is_member = pu is not None or is_platform or grants_org_access(db, user_id, campaign.project)
     return PolicyContext(
         user_id=user_id,
         is_admin=(pu is not None and pu.is_admin) or is_platform,
         is_authoritative=pu is not None and pu.is_authoritative_reviewer,
-        is_member=pu is not None or is_platform,
+        is_member=is_member,
         is_assigned=is_assigned,
     )
 

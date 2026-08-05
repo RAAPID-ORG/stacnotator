@@ -639,16 +639,17 @@ class TestAssignReviewersManual:
 
 
 class TestListCampaignsVisibility:
-    """Verify list_campaigns_with_user_roles respects public/private,
-    resolving membership through the owning project's ProjectUser rows."""
+    """Verify list_campaigns_with_user_roles respects visibility scopes,
+    resolving membership through the owning project's ProjectUser rows and
+    active org memberships for org-public projects."""
 
-    def _make_campaign(self, cid, project_id, is_public=False):
+    def _make_campaign(self, cid, project_id, visibility="private", organization_id=1):
         campaign = MagicMock()
         campaign.id = cid
         campaign.name = f"Campaign {cid}"
         campaign.created_at = datetime(2024, 1, 1)
         campaign.project_id = project_id
-        campaign.project = MagicMock(is_public=is_public)
+        campaign.project = MagicMock(visibility=visibility, organization_id=organization_id)
         campaign.registration_status = "ready"
         campaign.embedding_status = "ready"
         return campaign
@@ -659,10 +660,10 @@ class TestListCampaignsVisibility:
         pu.is_admin = is_admin
         return pu
 
-    def _stub(self, db, campaigns, memberships):
+    def _stub(self, db, campaigns, memberships, org_ids=()):
         """First db.scalars(...) call is the Campaign query (chained
-        .unique().all()); the second is the ProjectUser query, iterated
-        directly by the dict comprehension in list_campaigns_with_user_roles."""
+        .unique().all()); the second is the ProjectUser query and the third
+        the active-org-ids query, both iterated directly."""
         calls = {"i": 0}
 
         def side_effect(*_args, **_kwargs):
@@ -672,18 +673,30 @@ class TestListCampaignsVisibility:
                 chain = MagicMock()
                 chain.unique.return_value.all.return_value = campaigns
                 return chain
-            return memberships
+            if i == 1:
+                return memberships
+            return list(org_ids)
 
         db.scalars.side_effect = side_effect
+
+    def _list(self, db, user_id, *, is_global_admin=False):
+        import src.campaigns.service as svc
+
+        original = svc.is_global_admin
+        svc.is_global_admin = lambda db, uid: is_global_admin
+        try:
+            return list_campaigns_with_user_roles(db, user_id)
+        finally:
+            svc.is_global_admin = original
 
     def test_regular_user_sees_public_and_member_campaigns(self):
         db = _mock_db()
         user_id = uuid4()
 
         membership = self._make_membership(project_id=1)
-        private_member = self._make_campaign(1, project_id=1, is_public=False)
-        public_non_member = self._make_campaign(2, project_id=2, is_public=True)
-        private_non_member = self._make_campaign(3, project_id=3, is_public=False)
+        private_member = self._make_campaign(1, project_id=1, visibility="private")
+        public_non_member = self._make_campaign(2, project_id=2, visibility="public")
+        private_non_member = self._make_campaign(3, project_id=3, visibility="private")
 
         self._stub(
             db,
@@ -691,14 +704,7 @@ class TestListCampaignsVisibility:
             memberships=[membership],
         )
 
-        import src.campaigns.service as svc
-
-        original = svc.is_global_admin
-        svc.is_global_admin = lambda db, uid: False
-        try:
-            results = list_campaigns_with_user_roles(db, user_id)
-        finally:
-            svc.is_global_admin = original
+        results = self._list(db, user_id)
 
         campaign_ids = [r.id for r in results]
         assert 1 in campaign_ids  # member
@@ -709,38 +715,43 @@ class TestListCampaignsVisibility:
         db = _mock_db()
         user_id = uuid4()
 
-        public_campaign = self._make_campaign(1, project_id=1, is_public=True)
+        public_campaign = self._make_campaign(1, project_id=1, visibility="public")
         self._stub(db, campaigns=[public_campaign], memberships=[])
 
-        import src.campaigns.service as svc
-
-        original = svc.is_global_admin
-        svc.is_global_admin = lambda db, uid: False
-        try:
-            results = list_campaigns_with_user_roles(db, user_id)
-        finally:
-            svc.is_global_admin = original
+        results = self._list(db, user_id)
 
         assert len(results) == 1
         assert results[0].is_member is False
         assert results[0].is_admin is False
 
+    def test_org_member_sees_org_public_campaigns_with_member_standing(self):
+        db = _mock_db()
+        user_id = uuid4()
+
+        in_my_org = self._make_campaign(
+            1, project_id=1, visibility="organization", organization_id=5
+        )
+        other_org = self._make_campaign(
+            2, project_id=2, visibility="organization", organization_id=6
+        )
+        self._stub(db, campaigns=[in_my_org, other_org], memberships=[], org_ids=[5])
+
+        results = self._list(db, user_id)
+
+        assert [r.id for r in results] == [1]
+        assert results[0].is_member is True  # member standing, no roles
+        assert results[0].is_admin is False
+        assert results[0].is_public is False  # org-public is not platform-public
+
     def test_platform_admin_sees_all_campaigns(self):
         db = _mock_db()
         user_id = uuid4()
 
-        private_campaign = self._make_campaign(1, project_id=1, is_public=False)
-        public_campaign = self._make_campaign(2, project_id=2, is_public=True)
+        private_campaign = self._make_campaign(1, project_id=1, visibility="private")
+        public_campaign = self._make_campaign(2, project_id=2, visibility="public")
         self._stub(db, campaigns=[private_campaign, public_campaign], memberships=[])
 
-        import src.campaigns.service as svc
-
-        original = svc.is_global_admin
-        svc.is_global_admin = lambda db, uid: True
-        try:
-            results = list_campaigns_with_user_roles(db, user_id)
-        finally:
-            svc.is_global_admin = original
+        results = self._list(db, user_id, is_global_admin=True)
 
         assert len(results) == 2
 
@@ -808,7 +819,7 @@ def test_create_campaign_creates_default_task_set(sample_settings_data, sample_u
     db = MagicMock()
     mock_settings = MagicMock()
     mock_settings.embedding_year = None
-    db.get.return_value = MagicMock(is_public=False)  # db.get(Project, project_id)
+    db.get.return_value = MagicMock(visibility="private")  # db.get(Project, project_id)
 
     def mock_refresh(obj):
         obj.settings = mock_settings

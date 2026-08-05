@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.database import get_db
+from src.organizations.service import grants_org_access
+from src.projects.access import has_project_access
 from src.projects.models import Project, ProjectUser
 
 
@@ -27,10 +29,16 @@ def require_project_access(
     db: Session = Depends(get_db),
     user: User = Depends(require_authenticated_user),
 ) -> Project:
-    """Membership, a public project, or platform admin. Org-mates without
-    membership see the project listed elsewhere but are denied here."""
+    """Membership, platform-public visibility, org-public visibility for
+    active org members, or platform admin. Org-mates of a private project see
+    it listed elsewhere but are denied here."""
     project, membership = _get_project_and_membership(project_id, db, user)
-    if project.is_public or membership is not None or user.is_admin:
+    if has_project_access(
+        visibility=project.visibility,
+        is_org_member=grants_org_access(db, user.id, project),
+        is_member=membership is not None,
+        is_platform_admin=user.is_admin,
+    ):
         return project
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,

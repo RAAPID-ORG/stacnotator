@@ -64,11 +64,16 @@ def test_campaign_user_model_is_gone():
     assert not hasattr(campaign_models, "CampaignUser")
 
 
-def test_campaign_is_public_delegates_to_project():
-    from src.projects.models import Project
-
+def test_campaign_is_public_means_platform_public_only():
     campaign = Campaign()
     campaign.project = Project()
-    campaign.project.is_public = True
-    assert campaign.is_public is True
+    for visibility, expected in (("public", True), ("organization", False), ("private", False)):
+        campaign.project.visibility = visibility
+        assert campaign.is_public is expected
     assert "is_public" not in Campaign.__table__.columns
+
+
+def test_project_visibility_replaces_is_public():
+    cols = Project.__table__.columns
+    assert "visibility" in cols and "is_public" not in cols
+    assert cols["visibility"].server_default.arg == "private"

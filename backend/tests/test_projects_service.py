@@ -230,13 +230,14 @@ class TestAddUsersByIds:
 
 
 class TestUpdateProjectVisibility:
-    """Verify update_project's public->private transition strips 'anyone'
-    from every campaign's stored labelling policy, matching the invariant
-    the campaign-level update_campaign_visibility used to enforce directly."""
+    """Verify update_project strips 'anyone' from every campaign's stored
+    labelling policy whenever visibility leaves 'public' (to 'organization'
+    OR 'private'), matching the invariant update_campaign_visibility used to
+    enforce directly."""
 
-    def _project(self, db, is_public, campaigns=None):
+    def _project(self, db, visibility, campaigns=None):
         project = MagicMock()
-        project.is_public = is_public
+        project.visibility = visibility
         project.campaigns = campaigns or []
         db.get.return_value = project
         return project
@@ -251,9 +252,9 @@ class TestUpdateProjectVisibility:
     def test_public_to_private_strips_anyone_from_every_campaign(self):
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=True)
-        self._project(db, is_public=True, campaigns=[campaign])
+        self._project(db, visibility="public", campaigns=[campaign])
 
-        update_project(db, 1, is_public=False)
+        update_project(db, 1, visibility="private")
 
         policy = campaign.settings.labelling_policy
         assert "anyone" not in policy["explore"]["kinds"]
@@ -268,13 +269,22 @@ class TestUpdateProjectVisibility:
         }
         db.commit.assert_called_once()
 
+    def test_public_to_org_public_also_strips_anyone(self):
+        db = _mock_db()
+        campaign = self._campaign_with_policy(is_public=True)
+        self._project(db, visibility="public", campaigns=[campaign])
+
+        update_project(db, 1, visibility="organization")
+
+        assert "anyone" not in campaign.settings.labelling_policy["explore"]["kinds"]
+
     def test_public_to_private_strips_across_multiple_campaigns(self):
         db = _mock_db()
         c1 = self._campaign_with_policy(is_public=True)
         c2 = self._campaign_with_policy(is_public=True)
-        self._project(db, is_public=True, campaigns=[c1, c2])
+        self._project(db, visibility="public", campaigns=[c1, c2])
 
-        update_project(db, 1, is_public=False)
+        update_project(db, 1, visibility="private")
 
         for campaign in (c1, c2):
             assert "anyone" not in campaign.settings.labelling_policy["explore"]["kinds"]
@@ -283,9 +293,20 @@ class TestUpdateProjectVisibility:
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=True)
         original = dict(campaign.settings.labelling_policy)
-        self._project(db, is_public=False, campaigns=[campaign])
+        self._project(db, visibility="private", campaigns=[campaign])
 
-        update_project(db, 1, is_public=False)
+        update_project(db, 1, visibility="private")
+
+        assert campaign.settings.labelling_policy == original
+
+    def test_org_public_to_private_does_not_strip_policy(self):
+        # 'anyone' could never be stored while org-public; nothing to strip.
+        db = _mock_db()
+        campaign = self._campaign_with_policy(is_public=False)
+        original = dict(campaign.settings.labelling_policy)
+        self._project(db, visibility="organization", campaigns=[campaign])
+
+        update_project(db, 1, visibility="private")
 
         assert campaign.settings.labelling_policy == original
 
@@ -293,21 +314,21 @@ class TestUpdateProjectVisibility:
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=False)
         original = dict(campaign.settings.labelling_policy)
-        self._project(db, is_public=False, campaigns=[campaign])
+        self._project(db, visibility="private", campaigns=[campaign])
 
-        update_project(db, 1, is_public=True)
+        update_project(db, 1, visibility="public")
 
         assert campaign.settings.labelling_policy == original
 
-    def test_is_public_none_leaves_visibility_untouched(self):
+    def test_visibility_none_leaves_visibility_untouched(self):
         db = _mock_db()
         campaign = self._campaign_with_policy(is_public=True)
         original = dict(campaign.settings.labelling_policy)
-        project = self._project(db, is_public=True, campaigns=[campaign])
+        project = self._project(db, visibility="public", campaigns=[campaign])
 
         update_project(db, 1, name="New name")
 
-        assert project.is_public is True
+        assert project.visibility == "public"
         assert campaign.settings.labelling_policy == original
         assert project.name == "New name"
 
@@ -316,7 +337,7 @@ class TestUpdateProjectVisibility:
         db.get.return_value = None
 
         with pytest.raises(HTTPException) as exc_info:
-            update_project(db, 999, is_public=True)
+            update_project(db, 999, visibility="public")
         assert exc_info.value.status_code == 404
 
 
@@ -330,13 +351,18 @@ class TestListProjectCampaigns:
             embedding_status="ready",
         )
 
-    def _db_with(self, db, campaigns, membership):
+    def _project(self, visibility="private"):
+        return SimpleNamespace(id=4, visibility=visibility, organization_id=5)
+
+    def _db_with(self, db, campaigns, membership, org_membership=None):
         db.scalars.return_value.all.return_value = campaigns
+        # grants_org_access (org-public projects only) reads db.scalars().first().
+        db.scalars.return_value.first.return_value = org_membership
         db.get.return_value = membership
 
     def test_maps_campaigns_with_project_visibility(self):
         db = _mock_db()
-        project = SimpleNamespace(id=4, is_public=True)
+        project = self._project("public")
         user = SimpleNamespace(id=uuid4(), is_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=False))
 
@@ -351,7 +377,7 @@ class TestListProjectCampaigns:
 
     def test_project_admin_membership_marks_is_admin(self):
         db = _mock_db()
-        project = SimpleNamespace(id=4, is_public=False)
+        project = self._project("private")
         user = SimpleNamespace(id=uuid4(), is_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], ProjectUser(is_admin=True))
 
@@ -362,7 +388,7 @@ class TestListProjectCampaigns:
 
     def test_non_member_on_public_project_is_neither_member_nor_admin(self):
         db = _mock_db()
-        project = SimpleNamespace(id=4, is_public=True)
+        project = self._project("public")
         user = SimpleNamespace(id=uuid4(), is_admin=False)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
 
@@ -371,9 +397,23 @@ class TestListProjectCampaigns:
         assert items[0].is_member is False
         assert items[0].is_admin is False
 
+    def test_org_member_on_org_public_project_is_member_without_admin(self):
+        db = _mock_db()
+        project = self._project("organization")
+        user = SimpleNamespace(id=uuid4(), is_admin=False)
+        self._db_with(
+            db, [self._campaign(1, datetime(2026, 1, 1))], None, org_membership=SimpleNamespace()
+        )
+
+        items = list_project_campaigns(db, project, user)
+
+        assert items[0].is_member is True
+        assert items[0].is_admin is False
+        assert items[0].is_public is False
+
     def test_platform_admin_is_member_and_admin_without_membership(self):
         db = _mock_db()
-        project = SimpleNamespace(id=4, is_public=False)
+        project = self._project("private")
         user = SimpleNamespace(id=uuid4(), is_admin=True)
         self._db_with(db, [self._campaign(1, datetime(2026, 1, 1))], None)
 
@@ -384,7 +424,7 @@ class TestListProjectCampaigns:
 
     def test_queries_project_campaigns_newest_first(self):
         db = _mock_db()
-        project = SimpleNamespace(id=4, is_public=False)
+        project = self._project("private")
         user = SimpleNamespace(id=uuid4(), is_admin=False)
         self._db_with(db, [], ProjectUser(is_admin=False))
 
