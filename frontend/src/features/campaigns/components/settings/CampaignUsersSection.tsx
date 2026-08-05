@@ -12,7 +12,7 @@ import {
   demoteAuthorativeReviewer,
   removeUserFromCampaign,
   type CampaignUserOut,
-  type UserOutDetailed,
+  type UserOut,
 } from '~/api/client';
 
 interface CampaignUsersSectionProps {
@@ -27,7 +27,7 @@ export const CampaignUsersSection = ({
   onSuccess,
 }: CampaignUsersSectionProps) => {
   const [users, setUsers] = useState<CampaignUserOut[]>([]);
-  const [allUsers, setAllUsers] = useState<UserOutDetailed[]>([]);
+  const [allUsers, setAllUsers] = useState<UserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -226,7 +226,7 @@ export const CampaignUsersSection = ({
     }
   };
 
-  const pickUser = (user: UserOutDetailed) => {
+  const pickUser = (user: UserOut) => {
     setSelectedUserId(user.id);
     setUserQuery('');
     setActiveIndex(0);

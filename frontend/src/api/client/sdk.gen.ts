@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, BatchCreateAnnotationsData, BatchCreateAnnotationsErrors, BatchCreateAnnotationsResponses, BatchDeleteAnnotationsData, BatchDeleteAnnotationsErrors, BatchDeleteAnnotationsResponses, BatchUnassignTasksData, BatchUnassignTasksErrors, BatchUnassignTasksResponses, ClaimAnnotationTaskData, ClaimAnnotationTaskErrors, ClaimAnnotationTaskResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeErrors, CreateAnnotationOpenmodeResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateCustomMapData, CreateCustomMapErrors, CreateCustomMapResponses, CreateImageryData, CreateImageryErrors, CreateImageryResponses, CreateNewCanvasLayoutData, CreateNewCanvasLayoutErrors, CreateNewCanvasLayoutResponses, CreateTaskSetData, CreateTaskSetErrors, CreateTaskSetResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, CreateVectorLayerData, CreateVectorLayerErrors, CreateVectorLayerResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteCustomMapData, DeleteCustomMapErrors, DeleteCustomMapResponses, DeleteTaskSetData, DeleteTaskSetErrors, DeleteTaskSetResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteVectorLayerData, DeleteVectorLayerErrors, DeleteVectorLayerResponses, DemoteAuthorativeReviewerData, DemoteAuthorativeReviewerErrors, DemoteAuthorativeReviewerResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, ExportTaskAssignmentsData, ExportTaskAssignmentsErrors, ExportTaskAssignmentsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetAnnotationData, GetAnnotationDensityData, GetAnnotationDensityErrors, GetAnnotationDensityResponses, GetAnnotationErrors, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxErrors, GetAnnotationIdsInBboxResponses, GetAnnotationResponses, GetAnnotationsExtentData, GetAnnotationsExtentErrors, GetAnnotationsExtentResponses, GetAnnotationTileData, GetAnnotationTileErrors, GetAnnotationTileResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointErrors, GetCampaignStatisticsEndpointResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetKnnValidationStatusData, GetKnnValidationStatusErrors, GetKnnValidationStatusResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, GrantInternalSingleData, GrantInternalSingleErrors, GrantInternalSingleResponses, GrantTilerSingleData, GrantTilerSingleErrors, GrantTilerSingleResponses, GrantVisitorData, GrantVisitorErrors, GrantVisitorResponses, GrantVisitorSingleData, GrantVisitorSingleErrors, GrantVisitorSingleResponses, ImportTaskAssignmentsData, ImportTaskAssignmentsErrors, ImportTaskAssignmentsResponses, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonErrors, IngestAnnotationsFromGeojsonResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonErrors, IngestAnnotationTasksFromGeojsonResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListCatalogsData, ListCatalogsResponses, ListCustomMapsData, ListCustomMapsErrors, ListCustomMapsResponses, ListGrantableTilersData, ListGrantableTilersResponses, ListTaskSetsData, ListTaskSetsErrors, ListTaskSetsResponses, ListTilersData, ListTilersResponses, ListUsersData, ListUsersResponses, ListVectorLayersData, ListVectorLayersErrors, ListVectorLayersResponses, MakeUserAuthorativeReviewerData, MakeUserAuthorativeReviewerErrors, MakeUserAuthorativeReviewerResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, MoveTasksToSetData, MoveTasksToSetErrors, MoveTasksToSetResponses, ProxyBasemapTileData, ProxyBasemapTileErrors, ProxyBasemapTileResponses, ProxySliceTileData, ProxySliceTileErrors, ProxySliceTileResponses, RefreshCollectionImageryData, RefreshCollectionImageryErrors, RefreshCollectionImageryResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RenameTaskSetData, RenameTaskSetErrors, RenameTaskSetResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeInternalSingleData, RevokeInternalSingleErrors, RevokeInternalSingleResponses, RevokeTilerSingleData, RevokeTilerSingleErrors, RevokeTilerSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, RevokeVisitorData, RevokeVisitorErrors, RevokeVisitorResponses, RevokeVisitorSingleData, RevokeVisitorSingleErrors, RevokeVisitorSingleResponses, SaveImageryData, SaveImageryErrors, SaveImageryResponses, SearchData, SearchErrors, SearchResponses, SetBasemapApiKeyData, SetBasemapApiKeyErrors, SetBasemapApiKeyResponses, SetSourceApiKeyData, SetSourceApiKeyErrors, SetSourceApiKeyResponses, UnassignUserFromTaskData, UnassignUserFromTaskErrors, UnassignUserFromTaskResponses, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeErrors, UpdateAnnotationOpenmodeResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignFormFieldsData, UpdateCampaignFormFieldsErrors, UpdateCampaignFormFieldsResponses, UpdateCampaignGuideData, UpdateCampaignGuideErrors, UpdateCampaignGuideResponses, UpdateCampaignLabelsData, UpdateCampaignLabelsErrors, UpdateCampaignLabelsResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses, UpdateCampaignVisibilityData, UpdateCampaignVisibilityErrors, UpdateCampaignVisibilityResponses, UpdateCustomMapData, UpdateCustomMapErrors, UpdateCustomMapResponses, UpdateEmbeddingYearData, UpdateEmbeddingYearErrors, UpdateEmbeddingYearResponses, UpdateLabellingPolicyData, UpdateLabellingPolicyErrors, UpdateLabellingPolicyResponses, UpdateSampleExtentData, UpdateSampleExtentErrors, UpdateSampleExtentResponses, UpdateVectorLayerData, UpdateVectorLayerErrors, UpdateVectorLayerResponses, ValidateAnnotationSubmissionData, ValidateAnnotationSubmissionErrors, ValidateAnnotationSubmissionResponses } from './types.gen';
+import type { AddOrganizationUsersData, AddOrganizationUsersErrors, AddOrganizationUsersResponses, AddProjectUsersByIdsData, AddProjectUsersByIdsErrors, AddProjectUsersByIdsResponses, AddProjectUsersData, AddProjectUsersErrors, AddProjectUsersResponses, AddUsersToCampaignData, AddUsersToCampaignErrors, AddUsersToCampaignResponses, ApproveOrganizationData, ApproveOrganizationErrors, ApproveOrganizationResponses, ApproveUserData, ApproveUserErrors, ApproveUserResponses, ApproveUsersBulkData, ApproveUsersBulkErrors, ApproveUsersBulkResponses, AssignReviewersData, AssignReviewersErrors, AssignReviewersResponses, AssignTasksToUsersData, AssignTasksToUsersErrors, AssignTasksToUsersResponses, BatchCreateAnnotationsData, BatchCreateAnnotationsErrors, BatchCreateAnnotationsResponses, BatchDeleteAnnotationsData, BatchDeleteAnnotationsErrors, BatchDeleteAnnotationsResponses, BatchUnassignTasksData, BatchUnassignTasksErrors, BatchUnassignTasksResponses, ClaimAnnotationTaskData, ClaimAnnotationTaskErrors, ClaimAnnotationTaskResponses, CompleteAnnotationTaskData, CompleteAnnotationTaskErrors, CompleteAnnotationTaskResponses, CreateAnnotationOpenmodeData, CreateAnnotationOpenmodeErrors, CreateAnnotationOpenmodeResponses, CreateCampaignData, CreateCampaignErrors, CreateCampaignResponses, CreateCustomMapData, CreateCustomMapErrors, CreateCustomMapResponses, CreateNewCanvasLayoutData, CreateNewCanvasLayoutErrors, CreateNewCanvasLayoutResponses, CreateProjectData, CreateProjectErrors, CreateProjectResponses, CreateTaskSetData, CreateTaskSetErrors, CreateTaskSetResponses, CreateTimeseriesForCampaignData, CreateTimeseriesForCampaignErrors, CreateTimeseriesForCampaignResponses, CreateVectorLayerData, CreateVectorLayerErrors, CreateVectorLayerResponses, DeleteAnnotationData, DeleteAnnotationErrors, DeleteAnnotationResponses, DeleteAnnotationTasksData, DeleteAnnotationTasksErrors, DeleteAnnotationTasksResponses, DeleteCampaignData, DeleteCampaignErrors, DeleteCampaignResponses, DeleteCustomMapData, DeleteCustomMapErrors, DeleteCustomMapResponses, DeleteProjectData, DeleteProjectErrors, DeleteProjectResponses, DeleteTaskSetData, DeleteTaskSetErrors, DeleteTaskSetResponses, DeleteTimeseriesData, DeleteTimeseriesErrors, DeleteTimeseriesResponses, DeleteVectorLayerData, DeleteVectorLayerErrors, DeleteVectorLayerResponses, DemoteAuthorativeReviewerData, DemoteAuthorativeReviewerErrors, DemoteAuthorativeReviewerResponses, DemoteCampaignAdminData, DemoteCampaignAdminErrors, DemoteCampaignAdminResponses, DemoteOrganizationAdminData, DemoteOrganizationAdminErrors, DemoteOrganizationAdminResponses, DemoteProjectAdminData, DemoteProjectAdminErrors, DemoteProjectAdminResponses, DemoteProjectAuthoritativeReviewerData, DemoteProjectAuthoritativeReviewerErrors, DemoteProjectAuthoritativeReviewerResponses, DenyUserData, DenyUserErrors, DenyUserResponses, DenyUsersBulkData, DenyUsersBulkErrors, DenyUsersBulkResponses, EditUserInfoData, EditUserInfoErrors, EditUserInfoResponses, ExportAnnotationsData, ExportAnnotationsErrors, ExportAnnotationsGeojsonData, ExportAnnotationsGeojsonErrors, ExportAnnotationsGeojsonResponses, ExportAnnotationsResponses, ExportTaskAssignmentsData, ExportTaskAssignmentsErrors, ExportTaskAssignmentsResponses, GenerateTasksFromSamplingData, GenerateTasksFromSamplingErrors, GenerateTasksFromSamplingResponses, GetAllAnnotationsForCampaignData, GetAllAnnotationsForCampaignErrors, GetAllAnnotationsForCampaignResponses, GetAllAnnotationTasksData, GetAllAnnotationTasksErrors, GetAllAnnotationTasksResponses, GetAnnotationData, GetAnnotationDensityData, GetAnnotationDensityErrors, GetAnnotationDensityResponses, GetAnnotationErrors, GetAnnotationIdsInBboxData, GetAnnotationIdsInBboxErrors, GetAnnotationIdsInBboxResponses, GetAnnotationResponses, GetAnnotationsExtentData, GetAnnotationsExtentErrors, GetAnnotationsExtentResponses, GetAnnotationTileData, GetAnnotationTileErrors, GetAnnotationTileResponses, GetCampaignData, GetCampaignErrors, GetCampaignResponses, GetCampaignStatisticsEndpointData, GetCampaignStatisticsEndpointErrors, GetCampaignStatisticsEndpointResponses, GetCampaignUsersData, GetCampaignUsersErrors, GetCampaignUsersResponses, GetCampaignWithImageryWindowsData, GetCampaignWithImageryWindowsErrors, GetCampaignWithImageryWindowsResponses, GetCollectionsData, GetCollectionsErrors, GetCollectionsResponses, GetKnnValidationStatusData, GetKnnValidationStatusErrors, GetKnnValidationStatusResponses, GetOrganizationTilersData, GetOrganizationTilersErrors, GetOrganizationTilersResponses, GetOrganizationUsersData, GetOrganizationUsersErrors, GetOrganizationUsersResponses, GetProjectData, GetProjectErrors, GetProjectResponses, GetProjectUsersData, GetProjectUsersErrors, GetProjectUsersResponses, GetTilerTokenData, GetTilerTokenResponses, GetTimeseriesCreationOptionsData, GetTimeseriesCreationOptionsResponses, GetTimeseriesDataData, GetTimeseriesDataErrors, GetTimeseriesDataResponses, GetTimeseriesForCampaignData, GetTimeseriesForCampaignErrors, GetTimeseriesForCampaignResponses, GrantAdminData, GrantAdminErrors, GrantAdminResponses, GrantAdminSingleData, GrantAdminSingleErrors, GrantAdminSingleResponses, GrantInternalSingleData, GrantInternalSingleErrors, GrantInternalSingleResponses, GrantTilerSingleData, GrantTilerSingleErrors, GrantTilerSingleResponses, GrantVisitorData, GrantVisitorErrors, GrantVisitorResponses, GrantVisitorSingleData, GrantVisitorSingleErrors, GrantVisitorSingleResponses, ImportTaskAssignmentsData, ImportTaskAssignmentsErrors, ImportTaskAssignmentsResponses, IngestAnnotationsFromGeojsonData, IngestAnnotationsFromGeojsonErrors, IngestAnnotationsFromGeojsonResponses, IngestAnnotationTasksFromCsvData, IngestAnnotationTasksFromCsvErrors, IngestAnnotationTasksFromCsvResponses, IngestAnnotationTasksFromGeojsonData, IngestAnnotationTasksFromGeojsonErrors, IngestAnnotationTasksFromGeojsonResponses, ListAllCampaignsData, ListAllCampaignsResponses, ListCatalogsData, ListCatalogsResponses, ListCustomMapsData, ListCustomMapsErrors, ListCustomMapsResponses, ListGrantableTilersData, ListGrantableTilersResponses, ListOrganizationsData, ListOrganizationsResponses, ListProjectCampaignsData, ListProjectCampaignsErrors, ListProjectCampaignsResponses, ListProjectsData, ListProjectsResponses, ListTaskSetsData, ListTaskSetsErrors, ListTaskSetsResponses, ListTilersData, ListTilersResponses, ListUsersData, ListUsersResponses, ListVectorLayersData, ListVectorLayersErrors, ListVectorLayersResponses, MakeOrganizationAdminData, MakeOrganizationAdminErrors, MakeOrganizationAdminResponses, MakeProjectAdminData, MakeProjectAdminErrors, MakeProjectAdminResponses, MakeProjectAuthoritativeReviewerData, MakeProjectAuthoritativeReviewerErrors, MakeProjectAuthoritativeReviewerResponses, MakeUserAuthorativeReviewerData, MakeUserAuthorativeReviewerErrors, MakeUserAuthorativeReviewerResponses, MakeUserCampaignAdminData, MakeUserCampaignAdminErrors, MakeUserCampaignAdminResponses, MeData, MeResponses, MoveTasksToSetData, MoveTasksToSetErrors, MoveTasksToSetResponses, ProxyBasemapTileData, ProxyBasemapTileErrors, ProxyBasemapTileResponses, ProxySliceTileData, ProxySliceTileErrors, ProxySliceTileResponses, RefreshCollectionImageryData, RefreshCollectionImageryErrors, RefreshCollectionImageryResponses, RejectOrganizationData, RejectOrganizationErrors, RejectOrganizationResponses, RemoveOrganizationMemberData, RemoveOrganizationMemberErrors, RemoveOrganizationMemberResponses, RemoveProjectUserData, RemoveProjectUserErrors, RemoveProjectUserResponses, RemoveUserFromCampaignData, RemoveUserFromCampaignErrors, RemoveUserFromCampaignResponses, RenameTaskSetData, RenameTaskSetErrors, RenameTaskSetResponses, RequestOrganizationData, RequestOrganizationErrors, RequestOrganizationResponses, RevokeAdminData, RevokeAdminErrors, RevokeAdminResponses, RevokeAdminSingleData, RevokeAdminSingleErrors, RevokeAdminSingleResponses, RevokeInternalSingleData, RevokeInternalSingleErrors, RevokeInternalSingleResponses, RevokeTilerSingleData, RevokeTilerSingleErrors, RevokeTilerSingleResponses, RevokeUserData, RevokeUserErrors, RevokeUserResponses, RevokeUsersBulkData, RevokeUsersBulkErrors, RevokeUsersBulkResponses, RevokeVisitorData, RevokeVisitorErrors, RevokeVisitorResponses, RevokeVisitorSingleData, RevokeVisitorSingleErrors, RevokeVisitorSingleResponses, SaveImageryData, SaveImageryErrors, SaveImageryResponses, SearchData, SearchErrors, SearchResponses, SetBasemapApiKeyData, SetBasemapApiKeyErrors, SetBasemapApiKeyResponses, SetOrganizationTilersData, SetOrganizationTilersErrors, SetOrganizationTilersResponses, SetSourceApiKeyData, SetSourceApiKeyErrors, SetSourceApiKeyResponses, UnassignUserFromTaskData, UnassignUserFromTaskErrors, UnassignUserFromTaskResponses, UpdateAnnotationOpenmodeData, UpdateAnnotationOpenmodeErrors, UpdateAnnotationOpenmodeResponses, UpdateCampaignBboxData, UpdateCampaignBboxErrors, UpdateCampaignBboxResponses, UpdateCampaignFormFieldsData, UpdateCampaignFormFieldsErrors, UpdateCampaignFormFieldsResponses, UpdateCampaignGuideData, UpdateCampaignGuideErrors, UpdateCampaignGuideResponses, UpdateCampaignLabelsData, UpdateCampaignLabelsErrors, UpdateCampaignLabelsResponses, UpdateCampaignNameData, UpdateCampaignNameErrors, UpdateCampaignNameResponses, UpdateCampaignVisibilityData, UpdateCampaignVisibilityErrors, UpdateCampaignVisibilityResponses, UpdateCustomMapData, UpdateCustomMapErrors, UpdateCustomMapResponses, UpdateEmbeddingYearData, UpdateEmbeddingYearErrors, UpdateEmbeddingYearResponses, UpdateInternalStorageData, UpdateInternalStorageErrors, UpdateInternalStorageResponses, UpdateLabellingPolicyData, UpdateLabellingPolicyErrors, UpdateLabellingPolicyResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationResponses, UpdateProjectData, UpdateProjectErrors, UpdateProjectResponses, UpdateSampleExtentData, UpdateSampleExtentErrors, UpdateSampleExtentResponses, UpdateVectorLayerData, UpdateVectorLayerErrors, UpdateVectorLayerResponses, ValidateAnnotationSubmissionData, ValidateAnnotationSubmissionErrors, ValidateAnnotationSubmissionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -32,7 +32,7 @@ export const me = <ThrowOnError extends boolean = false>(options?: Options<MeDat
 /**
  * Get Tiler Token
  *
- * Set a short-lived, campaign-scoped tiler HttpOnly cookie (approved users only).
+ * Set a short-lived, campaign-scoped tiler HttpOnly cookie (authenticated users only).
  */
 export const getTilerToken = <ThrowOnError extends boolean = false>(options?: Options<GetTilerTokenData, ThrowOnError>) => (options?.client ?? client).get<GetTilerTokenResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -45,9 +45,11 @@ export const getTilerToken = <ThrowOnError extends boolean = false>(options?: Op
  *
  * List users in the system.
  *
- * Platform admins see all users (including pending/denied). Other approved
- * users see only approved users - needed so campaign admins can pick members
- * to add to their campaigns.
+ * Platform admins get the full detailed record (including pending/denied
+ * users, email, issuer, external_uid, allowed_tilers). Other approved users
+ * get only the plain id/email/display_name for approved users - needed so
+ * campaign admins can pick members to add to their campaigns, without
+ * exposing every user's account details.
  */
 export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>) => (options?.client ?? client).get<ListUsersResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -346,6 +348,285 @@ export const revokeInternalSingle = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
+ * List Organizations
+ */
+export const listOrganizations = <ThrowOnError extends boolean = false>(options?: Options<ListOrganizationsData, ThrowOnError>) => (options?.client ?? client).get<ListOrganizationsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/',
+    ...options
+});
+
+/**
+ * Request Organization
+ */
+export const requestOrganization = <ThrowOnError extends boolean = false>(options: Options<RequestOrganizationData, ThrowOnError>) => (options.client ?? client).post<RequestOrganizationResponses, RequestOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve Organization
+ */
+export const approveOrganization = <ThrowOnError extends boolean = false>(options: Options<ApproveOrganizationData, ThrowOnError>) => (options.client ?? client).post<ApproveOrganizationResponses, ApproveOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/approve',
+    ...options
+});
+
+/**
+ * Reject Organization
+ */
+export const rejectOrganization = <ThrowOnError extends boolean = false>(options: Options<RejectOrganizationData, ThrowOnError>) => (options.client ?? client).post<RejectOrganizationResponses, RejectOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/reject',
+    ...options
+});
+
+/**
+ * Update Organization
+ */
+export const updateOrganization = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationData, ThrowOnError>) => (options.client ?? client).patch<UpdateOrganizationResponses, UpdateOrganizationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Update Internal Storage
+ */
+export const updateInternalStorage = <ThrowOnError extends boolean = false>(options: Options<UpdateInternalStorageData, ThrowOnError>) => (options.client ?? client).patch<UpdateInternalStorageResponses, UpdateInternalStorageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/internal-storage',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Organization Users
+ */
+export const getOrganizationUsers = <ThrowOnError extends boolean = false>(options: Options<GetOrganizationUsersData, ThrowOnError>) => (options.client ?? client).get<GetOrganizationUsersResponses, GetOrganizationUsersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/users',
+    ...options
+});
+
+/**
+ * Add Organization Users
+ */
+export const addOrganizationUsers = <ThrowOnError extends boolean = false>(options: Options<AddOrganizationUsersData, ThrowOnError>) => (options.client ?? client).post<AddOrganizationUsersResponses, AddOrganizationUsersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/users',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Make Organization Admin
+ */
+export const makeOrganizationAdmin = <ThrowOnError extends boolean = false>(options: Options<MakeOrganizationAdminData, ThrowOnError>) => (options.client ?? client).post<MakeOrganizationAdminResponses, MakeOrganizationAdminErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/users/{user_id}/make-admin',
+    ...options
+});
+
+/**
+ * Demote Organization Admin
+ */
+export const demoteOrganizationAdmin = <ThrowOnError extends boolean = false>(options: Options<DemoteOrganizationAdminData, ThrowOnError>) => (options.client ?? client).post<DemoteOrganizationAdminResponses, DemoteOrganizationAdminErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/users/{user_id}/demote-admin',
+    ...options
+});
+
+/**
+ * Remove Organization Member
+ */
+export const removeOrganizationMember = <ThrowOnError extends boolean = false>(options: Options<RemoveOrganizationMemberData, ThrowOnError>) => (options.client ?? client).delete<RemoveOrganizationMemberResponses, RemoveOrganizationMemberErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/users/{user_id}',
+    ...options
+});
+
+/**
+ * Get Organization Tilers
+ */
+export const getOrganizationTilers = <ThrowOnError extends boolean = false>(options: Options<GetOrganizationTilersData, ThrowOnError>) => (options.client ?? client).get<GetOrganizationTilersResponses, GetOrganizationTilersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/tilers',
+    ...options
+});
+
+/**
+ * Set Organization Tilers
+ */
+export const setOrganizationTilers = <ThrowOnError extends boolean = false>(options: Options<SetOrganizationTilersData, ThrowOnError>) => (options.client ?? client).put<SetOrganizationTilersResponses, SetOrganizationTilersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/organizations/{organization_id}/tilers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Projects
+ */
+export const listProjects = <ThrowOnError extends boolean = false>(options?: Options<ListProjectsData, ThrowOnError>) => (options?.client ?? client).get<ListProjectsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/',
+    ...options
+});
+
+/**
+ * Create Project
+ */
+export const createProject = <ThrowOnError extends boolean = false>(options: Options<CreateProjectData, ThrowOnError>) => (options.client ?? client).post<CreateProjectResponses, CreateProjectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Project
+ */
+export const deleteProject = <ThrowOnError extends boolean = false>(options: Options<DeleteProjectData, ThrowOnError>) => (options.client ?? client).delete<DeleteProjectResponses, DeleteProjectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}',
+    ...options
+});
+
+/**
+ * Get Project
+ */
+export const getProject = <ThrowOnError extends boolean = false>(options: Options<GetProjectData, ThrowOnError>) => (options.client ?? client).get<GetProjectResponses, GetProjectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}',
+    ...options
+});
+
+/**
+ * Update Project
+ */
+export const updateProject = <ThrowOnError extends boolean = false>(options: Options<UpdateProjectData, ThrowOnError>) => (options.client ?? client).patch<UpdateProjectResponses, UpdateProjectErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Project Campaigns
+ */
+export const listProjectCampaigns = <ThrowOnError extends boolean = false>(options: Options<ListProjectCampaignsData, ThrowOnError>) => (options.client ?? client).get<ListProjectCampaignsResponses, ListProjectCampaignsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/campaigns',
+    ...options
+});
+
+/**
+ * Get Project Users
+ */
+export const getProjectUsers = <ThrowOnError extends boolean = false>(options: Options<GetProjectUsersData, ThrowOnError>) => (options.client ?? client).get<GetProjectUsersResponses, GetProjectUsersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users',
+    ...options
+});
+
+/**
+ * Add Project Users
+ */
+export const addProjectUsers = <ThrowOnError extends boolean = false>(options: Options<AddProjectUsersData, ThrowOnError>) => (options.client ?? client).post<AddProjectUsersResponses, AddProjectUsersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add Project Users By Ids
+ */
+export const addProjectUsersByIds = <ThrowOnError extends boolean = false>(options: Options<AddProjectUsersByIdsData, ThrowOnError>) => (options.client ?? client).post<AddProjectUsersByIdsResponses, AddProjectUsersByIdsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/by-ids',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Make Project Admin
+ */
+export const makeProjectAdmin = <ThrowOnError extends boolean = false>(options: Options<MakeProjectAdminData, ThrowOnError>) => (options.client ?? client).post<MakeProjectAdminResponses, MakeProjectAdminErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/{user_id}/make-admin',
+    ...options
+});
+
+/**
+ * Demote Project Admin
+ */
+export const demoteProjectAdmin = <ThrowOnError extends boolean = false>(options: Options<DemoteProjectAdminData, ThrowOnError>) => (options.client ?? client).post<DemoteProjectAdminResponses, DemoteProjectAdminErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/{user_id}/demote-admin',
+    ...options
+});
+
+/**
+ * Make Project Authoritative Reviewer
+ */
+export const makeProjectAuthoritativeReviewer = <ThrowOnError extends boolean = false>(options: Options<MakeProjectAuthoritativeReviewerData, ThrowOnError>) => (options.client ?? client).post<MakeProjectAuthoritativeReviewerResponses, MakeProjectAuthoritativeReviewerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/{user_id}/make-authoritative-reviewer',
+    ...options
+});
+
+/**
+ * Demote Project Authoritative Reviewer
+ */
+export const demoteProjectAuthoritativeReviewer = <ThrowOnError extends boolean = false>(options: Options<DemoteProjectAuthoritativeReviewerData, ThrowOnError>) => (options.client ?? client).post<DemoteProjectAuthoritativeReviewerResponses, DemoteProjectAuthoritativeReviewerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/{user_id}/demote-authoritative-reviewer',
+    ...options
+});
+
+/**
+ * Remove Project User
+ */
+export const removeProjectUser = <ThrowOnError extends boolean = false>(options: Options<RemoveProjectUserData, ThrowOnError>) => (options.client ?? client).delete<RemoveProjectUserResponses, RemoveProjectUserErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/projects/{project_id}/users/{user_id}',
+    ...options
+});
+
+/**
  * List All Campaigns
  */
 export const listAllCampaigns = <ThrowOnError extends boolean = false>(options?: Options<ListAllCampaignsData, ThrowOnError>) => (options?.client ?? client).get<ListAllCampaignsResponses, unknown, ThrowOnError>({
@@ -464,6 +745,10 @@ export const updateCampaignName = <ThrowOnError extends boolean = false>(options
  * Update Campaign Visibility
  *
  * Toggle a campaign between public and private. Only campaign admins can change this.
+ *
+ * This shim flips the whole owning project's visibility, so it is rejected
+ * once the project holds more than one campaign - flipping it here would
+ * silently publish/hide siblings the caller isn't looking at.
  */
 export const updateCampaignVisibility = <ThrowOnError extends boolean = false>(options: Options<UpdateCampaignVisibilityData, ThrowOnError>) => (options.client ?? client).patch<UpdateCampaignVisibilityResponses, UpdateCampaignVisibilityErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -622,7 +907,7 @@ export const demoteAuthorativeReviewer = <ThrowOnError extends boolean = false>(
 /**
  * Assign Tasks To Users
  *
- * Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks; pass dry_run to preview without writing.
+ * Assign annotation tasks to campaign members from an intent (even / fixed-per-user / explicit). The server selects and distributes the tasks.
  */
 export const assignTasksToUsers = <ThrowOnError extends boolean = false>(options: Options<AssignTasksToUsersData, ThrowOnError>) => (options.client ?? client).post<AssignTasksToUsersResponses, AssignTasksToUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -816,15 +1101,11 @@ export const importTaskAssignments = <ThrowOnError extends boolean = false>(opti
  * Get comprehensive statistics for a campaign.
  *
  * Returns:
- * - Overall campaign metrics (total annotations, users, tasks)
+ * - Overall campaign metrics (total annotations, tasks with multiple annotations)
  * - Krippendorff's Alpha for inter-annotator agreement
- * - Overall confidence and label distributions
- * - Per-user statistics including:
- * - Total annotations
- * - Average confidence
- * - Confidence distribution
- * - Label distribution
- * - Agreement with majority vote
+ * - Overall label distribution
+ * - Per-annotator stats (total annotations, label distribution)
+ * - Pairwise agreement percentage between every pair of annotators
  */
 export const getCampaignStatisticsEndpoint = <ThrowOnError extends boolean = false>(options: Options<GetCampaignStatisticsEndpointData, ThrowOnError>) => (options.client ?? client).get<GetCampaignStatisticsEndpointResponses, GetCampaignStatisticsEndpointErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1218,21 +1499,6 @@ export const listTilers = <ThrowOnError extends boolean = false>(options?: Optio
 });
 
 /**
- * Create Imagery
- *
- * Create imagery for a fresh campaign. Used by the campaign-create flow.
- */
-export const createImagery = <ThrowOnError extends boolean = false>(options: Options<CreateImageryData, ThrowOnError>) => (options.client ?? client).post<CreateImageryResponses, CreateImageryErrors, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/api/{campaign_id}/imagery',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Save Imagery
  *
  * Upsert the campaign's full imagery editor state. Used by the settings
@@ -1265,7 +1531,11 @@ export const createNewCanvasLayout = <ThrowOnError extends boolean = false>(opti
 /**
  * Refresh Collection Imagery
  *
- * Re-search STAC catalog with stored params and update mosaic items.
+ * Re-search STAC catalog with stored params and re-ingest mosaic items.
+ *
+ * Ingest is a slow per-slice HTTP call to the tiler; it runs off the request
+ * path (see spawn_background_collection_refresh) so this transaction isn't
+ * held open across it.
  */
 export const refreshCollectionImagery = <ThrowOnError extends boolean = false>(options: Options<RefreshCollectionImageryData, ThrowOnError>) => (options.client ?? client).post<RefreshCollectionImageryResponses, RefreshCollectionImageryErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

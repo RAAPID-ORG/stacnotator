@@ -381,7 +381,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
           layout: {
             main_layout_data: mainItems,
             view_layout_data: viewItems.length > 0 ? viewItems : null,
-            view_id: selectedViewId,
           },
         },
       });
