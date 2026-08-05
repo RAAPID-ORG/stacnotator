@@ -350,7 +350,7 @@ export const MOCK_PROJECT = {
   organization_id: MOCK_ORG.id,
   name: 'Test Project',
   description: 'Holds the test campaign',
-  is_public: false,
+  visibility: 'private',
   created_at: '2024-01-01T00:00:00Z',
   is_admin: true,
   is_member: true,
@@ -364,12 +364,27 @@ export const MOCK_PROJECT_LISTED = {
   organization_id: MOCK_ORG.id,
   name: 'Neighbour Project',
   description: null,
-  is_public: false,
+  visibility: 'private',
   created_at: '2024-01-02T00:00:00Z',
   is_admin: false,
   is_member: false,
   has_access: false,
   campaign_count: 2,
+};
+
+/** Org-public: open to active org members without a membership row, so the
+ *  backend reports access but no member/admin standing. */
+export const MOCK_PROJECT_ORG_PUBLIC = {
+  id: 9,
+  organization_id: MOCK_ORG.id,
+  name: 'Org Shared Project',
+  description: 'Open to everyone in the organization',
+  visibility: 'organization',
+  created_at: '2024-01-03T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: true,
+  campaign_count: 0,
 };
 
 export const MOCK_PROJECT_CAMPAIGNS = {

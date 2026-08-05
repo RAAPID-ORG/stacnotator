@@ -1,7 +1,9 @@
 import { test, expect, ROUTE } from './fixtures/annotator-fixture';
+import { MOCK_PROJECT } from './fixtures/mock-data';
 
 /** Projects live inside an organization, so a viewer without one cannot create
- *  any - the entry points have to disappear rather than fail on submit. */
+ *  any - the entry points have to disappear rather than fail on submit, and the
+ *  page must explain how to get an organization. */
 test.describe('Creating a project without an organization', () => {
   test.beforeEach(async ({ appPage }) => {
     await appPage.route(ROUTE.organizations, async (route) => {
@@ -9,11 +11,33 @@ test.describe('Creating a project without an organization', () => {
     });
   });
 
-  test('the projects list offers no way to create one', async ({ appPage }) => {
+  test('the projects list gates creation behind an info panel', async ({ appPage }) => {
     await Promise.all([appPage.waitForResponse(ROUTE.organizations), appPage.goto('/projects')]);
 
-    await expect(appPage.getByTestId('project-row').first()).toBeVisible();
     await expect(appPage.getByRole('button', { name: 'New project' })).toHaveCount(0);
+
+    const panel = appPage.getByTestId('org-gating-panel');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('Ask an organization admin to add you');
+
+    await panel.getByRole('button', { name: 'Request an organization' }).click();
+    await expect(appPage).toHaveURL(/\/organizations\/new$/);
+  });
+
+  test('a viewer in no organization defaults to public but keeps explicit memberships reachable', async ({
+    appPage,
+  }) => {
+    await Promise.all([appPage.waitForResponse(ROUTE.organizations), appPage.goto('/projects')]);
+
+    await expect(appPage.getByTestId('project-filter-public')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(appPage.getByTestId('project-row')).toHaveCount(0);
+
+    await appPage.getByTestId('project-filter-all').click();
+    await expect(appPage.getByTestId('project-row')).toHaveCount(1);
+    await expect(appPage.getByTestId('project-row')).toContainText(MOCK_PROJECT.name);
   });
 
   test('the new-project page asks the viewer to join an organization', async ({ appPage }) => {
@@ -28,6 +52,7 @@ test.describe('Creating a project without an organization', () => {
       .filter({ hasText: 'No organization to create in' });
 
     await expect(emptyState).toBeVisible();
+    await expect(emptyState).toContainText('Ask an organization admin to add you');
     await expect(emptyState.getByRole('button', { name: 'New organization' })).toBeVisible();
     await expect(appPage.getByLabel('Name')).toHaveCount(0);
   });

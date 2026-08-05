@@ -24,7 +24,7 @@ test.describe('Project members', () => {
     );
   });
 
-  test('adding by email adds the known address and reports the unknown one', async ({
+  test('adding by email adds the known address and invites the unknown one', async ({
     appPage,
   }) => {
     // The member list grows once the add succeeds, mirroring the backend refetch.
@@ -39,11 +39,16 @@ test.describe('Project members', () => {
       posted.push(route.request().postDataJSON());
       members = [...members, { user: KNOWN, is_admin: false, is_authoritative_reviewer: false }];
       await route.fulfill({
-        json: { added: [KNOWN], unknown_emails: [UNKNOWN_EMAIL] },
+        json: { added: [KNOWN], invited_emails: [UNKNOWN_EMAIL] },
       });
     });
 
     await Promise.all([appPage.waitForResponse(ROUTE.projectUsers), appPage.goto(membersUrl)]);
+
+    // The add flow explains that unknown addresses become automatic invites.
+    await expect(
+      appPage.getByText('They need to sign up at stacnotator.io with this email address')
+    ).toBeVisible();
 
     await appPage.getByTestId('member-emails-input').fill(`${KNOWN.email}, ${UNKNOWN_EMAIL}`);
     await Promise.all([
@@ -58,10 +63,40 @@ test.describe('Project members', () => {
     expect(posted[0].emails).toEqual([KNOWN.email, UNKNOWN_EMAIL]);
 
     await expect(appPage.getByTestId('add-result-added')).toContainText(KNOWN.email);
-    await expect(appPage.getByTestId('add-result-unknown')).toContainText(UNKNOWN_EMAIL);
+    await expect(appPage.getByTestId('add-result-invited')).toContainText(UNKNOWN_EMAIL);
+    await expect(appPage.getByTestId('add-result-invited')).toContainText(
+      'sign up at stacnotator.io'
+    );
     await expect(appPage.getByTestId('project-member-row')).toHaveCount(
       MOCK_PROJECT_USERS.users.length + 1
     );
+  });
+
+  test('a pending invite is listed and can be revoked', async ({ appPage }) => {
+    let invites = [{ id: 31, email: UNKNOWN_EMAIL, created_at: '2026-01-01T00:00:00Z' }];
+
+    await appPage.route(ROUTE.projectInvites, async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') return route.fulfill({ json: { items: invites } });
+      if (method !== 'DELETE') return route.fallback();
+      const inviteId = Number(
+        route
+          .request()
+          .url()
+          .match(/invites\/(\d+)/)?.[1]
+      );
+      invites = invites.filter((invite) => invite.id !== inviteId);
+      await route.fulfill({ status: 204, body: '' });
+    });
+
+    await Promise.all([appPage.waitForResponse(ROUTE.projectInvites), appPage.goto(membersUrl)]);
+
+    const row = appPage.getByTestId('pending-invite-row');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText(UNKNOWN_EMAIL);
+
+    await row.getByRole('button', { name: 'Revoke' }).click();
+    await expect(appPage.getByTestId('pending-invite-row')).toHaveCount(0);
   });
 
   test('removing a member asks for confirmation first', async ({ appPage }) => {

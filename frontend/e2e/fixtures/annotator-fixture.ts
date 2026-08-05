@@ -18,6 +18,7 @@ import {
   MOCK_PROJECT,
   MOCK_PROJECT_CAMPAIGNS,
   MOCK_PROJECT_LISTED,
+  MOCK_PROJECT_ORG_PUBLIC,
   MOCK_TASK_LIST,
   MOCK_TASK_SETS,
   MOCK_PROJECT_USERS,
@@ -35,9 +36,11 @@ import {
  *  matches most-recently-registered first. */
 export const ROUTE = {
   organizations: /\/api\/organizations\/(\?.*)?$/,
+  organizationInvites: /\/api\/organizations\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projects: /\/api\/projects\/(\?.*)?$/,
   project: /\/api\/projects\/\d+(\?.*)?$/,
   projectCampaigns: /\/api\/projects\/\d+\/campaigns/,
+  projectInvites: /\/api\/projects\/\d+\/invites(\/\d+)?(\?.*)?$/,
   projectTilers: /\/api\/projects\/\d+\/tilers/,
   projectUsers: /\/api\/projects\/\d+\/users(\?.*)?$/,
   users: /\/api\/auth\/users(\?.*)?$/,
@@ -228,7 +231,20 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
 
   await page.route(ROUTE.projects, async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
-    await route.fulfill({ json: { items: [MOCK_PROJECT, MOCK_PROJECT_LISTED] } });
+    await route.fulfill({
+      json: { items: [MOCK_PROJECT, MOCK_PROJECT_LISTED, MOCK_PROJECT_ORG_PUBLIC] },
+    });
+  });
+
+  // Pending email pre-authorizations: none by default; specs re-register to
+  // exercise the revoke flow.
+  await page.route(ROUTE.projectInvites, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { items: [] } });
+  });
+  await page.route(ROUTE.organizationInvites, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { items: [] } });
   });
 
   await page.route(ROUTE.projectCampaigns, async (route) => {
@@ -254,7 +270,7 @@ async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void
       body: await parseBody(route),
       pathParams: extractPathParams(pathname),
     });
-    await route.fulfill({ json: { added: [], unknown_emails: [] } });
+    await route.fulfill({ json: { added: [], invited_emails: [] } });
   });
 }
 

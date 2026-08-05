@@ -121,6 +121,7 @@ export const ProjectsPage = () => {
                 key={key}
                 type="button"
                 data-testid={`project-filter-${key}`}
+                aria-pressed={filter === key}
                 onClick={() => setFilter(key)}
                 className={`px-3 h-7 text-xs font-medium rounded transition-colors ${
                   filter === key
