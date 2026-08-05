@@ -8,6 +8,7 @@ from src.organizations.models import (
     ORG_STATUS_APPROVED,
     ORG_STATUS_PENDING,
     ORG_STATUS_REJECTED,
+    Invite,
     Organization,
     OrganizationTiler,
     OrganizationUser,
@@ -24,7 +25,7 @@ def test_status_constants():
 
 
 def test_tables_live_in_data_schema():
-    for model in (Organization, OrganizationUser, OrganizationTiler, Project, ProjectUser):
+    for model in (Organization, OrganizationUser, OrganizationTiler, Project, ProjectUser, Invite):
         assert model.__table__.schema == "data"
 
 
@@ -77,3 +78,10 @@ def test_project_visibility_replaces_is_public():
     cols = Project.__table__.columns
     assert "visibility" in cols and "is_public" not in cols
     assert cols["visibility"].server_default.arg == "private"
+
+
+def test_invite_targets_exactly_one_of_org_or_project():
+    checks = [c.sqltext.text for c in Invite.__table__.constraints if hasattr(c, "sqltext")]
+    assert "(organization_id IS NULL) != (project_id IS NULL)" in checks
+    fks = {fk.target_fullname for col in Invite.__table__.columns for fk in col.foreign_keys}
+    assert {"data.organizations.id", "data.projects.id", "auth.users.id"} <= fks

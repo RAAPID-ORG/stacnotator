@@ -11,8 +11,10 @@ import pytest
 from fastapi import HTTPException
 
 from src.campaigns.schemas import default_labelling_policy
+from src.organizations.models import Invite
 from src.projects.models import ProjectUser
 from src.projects.service import (
+    add_users_by_email,
     add_users_by_ids,
     demote_admin,
     demote_authoritative_reviewer,
@@ -226,6 +228,22 @@ class TestAddUsersByIds:
             assert m.is_admin is False
             assert m.is_authoritative_reviewer is False
         assert {m.user_id for m in added} == {u1, u2}
+        db.commit.assert_called_once()
+
+
+class TestAddUsersByEmail:
+    def test_unknown_emails_become_project_invites(self):
+        db = _mock_db()
+        inviter = uuid4()
+        db.scalars.return_value.all.side_effect = [[], []]  # no users, no pending invites
+
+        added, invited = add_users_by_email(db, 7, ["new@x.org"], invited_by=inviter)
+
+        assert added == []
+        assert invited == ["new@x.org"]
+        [invite] = [c.args[0] for c in db.add.call_args_list if isinstance(c.args[0], Invite)]
+        assert (invite.email, invite.project_id, invite.organization_id) == ("new@x.org", 7, None)
+        assert invite.invited_by == inviter
         db.commit.assert_called_once()
 
 

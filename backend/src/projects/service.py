@@ -18,6 +18,7 @@ from src.organizations.models import (
 )
 from src.organizations.service import (
     grants_org_access,
+    invite_emails,
     is_active_org_member,
     normalize_emails,
 )
@@ -243,10 +244,10 @@ def get_project_users(db: Session, project_id: int) -> list[ProjectUser]:
 
 
 def add_users_by_email(
-    db: Session, project_id: int, emails: list[str]
+    db: Session, project_id: int, emails: list[str], *, invited_by: UUID
 ) -> tuple[list[User], list[str]]:
     """Add registered users (org-external allowed by design) as members;
-    report unknown emails back. Phase 3 turns those into project invites."""
+    store invites for the rest so they join automatically at sign-up."""
     normalized = normalize_emails(emails)
     users = db.scalars(select(User).where(func.lower(User.email).in_(normalized))).all()
     by_email = {u.email.lower(): u for u in users}
@@ -266,8 +267,9 @@ def add_users_by_email(
             )
             added.append(found)
     unknown = [e for e in normalized if e not in by_email]
+    invited = invite_emails(db, unknown, invited_by=invited_by, project_id=project_id)
     db.commit()
-    return added, unknown
+    return added, invited
 
 
 def add_users_by_ids(db: Session, project_id: int, user_ids: list[UUID]) -> None:

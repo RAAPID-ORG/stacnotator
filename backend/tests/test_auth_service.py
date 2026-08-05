@@ -26,7 +26,11 @@ from src.auth.service import (
 
 
 def _mock_db():
-    return MagicMock()
+    db = MagicMock()
+    # register_user's invite-consumption pass queries pending invites; no
+    # invites by default so tests only configure what they assert.
+    db.scalars.return_value.all.return_value = []
+    return db
 
 
 def _make_user(user_id=None, email="test@example.com", roles=None):
@@ -124,6 +128,29 @@ class TestRegisterUser:
 
         assert exc_info.value.status_code == 409
         db.add.assert_not_called()
+
+    def test_registration_consumes_matching_invites_in_the_same_transaction(self):
+        from src.organizations.models import Invite, OrganizationUser
+        from src.projects.models import ProjectUser
+
+        db = _mock_db()
+        org_invite = Invite(id=1, email="new@test.com", organization_id=5)
+        project_invite = Invite(id=2, email="new@test.com", project_id=7)
+        db.scalars.return_value.all.return_value = [org_invite, project_invite]
+        db.get.return_value = None  # a brand-new user holds no membership rows
+
+        with (
+            patch("src.auth.service._get_user_by_external_id", return_value=None),
+            patch("src.auth.service._get_user_by_email", return_value=None),
+        ):
+            register_user(db, {"uid": "new-1", "email": "new@test.com"}, "firebase")
+
+        added = [call.args[0] for call in db.add.call_args_list]
+        assert [m.organization_id for m in added if isinstance(m, OrganizationUser)] == [5]
+        assert [m.project_id for m in added if isinstance(m, ProjectUser)] == [7]
+        assert org_invite.consumed_at is not None
+        assert project_invite.consumed_at is not None
+        db.commit.assert_called_once()
 
 
 class TestGrantAdmin:

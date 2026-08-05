@@ -15,6 +15,8 @@ from src.organizations.schemas import (
     AddUsersByEmailRequest,
     AddUsersByEmailResult,
     InternalStorageUpdateRequest,
+    InviteOut,
+    InvitesListResponse,
     OrganizationCreate,
     OrganizationOut,
     OrganizationsListResponse,
@@ -116,11 +118,34 @@ def add_organization_users(
     organization_id: int,
     body: AddUsersByEmailRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     org: Organization = Depends(require_org_admin),
 ):
-    added, unknown = service.add_users_by_email(db, organization_id, body.emails)
+    added, invited = service.add_users_by_email(
+        db, organization_id, body.emails, invited_by=user.id
+    )
     users = [UserOut.model_validate(u) for u in added]
-    return AddUsersByEmailResult(added=users, unknown_emails=unknown)
+    return AddUsersByEmailResult(added=users, invited_emails=invited)
+
+
+@router.get("/{organization_id}/invites", response_model=InvitesListResponse)
+def list_organization_invites(
+    organization_id: int,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    invites = service.list_pending_invites(db, organization_id=organization_id)
+    return InvitesListResponse(items=[InviteOut.model_validate(i) for i in invites])
+
+
+@router.delete("/{organization_id}/invites/{invite_id}", status_code=204)
+def revoke_organization_invite(
+    organization_id: int,
+    invite_id: int,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(require_org_admin),
+):
+    service.revoke_invite(db, invite_id, organization_id=organization_id)
 
 
 @router.post("/{organization_id}/users/{user_id}/make-admin", status_code=204)

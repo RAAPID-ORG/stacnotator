@@ -9,7 +9,8 @@ from src.auth.models import User
 from src.auth.schemas import UserOut
 from src.campaigns.schemas import CampaignsListResponse
 from src.database import get_db
-from src.organizations.schemas import AddUsersByEmailResult
+from src.organizations.schemas import AddUsersByEmailResult, InviteOut, InvitesListResponse
+from src.organizations.service import list_pending_invites, revoke_invite
 from src.projects import service
 from src.projects.dependencies import require_project_access, require_project_admin
 from src.projects.models import Project
@@ -131,11 +132,32 @@ def add_project_users(
     project_id: int,
     body: AddProjectUsersByEmailRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(require_authenticated_user),
     project: Project = Depends(require_project_admin),
 ):
-    added, unknown = service.add_users_by_email(db, project_id, body.emails)
+    added, invited = service.add_users_by_email(db, project_id, body.emails, invited_by=user.id)
     users = [UserOut.model_validate(u) for u in added]
-    return AddUsersByEmailResult(added=users, unknown_emails=unknown)
+    return AddUsersByEmailResult(added=users, invited_emails=invited)
+
+
+@router.get("/{project_id}/invites", response_model=InvitesListResponse)
+def list_project_invites(
+    project_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_admin),
+):
+    invites = list_pending_invites(db, project_id=project_id)
+    return InvitesListResponse(items=[InviteOut.model_validate(i) for i in invites])
+
+
+@router.delete("/{project_id}/invites/{invite_id}", status_code=204)
+def revoke_project_invite(
+    project_id: int,
+    invite_id: int,
+    db: Session = Depends(get_db),
+    project: Project = Depends(require_project_admin),
+):
+    revoke_invite(db, invite_id, project_id=project_id)
 
 
 @router.post("/{project_id}/users/by-ids", status_code=201)

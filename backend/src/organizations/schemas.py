@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.auth.schemas import UserOut
@@ -52,9 +54,21 @@ class AddUsersByEmailRequest(BaseModel):
 
 class AddUsersByEmailResult(BaseModel):
     added: list[UserOut]
-    # Not-yet-registered emails. Phase 3 turns these into stored invites;
-    # for now the caller relays them back to the admin.
-    unknown_emails: list[str]
+    # Not-yet-registered emails, stored as invites: they join automatically
+    # once they sign up with that email.
+    invited_emails: list[str]
+
+
+class InviteOut(BaseModel):
+    id: int
+    email: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvitesListResponse(BaseModel):
+    items: list[InviteOut]
 
 
 class OrganizationTilersOut(BaseModel):

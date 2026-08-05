@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from src.auth.constants import ROLE_ADMIN
 from src.auth.models import User, UserRole
 from src.auth.providers.base import AuthenticatedUser
+from src.organizations.service import consume_invites_for_new_user
 
 # ============================================================================
 # Internal Helper Functions
@@ -145,6 +146,7 @@ def register_user(
 
     for role in bootstrap_roles:
         db.add(UserRole(user_id=user.id, role=role))
+    consume_invites_for_new_user(db, user)
 
     db.commit()
     db.refresh(user)

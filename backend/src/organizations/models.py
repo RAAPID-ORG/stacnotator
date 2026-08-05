@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Uuid,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -121,3 +122,41 @@ class OrganizationTiler(Base):
         ForeignKey("data.organizations.id", ondelete="CASCADE"), primary_key=True
     )
     tiler_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
+class Invite(Base):
+    """Pre-authorization for an email with no account yet, targeting exactly
+    one organization or one project. Consumed silently at registration
+    (auth.service.register_user), turning into the matching membership row.
+    No email is sent; the admin relays the sign-up instruction."""
+
+    __tablename__ = "invites"
+    __table_args__ = (
+        CheckConstraint(
+            "(organization_id IS NULL) != (project_id IS NULL)",
+            name="invites_exactly_one_target_check",
+        ),
+        Index("invites_email_idx", "email"),
+        {"schema": "data"},
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(always=True), primary_key=True)
+    # Lowercased on write (normalize_emails); matched against the lowercased
+    # email of every newly registered user.
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=True
+    )
+    invited_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("auth.users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    consumed_by: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
