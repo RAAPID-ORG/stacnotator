@@ -90,7 +90,7 @@ OPEN_CAMPAIGN_NAME = "Ukraine Open-Mode Dev Campaign"
 
 
 def _ensure_user(db, firebase_uid: str | None = None) -> User:
-    """Return existing user or create a new one with admin + approved roles.
+    """Return existing user or create a new one with the user + admin roles.
 
     In local auth mode, creates the fixed local user (issuer="local",
     external_uid="local-user") so that it matches the LocalAuthProvider.

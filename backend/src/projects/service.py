@@ -282,8 +282,9 @@ def add_users_by_email(
 
 
 def add_users_by_ids(db: Session, project_id: int, user_ids: list[UUID]) -> None:
-    """Bulk add by id (legacy assign-users shim + assignment modals). Unknown
-    ids 404 the batch; existing members are skipped, not an error."""
+    """Bulk add by id, used by the project members UI where the user was picked
+    from a list rather than typed as an email. Unknown ids 404 the batch;
+    existing members are skipped, not an error."""
     users = db.scalars(select(User).where(User.id.in_(user_ids))).all()
     missing = set(user_ids) - {u.id for u in users}
     if missing:

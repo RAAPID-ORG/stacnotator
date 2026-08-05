@@ -146,7 +146,7 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
-    // Mirrors DEFAULT_LABELLING_POLICY (LabellingPolicyEditor.tsx) / backend
+    // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.
     labelling_policy: {
