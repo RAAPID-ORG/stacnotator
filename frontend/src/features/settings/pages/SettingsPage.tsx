@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
 import { Skeleton, SkeletonPage } from 'src/shared/ui/Skeleton';
@@ -64,6 +66,8 @@ const RefreshButton = ({ onClick, busy }: { onClick: () => void; busy: boolean }
 );
 
 export const SettingsPage = () => {
+  const navigate = useNavigate();
+  const { auth } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'organizations'>('profile');
   const [users, setUsers] = useState<UserOutDetailed[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationOut[]>([]);
@@ -212,6 +216,7 @@ export const SettingsPage = () => {
       throwOnError: true,
     });
     applyOrganization(data);
+    showAlert('Internal storage updated', 'success');
   };
 
   const handleLoadOrganizationTilers = async (organizationId: number) => {
@@ -299,6 +304,15 @@ export const SettingsPage = () => {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await auth.logout();
+      navigate('/');
+    } catch (err) {
+      handleError(err, 'Sign out failed');
     }
   };
 
@@ -548,6 +562,22 @@ export const SettingsPage = () => {
                       )}
                     </section>
                   )}
+
+                  <section className={sectionCls}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h2 className="section-heading">Sign out</h2>
+                        <p className="section-description">Ends your session on this device.</p>
+                      </div>
+                      <Button
+                        variant="dangerQuiet"
+                        data-testid="sign-out-button"
+                        onClick={handleSignOut}
+                      >
+                        Sign out
+                      </Button>
+                    </div>
+                  </section>
                 </div>
               )}
 

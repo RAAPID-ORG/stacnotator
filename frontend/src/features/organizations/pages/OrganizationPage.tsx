@@ -5,6 +5,7 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
+import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { OrganizationMembers } from '../components/OrganizationMembers';
 import { useOrganizations } from '../hooks/useOrganizations';
@@ -61,7 +62,10 @@ const DetailsForm = ({ org, onSaved }: DetailsFormProps) => {
       <div className="surface surface-section flex items-start justify-between gap-4">
         <div>
           <h2 className="section-heading">Details</h2>
-          <p className="text-sm text-neutral-600">{org.description || 'No description yet.'}</p>
+          <p className="section-description">The name and description shown across the platform.</p>
+          <p className="text-sm text-neutral-600 mt-2">
+            {org.description || 'No description yet.'}
+          </p>
         </div>
         <Button variant="secondary" size="sm" onClick={startEditing}>
           Edit
@@ -116,9 +120,9 @@ export const OrganizationPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-auto">
-        <div className="page text-sm text-neutral-500">Loading organization…</div>
-      </div>
+      <SkeletonPage action={false}>
+        <SkeletonForm sections={2} />
+      </SkeletonPage>
     );
   }
 

@@ -1,32 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '~/app/providers/AuthProvider';
 import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
 import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
-import { handleError } from '~/shared/utils/errorHandler';
-
-export const LogoutButton = () => {
-  const navigate = useNavigate();
-  const { auth } = useAuth();
-
-  const handleLogout = async () => {
-    try {
-      await auth.logout();
-      navigate('/');
-    } catch (err) {
-      handleError(err, 'Logout failed');
-    }
-  };
-
-  return (
-    <div
-      onClick={handleLogout}
-      className="cursor-pointer text-xs text-neutral-700 hover:text-red-500 select-none"
-    >
-      Logout
-    </div>
-  );
-};
 
 export type AppSidebarProps = {
   collapsed: boolean;
@@ -177,7 +152,6 @@ export const AppSidebar = ({
                 >
                   {account?.display_name || account?.email || 'Settings'}
                 </button>
-                <LogoutButton />
               </div>
             )}
           </div>

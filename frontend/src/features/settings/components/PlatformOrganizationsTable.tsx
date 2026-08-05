@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import type { OrganizationOut } from '~/api/client';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
-import { Button } from '~/shared/ui/forms';
+import { Button, Switch } from '~/shared/ui/forms';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 
@@ -22,16 +22,19 @@ const STATUS_TONES: Record<string, BadgeTone> = {
   rejected: 'red',
 };
 
-const chipCls =
-  'inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-
 const rowActionCls =
   'inline-flex items-center h-7 px-2.5 text-[11px] font-medium rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
-type TilerEditor = {
+/** Everything the per-row access editor may change, edited as one draft and
+ *  applied together on Save so nothing flips on a bare click. */
+type AccessEditor = {
   organizationId: number;
-  selected: string[];
+  initialTilers: string[];
+  selectedTilers: string[];
+  internalStorage: boolean;
 };
+
+const COL_SPAN = 4;
 
 export const PlatformOrganizationsTable = ({
   organizations,
@@ -44,12 +47,10 @@ export const PlatformOrganizationsTable = ({
   loading,
 }: PlatformOrganizationsTableProps) => {
   const showConfirmDialog = useLayoutStore((s) => s.showConfirmDialog);
+  const showAlert = useLayoutStore((s) => s.showAlert);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [editor, setEditor] = useState<TilerEditor | null>(null);
-  const [savingTilers, setSavingTilers] = useState(false);
-
-  const showTilerColumn = allTilers.length > 0;
-  const colSpan = showTilerColumn ? 5 : 4;
+  const [editor, setEditor] = useState<AccessEditor | null>(null);
+  const [savingAccess, setSavingAccess] = useState(false);
 
   const run = async (organizationId: number, message: string, action: () => Promise<void>) => {
     setBusyId(organizationId);
@@ -80,20 +81,20 @@ export const PlatformOrganizationsTable = ({
     );
   };
 
-  const handleInternalStorage = (organization: OrganizationOut) =>
-    run(organization.id, 'Failed to update internal storage', () =>
-      onSetInternalStorage(organization.id, !organization.allows_internal_storage)
-    );
-
-  const toggleTilerEditor = async (organizationId: number) => {
-    if (editor?.organizationId === organizationId) {
+  const toggleAccessEditor = async (organization: OrganizationOut) => {
+    if (editor?.organizationId === organization.id) {
       setEditor(null);
       return;
     }
     setEditor(null);
-    await run(organizationId, 'Failed to load organization tile access', async () => {
-      const tilerNames = await onLoadTilers(organizationId);
-      setEditor({ organizationId, selected: tilerNames });
+    await run(organization.id, 'Failed to load organization access', async () => {
+      const tilerNames = allTilers.length > 0 ? await onLoadTilers(organization.id) : [];
+      setEditor({
+        organizationId: organization.id,
+        initialTilers: tilerNames,
+        selectedTilers: tilerNames,
+        internalStorage: organization.allows_internal_storage,
+      });
     });
   };
 
@@ -103,22 +104,29 @@ export const PlatformOrganizationsTable = ({
         ? prev
         : {
             ...prev,
-            selected: prev.selected.includes(tilerName)
-              ? prev.selected.filter((name) => name !== tilerName)
-              : [...prev.selected, tilerName],
+            selectedTilers: prev.selectedTilers.includes(tilerName)
+              ? prev.selectedTilers.filter((name) => name !== tilerName)
+              : [...prev.selectedTilers, tilerName],
           }
     );
 
-  const saveTilers = async () => {
+  const saveAccess = async (organization: OrganizationOut) => {
     if (!editor) return;
-    setSavingTilers(true);
+    const tilersChanged =
+      editor.selectedTilers.length !== editor.initialTilers.length ||
+      editor.selectedTilers.some((name) => !editor.initialTilers.includes(name));
+    const storageChanged = editor.internalStorage !== organization.allows_internal_storage;
+
+    setSavingAccess(true);
     try {
-      await onSaveTilers(editor.organizationId, editor.selected);
+      if (tilersChanged) await onSaveTilers(organization.id, editor.selectedTilers);
+      if (storageChanged) await onSetInternalStorage(organization.id, editor.internalStorage);
+      if (!tilersChanged && !storageChanged) showAlert('No access changes to apply', 'info');
       setEditor(null);
     } catch (err) {
-      handleError(err, 'Failed to save organization tile access');
+      handleError(err, 'Failed to save organization access');
     } finally {
-      setSavingTilers(false);
+      setSavingAccess(false);
     }
   };
 
@@ -136,11 +144,6 @@ export const PlatformOrganizationsTable = ({
             <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
               Internal storage
             </th>
-            {showTilerColumn && (
-              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Tile access
-              </th>
-            )}
             <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
               Actions
             </th>
@@ -149,7 +152,7 @@ export const PlatformOrganizationsTable = ({
         <tbody className="divide-y divide-neutral-100">
           {loading ? (
             <tr>
-              <td colSpan={colSpan} className="px-4 py-10">
+              <td colSpan={COL_SPAN} className="px-4 py-10">
                 <div className="flex flex-col items-center gap-2">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
                   <span className="text-xs text-neutral-500">Loading organizations…</span>
@@ -158,7 +161,7 @@ export const PlatformOrganizationsTable = ({
             </tr>
           ) : organizations.length === 0 ? (
             <tr>
-              <td colSpan={colSpan} className="px-4 py-10 text-center text-sm text-neutral-500">
+              <td colSpan={COL_SPAN} className="px-4 py-10 text-center text-sm text-neutral-500">
                 No organizations found
               </td>
             </tr>
@@ -188,44 +191,26 @@ export const PlatformOrganizationsTable = ({
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
+                      <span
                         data-org-internal-storage={
                           organization.allows_internal_storage ? 'yes' : 'no'
                         }
-                        onClick={() => handleInternalStorage(organization)}
-                        disabled={busy}
-                        title={
-                          organization.allows_internal_storage
-                            ? 'Disable managed-identity storage'
-                            : 'Allow managed-identity storage'
-                        }
-                        className={`${chipCls} ${
-                          organization.allows_internal_storage
-                            ? 'bg-brand-50 text-brand-800 border-brand-200'
-                            : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
-                        }`}
                       >
-                        <span aria-hidden className="w-2 text-center leading-none">
-                          {organization.allows_internal_storage ? '✓' : '+'}
-                        </span>
-                        Allowed
-                      </button>
+                        <Badge tone={organization.allows_internal_storage ? 'brand' : 'neutral'}>
+                          {organization.allows_internal_storage ? 'Allowed' : 'Off'}
+                        </Badge>
+                      </span>
                     </td>
-                    {showTilerColumn && (
-                      <td className="px-4 py-3">
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => toggleTilerEditor(organization.id)}
+                          onClick={() => toggleAccessEditor(organization)}
                           disabled={busy}
                           className={`${rowActionCls} text-brand-700 hover:bg-brand-50`}
                         >
-                          {editing ? 'Close' : 'Edit tile access'}
+                          {editing ? 'Close' : 'Edit access'}
                         </button>
-                      </td>
-                    )}
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1.5">
                         {organization.status !== 'approved' && (
                           <button
                             type="button"
@@ -251,32 +236,54 @@ export const PlatformOrganizationsTable = ({
                   </tr>
                   {editing && (
                     <tr className="bg-neutral-50/60">
-                      <td colSpan={colSpan} className="px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-4">
-                          {allTilers.map((name) => (
-                            <label
-                              key={name}
-                              className="inline-flex items-center gap-2 text-xs text-neutral-700"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={editor.selected.includes(name)}
-                                onChange={() => toggleTiler(name)}
-                                disabled={savingTilers}
-                                className="w-4 h-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
-                              />
-                              {name}
-                            </label>
-                          ))}
+                      <td colSpan={COL_SPAN} className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                          <Switch
+                            checked={editor.internalStorage}
+                            onChange={(internalStorage) =>
+                              setEditor((prev) =>
+                                prev === null ? prev : { ...prev, internalStorage }
+                              )
+                            }
+                            disabled={savingAccess}
+                            label="Internal storage"
+                            aria-label="Internal storage"
+                          />
+                          {allTilers.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-4 pl-6 border-l border-neutral-200">
+                              <span className="text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                                Tile access
+                              </span>
+                              {allTilers.map((name) => (
+                                <label
+                                  key={name}
+                                  className="inline-flex items-center gap-2 text-xs text-neutral-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={editor.selectedTilers.includes(name)}
+                                    onChange={() => toggleTiler(name)}
+                                    disabled={savingAccess}
+                                    className="w-4 h-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-600 disabled:cursor-not-allowed"
+                                  />
+                                  {name}
+                                </label>
+                              ))}
+                            </div>
+                          )}
                           <div className="ml-auto flex gap-2">
-                            <Button size="sm" onClick={saveTilers} disabled={savingTilers}>
-                              {savingTilers ? 'Saving…' : 'Save tile access'}
+                            <Button
+                              size="sm"
+                              onClick={() => saveAccess(organization)}
+                              disabled={savingAccess}
+                            >
+                              {savingAccess ? 'Saving…' : 'Save access'}
                             </Button>
                             <Button
                               size="sm"
                               variant="secondary"
                               onClick={() => setEditor(null)}
-                              disabled={savingTilers}
+                              disabled={savingAccess}
                             >
                               Cancel
                             </Button>

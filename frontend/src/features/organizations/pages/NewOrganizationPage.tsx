@@ -73,50 +73,54 @@ export const NewOrganizationPage = () => {
         </header>
 
         {requestedName ? (
-          <div className="surface p-6 space-y-4 max-w-xl" data-testid="org-request-pending">
-            <p className="text-sm text-neutral-900">
-              Your organization request is awaiting platform approval.
-            </p>
-            <p className="text-sm text-neutral-500">
-              {requestedName} stays in the organization switcher as pending until it is approved.
-            </p>
-            <div className="flex gap-2">
-              <Button onClick={() => navigate(projectsPath())}>Back to projects</Button>
+          <div className="surface max-w-xl" data-testid="org-request-pending">
+            <div className="surface-section space-y-3">
+              <p className="text-sm font-medium text-neutral-900">
+                Your organization request is awaiting platform approval.
+              </p>
+              <p className="text-sm text-neutral-500">
+                {requestedName} stays in the organization switcher as pending until it is approved.
+              </p>
+            </div>
+            <div className="surface-section flex items-center justify-end gap-3">
               <Button variant="secondary" onClick={() => setRequestedName(null)}>
                 Request another
               </Button>
+              <Button onClick={() => navigate(projectsPath())}>Back to projects</Button>
             </div>
           </div>
         ) : (
-          <form className="surface p-6 space-y-5 max-w-xl" onSubmit={handleSubmit}>
-            <Field label="Name" htmlFor="org-name" required error={error}>
-              <Input
-                id="org-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Acme Research"
-                invalid={Boolean(error)}
-                disabled={submitting}
-              />
-            </Field>
-            <Field
-              label="Description"
-              htmlFor="org-description"
-              hint="Optional. What the organization works on."
-            >
-              <Textarea
-                id="org-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={submitting}
-              />
-            </Field>
-            <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? 'Requesting…' : 'Request organization'}
-              </Button>
+          <form className="surface max-w-xl" onSubmit={handleSubmit}>
+            <div className="surface-section space-y-5">
+              <Field label="Name" htmlFor="org-name" required error={error}>
+                <Input
+                  id="org-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Acme Research"
+                  invalid={Boolean(error)}
+                  disabled={submitting}
+                />
+              </Field>
+              <Field
+                label="Description"
+                htmlFor="org-description"
+                hint="Optional. What the organization works on."
+              >
+                <Textarea
+                  id="org-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={submitting}
+                />
+              </Field>
+            </div>
+            <div className="surface-section flex items-center justify-end gap-3">
               <Button variant="secondary" onClick={() => navigate(projectsPath())}>
                 Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Requesting…' : 'Request organization'}
               </Button>
             </div>
           </form>
