@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { Layout } from 'react-grid-layout';
 import {
   getCampaignWithImageryWindows,
-  getProjectUsers,
   getAllAnnotationTasks,
   listTaskSets,
   createNewCanvasLayout,
@@ -10,7 +9,6 @@ import {
   type CampaignOutFull,
   type KnnValidationStatusOut,
 } from '~/api/client';
-import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useMapStore } from './map.store';
@@ -163,15 +161,9 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       ]);
 
       const campaign = campaignRes.data!;
-      // Roles live on the owning project, which only the loaded campaign names.
-      const usersRes = await getProjectUsers({ path: { project_id: campaign.project_id } });
-      const projectUsers = usersRes.data?.users ?? [];
-      const currentUserId = useAccountStore.getState().account?.id;
-
-      const membership = projectUsers.find((pu) => pu.user.id === currentUserId);
-      const isAuthoritativeReviewer = membership?.is_authoritative_reviewer ?? false;
-      const isCampaignAdmin = membership?.is_admin ?? false;
-      const isCampaignMember = membership != null;
+      const isAuthoritativeReviewer = campaign.viewer_is_authoritative_reviewer ?? false;
+      const isCampaignAdmin = campaign.viewer_is_admin ?? false;
+      const isCampaignMember = campaign.viewer_is_member ?? false;
 
       // View & layout
       const firstView = campaign.imagery_views[0];

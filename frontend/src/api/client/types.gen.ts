@@ -49,18 +49,6 @@ export type AddUsersByEmailResult = {
 };
 
 /**
- * AllowedTilersOut
- *
- * Hosted tilers selectable in the imagery wizard (default first).
- */
-export type AllowedTilersOut = {
-    /**
-     * Tilers
-     */
-    tilers: Array<TilerOption>;
-};
-
-/**
  * AnnotationCreate
  */
 export type AnnotationCreate = {
@@ -671,16 +659,6 @@ export type AssignTasksToUsersResult = {
 };
 
 /**
- * AssignUsersToCampaignRequest
- */
-export type AssignUsersToCampaignRequest = {
-    /**
-     * User Ids
-     */
-    user_ids: Array<string>;
-};
-
-/**
  * BandInfo
  */
 export type BandInfo = {
@@ -899,11 +877,7 @@ export type CampaignCreate = {
     /**
      * Project Id
      */
-    project_id?: number | null;
-    /**
-     * Is Public
-     */
-    is_public?: boolean;
+    project_id: number;
     settings: CampaignSettingsCreate;
     imagery_editor_state?: ImageryEditorStateCreate | null;
     /**
@@ -1001,6 +975,18 @@ export type CampaignOut = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1076,6 +1062,18 @@ export type CampaignOutFull = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -1242,35 +1240,6 @@ export type CampaignStatistics = {
      * Pairwise Agreements
      */
     pairwise_agreements: Array<PairwiseAgreement>;
-};
-
-/**
- * CampaignUserOut
- */
-export type CampaignUserOut = {
-    user: UserOut;
-    /**
-     * Is Admin
-     */
-    is_admin: boolean;
-    /**
-     * Is Authorative Reviewer
-     */
-    is_authorative_reviewer: boolean;
-};
-
-/**
- * CampaignUsersResponse
- */
-export type CampaignUsersResponse = {
-    /**
-     * Campaign Id
-     */
-    campaign_id: number;
-    /**
-     * Users
-     */
-    users: Array<CampaignUserOut>;
 };
 
 /**
@@ -2417,6 +2386,23 @@ export type ProjectOut = {
 };
 
 /**
+ * ProjectTilersOut
+ *
+ * What the imagery wizard may configure for a project: the organization's
+ * tiler allowlist and whether its imagery may sit in internal storage.
+ */
+export type ProjectTilersOut = {
+    /**
+     * Tilers
+     */
+    tilers: Array<TilerOption>;
+    /**
+     * Allows Internal Storage
+     */
+    allows_internal_storage: boolean;
+};
+
+/**
  * ProjectUpdateRequest
  */
 export type ProjectUpdateRequest = {
@@ -2832,7 +2818,7 @@ export type TextFormField = {
 /**
  * TilerOption
  *
- * A tiler the user may use, from the unified registry.
+ * A tiler the owning organization may use, from the unified registry.
  */
 export type TilerOption = {
     /**
@@ -3089,16 +3075,6 @@ export type UpdateCampaignNameRequest = {
 };
 
 /**
- * UpdateCampaignVisibilityRequest
- */
-export type UpdateCampaignVisibilityRequest = {
-    /**
-     * Is Public
-     */
-    is_public: boolean;
-};
-
-/**
  * UpdateEmbeddingYearRequest
  *
  * Set or change the year from which satellite embeddings are sourced.
@@ -3162,7 +3138,7 @@ export type UserOut = {
 /**
  * UserOutDetailed
  *
- * Detailed user information.
+ * Detailed user information (platform admins only).
  */
 export type UserOutDetailed = {
     /**
@@ -3178,21 +3154,9 @@ export type UserOutDetailed = {
      */
     display_name: string;
     /**
-     * Is Approved
-     */
-    is_approved: boolean;
-    /**
-     * Is Visitor
-     */
-    is_visitor: boolean;
-    /**
      * Is Admin
      */
     is_admin: boolean;
-    /**
-     * Is Internal
-     */
-    is_internal: boolean;
     /**
      * Issuer
      */
@@ -3201,10 +3165,6 @@ export type UserOutDetailed = {
      * External Uid
      */
     external_uid: string;
-    /**
-     * Allowed Tilers
-     */
-    allowed_tilers?: Array<string>;
 };
 
 /**
@@ -3525,6 +3485,18 @@ export type CampaignOutWritable = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -3600,6 +3572,18 @@ export type CampaignOutFullWritable = {
      * Annotations Version
      */
     annotations_version?: number;
+    /**
+     * Viewer Is Admin
+     */
+    viewer_is_admin?: boolean;
+    /**
+     * Viewer Is Member
+     */
+    viewer_is_member?: boolean;
+    /**
+     * Viewer Is Authoritative Reviewer
+     */
+    viewer_is_authoritative_reviewer?: boolean;
     settings: CampaignSettingsOut;
     /**
      * Imagery Sources
@@ -3732,171 +3716,6 @@ export type EditUserInfoResponses = {
 
 export type EditUserInfoResponse = EditUserInfoResponses[keyof EditUserInfoResponses];
 
-export type ApproveUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/approve';
-};
-
-export type ApproveUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ApproveUserError = ApproveUserErrors[keyof ApproveUserErrors];
-
-export type ApproveUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type ApproveUserResponse = ApproveUserResponses[keyof ApproveUserResponses];
-
-export type RevokeUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke';
-};
-
-export type RevokeUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeUserError = RevokeUserErrors[keyof RevokeUserErrors];
-
-export type RevokeUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeUserResponse = RevokeUserResponses[keyof RevokeUserResponses];
-
-export type DenyUserData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/deny';
-};
-
-export type DenyUserErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DenyUserError = DenyUserErrors[keyof DenyUserErrors];
-
-export type DenyUserResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type DenyUserResponse = DenyUserResponses[keyof DenyUserResponses];
-
-export type ApproveUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/approve';
-};
-
-export type ApproveUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ApproveUsersBulkError = ApproveUsersBulkErrors[keyof ApproveUsersBulkErrors];
-
-export type ApproveUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type ApproveUsersBulkResponse = ApproveUsersBulkResponses[keyof ApproveUsersBulkResponses];
-
-export type RevokeUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/revoke';
-};
-
-export type RevokeUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeUsersBulkError = RevokeUsersBulkErrors[keyof RevokeUsersBulkErrors];
-
-export type RevokeUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type RevokeUsersBulkResponse = RevokeUsersBulkResponses[keyof RevokeUsersBulkResponses];
-
-export type DenyUsersBulkData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/deny';
-};
-
-export type DenyUsersBulkErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DenyUsersBulkError = DenyUsersBulkErrors[keyof DenyUsersBulkErrors];
-
-export type DenyUsersBulkResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type DenyUsersBulkResponse = DenyUsersBulkResponses[keyof DenyUsersBulkResponses];
-
 export type GrantAdminSingleData = {
     body?: never;
     path: {
@@ -3975,74 +3794,6 @@ export type ListGrantableTilersResponses = {
 
 export type ListGrantableTilersResponse = ListGrantableTilersResponses[keyof ListGrantableTilersResponses];
 
-export type RevokeTilerSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-        /**
-         * Tiler Name
-         */
-        tiler_name: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/tilers/{tiler_name}';
-};
-
-export type RevokeTilerSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeTilerSingleError = RevokeTilerSingleErrors[keyof RevokeTilerSingleErrors];
-
-export type RevokeTilerSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeTilerSingleResponse = RevokeTilerSingleResponses[keyof RevokeTilerSingleResponses];
-
-export type GrantTilerSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-        /**
-         * Tiler Name
-         */
-        tiler_name: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/tilers/{tiler_name}';
-};
-
-export type GrantTilerSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantTilerSingleError = GrantTilerSingleErrors[keyof GrantTilerSingleErrors];
-
-export type GrantTilerSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantTilerSingleResponse = GrantTilerSingleResponses[keyof GrantTilerSingleResponses];
-
 export type GrantAdminData = {
     body: BulkUserActionRequest;
     path?: never;
@@ -4092,176 +3843,6 @@ export type RevokeAdminResponses = {
 };
 
 export type RevokeAdminResponse = RevokeAdminResponses[keyof RevokeAdminResponses];
-
-export type GrantVisitorSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/grant-visitor';
-};
-
-export type GrantVisitorSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantVisitorSingleError = GrantVisitorSingleErrors[keyof GrantVisitorSingleErrors];
-
-export type GrantVisitorSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantVisitorSingleResponse = GrantVisitorSingleResponses[keyof GrantVisitorSingleResponses];
-
-export type RevokeVisitorSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke-visitor';
-};
-
-export type RevokeVisitorSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeVisitorSingleError = RevokeVisitorSingleErrors[keyof RevokeVisitorSingleErrors];
-
-export type RevokeVisitorSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeVisitorSingleResponse = RevokeVisitorSingleResponses[keyof RevokeVisitorSingleResponses];
-
-export type GrantVisitorData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/grant-visitor';
-};
-
-export type GrantVisitorErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantVisitorError = GrantVisitorErrors[keyof GrantVisitorErrors];
-
-export type GrantVisitorResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type GrantVisitorResponse = GrantVisitorResponses[keyof GrantVisitorResponses];
-
-export type RevokeVisitorData = {
-    body: BulkUserActionRequest;
-    path?: never;
-    query?: never;
-    url: '/api/auth/users/revoke-visitor';
-};
-
-export type RevokeVisitorErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeVisitorError = RevokeVisitorErrors[keyof RevokeVisitorErrors];
-
-export type RevokeVisitorResponses = {
-    /**
-     * Successful Response
-     */
-    200: BulkUserActionResponse;
-};
-
-export type RevokeVisitorResponse = RevokeVisitorResponses[keyof RevokeVisitorResponses];
-
-export type GrantInternalSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/grant-internal';
-};
-
-export type GrantInternalSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GrantInternalSingleError = GrantInternalSingleErrors[keyof GrantInternalSingleErrors];
-
-export type GrantInternalSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type GrantInternalSingleResponse = GrantInternalSingleResponses[keyof GrantInternalSingleResponses];
-
-export type RevokeInternalSingleData = {
-    body?: never;
-    path: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/auth/users/{user_id}/revoke-internal';
-};
-
-export type RevokeInternalSingleErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RevokeInternalSingleError = RevokeInternalSingleErrors[keyof RevokeInternalSingleErrors];
-
-export type RevokeInternalSingleResponses = {
-    /**
-     * Successful Response
-     */
-    200: UserOutDetailed;
-};
-
-export type RevokeInternalSingleResponse = RevokeInternalSingleResponses[keyof RevokeInternalSingleResponses];
 
 export type ListOrganizationsData = {
     body?: never;
@@ -4807,6 +4388,36 @@ export type ListProjectCampaignsResponses = {
 
 export type ListProjectCampaignsResponse = ListProjectCampaignsResponses[keyof ListProjectCampaignsResponses];
 
+export type GetProjectTilersData = {
+    body?: never;
+    path: {
+        /**
+         * Project Id
+         */
+        project_id: number;
+    };
+    query?: never;
+    url: '/api/projects/{project_id}/tilers';
+};
+
+export type GetProjectTilersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetProjectTilersError = GetProjectTilersErrors[keyof GetProjectTilersErrors];
+
+export type GetProjectTilersResponses = {
+    /**
+     * Successful Response
+     */
+    200: ProjectTilersOut;
+};
+
+export type GetProjectTilersResponse = GetProjectTilersResponses[keyof GetProjectTilersResponses];
+
 export type GetProjectUsersData = {
     body?: never;
     path: {
@@ -5166,34 +4777,6 @@ export type GetCampaignResponses = {
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
 
-export type AddUsersToCampaignData = {
-    body: AssignUsersToCampaignRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/assign-users';
-};
-
-export type AddUsersToCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type AddUsersToCampaignError = AddUsersToCampaignErrors[keyof AddUsersToCampaignErrors];
-
-export type AddUsersToCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
 export type GetCampaignWithImageryWindowsData = {
     body?: never;
     path: {
@@ -5224,102 +4807,6 @@ export type GetCampaignWithImageryWindowsResponses = {
 
 export type GetCampaignWithImageryWindowsResponse = GetCampaignWithImageryWindowsResponses[keyof GetCampaignWithImageryWindowsResponses];
 
-export type MakeUserCampaignAdminData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * New Admin User Id
-         */
-        new_admin_user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/make-user-admin';
-};
-
-export type MakeUserCampaignAdminErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MakeUserCampaignAdminError = MakeUserCampaignAdminErrors[keyof MakeUserCampaignAdminErrors];
-
-export type MakeUserCampaignAdminResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
-export type MakeUserAuthorativeReviewerData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * New Authorative Reviewer Id
-         */
-        new_authorative_reviewer_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/make-user-authorative-reviewer';
-};
-
-export type MakeUserAuthorativeReviewerErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type MakeUserAuthorativeReviewerError = MakeUserAuthorativeReviewerErrors[keyof MakeUserAuthorativeReviewerErrors];
-
-export type MakeUserAuthorativeReviewerResponses = {
-    /**
-     * Successful Response
-     */
-    201: unknown;
-};
-
-export type GetCampaignUsersData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/users';
-};
-
-export type GetCampaignUsersErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetCampaignUsersError = GetCampaignUsersErrors[keyof GetCampaignUsersErrors];
-
-export type GetCampaignUsersResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignUsersResponse;
-};
-
-export type GetCampaignUsersResponse = GetCampaignUsersResponses[keyof GetCampaignUsersResponses];
-
 export type UpdateCampaignNameData = {
     body: UpdateCampaignNameRequest;
     path: {
@@ -5349,36 +4836,6 @@ export type UpdateCampaignNameResponses = {
 };
 
 export type UpdateCampaignNameResponse = UpdateCampaignNameResponses[keyof UpdateCampaignNameResponses];
-
-export type UpdateCampaignVisibilityData = {
-    body: UpdateCampaignVisibilityRequest;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/visibility';
-};
-
-export type UpdateCampaignVisibilityErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateCampaignVisibilityError = UpdateCampaignVisibilityErrors[keyof UpdateCampaignVisibilityErrors];
-
-export type UpdateCampaignVisibilityResponses = {
-    /**
-     * Successful Response
-     */
-    200: CampaignOut;
-};
-
-export type UpdateCampaignVisibilityResponse = UpdateCampaignVisibilityResponses[keyof UpdateCampaignVisibilityResponses];
 
 export type UpdateCampaignGuideData = {
     body: UpdateCampaignGuideRequest;
@@ -5589,106 +5046,6 @@ export type UpdateLabellingPolicyResponses = {
 };
 
 export type UpdateLabellingPolicyResponse = UpdateLabellingPolicyResponses[keyof UpdateLabellingPolicyResponses];
-
-export type RemoveUserFromCampaignData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    query?: never;
-    url: '/api/campaigns/{campaign_id}/users/{user_id}';
-};
-
-export type RemoveUserFromCampaignErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type RemoveUserFromCampaignError = RemoveUserFromCampaignErrors[keyof RemoveUserFromCampaignErrors];
-
-export type RemoveUserFromCampaignResponses = {
-    /**
-     * Successful Response
-     */
-    204: void;
-};
-
-export type RemoveUserFromCampaignResponse = RemoveUserFromCampaignResponses[keyof RemoveUserFromCampaignResponses];
-
-export type DemoteCampaignAdminData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/demote-admin';
-};
-
-export type DemoteCampaignAdminErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DemoteCampaignAdminError = DemoteCampaignAdminErrors[keyof DemoteCampaignAdminErrors];
-
-export type DemoteCampaignAdminResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type DemoteAuthorativeReviewerData = {
-    body?: never;
-    path: {
-        /**
-         * Campaign Id
-         */
-        campaign_id: number;
-    };
-    query: {
-        /**
-         * User Id
-         */
-        user_id: string;
-    };
-    url: '/api/campaigns/{campaign_id}/demote-auth-reviewer';
-};
-
-export type DemoteAuthorativeReviewerErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type DemoteAuthorativeReviewerError = DemoteAuthorativeReviewerErrors[keyof DemoteAuthorativeReviewerErrors];
-
-export type DemoteAuthorativeReviewerResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
 
 export type AssignTasksToUsersData = {
     body: AssignTasksToUsersRequest;
@@ -6952,22 +6309,6 @@ export type GenerateTasksFromSamplingResponses = {
 
 export type GenerateTasksFromSamplingResponse = GenerateTasksFromSamplingResponses[keyof GenerateTasksFromSamplingResponses];
 
-export type ListTilersData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/api/imagery/tilers';
-};
-
-export type ListTilersResponses = {
-    /**
-     * Successful Response
-     */
-    200: AllowedTilersOut;
-};
-
-export type ListTilersResponse = ListTilersResponses[keyof ListTilersResponses];
-
 export type SaveImageryData = {
     body: ImageryEditorStateCreate;
     path: {
@@ -7219,9 +6560,25 @@ export type ProxySliceTileResponses = {
 export type ListCatalogsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query: {
+        /**
+         * Project Id
+         *
+         * Project the wizard is configuring imagery for
+         */
+        project_id: number;
+    };
     url: '/api/stac/catalogs';
 };
+
+export type ListCatalogsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCatalogsError = ListCatalogsErrors[keyof ListCatalogsErrors];
 
 export type ListCatalogsResponses = {
     /**

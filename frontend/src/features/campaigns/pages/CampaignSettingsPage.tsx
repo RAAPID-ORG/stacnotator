@@ -102,6 +102,7 @@ export const CampaignSettingsPage = () => {
 
   const imageryController = usePersistedController({
     campaignId: campaignId,
+    projectId,
     imagery,
     views: campaign?.imagery_views ?? [],
     basemaps: campaign?.basemaps ?? [],

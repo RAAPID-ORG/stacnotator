@@ -13,7 +13,6 @@ import {
   MOCK_TASK_LIST,
   MOCK_TASK_SETS,
   MOCK_PROJECT_USERS,
-  MOCK_PROJECT_USERS_AUTHORITATIVE,
   ALL_TASKS,
   makeSubmitResponse,
   makeDeleteResponse,
@@ -102,15 +101,17 @@ async function parseBody(route: Route): Promise<any> {
  * Source exposes `__TASK_STORE__` to window in dev/test mode.
  */
 /**
- * Re-mock the project-users endpoint so the current user is an authoritative
- * reviewer, then reload the page so the campaign store picks it up. Must be
- * called on a page that already went through `annotationPage` setup.
+ * Re-mock the campaign detail endpoint so its viewer role flags mark the current
+ * user as an authoritative reviewer, then reload the page so the campaign store
+ * picks it up. Must be called on a page that already went through
+ * `annotationPage` setup.
  */
 export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> {
   // Re-registered routes take precedence (Playwright runs in LIFO order).
-  await page.route('**/api/projects/*/users', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    await route.fulfill({ json: MOCK_PROJECT_USERS_AUTHORITATIVE });
+  await page.route('**/api/campaigns/*/detailed', async (route) => {
+    await route.fulfill({
+      json: { ...MOCK_CAMPAIGN, viewer_is_authoritative_reviewer: true },
+    });
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });

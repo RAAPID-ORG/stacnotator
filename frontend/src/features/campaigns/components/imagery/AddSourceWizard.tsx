@@ -76,6 +76,7 @@ export const AddSourceWizard = ({
   if (step.kind === 'configure-preset') {
     return (
       <CatalogBrowser
+        projectId={controller.projectId}
         preset={step.preset}
         initialMode="mosaic"
         campaignBbox={campaignBbox}
@@ -88,6 +89,7 @@ export const AddSourceWizard = ({
   if (step.kind === 'custom-stac-browse') {
     return (
       <CatalogBrowser
+        projectId={controller.projectId}
         initialMode="mosaic"
         campaignBbox={campaignBbox}
         onAdd={(cols) => {
@@ -105,6 +107,7 @@ export const AddSourceWizard = ({
   if (step.kind === 'custom-xyz') {
     return (
       <CustomXyzStep
+        projectId={controller.projectId}
         onBack={back}
         onConfirm={async (source) => {
           await controller.addSource(source);
@@ -218,11 +221,12 @@ export const AddSourceWizard = ({
 };
 
 interface CustomXyzStepProps {
+  projectId: number;
   onBack: () => void;
   onConfirm: (source: ImagerySource) => Promise<void>;
 }
 
-const CustomXyzStep = ({ onBack, onConfirm }: CustomXyzStepProps) => {
+const CustomXyzStep = ({ projectId, onBack, onConfirm }: CustomXyzStepProps) => {
   const [submitting, setSubmitting] = useState(false);
   const [source, setSource] = useState<ImagerySource>(() => {
     const s = emptySource();
@@ -328,6 +332,7 @@ const CustomXyzStep = ({ onBack, onConfirm }: CustomXyzStepProps) => {
               <CollectionEditor
                 key={c.id}
                 collection={c}
+                projectId={projectId}
                 vizNames={vizNames}
                 onChange={(patch) => updateCollection(c.id, patch)}
                 onRemove={() => removeCollection(c.id)}

@@ -167,6 +167,7 @@ export const SourceEditor = ({
   if (addStep?.kind === 'catalog') {
     return (
       <CatalogBrowser
+        projectId={controller.projectId}
         preset={addStep.preset}
         initialMode="mosaic"
         campaignBbox={campaignBbox}
@@ -241,6 +242,7 @@ export const SourceEditor = ({
       >
         <CollectionEditor
           collection={editingCollection}
+          projectId={controller.projectId}
           vizNames={vizNames}
           onChange={(updates) =>
             controller.updateCollection(source.id, editingCollection.id, updates)

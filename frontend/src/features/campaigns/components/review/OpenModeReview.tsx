@@ -4,10 +4,8 @@ import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
 import {
   batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
-  getProjectUsers,
   type AnnotationOut,
   type CampaignOut,
-  type ProjectUserOut,
 } from '~/api/client';
 import { campaignPath } from '~/app/routes';
 import { useAccountStore } from '~/shared/stores/account.store';
@@ -47,7 +45,6 @@ export const OpenModeReview = ({
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const [annotations, setAnnotations] = useState<AnnotationOut[]>([]);
-  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [highlightedAnnotationId, setHighlightedAnnotationId] = useState<number | null>(null);
 
@@ -70,13 +67,6 @@ export const OpenModeReview = ({
           path: { campaign_id: campaignId },
         });
         setAnnotations(annotationsRes.data || []);
-
-        try {
-          const usersRes = await getProjectUsers({ path: { project_id: campaign.project_id } });
-          setProjectUsers(usersRes.data?.users || []);
-        } catch {
-          /* empty */
-        }
       } catch (err) {
         handleError(err, 'Failed to load annotations');
       } finally {
@@ -84,7 +74,7 @@ export const OpenModeReview = ({
       }
     };
     loadData();
-  }, [campaignId, campaign.project_id]);
+  }, [campaignId]);
 
   const uniqueUsers = useMemo((): UserInfo[] => {
     const m = new Map<string, UserInfo>();
@@ -154,10 +144,7 @@ export const OpenModeReview = ({
     return { total: annotations.length, withConfidence };
   }, [annotations]);
 
-  const isCampaignAdmin = useMemo(
-    () => !!projectUsers.find((pu) => pu.user.id === currentUser?.id && pu.is_admin),
-    [projectUsers, currentUser?.id]
-  );
+  const isCampaignAdmin = campaign.viewer_is_admin ?? false;
 
   // Mirror backend rule (annotation/service.py:delete_annotations_bulk):
   // public campaigns require ownership unless admin; private campaigns let any

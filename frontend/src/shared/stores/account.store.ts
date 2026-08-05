@@ -29,6 +29,3 @@ export const useAccountStore = create<AccountState>((set) => ({
 
   clear: () => set({ account: null, loading: false, error: null, emailNotVerified: false }),
 }));
-
-// Only internal staff may point maps/imagery at internal (managed-identity) storage.
-export const useIsInternal = () => useAccountStore((s) => !!s.account?.is_internal);

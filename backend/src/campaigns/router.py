@@ -69,6 +69,12 @@ def _with_viewer_roles[T: CampaignOut](out: T, db: Session, user: User, project_
     return out
 
 
+def _campaign_out(campaign: Campaign, db: Session, user: User) -> CampaignOut:
+    """Single exit for every plain CampaignOut response, so the viewer role flags
+    mean the same thing on a mutation reply as on a detail read."""
+    return _with_viewer_roles(CampaignOut.model_validate(campaign), db, user, campaign.project_id)
+
+
 @router.get("/", response_model=CampaignsListResponse)
 def list_all_campaigns(
     db: Session = Depends(get_db),
@@ -85,8 +91,7 @@ def get_campaign(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    full = service.get_campaign_full(db, campaign_id)
-    return _with_viewer_roles(CampaignOut.model_validate(full), db, user, full.project_id)
+    return _campaign_out(service.get_campaign_full(db, campaign_id), db, user)
 
 
 @router.post(
@@ -100,7 +105,7 @@ def create_campaign(
     user: User = Depends(require_authenticated_user),
 ):
     assert_project_admin(db, user, campaign.project_id)
-    return service.create_campaign(
+    created = service.create_campaign(
         db,
         name=campaign.name,
         mode=campaign.mode,
@@ -111,6 +116,7 @@ def create_campaign(
         timeseries_configs=campaign.timeseries_configs,
         labelling_policy=campaign.labelling_policy,
     )
+    return _campaign_out(created, db, user)
 
 
 @router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)
@@ -132,8 +138,9 @@ def update_campaign_name(
     req: UpdateCampaignNameRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
-    return service.update_campaign_name(db, campaign_id, req.name)
+    return _campaign_out(service.update_campaign_name(db, campaign_id, req.name), db, user)
 
 
 @router.patch("/{campaign_id}/guide", response_model=CampaignOut)
@@ -142,8 +149,11 @@ def update_campaign_guide(
     req: UpdateCampaignGuideRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
-    return service.update_campaign_guide(db, campaign_id, req.guide_markdown)
+    return _campaign_out(
+        service.update_campaign_guide(db, campaign_id, req.guide_markdown), db, user
+    )
 
 
 @router.patch("/{campaign_id}/bbox", response_model=CampaignOut)
@@ -152,10 +162,12 @@ def update_campaign_bbox(
     req: UpdateCampaignBBoxRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
-    return service.update_campaign_bbox(
+    updated = service.update_campaign_bbox(
         db, campaign_id, req.bbox_west, req.bbox_south, req.bbox_east, req.bbox_north
     )
+    return _campaign_out(updated, db, user)
 
 
 @router.patch("/{campaign_id}/labels", response_model=CampaignOut)
@@ -164,11 +176,12 @@ def update_campaign_labels(
     req: UpdateCampaignLabelsRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
     """Replace the campaign's label set. Renames (same id, new name) and adds
     (new id) are accepted; removing an existing label is rejected since it
     would orphan annotations that reference it."""
-    return service.update_campaign_labels(db, campaign_id, req.labels)
+    return _campaign_out(service.update_campaign_labels(db, campaign_id, req.labels), db, user)
 
 
 @router.patch("/{campaign_id}/form-fields", response_model=CampaignOut)
@@ -177,11 +190,13 @@ def update_campaign_form_fields(
     req: UpdateCampaignFormFieldsRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
     """Replace the campaign's custom form fields. Edits (same id) and adds (new
     id) are accepted; removing a field, or reshaping one that already has
     stored answers, is rejected since answers key off the field id."""
-    return service.update_campaign_form_fields(db, campaign_id, req.form_fields)
+    updated = service.update_campaign_form_fields(db, campaign_id, req.form_fields)
+    return _campaign_out(updated, db, user)
 
 
 @router.patch("/{campaign_id}/sample-extent", response_model=CampaignOut)
@@ -190,8 +205,10 @@ def update_sample_extent(
     req: UpdateSampleExtentRequest,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
 ):
-    return service.update_sample_extent(db, campaign_id, req.sample_extent_meters)
+    updated = service.update_sample_extent(db, campaign_id, req.sample_extent_meters)
+    return _campaign_out(updated, db, user)
 
 
 @router.patch("/{campaign_id}/embedding-year", response_model=EmbeddingYearUpdateResponse)

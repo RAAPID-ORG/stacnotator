@@ -4,14 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { prefetchAnnotationChunk } from '~/app/routeChunks';
 import { onIdle } from '~/shared/utils/idle';
 
-import {
-  getCampaign,
-  getProjectUsers,
-  listTaskSets,
-  type CampaignOut,
-  type TaskSetOut,
-} from '~/api/client';
-import { useAccountStore } from '~/shared/stores/account.store';
+import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Skeleton, SkeletonCards, SkeletonPage } from '~/shared/ui/Skeleton';
 import { Button } from '~/shared/ui/forms';
@@ -62,14 +55,7 @@ export const CampaignOverviewPage = () => {
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
-        const account = useAccountStore.getState().account;
-        // Admin rights come from the owning project, so this has to wait for
-        // the campaign to know which project to ask about.
-        const usersRes = campaignRes.data
-          ? await getProjectUsers({ path: { project_id: campaignRes.data.project_id } })
-          : null;
-        const membership = usersRes?.data?.users.find((pu) => pu.user.id === account?.id);
-        setIsAdmin((account?.is_admin ?? false) || (membership?.is_admin ?? false));
+        setIsAdmin(campaignRes.data?.viewer_is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {

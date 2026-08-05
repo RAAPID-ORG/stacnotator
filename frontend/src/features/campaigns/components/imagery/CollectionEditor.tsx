@@ -14,11 +14,12 @@ import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { StacQueryEditor } from './StacQueryEditor';
-import { getCollections, listTilers, type AssetInfo, type TilerOption } from '~/api/client';
-import { useIsInternal } from '~/shared/stores/account.store';
+import { getCollections, type AssetInfo } from '~/api/client';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 
 interface CollectionEditorProps {
   collection: CollectionItem;
+  projectId: number;
   vizNames: string[];
   onChange: (updates: Partial<CollectionItem>) => void;
   onRemove: () => void;
@@ -28,12 +29,13 @@ interface CollectionEditorProps {
 
 export const CollectionEditor = ({
   collection,
+  projectId,
   vizNames,
   onChange,
   onRemove,
   inModal,
 }: CollectionEditorProps) => {
-  const isInternal = useIsInternal();
+  const { tilers, allowsInternalStorage } = useProjectTilers(projectId);
   const [expanded, setExpanded] = useState(true);
   const [availableAssets, setAvailableAssets] = useState<Record<string, AssetInfo>>({});
   const [hasCloudCover, setHasCloudCover] = useState(false);
@@ -47,12 +49,6 @@ export const CollectionEditor = ({
     onChange({ data: { ...sb, ...updates } });
   };
 
-  const [tilers, setTilers] = useState<TilerOption[]>([]);
-  useEffect(() => {
-    listTilers()
-      .then(({ data }) => setTilers(data?.tilers ?? []))
-      .catch(() => {});
-  }, []);
   const hostedTilers = tilers.filter((t) => t.kind === 'hosted');
   const defaultTilerName = hostedTilers.find((t) => t.is_default)?.name;
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -625,7 +621,7 @@ export const CollectionEditor = ({
                     </div>
                   </div>
 
-                  {isInternal && !sb.isMpc && (
+                  {allowsInternalStorage && !sb.isMpc && (
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
                         type="checkbox"

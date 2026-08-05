@@ -112,6 +112,7 @@ export const MPC_PRESETS: CatalogBrowserPreset[] = [
 const MPC_API_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1';
 
 interface CatalogBrowserProps {
+  projectId: number;
   onAdd: (collections: CollectionItem[]) => void;
   onClose: () => void;
   campaignBbox?: number[] | null;
@@ -172,6 +173,7 @@ const CatalogSection = ({
 };
 
 export const CatalogBrowser = ({
+  projectId,
   onAdd,
   onClose,
   campaignBbox,
@@ -392,7 +394,7 @@ export const CatalogBrowser = ({
       return;
     }
     setLoading(true);
-    listCatalogs()
+    listCatalogs({ query: { project_id: projectId } })
       .then(({ data, error }) => {
         if (error) throw new Error('Failed to fetch catalogs');
         setCatalogs(data!);

@@ -139,6 +139,7 @@ export const CreateCampaignPage = () => {
       case 'StepImagery':
         return (
           <StepImagery
+            projectId={projectId}
             form={form}
             setForm={setForm}
             imageryState={imageryState}
@@ -148,6 +149,7 @@ export const CreateCampaignPage = () => {
       case 'StepViewLayout':
         return (
           <StepViewLayout
+            projectId={projectId}
             form={form}
             setForm={setForm}
             imageryState={imageryState}

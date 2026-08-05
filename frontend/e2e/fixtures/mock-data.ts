@@ -4,7 +4,6 @@ export const MOCK_USER = {
   id: TEST_USER_ID,
   email: 'test@example.com',
   display_name: 'Test User',
-  is_approved: true,
   is_admin: false,
   issuer: 'firebase',
 };
@@ -135,6 +134,11 @@ export const MOCK_CAMPAIGN = {
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
   mode: 'tasks',
+  // Viewer roles are stamped on the campaign response; the default user is a
+  // plain project member. `elevateToAuthoritativeReviewer` overrides them.
+  viewer_is_admin: false,
+  viewer_is_member: true,
+  viewer_is_authoritative_reviewer: false,
   settings: {
     labels: LABELS,
     bbox_west: 30.0,
@@ -340,7 +344,6 @@ export const MOCK_PROJECT_USERS = {
         id: TEST_USER_ID,
         email: 'test@example.com',
         display_name: 'Test User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },
@@ -352,38 +355,6 @@ export const MOCK_PROJECT_USERS = {
         id: 'other-user-xyz',
         email: 'other@example.com',
         display_name: 'Other User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authoritative_reviewer: false,
-    },
-  ],
-};
-
-/** Variant where the current user is an authoritative reviewer. */
-export const MOCK_PROJECT_USERS_AUTHORITATIVE = {
-  project_id: 7,
-  users: [
-    {
-      user: {
-        id: TEST_USER_ID,
-        email: 'test@example.com',
-        display_name: 'Test User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authoritative_reviewer: true,
-    },
-    {
-      user: {
-        id: 'other-user-xyz',
-        email: 'other@example.com',
-        display_name: 'Other User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { SkeletonPage, SkeletonRows } from '~/shared/ui/Skeleton';
-import { getCampaign, listAllCampaigns, type CampaignOut } from '~/api/client';
+import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -16,7 +16,6 @@ export const ReviewPage = () => {
   const routeProjectId = useProjectIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
 
@@ -41,15 +40,8 @@ export const ReviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, campaignsListRes] = await Promise.all([
-          getCampaign({ path: { campaign_id: campaignId } }),
-          listAllCampaigns(),
-        ]);
+        const campaignRes = await getCampaign({ path: { campaign_id: campaignId } });
         setCampaign(campaignRes.data!);
-        // CampaignOut has no is_admin flag; the campaigns list endpoint does,
-        // so we cross-reference it here rather than adding a backend field.
-        const listEntry = campaignsListRes.data?.items.find((c) => c.id === campaignId);
-        setIsAdmin(listEntry?.is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {
@@ -74,6 +66,8 @@ export const ReviewPage = () => {
       </div>
     );
   }
+
+  const isAdmin = campaign.viewer_is_admin ?? false;
 
   return (
     <Fragment>

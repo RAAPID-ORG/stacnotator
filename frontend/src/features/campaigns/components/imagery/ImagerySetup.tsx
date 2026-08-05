@@ -52,7 +52,7 @@ export const ImagerySetup = ({
       )}
 
       {(sections === 'sources-only' || sections === 'all') && controller.campaignId != null && (
-        <CustomMapsEditor campaignId={controller.campaignId} />
+        <CustomMapsEditor campaignId={controller.campaignId} projectId={controller.projectId} />
       )}
 
       {(sections === 'sources-only' || sections === 'all') && controller.campaignId != null && (
