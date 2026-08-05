@@ -43,7 +43,7 @@ const isSettingsTab = (t: string | null): t is SettingsTab =>
 
 export const CampaignSettingsPage = () => {
   const campaignId = useCampaignIdParam();
-  const projectId = useProjectIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
@@ -53,6 +53,10 @@ export const CampaignSettingsPage = () => {
   const tabParam = searchParams.get('tab');
   const initialTab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   // Form states
   const [campaignName, setCampaignName] = useState('');

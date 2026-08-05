@@ -28,7 +28,7 @@ const isWorkMode = (value: string): value is WorkMode =>
 
 export const AnnotationPage = () => {
   const campaignId = useCampaignIdParam();
-  const projectId = useProjectIdParam();
+  const routeProjectId = useProjectIdParam();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -46,6 +46,10 @@ export const AnnotationPage = () => {
   const allTasks = useTaskStore((s) => s.allTasks);
   const tasksLoaded = useTaskStore((s) => s.tasksLoaded);
   const accountId = useAccountStore((s) => s.account?.id);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);

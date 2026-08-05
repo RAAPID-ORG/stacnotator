@@ -85,8 +85,10 @@ export const TaskModeReview = ({
   onOpenReviewerAssign,
 }: TaskModeReviewProps) => {
   const navigate = useNavigate();
-  const projectId = useProjectIdParam();
-  const annotatePath = campaignPath(projectId, campaignId, 'annotate');
+  const routeProjectId = useProjectIdParam();
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const annotatePath = campaignPath(campaign?.project_id ?? routeProjectId, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
   const isExternallyDriven = tasksProp !== undefined;
 

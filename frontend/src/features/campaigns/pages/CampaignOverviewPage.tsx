@@ -25,13 +25,17 @@ import { campaignPath, projectsPath } from '~/app/routes';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
-  const projectId = useProjectIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 

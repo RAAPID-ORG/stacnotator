@@ -50,7 +50,7 @@ import {
 
 export const CampaignTasksPage = () => {
   const campaignId = useCampaignIdParam();
-  const projectId = useProjectIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
   const currentUser = useAccountStore((state) => state.account);
   const [showImport, setShowImport] = useState(false);
@@ -68,6 +68,10 @@ export const CampaignTasksPage = () => {
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [showReviewerModal, setShowReviewerModal] = useState(false);
   const [assignSelectedTaskIds, setAssignSelectedTaskIds] = useState<number[]>([]);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);

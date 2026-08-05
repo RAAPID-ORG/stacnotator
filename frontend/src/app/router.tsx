@@ -99,8 +99,8 @@ async function redirectLegacyCampaign({ params, request }: LoaderFunctionArgs) {
   const projectId = await resolveProjectId(campaignId);
   if (!projectId) throw redirect(projectsPath());
   const sub = params['*'] ? `/${params['*']}` : '';
-  const search = new URL(request.url).search;
-  throw redirect(`${campaignPath(projectId, campaignId)}${sub}${search}`);
+  const { search, hash } = new URL(request.url);
+  throw redirect(`${campaignPath(projectId, campaignId)}${sub}${search}${hash}`);
 }
 
 // A data router (createBrowserRouter) rather than <BrowserRouter> so navigation

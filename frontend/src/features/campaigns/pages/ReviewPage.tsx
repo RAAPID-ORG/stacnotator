@@ -13,12 +13,16 @@ import { campaignPath, projectsPath } from '~/app/routes';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
-  const projectId = useProjectIdParam();
+  const routeProjectId = useProjectIdParam();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
