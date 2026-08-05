@@ -13,10 +13,12 @@ export const Tooltip = ({
   text,
   children,
   variant = 'neutral',
+  className,
 }: {
   text: string;
   children?: ReactNode;
   variant?: Tone;
+  className?: string;
 }) => {
   const ref = useRef<HTMLSpanElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -31,7 +33,7 @@ export const Tooltip = ({
   return (
     <span
       ref={ref}
-      className="cursor-help inline-flex"
+      className={`cursor-help inline-flex ${className ?? ''}`}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}

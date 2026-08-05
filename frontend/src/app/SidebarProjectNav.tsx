@@ -71,11 +71,11 @@ const TRUNCATION_THRESHOLD = 18;
 
 const NavName = ({ name }: { name: string }) =>
   name.length > TRUNCATION_THRESHOLD ? (
-    <Tooltip text={name}>
-      <span className="truncate">{name}</span>
+    <Tooltip text={name} className="min-w-0">
+      <span className="min-w-0 truncate">{name}</span>
     </Tooltip>
   ) : (
-    <span className="truncate">{name}</span>
+    <span className="min-w-0 truncate">{name}</span>
   );
 
 interface SidebarProjectNavProps {

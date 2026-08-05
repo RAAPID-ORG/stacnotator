@@ -73,7 +73,7 @@ export const NewOrganizationPage = () => {
         </header>
 
         {requestedName ? (
-          <div className="surface max-w-xl" data-testid="org-request-pending">
+          <div className="surface" data-testid="org-request-pending">
             <div className="surface-section space-y-3">
               <p className="text-sm font-medium text-neutral-900">
                 Your organization request is awaiting platform approval.
@@ -90,7 +90,7 @@ export const NewOrganizationPage = () => {
             </div>
           </div>
         ) : (
-          <form className="surface max-w-xl" onSubmit={handleSubmit}>
+          <form className="surface" onSubmit={handleSubmit}>
             <div className="surface-section space-y-5">
               <Field label="Name" htmlFor="org-name" required error={error}>
                 <Input
