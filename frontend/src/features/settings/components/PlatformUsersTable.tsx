@@ -1,132 +1,25 @@
 import { useState } from 'react';
 import type { UserOutDetailed } from '~/api/client';
-import { Badge } from '~/shared/ui/Badge';
 import { Button } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export type PlatformUsersTableProps = {
   users: UserOutDetailed[];
-  onApprove: (userIds: string[]) => Promise<void>;
-  onRevoke: (userIds: string[]) => Promise<void>;
-  onDeny: (userIds: string[]) => Promise<void>;
   onGrantAdmin: (userIds: string[]) => Promise<void>;
   onRevokeAdmin: (userIds: string[]) => Promise<void>;
-  onGrantVisitor: (userIds: string[]) => Promise<void>;
-  onRevokeVisitor: (userIds: string[]) => Promise<void>;
-  onSetInternal: (userId: string, internal: boolean) => Promise<void>;
-  allTilers: string[];
-  onGrantTiler: (userId: string, tilerName: string) => Promise<void>;
-  onRevokeTiler: (userId: string, tilerName: string) => Promise<void>;
   loading: boolean;
 };
 
-type UserAction =
-  | 'approve'
-  | 'revoke'
-  | 'deny'
-  | 'grant-admin'
-  | 'revoke-admin'
-  | 'grant-visitor'
-  | 'revoke-visitor';
-
-const chipCls =
-  'inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-
-/** Fixed-width slot so the chip keeps its size across states: ✓ and + have
- * different advance widths and would otherwise shift the label on toggle. */
-const ChipMarker = ({ on }: { on: boolean }) => (
-  <span aria-hidden className="w-2 text-center leading-none">
-    {on ? '✓' : '+'}
-  </span>
-);
-
-type InternalToggleProps = {
-  user: UserOutDetailed;
-  busy: boolean;
-  onSetInternal: (userId: string, internal: boolean) => Promise<void>;
-};
-
-/** Internal marks first-party staff, who may point imagery and custom maps at
- * managed-identity storage. Admins hold it implicitly, so their chip is read-only.
- * Pending users have no chip: granting internal would approve them as a side effect. */
-const InternalToggle = ({ user, busy, onSetInternal }: InternalToggleProps) => {
-  if (user.is_admin) {
-    return (
-      <span
-        data-user-internal="implicit"
-        title="Admins are internal by definition"
-        className={`${chipCls} bg-brand-50 text-brand-800 border-brand-200 opacity-60`}
-      >
-        <ChipMarker on />
-        Internal
-      </span>
-    );
-  }
-
-  if (!user.is_approved) {
-    return <span className="text-xs text-neutral-400">-</span>;
-  }
-
-  return (
-    <button
-      type="button"
-      data-user-internal={user.is_internal ? 'yes' : 'no'}
-      onClick={() => onSetInternal(user.id, !user.is_internal)}
-      disabled={busy}
-      title={user.is_internal ? 'Remove internal access' : 'Mark as internal staff'}
-      className={`${chipCls} ${
-        user.is_internal
-          ? 'bg-brand-50 text-brand-800 border-brand-200'
-          : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
-      }`}
-    >
-      <ChipMarker on={user.is_internal} />
-      Internal
-    </button>
-  );
-};
+type UserAction = 'grant-admin' | 'revoke-admin';
 
 export const PlatformUsersTable = ({
   users,
-  onApprove,
-  onRevoke,
-  onDeny,
   onGrantAdmin,
   onRevokeAdmin,
-  onGrantVisitor,
-  onRevokeVisitor,
-  onSetInternal,
-  allTilers,
-  onGrantTiler,
-  onRevokeTiler,
   loading,
 }: PlatformUsersTableProps) => {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [processingAction, setProcessingAction] = useState(false);
-  const [toggling, setToggling] = useState<Set<string>>(new Set());
-
-  const showTilerColumn = allTilers.length > 0;
-
-  const runToggle = async (key: string, action: () => Promise<void>) => {
-    setToggling((prev) => new Set(prev).add(key));
-    try {
-      await action();
-    } finally {
-      setToggling((prev) => {
-        const next = new Set(prev);
-        next.delete(key);
-        return next;
-      });
-    }
-  };
-
-  const toggleTiler = (userId: string, tilerName: string, granted: boolean) =>
-    runToggle(`tiler:${userId}:${tilerName}`, () =>
-      granted ? onRevokeTiler(userId, tilerName) : onGrantTiler(userId, tilerName)
-    );
-
-  const setInternal = (userId: string, internal: boolean) =>
-    runToggle(`internal:${userId}`, () => onSetInternal(userId, internal));
 
   const toggleUser = (userId: string) => {
     const newSelected = new Set(selectedUsers);
@@ -148,20 +41,10 @@ export const PlatformUsersTable = ({
 
   const runAction = async (action: UserAction, userIds: string[]) => {
     switch (action) {
-      case 'approve':
-        return onApprove(userIds);
-      case 'revoke':
-        return onRevoke(userIds);
-      case 'deny':
-        return onDeny(userIds);
       case 'grant-admin':
         return onGrantAdmin(userIds);
       case 'revoke-admin':
         return onRevokeAdmin(userIds);
-      case 'grant-visitor':
-        return onGrantVisitor(userIds);
-      case 'revoke-visitor':
-        return onRevokeVisitor(userIds);
     }
   };
 
@@ -205,41 +88,6 @@ export const PlatformUsersTable = ({
             {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} selected
           </span>
           <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => handleBulkAction('approve')}
-              disabled={processingAction}
-            >
-              Approve
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleBulkAction('revoke')}
-              disabled={processingAction}
-            >
-              Revoke approval
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => handleBulkAction('deny')}
-              disabled={processingAction}
-            >
-              Deny
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleBulkAction('grant-visitor')}
-              disabled={processingAction}
-            >
-              Make visitor
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleBulkAction('revoke-visitor')}
-              disabled={processingAction}
-            >
-              Make standard
-            </Button>
             <Button onClick={() => handleBulkAction('grant-admin')} disabled={processingAction}>
               Make admin
             </Button>
@@ -280,19 +128,8 @@ export const PlatformUsersTable = ({
                 Display name
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                 Role
               </th>
-              <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                Internal
-              </th>
-              {showTilerColumn && (
-                <th className="px-4 py-3 text-left text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
-                  Tile access
-                </th>
-              )}
               <th className="px-4 py-3 text-right text-[11px] font-medium text-neutral-600 uppercase tracking-wider">
                 Actions
               </th>
@@ -301,7 +138,7 @@ export const PlatformUsersTable = ({
           <tbody className="divide-y divide-neutral-100">
             {loading ? (
               <tr>
-                <td colSpan={showTilerColumn ? 8 : 7} className="px-4 py-10">
+                <td colSpan={5} className="px-4 py-10">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-200 border-t-brand-600" />
                     <span className="text-xs text-neutral-500">Loading users…</span>
@@ -310,10 +147,7 @@ export const PlatformUsersTable = ({
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td
-                  colSpan={showTilerColumn ? 8 : 7}
-                  className="px-4 py-10 text-center text-sm text-neutral-500"
-                >
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-neutral-500">
                   No users found
                 </td>
               </tr>
@@ -332,132 +166,19 @@ export const PlatformUsersTable = ({
                   <td className="px-4 py-3 text-sm text-neutral-900">{user.email}</td>
                   <td className="px-4 py-3 text-sm text-neutral-600">{user.display_name || '-'}</td>
                   <td className="px-4 py-3">
-                    <Badge tone={user.is_approved ? 'brand' : 'yellow'}>
-                      {user.is_approved ? 'Approved' : 'Pending'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
                     <span
-                      data-user-role={
-                        user.is_admin
-                          ? 'admin'
-                          : user.is_visitor
-                            ? 'visitor'
-                            : user.is_approved
-                              ? 'standard'
-                              : 'user'
-                      }
+                      data-user-role={user.is_admin ? 'admin' : 'user'}
                       className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full border ${
                         user.is_admin
                           ? 'bg-accent-50 text-accent-800 border-accent-200'
-                          : user.is_visitor
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-neutral-50 text-neutral-700 border-neutral-200'
+                          : 'bg-neutral-50 text-neutral-700 border-neutral-200'
                       }`}
                     >
-                      {user.is_admin
-                        ? 'Admin'
-                        : user.is_visitor
-                          ? 'Visitor'
-                          : user.is_approved
-                            ? 'Standard'
-                            : 'User'}
+                      {user.is_admin ? 'Admin' : 'User'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <InternalToggle
-                      user={user}
-                      busy={toggling.has(`internal:${user.id}`) || processingAction}
-                      onSetInternal={setInternal}
-                    />
-                  </td>
-                  {showTilerColumn && (
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        {allTilers.map((name) => {
-                          const granted = (user.allowed_tilers ?? []).includes(name);
-                          const busy = toggling.has(`tiler:${user.id}:${name}`);
-                          return (
-                            <button
-                              key={name}
-                              type="button"
-                              onClick={() => toggleTiler(user.id, name, granted)}
-                              disabled={busy || processingAction}
-                              title={granted ? `Revoke ${name} access` : `Grant ${name} access`}
-                              className={`${chipCls} ${
-                                granted
-                                  ? 'bg-brand-50 text-brand-800 border-brand-200'
-                                  : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
-                              }`}
-                            >
-                              {granted ? '✓ ' : '+ '}
-                              {name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </td>
-                  )}
-                  <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      {!user.is_approved ? (
-                        <>
-                          <button
-                            onClick={() => handleSingleAction(user.id, 'approve')}
-                            disabled={processingAction}
-                            className={`${rowActionCls} bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50`}
-                            type="button"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleSingleAction(user.id, 'grant-visitor')}
-                            disabled={processingAction}
-                            className={`${rowActionCls} text-neutral-700 hover:bg-neutral-50`}
-                            type="button"
-                          >
-                            Approve as visitor
-                          </button>
-                          <button
-                            onClick={() => handleSingleAction(user.id, 'deny')}
-                            disabled={processingAction}
-                            className={`${rowActionCls} text-red-600 hover:bg-red-50`}
-                            type="button"
-                          >
-                            Deny
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleSingleAction(user.id, 'revoke')}
-                          disabled={processingAction}
-                          className={`${rowActionCls} text-red-600 hover:bg-red-50`}
-                          type="button"
-                        >
-                          Revoke approval
-                        </button>
-                      )}
-                      {user.is_approved &&
-                        !user.is_admin &&
-                        (user.is_visitor ? (
-                          <button
-                            onClick={() => handleSingleAction(user.id, 'revoke-visitor')}
-                            disabled={processingAction}
-                            className={`${rowActionCls} text-neutral-700 hover:bg-neutral-50`}
-                            type="button"
-                          >
-                            Make standard
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleSingleAction(user.id, 'grant-visitor')}
-                            disabled={processingAction}
-                            className={`${rowActionCls} text-amber-700 hover:bg-amber-50`}
-                            type="button"
-                          >
-                            Make visitor
-                          </button>
-                        ))}
                       {!user.is_admin ? (
                         <button
                           onClick={() => handleSingleAction(user.id, 'grant-admin')}
