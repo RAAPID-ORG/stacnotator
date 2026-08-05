@@ -19,7 +19,8 @@ from src.organizations.models import (
 )
 from src.organizations.service import normalize_emails
 from src.projects.models import Project, ProjectUser
-from src.projects.schemas import ProjectOut
+from src.projects.schemas import ProjectOut, ProjectTilersOut, TilerOption
+from src.tilers import registry
 
 
 class ProjectFlags(NamedTuple):
@@ -378,3 +379,17 @@ def remove_user(db: Session, project_id: int, user_id: UUID) -> None:
     _assert_not_last_project_admin(db, project_id, user_id)
     db.delete(_get_membership(db, project_id, user_id))
     db.commit()
+
+
+def get_project_tilers(project: Project) -> ProjectTilersOut:
+    """Tiler options for the project's imagery wizard: the registry entries the
+    owning organization is allowed to use, in registry order."""
+    allowed = set(project.organization.allowed_tiler_names)
+    return ProjectTilersOut(
+        tilers=[
+            TilerOption(name=t.name, kind=t.kind, url=t.url, is_default=t.is_default)
+            for t in registry.all_tilers()
+            if t.name in allowed
+        ],
+        allows_internal_storage=project.organization.allows_internal_storage,
+    )

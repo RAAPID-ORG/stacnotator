@@ -1,8 +1,8 @@
-"""Unified tiler registry + per-user tiler authorization. No DB / network.
+"""Unified tiler registry + org-scoped tiler authorization. No DB / network.
 
 Covers the security-critical decisions: which tilers exist and are default-access,
-whether a user may use a given tiler, the up-front enforcement on imagery save, and
-what an admin may grant.
+which tilers an organization may use, the up-front enforcement on imagery save, and
+what the wizard is offered for a project.
 """
 
 from types import SimpleNamespace
@@ -11,12 +11,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-import src.auth.models as auth_models
-from src.auth import router as auth_router
-from src.auth.models import User, UserTiler
-from src.auth.service import grant_tiler, revoke_tiler
 from src.config import TilerCfg
 from src.imagery import service
+from src.organizations.service import set_org_tilers
+from src.projects.service import get_project_tilers
 from src.stac_browser.router import _tiler_catalogs
 from src.tilers import registry
 
@@ -39,18 +37,18 @@ def settings(monkeypatch):
     s = _settings()
     monkeypatch.setattr(registry, "get_settings", lambda: s)
     monkeypatch.setattr(service, "get_settings", lambda: s)
-    monkeypatch.setattr(auth_models, "get_settings", lambda: s)
     return s
 
 
-# A freshly-registered user is seeded with the default tilers (MPC + the default hosted).
+# A freshly approved organization is seeded with the default tilers (MPC + the default hosted).
 SEEDED = ("mpc", "azure")
 
 
-def _user(names=SEEDED):
-    u = User()
-    u.tilers = [UserTiler(tiler_name=n) for n in names]
-    return u
+def _org(names=SEEDED, allows_internal_storage=False):
+    return SimpleNamespace(
+        allowed_tiler_names=list(names),
+        allows_internal_storage=allows_internal_storage,
+    )
 
 
 def _editor_state(tiler, catalog_url="https://earth-search.example/v1"):
@@ -75,7 +73,7 @@ def test_registry_lists_mpc_and_hosted_with_flags(settings):
 
 
 def test_registry_default_access_and_all_names(settings):
-    assert registry.default_access_names() == {"mpc", "azure"}  # seeded for new users
+    assert registry.default_access_names() == {"mpc", "azure"}  # seeded for new orgs
     assert set(registry.all_names()) == {"mpc", "azure", "tiler-gcp"}
     assert registry.is_known("tiler-gcp")
     assert not registry.is_known("nope")
@@ -90,12 +88,12 @@ def test_registry_browsable_tilers(settings):
 
 
 def test_tiler_catalogs_excludes_mpc_and_unauthorized(settings):
-    # MPC is a public catalog (not emitted here); tiler-gcp isn't granted to a plain user.
-    assert _tiler_catalogs(_user()) == []
+    # MPC is a public catalog (not emitted here); tiler-gcp isn't allowed for a plain org.
+    assert _tiler_catalogs(SEEDED) == []
 
 
-def test_tiler_catalogs_includes_granted(settings):
-    cats = _tiler_catalogs(_user(("mpc", "azure", "tiler-gcp")))
+def test_tiler_catalogs_includes_allowed(settings):
+    cats = _tiler_catalogs(("mpc", "azure", "tiler-gcp"))
     assert len(cats) == 1
     cat = cats[0]
     assert cat["tiler_name"] == "tiler-gcp"
@@ -104,123 +102,88 @@ def test_tiler_catalogs_includes_granted(settings):
     assert cat["url"] == "https://gcp/stac"
 
 
-# --- User.can_use_tiler (membership in the seeded/granted set) ------------------
+# --- project tiler options (the wizard's only tiler-discovery endpoint) ----------
 
 
-def test_can_use_tiler_seeded_defaults(settings):
-    u = _user()  # seeded with mpc + azure
-    assert u.can_use_tiler(None)  # null => default selection
-    assert u.can_use_tiler("azure")
-    assert u.can_use_tiler("mpc")
-    assert not u.can_use_tiler("tiler-gcp")  # not granted
+def test_project_tilers_lists_only_the_org_allowlist(settings):
+    out = get_project_tilers(SimpleNamespace(organization=_org()))
+    assert [t.name for t in out.tilers] == ["mpc", "azure"]
+    assert [t.is_default for t in out.tilers] == [False, True]
+    assert out.tilers[1].url == "https://azure"
+    assert out.allows_internal_storage is False
 
 
-def test_can_use_tiler_after_grant(settings):
-    u = _user(("mpc", "azure", "tiler-gcp"))
-    assert u.can_use_tiler("tiler-gcp")
-    assert u.allowed_tilers == ["mpc", "azure", "tiler-gcp"]
-
-
-def test_can_use_tiler_none_when_no_tilers(settings):
-    u = _user(())
-    assert not u.can_use_tiler("mpc")
-    assert not u.can_use_tiler(None)
+def test_project_tilers_reports_internal_storage_and_extra_grants(settings):
+    out = get_project_tilers(
+        SimpleNamespace(
+            organization=_org(("mpc", "azure", "tiler-gcp"), allows_internal_storage=True)
+        )
+    )
+    assert [t.name for t in out.tilers] == ["mpc", "azure", "tiler-gcp"]
+    assert out.allows_internal_storage is True
 
 
 # --- _authorize_tilers (enforcement on save) ------------------------------------
 
 
 def test_authorize_allows_default_and_none(settings):
-    service._authorize_tilers(_user(), _editor_state(None))
-    service._authorize_tilers(_user(), _editor_state("azure"))
+    service._authorize_tilers(_org(), _editor_state(None))
+    service._authorize_tilers(_org(), _editor_state("azure"))
 
 
-def test_authorize_blocks_ungranted_extra(settings):
+def test_authorize_blocks_tiler_outside_org_allowlist(settings):
     with pytest.raises(HTTPException) as exc:
-        service._authorize_tilers(_user(), _editor_state("tiler-gcp"))
+        service._authorize_tilers(_org(), _editor_state("tiler-gcp"))
     assert exc.value.status_code == 403
 
 
 def test_authorize_allows_granted_extra(settings):
-    service._authorize_tilers(_user(("mpc", "azure", "tiler-gcp")), _editor_state("tiler-gcp"))
+    service._authorize_tilers(_org(("mpc", "azure", "tiler-gcp")), _editor_state("tiler-gcp"))
 
 
 def test_authorize_rejects_unknown_tiler(settings):
     with pytest.raises(HTTPException) as exc:
-        service._authorize_tilers(_user(), _editor_state("ghost"))
+        service._authorize_tilers(_org(), _editor_state("ghost"))
     assert exc.value.status_code == 400
+
+
+def test_authorize_blocks_default_tiler_when_org_has_none(settings):
+    with pytest.raises(HTTPException) as exc:
+        service._authorize_tilers(_org(()), _editor_state(None))
+    assert exc.value.status_code == 403
 
 
 def test_authorize_ignores_non_stac_collections(settings):
     col = SimpleNamespace(name="manual", stac_config=None)
     es = SimpleNamespace(sources=[SimpleNamespace(collections=[col])])
-    service._authorize_tilers(_user(), es)  # no raise
+    service._authorize_tilers(_org(), es)  # no raise
 
 
 def test_authorize_allows_null_tiler_when_no_default_configured(monkeypatch):
     # MPC-only deployment (e.g. the dev stack): no hosted tiler configured, so a
     # Planetary Computer preset with tiler=None resolves to no tiler. MPC tiles are
-    # served direct — there is nothing to authorize, so this must not 403.
+    # served direct - there is nothing to authorize, so this must not 403.
     s = SimpleNamespace(TILERS={}, DEFAULT_TILER=None)
     monkeypatch.setattr(service, "get_settings", lambda: s)
-    monkeypatch.setattr(auth_models, "get_settings", lambda: s)
-    service._authorize_tilers(_user(("mpc",)), _editor_state(None))  # must not raise
+    service._authorize_tilers(_org(("mpc",)), _editor_state(None))  # must not raise
 
 
-# --- admin grant validation -----------------------------------------------------
+# --- org allowlist editing (what a platform admin may grant) --------------------
 
 
-def test_validate_grantable_rejects_unknown(settings):
+def test_set_org_tilers_rejects_unknown_names(settings):
     with pytest.raises(HTTPException) as exc:
-        auth_router._validate_grantable_tiler("ghost")
+        set_org_tilers(MagicMock(), 1, ["azure", "ghost"])
     assert exc.value.status_code == 400
+    assert "ghost" in exc.value.detail
 
 
-def test_validate_grantable_accepts_any_known_tiler(settings):
-    for name in ("mpc", "azure", "tiler-gcp"):
-        auth_router._validate_grantable_tiler(name)  # no raise
-
-
-# --- grant/revoke service (idempotent; not-found) -------------------------------
-
-
-def test_grant_tiler_adds_when_absent():
+def test_set_org_tilers_accepts_any_known_tiler(settings):
     db = MagicMock()
-    user = object()
-    db.get.side_effect = [user, None]  # user exists; no existing grant row
-    assert grant_tiler(db, "uid", "tiler-gcp") is user
-    db.add.assert_called_once()
+    set_org_tilers(db, 1, ["mpc", "azure", "tiler-gcp"])
+    assert [call.args[0].tiler_name for call in db.add.call_args_list] == [
+        "mpc",
+        "azure",
+        "tiler-gcp",
+    ]
     db.commit.assert_called_once()
-
-
-def test_grant_tiler_is_idempotent_when_present():
-    db = MagicMock()
-    user = object()
-    db.get.side_effect = [user, UserTiler(tiler_name="tiler-gcp")]  # grant already exists
-    assert grant_tiler(db, "uid", "tiler-gcp") is user
-    db.add.assert_not_called()
-    db.commit.assert_not_called()
-
-
-def test_grant_tiler_returns_none_for_missing_user():
-    db = MagicMock()
-    db.get.side_effect = [None]
-    assert grant_tiler(db, "uid", "tiler-gcp") is None
-    db.add.assert_not_called()
-
-
-def test_revoke_tiler_deletes_when_present():
-    db = MagicMock()
-    user = object()
-    row = UserTiler(tiler_name="tiler-gcp")
-    db.get.side_effect = [user, row]
-    assert revoke_tiler(db, "uid", "tiler-gcp") is user
-    db.delete.assert_called_once_with(row)
-
-
-def test_revoke_tiler_noop_when_absent():
-    db = MagicMock()
-    user = object()
-    db.get.side_effect = [user, None]
-    assert revoke_tiler(db, "uid", "tiler-gcp") is user
-    db.delete.assert_not_called()

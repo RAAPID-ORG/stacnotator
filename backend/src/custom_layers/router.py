@@ -3,7 +3,6 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
-from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.custom_layers import service
@@ -26,12 +25,13 @@ custom_maps_router = APIRouter(
 )
 
 
-def _require_internal_for_internal_storage(internal_storage: bool | None, user: User) -> None:
-    """Only internal staff may point a map at internal (managed-identity) storage."""
-    if internal_storage and not user.is_internal:
+def _require_internal_storage_allowed(internal_storage: bool | None, campaign: Campaign) -> None:
+    """Only organizations cleared for it may point a map at internal
+    (managed-identity) storage."""
+    if internal_storage and not campaign.project.organization.allows_internal_storage:
         raise HTTPException(
             status_code=403,
-            detail="Only internal users can mark a custom map as internal storage",
+            detail="This organization cannot mark a custom map as internal storage",
         )
 
 
@@ -49,10 +49,9 @@ def create_custom_map(
     campaign_id: int,
     payload: CustomMapCreate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    _require_internal_for_internal_storage(payload.internal_storage, user)
+    _require_internal_storage_allowed(payload.internal_storage, campaign)
     try:
         return service.create_custom_map(db, campaign_id, payload)
     except service.DuplicateCustomMapName as exc:
@@ -69,10 +68,9 @@ def update_custom_map(
     map_id: int,
     payload: CustomMapUpdate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
-    _require_internal_for_internal_storage(payload.internal_storage, user)
+    _require_internal_storage_allowed(payload.internal_storage, campaign)
     try:
         cm = service.update_custom_map(db, campaign_id, map_id, payload)
     except service.DuplicateCustomMapName as exc:

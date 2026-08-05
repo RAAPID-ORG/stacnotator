@@ -19,6 +19,7 @@ from src.projects.schemas import (
     ProjectCreate,
     ProjectOut,
     ProjectsListResponse,
+    ProjectTilersOut,
     ProjectUpdateRequest,
     ProjectUserOut,
     ProjectUsersResponse,
@@ -102,6 +103,16 @@ def list_project_campaigns(
     project: Project = Depends(require_project_access),
 ):
     return CampaignsListResponse(items=service.list_project_campaigns(db, project, user))
+
+
+@router.get("/{project_id}/tilers", response_model=ProjectTilersOut)
+def get_project_tilers(
+    project_id: int,
+    project: Project = Depends(require_project_access),
+):
+    """Tilers the imagery wizard may target for this project (the owning
+    organization's allowlist), plus whether internal storage is permitted."""
+    return service.get_project_tilers(project)
 
 
 @router.get("/{project_id}/users", response_model=ProjectUsersResponse)

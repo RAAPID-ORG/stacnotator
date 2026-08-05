@@ -40,13 +40,17 @@ def client():
     return TestClient(app)
 
 
-def _override_auth(is_internal: bool = False):
-    app.dependency_overrides[get_db] = lambda: MagicMock()
-    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(
-        id="u1", is_internal=is_internal
+def _override_auth(allows_internal_storage: bool = False):
+    campaign = SimpleNamespace(
+        id=CAMPAIGN_ID,
+        project=SimpleNamespace(
+            organization=SimpleNamespace(allows_internal_storage=allows_internal_storage)
+        ),
     )
-    app.dependency_overrides[require_campaign_access] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
-    app.dependency_overrides[require_campaign_admin] = lambda: SimpleNamespace(id=CAMPAIGN_ID)
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+    app.dependency_overrides[require_authenticated_user] = lambda: SimpleNamespace(id="u1")
+    app.dependency_overrides[require_campaign_access] = lambda: campaign
+    app.dependency_overrides[require_campaign_admin] = lambda: campaign
     app.dependency_overrides[cm_router.bearer] = lambda: None
 
 
@@ -76,16 +80,16 @@ _INTERNAL_BODY = {
 }
 
 
-def test_internal_storage_rejected_for_non_internal_user(client, monkeypatch):
-    _override_auth(is_internal=False)
+def test_internal_storage_rejected_for_org_without_permission(client, monkeypatch):
+    _override_auth(allows_internal_storage=False)
     monkeypatch.setattr(service, "create_custom_map", lambda db, cid, payload: _map_obj())
     r = client.post(f"/api/campaigns/{CAMPAIGN_ID}/custom-maps", json=_INTERNAL_BODY)
     assert r.status_code == 403, r.text
     assert "internal" in r.json()["detail"]
 
 
-def test_internal_storage_allowed_for_internal_user(client, monkeypatch):
-    _override_auth(is_internal=True)
+def test_internal_storage_allowed_for_permitted_org(client, monkeypatch):
+    _override_auth(allows_internal_storage=True)
     monkeypatch.setattr(
         service, "create_custom_map", lambda db, cid, payload: _map_obj(internal_storage=True)
     )
