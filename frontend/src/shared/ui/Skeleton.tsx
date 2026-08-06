@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
 
-/** {ulsing placeholder block. Size/shape it with utility classes (h-, w-, rounded-) **/
+/** Pulsing placeholder block. Size/shape it with utility classes (h-, w-, rounded-) **/
 export const Skeleton = ({ className = '' }: { className?: string }) => (
   <div
     className={`animate-pulse rounded-md bg-neutral-200/80 motion-reduce:animate-none ${className}`}
   />
 );
 
-/** Standard page skeleton shared by the content pages **/
+/** Whole-page skeleton with a placeholder header. Only for route-level chunk
+ *  fallbacks, where the real page isn't loaded yet. Pages themselves render
+ *  their real static chrome and scope skeletons to the data-driven regions. **/
 export const SkeletonPage = ({
   children,
   action = true,
@@ -33,7 +35,7 @@ export const SkeletonPage = ({
 /** A `surface` of divided list rows (icon + two text lines + trailing pill),
  *  mirroring the campaigns list and review tables. */
 export const SkeletonRows = ({ count = 6 }: { count?: number }) => (
-  <div className="surface">
+  <div className="surface" role="status" aria-label="Loading">
     <ul className="divide-y divide-neutral-100">
       {Array.from({ length: count }).map((_, i) => (
         <li key={i} className="flex items-center gap-4 px-5 py-4">
@@ -51,7 +53,11 @@ export const SkeletonRows = ({ count = 6 }: { count?: number }) => (
 
 /** A responsive grid of card placeholders, mirroring the task-set cards. */
 export const SkeletonCards = ({ count = 3 }: { count?: number }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  <div
+    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+    role="status"
+    aria-label="Loading"
+  >
     {Array.from({ length: count }).map((_, i) => (
       <div key={i} className="surface">
         <div className="surface-section space-y-4">
@@ -67,7 +73,7 @@ export const SkeletonCards = ({ count = 3 }: { count?: number }) => (
 /** Stacked labelled-field placeholders inside a `surface`, mirroring the
  *  settings/tasks forms. */
 export const SkeletonForm = ({ sections = 3 }: { sections?: number }) => (
-  <div className="surface">
+  <div className="surface" role="status" aria-label="Loading">
     <div className="surface-section space-y-6">
       {Array.from({ length: sections }).map((_, i) => (
         <div key={i} className="space-y-3">

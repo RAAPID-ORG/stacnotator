@@ -16,7 +16,8 @@ import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
 import { IconDocument, IconGlobe, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
+import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import TabNavigator from '~/shared/ui/TabNavigator';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -76,30 +77,13 @@ export const ProjectPage = () => {
     ]);
   }, [project, setBreadcrumbs]);
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <SkeletonForm sections={3} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!project) return null;
+  if (!loading && !project) return null;
 
   // Keeps the sidebar nav in step with renames and other settings updates.
   const handleProjectUpdated = (updated: ProjectOut) => {
     setProject(updated);
     primeNavInfo(projectId, { project: updated, campaigns });
   };
-
-  const isAdmin = project.is_admin ?? false;
-  const canSeeMembers = isAdmin || (project.is_member ?? false);
-  const availableTabs: ProjectTab[] = [
-    'campaigns',
-    ...(canSeeMembers ? (['members'] as const) : []),
-    ...(isAdmin ? (['settings'] as const) : []),
-  ];
-  const activeTab = availableTabs.includes(requestedTab) ? requestedTab : 'campaigns';
 
   const selectTab = (tab: ProjectTab) => {
     const next = new URLSearchParams(searchParams);
@@ -116,13 +100,21 @@ export const ProjectPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(project.name)}</h1>
-            <p className="page-subtitle">
-              {project.description?.trim() ||
-                `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}`}
-            </p>
+            {project ? (
+              <h1 className="page-title">{capitalizeFirst(project.name)}</h1>
+            ) : (
+              <Skeleton className="h-7 w-52" />
+            )}
+            {project ? (
+              <p className="page-subtitle">
+                {project.description?.trim() ||
+                  `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}`}
+              </p>
+            ) : (
+              <Skeleton className="h-4 w-64 mt-2" />
+            )}
           </div>
-          {isAdmin && (
+          {project && (project.is_admin ?? false) && (
             <Button
               onClick={() => navigate(newCampaignPath(project.id))}
               leading={<IconPlus className="w-4 h-4" />}
@@ -132,34 +124,81 @@ export const ProjectPage = () => {
           )}
         </header>
 
-        <div className="surface">
-          <TabNavigator<ProjectTab>
-            items={availableTabs.map((tab) => ({ id: tab, label: capitalizeFirst(tab) }))}
-            activeId={activeTab}
-            onChange={selectTab}
-            className="!mb-0 !border-neutral-200 px-6"
+        {project ? (
+          <ProjectTabs
+            project={project}
+            campaigns={campaigns}
+            requestedTab={requestedTab}
+            onSelectTab={selectTab}
+            onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
+            onCreateCampaign={() => navigate(newCampaignPath(project.id))}
+            onProjectUpdated={handleProjectUpdated}
           />
-
-          <div className="p-6">
-            {activeTab === 'campaigns' && (
-              <CampaignsList
-                campaigns={campaigns}
-                canCreate={isAdmin}
-                onOpen={(campaign) => navigate(campaignPath(project.id, campaign.id))}
-                onCreate={() => navigate(newCampaignPath(project.id))}
-              />
-            )}
-
-            {activeTab === 'members' && (
-              <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
-            )}
-
-            {activeTab === 'settings' && (
-              <ProjectSettingsSection project={project} onUpdated={handleProjectUpdated} />
-            )}
-          </div>
-        </div>
+        ) : (
+          <Delayed>
+            <SkeletonRows count={4} />
+          </Delayed>
+        )}
       </FadeIn>
+    </div>
+  );
+};
+
+interface ProjectTabsProps {
+  project: ProjectOut;
+  campaigns: CampaignListItemOut[];
+  requestedTab: ProjectTab;
+  onSelectTab: (tab: ProjectTab) => void;
+  onOpenCampaign: (campaign: CampaignListItemOut) => void;
+  onCreateCampaign: () => void;
+  onProjectUpdated: (updated: ProjectOut) => void;
+}
+
+const ProjectTabs = ({
+  project,
+  campaigns,
+  requestedTab,
+  onSelectTab,
+  onOpenCampaign,
+  onCreateCampaign,
+  onProjectUpdated,
+}: ProjectTabsProps) => {
+  const isAdmin = project.is_admin ?? false;
+  const canSeeMembers = isAdmin || (project.is_member ?? false);
+  const availableTabs: ProjectTab[] = [
+    'campaigns',
+    ...(canSeeMembers ? (['members'] as const) : []),
+    ...(isAdmin ? (['settings'] as const) : []),
+  ];
+  const activeTab = availableTabs.includes(requestedTab) ? requestedTab : 'campaigns';
+
+  return (
+    <div className="surface">
+      <TabNavigator<ProjectTab>
+        items={availableTabs.map((tab) => ({ id: tab, label: capitalizeFirst(tab) }))}
+        activeId={activeTab}
+        onChange={onSelectTab}
+        className="!mb-0 !border-neutral-200 px-6"
+      />
+
+      <div className="p-6">
+        {activeTab === 'campaigns' && (
+          <CampaignsList
+            campaigns={campaigns}
+            canCreate={isAdmin}
+            onOpen={onOpenCampaign}
+            onCreate={onCreateCampaign}
+          />
+        )}
+
+        {activeTab === 'members' && (
+          <ProjectUsersSection projectId={project.id} canManage={isAdmin} />
+        )}
+
+        {activeTab === 'settings' && (
+          <ProjectSettingsSection project={project} onUpdated={onProjectUpdated} />
+        )}
+      </div>
     </div>
   );
 };

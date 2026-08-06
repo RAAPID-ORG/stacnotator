@@ -8,7 +8,8 @@ import { useOrgStore } from '~/shared/stores/org.store';
 import { Button, Field, Input, Select, Textarea } from '~/shared/ui/forms';
 import { IconPlus } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
+import { SkeletonForm } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useOrganizations } from '~/features/organizations/hooks/useOrganizations';
 import { ProjectVisibilityPicker } from '../components/ProjectVisibilityPicker';
@@ -62,14 +63,6 @@ export const NewProjectPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <SkeletonPage action={false}>
-        <SkeletonForm sections={2} />
-      </SkeletonPage>
-    );
-  }
-
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="page">
@@ -82,7 +75,11 @@ export const NewProjectPage = () => {
           </div>
         </header>
 
-        {organizations.length === 0 && error ? (
+        {loading ? (
+          <Delayed>
+            <SkeletonForm sections={2} />
+          </Delayed>
+        ) : organizations.length === 0 && error ? (
           <div className="surface">
             <div className="surface-section text-center py-16">
               <p className="text-base text-neutral-800 font-medium mb-1">

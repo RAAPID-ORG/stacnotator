@@ -4,8 +4,9 @@ import { updateOrganization, type OrganizationOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Badge, type BadgeTone } from '~/shared/ui/Badge';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
+import { Delayed } from '~/shared/ui/Delayed';
 import { FadeIn } from '~/shared/ui/motion';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
 import { handleError } from '~/shared/utils/errorHandler';
 import { OrganizationMembers } from '../components/OrganizationMembers';
 import { useOrganizations } from '../hooks/useOrganizations';
@@ -118,15 +119,7 @@ export const OrganizationPage = () => {
     setBreadcrumbs([{ label: org?.name ?? 'Organization' }]);
   }, [setBreadcrumbs, org?.name]);
 
-  if (loading) {
-    return (
-      <SkeletonPage action={false}>
-        <SkeletonForm sections={2} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!org && error) {
+  if (!loading && !org && error) {
     return (
       <div className="flex-1 overflow-auto">
         <FadeIn className="page">
@@ -144,7 +137,7 @@ export const OrganizationPage = () => {
     );
   }
 
-  if (!org || !org.is_admin) {
+  if (!loading && (!org || !org.is_admin)) {
     return (
       <div className="flex-1 overflow-auto">
         <FadeIn className="page">
@@ -164,18 +157,30 @@ export const OrganizationPage = () => {
       <FadeIn className="page space-y-4">
         <header className="page-header">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="page-title">{org.name}</h1>
-              <Badge tone={STATUS_TONES[org.status] ?? 'neutral'} className="capitalize">
-                {org.status}
-              </Badge>
-            </div>
+            {org ? (
+              <div className="flex items-center gap-2">
+                <h1 className="page-title">{org.name}</h1>
+                <Badge tone={STATUS_TONES[org.status] ?? 'neutral'} className="capitalize">
+                  {org.status}
+                </Badge>
+              </div>
+            ) : (
+              <Skeleton className="h-7 w-52" />
+            )}
             <p className="page-subtitle">Manage the organization details and its members.</p>
           </div>
         </header>
 
-        <DetailsForm org={org} onSaved={refresh} />
-        <OrganizationMembers organizationId={org.id} />
+        {org ? (
+          <>
+            <DetailsForm org={org} onSaved={refresh} />
+            <OrganizationMembers organizationId={org.id} />
+          </>
+        ) : (
+          <Delayed>
+            <SkeletonForm sections={2} />
+          </Delayed>
+        )}
       </FadeIn>
     </div>
   );

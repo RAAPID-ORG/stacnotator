@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
-import { Skeleton, SkeletonPage } from 'src/shared/ui/Skeleton';
+import { SkeletonForm } from 'src/shared/ui/Skeleton';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
+import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import {
@@ -329,22 +330,20 @@ export const SettingsPage = () => {
   // Show a skeleton while the account is being fetched.
   if (!account) {
     return (
-      <SkeletonPage action={false}>
-        <div className="surface">
-          <div className="flex gap-4 px-6 py-2 border-b border-neutral-200">
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-          </div>
-          <div className="surface-section space-y-6">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="space-y-3">
-                <Skeleton className="h-4 w-40" />
-                <Skeleton className="h-9 w-full" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </SkeletonPage>
+      <div className="flex-1 overflow-auto">
+        <FadeIn className="page">
+          <header className="page-header">
+            <div>
+              <h1 className="page-title">Settings</h1>
+              <p className="page-subtitle">Manage your profile and platform settings.</p>
+            </div>
+          </header>
+
+          <Delayed>
+            <SkeletonForm sections={3} />
+          </Delayed>
+        </FadeIn>
+      </div>
     );
   }
 

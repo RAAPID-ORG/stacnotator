@@ -9,7 +9,8 @@ import {
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { campaignPath, projectPath, projectsPath } from '~/app/routes';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { SkeletonForm } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import {
   validateFullForm,
   type FullValidationResult,
@@ -192,16 +193,8 @@ export const CreateCampaignPage = () => {
     }
   };
 
-  if (loadingProject) {
-    return (
-      <SkeletonPage>
-        <SkeletonForm sections={3} />
-      </SkeletonPage>
-    );
-  }
-
   // Only project admins may add campaigns to a project.
-  if (!project?.is_admin) {
+  if (!loadingProject && !project?.is_admin) {
     return <Navigate to={projectPath(projectId)} replace />;
   }
 
@@ -221,37 +214,47 @@ export const CreateCampaignPage = () => {
           <StepIndicator step={step} onStepClick={setStep} />
         </div>
 
-        <div className="surface">
-          <div className="p-6">{getStepContent()}</div>
-        </div>
+        {loadingProject ? (
+          <Delayed>
+            <SkeletonForm sections={3} />
+          </Delayed>
+        ) : (
+          <>
+            <div className="surface">
+              <div className="p-6">{getStepContent()}</div>
+            </div>
 
-        <div className="flex items-center justify-between mt-6 pb-8">
-          <Button
-            variant="secondary"
-            disabled={isSubmitting}
-            onClick={step === 1 ? () => navigate(projectPath(projectId)) : () => setStep(step - 1)}
-          >
-            {step === 1 ? 'Cancel' : 'Back'}
-          </Button>
-
-          {step < totalSteps ? (
-            <Button onClick={() => setStep(step + 1)}>Continue</Button>
-          ) : (
-            <div className="relative group">
+            <div className="flex items-center justify-between mt-6 pb-8">
               <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || (showValidation && !validation.isValid)}
+                variant="secondary"
+                disabled={isSubmitting}
+                onClick={
+                  step === 1 ? () => navigate(projectPath(projectId)) : () => setStep(step - 1)
+                }
               >
-                {isSubmitting ? 'Creating...' : 'Create campaign'}
+                {step === 1 ? 'Cancel' : 'Back'}
               </Button>
-              {showValidation && !validation.isValid && !isSubmitting && (
-                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
-                </span>
+
+              {step < totalSteps ? (
+                <Button onClick={() => setStep(step + 1)}>Continue</Button>
+              ) : (
+                <div className="relative group">
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || (showValidation && !validation.isValid)}
+                  >
+                    {isSubmitting ? 'Creating...' : 'Create campaign'}
+                  </Button>
+                  {showValidation && !validation.isValid && !isSubmitting && (
+                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs text-white bg-neutral-800 rounded-md shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      Fix {totalErrors} issue{totalErrors !== 1 ? 's' : ''} to continue
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </FadeIn>
     </div>
   );

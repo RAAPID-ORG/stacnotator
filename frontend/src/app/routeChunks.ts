@@ -28,6 +28,17 @@ export function prefetchCampaignChunks(): void {
   void importReview();
 }
 
+/** Warm the workspace page chunks (project, organization and settings pages).
+ *  Together with the campaign cluster this covers every route except the heavy
+ *  annotation chunk, so in-app navigation never waits on a chunk download. */
+export function prefetchWorkspaceChunks(): void {
+  void importProject();
+  void importNewProject();
+  void importOrganization();
+  void importNewOrganization();
+  void importSettings();
+}
+
 /** Warm the annotation chunk (OpenLayers, Chart.js). */
 export function prefetchAnnotationChunk(): void {
   void importAnnotation();

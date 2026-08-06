@@ -6,7 +6,8 @@ import { onIdle } from '~/shared/utils/idle';
 
 import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Skeleton, SkeletonCards, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
@@ -65,26 +66,7 @@ export const CampaignOverviewPage = () => {
     load();
   }, [campaignId]);
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <div className="surface mb-6">
-          <div className="surface-section flex items-center gap-5">
-            <Skeleton className="h-11 w-11 rounded-xl shrink-0" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-3.5 w-64 max-w-full" />
-            </div>
-            <Skeleton className="h-9 w-32 shrink-0" />
-          </div>
-        </div>
-        <Skeleton className="h-4 w-24 mb-3" />
-        <SkeletonCards count={3} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) {
+  if (!loading && !campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-neutral-700">Campaign not found</p>
@@ -92,7 +74,7 @@ export const CampaignOverviewPage = () => {
     );
   }
 
-  const createdDate = new Date(campaign.created_at).toLocaleDateString();
+  const createdDate = campaign ? new Date(campaign.created_at).toLocaleDateString() : null;
   const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
   const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
   const hasTasks = totalTasks > 0;
@@ -102,8 +84,16 @@ export const CampaignOverviewPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
-            <p className="page-subtitle">Created {createdDate}</p>
+            {campaign ? (
+              <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
+            ) : (
+              <Skeleton className="h-7 w-52" />
+            )}
+            {campaign ? (
+              <p className="page-subtitle">Created {createdDate}</p>
+            ) : (
+              <Skeleton className="h-4 w-32 mt-2" />
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
@@ -169,7 +159,11 @@ export const CampaignOverviewPage = () => {
               </Button>
             )}
           </div>
-          {!hasTasks ? (
+          {loading ? (
+            <Delayed>
+              <SkeletonCards count={3} />
+            </Delayed>
+          ) : !hasTasks ? (
             <div className="surface">
               <div className="surface-section text-center py-12">
                 <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">

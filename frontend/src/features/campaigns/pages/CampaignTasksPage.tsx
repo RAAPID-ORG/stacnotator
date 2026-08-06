@@ -15,7 +15,8 @@ import {
   ReviewerAssignmentModal,
   type AssignmentPattern,
 } from '~/features/campaigns/components/settings/ReviewerAssignmentModal';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
@@ -458,15 +459,7 @@ export const CampaignTasksPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <SkeletonForm sections={3} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) return null;
+  if (!loading && !campaign) return null;
 
   return (
     <>
@@ -474,76 +467,90 @@ export const CampaignTasksPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">{capitalizeFirst(campaign.name)} tasks</h1>
+              {campaign ? (
+                <h1 className="page-title">{capitalizeFirst(campaign.name)} tasks</h1>
+              ) : (
+                <Skeleton className="h-7 w-52" />
+              )}
               <p className="page-subtitle">
                 Upload or generate annotation tasks and manage assignments.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              {isAdmin && (
-                <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
-                  {showImport ? (
-                    <IconChevronDown className="w-4 h-4" />
-                  ) : (
-                    <IconChevronRight className="w-4 h-4" />
-                  )}
-                  Import annotations
+            {campaign && (
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <Button variant="secondary" onClick={() => setShowImport((v) => !v)}>
+                    {showImport ? (
+                      <IconChevronDown className="w-4 h-4" />
+                    ) : (
+                      <IconChevronRight className="w-4 h-4" />
+                    )}
+                    Import annotations
+                  </Button>
+                )}
+                <ExportDropdown
+                  campaignId={campaignId}
+                  campaign={campaign}
+                  disabled={annotationTasks.length === 0}
+                  hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
+                />
+                <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
+                  Start annotating
                 </Button>
-              )}
-              <ExportDropdown
-                campaignId={campaignId}
-                campaign={campaign}
-                disabled={annotationTasks.length === 0}
-                hasConflicts={annotationTasks.some((t) => t.task_status === 'conflicting')}
-              />
-              <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}>
-                Start annotating
-              </Button>
-            </div>
+              </div>
+            )}
           </header>
 
-          {isAdmin && showImport && (
-            <div className="surface mb-6">
-              <div className="surface-section">
-                <ImportFeaturesSection
-                  campaignId={campaignId}
-                  labels={campaign.settings.labels}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  onError={(msg) => showAlert(msg, 'error')}
-                />
-              </div>
-            </div>
-          )}
+          {campaign ? (
+            <>
+              {isAdmin && showImport && (
+                <div className="surface mb-6">
+                  <div className="surface-section">
+                    <ImportFeaturesSection
+                      campaignId={campaignId}
+                      labels={campaign.settings.labels}
+                      onSuccess={(msg) => showAlert(msg, 'success')}
+                      onError={(msg) => showAlert(msg, 'error')}
+                    />
+                  </div>
+                </div>
+              )}
 
-          <div className="surface surface-unclipped">
-            <div className="p-6">
-              <TasksTab
-                campaign={campaign}
-                scopedTasks={scopedAnnotationTasks}
-                totalTasks={annotationTasks.length}
-                taskFile={taskFile}
-                setTaskFile={setTaskFile}
-                uploadingTasks={uploadingTasks}
-                handleUploadAnnotationTasks={handleUploadAnnotationTasks}
-                handleTasksGenerated={handleTasksGenerated}
-                onTaskGenerationError={(msg) => showAlert(msg, 'error')}
-                onOpenBulkAssign={() => setShowAssignmentModal(true)}
-                onOpenReviewerAssign={() => setShowReviewerModal(true)}
-                onAssignSelected={setAssignSelectedTaskIds}
-                handleBatchUnassignTasks={handleBatchUnassignTasks}
-                handleDeleteTasks={handleDeleteTasks}
-                onAssignmentsImported={reloadAnnotationTasks}
-                taskSets={taskSets}
-                taskScope={taskScope}
-                onSelectScope={handleSelectScope}
-                onCreateSetScoped={handleCreateTaskSet}
-                onRenameTaskSet={handleRenameTaskSet}
-                onDeleteTaskSet={handleDeleteTaskSet}
-                onMoveTasks={handleMoveTasks}
-                bbox={taskMapBbox}
-              />
-            </div>
-          </div>
+              <div className="surface surface-unclipped">
+                <div className="p-6">
+                  <TasksTab
+                    campaign={campaign}
+                    scopedTasks={scopedAnnotationTasks}
+                    totalTasks={annotationTasks.length}
+                    taskFile={taskFile}
+                    setTaskFile={setTaskFile}
+                    uploadingTasks={uploadingTasks}
+                    handleUploadAnnotationTasks={handleUploadAnnotationTasks}
+                    handleTasksGenerated={handleTasksGenerated}
+                    onTaskGenerationError={(msg) => showAlert(msg, 'error')}
+                    onOpenBulkAssign={() => setShowAssignmentModal(true)}
+                    onOpenReviewerAssign={() => setShowReviewerModal(true)}
+                    onAssignSelected={setAssignSelectedTaskIds}
+                    handleBatchUnassignTasks={handleBatchUnassignTasks}
+                    handleDeleteTasks={handleDeleteTasks}
+                    onAssignmentsImported={reloadAnnotationTasks}
+                    taskSets={taskSets}
+                    taskScope={taskScope}
+                    onSelectScope={handleSelectScope}
+                    onCreateSetScoped={handleCreateTaskSet}
+                    onRenameTaskSet={handleRenameTaskSet}
+                    onDeleteTaskSet={handleDeleteTaskSet}
+                    onMoveTasks={handleMoveTasks}
+                    bbox={taskMapBbox}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <Delayed>
+              <SkeletonForm sections={3} />
+            </Delayed>
+          )}
         </FadeIn>
       </div>
 

@@ -29,6 +29,7 @@ import {
   importSdkAuth,
   importSettings,
   prefetchCampaignChunks,
+  prefetchWorkspaceChunks,
 } from './routeChunks';
 
 // Heavy routes are code-split so the initial bundle (Home + Projects list)
@@ -196,6 +197,13 @@ const router = createBrowserRouter(
 );
 
 export const Router = () => {
-  useEffect(() => onIdle(prefetchCampaignChunks), []);
+  useEffect(
+    () =>
+      onIdle(() => {
+        prefetchWorkspaceChunks();
+        prefetchCampaignChunks();
+      }),
+    []
+  );
   return <RouterProvider router={router} />;
 };
