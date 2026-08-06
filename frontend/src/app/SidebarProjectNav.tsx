@@ -71,7 +71,7 @@ const TRUNCATION_THRESHOLD = 18;
 
 const NavName = ({ name }: { name: string }) =>
   name.length > TRUNCATION_THRESHOLD ? (
-    <Tooltip text={name} className="min-w-0">
+    <Tooltip text={name} align="start" className="min-w-0">
       <span className="min-w-0 truncate">{name}</span>
     </Tooltip>
   ) : (
