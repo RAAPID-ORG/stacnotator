@@ -119,7 +119,7 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   setOpen(true);
                 }
               }}
-              className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-[11px] text-neutral-700 bg-white border border-neutral-300 rounded-md shadow-sm cursor-pointer transition-colors hover:bg-neutral-50 focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15"
+              className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-[11px] text-neutral-600 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
             >
               <IconBuilding className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
               <span
@@ -146,9 +146,9 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
                   navigate(organizationPath(activeOrg.id));
                   onNavigate?.();
                 }}
-                className="flex h-8 w-8 shrink-0 items-center justify-center bg-white border border-neutral-300 rounded-md shadow-sm cursor-pointer transition-colors hover:bg-neutral-50 focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-600/15"
+                className="flex h-8 w-8 shrink-0 items-center justify-center text-neutral-500 rounded-md cursor-pointer transition-colors hover:text-neutral-900 hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
               >
-                <IconGear className="w-3.5 h-3.5 text-neutral-400" />
+                <IconGear className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -199,17 +199,6 @@ export const OrgSwitcher = ({ onNavigate }: OrgSwitcherProps) => {
 
               <div role="separator" className="my-1 border-t border-neutral-100" />
 
-              {activeOrg?.is_admin && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => go(organizationPath(activeOrg.id))}
-                  className={menuItemClass}
-                >
-                  <IconGear className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                  Manage organization
-                </button>
-              )}
               <button
                 type="button"
                 role="menuitem"
