@@ -268,8 +268,9 @@ class Basemap(Base):
 
 class ImageryView(Base):
     """
-    Named view that references a set of collections from various sources.
-    Collection membership and visibility are stored in JSONB.
+    Named view over an ordered set of the campaign's imagery sources.
+    Which collections appear as canvas windows is expressed solely by
+    membership in the view's canvas layouts, not stored here.
     """
 
     __tablename__ = "imagery_views"
@@ -286,8 +287,8 @@ class ImageryView(Base):
     name: Mapped[str] = mapped_column(String, nullable=False, server_default="")
     display_order: Mapped[int] = mapped_column(SmallInteger, server_default="0", nullable=False)
 
-    # [{ "collection_id": int, "source_id": int, "show_as_window": bool }, ...]
-    collection_refs: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
+    # Ordered source ids whose collections are browsable in this view.
+    source_ids: Mapped[list] = mapped_column(JSONB, server_default="[]", nullable=False)
 
     campaign: Mapped["Campaign"] = relationship(back_populates="imagery_views")  # noqa: F821
     canvas_layouts: Mapped[list["CanvasLayout"]] = relationship(

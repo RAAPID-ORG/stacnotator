@@ -25,6 +25,8 @@ from src.imagery.schemas import (
     ImageryCollectionCreate,
     ImageryEditorStateCreate,
     ImagerySourceCreate,
+    ImageryViewCreate,
+    ImageryViewUpdate,
 )
 from src.imagery.tile_urls import update_collection_viz_params
 from src.organizations.models import Organization
@@ -199,7 +201,7 @@ def create_imagery_from_editor_state(
     editor_state: ImageryEditorStateCreate,
 ) -> dict:
     """Persist the full imagery editor state (sources, collections, slices,
-    views, basemaps) for a freshly created campaign.
+    basemaps) for a freshly created campaign.
 
     A campaign with no existing imagery reduces the save/reconcile flow to pure
     creation, so this is a thin entry point over `save_imagery_editor_state`.
@@ -218,9 +220,11 @@ def save_imagery_editor_state(
 ) -> dict:
     """Upsert the full imagery editor state in a single transaction.
 
-    Reconciliation rules per entity (sources, collections, slices, views,
-    basemaps): payload entry with `id` set → update in place; without `id` →
-    create; in DB but missing from payload → delete. A collection only lands in
+    Reconciliation rules per entity (sources, collections, slices, basemaps):
+    payload entry with `id` set → update in place; without `id` →
+    create; in DB but missing from payload → delete. Views are managed through
+    the dedicated view endpoints; here they are only kept consistent (deleted
+    sources leave their views, layout windows follow collection changes). A collection only lands in
     the returned `pending_registrations` when fields that affect its mosaic
     (search_query, max_cloud_cover, viz_params, slice date list) actually
     changed; pure metadata edits (rename, cover_slice_index) skip the expensive
@@ -243,10 +247,15 @@ def save_imagery_editor_state(
     ]
 
     existing_sources: dict[int, ImagerySource] = {s.id: s for s in campaign.imagery_sources}
-    existing_views: dict[int, ImageryView] = {v.id: v for v in campaign.imagery_views}
 
     payload_source_ids = {s.id for s in editor_state.sources if s.id is not None}
-    payload_view_ids = {v.id for v in editor_state.views if v.id is not None}
+
+    # Window eligibility per view before any mutation, so newly-eligible
+    # collections can be placed into the view layouts afterwards.
+    prev_eligible: dict[int, set[int]] = {
+        view.id: _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
+        for view in campaign.imagery_views
+    }
 
     deleted_collection_ids: set[int] = set()
     deleted_source_ids: set[int] = set()
@@ -271,19 +280,13 @@ def save_imagery_editor_state(
                 deleted_collection_ids.add(col.id)
                 db.delete(col)
 
-    # Prune view collection_refs for anything we just deleted; without this the
-    # JSONB column would carry dangling refs into the view-upsert phase.
-    if deleted_source_ids or deleted_collection_ids:
+    # Drop deleted sources from every view's membership.
+    if deleted_source_ids:
         for view in campaign.imagery_views:
-            cleaned = [
-                r
-                for r in (view.collection_refs or [])
-                if r.get("source_id") not in deleted_source_ids
-                and r.get("collection_id") not in deleted_collection_ids
-            ]
-            if cleaned != view.collection_refs:
-                view.collection_refs = cleaned
-                flag_modified(view, "collection_refs")
+            cleaned = [sid for sid in view.source_ids if sid not in deleted_source_ids]
+            if cleaned != view.source_ids:
+                view.source_ids = cleaned
+                flag_modified(view, "source_ids")
 
     db.flush()
 
@@ -297,6 +300,7 @@ def save_imagery_editor_state(
         str(c.id): c.id for s in campaign.imagery_sources for c in s.collections
     }
     pending_registrations: list[RegistrationSpec] = []
+    current_sources: list[ImagerySource] = []
 
     for src_idx, src_create in enumerate(editor_state.sources):
         if src_create.id and src_create.id in existing_sources:
@@ -314,54 +318,23 @@ def save_imagery_editor_state(
             source_id_map[str(src_idx)] = db_src.id
             for col_idx, col in enumerate(db_src.collections):
                 collection_id_map[f"{src_idx}:{col_idx}"] = col.id
+        current_sources.append(db_src)
 
     db.flush()
 
-    # Delete views missing from payload.
-    for v_id, v in list(existing_views.items()):
-        if v_id not in payload_view_ids:
-            db.delete(v)
-            del existing_views[v_id]
-    db.flush()
-
-    # Upsert views.
-    for view_idx, view_create in enumerate(editor_state.views):
-        mapped_refs = _resolve_view_refs(
-            view_create.collection_refs,
-            source_id_map,
-            collection_id_map,
-            editor_state.sources,
+    # Re-sync every view's layouts against its post-edit eligible set: windows
+    # of deleted collections are dropped, collections newly added to a source
+    # a view contains get windows placed (in the default and personal layouts
+    # alike - a user can hide them again).
+    for view in campaign.imagery_views:
+        new_eligible = _eligible_collection_ids(current_sources, view.source_ids)
+        sync_view_layouts(
+            db,
+            view.id,
+            campaign.id,
+            window_collection_ids=new_eligible,
+            added_collection_ids=sorted(new_eligible - prev_eligible.get(view.id, set())),
         )
-        if view_create.id and view_create.id in existing_views:
-            db_view = existing_views[view_create.id]
-            old_window_ids = {
-                r["collection_id"]
-                for r in (db_view.collection_refs or [])
-                if r.get("show_as_window")
-            }
-            db_view.name = view_create.name
-            db_view.display_order = view_idx
-            db_view.collection_refs = mapped_refs
-            flag_modified(db_view, "collection_refs")
-            new_window_ids = {r["collection_id"] for r in mapped_refs if r.get("show_as_window")}
-            sync_view_layouts(
-                db,
-                db_view.id,
-                campaign.id,
-                window_collection_ids=new_window_ids,
-                added_collection_ids=list(new_window_ids - old_window_ids),
-            )
-        else:
-            new_view = ImageryView(
-                campaign_id=campaign.id,
-                name=view_create.name,
-                display_order=view_idx,
-                collection_refs=mapped_refs,
-            )
-            db.add(new_view)
-            db.flush()
-            window_ids = [r["collection_id"] for r in mapped_refs if r.get("show_as_window")]
-            db.add(new_default_view_layout(campaign.id, new_view.id, window_ids))
 
     # Basemaps: replace wholesale (small list, no inbound FKs).
     db.execute(delete(Basemap).where(Basemap.campaign_id == campaign.id))
@@ -379,45 +352,89 @@ def save_imagery_editor_state(
     }
 
 
-def _resolve_view_refs(
-    refs,
-    source_id_map: dict[str, int],
-    collection_id_map: dict[str, int],
-    source_creates: list[ImagerySourceCreate],
-) -> list[dict]:
-    """Resolve view collection_refs (strings from the frontend) to DB IDs.
+def _eligible_collection_ids(sources: list[ImagerySource], source_ids: list) -> set[int]:
+    """Collections a view can show as windows: every collection of its sources."""
+    by_id = {s.id: s for s in sources}
+    return {c.id for sid in source_ids if sid in by_id for c in by_id[sid].collections}
 
-    Accepts either real numeric IDs (existing entities) or positional keys
-    ("<src_idx>" / "<src_idx>:<col_idx>") for newly-created entities. Drops
-    refs that don't resolve - defensive against stale payloads.
-    """
-    out: list[dict] = []
-    for ref in refs:
-        db_source_id = source_id_map.get(ref.source_id)
-        db_collection_id = collection_id_map.get(ref.collection_id)
-        if db_source_id is None or db_collection_id is None:
-            # Fallback: positional lookup for the campaign-create flow that
-            # references entities by index.
-            for s_idx, s in enumerate(source_creates):
-                if str(s_idx) == ref.source_id:
-                    db_source_id = source_id_map.get(str(s_idx))
-                    for c_idx, _ in enumerate(s.collections):
-                        if (
-                            str(c_idx) == ref.collection_id
-                            or f"{s_idx}:{c_idx}" == ref.collection_id
-                        ):
-                            db_collection_id = collection_id_map.get(f"{s_idx}:{c_idx}")
-                            break
-                    break
-        if db_source_id and db_collection_id:
-            out.append(
-                {
-                    "collection_id": db_collection_id,
-                    "source_id": db_source_id,
-                    "show_as_window": ref.show_as_window,
-                }
-            )
-    return out
+
+def _validated_source_ids(campaign: Campaign, source_ids: list[int]) -> list[int]:
+    known = {s.id for s in campaign.imagery_sources}
+    unknown = [sid for sid in source_ids if sid not in known]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown source ids: {unknown}")
+    return list(dict.fromkeys(source_ids))
+
+
+def _campaign_view(db: Session, campaign: Campaign, view_id: int) -> ImageryView:
+    view = db.execute(
+        select(ImageryView).where(ImageryView.id == view_id, ImageryView.campaign_id == campaign.id)
+    ).scalar_one_or_none()
+    if view is None:
+        raise HTTPException(status_code=404, detail="View not found")
+    return view
+
+
+def create_view(db: Session, campaign: Campaign, payload: ImageryViewCreate) -> ImageryView:
+    """Create a view plus its default canvas layout with every eligible
+    collection placed as a window. Commits."""
+    view = ImageryView(
+        campaign_id=campaign.id,
+        name=payload.name,
+        display_order=len(campaign.imagery_views),
+        source_ids=_validated_source_ids(campaign, payload.source_ids),
+    )
+    db.add(view)
+    db.flush()
+    eligible = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
+    db.add(new_default_view_layout(campaign.id, view.id, sorted(eligible)))
+    db.commit()
+    db.refresh(view)
+    return view
+
+
+def update_view(
+    db: Session, campaign: Campaign, view_id: int, payload: ImageryViewUpdate
+) -> ImageryView:
+    """Rename a view and/or replace its source membership, keeping its canvas
+    layouts in sync with the new eligible set. Commits."""
+    view = _campaign_view(db, campaign, view_id)
+    if payload.name is not None:
+        view.name = payload.name
+    if payload.source_ids is not None:
+        prev = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
+        view.source_ids = _validated_source_ids(campaign, payload.source_ids)
+        flag_modified(view, "source_ids")
+        db.flush()
+        new = _eligible_collection_ids(campaign.imagery_sources, view.source_ids)
+        sync_view_layouts(
+            db,
+            view.id,
+            campaign.id,
+            window_collection_ids=new,
+            added_collection_ids=sorted(new - prev),
+        )
+    db.commit()
+    db.refresh(view)
+    return view
+
+
+def delete_view(db: Session, campaign: Campaign, view_id: int) -> None:
+    """Delete a view; its canvas layouts go with it via cascade. Commits."""
+    db.delete(_campaign_view(db, campaign, view_id))
+    db.commit()
+
+
+def reorder_views(db: Session, campaign: Campaign, view_ids: list[int]) -> None:
+    """Persist a full ordering of the campaign's views. Commits."""
+    if set(view_ids) != {v.id for v in campaign.imagery_views} or len(view_ids) != len(
+        campaign.imagery_views
+    ):
+        raise HTTPException(status_code=400, detail="view_ids must list every view exactly once")
+    order = {view_id: idx for idx, view_id in enumerate(view_ids)}
+    for view in campaign.imagery_views:
+        view.display_order = order[view.id]
+    db.commit()
 
 
 def _stac_config_changed(existing: CollectionStacConfig | None, incoming) -> bool:
