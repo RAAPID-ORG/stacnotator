@@ -295,6 +295,10 @@ export const HiddenWindowsPanel = () => {
 
   if (!isEditingLayout) return null;
 
+  // Admins also manage views and source membership here; for everyone else
+  // the panel is exactly the hidden-windows list it always was.
+  const panelTitle = isCampaignAdmin ? 'Views & windows' : 'Hidden windows';
+
   const perRow = widthToPerRow(newWindowSize.w);
 
   const onResizePointerDown = (e: React.PointerEvent) => {
@@ -343,10 +347,10 @@ export const HiddenWindowsPanel = () => {
         type="button"
         onClick={() => setExpanded(true)}
         className="fixed bottom-3 right-3 z-[1002] inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-lg ring-1 ring-black/5 backdrop-blur transition-colors hover:bg-white"
-        title="Show layout panel"
+        title={`Show ${panelTitle.toLowerCase()}`}
       >
         <IconWindow className="w-4 h-4 text-neutral-500" />
-        <span>Layout panel</span>
+        <span>{panelTitle}</span>
         {countBadge}
       </button>
     );
@@ -377,14 +381,14 @@ export const HiddenWindowsPanel = () => {
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-600">
             <IconWindow className="h-3.5 w-3.5" />
           </span>
-          <span className="truncate text-xs font-semibold text-neutral-800">Layout panel</span>
+          <span className="truncate text-xs font-semibold text-neutral-800">{panelTitle}</span>
           {countBadge}
         </div>
         <button
           type="button"
           onClick={() => setExpanded(false)}
           className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700"
-          aria-label="Minimize layout panel"
+          aria-label="Minimize panel"
           title="Minimize"
         >
           <IconChevronDown className="h-4 w-4" />
