@@ -5,8 +5,13 @@ import {
   getAllAnnotationTasks,
   listTaskSets,
   createNewCanvasLayout,
+  createImageryView,
+  updateImageryView,
+  reorderImageryViews,
+  deleteImageryView,
   getKnnValidationStatus,
   type CampaignOutFull,
+  type ImageryViewOut,
   type KnnValidationStatusOut,
 } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
@@ -16,7 +21,7 @@ import { useTaskStore } from './task.store';
 import { useAnnotationStore } from './annotation.store';
 import { usePreferencesStore } from './preferences.store';
 import { DEFAULT_MAP_ZOOM } from '~/shared/utils/constants';
-import type { ImageryViewOut } from '~/api/client';
+import { defaultActiveCollectionId, viewCollections } from '../utils/viewCollections';
 import {
   nextWindowSlot,
   resolveDropCell,
@@ -24,38 +29,26 @@ import {
   DEFAULT_NEW_WINDOW_SIZE,
 } from '../utils/layoutDefaults';
 
-/** Generate default window layout items for collections in a view that have show_as_window.
- *  Only used as a fallback when the backend didn't store a view layout (legacy campaigns). */
-function generateFallbackWindowLayout(view: ImageryViewOut): Layout {
-  const windowRefs = view.collection_refs.filter((r) => r.show_as_window);
-  const COLS_PER_ROW = 6;
-  const WINDOW_W = 10;
-  const WINDOW_H = 11;
-  const START_Y = 36; // directly below the main canvas
-  return windowRefs.map((ref, idx) => ({
-    i: String(ref.collection_id),
-    x: (idx % COLS_PER_ROW) * WINDOW_W,
-    y: START_Y + Math.floor(idx / COLS_PER_ROW) * WINDOW_H,
-    w: WINDOW_W,
-    h: WINDOW_H,
-  }));
+/** The one 60-column grid the canvas renders: page chrome plus the selected
+ *  view's windows. The backend creates a layout for every view. */
+function buildMergedLayout(mainLayout: Layout, viewLayout: Layout | undefined): Layout {
+  return viewLayout ? [...mainLayout, ...viewLayout] : mainLayout;
 }
 
-/** Merge main layout with view layout.
- *  The backend always creates a view layout, so viewLayout should always exist.
- *  The fallback generation only covers legacy campaigns created before view layouts were added. */
-function buildMergedLayout(
-  mainLayout: Layout,
-  viewLayout: Layout | undefined,
-  view: ImageryViewOut | undefined
-): Layout {
-  if (viewLayout) return [...mainLayout, ...viewLayout];
-  // Fallback: view exists but has no stored layout (legacy campaign)
-  if (view) {
-    const generated = generateFallbackWindowLayout(view);
-    return [...mainLayout, ...generated];
-  }
-  return mainLayout;
+function mergedLayoutFor(campaign: CampaignOutFull, view: ImageryViewOut | undefined): Layout {
+  const mainLayout: Layout =
+    campaign.personal_main_canvas_layout?.layout_data ||
+    campaign.default_main_canvas_layout?.layout_data ||
+    [];
+  const viewLayout: Layout | undefined =
+    view?.personal_canvas_layout?.layout_data || view?.default_canvas_layout?.layout_data;
+  return buildMergedLayout(mainLayout, viewLayout);
+}
+
+function pinnedStartFor(viewId: number | null | undefined): number | undefined {
+  return viewId != null
+    ? usePreferencesStore.getState().taskStartCollectionByView[viewId]
+    : undefined;
 }
 
 export type WorkMode = 'tasks' | 'explore';
@@ -102,6 +95,17 @@ interface CampaignStore {
   refreshKnnValidationStatus: () => Promise<void>;
   setWorkMode: (mode: WorkMode) => void;
   setSelectedViewId: (id: number | null) => void;
+  /** Refetch the campaign and rebuild the merged layout from server truth,
+   *  keeping tasks/annotations untouched. Runs after every structural view
+   *  change (they may re-sync layouts server-side). */
+  reloadCampaign: (selectViewId?: number) => Promise<void>;
+  /** Admin, edit mode: create a view containing every source, with all its
+   *  collections as windows, and switch to it. */
+  createView: () => Promise<void>;
+  renameView: (viewId: number, name: string) => Promise<void>;
+  deleteView: (viewId: number) => Promise<void>;
+  moveView: (viewId: number, direction: -1 | 1) => Promise<void>;
+  setViewSources: (viewId: number, sourceIds: number[]) => Promise<void>;
   setCurrentLayout: (layout: Layout) => void;
   setSavedLayout: (layout: Layout) => void;
   setIsEditingLayout: (isEditing: boolean) => void;
@@ -168,26 +172,17 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // View & layout
       const firstView = campaign.imagery_views[0];
       const selectedViewId = firstView?.id ?? null;
+      const mergedLayout = mergedLayoutFor(campaign, firstView);
 
       // Active collection: the user's pinned start collection for this view if
       // still valid, otherwise the first window collection. Mirrors the task-nav
       // logic in task.store so the first task opens consistently with the rest.
-      const windowRefs = firstView?.collection_refs?.filter((r) => r.show_as_window) ?? [];
-      const pinnedStart =
-        selectedViewId != null
-          ? usePreferencesStore.getState().taskStartCollectionByView[selectedViewId]
-          : undefined;
-      const pinnedValid = windowRefs.some((r) => r.collection_id === pinnedStart);
-      const activeCollectionId = (pinnedValid ? pinnedStart : windowRefs[0]?.collection_id) ?? null;
-
-      const mainLayout: Layout =
-        campaign.personal_main_canvas_layout?.layout_data ||
-        campaign.default_main_canvas_layout?.layout_data ||
-        [];
-      const viewLayout: Layout | undefined =
-        firstView?.personal_canvas_layout?.layout_data ||
-        firstView?.default_canvas_layout?.layout_data;
-      const mergedLayout = buildMergedLayout(mainLayout, viewLayout, firstView);
+      const activeCollectionId = defaultActiveCollectionId(
+        campaign.imagery_sources,
+        firstView,
+        mergedLayout,
+        pinnedStartFor(selectedViewId)
+      );
 
       const workMode: WorkMode =
         initialWorkMode ?? (campaign.mode === 'open' ? 'explore' : 'tasks');
@@ -272,15 +267,7 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     if (!campaign) return;
 
     const view = campaign.imagery_views.find((v) => v.id === id);
-
-    // Update layout
-    const mainLayout: Layout =
-      campaign.personal_main_canvas_layout?.layout_data ||
-      campaign.default_main_canvas_layout?.layout_data ||
-      [];
-    const viewLayout: Layout | undefined =
-      view?.personal_canvas_layout?.layout_data || view?.default_canvas_layout?.layout_data;
-    const mergedLayout = buildMergedLayout(mainLayout, viewLayout, view);
+    const mergedLayout = mergedLayoutFor(campaign, view);
 
     // Save current view's map state before switching
     if (previousViewId !== null) {
@@ -294,9 +281,127 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     });
 
     // Restore saved state for the new view, or initialize fresh
-    const firstWindowRef = view?.collection_refs?.find((r) => r.show_as_window);
-    const fallbackCollectionId = firstWindowRef?.collection_id ?? null;
+    const fallbackCollectionId = defaultActiveCollectionId(
+      campaign.imagery_sources,
+      view,
+      mergedLayout,
+      pinnedStartFor(id)
+    );
     useMapStore.getState().restoreViewSnapshot(id, fallbackCollectionId);
+  },
+
+  reloadCampaign: async (selectViewId) => {
+    const { campaign, selectedViewId } = get();
+    if (!campaign) return;
+    try {
+      const res = await getCampaignWithImageryWindows({ path: { campaign_id: campaign.id } });
+      const fresh = res.data;
+      if (!fresh) return;
+      const targetId = selectViewId ?? selectedViewId;
+      const view = fresh.imagery_views.find((v) => v.id === targetId) ?? fresh.imagery_views[0];
+      const mergedLayout = mergedLayoutFor(fresh, view);
+      set({
+        campaign: fresh,
+        selectedViewId: view?.id ?? null,
+        currentLayout: mergedLayout,
+        savedLayout: mergedLayout,
+      });
+      // A structural change can remove the active collection from the view;
+      // re-derive it whenever it is no longer browsable.
+      const eligible = new Set(
+        viewCollections(fresh.imagery_sources, view).map((e) => e.collection.id)
+      );
+      const active = useMapStore.getState().activeCollectionId;
+      if (active === null || !eligible.has(active)) {
+        useMapStore
+          .getState()
+          .setActiveCollectionId(
+            defaultActiveCollectionId(
+              fresh.imagery_sources,
+              view,
+              mergedLayout,
+              pinnedStartFor(view?.id)
+            )
+          );
+      }
+    } catch (error) {
+      handleError(error, 'Failed to reload campaign');
+    }
+  },
+
+  createView: async () => {
+    const { campaign } = get();
+    if (!campaign) return;
+    try {
+      const res = await createImageryView({
+        path: { campaign_id: campaign.id },
+        body: {
+          name: `View ${campaign.imagery_views.length + 1}`,
+          source_ids: campaign.imagery_sources.map((s) => s.id),
+        },
+      });
+      await get().reloadCampaign(res.data?.id);
+    } catch (error) {
+      handleError(error, 'Failed to create view');
+    }
+  },
+
+  renameView: async (viewId, name) => {
+    const { campaign } = get();
+    if (!campaign) return;
+    try {
+      await updateImageryView({
+        path: { campaign_id: campaign.id, view_id: viewId },
+        body: { name },
+      });
+      await get().reloadCampaign();
+    } catch (error) {
+      handleError(error, 'Failed to rename view');
+    }
+  },
+
+  deleteView: async (viewId) => {
+    const { campaign } = get();
+    if (!campaign) return;
+    try {
+      await deleteImageryView({ path: { campaign_id: campaign.id, view_id: viewId } });
+      await get().reloadCampaign();
+    } catch (error) {
+      handleError(error, 'Failed to delete view');
+    }
+  },
+
+  moveView: async (viewId, direction) => {
+    const { campaign } = get();
+    if (!campaign) return;
+    const ids = campaign.imagery_views.map((v) => v.id);
+    const idx = ids.indexOf(viewId);
+    const target = idx + direction;
+    if (idx === -1 || target < 0 || target >= ids.length) return;
+    [ids[idx], ids[target]] = [ids[target], ids[idx]];
+    try {
+      await reorderImageryViews({
+        path: { campaign_id: campaign.id },
+        body: { view_ids: ids },
+      });
+      await get().reloadCampaign();
+    } catch (error) {
+      handleError(error, 'Failed to reorder views');
+    }
+  },
+
+  setViewSources: async (viewId, sourceIds) => {
+    const { campaign } = get();
+    if (!campaign) return;
+    try {
+      await updateImageryView({
+        path: { campaign_id: campaign.id, view_id: viewId },
+        body: { source_ids: sourceIds },
+      });
+      await get().reloadCampaign();
+    } catch (error) {
+      handleError(error, 'Failed to update view sources');
+    }
   },
 
   setWorkMode: (mode) => {

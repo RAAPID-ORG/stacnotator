@@ -74,9 +74,7 @@ test.describe('Imagery and Visualization', () => {
     await expect(counter).toContainText('4 of 5');
   });
 
-  test('a grid card is rendered for each collection_ref with show_as_window=true', async ({
-    annotationPage,
-  }) => {
+  test('a grid card is rendered for each window in the view layout', async ({ annotationPage }) => {
     const page = annotationPage;
 
     // Mock declares two windows (Sentinel-2 L2A and NDVI) plus three fixed

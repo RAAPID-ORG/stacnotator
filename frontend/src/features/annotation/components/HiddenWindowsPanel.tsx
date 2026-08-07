@@ -1,16 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
+import type { CampaignOutFull, ImageryViewOut } from '~/api/client';
 import { useCampaignStore } from '../stores/campaign.store';
+import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
 import {
+  IconCheck,
   IconChevronDown,
+  IconChevronUp,
   IconDragHandle,
   IconEye,
   IconEyeSlash,
   IconInfo,
+  IconPencil,
   IconPlus,
+  IconTrash,
   IconWindow,
 } from '~/shared/ui/Icons';
 import { GRID_COLS, isMainLayoutKey } from '../utils/layoutDefaults';
+import { viewCollections } from '../utils/viewCollections';
 import { useWindowDragStore } from '../stores/windowDrag.store';
 
 // Panel resize bounds (px). The panel is anchored bottom-right and grows
@@ -31,6 +38,201 @@ const MAX_WINDOW_H = 20;
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
+const sectionLabel = 'block text-[10px] font-semibold uppercase tracking-wider text-neutral-400';
+const iconButton =
+  'grid h-6 w-6 shrink-0 place-items-center rounded-md text-neutral-400 transition-colors ' +
+  'hover:bg-neutral-200/70 hover:text-neutral-700 disabled:opacity-30 disabled:hover:bg-transparent';
+
+/** Admin-only: create, select, rename, reorder and delete the campaign's
+ *  views. Structural changes persist immediately (the backend re-syncs the
+ *  affected canvas layouts); only window geometry stays draft-until-save. */
+const ViewManagerSection = ({
+  campaign,
+  selectedViewId,
+}: {
+  campaign: CampaignOutFull;
+  selectedViewId: number | null;
+}) => {
+  const setSelectedViewId = useCampaignStore((s) => s.setSelectedViewId);
+  const createView = useCampaignStore((s) => s.createView);
+  const renameView = useCampaignStore((s) => s.renameView);
+  const deleteView = useCampaignStore((s) => s.deleteView);
+  const moveView = useCampaignStore((s) => s.moveView);
+
+  const [editingViewId, setEditingViewId] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState('');
+
+  const commitRename = async (view: ImageryViewOut) => {
+    setEditingViewId(null);
+    const name = draftName.trim();
+    if (name && name !== view.name) await renameView(view.id, name);
+  };
+
+  const confirmDelete = async (view: ImageryViewOut) => {
+    const confirmed = await useLayoutStore.getState().showConfirmDialog({
+      title: 'Delete view?',
+      description: `"${view.name}" and its saved layouts will be removed for all users.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
+    if (confirmed) await deleteView(view.id);
+  };
+
+  const views = campaign.imagery_views;
+
+  return (
+    <div className="space-y-2" data-testid="view-manager">
+      <span className={sectionLabel}>Views</span>
+      <ul className="space-y-0.5">
+        {views.map((view, idx) => (
+          <li
+            key={view.id}
+            className={`group flex items-center gap-1 rounded-lg px-1.5 py-1 transition-colors ${
+              view.id === selectedViewId ? 'bg-brand-50' : 'hover:bg-neutral-50'
+            }`}
+          >
+            {editingViewId === view.id ? (
+              <input
+                autoFocus
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onBlur={() => commitRename(view)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename(view);
+                  if (e.key === 'Escape') setEditingViewId(null);
+                }}
+                className="min-w-0 flex-1 rounded border border-brand-300 px-1.5 py-0.5 text-xs focus:outline-none"
+                aria-label="View name"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedViewId(view.id)}
+                className={`min-w-0 flex-1 truncate text-left text-xs ${
+                  view.id === selectedViewId
+                    ? 'font-semibold text-brand-700'
+                    : 'font-medium text-neutral-700'
+                }`}
+                title={`Switch to ${view.name}`}
+              >
+                {view.name || 'Untitled view'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (editingViewId === view.id) {
+                  commitRename(view);
+                } else {
+                  setEditingViewId(view.id);
+                  setDraftName(view.name);
+                }
+              }}
+              className={iconButton}
+              aria-label={`Rename ${view.name}`}
+              title="Rename"
+            >
+              {editingViewId === view.id ? (
+                <IconCheck className="h-3.5 w-3.5" />
+              ) : (
+                <IconPencil className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => moveView(view.id, -1)}
+              disabled={idx === 0}
+              className={iconButton}
+              aria-label={`Move ${view.name} up`}
+              title="Move up"
+            >
+              <IconChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => moveView(view.id, 1)}
+              disabled={idx === views.length - 1}
+              className={iconButton}
+              aria-label={`Move ${view.name} down`}
+              title="Move down"
+            >
+              <IconChevronDown className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => confirmDelete(view)}
+              className={`${iconButton} hover:text-red-600`}
+              aria-label={`Delete ${view.name}`}
+              title="Delete view"
+            >
+              <IconTrash className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={createView}
+        leading={<IconPlus className="h-3.5 w-3.5" />}
+        className="w-full"
+        data-testid="add-view"
+      >
+        Add view
+      </Button>
+    </div>
+  );
+};
+
+/** Admin-only: which sources belong to the selected view. Membership drives
+ *  both the timeline imagery and which collections can be windows. */
+const ViewSourcesSection = ({
+  campaign,
+  view,
+}: {
+  campaign: CampaignOutFull;
+  view: ImageryViewOut;
+}) => {
+  const setViewSources = useCampaignStore((s) => s.setViewSources);
+
+  const toggle = (sourceId: number, include: boolean) => {
+    const next = include
+      ? [...view.source_ids, sourceId]
+      : view.source_ids.filter((id) => id !== sourceId);
+    setViewSources(view.id, next);
+  };
+
+  return (
+    <div className="space-y-2" data-testid="view-sources">
+      <span className={sectionLabel}>Sources in this view</span>
+      <ul className="space-y-0.5">
+        {campaign.imagery_sources.map((source) => {
+          const included = view.source_ids.includes(source.id);
+          return (
+            <li key={source.id}>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-neutral-50">
+                <input
+                  type="checkbox"
+                  checked={included}
+                  onChange={(e) => toggle(source.id, e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer accent-brand-600"
+                />
+                <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-700">
+                  {source.name}
+                </span>
+                <span className="shrink-0 text-[10px] tabular-nums text-neutral-400">
+                  {source.collections.length}
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
 const perRowToWidth = (perRow: number) => Math.floor(GRID_COLS / perRow);
 const widthToPerRow = (w: number) => clamp(Math.round(GRID_COLS / w), MIN_PER_ROW, MAX_PER_ROW);
 
@@ -50,14 +252,16 @@ function loadPanelSize(): { width: number; height: number } {
   return { width: 288, height: 520 };
 }
 
-/** Edit-mode-only panel listing collections eligible for the active view
- *  (`show_as_window=true`) but absent from the user's current layout. Acts as
- *  the re-organization hub: hide everything, then add windows back in the
- *  desired order at a chosen size. Resizable so a long list is easy to scan. */
+/** Edit-mode-only layout panel. For every user it lists the view's
+ *  collections currently absent from the layout (hidden windows) and the
+ *  new-window size controls; campaign admins additionally manage the views
+ *  themselves (create/rename/reorder/delete) and each view's source
+ *  membership right here, where the result is immediately visible. */
 export const HiddenWindowsPanel = () => {
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
   const isEditingLayout = useCampaignStore((s) => s.isEditingLayout);
+  const isCampaignAdmin = useCampaignStore((s) => s.isCampaignAdmin);
   const currentLayout = useCampaignStore((s) => s.currentLayout);
   const addWindow = useCampaignStore((s) => s.addWindow);
   const startWindowDrag = useWindowDragStore((s) => s.start);
@@ -77,24 +281,11 @@ export const HiddenWindowsPanel = () => {
   const view = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
 
   const hidden = useMemo(() => {
-    if (!campaign || !view) return [];
+    if (!campaign) return [];
     const layoutKeys = new Set((currentLayout ?? []).map((it) => it.i));
-    return view.collection_refs
-      .filter((ref) => ref.show_as_window)
-      .filter((ref) => !layoutKeys.has(String(ref.collection_id)))
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        return source && collection ? { source, collection } : null;
-      })
-      .filter(
-        (
-          x
-        ): x is {
-          source: NonNullable<typeof x>['source'];
-          collection: NonNullable<typeof x>['collection'];
-        } => x !== null
-      );
+    return viewCollections(campaign.imagery_sources, view).filter(
+      (entry) => !layoutKeys.has(String(entry.collection.id))
+    );
   }, [campaign, view, currentLayout]);
 
   const hasVisibleWindows = useMemo(
@@ -152,10 +343,10 @@ export const HiddenWindowsPanel = () => {
         type="button"
         onClick={() => setExpanded(true)}
         className="fixed bottom-3 right-3 z-[1002] inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-lg ring-1 ring-black/5 backdrop-blur transition-colors hover:bg-white"
-        title="Show hidden windows"
+        title="Show layout panel"
       >
-        <IconEyeSlash className="w-4 h-4 text-neutral-500" />
-        <span>Hidden windows</span>
+        <IconWindow className="w-4 h-4 text-neutral-500" />
+        <span>Layout panel</span>
         {countBadge}
       </button>
     );
@@ -186,19 +377,28 @@ export const HiddenWindowsPanel = () => {
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-50 text-brand-600">
             <IconWindow className="h-3.5 w-3.5" />
           </span>
-          <span className="truncate text-xs font-semibold text-neutral-800">Hidden windows</span>
+          <span className="truncate text-xs font-semibold text-neutral-800">Layout panel</span>
           {countBadge}
         </div>
         <button
           type="button"
           onClick={() => setExpanded(false)}
           className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-200/70 hover:text-neutral-700"
-          aria-label="Minimize hidden windows panel"
+          aria-label="Minimize layout panel"
           title="Minimize"
         >
           <IconChevronDown className="h-4 w-4" />
         </button>
       </div>
+
+      {/* Admin: view structure. Rendered above the window controls because
+          everything below operates within the selected view. */}
+      {isCampaignAdmin && campaign && (
+        <div className="shrink-0 space-y-4 overflow-auto border-b border-neutral-100 px-3.5 py-3">
+          <ViewManagerSection campaign={campaign} selectedViewId={selectedViewId} />
+          {view && <ViewSourcesSection campaign={campaign} view={view} />}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="shrink-0 space-y-3 border-b border-neutral-100 px-3.5 py-3">

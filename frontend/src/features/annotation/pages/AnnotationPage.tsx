@@ -57,9 +57,12 @@ export const AnnotationPage = () => {
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
   const [hasBeenReady, setHasBeenReady] = useState(false);
+  // Admins may enter during registration to author the campaign's views and
+  // layout; edit mode renders no window maps, so missing tiles are harmless.
+  const [bypassRegistering, setBypassRegistering] = useState(false);
   const isRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
-  const isReady = !isLoadingCampaign && !!campaign && !isRegistering;
+  const isReady = !isLoadingCampaign && !!campaign && (!isRegistering || bypassRegistering);
   useEffect(() => {
     if (isReady && !hasBeenReady) setHasBeenReady(true);
   }, [isReady, hasBeenReady]);
@@ -215,9 +218,16 @@ export const AnnotationPage = () => {
             This may take a few minutes. You&apos;ll be able to start annotating once setup
             completes.
           </p>
-          <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}>
-            Go to settings
-          </Button>
+          <div className="flex items-center justify-center gap-2">
+            <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}>
+              Go to settings
+            </Button>
+            {isCampaignAdmin && (
+              <Button variant="secondary" onClick={() => setBypassRegistering(true)}>
+                Set up layout anyway
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -237,6 +247,55 @@ export const AnnotationPage = () => {
         <div className="text-center">
           <h2 className="text-base font-semibold text-neutral-900 mb-1">Campaign not found</h2>
           <p className="text-sm text-neutral-500">The requested campaign could not be loaded.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // A campaign without views has no annotation layout yet - annotators wait,
+  // admins author the first view right here in edit mode.
+  if (campaign.imagery_views.length === 0) {
+    const hasSources = campaign.imagery_sources.length > 0;
+    return (
+      <div className="flex-1 flex items-center justify-center px-6" data-testid="no-views-gate">
+        <div className="text-center max-w-md space-y-4">
+          {isCampaignAdmin ? (
+            <>
+              <h2 className="text-base font-semibold text-neutral-900">
+                Design the annotation layout
+              </h2>
+              <p className="text-sm text-neutral-500 leading-relaxed">
+                {hasSources
+                  ? 'Annotators cannot start until this campaign has at least one view. ' +
+                    'Create the first view - it starts with all imagery sources - then arrange ' +
+                    'its windows and save the layout as default.'
+                  : 'This campaign has no imagery sources yet. Add sources in the campaign ' +
+                    'settings, then come back to design the annotation layout.'}
+              </p>
+              {hasSources ? (
+                <Button
+                  onClick={async () => {
+                    await useCampaignStore.getState().createView();
+                    useCampaignStore.getState().setIsEditingLayout(true);
+                  }}
+                >
+                  Create first view
+                </Button>
+              ) : (
+                <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}>
+                  Go to settings
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-base font-semibold text-neutral-900">Layout not set up yet</h2>
+              <p className="text-sm text-neutral-500 leading-relaxed">
+                A campaign admin still needs to define the annotation views for this campaign.
+                Please check back later.
+              </p>
+            </>
+          )}
         </div>
       </div>
     );

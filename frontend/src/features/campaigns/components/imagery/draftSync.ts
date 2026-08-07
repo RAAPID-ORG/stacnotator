@@ -124,28 +124,10 @@ export function syncToForm(
   setForm: (f: CampaignCreate) => void
 ) {
   const sources = state.sources.map(sourceToBackend);
-  const views = state.views.map((v) => ({
-    name: v.name,
-    collection_refs: v.collectionRefs
-      .map((ref) => {
-        const srcIdx = state.sources.findIndex((src) => src.id === ref.sourceId);
-        if (srcIdx === -1) return null;
-        const colIdx = state.sources[srcIdx].collections.findIndex(
-          (c) => c.id === ref.collectionId
-        );
-        if (colIdx === -1) return null;
-        return {
-          collection_id: String(colIdx),
-          source_id: String(srcIdx),
-          show_as_window: ref.showAsWindow,
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r !== null),
-  }));
   const basemaps = state.basemaps.map(basemapToBackend);
 
   setForm({
     ...form,
-    imagery_editor_state: sources.length > 0 ? { sources, views, basemaps } : null,
+    imagery_editor_state: sources.length > 0 ? { sources, basemaps } : null,
   });
 }

@@ -7,16 +7,14 @@ import type {
   ImageryEditorStateCreate,
   ImagerySourceOut,
   ImageryCollectionOut,
-  ImageryViewOut,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
-import { basemapToBackend, isRealId, sourceToBackend } from './draftSync';
+import { basemapToBackend, sourceToBackend } from './draftSync';
 import type {
   Basemap,
   CollectionItem,
   ImagerySource,
   ImageryStepState,
-  ImageryView,
   ManualCollectionData,
   StacBrowserCollectionData,
   VizParams,
@@ -57,11 +55,6 @@ export interface ImageryController {
   ): Promise<void>;
   removeCollection(sourceId: string, collectionId: string): Promise<void>;
   refreshCollection(sourceId: string, collectionId: string): Promise<void>;
-
-  addView(view: ImageryView): Promise<void>;
-  updateView(id: string, patch: Partial<ImageryView>): Promise<void>;
-  removeView(id: string): Promise<void>;
-  reorderViews(ids: string[]): Promise<void>;
 
   setBasemaps(basemaps: Basemap[]): Promise<void>;
 }
@@ -120,34 +113,10 @@ export function useDraftController({
   const patchSource = useCallback(
     (id: string, patch: Partial<ImagerySource>) => {
       const cur = stateRef.current;
-      const oldSource = cur.sources.find((s) => s.id === id);
-      const nextSources = cur.sources.map((s) => (s.id === id ? { ...s, ...patch } : s));
-      let nextViews = cur.views;
-
-      if (patch.collections && oldSource) {
-        const oldIds = new Set(oldSource.collections.map((c) => c.id));
-        const newIds = new Set(patch.collections.map((c) => c.id));
-        const added = patch.collections.filter((c) => !oldIds.has(c.id)).map((c) => c.id);
-        const removed = [...oldIds].filter((cid) => !newIds.has(cid));
-
-        if (added.length > 0 || removed.length > 0) {
-          nextViews = cur.views.map((v) => {
-            let refs = v.collectionRefs;
-            if (removed.length > 0) {
-              refs = refs.filter((r) => r.sourceId !== id || !removed.includes(r.collectionId));
-            }
-            if (added.length > 0 && refs.some((r) => r.sourceId === id)) {
-              refs = [
-                ...refs,
-                ...added.map((cid) => ({ collectionId: cid, sourceId: id, showAsWindow: true })),
-              ];
-            }
-            return refs !== v.collectionRefs ? { ...v, collectionRefs: refs } : v;
-          });
-        }
-      }
-
-      update({ ...cur, sources: nextSources, views: nextViews });
+      update({
+        ...cur,
+        sources: cur.sources.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      });
     },
     [update]
   );
@@ -173,14 +142,7 @@ export function useDraftController({
 
       removeSource: async (id) => {
         const cur = stateRef.current;
-        update({
-          ...cur,
-          sources: cur.sources.filter((s) => s.id !== id),
-          views: cur.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.sourceId !== id),
-          })),
-        });
+        update({ ...cur, sources: cur.sources.filter((s) => s.id !== id) });
       },
 
       addCollection: async (sourceId, collection) => {
@@ -206,29 +168,6 @@ export function useDraftController({
 
       refreshCollection: async () => {
         // No-op in draft - collections resolve at campaign-create time.
-      },
-
-      addView: async (view) => {
-        update({ ...stateRef.current, views: [...stateRef.current.views, view] });
-      },
-
-      updateView: async (id, patch) => {
-        const cur = stateRef.current;
-        update({ ...cur, views: cur.views.map((v) => (v.id === id ? { ...v, ...patch } : v)) });
-      },
-
-      removeView: async (id) => {
-        const cur = stateRef.current;
-        update({ ...cur, views: cur.views.filter((v) => v.id !== id) });
-      },
-
-      reorderViews: async (ids) => {
-        const cur = stateRef.current;
-        const idx = new Map(ids.map((id, i) => [id, i]));
-        update({
-          ...cur,
-          views: [...cur.views].sort((a, b) => (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0)),
-        });
       },
 
       setBasemaps: async (basemaps) => {
@@ -324,44 +263,12 @@ function mapSourceOutToFe(src: ImagerySourceOut): ImagerySource {
   };
 }
 
-function mapViewOutToFe(view: ImageryViewOut): ImageryView {
-  return {
-    id: String(view.id),
-    name: view.name,
-    collectionRefs: view.collection_refs.map((ref) => ({
-      collectionId: String(ref.collection_id),
-      sourceId: String(ref.source_id),
-      showAsWindow: ref.show_as_window ?? true,
-    })),
-  };
-}
-
 /** Serialize the local editor state into the upsert payload. Existing
  *  entities pass their real numeric IDs through; freshly-added entities omit
- *  `id` (server treats as create). View refs to new entities are rewritten to
- *  positional keys (`"<src_idx>"`, `"<src_idx>:<col_idx>"`) so the backend can
- *  resolve them after creating the corresponding rows. */
+ *  `id` (server treats as create). */
 function stateToEditorPayload(state: ImageryStepState): ImageryEditorStateCreate {
-  const tempToPosKey = new Map<string, string>();
-  state.sources.forEach((src, si) => {
-    if (!isRealId(src.id)) tempToPosKey.set(src.id, String(si));
-    src.collections.forEach((col, ci) => {
-      if (!isRealId(col.id)) tempToPosKey.set(col.id, `${si}:${ci}`);
-    });
-  });
-  const mapRefId = (id: string): string => tempToPosKey.get(id) ?? id;
-
   return {
     sources: state.sources.map(sourceToBackend),
-    views: state.views.map((v) => ({
-      id: isRealId(v.id) ? Number(v.id) : undefined,
-      name: v.name,
-      collection_refs: v.collectionRefs.map((r) => ({
-        collection_id: mapRefId(r.collectionId),
-        source_id: mapRefId(r.sourceId),
-        show_as_window: r.showAsWindow,
-      })),
-    })),
     basemaps: state.basemaps.map(basemapToBackend),
   };
 }
@@ -370,7 +277,6 @@ export interface PersistedControllerOptions {
   campaignId: number;
   projectId: number;
   imagery: ImagerySourceOut[];
-  views: ImageryViewOut[];
   basemaps?: {
     id?: number;
     name: string;
@@ -387,7 +293,6 @@ export function usePersistedController({
   campaignId,
   projectId,
   imagery,
-  views,
   basemaps,
   campaignBbox = null,
   refetch,
@@ -395,7 +300,6 @@ export function usePersistedController({
   const initialState = useMemo<ImageryStepState>(
     () => ({
       sources: imagery.map(mapSourceOutToFe),
-      views: views.map(mapViewOutToFe),
       basemaps: (basemaps ?? []).map((b, i) => ({
         id: b.id !== undefined ? String(b.id) : `local-${i}`,
         name: b.name,
@@ -404,7 +308,7 @@ export function usePersistedController({
         hasApiKey: b.has_api_key,
       })),
     }),
-    [imagery, views, basemaps]
+    [imagery, basemaps]
   );
 
   const [state, setState] = useState<ImageryStepState>(initialState);
@@ -500,14 +404,7 @@ export function usePersistedController({
       },
 
       removeSource: async (id) => {
-        mutate((s) => ({
-          ...s,
-          sources: s.sources.filter((src) => src.id !== id),
-          views: s.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.sourceId !== id),
-          })),
-        }));
+        mutate((s) => ({ ...s, sources: s.sources.filter((src) => src.id !== id) }));
       },
 
       addCollection: async (sourceId, collection) => {
@@ -515,20 +412,6 @@ export function usePersistedController({
           ...s,
           sources: s.sources.map((src) =>
             src.id === sourceId ? { ...src, collections: [...src.collections, collection] } : src
-          ),
-          // Auto-attach the new collection to any view that already shows this
-          // source - otherwise the View Layout tab wouldn't list the new
-          // collection until the user manually toggled it in.
-          views: s.views.map((v) =>
-            v.collectionRefs.some((r) => r.sourceId === sourceId)
-              ? {
-                  ...v,
-                  collectionRefs: [
-                    ...v.collectionRefs,
-                    { collectionId: collection.id, sourceId, showAsWindow: true },
-                  ],
-                }
-              : v
           ),
         }));
       },
@@ -557,10 +440,6 @@ export function usePersistedController({
               ? { ...src, collections: src.collections.filter((c) => c.id !== collectionId) }
               : src
           ),
-          views: s.views.map((v) => ({
-            ...v,
-            collectionRefs: v.collectionRefs.filter((r) => r.collectionId !== collectionId),
-          })),
         }));
       },
 
@@ -586,31 +465,6 @@ export function usePersistedController({
         } finally {
           setPending(false);
         }
-      },
-
-      addView: async (view) => {
-        mutate((s) => ({ ...s, views: [...s.views, view] }));
-      },
-
-      updateView: async (id, patch) => {
-        mutate((s) => ({
-          ...s,
-          views: s.views.map((v) => (v.id === id ? { ...v, ...patch } : v)),
-        }));
-      },
-
-      removeView: async (id) => {
-        mutate((s) => ({ ...s, views: s.views.filter((v) => v.id !== id) }));
-      },
-
-      reorderViews: async (ids) => {
-        mutate((s) => {
-          const idx = new Map(ids.map((id, i) => [id, i]));
-          return {
-            ...s,
-            views: [...s.views].sort((a, b) => (idx.get(a.id) ?? 0) - (idx.get(b.id) ?? 0)),
-          };
-        });
       },
 
       setBasemaps: async (basemaps) => {

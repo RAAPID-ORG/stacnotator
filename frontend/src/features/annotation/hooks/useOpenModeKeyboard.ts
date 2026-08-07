@@ -8,6 +8,7 @@ import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '~/features/customLayers/utils/vectorLayerNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
+import { viewCollections, viewSources } from '../utils/viewCollections';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -60,7 +61,7 @@ export const useOpenModeKeyboard = () => {
     const formFields = campaign.settings.form_fields ?? [];
 
     const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
-    const viewSourceIds = new Set((view?.collection_refs ?? []).map((r) => r.source_id));
+    const viewSourceIds = new Set(viewSources(campaign.imagery_sources, view).map((s) => s.id));
     const sourceGroups: { id: number; startIdx: number; count: number }[] = [];
     let offset = 0;
     for (const src of campaign.imagery_sources) {
@@ -254,18 +255,19 @@ export const useOpenModeKeyboard = () => {
             const targetSource = sources.find((s) => s.id === group.id);
             if (!targetSource) break;
 
+            const browsableCollectionIds = viewCollections(sources, selectedView)
+              .filter((e) => e.source.id === targetSource.id)
+              .map((e) => e.collection.id);
+
             const remembered = map.lastSourceState[targetSource.id];
             const canRestore =
-              remembered &&
-              targetSource.collections.some((c) => c.id === remembered.collectionId) &&
-              selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
+              !!remembered && browsableCollectionIds.includes(remembered.collectionId);
 
             map.setSelectedLayerIndex(canRestore ? remembered.layerIndex : group.startIdx);
 
             const targetCollectionId = canRestore
               ? remembered.collectionId
-              : selectedView.collection_refs.find((r) => r.source_id === targetSource.id)
-                  ?.collection_id;
+              : browsableCollectionIds[0];
             if (targetCollectionId !== undefined) map.setActiveCollectionId(targetCollectionId);
           }
           break;

@@ -19,6 +19,7 @@ import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
+import { defaultActiveCollectionId } from '../utils/viewCollections';
 import {
   formatMissingFieldsTitle,
   missingRequiredFields,
@@ -140,10 +141,8 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
 
 /** Resets map state relevant to task navigation. */
 const resetMapForTaskNav = () => {
-  const campaign = useCampaignStore.getState().campaign;
-  const selectedViewId = useCampaignStore.getState().selectedViewId;
+  const { campaign, selectedViewId, currentLayout } = useCampaignStore.getState();
   const view = campaign?.imagery_views.find((v) => v.id === selectedViewId);
-  const windowRefs = view?.collection_refs?.filter((r) => r.show_as_window) ?? [];
 
   // Honour the user's pinned starting collection for this view, falling back to
   // the first window collection if unset or no longer valid (e.g. removed).
@@ -151,8 +150,9 @@ const resetMapForTaskNav = () => {
     selectedViewId != null
       ? usePreferencesStore.getState().taskStartCollectionByView[selectedViewId]
       : undefined;
-  const pinnedValid = windowRefs.some((r) => r.collection_id === pinned);
-  const defaultCollectionId = (pinnedValid ? pinned : windowRefs[0]?.collection_id) ?? null;
+  const defaultCollectionId = campaign
+    ? defaultActiveCollectionId(campaign.imagery_sources, view, currentLayout, pinned)
+    : null;
 
   useMapStore.setState({
     // Clear per-collection memory so the active slice resolves from the

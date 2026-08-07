@@ -1817,10 +1817,6 @@ export type ImageryEditorStateCreate = {
      */
     sources: Array<ImagerySourceCreate>;
     /**
-     * Views
-     */
-    views: Array<ImageryViewCreate>;
-    /**
      * Basemaps
      */
     basemaps: Array<BasemapCreate>;
@@ -1955,17 +1951,25 @@ export type ImagerySourceOut = {
  */
 export type ImageryViewCreate = {
     /**
-     * Id
-     */
-    id?: number | null;
-    /**
      * Name
      */
     name?: string;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs?: Array<ViewCollectionRefCreate>;
+    source_ids?: Array<number>;
+};
+
+/**
+ * ImageryViewOrderUpdate
+ *
+ * Full campaign view ordering; must list every view id exactly once.
+ */
+export type ImageryViewOrderUpdate = {
+    /**
+     * View Ids
+     */
+    view_ids: Array<number>;
 };
 
 /**
@@ -1985,11 +1989,27 @@ export type ImageryViewOut = {
      */
     display_order: number;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs: Array<ViewCollectionRefItem>;
+    source_ids: Array<number>;
     readonly default_canvas_layout: CanvasLayoutOut | null;
     readonly personal_canvas_layout: CanvasLayoutOut | null;
+};
+
+/**
+ * ImageryViewUpdate
+ *
+ * Partial update: only the provided fields change.
+ */
+export type ImageryViewUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Source Ids
+     */
+    source_ids?: Array<number> | null;
 };
 
 /**
@@ -3330,42 +3350,6 @@ export type VectorLayerUpdate = {
 };
 
 /**
- * ViewCollectionRefCreate
- */
-export type ViewCollectionRefCreate = {
-    /**
-     * Collection Id
-     */
-    collection_id: string;
-    /**
-     * Source Id
-     */
-    source_id: string;
-    /**
-     * Show As Window
-     */
-    show_as_window?: boolean;
-};
-
-/**
- * ViewCollectionRefItem
- */
-export type ViewCollectionRefItem = {
-    /**
-     * Collection Id
-     */
-    collection_id: number;
-    /**
-     * Source Id
-     */
-    source_id: number;
-    /**
-     * Show As Window
-     */
-    show_as_window?: boolean;
-};
-
-/**
  * VisualizationTemplateCreate
  */
 export type VisualizationTemplateCreate = {
@@ -3656,9 +3640,9 @@ export type ImageryViewOutWritable = {
      */
     display_order: number;
     /**
-     * Collection Refs
+     * Source Ids
      */
-    collection_refs: Array<ViewCollectionRefItem>;
+    source_ids: Array<number>;
 };
 
 export type MeData = {
@@ -6552,6 +6536,134 @@ export type RefreshCollectionImageryResponses = {
      */
     200: unknown;
 };
+
+export type CreateImageryViewData = {
+    body: ImageryViewCreate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views';
+};
+
+export type CreateImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateImageryViewError = CreateImageryViewErrors[keyof CreateImageryViewErrors];
+
+export type CreateImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    201: ImageryViewOut;
+};
+
+export type CreateImageryViewResponse = CreateImageryViewResponses[keyof CreateImageryViewResponses];
+
+export type ReorderImageryViewsData = {
+    body: ImageryViewOrderUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/order';
+};
+
+export type ReorderImageryViewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReorderImageryViewsError = ReorderImageryViewsErrors[keyof ReorderImageryViewsErrors];
+
+export type ReorderImageryViewsResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ReorderImageryViewsResponse = ReorderImageryViewsResponses[keyof ReorderImageryViewsResponses];
+
+export type DeleteImageryViewData = {
+    body?: never;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type DeleteImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteImageryViewError = DeleteImageryViewErrors[keyof DeleteImageryViewErrors];
+
+export type DeleteImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteImageryViewResponse = DeleteImageryViewResponses[keyof DeleteImageryViewResponses];
+
+export type UpdateImageryViewData = {
+    body: ImageryViewUpdate;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+        /**
+         * View Id
+         */
+        view_id: number;
+    };
+    query?: never;
+    url: '/api/{campaign_id}/imagery/views/{view_id}';
+};
+
+export type UpdateImageryViewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateImageryViewError = UpdateImageryViewErrors[keyof UpdateImageryViewErrors];
+
+export type UpdateImageryViewResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageryViewOut;
+};
+
+export type UpdateImageryViewResponse = UpdateImageryViewResponses[keyof UpdateImageryViewResponses];
 
 export type SetBasemapApiKeyData = {
     body: ApiKeyUpdate;

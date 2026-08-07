@@ -18,7 +18,6 @@ import {
 import { StepCampaign } from '../components/creation/steps/StepCampaign';
 import { StepSettings } from '../components/creation/steps/StepSettings';
 import { StepImagery, createInitialImageryState } from '../components/creation/steps/StepImagery';
-import { StepViewLayout } from '../components/creation/steps/StepViewLayout';
 import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeseries';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '../components/creation/StepIndicator';
@@ -116,7 +115,6 @@ export const CreateCampaignPage = () => {
     { name: 'Campaign', component: 'StepCampaign' },
     { name: 'Settings', component: 'StepSettings' },
     { name: 'Imagery', component: 'StepImagery' },
-    { name: 'Annotation Views', component: 'StepViewLayout' },
     { name: 'Time Series', component: 'StepAddTimeseries' },
     { name: 'Create', component: 'StepReview' },
   ] as const;
@@ -140,16 +138,6 @@ export const CreateCampaignPage = () => {
       case 'StepImagery':
         return (
           <StepImagery
-            projectId={projectId}
-            form={form}
-            setForm={setForm}
-            imageryState={imageryState}
-            setImageryState={setImageryState}
-          />
-        );
-      case 'StepViewLayout':
-        return (
-          <StepViewLayout
             projectId={projectId}
             form={form}
             setForm={setForm}
@@ -181,7 +169,7 @@ export const CreateCampaignPage = () => {
         showAlert('Campaign created successfully', 'success');
       }
       if (campaign) {
-        navigate(campaignPath(campaign.project_id, campaign.id, 'settings'));
+        navigate(campaignPath(campaign.project_id, campaign.id, 'annotate'));
       } else {
         navigate(projectPath(projectId));
       }

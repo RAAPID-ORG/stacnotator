@@ -23,12 +23,7 @@ const vhr = {
 
 const sources = [s2, vhr];
 
-const view = {
-  collection_refs: [
-    { collection_id: 10, source_id: 1 },
-    { collection_id: 20, source_id: 2 },
-  ],
-};
+const view = { source_ids: [1, 2] };
 
 // s2: startIdx=0, count=2  (indices 0=True Color, 1=False Color)
 // vhr: startIdx=2, count=1 (index 2)
@@ -167,7 +162,7 @@ describe('computeCycleSource - restores visualization on return', () => {
   });
 
   it('does not restore remembered state from a collection not in the view', () => {
-    // lastSourceState references collectionId 99, which is not in selectedView.collection_refs
+    // lastSourceState references collectionId 99, which no view source owns
     const stateOnVhr = {
       ...defaultState,
       selectedLayerIndex: 2,
@@ -180,28 +175,32 @@ describe('computeCycleSource - restores visualization on return', () => {
   });
 
   it('restores the remembered collection id alongside the layer index', () => {
-    // s2 has two collections (10 and 11). User was on collection 11 at false color (index 1).
-    const viewWithBothCollections = {
-      collection_refs: [
-        { collection_id: 10, source_id: 1 },
-        { collection_id: 11, source_id: 1 },
-        { collection_id: 20, source_id: 2 },
-      ],
-    };
+    // Both of s2's collections (10 and 11) are browsable in the view; the user
+    // was on collection 11 at false color (index 1).
     const stateOnVhr = {
       ...defaultState,
       selectedLayerIndex: 2,
       activeCollectionId: 20,
       lastSourceState: { [s2.id]: { collectionId: 11, layerIndex: 1 } },
     };
-    const result = computeCycleSource(
-      sourceGroups,
-      [],
-      sources,
-      viewWithBothCollections,
-      stateOnVhr
-    );
+    const result = computeCycleSource(sourceGroups, [], sources, view, stateOnVhr);
     expect(result).toMatchObject({ action: 'switch-to-source', layerIndex: 1, collectionId: 11 });
+  });
+
+  it('does not restore a source that was dropped from the view', () => {
+    const viewWithoutS2 = { source_ids: [2] };
+    const stateOnVhr = {
+      ...defaultState,
+      selectedLayerIndex: 2,
+      activeCollectionId: 20,
+      lastSourceState: { [s2.id]: { collectionId: 10, layerIndex: 1 } },
+    };
+    const result = computeCycleSource(sourceGroups, [], sources, viewWithoutS2, stateOnVhr);
+    expect(result).toMatchObject({
+      action: 'switch-to-source',
+      layerIndex: 0,
+      collectionId: undefined,
+    });
   });
 });
 

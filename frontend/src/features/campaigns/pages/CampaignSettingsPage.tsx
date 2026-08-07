@@ -105,7 +105,6 @@ export const CampaignSettingsPage = () => {
     campaignId: campaignId,
     projectId,
     imagery,
-    views: campaign?.imagery_views ?? [],
     basemaps: campaign?.basemaps ?? [],
     campaignBbox,
     refetch: handleImageryChanged,
