@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getProject,
@@ -123,7 +123,7 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
     `flex items-center gap-2 w-full py-1 px-2 text-left text-xs rounded-md cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30 ${
       active
         ? 'text-brand-800 bg-brand-50 font-medium'
-        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+        : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100/60'
     }`;
 
   const entries: { key: string; label: string; path: string; active: boolean; depth: 1 | 2 }[] = [
@@ -177,21 +177,29 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       <button
         type="button"
         onClick={() => go(projectPath(projectId))}
-        className="flex items-center w-full py-1 px-2 text-left text-xs font-medium text-neutral-800 rounded-md cursor-pointer transition-colors hover:bg-neutral-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
+        className="flex items-center w-full py-1 px-2 text-left text-xs font-medium text-neutral-800 rounded-md cursor-pointer transition-colors hover:bg-neutral-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
       >
         <NavName name={project.name} />
       </button>
-      {entries.map((entry) => (
-        <button
-          key={entry.key}
-          type="button"
-          onClick={() => go(entry.path)}
-          className={`${itemCls(entry.active)} ${entry.depth === 2 ? 'pl-4' : ''}`}
-          aria-current={entry.active ? 'page' : undefined}
-        >
-          <NavName name={entry.label} />
-        </button>
-      ))}
+      {entries.map((entry) => {
+        const button = (
+          <button
+            type="button"
+            onClick={() => go(entry.path)}
+            className={itemCls(entry.active)}
+            aria-current={entry.active ? 'page' : undefined}
+          >
+            <NavName name={entry.label} />
+          </button>
+        );
+        return entry.depth === 2 ? (
+          <div key={entry.key} className="ml-2 pl-1.5 border-l border-neutral-200">
+            {button}
+          </div>
+        ) : (
+          <Fragment key={entry.key}>{button}</Fragment>
+        );
+      })}
     </div>
   );
 };
