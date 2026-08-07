@@ -1,35 +1,8 @@
-import type { ReactNode } from 'react';
-
 /** Pulsing placeholder block. Size/shape it with utility classes (h-, w-, rounded-) **/
 export const Skeleton = ({ className = '' }: { className?: string }) => (
   <div
     className={`animate-pulse rounded-md bg-neutral-200/80 motion-reduce:animate-none ${className}`}
   />
-);
-
-/** Whole-page skeleton with a placeholder header. Only for route-level chunk
- *  fallbacks, where the real page isn't loaded yet. Pages themselves render
- *  their real static chrome and scope skeletons to the data-driven regions. **/
-export const SkeletonPage = ({
-  children,
-  action = true,
-}: {
-  children: ReactNode;
-  action?: boolean;
-}) => (
-  <div className="flex-1 overflow-auto" role="status" aria-label="Loading">
-    <div className="page">
-      <header className="page-header">
-        <div className="space-y-2.5">
-          <Skeleton className="h-7 w-52" />
-          <Skeleton className="h-4 w-72 max-w-full" />
-        </div>
-        {action && <Skeleton className="h-9 w-32 shrink-0" />}
-      </header>
-      {children}
-    </div>
-    <span className="sr-only">Loading</span>
-  </div>
 );
 
 /** A `surface` of divided list rows (icon + two text lines + trailing pill),

@@ -12,7 +12,7 @@ import { ProjectsPage } from 'src/features/projects/pages/ProjectsPage';
 import { AppLayout } from '~/app/AppLayout';
 import { projectsPath } from '~/app/routes';
 import { Delayed } from '~/shared/ui/Delayed';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { SkeletonForm } from '~/shared/ui/Skeleton';
 import { onIdle } from '~/shared/utils/idle';
 import { NotFoundPage, RouteErrorBoundary } from './RouteError';
 import {
@@ -59,11 +59,16 @@ const OrganizationPage = lazy(() =>
   importOrganization().then((m) => ({ default: m.OrganizationPage }))
 );
 
+// Shown while a route chunk downloads. The page's real chrome isn't available
+// yet, so no fake header - just a delayed content placeholder below the empty
+// header area, which the real page fills in as soon as the chunk arrives.
 const RouteFallback = () => (
   <Delayed>
-    <SkeletonPage>
-      <SkeletonForm sections={3} />
-    </SkeletonPage>
+    <div className="flex-1 overflow-auto" role="status" aria-label="Loading">
+      <div className="page">
+        <SkeletonForm sections={3} />
+      </div>
+    </div>
   </Delayed>
 );
 
