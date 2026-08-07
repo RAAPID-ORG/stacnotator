@@ -30,10 +30,19 @@ export const ImagerySetup = ({ controller, campaignBbox = null }: ImagerySetupPr
       <BasemapList controller={controller} />
 
       {controller.campaignId != null && (
-        <>
-          <CustomMapsEditor campaignId={controller.campaignId} projectId={controller.projectId} />
-          <VectorLayersEditor campaignId={controller.campaignId} />
-        </>
+        <section>
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-neutral-900">Overlays</h3>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Layers drawn on top of the imagery in the annotation view - raster maps (COG, e.g.
+              model predictions) and vector layers (PMTiles).
+            </p>
+          </div>
+          <div className="space-y-6">
+            <CustomMapsEditor campaignId={controller.campaignId} projectId={controller.projectId} />
+            <VectorLayersEditor campaignId={controller.campaignId} />
+          </div>
+        </section>
       )}
 
       {editingSource && (

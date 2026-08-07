@@ -82,14 +82,18 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
     setLayers((prev) => prev.filter((l) => l.id !== layerId));
   };
 
+  // Rendered as a subsection of the settings "Overlays" section (ImagerySetup
+  // owns the section header), alongside the raster-layers subsection.
   return (
-    <section>
-      <div className="flex items-center justify-between mb-3">
+    <div>
+      <div className="flex items-center justify-between mb-2">
         <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Vector layers</h3>
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+            Vector layers (PMTiles)
+          </h4>
           <p className="text-xs text-neutral-500 mt-0.5">
-            PMTiles vector overlays shown in the open-mode annotation view. Toggle them on/off,
-            hover to highlight, and use the Label vector tool to label features by clicking.
+            Toggle on/off in open mode, hover to highlight, and label features by clicking with the
+            Label vector tool.
           </p>
         </div>
         {!showForm && (
@@ -98,7 +102,7 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
             onClick={() => setShowForm(true)}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add layer
+            + Add vector layer
           </button>
         )}
       </div>
@@ -230,6 +234,6 @@ export const VectorLayersEditor = ({ campaignId }: VectorLayersEditorProps) => {
           </div>
         </form>
       )}
-    </section>
+    </div>
   );
 };
