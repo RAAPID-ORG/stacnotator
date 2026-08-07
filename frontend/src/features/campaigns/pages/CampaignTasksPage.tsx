@@ -20,7 +20,8 @@ import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
-import { campaignPath, projectsPath } from '~/app/routes';
+import { campaignPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TasksTab from '~/features/campaigns/components/settings/tabs/TasksTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -73,19 +74,9 @@ export const CampaignTasksPage = () => {
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
-
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Projects', path: projectsPath() },
-        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaign.id) },
-        { label: 'Tasks' },
-      ]);
-    }
-  }, [campaign, projectId, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Tasks');
 
   const reloadTaskSets = useCallback(async () => {
     const { data, error } = await listTaskSets({ path: { campaign_id: campaignId } });

@@ -3,7 +3,6 @@ import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { getCampaign, type CampaignOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
 import { FadeIn } from '~/shared/ui/motion';
@@ -11,7 +10,7 @@ import { OpenModeReview } from '../components/review/OpenModeReview';
 import { ImportFeaturesSection } from '../components/settings/ImportFeaturesSection';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
-import { campaignPath, projectsPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 
 export const ReviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -24,19 +23,9 @@ export const ReviewPage = () => {
   // Campaign wins over the URL param, which only stands in until it loads and
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
-
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Projects', path: projectsPath() },
-        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaignId) },
-        { label: 'Annotations' },
-      ]);
-    }
-  }, [campaign, campaignId, projectId, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Annotations');
 
   useEffect(() => {
     const load = async () => {

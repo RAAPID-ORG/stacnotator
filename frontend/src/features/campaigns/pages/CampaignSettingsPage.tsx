@@ -13,7 +13,8 @@ import { usePersistedController } from '~/features/campaigns/components/imagery/
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
-import { campaignPath, projectPath, projectsPath } from '~/app/routes';
+import { campaignPath, projectPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
@@ -70,8 +71,6 @@ export const CampaignSettingsPage = () => {
     timeseriesId?: number;
   } | null>(null);
   const [showDeleteCampaignDialog, setShowDeleteCampaignDialog] = useState(false);
-
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showAlert = useLayoutStore((state) => state.showAlert);
 
   const campaignBbox = useMemo(
@@ -116,15 +115,7 @@ export const CampaignSettingsPage = () => {
     description: 'Your imagery edits have not been saved and will be lost. Leave without saving?',
   });
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Projects', path: projectsPath() },
-        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaign.id) },
-        { label: 'Settings' },
-      ]);
-    }
-  }, [campaign, projectId, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name, 'Settings');
 
   // Load campaign data (core data only)
   useEffect(() => {

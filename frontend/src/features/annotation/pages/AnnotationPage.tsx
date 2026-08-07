@@ -12,12 +12,12 @@ import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
-import { campaignPath, projectsPath } from '~/app/routes';
+import { campaignPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
 import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
-import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { Button } from '~/shared/ui/forms';
 import { isAudienceMember } from '../utils/labellingPolicy';
@@ -52,7 +52,6 @@ export const AnnotationPage = () => {
   const projectId = campaign?.project_id ?? routeProjectId;
 
   // UI store
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
   const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
@@ -119,15 +118,7 @@ export const AnnotationPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);
 
-  // Breadcrumbs
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Projects', path: projectsPath() },
-        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaignId) },
-      ]);
-    }
-  }, [campaign, campaignId, projectId, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
 
   // A deep link (?mode=explore) can seed workMode='explore' even for a user
   // the campaign's labelling policy doesn't allow to explore. The toolbar

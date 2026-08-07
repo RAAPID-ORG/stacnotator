@@ -24,6 +24,7 @@ import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
@@ -34,14 +35,6 @@ export const CreateCampaignPage = () => {
   const showLoadingOverlay = useLayoutStore((s) => s.showLoadingOverlay);
   const hideLoadingOverlay = useLayoutStore((s) => s.hideLoadingOverlay);
 
-  useEffect(() => {
-    setBreadcrumbs([
-      { label: 'Projects', path: projectsPath() },
-      { label: 'Project', path: projectPath(projectId) },
-      { label: 'New Campaign' },
-    ]);
-  }, [projectId, setBreadcrumbs]);
-
   const [step, setStep] = useState(1);
   const [showValidation, setShowValidation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,6 +42,17 @@ export const CreateCampaignPage = () => {
   const [project, setProject] = useState<ProjectOut | null>(null);
   const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
+
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: 'Projects', path: projectsPath() },
+      {
+        label: project ? capitalizeFirst(project.name) : 'Project',
+        path: projectPath(projectId),
+      },
+      { label: 'New Campaign' },
+    ]);
+  }, [project, projectId, setBreadcrumbs]);
 
   const [form, setForm] = useState<CampaignCreate>({
     name: '',

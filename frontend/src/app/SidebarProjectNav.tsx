@@ -63,6 +63,19 @@ const ensureNavInfo = (projectId: number) => {
     .finally(() => pendingLoads.delete(projectId));
 };
 
+/** Project name from the nav cache, fetched on demand for deep entries.
+ *  Feeds the project crumb on campaign pages, whose API responses only carry
+ *  the project id. */
+export const useProjectName = (projectId: number | null): string | null => {
+  const info = useSyncExternalStore(subscribe, () =>
+    projectId === null ? undefined : navInfoCache.get(projectId)
+  );
+  useEffect(() => {
+    if (projectId !== null) ensureNavInfo(projectId);
+  }, [projectId]);
+  return info?.project.name ?? null;
+};
+
 const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
 
 /** Longer names are visually truncated in the 180px sidebar; give them a
