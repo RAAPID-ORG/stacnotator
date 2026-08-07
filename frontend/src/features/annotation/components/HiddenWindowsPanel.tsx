@@ -391,135 +391,139 @@ export const HiddenWindowsPanel = () => {
         </button>
       </div>
 
-      {/* Admin: view structure. Rendered above the window controls because
+      {/* Everything below the header scrolls as one body; with the admin
+          sections present the content easily exceeds the panel max height. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Admin: view structure. Rendered above the window controls because
           everything below operates within the selected view. */}
-      {isCampaignAdmin && campaign && (
-        <div className="shrink-0 space-y-4 overflow-auto border-b border-neutral-100 px-3.5 py-3">
-          <ViewManagerSection campaign={campaign} selectedViewId={selectedViewId} />
-          {view && <ViewSourcesSection campaign={campaign} view={view} />}
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="shrink-0 space-y-3 border-b border-neutral-100 px-3.5 py-3">
-        <div className="flex gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 py-2">
-          <IconInfo className="mt-px h-3 w-3 shrink-0 text-neutral-400" />
-          <p className="text-[11px] leading-snug text-neutral-500">
-            Hide windows you don't need as dedicated views - their dates stay available in the
-            timeline, and fewer windows load faster. Drag one onto the canvas to place it, or click
-            Add for the next free slot.
-          </p>
-        </div>
-
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={hideAllWindows}
-          disabled={!hasVisibleWindows}
-          leading={<IconEyeSlash className="h-3.5 w-3.5" />}
-          className="w-full"
-          data-testid="hide-all-windows"
-        >
-          Hide all windows
-        </Button>
-
-        {/* Size picker for newly-added windows. */}
-        <div className="space-y-2" data-testid="new-window-size">
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-            New window size
-          </span>
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2.5">
-              <label className="w-12 shrink-0 text-[11px] text-neutral-500">Per row</label>
-              <input
-                type="range"
-                min={MIN_PER_ROW}
-                max={MAX_PER_ROW}
-                step={1}
-                value={perRow}
-                onChange={(e) =>
-                  setNewWindowSize({
-                    w: perRowToWidth(parseInt(e.target.value, 10)),
-                    h: newWindowSize.h,
-                  })
-                }
-                className="h-1.5 flex-1 cursor-pointer accent-brand-600"
-                aria-label="Windows per row"
-              />
-              <span className="w-5 text-right text-[11px] font-medium tabular-nums text-neutral-700">
-                {perRow}
-              </span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <label className="w-12 shrink-0 text-[11px] text-neutral-500">Height</label>
-              <input
-                type="range"
-                min={MIN_WINDOW_H}
-                max={MAX_WINDOW_H}
-                step={1}
-                value={clamp(newWindowSize.h, MIN_WINDOW_H, MAX_WINDOW_H)}
-                onChange={(e) =>
-                  setNewWindowSize({ w: newWindowSize.w, h: parseInt(e.target.value, 10) })
-                }
-                className="h-1.5 flex-1 cursor-pointer accent-brand-600"
-                aria-label="Window height"
-              />
-              <span className="w-5 text-right text-[11px] font-medium tabular-nums text-neutral-700">
-                {newWindowSize.h}
-              </span>
-            </div>
+        {isCampaignAdmin && campaign && (
+          <div className="space-y-4 border-b border-neutral-100 px-3.5 py-3">
+            <ViewManagerSection campaign={campaign} selectedViewId={selectedViewId} />
+            {view && <ViewSourcesSection campaign={campaign} view={view} />}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Hidden list */}
-      <div className="min-h-0 flex-1 overflow-auto p-2">
-        {hidden.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 px-4 py-6 text-center">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-neutral-100 text-neutral-400">
-              <IconEye className="h-4 w-4" />
-            </span>
-            <p className="text-xs font-medium text-neutral-600">All windows visible</p>
-            <p className="text-[11px] leading-snug text-neutral-400">
-              Use the eye icon on a window header - or “Hide all” - to move windows here.
+        {/* Controls */}
+        <div className="space-y-3 border-b border-neutral-100 px-3.5 py-3">
+          <div className="flex gap-2 rounded-lg border border-neutral-200/70 bg-neutral-50 px-2.5 py-2">
+            <IconInfo className="mt-px h-3 w-3 shrink-0 text-neutral-400" />
+            <p className="text-[11px] leading-snug text-neutral-500">
+              Hide windows you don't need as dedicated views - their dates stay available in the
+              timeline, and fewer windows load faster. Drag one onto the canvas to place it, or
+              click Add for the next free slot.
             </p>
           </div>
-        ) : (
-          <ul className="space-y-0.5">
-            {hidden.map(({ source, collection }) => (
-              <li
-                key={collection.id}
-                onPointerDown={(e) => {
-                  if (e.button !== 0) return;
-                  e.preventDefault();
-                  startWindowDrag(collection.id, e.clientX, e.clientY);
-                }}
-                className="group flex cursor-grab select-none items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-neutral-50 active:cursor-grabbing"
-                title={`Drag ${collection.name} onto the canvas, or click Add`}
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <IconDragHandle className="h-3.5 w-3.5 shrink-0 text-neutral-300 transition-colors group-hover:text-neutral-400" />
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-xs font-medium text-neutral-700">
-                      {collection.name}
-                    </span>
-                    <span className="truncate text-[10px] text-neutral-400">{source.name}</span>
-                  </span>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={hideAllWindows}
+            disabled={!hasVisibleWindows}
+            leading={<IconEyeSlash className="h-3.5 w-3.5" />}
+            className="w-full"
+            data-testid="hide-all-windows"
+          >
+            Hide all windows
+          </Button>
+
+          {/* Size picker for newly-added windows. */}
+          <div className="space-y-2" data-testid="new-window-size">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+              New window size
+            </span>
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <label className="w-12 shrink-0 text-[11px] text-neutral-500">Per row</label>
+                <input
+                  type="range"
+                  min={MIN_PER_ROW}
+                  max={MAX_PER_ROW}
+                  step={1}
+                  value={perRow}
+                  onChange={(e) =>
+                    setNewWindowSize({
+                      w: perRowToWidth(parseInt(e.target.value, 10)),
+                      h: newWindowSize.h,
+                    })
+                  }
+                  className="h-1.5 flex-1 cursor-pointer accent-brand-600"
+                  aria-label="Windows per row"
+                />
+                <span className="w-5 text-right text-[11px] font-medium tabular-nums text-neutral-700">
+                  {perRow}
                 </span>
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => addWindow(collection.id)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-600 px-2 py-1 text-[11px] font-medium text-white opacity-90 transition hover:bg-brand-700 hover:opacity-100"
-                  aria-label={`Add ${collection.name} back to layout`}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <label className="w-12 shrink-0 text-[11px] text-neutral-500">Height</label>
+                <input
+                  type="range"
+                  min={MIN_WINDOW_H}
+                  max={MAX_WINDOW_H}
+                  step={1}
+                  value={clamp(newWindowSize.h, MIN_WINDOW_H, MAX_WINDOW_H)}
+                  onChange={(e) =>
+                    setNewWindowSize({ w: newWindowSize.w, h: parseInt(e.target.value, 10) })
+                  }
+                  className="h-1.5 flex-1 cursor-pointer accent-brand-600"
+                  aria-label="Window height"
+                />
+                <span className="w-5 text-right text-[11px] font-medium tabular-nums text-neutral-700">
+                  {newWindowSize.h}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hidden list */}
+        <div className="p-2">
+          {hidden.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-1.5 px-4 py-6 text-center">
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-neutral-100 text-neutral-400">
+                <IconEye className="h-4 w-4" />
+              </span>
+              <p className="text-xs font-medium text-neutral-600">All windows visible</p>
+              <p className="text-[11px] leading-snug text-neutral-400">
+                Use the eye icon on a window header - or “Hide all” - to move windows here.
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-0.5">
+              {hidden.map(({ source, collection }) => (
+                <li
+                  key={collection.id}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    startWindowDrag(collection.id, e.clientX, e.clientY);
+                  }}
+                  className="group flex cursor-grab select-none items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-neutral-50 active:cursor-grabbing"
+                  title={`Drag ${collection.name} onto the canvas, or click Add`}
                 >
-                  <IconPlus className="h-3 w-3" />
-                  Add
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <IconDragHandle className="h-3.5 w-3.5 shrink-0 text-neutral-300 transition-colors group-hover:text-neutral-400" />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-xs font-medium text-neutral-700">
+                        {collection.name}
+                      </span>
+                      <span className="truncate text-[10px] text-neutral-400">{source.name}</span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => addWindow(collection.id)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-600 px-2 py-1 text-[11px] font-medium text-white opacity-90 transition hover:bg-brand-700 hover:opacity-100"
+                    aria-label={`Add ${collection.name} back to layout`}
+                  >
+                    <IconPlus className="h-3 w-3" />
+                    Add
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
