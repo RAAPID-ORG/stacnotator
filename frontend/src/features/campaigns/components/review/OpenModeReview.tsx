@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { Delayed } from '~/shared/ui/Delayed';
+import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   batchDeleteAnnotations,
   getAllAnnotationsForCampaign,
@@ -253,23 +254,20 @@ export const OpenModeReview = ({
     return label?.name || `Label #${labelId}`;
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading annotations..." />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 overflow-auto">
       <FadeIn className="page">
         <header className="page-header">
           <div>
             <h1 className="page-title">{capitalizeFirst(campaign.name)} - Annotations</h1>
-            <p className="page-subtitle">
-              {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this campaign.
-            </p>
+            {loading ? (
+              <Skeleton className="h-4 w-56 mt-2" />
+            ) : (
+              <p className="page-subtitle">
+                {annotations.length} annotation{annotations.length !== 1 ? 's' : ''} in this
+                campaign.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {headerActions}
@@ -475,13 +473,23 @@ export const OpenModeReview = ({
             </div>
 
             <div className="pt-3 border-t border-neutral-100 text-xs text-neutral-500">
-              Showing {filteredAnnotations.length} of {annotations.length} annotations
+              {loading ? (
+                <Skeleton className="h-3.5 w-44" />
+              ) : (
+                <>
+                  Showing {filteredAnnotations.length} of {annotations.length} annotations
+                </>
+              )}
             </div>
           </div>
         </div>
 
         {/* Annotations Table */}
-        {filteredAnnotations.length === 0 ? (
+        {loading ? (
+          <Delayed>
+            <SkeletonRows count={8} />
+          </Delayed>
+        ) : filteredAnnotations.length === 0 ? (
           <div className="text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm">
             <svg
               className="w-12 h-12 text-neutral-400 mx-auto mb-4"

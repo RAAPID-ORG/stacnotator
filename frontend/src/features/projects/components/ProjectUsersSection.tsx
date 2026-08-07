@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input, Textarea } from '~/shared/ui/forms';
 import { handleError } from '~/shared/utils/errorHandler';
 import { parseEmailList, searchUsers } from '~/shared/utils/utility';
@@ -251,9 +252,11 @@ export const ProjectUsersSection = ({ projectId, canManage }: ProjectUsersSectio
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-neutral-500">Loading members...</p>
-      </div>
+      <Delayed>
+        <div className="flex items-center justify-center py-12">
+          <p className="text-neutral-500">Loading members...</p>
+        </div>
+      </Delayed>
     );
   }
 
