@@ -257,14 +257,11 @@ def save_imagery_editor_state(
         for view in campaign.imagery_views
     }
 
-    deleted_collection_ids: set[int] = set()
     deleted_source_ids: set[int] = set()
 
     # Delete sources missing from payload. Cascade handles their collections.
     for s_id, s in list(existing_sources.items()):
         if s_id not in payload_source_ids:
-            for col in s.collections:
-                deleted_collection_ids.add(col.id)
             db.delete(s)
             deleted_source_ids.add(s_id)
             del existing_sources[s_id]
@@ -277,7 +274,6 @@ def save_imagery_editor_state(
         payload_col_ids = {c.id for c in src_create.collections if c.id is not None}
         for col in list(existing_src.collections):
             if col.id not in payload_col_ids:
-                deleted_collection_ids.add(col.id)
                 db.delete(col)
 
     # Drop deleted sources from every view's membership.
@@ -292,13 +288,6 @@ def save_imagery_editor_state(
 
     # Upsert sources. New ones go through the existing _create_source helper so
     # the STAC pending-registration list works identically to campaign create.
-    # Map keys: "<src_idx>" for sources, "<src_idx>:<col_idx>" for collections.
-    # Pre-populated with existing DB IDs so refs can use either real IDs or
-    # positional temp IDs interchangeably.
-    source_id_map: dict[str, int] = {str(s.id): s.id for s in campaign.imagery_sources}
-    collection_id_map: dict[str, int] = {
-        str(c.id): c.id for s in campaign.imagery_sources for c in s.collections
-    }
     pending_registrations: list[RegistrationSpec] = []
     current_sources: list[ImagerySource] = []
 
@@ -306,18 +295,9 @@ def save_imagery_editor_state(
         if src_create.id and src_create.id in existing_sources:
             db_src = existing_sources[src_create.id]
             pending = _update_source_in_place(db, db_src, src_create, src_idx, bbox)
-            pending_registrations.extend(pending)
-            source_id_map[str(src_idx)] = db_src.id
-            # Pair every collection by index - order of db_src.collections matches
-            # the payload after _update_source_in_place runs.
-            for col_idx, col in enumerate(db_src.collections):
-                collection_id_map[f"{src_idx}:{col_idx}"] = col.id
         else:
             db_src, pending = _create_source(db, campaign.id, src_create, src_idx, bbox)
-            pending_registrations.extend(pending)
-            source_id_map[str(src_idx)] = db_src.id
-            for col_idx, col in enumerate(db_src.collections):
-                collection_id_map[f"{src_idx}:{col_idx}"] = col.id
+        pending_registrations.extend(pending)
         current_sources.append(db_src)
 
     db.flush()
