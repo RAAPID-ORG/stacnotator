@@ -174,7 +174,7 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
     >
       {/* Group title, not a link - the Campaigns entry below already opens the
           project index. */}
-      <div className="flex items-center px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 select-none">
+      <div className="flex items-center px-2 text-xs font-semibold text-neutral-800 select-none">
         <NavName name={project.name} />
       </div>
       {entries.map((entry) => {

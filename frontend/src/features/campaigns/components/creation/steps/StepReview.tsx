@@ -31,13 +31,7 @@ export const StepReview = ({
     <div className="space-y-4">
       <p className="text-sm text-neutral-700">Review everything before creating the campaign.</p>
 
-      {!validation.isValid && <ValidationSummary errors={allErrors} />}
-
-      {validation.isValid && <ValidationSuccess />}
-
-      <pre className="bg-neutral-100 rounded-md p-4 text-xs text-neutral-700 overflow-auto max-h-80">
-        {JSON.stringify(form, null, 2)}
-      </pre>
+      {validation.isValid ? <ValidationSuccess /> : <ValidationSummary errors={allErrors} />}
     </div>
   );
 };
