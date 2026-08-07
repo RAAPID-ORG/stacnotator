@@ -27,6 +27,10 @@
 - Presets for common collections (band combinations, rescale ranges)
 - Post-creation editing of viz params from settings page
 
+### Campaign duplication
+- Duplicate a campaign from the project campaign list (admin): full setup copy (imagery, views, layouts, labels, forms, policy, time series, basemaps, overlays)
+- Tasks and annotations are copied only on explicit opt-in; task-linked annotations require the tasks to be copied too
+
 ### Views & Canvas
 - Multiple views per campaign - each view is an ordered set of imagery sources; all their collections are browsable in it
 - Views are authored by campaign admins in the annotation page's edit mode (create, rename, reorder, delete, source membership); a campaign is annotatable once its first view exists

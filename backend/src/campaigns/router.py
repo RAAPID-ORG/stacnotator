@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
-from src.campaigns import assignments, service, statistics, task_sets
+from src.campaigns import assignments, duplication, service, statistics, task_sets
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
 from src.campaigns.schemas import (
@@ -17,6 +17,7 @@ from src.campaigns.schemas import (
     AssignTasksToUsersRequest,
     AssignTasksToUsersResult,
     CampaignCreate,
+    CampaignDuplicateRequest,
     CampaignOut,
     CampaignOutFull,
     CampaignsListResponse,
@@ -129,6 +130,25 @@ def create_campaign(
         labelling_policy=campaign.labelling_policy,
     )
     return _campaign_out(created, db, user)
+
+
+@router.post("/{campaign_id}/duplicate", response_model=CampaignOut, status_code=201)
+def duplicate_campaign(
+    campaign_id: int,
+    req: CampaignDuplicateRequest,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+    user: User = Depends(require_authenticated_user),
+):
+    """Deep-copy the campaign's full setup within its project; tasks and
+    annotations are copied only when requested (campaign admin only)."""
+    dup = duplication.duplicate_campaign(
+        db,
+        campaign,
+        include_tasks=req.include_tasks,
+        include_annotations=req.include_annotations,
+    )
+    return _campaign_out(service.get_campaign_full(db, dup.id), db, user)
 
 
 @router.get("/{campaign_id}/detailed", response_model=CampaignOutFull)

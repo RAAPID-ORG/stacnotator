@@ -238,6 +238,13 @@ export const IconBuilding = ({ className = 'w-4 h-4' }: IconProps) => (
   </svg>
 );
 
+export const IconCopy = ({ className = 'w-4 h-4' }: IconProps) => (
+  <svg {...defaults} className={className}>
+    <rect x="7" y="7" width="9" height="9" rx="1.5" />
+    <path d="M13 7V5.5A1.5 1.5 0 0011.5 4h-6A1.5 1.5 0 004 5.5v6A1.5 1.5 0 005.5 13H7" />
+  </svg>
+);
+
 export const IconExternalLink = ({ className = 'w-4 h-4' }: IconProps) => (
   <svg {...defaults} className={className}>
     <path d="M9 5H6a2 2 0 00-2 2v7a2 2 0 002 2h7a2 2 0 002-2v-3" />

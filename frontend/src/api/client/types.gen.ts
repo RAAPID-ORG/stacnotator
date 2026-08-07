@@ -888,6 +888,22 @@ export type CampaignCreate = {
 };
 
 /**
+ * CampaignDuplicateRequest
+ *
+ * Both switches are deliberate decisions - no defaults.
+ */
+export type CampaignDuplicateRequest = {
+    /**
+     * Include Tasks
+     */
+    include_tasks: boolean;
+    /**
+     * Include Annotations
+     */
+    include_annotations: boolean;
+};
+
+/**
  * CampaignListItemOut
  */
 export type CampaignListItemOut = {
@@ -4916,6 +4932,36 @@ export type GetCampaignResponses = {
 };
 
 export type GetCampaignResponse = GetCampaignResponses[keyof GetCampaignResponses];
+
+export type DuplicateCampaignData = {
+    body: CampaignDuplicateRequest;
+    path: {
+        /**
+         * Campaign Id
+         */
+        campaign_id: number;
+    };
+    query?: never;
+    url: '/api/campaigns/{campaign_id}/duplicate';
+};
+
+export type DuplicateCampaignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DuplicateCampaignError = DuplicateCampaignErrors[keyof DuplicateCampaignErrors];
+
+export type DuplicateCampaignResponses = {
+    /**
+     * Successful Response
+     */
+    201: CampaignOut;
+};
+
+export type DuplicateCampaignResponse = DuplicateCampaignResponses[keyof DuplicateCampaignResponses];
 
 export type GetCampaignWithImageryWindowsData = {
     body?: never;
