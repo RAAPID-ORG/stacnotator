@@ -488,65 +488,68 @@ export const CampaignSettingsPage = () => {
             )}
           </div>
 
-          {campaign ? (
-            <div className="surface">
-              {/* Tab Navigation - inset into the top of the surface so the
-                  tabs read as the surface's header, not a separate strip. */}
-              <TabNavigator<SettingsTab>
-                items={[
-                  { id: 'general', label: 'General Settings' },
-                  { id: 'imagery', label: 'Imagery' },
-                  { id: 'timeseries', label: 'Timeseries' },
-                ]}
-                activeId={activeTab}
-                onChange={setActiveTab}
-                className="!mb-0 !border-neutral-200 px-6"
-              />
+          {/* Static chrome (surface + tabs) renders immediately; only the tab
+              content waits for the campaign fetch. */}
+          <div className="surface">
+            {/* Tab Navigation - inset into the top of the surface so the
+                tabs read as the surface's header, not a separate strip. */}
+            <TabNavigator<SettingsTab>
+              items={[
+                { id: 'general', label: 'General Settings' },
+                { id: 'imagery', label: 'Imagery' },
+                { id: 'timeseries', label: 'Timeseries' },
+              ]}
+              activeId={activeTab}
+              onChange={setActiveTab}
+              className="!mb-0 !border-neutral-200 px-6"
+            />
 
-              <div className="p-6">
-                {/* Tab Content */}
-                {activeTab === 'general' && (
-                  <GeneralSettingsTab
-                    campaign={campaign}
-                    campaignName={campaignName}
-                    setCampaignName={setCampaignName}
-                    saving={saving}
-                    onSaveName={handleSaveName}
-                    onSaveSettings={handleSaveSettings}
-                    onUpdateSettings={(updates) =>
-                      setCampaign({ ...campaign, settings: { ...campaign.settings, ...updates } })
-                    }
-                    onOpenDelete={() => setShowDeleteCampaignDialog(true)}
-                    onCampaignUpdated={(updated) => setCampaign(updated)}
-                    projectUsers={projectUsers}
-                  />
-                )}
+            <div className="p-6">
+              {!campaign ? (
+                <Delayed>
+                  <SkeletonForm sections={3} />
+                </Delayed>
+              ) : (
+                <>
+                  {activeTab === 'general' && (
+                    <GeneralSettingsTab
+                      campaign={campaign}
+                      campaignName={campaignName}
+                      setCampaignName={setCampaignName}
+                      saving={saving}
+                      onSaveName={handleSaveName}
+                      onSaveSettings={handleSaveSettings}
+                      onUpdateSettings={(updates) =>
+                        setCampaign({ ...campaign, settings: { ...campaign.settings, ...updates } })
+                      }
+                      onOpenDelete={() => setShowDeleteCampaignDialog(true)}
+                      onCampaignUpdated={(updated) => setCampaign(updated)}
+                      projectUsers={projectUsers}
+                    />
+                  )}
 
-                {activeTab === 'imagery' && (
-                  <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
-                )}
+                  {activeTab === 'imagery' && (
+                    <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
+                  )}
 
-                {activeTab === 'timeseries' && (
-                  <TimeseriesTab
-                    newTimeseries={newTimeseries}
-                    setNewTimeseries={setNewTimeseries}
-                    timeseries={timeseries}
-                    handleAddTimeseries={handleAddTimeseries}
-                    setDeleteConfirm={setDeleteConfirm}
-                    saving={saving}
-                    campaignName={campaignName}
-                    imagery={imagery}
-                    campaignMode={campaign.mode || 'tasks'}
-                    campaignSettings={campaign.settings || {}}
-                  />
-                )}
-              </div>
+                  {activeTab === 'timeseries' && (
+                    <TimeseriesTab
+                      newTimeseries={newTimeseries}
+                      setNewTimeseries={setNewTimeseries}
+                      timeseries={timeseries}
+                      handleAddTimeseries={handleAddTimeseries}
+                      setDeleteConfirm={setDeleteConfirm}
+                      saving={saving}
+                      campaignName={campaignName}
+                      imagery={imagery}
+                      campaignMode={campaign.mode || 'tasks'}
+                      campaignSettings={campaign.settings || {}}
+                    />
+                  )}
+                </>
+              )}
             </div>
-          ) : (
-            <Delayed>
-              <SkeletonForm sections={4} />
-            </Delayed>
-          )}
+          </div>
         </FadeIn>
       </div>
 
