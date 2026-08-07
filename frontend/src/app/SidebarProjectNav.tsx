@@ -172,13 +172,11 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       data-testid="sidebar-project-nav"
       className="ml-[1.4rem] pl-2 border-l border-neutral-200 flex flex-col gap-0.5 py-0.5"
     >
-      <button
-        type="button"
-        onClick={() => go(projectPath(projectId))}
-        className="flex items-center w-full py-1 px-2 text-left text-xs font-medium text-neutral-800 rounded-md cursor-pointer transition-colors hover:bg-neutral-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
-      >
+      {/* Group title, not a link - the Campaigns entry below already opens the
+          project index. */}
+      <div className="flex items-center px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 select-none">
         <NavName name={project.name} />
-      </button>
+      </div>
       {entries.map((entry) => {
         const button = (
           <button
