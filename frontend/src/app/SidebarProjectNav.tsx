@@ -83,8 +83,9 @@ interface SidebarProjectNavProps {
 }
 
 /** Wayfinding under the Projects nav item while the current route is inside a
- *  project: the project itself, its tabs the viewer can see, and the current
- *  campaign. Renders nothing outside project routes. */
+ *  project: the project itself, its tabs the viewer can see, and every
+ *  campaign of the project (alphabetical, current one highlighted). Renders
+ *  nothing outside project routes. */
 export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -108,7 +109,6 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   if (projectId === null || info === undefined) return null;
 
   const { project } = info;
-  const campaign = campaignId === null ? null : info.campaigns.find((c) => c.id === campaignId);
 
   const tab = new URLSearchParams(location.search).get('tab');
   const onProjectIndex = location.pathname === projectPath(projectId);
@@ -134,17 +134,15 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       active: onProjectIndex && tab !== 'members' && tab !== 'settings',
       depth: 1,
     },
-    ...(campaign
-      ? [
-          {
-            key: `campaign-${campaign.id}`,
-            label: campaign.name,
-            path: campaignPath(projectId, campaign.id),
-            active: true,
-            depth: 2 as const,
-          },
-        ]
-      : []),
+    ...[...info.campaigns]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      .map((c) => ({
+        key: `campaign-${c.id}`,
+        label: c.name,
+        path: campaignPath(projectId, c.id),
+        active: c.id === campaignId,
+        depth: 2 as const,
+      })),
     ...(canSeeMembers
       ? [
           {
