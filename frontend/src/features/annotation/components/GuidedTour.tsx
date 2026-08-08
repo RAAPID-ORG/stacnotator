@@ -861,11 +861,6 @@ const buildOpenModeSteps = ({ hasTimeseries }: TourConfig): TourStep[] => [
           Press number keys <kbd className="tour-kbd">1-9</kbd> to quickly select a label and switch
           to the annotate tool.
         </p>
-        <p>
-          The <strong>magic wand</strong> icon on polygon labels enables automatic segmentation -
-          click once on the map and it generates a polygon boundary for you. Note: this feature is
-          currently deactivated and will be available in a future update.
-        </p>
       </div>
     ),
     placement: 'left',
