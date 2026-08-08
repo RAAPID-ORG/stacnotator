@@ -37,7 +37,7 @@ export function buildSourceGroups(
   const groups: SourceGroup[] = [];
   let offset = 0;
   for (const src of sources) {
-    if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
+    if (!viewSourceIds.has(src.id)) {
       offset += src.visualizations.length;
       continue;
     }
