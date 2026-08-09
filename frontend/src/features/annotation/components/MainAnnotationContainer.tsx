@@ -117,7 +117,7 @@ export const MainAnnotationsContainer = ({
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
 
   // Resolve the active collection and its source

@@ -1169,7 +1169,7 @@ export const GuidedTour = ({ isOpen, onClose }: GuidedTourProps) => {
     }
   }, [isOpen, workMode]);
 
-  const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
+  const hasTimeseries = (campaign?.time_series.length ?? 0) > 0;
   const steps = buildTourSteps(workMode, { hasTimeseries });
   const step = steps[currentStep];
   const isLastStep = currentStep === steps.length - 1;

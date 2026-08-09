@@ -163,7 +163,7 @@ const OpenModeControls = () => {
   const formFields = campaign?.settings.form_fields ?? [];
 
   // Filter tools based on campaign configuration
-  const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
+  const hasTimeseries = (campaign?.time_series.length ?? 0) > 0;
   const hasVectorLayers = (campaign?.vector_layers?.length ?? 0) > 0;
   const availableTools = TOOLS.filter(
     (tool) =>

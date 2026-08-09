@@ -61,14 +61,14 @@ export const useOpenModeKeyboard = () => {
 
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
-    const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
+    const hasTimeseries = campaign.time_series.length > 0;
     const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
     const formFields = campaign.settings.form_fields ?? [];
 
-    const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
+    const view = campaign.imagery_views.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set(viewSources(campaign.imagery_sources, view).map((s) => s.id));
     const sourceGroups = buildSourceGroups(campaign.imagery_sources, viewSourceIds);
-    const basemapIds = (campaign.basemaps ?? []).map((b) => `basemap-${b.id}`);
+    const basemapIds = campaign.basemaps.map((b) => `basemap-${b.id}`);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.

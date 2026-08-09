@@ -133,7 +133,7 @@ export function useSliceLayers({
       const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
       const vizLayers: Layer[] = [];
 
-      const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+      const selectedView = campaign.imagery_views.find((v) => v.id === selectedViewId) ?? null;
 
       // One collection per source: the active one if it belongs to that
       // source, otherwise the source's first collection.
@@ -214,10 +214,11 @@ export function useSliceLayers({
 
   const initLayers = useCallback(
     (lm: LayerManager) => {
+      if (!campaign) return;
+
       // Register basemaps from backend
-      const campaignId = campaign?.id;
-      const basemaps = (campaign?.basemaps ?? []).map((b) => {
-        const url = campaignId != null ? resolveBasemapUrl(campaignId, b) : b.url;
+      const basemaps = campaign.basemaps.map((b) => {
+        const url = resolveBasemapUrl(campaign.id, b);
         return new XYZLayer({
           id: `basemap-${b.id}`,
           name: b.name,
@@ -239,7 +240,7 @@ export function useSliceLayers({
 
       syncLayers(lm);
     },
-    [syncLayers, campaign?.id, campaign?.basemaps, setLayers, setActiveLayerId, onLayersChange]
+    [syncLayers, campaign, setLayers, setActiveLayerId, onLayersChange]
   );
 
   // Re-sync when view changes
