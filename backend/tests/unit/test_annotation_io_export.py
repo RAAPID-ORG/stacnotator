@@ -195,9 +195,9 @@ class TestMergeOnAgreementConflictGuard:
         # Does not raise.
         assert _records(anns, merge_on_agreement=True)
 
-    def test_missing_flag_defaults_to_counting(self):
-        """counts_toward_completion=None (unset/legacy) still counts, keeping
-        pre-policy behavior for callers that never attach the flag."""
+    def test_unset_flag_does_not_count(self):
+        """Only an explicit True counts: two disagreeing labels whose flag was
+        never attached (None) cannot manufacture a conflict."""
         user_a, user_b = uuid4(), uuid4()
         task = _task(annotation_number=9)
         anns = [
@@ -205,9 +205,8 @@ class TestMergeOnAgreementConflictGuard:
             _annotation(label_id=2, created_by_user_id=user_b, task=task),
         ]
 
-        with pytest.raises(HTTPException) as exc:
-            _records(anns, merge_on_agreement=True)
-        assert "#9" in exc.value.detail
+        # Does not raise.
+        assert _records(anns, merge_on_agreement=True)
 
     def test_authoritative_label_present_skips_conflict(self):
         user_a, user_b = uuid4(), uuid4()

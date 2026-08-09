@@ -1,4 +1,5 @@
 from datetime import datetime as dt_datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -177,6 +178,11 @@ class Annotation(Base):
     the same task for quality assurance purposes.
     If no label is set, it indicates that the annotation was skipped with a comment.
     """
+
+    if TYPE_CHECKING:
+        # Not a column: attached per request by annotation/completion.py on
+        # task-linked rows (bool); standalone rows never get it.
+        counts_toward_completion: bool | None
 
     __tablename__ = "annotations"
     __table_args__ = (

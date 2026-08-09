@@ -1,6 +1,8 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from src.custom_layers.render import build_viz_params
 
 HEX_COLOR = r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
 COLOR_BLUE = "#3b82f6"
@@ -25,6 +27,14 @@ class RenderConfig(BaseModel):
     colormap_name: ColormapName | None = None
     rescale: tuple[float, float] | None = None
     entries: list[CategoricalEntry] | None = Field(default=None, max_length=256)
+
+    @model_validator(mode="after")
+    def _renderable(self) -> "RenderConfig":
+        """build_viz_params is the authority on what can actually render; an
+        unrenderable config never parses (stored rows conform since migration
+        aa8rendfix)."""
+        build_viz_params(self.model_dump(mode="json"))
+        return self
 
 
 class CustomMapCreate(BaseModel):

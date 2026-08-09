@@ -27,14 +27,12 @@ from src.annotation.service import (
 from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 
 
-def _campaign(policy: LabellingPolicy | None = None, *, campaign_id=1, is_public=False):
+def _campaign(policy: LabellingPolicy, *, campaign_id=1, is_public=False):
     campaign = MagicMock()
     campaign.id = campaign_id
     campaign.is_public = is_public
     campaign.settings.labels = {"1": {"name": "Forest"}}
-    campaign.settings.labelling_policy = (
-        policy.model_dump(mode="json") if policy is not None else None
-    )
+    campaign.settings.labelling_policy = policy.model_dump(mode="json")
     return campaign
 
 
@@ -85,20 +83,6 @@ class TestExploreAxisEnforcement:
     def test_create_annotation_denied_when_explore_is_no_one_even_for_admin(self):
         campaign = _campaign(LabellingPolicy(explore=PolicyAudience(kinds=[])))
         db = _db(cu=_ADMIN)
-        payload = AnnotationCreate(
-            label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
-        )
-
-        with pytest.raises(HTTPException) as exc:
-            create_annotation(db, campaign, payload, uuid4())
-
-        assert exc.value.status_code == 403
-
-    def test_create_annotation_denied_falls_back_to_default_policy_when_unset(self):
-        """No labelling_policy stored (legacy campaign) -> default policy
-        (explore=members) applies; a non-member is still denied."""
-        campaign = _campaign(policy=None)
-        db = _db(cu=None)
         payload = AnnotationCreate(
             label_id=1, comment=None, geometry_wkt="POINT(0 0)", confidence=None
         )

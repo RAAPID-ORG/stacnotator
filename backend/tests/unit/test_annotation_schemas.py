@@ -40,9 +40,11 @@ def _assignment_row(status: str, *, user_id=None, is_review: bool = False) -> Si
 
 
 def _annotation_row(
-    user_id, label_id, *, is_authoritative: bool = False, counts_toward_completion=None
+    user_id, label_id, *, is_authoritative: bool = False, counts_toward_completion=True
 ) -> SimpleNamespace:
-    """An ORM-shaped `Annotation` stand-in, matching `_assignment_row`."""
+    """An ORM-shaped `Annotation` stand-in, matching `_assignment_row`. The
+    counts flag defaults to True: production rows always carry the attached
+    boolean by the time task status is computed."""
     return SimpleNamespace(
         id=1,
         label_id=label_id,
@@ -224,24 +226,26 @@ def test_counting_conflict_unaffected_by_agreeing_non_counting_label():
     assert status == "conflicting"
 
 
-def test_missing_counts_toward_completion_key_defaults_to_counting():
-    """Callers that don't pass the flag at all (pre-policy shape) keep the
-    original behavior: the label counts."""
+def test_missing_counts_toward_completion_key_raises():
+    """The flag is mandatory on every task-linked annotation dict; a caller
+    that never attached it fails loudly instead of silently counting."""
     user = uuid4()
-    status = compute_task_status_value(
-        [_assignment(user)],
-        [{"label_id": 1, "created_by_user_id": user, "is_authoritative": False}],
-    )
-    assert status == "done"
+    with pytest.raises(KeyError):
+        compute_task_status_value(
+            [_assignment(user)],
+            [{"label_id": 1, "created_by_user_id": user, "is_authoritative": False}],
+        )
 
 
-def test_none_counts_toward_completion_value_defaults_to_counting():
+def test_none_counts_toward_completion_value_does_not_count():
+    """Only an explicit True counts; None is reserved for standalone
+    annotations and never reaches task-status computation."""
     user = uuid4()
     status = compute_task_status_value(
         [_assignment(user)],
         [_annotation(user, label_id=1, counts=None)],
     )
-    assert status == "done"
+    assert status == "pending"
 
 
 # ============================================================================

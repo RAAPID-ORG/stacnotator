@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from src.auth.constants import ROLE_ADMIN
 from src.auth.models import UserRole
 from src.campaigns.models import Campaign
-from src.campaigns.schemas import LabellingPolicy, PolicyAudience, default_labelling_policy
+from src.campaigns.schemas import LabellingPolicy, PolicyAudience
 from src.organizations.models import (
     MEMBER_STATUS_ACTIVE,
     ORG_STATUS_APPROVED,
@@ -166,11 +166,10 @@ def is_authoritative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> b
 
 
 def get_labelling_policy(campaign: Campaign) -> LabellingPolicy:
-    """Read a campaign's labelling policy, falling back to the default when
-    the settings carry no labelling policy."""
-    if campaign.settings and campaign.settings.labelling_policy:
-        return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-    return default_labelling_policy()
+    """Read a campaign's labelling policy. Every campaign carries one: the
+    creation path always writes settings, the column is non-null with a full
+    server default, and migration aa6polback backfilled the stragglers."""
+    return LabellingPolicy.model_validate(campaign.settings.labelling_policy)
 
 
 def _reject_anyone_kind_if_private(policy: LabellingPolicy, is_public: bool) -> None:
