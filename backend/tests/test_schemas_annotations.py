@@ -18,6 +18,7 @@ def _make_annotation(user_id, label_id, is_authoritative=False):
         "label_id": label_id,
         "created_by_user_id": user_id,
         "is_authoritative": is_authoritative,
+        "counts_toward_completion": True,
     }
 
 
@@ -37,7 +38,6 @@ def _make_task(assignments, annotations, task_id=1):
             flag_comment=None,
             created_at=datetime(2025, 1, 1, tzinfo=UTC),
             updated_at=datetime(2025, 1, 1, tzinfo=UTC),
-            counts_toward_completion=None,
             form_values=None,
             imagery_slice_id=None,
             imagery_source_name=None,

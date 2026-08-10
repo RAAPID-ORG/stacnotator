@@ -39,8 +39,7 @@ def _resolve_label_name(campaign: Campaign, label_id: int | None) -> str | None:
     labels = campaign.settings.labels if campaign.settings else {}
     label_id_str = str(label_id)
     if label_id_str in labels:
-        label_data = labels[label_id_str]
-        return label_data.get("name") if isinstance(label_data, dict) else label_data
+        return labels[label_id_str]["name"]
     return None
 
 
@@ -60,10 +59,9 @@ def format_form_value(field: FormField, value: object) -> object | None:
     their option names (multicategory joined with "; "), a daterange becomes
     "start/end", everything else (number/text/date) passes through as-is.
 
-    Stored values may predate a field-definition change; any value whose
-    shape no longer matches the field type degrades to str(value) so the
-    export never crashes on drifted data.
-    """
+    Value shapes are guaranteed by write-path validation, the answered-field
+    change guard in update_campaign_form_fields, and migration aa7formnorm;
+    a mismatch is a bug and raises."""
     return _format_form_value(field, value, _option_names(field))
 
 
@@ -72,20 +70,20 @@ def _format_form_value(field: FormField, value: object, names: dict[int, str]) -
         return None
     if isinstance(field, CategoryFormField):
         if field.type == "category":
-            if isinstance(value, int):
-                return names.get(value, str(value))
-            return str(value)
-        if isinstance(value, list) and all(isinstance(v, int) for v in value):
-            return "; ".join(names.get(v, str(v)) for v in value)
-        return str(value)
+            if not isinstance(value, int):
+                raise ValueError(f"'{field.title}' expects an option id, got {value!r}")
+            return names.get(value, str(value))
+        if not isinstance(value, list) or not all(isinstance(v, int) for v in value):
+            raise ValueError(f"'{field.title}' expects a list of option ids, got {value!r}")
+        return "; ".join(names.get(v, str(v)) for v in value)
     if isinstance(field, DateFormField) and field.type == "daterange":
         if (
-            isinstance(value, dict)
-            and isinstance(value.get("start"), str)
-            and isinstance(value.get("end"), str)
+            not isinstance(value, dict)
+            or not isinstance(value.get("start"), str)
+            or not isinstance(value.get("end"), str)
         ):
-            return f"{value['start']}/{value['end']}"
-        return str(value)
+            raise ValueError(f"'{field.title}' expects {{start, end}}, got {value!r}")
+        return f"{value['start']}/{value['end']}"
     return value
 
 
@@ -205,16 +203,14 @@ def _conflicting_task_numbers(
     """Return human-readable annotation_numbers of any task whose labeled
     annotators disagree (>= 2 distinct label_ids among labeled annotations).
 
-    Only annotations whose `counts_toward_completion` is not explicitly False
-    are considered, mirroring `compute_task_status_value` - an extra label the
-    labelling policy allows but doesn't count must not manufacture a conflict
-    on its own.
+    Only annotations whose `counts_toward_completion` is True are considered,
+    mirroring `compute_task_status_value` - an extra label the labelling
+    policy allows but doesn't count must not manufacture a conflict on its
+    own. The flag is attached before export record building runs.
     """
     conflicts: list[int] = []
     for task_id, task_anns in grouped.items():
-        counting = [
-            a for a in task_anns if getattr(a, "counts_toward_completion", None) is not False
-        ]
+        counting = [a for a in task_anns if a.counts_toward_completion]
         labeled = [a for a in counting if a.label_id is not None]
         if any(a.is_authoritative for a in labeled):
             continue
@@ -270,9 +266,7 @@ def _build_export_record_for_annotation(
         record["stacnotator_task_id"] = task.id
         record["stacnotator_annotation_number"] = task.annotation_number
         record["stacnotator_task_status"] = task_status
-        record["stacnotator_counts_toward_completion"] = getattr(
-            annotation, "counts_toward_completion", None
-        )
+        record["stacnotator_counts_toward_completion"] = annotation.counts_toward_completion
 
     record["stacnotator_annotation_id"] = annotation.id
     record["stacnotator_source_id"] = annotation.source_id
@@ -344,7 +338,7 @@ def _build_export_record_merged(
         # row represents the task's resolved label, so it counts if the
         # resolution itself was reachable by a counting contributor.
         record["stacnotator_counts_toward_completion"] = any(
-            getattr(a, "counts_toward_completion", False) for a in labeled
+            a.counts_toward_completion for a in labeled
         )
 
     record["stacnotator_label_id"] = agreed_label_id

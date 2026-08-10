@@ -53,7 +53,6 @@ interface TaskStore {
   flagComment: string;
   formValues: FormValues;
   activeFieldIndex: number | null;
-  magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
 
@@ -98,7 +97,6 @@ interface TaskStore {
   /** Save when every required field is answered, else discard: an open-mode
    *  annotation can't be saved incomplete, so an unfinished draft is thrown away. */
   closeDraft: () => Promise<void>;
-  toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
   resetAnnotationForm: () => void;
@@ -192,7 +190,6 @@ const initialState = {
   flagComment: '',
   formValues: {} as FormValues,
   activeFieldIndex: null as number | null,
-  magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
   draftGeometry: null as GeoJSON.Geometry | null,
@@ -659,10 +656,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       }
       await get().commitDraft();
     },
-    toggleMagicWand: (labelId) =>
-      set((s) => ({
-        magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
-      })),
     setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
     setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
     resetAnnotationForm: () =>

@@ -28,7 +28,6 @@ import { authManager } from '~/features/auth/index';
 import { extendLabelsWithMetadata } from '../../utils/labelMetadata';
 import { resolveLabelStyle, styleKey, type StyleOverrides } from '../../utils/annotationStyle';
 import { hexToRgba, ANNOTATION_LAYER_Z_INDEX, ANNOTATION_TILE_LAYER_FLAG } from './mapUtils';
-import type { TileLabelStyle } from '../../utils/annotationTileStyle';
 import { useAnnotationStore } from '../../stores/annotation.store';
 import { useMapStore } from '../../stores/map.store';
 import { usePreferencesStore } from '../../stores/preferences.store';
@@ -48,6 +47,15 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? '';
 // (ANNOTATION_TILE_MIN_ZOOM), so the layer is hidden below it either way; this just
 // avoids firing empty requests. OL's `minZoom` is exclusive, hence the -1.
 const ANNOTATION_TILE_MIN_ZOOM = 11;
+
+interface TileLabelStyle {
+  id: number;
+  /** Resolved fill paint, e.g. 'rgba(255,0,0,0.2)'. */
+  fillColor: string;
+  /** Resolved stroke paint. */
+  strokeColor: string;
+  strokeWidth: number;
+}
 
 /** Resolve each campaign label to the paint the tiles use, honouring overrides. */
 function resolveTileLabelStyles(
@@ -148,8 +156,7 @@ export function releaseAnnotationTileSource(campaignId: number): void {
  *
  * Uses the canvas vector-tile renderer (the feature whose id matches the live
  * editingId is hidden so the editable layer owns it). A WebGL renderer is the
- * intended optimisation - the tested flat-style builder in annotationTileStyle
- * is ready for that swap - but OpenLayers' WebGL vector-tile path does not use
+ * intended optimisation, but OpenLayers' WebGL vector-tile path does not use
  * the authenticated setFeatures loader this needs.
  */
 export function createAnnotationDisplayLayer(

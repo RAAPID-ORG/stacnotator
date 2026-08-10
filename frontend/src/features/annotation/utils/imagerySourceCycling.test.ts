@@ -58,11 +58,9 @@ describe('buildSourceGroups', () => {
     expect(groups).toEqual([{ id: 2, startIdx: 2, count: 1 }]);
   });
 
-  it('includes all sources when viewSourceIds is empty', () => {
+  it('yields no groups when viewSourceIds is empty', () => {
     const groups = buildSourceGroups(sources, new Set());
-    expect(groups).toHaveLength(2);
-    expect(groups[0]).toMatchObject({ id: 1, startIdx: 0 });
-    expect(groups[1]).toMatchObject({ id: 2, startIdx: 2 });
+    expect(groups).toEqual([]);
   });
 });
 

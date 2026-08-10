@@ -55,7 +55,7 @@ const TimelineSidebar = ({
   const allStepsRef = useRef<TimelineStep[]>([]);
   const yToStepRef = useRef<(clientY: number) => TimelineStep | null>(() => null);
 
-  const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign.imagery_views.find((v) => v.id === selectedViewId) ?? null;
 
   // Derive active source so the timeline only shows that source's collections
   const activeSourceId = useMemo(() => {

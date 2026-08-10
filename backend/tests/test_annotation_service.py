@@ -37,6 +37,7 @@ from src.annotation.service import (
     delete_annotation,
     update_annotation,
 )
+from src.campaigns.schemas import default_labelling_policy
 
 
 def _mock_db():
@@ -52,14 +53,13 @@ def _mock_db():
 def _make_campaign(label_ids=(1, 2, 3, 4, 5, 6, 7)):
     """Return a MagicMock campaign whose label set contains the given ids.
 
-    `settings.labelling_policy = None` so `get_labelling_policy` falls back to
-    the default policy (members-everywhere) instead of trying to validate a
-    MagicMock as a LabellingPolicy - policy-enforcement tests below override
-    it explicitly where they need a specific policy.
+    Carries the default labelling policy (members-everywhere) as its stored
+    dict, matching what every real settings row holds - policy-enforcement
+    tests below override it explicitly where they need a specific policy.
     """
     campaign = MagicMock()
     campaign.settings.labels = {str(lid): {"name": f"Label {lid}"} for lid in label_ids}
-    campaign.settings.labelling_policy = None
+    campaign.settings.labelling_policy = default_labelling_policy().model_dump(mode="json")
     campaign.is_public = False
     return campaign
 
@@ -916,6 +916,7 @@ class TestExportAnnotatorCount:
             created_by_user_id=user_id,
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=None,
@@ -1075,6 +1076,7 @@ class TestExportMergeCorrectness:
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=geometry,
@@ -1481,6 +1483,7 @@ class TestExportFormFields:
             created_by_user_id=user_id or uuid4(),
             created_at=datetime(2026, 5, 6, tzinfo=UTC),
             annotation_task_id=task.id if task else None,
+            counts_toward_completion=True if task else None,
             campaign_id=1,
             annotation_task=task,
             geometry=None,

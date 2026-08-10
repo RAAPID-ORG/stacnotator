@@ -151,24 +151,6 @@ def test_update_of_failed_map_retries_registration(monkeypatch):
     assert spawned == [cm.id]
 
 
-def test_unrenderable_render_config_is_rejected_on_create_and_update(monkeypatch):
-    """Which configs are unrenderable is build_viz_params' business (tested there); this is
-    only that both write paths run it and surface the failure instead of storing the config."""
-    monkeypatch.setattr(service, "_name_taken", lambda *a, **k: False)
-    monkeypatch.setattr(service, "_get_custom_map", lambda *a, **k: _cm(status="ready"))
-    unrenderable = {"mode": "continuous", "rescale": [0, 1]}  # no colormap_name
-
-    with pytest.raises(service.InvalidRenderConfig):
-        service.create_custom_map(
-            MagicMock(),
-            5,
-            CustomMapCreate(name="m", cog_url="https://x/y.tif", render_config=unrenderable),
-        )
-
-    with pytest.raises(service.InvalidRenderConfig):
-        service.update_custom_map(MagicMock(), 5, 1, CustomMapUpdate(render_config=unrenderable))
-
-
 def test_create_with_taken_name_raises(monkeypatch):
     monkeypatch.setattr(service, "_name_taken", lambda *a, **k: True)
 

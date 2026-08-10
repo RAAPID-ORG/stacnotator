@@ -16,6 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.campaigns.schemas import default_labelling_policy
 from src.database import Base
 from src.projects.access import VISIBILITY_PUBLIC
 
@@ -211,13 +212,7 @@ class CampaignSettings(Base):
     # docs/labelling-policy.md.
     labelling_policy: Mapped[dict] = mapped_column(
         JSONB,
-        server_default=text(
-            '\'{"explore": {"kinds": ["members"], "user_ids": []}, '
-            '"unassigned_tasks": {"kinds": ["members"], "user_ids": []}, '
-            '"assigned_tasks": {"kinds": ["members"], "user_ids": []}, '
-            '"complete_assigned": {"kinds": ["assignees", "admins", "authoritative"], '
-            '"user_ids": []}}\'::jsonb'
-        ),
+        server_default=text(f"'{default_labelling_policy().model_dump_json()}'::jsonb"),
         nullable=False,
     )
 

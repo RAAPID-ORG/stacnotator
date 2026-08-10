@@ -237,7 +237,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     [allTasks, taskFilter.assignedTo]
   );
 
-  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = workMode === 'explore';
   const campaignBbox = campaign
     ? ([

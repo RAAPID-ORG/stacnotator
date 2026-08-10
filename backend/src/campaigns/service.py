@@ -358,10 +358,7 @@ def update_campaign_labels(db: Session, campaign_id: int, labels: list) -> Campa
         label_key = str(label.id)
         if label_key not in existing_labels:
             continue
-        existing_entry = existing_labels[label_key]
-        existing_geom_type = (
-            existing_entry.get("geometry_type") if isinstance(existing_entry, dict) else None
-        )
+        existing_geom_type = existing_labels[label_key].get("geometry_type")
         new_geom_type = label.geometry_type
         if (
             existing_geom_type is not None

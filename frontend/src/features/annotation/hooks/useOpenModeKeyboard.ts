@@ -8,7 +8,12 @@ import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
 import { toggleVectorLayer, cycleVectorLayer } from '~/features/customLayers/utils/vectorLayerNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
-import { viewCollections, viewSources } from '../utils/viewCollections';
+import { viewSources } from '../utils/viewCollections';
+import {
+  buildSourceGroups,
+  computeCycleSource,
+  computeCycleVisualization,
+} from '../utils/imagerySourceCycling';
 
 /**
  * Keyboard shortcuts for open mode annotation.
@@ -56,23 +61,14 @@ export const useOpenModeKeyboard = () => {
 
     const labels = campaign.settings.labels;
     const extendedLabels = extendLabelsWithMetadata(labels);
-    const hasTimeseries = (campaign.time_series?.length ?? 0) > 0;
+    const hasTimeseries = campaign.time_series.length > 0;
     const hasVectorLayers = (campaign.vector_layers?.length ?? 0) > 0;
     const formFields = campaign.settings.form_fields ?? [];
 
-    const view = campaign.imagery_views?.find((v) => v.id === selectedViewId);
+    const view = campaign.imagery_views.find((v) => v.id === selectedViewId);
     const viewSourceIds = new Set(viewSources(campaign.imagery_sources, view).map((s) => s.id));
-    const sourceGroups: { id: number; startIdx: number; count: number }[] = [];
-    let offset = 0;
-    for (const src of campaign.imagery_sources) {
-      if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
-        offset += src.visualizations.length;
-        continue;
-      }
-      sourceGroups.push({ id: src.id, startIdx: offset, count: src.visualizations.length });
-      offset += src.visualizations.length;
-    }
-    const basemapIds = (campaign.basemaps ?? []).map((b) => `basemap-${b.id}`);
+    const sourceGroups = buildSourceGroups(campaign.imagery_sources, viewSourceIds);
+    const basemapIds = campaign.basemaps.map((b) => `basemap-${b.id}`);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Browser shortcuts (Ctrl/Cmd+R reload, Ctrl+P print, ...) must keep their default.
@@ -188,87 +184,50 @@ export const useOpenModeKeyboard = () => {
         }
         case 'i': {
           e.preventDefault();
-          const mapState = useMapStore.getState();
-          const currentIdx = mapState.selectedLayerIndex;
-          const isBasemap = mapState.showBasemap;
+          const map = useMapStore.getState();
 
           if (e.shiftKey) {
             // Shift+I: cycle visualizations within the active source
-            if (isBasemap || sourceGroups.length === 0 || !campaign) break;
-            const activeColId = mapState.activeCollectionId;
-            const activeSrc = campaign.imagery_sources.find((s) =>
-              s.collections.some((c) => c.id === activeColId)
+            if (!campaign) break;
+            const nextIndex = computeCycleVisualization(
+              sourceGroups,
+              campaign.imagery_sources,
+              map.selectedLayerIndex,
+              map.activeCollectionId,
+              map.showBasemap
             );
-            if (!activeSrc) break;
-            const activeGroup = sourceGroups.find((g) => g.id === activeSrc.id);
-            if (!activeGroup || activeGroup.count <= 1) break;
-            const posInGroup = Math.min(
-              Math.max(0, currentIdx - activeGroup.startIdx),
-              activeGroup.count - 1
-            );
-            const nextPos = (posInGroup + 1) % activeGroup.count;
-            useMapStore.getState().setSelectedLayerIndex(activeGroup.startIdx + nextPos);
+            if (nextIndex !== null) map.setSelectedLayerIndex(nextIndex);
           } else {
-            const map = useMapStore.getState();
-            const totalEntries = sourceGroups.length + basemapIds.length;
-            if (totalEntries <= 1) break;
+            if (!campaign || !view) break;
+            const result = computeCycleSource(
+              sourceGroups,
+              basemapIds,
+              campaign.imagery_sources,
+              view,
+              {
+                selectedLayerIndex: map.selectedLayerIndex,
+                showBasemap: map.showBasemap,
+                activeCollectionId: map.activeCollectionId,
+                selectedBasemapId: map.selectedBasemapId,
+                lastSourceState: map.lastSourceState,
+              }
+            );
 
-            const sources = campaign.imagery_sources;
-            const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId);
-            if (!selectedView) break;
-
-            const layerIdx = map.selectedLayerIndex;
-            const colId = map.activeCollectionId;
-            const onBasemap = map.showBasemap;
-
-            let currentEntryIdx: number;
-            if (onBasemap) {
-              const bmIdx = basemapIds.indexOf(map.selectedBasemapId ?? '');
-              currentEntryIdx = sourceGroups.length + Math.max(0, bmIdx);
-            } else {
-              const srcByCollection = sources.find((s) =>
-                s.collections.some((c) => c.id === colId)
+            if (result.action === 'noop') break;
+            if (result.recordState) {
+              map.recordSourceState(
+                result.recordState.sourceId,
+                result.recordState.collectionId,
+                result.recordState.layerIndex
               );
-              currentEntryIdx = srcByCollection
-                ? sourceGroups.findIndex((g) => g.id === srcByCollection.id)
-                : sourceGroups.findIndex(
-                    (g) => layerIdx >= g.startIdx && layerIdx < g.startIdx + g.count
-                  );
-              if (currentEntryIdx === -1) currentEntryIdx = 0;
             }
-
-            if (!onBasemap && colId !== null) {
-              const currentSrc = sources.find((s) => s.collections.some((c) => c.id === colId));
-              if (currentSrc) map.recordSourceState(currentSrc.id, colId, layerIdx);
-            }
-
-            const nextEntryIdx = (currentEntryIdx + 1) % totalEntries;
-
-            if (nextEntryIdx >= sourceGroups.length) {
-              const bmIdx = nextEntryIdx - sourceGroups.length;
+            if (result.action === 'switch-to-basemap') {
               map.setShowBasemap(true);
-              map.setSelectedBasemapId(basemapIds[bmIdx]);
-              break;
+              map.setSelectedBasemapId(result.basemapId);
+            } else {
+              map.setSelectedLayerIndex(result.layerIndex);
+              if (result.collectionId !== undefined) map.setActiveCollectionId(result.collectionId);
             }
-
-            const group = sourceGroups[nextEntryIdx];
-            const targetSource = sources.find((s) => s.id === group.id);
-            if (!targetSource) break;
-
-            const browsableCollectionIds = viewCollections(sources, selectedView)
-              .filter((e) => e.source.id === targetSource.id)
-              .map((e) => e.collection.id);
-
-            const remembered = map.lastSourceState[targetSource.id];
-            const canRestore =
-              !!remembered && browsableCollectionIds.includes(remembered.collectionId);
-
-            map.setSelectedLayerIndex(canRestore ? remembered.layerIndex : group.startIdx);
-
-            const targetCollectionId = canRestore
-              ? remembered.collectionId
-              : browsableCollectionIds[0];
-            if (targetCollectionId !== undefined) map.setActiveCollectionId(targetCollectionId);
           }
           break;
         }

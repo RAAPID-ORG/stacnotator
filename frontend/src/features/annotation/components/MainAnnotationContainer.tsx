@@ -48,7 +48,6 @@ export const MainAnnotationsContainer = ({
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
-  const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -118,7 +117,7 @@ export const MainAnnotationsContainer = ({
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
 
   // Resolve the active collection and its source
@@ -233,7 +232,6 @@ export const MainAnnotationsContainer = ({
     [campaign?.settings.labels]
   );
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
-  const magicWandActive = selectedLabelId != null && (magicWandEnabled[selectedLabelId] ?? false);
 
   // Flat viz entries mirroring the store's selectedLayerIndex ordering
   const allVizEntries = useMemo(
@@ -675,7 +673,6 @@ export const MainAnnotationsContainer = ({
             onViewChange={handleViewChange}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
-            magicWandActive={magicWandActive}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={timeseriesPoint}
           />
