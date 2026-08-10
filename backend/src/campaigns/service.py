@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import ARRAY, Text, cast, delete, func, or_, select, update
+from sqlalchemy import ARRAY, Text, and_, cast, delete, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -14,15 +14,13 @@ from src.annotation.geometries import (
     delete_rows_and_orphan_geometries,
 )
 from src.annotation.models import Annotation, AnnotationTask, Embedding
-from src.auth.models import User
 from src.campaigns import assignments
 from src.campaigns.models import (
     Campaign,
     CampaignSettings,
-    CampaignUser,
     TaskSet,
 )
-from src.campaigns.policy import _reject_anyone_kind_if_private, _strip_anyone_kind
+from src.campaigns.policy import _reject_anyone_kind_if_private
 from src.campaigns.policy import is_platform_admin as is_global_admin
 from src.campaigns.schemas import (
     CampaignListItemOut,
@@ -40,6 +38,19 @@ from src.imagery.registration import (
     spawn_background_mosaic_registration,
 )
 from src.imagery.service import create_imagery_from_editor_state
+from src.organizations.models import (
+    MEMBER_STATUS_ACTIVE,
+    ORG_STATUS_APPROVED,
+    Organization,
+    OrganizationUser,
+)
+from src.projects.access import (
+    VISIBILITY_ORGANIZATION,
+    VISIBILITY_PUBLIC,
+    has_project_access,
+    is_policy_member,
+)
+from src.projects.models import Project, ProjectUser
 from src.timeseries.models import TimeSeries
 from src.timeseries.service import sync_campaign_timeseries_windows
 
@@ -52,47 +63,62 @@ logger = logging.getLogger(__name__)
 
 
 def list_campaigns_with_user_roles(db: Session, user_id: UUID) -> list[CampaignListItemOut]:
-    """
-    Retrieve campaigns visible to the user, with role information.
-
-    Visibility rules:
-    - Platform admins see ALL campaigns.
-    - Regular users see public campaigns + campaigns they are a member/admin of.
-    """
-    stmt = select(Campaign).options(joinedload(Campaign.users)).order_by(Campaign.created_at.desc())
+    """Campaigns visible to the user with role info, resolved through the
+    owning project. Platform admins see all; others see platform-public
+    projects' campaigns, campaigns of projects they belong to, and org-public
+    campaigns of orgs they are active members of."""
+    stmt = (
+        select(Campaign).options(joinedload(Campaign.project)).order_by(Campaign.created_at.desc())
+    )
     campaigns = db.scalars(stmt).unique().all()
-
+    memberships = {
+        pu.project_id: pu
+        for pu in db.scalars(select(ProjectUser).where(ProjectUser.user_id == user_id))
+    }
+    org_ids = set(
+        db.scalars(
+            select(OrganizationUser.organization_id)
+            .join(Organization, Organization.id == OrganizationUser.organization_id)
+            .where(
+                OrganizationUser.user_id == user_id,
+                OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+                Organization.status == ORG_STATUS_APPROVED,
+            )
+        )
+    )
     user_is_global_admin = is_global_admin(db, user_id)
 
     results: list[CampaignListItemOut] = []
     for campaign in campaigns:
-        is_admin = user_is_global_admin
-        is_member = user_is_global_admin
-
-        if not user_is_global_admin:
-            for campaign_user in campaign.users:
-                if campaign_user.user_id == user_id:
-                    is_member = True
-                    is_admin = campaign_user.is_admin
-                    break
-
-            # Only include public campaigns or campaigns the user is a member of
-            if not campaign.is_public and not is_member:
-                continue
-
+        membership = memberships.get(campaign.project_id)
+        is_active_org_member = campaign.project.organization_id in org_ids
+        if not has_project_access(
+            visibility=campaign.project.visibility,
+            is_active_org_member=is_active_org_member,
+            is_member=membership is not None,
+            is_platform_admin=user_is_global_admin,
+        ):
+            continue
+        is_member = is_policy_member(
+            visibility=campaign.project.visibility,
+            is_active_org_member=is_active_org_member,
+            is_member=membership is not None,
+            is_platform_admin=user_is_global_admin,
+        )
+        is_admin = user_is_global_admin or (membership is not None and membership.is_admin)
         results.append(
             CampaignListItemOut(
                 id=campaign.id,
                 name=campaign.name,
                 created_at=campaign.created_at,
+                project_id=campaign.project_id,
                 is_admin=is_admin,
                 is_member=is_member,
-                is_public=campaign.is_public,
+                is_public=campaign.project.visibility == VISIBILITY_PUBLIC,
                 registration_status=campaign.registration_status,
                 embedding_status=campaign.embedding_status,
             )
         )
-
     return results
 
 
@@ -104,10 +130,32 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
     if is_global_admin(db, user_id):
         return list(db.scalars(select(Campaign.id)).all())
 
+    active_org_ids = (
+        select(OrganizationUser.organization_id)
+        .join(Organization, Organization.id == OrganizationUser.organization_id)
+        .where(
+            OrganizationUser.user_id == user_id,
+            OrganizationUser.status == MEMBER_STATUS_ACTIVE,
+            Organization.status == ORG_STATUS_APPROVED,
+        )
+    )
     stmt = (
         select(Campaign.id)
-        .outerjoin(CampaignUser, CampaignUser.campaign_id == Campaign.id)
-        .where(or_(Campaign.is_public, CampaignUser.user_id == user_id))
+        .join(Project, Project.id == Campaign.project_id)
+        .outerjoin(
+            ProjectUser,
+            and_(ProjectUser.project_id == Project.id, ProjectUser.user_id == user_id),
+        )
+        .where(
+            or_(
+                Project.visibility == VISIBILITY_PUBLIC,
+                ProjectUser.user_id.is_not(None),
+                and_(
+                    Project.visibility == VISIBILITY_ORGANIZATION,
+                    Project.organization_id.in_(active_org_ids),
+                ),
+            )
+        )
         .distinct()
     )
     return list(db.scalars(stmt).all())
@@ -119,6 +167,7 @@ def visible_campaign_ids(db: Session, user_id: UUID) -> list[int]:
 # response into thousands of cross-region round-trips.
 _CAMPAIGN_FULL_LOAD_OPTIONS = (
     joinedload(Campaign.settings),
+    joinedload(Campaign.project),
     selectinload(Campaign.canvas_layouts),
     selectinload(Campaign.time_series),
     selectinload(Campaign.basemaps),
@@ -153,7 +202,7 @@ def create_campaign(
     *,
     name: str,
     mode: str,
-    is_public: bool = False,
+    project_id: int,
     settings: CampaignSettingsCreate,
     user_id: UUID,
     imagery_editor_state=None,
@@ -161,14 +210,17 @@ def create_campaign(
     labelling_policy: LabellingPolicy | None = None,
 ) -> Campaign:
     """
-    Create a new campaign with default layout, settings, admin user, and optionally imagery/timeseries.
+    Create a new campaign with default layout and settings, optionally imagery/timeseries.
+    Membership lives on the owning project, not the campaign.
 
     Args:
         db: Database session
         name: Campaign name
         mode: Campaign mode ('tasks' or 'open')
+        project_id: Owning project; its is_public flag governs the default
+            labelling policy and the 'anyone' audience check
         settings: Campaign configuration settings
-        user_id: ID of user to set as admin
+        user_id: ID of the creating user (used for imagery editor state)
         imagery_editor_state: Optional imagery editor state to persist
         timeseries_configs: Optional list of timeseries configurations to create
         labelling_policy: Who may label what; defaults to default_labelling_policy()
@@ -177,11 +229,14 @@ def create_campaign(
     Returns:
         Created campaign with all relationships loaded
     """
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    is_public = project.visibility == VISIBILITY_PUBLIC
     resolved_policy = labelling_policy or default_labelling_policy(is_public=is_public)
     _reject_anyone_kind_if_private(resolved_policy, is_public)
 
-    # Create campaign first
-    campaign = Campaign(name=name, mode=mode, is_public=is_public)
+    campaign = Campaign(name=name, mode=mode, project_id=project_id)
     db.add(campaign)
     db.flush()  # Get campaign.id
 
@@ -197,16 +252,6 @@ def create_campaign(
         **settings.to_orm(),
     )
     db.add(campaign_settings)
-
-    # Add user as admin. The campaign creator is also seeded as an
-    # authoritative reviewer so they can resolve tasks out of the box.
-    campaign_user = CampaignUser(
-        user_id=user_id,
-        campaign_id=campaign.id,
-        is_admin=True,
-        is_authoritative_reviewer=True,
-    )
-    db.add(campaign_user)
 
     # Flush to get relationships loaded
     db.flush()
@@ -240,7 +285,6 @@ def create_campaign(
             db,
             campaign=campaign,
             editor_state=imagery_editor_state,
-            user=db.get(User, user_id),
         )
         pending_registrations = imagery_result.get("pending_registrations", [])
         registration_bbox = imagery_result.get("bbox", [])
@@ -267,109 +311,11 @@ def create_campaign(
     return get_campaign_full(db, campaign.id)
 
 
-def add_users_to_campaign_bulk(
-    db: Session,
-    campaign_id: int,
-    user_ids: list[UUID],
-) -> None:
-    """
-    Add multiple users to a campaign by email addresses.
-    All users are added with MEMBER role.
-    """
-    stmt = select(User).where(User.id.in_(user_ids))
-    users = db.scalars(stmt).all()
-
-    found_user_ids = {user.id for user in users}
-    missing_user_ids = set(user_ids) - found_user_ids
-    if missing_user_ids:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Users not found with IDs: {', '.join(str(uid) for uid in missing_user_ids)}",
-        )
-
-    campaign_users = [
-        CampaignUser(
-            user_id=user.id,
-            campaign_id=campaign_id,
-            is_admin=False,
-            is_authoritative_reviewer=False,
-        )
-        for user in users
-    ]
-
-    db.add_all(campaign_users)
-    db.commit()
-
-
-def make_admin(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """
-    Promote a campaign user to admin role.
-    """
-    result = db.execute(
-        update(CampaignUser)
-        .where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
-        .values(is_admin=True)
-    )
-
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="User is not assigned to this campaign")
-
-    db.commit()
-
-
-def make_authorative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """
-    Make a campaign user an authorative reviewer.
-    """
-    result = db.execute(
-        update(CampaignUser)
-        .where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
-        .values(is_authoritative_reviewer=True)
-    )
-
-    if result.rowcount == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="User is not assigned to the campaign",
-        )
-
-    db.commit()
-
-
 def update_campaign_name(db: Session, campaign_id: int, new_name: str) -> Campaign:
     campaign = db.get(Campaign, campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     campaign.name = new_name
-    db.commit()
-    return get_campaign_full(db, campaign_id)
-
-
-def update_campaign_visibility(db: Session, campaign_id: int, is_public: bool) -> Campaign:
-    """Toggle a campaign between public and private.
-
-    Flipping to private strips 'anyone' from every axis of the stored
-    labelling policy: 'anyone' is only a valid audience on a public campaign
-    (enforced on write by `_reject_anyone_kind_if_private`), so a policy that
-    was written while public must not keep granting anonymous/any-visitor
-    access once the campaign goes private.
-    """
-    campaign = db.get(Campaign, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-    campaign.is_public = is_public
-    if not is_public and campaign.settings and campaign.settings.labelling_policy:
-        current_policy = LabellingPolicy.model_validate(campaign.settings.labelling_policy)
-        campaign.settings.labelling_policy = _strip_anyone_kind(current_policy).model_dump(
-            mode="json"
-        )
-        flag_modified(campaign.settings, "labelling_policy")
     db.commit()
     return get_campaign_full(db, campaign_id)
 
@@ -659,100 +605,6 @@ def update_embedding_year(
     }
 
 
-def _assert_not_last_admin(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """Raise HTTP 409 if the given user is the sole admin of the campaign."""
-    is_admin = db.scalar(
-        select(CampaignUser.is_admin).where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
-    )
-    if not is_admin:
-        return
-    admin_count = db.scalar(
-        select(func.count())
-        .select_from(CampaignUser)
-        .where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.is_admin.is_(True),
-        )
-    )
-    if admin_count <= 1:
-        raise HTTPException(
-            status_code=409,
-            detail="Cannot remove the last campaign admin",
-        )
-
-
-def remove_user_from_campaign(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """
-    Remove a user from a campaign.
-
-    This only deletes the user's membership record (CampaignUser).
-    All annotations created by the user remain in the campaign, as the
-    Annotation model uses RESTRICT on user deletion.
-    """
-    _assert_not_last_admin(db, campaign_id, user_id)
-    result = db.execute(
-        delete(CampaignUser).where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-        )
-    )
-
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="User is not assigned to this campaign")
-
-    db.commit()
-
-
-def demote_admin(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """
-    Demote a campaign admin to member role.
-    """
-    _assert_not_last_admin(db, campaign_id, user_id)
-    result = db.execute(
-        update(CampaignUser)
-        .where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-            CampaignUser.is_admin.is_(True),
-        )
-        .values(is_admin=False)
-    )
-
-    if result.rowcount == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="User is not an admin of this campaign or not assigned to the campaign",
-        )
-
-    db.commit()
-
-
-def demote_authorative_reviewer(db: Session, campaign_id: int, user_id: UUID) -> None:
-    """
-    Demote a campaign authorative reviewer to normal user.
-    """
-    result = db.execute(
-        update(CampaignUser)
-        .where(
-            CampaignUser.campaign_id == campaign_id,
-            CampaignUser.user_id == user_id,
-            CampaignUser.is_authoritative_reviewer.is_(True),
-        )
-        .values(is_authoritative_reviewer=False)
-    )
-
-    if result.rowcount == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="User is not an authorative reviewer of this campaign or not assigned to the campaign",
-        )
-
-    db.commit()
-
-
 def delete_annotation_tasks(db: Session, campaign_id: int, task_ids: list[int]) -> int:
     """
     Delete multiple annotation tasks from a campaign.
@@ -799,7 +651,6 @@ def delete_campaign(db: Session, campaign_id: int) -> None:
     - Timeseries
     - Annotations
     - Annotation task items
-    - Campaign user associations
 
     Args:
         db: Database session

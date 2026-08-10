@@ -4,7 +4,6 @@ export const MOCK_USER = {
   id: TEST_USER_ID,
   email: 'test@example.com',
   display_name: 'Test User',
-  is_approved: true,
   is_admin: false,
   issuer: 'firebase',
 };
@@ -131,9 +130,15 @@ const DEFAULT_LAYOUT = {
 // Full campaign object
 export const MOCK_CAMPAIGN = {
   id: 42,
+  project_id: 7,
   name: 'Test Campaign',
   created_at: '2024-01-01T00:00:00Z',
   mode: 'tasks',
+  // Viewer roles are stamped on the campaign response; the default user is a
+  // plain project member. `elevateToAuthoritativeReviewer` overrides them.
+  viewer_is_admin: false,
+  viewer_is_member: true,
+  viewer_is_authoritative_reviewer: false,
   settings: {
     labels: LABELS,
     bbox_west: 30.0,
@@ -141,7 +146,7 @@ export const MOCK_CAMPAIGN = {
     bbox_east: 31.0,
     bbox_north: 51.0,
     embedding_year: null,
-    // Mirrors DEFAULT_LABELLING_POLICY (LabellingPolicyEditor.tsx) / backend
+    // Mirrors DEFAULT_LABELLING_POLICY (campaigns/utils/labellingPolicy.ts) / backend
     // default_labelling_policy(): AnnotationPage/AnnotationToolbar read
     // campaign.settings.labelling_policy.explore unconditionally.
     labelling_policy: {
@@ -331,63 +336,97 @@ export const MOCK_TASK_SETS = [
   },
 ];
 
-export const MOCK_CAMPAIGN_USERS = {
-  campaign_id: 42,
-  users: [
+export const MOCK_ORG = {
+  id: 3,
+  name: 'Test Org',
+  description: null,
+  status: 'approved',
+  allows_internal_storage: false,
+  is_admin: true,
+};
+
+export const MOCK_PROJECT = {
+  id: 7,
+  organization_id: MOCK_ORG.id,
+  name: 'Test Project',
+  description: 'Holds the test campaign',
+  visibility: 'private',
+  created_at: '2024-01-01T00:00:00Z',
+  is_admin: true,
+  is_member: true,
+  has_access: true,
+  campaign_count: 1,
+};
+
+/** Same organization, no membership: the row is listed but cannot be opened. */
+export const MOCK_PROJECT_LISTED = {
+  id: 8,
+  organization_id: MOCK_ORG.id,
+  name: 'Neighbour Project',
+  description: null,
+  visibility: 'private',
+  created_at: '2024-01-02T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: false,
+  campaign_count: 2,
+};
+
+/** Org-public: open to active org members without a membership row, so the
+ *  backend reports access but no member/admin standing. */
+export const MOCK_PROJECT_ORG_PUBLIC = {
+  id: 9,
+  organization_id: MOCK_ORG.id,
+  name: 'Org Shared Project',
+  description: 'Open to everyone in the organization',
+  visibility: 'organization',
+  created_at: '2024-01-03T00:00:00Z',
+  is_admin: false,
+  is_member: false,
+  has_access: true,
+  campaign_count: 0,
+};
+
+export const MOCK_PROJECT_CAMPAIGNS = {
+  items: [
     {
-      user: {
-        id: TEST_USER_ID,
-        email: 'test@example.com',
-        display_name: 'Test User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authorative_reviewer: false,
-    },
-    {
-      user: {
-        id: 'other-user-xyz',
-        email: 'other@example.com',
-        display_name: 'Other User',
-        is_approved: true,
-        is_admin: false,
-        issuer: 'firebase',
-      },
-      is_admin: false,
-      is_authorative_reviewer: false,
+      id: 42,
+      name: 'Test Campaign',
+      created_at: '2024-01-01T00:00:00Z',
+      project_id: MOCK_PROJECT.id,
+      is_admin: true,
+      is_member: true,
+      is_public: false,
+      registration_status: 'ready',
+      embedding_status: 'ready',
     },
   ],
 };
 
-/** Variant where the current user is an authoritative reviewer. */
-export const MOCK_CAMPAIGN_USERS_AUTHORITATIVE = {
-  campaign_id: 42,
+export const MOCK_PROJECT_USERS = {
+  project_id: 7,
   users: [
     {
       user: {
         id: TEST_USER_ID,
         email: 'test@example.com',
         display_name: 'Test User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: true,
+      is_authoritative_reviewer: false,
     },
     {
       user: {
         id: 'other-user-xyz',
         email: 'other@example.com',
         display_name: 'Other User',
-        is_approved: true,
         is_admin: false,
         issuer: 'firebase',
       },
       is_admin: false,
-      is_authorative_reviewer: false,
+      is_authoritative_reviewer: false,
     },
   ],
 };

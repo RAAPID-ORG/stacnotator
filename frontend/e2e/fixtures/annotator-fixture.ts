@@ -1,20 +1,27 @@
 /**
- * Core Playwright fixture that:
- *   1. Bypasses Firebase auth entirely (injects auth state into the app)
- *   2. Mocks backend API endpoints with deterministic data
- *   3. Exposes helpers to capture and assert on outgoing API requests
+ * Core Playwright fixtures that:
+ *   1. Bypass Firebase auth entirely (inject auth state into the app)
+ *   2. Mock backend API endpoints with deterministic data
+ *   3. Expose helpers to capture and assert on outgoing API requests
  *
  * Tests import `test` and `expect` from this file instead of @playwright/test.
+ *
+ * `appPage` is an authenticated, un-navigated page with the organization and
+ * project endpoints mocked - use it for pages outside the annotation view.
+ * `annotationPage` builds on it and lands on the annotate route.
  */
 import { test as base, expect, type Page, type Route } from '@playwright/test';
 import {
   MOCK_USER,
   MOCK_CAMPAIGN,
+  MOCK_ORG,
+  MOCK_PROJECT,
+  MOCK_PROJECT_CAMPAIGNS,
+  MOCK_PROJECT_LISTED,
+  MOCK_PROJECT_ORG_PUBLIC,
   MOCK_TASK_LIST,
   MOCK_TASK_SETS,
-  MOCK_CAMPAIGN_USERS,
-  MOCK_CAMPAIGN_USERS_AUTHORITATIVE,
-  ALL_TASKS,
+  MOCK_PROJECT_USERS,
   makeSubmitResponse,
   makeDeleteResponse,
   MOCK_OPEN_ANNOTATIONS,
@@ -22,6 +29,22 @@ import {
   makeUpdateAnnotationResponse,
   MOCK_TIMESERIES_DATA,
 } from './mock-data';
+
+/** Endpoints the app shell and every project-scoped page hit. Regexes rather
+ *  than globs so `/api/projects/` (list) and `/api/projects/7` (detail) stay
+ *  apart. Specs re-register any of them to serve their own payload - Playwright
+ *  matches most-recently-registered first. */
+export const ROUTE = {
+  organizations: /\/api\/organizations\/(\?.*)?$/,
+  organizationInvites: /\/api\/organizations\/\d+\/invites(\/\d+)?(\?.*)?$/,
+  projects: /\/api\/projects\/(\?.*)?$/,
+  project: /\/api\/projects\/\d+(\?.*)?$/,
+  projectCampaigns: /\/api\/projects\/\d+\/campaigns/,
+  projectInvites: /\/api\/projects\/\d+\/invites(\/\d+)?(\?.*)?$/,
+  projectTilers: /\/api\/projects\/\d+\/tilers/,
+  projectUsers: /\/api\/projects\/\d+\/users(\?.*)?$/,
+  users: /\/api\/auth\/users(\?.*)?$/,
+};
 
 /** Captured API request for assertions. */
 export interface CapturedRequest {
@@ -66,7 +89,7 @@ function extractPathParams(pathname: string): Record<string, string> {
     [/^\/api\/campaigns\/(\d+)\/create-annotation$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/annotations$/, ['campaign_id']],
     [/^\/api\/campaigns\/(\d+)\/detailed$/, ['campaign_id']],
-    [/^\/api\/campaigns\/(\d+)\/users$/, ['campaign_id']],
+    [/^\/api\/projects\/(\d+)\/users$/, ['project_id']],
     [/^\/api\/campaigns\/(\d+)\/(\d+)\/validate$/, ['campaign_id', 'annotation_task_id']],
   ];
 
@@ -91,26 +114,17 @@ async function parseBody(route: Route): Promise<any> {
 }
 
 /**
- * Wait for the task store's `isNavigating` flag to clear.
- *
- * The store sets `isNavigating: true` for ~500ms after every task change
- * (nextTask/previousTask/goToTask/setTaskFilter/submitAnnotation auto-advance)
- * and silently drops `w`/`s`/Enter keypresses while it's true. Waiting on
- * the DOM ("Loading…" button text) is racy: the text can flash by faster than
- * Playwright's polling interval. The store flag is the authoritative signal.
- *
- * Source exposes `__TASK_STORE__` to window in dev/test mode.
- */
-/**
- * Re-mock the campaign-users endpoint so the current user is an authoritative
- * reviewer, then reload the page so the campaign store picks it up. Must be
- * called on a page that already went through `annotationPage` setup.
+ * Re-mock the campaign detail endpoint so its viewer role flags mark the current
+ * user as an authoritative reviewer, then reload the page so the campaign store
+ * picks it up. Must be called on a page that already went through
+ * `annotationPage` setup.
  */
 export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> {
   // Re-registered routes take precedence (Playwright runs in LIFO order).
-  await page.route('**/api/campaigns/*/users', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    await route.fulfill({ json: MOCK_CAMPAIGN_USERS_AUTHORITATIVE });
+  await page.route('**/api/campaigns/*/detailed', async (route) => {
+    await route.fulfill({
+      json: { ...MOCK_CAMPAIGN, viewer_is_authoritative_reviewer: true },
+    });
   });
   await page.reload();
   await page.waitForSelector('[data-tour="toolbar"]', { timeout: 15_000 });
@@ -121,6 +135,17 @@ export async function elevateToAuthoritativeReviewer(page: Page): Promise<void> 
     .waitFor({ state: 'visible', timeout: 5000 });
 }
 
+/**
+ * Wait for the task store's `isNavigating` flag to clear.
+ *
+ * The store sets `isNavigating: true` for ~500ms after every task change
+ * (nextTask/previousTask/goToTask/setTaskFilter/submitAnnotation auto-advance)
+ * and silently drops `w`/`s`/Enter keypresses while it's true. Waiting on
+ * the DOM ("Loading…" button text) is racy: the text can flash by faster than
+ * Playwright's polling interval. The store flag is the authoritative signal.
+ *
+ * Source exposes `__TASK_STORE__` to window in dev/test mode.
+ */
 export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> {
   await page.waitForFunction(
     () => {
@@ -138,9 +163,264 @@ export async function waitForNavIdle(page: Page, timeout = 5000): Promise<void> 
   );
 }
 
+/** Catch-all + tiles + the current user. Registered first so every later route
+ *  (which Playwright prefers) can override it. */
+async function installBaseApiMocks(page: Page, api: ApiCapture): Promise<void> {
+  // Catch-all: any unhandled /api/ call -> 200 so tests don't crash
+  await page.route('**/api/**', async (route) => {
+    const url = route.request().url();
+    const pathname = new URL(url).pathname;
+    // Skip Vite module requests (they contain /src/ or /node_modules/)
+    if (pathname.includes('/src/') || pathname.includes('/node_modules/')) {
+      return route.fallback();
+    }
+    console.warn(`[E2E] Unhandled API call: ${route.request().method()} ${url}`);
+    api.requests.push({
+      method: route.request().method(),
+      url,
+      pathname,
+      body: null,
+      pathParams: {},
+    });
+    await route.fulfill({ status: 200, json: {} });
+  });
+
+  // Tile requests: record them and return a 1x1 transparent PNG
+  await page.route('**/tiles.example.com/**', async (route) => {
+    api.requests.push({
+      method: 'GET',
+      url: route.request().url(),
+      pathname: new URL(route.request().url()).pathname,
+      body: null,
+      pathParams: {},
+    });
+    const PIXEL =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlJRXRFWHRkYXRl' +
+      'OmNyZWF0ZQAyMDI0LTAxLTAxVDAwOjAwOjAwKzAwOjAw5x5CGQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNC0wMS0w' +
+      'MVQwMDowMDowMCswMDowMJZD+qUAAAAASUVORK5CYII=';
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(PIXEL, 'base64'),
+    });
+  });
+
+  // GET /api/auth/me
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({ json: MOCK_USER });
+  });
+
+  // GET /api/auth/users (the add-member picker)
+  await page.route(ROUTE.users, async (route) => {
+    await route.fulfill({ json: [MOCK_USER] });
+  });
+}
+
+/** Organizations and projects: one approved organization holding the campaign's
+ *  project plus a same-org project the viewer is not a member of. */
+async function installOrgProjectMocks(page: Page, api: ApiCapture): Promise<void> {
+  await page.route(ROUTE.organizations, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { items: [MOCK_ORG] } });
+  });
+
+  await page.route(ROUTE.project, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: MOCK_PROJECT });
+  });
+
+  await page.route(ROUTE.projects, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      json: { items: [MOCK_PROJECT, MOCK_PROJECT_LISTED, MOCK_PROJECT_ORG_PUBLIC] },
+    });
+  });
+
+  // Pending email pre-authorizations: none by default; specs re-register to
+  // exercise the revoke flow.
+  await page.route(ROUTE.projectInvites, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { items: [] } });
+  });
+  await page.route(ROUTE.organizationInvites, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: { items: [] } });
+  });
+
+  await page.route(ROUTE.projectCampaigns, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({ json: MOCK_PROJECT_CAMPAIGNS });
+  });
+
+  // The imagery editors read the project's tiler allowlist; the hook degrades
+  // to "no tilers" on failure, so mock it to keep that path deterministic.
+  await page.route(ROUTE.projectTilers, async (route) => {
+    await route.fulfill({ json: { tilers: [], allows_internal_storage: false } });
+  });
+
+  await page.route(ROUTE.projectUsers, async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') return route.fulfill({ json: MOCK_PROJECT_USERS });
+    if (method !== 'POST') return route.fallback();
+    const pathname = new URL(route.request().url()).pathname;
+    api.requests.push({
+      method,
+      url: route.request().url(),
+      pathname,
+      body: await parseBody(route),
+      pathParams: extractPathParams(pathname),
+    });
+    await route.fulfill({ json: { added: [], invited_emails: [] } });
+  });
+}
+
+/**
+ * Make the app see a logged-in user without any real Firebase traffic:
+ *   - `getAuth()` returns a fake auth object with `currentUser` set
+ *   - `onAuthStateChanged()` fires the callback with a truthy user so
+ *     AuthProvider/AuthGate proceed instantly
+ *   - `currentUser.getIdToken()` returns a fake token string
+ *   - all Firebase network calls are blocked to avoid side effects
+ */
+async function installAuthBypass(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    // Suppress the first-visit guided tour: tests need the annotation
+    // toolbar reachable without an overlay on top. Seeds the persisted
+    // preferences store (`usePreferencesStore`) so hasSeenTour() returns
+    // true. Key is `${accountId}:${campaignId}` for the test user/campaign.
+    // This init script re-runs on every reload, so MERGE rather than
+    // overwrite - otherwise other persisted preferences a test wrote (e.g.
+    // annotation styles) would be wiped on reload.
+    try {
+      const key = 'stacnotator:preferences';
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      const state = existing.state || {};
+      state.tourSeenByCampaign = {
+        ...(state.tourSeenByCampaign || {}),
+        'test-user-abc-123:42': true,
+      };
+      localStorage.setItem(
+        key,
+        JSON.stringify({ ...existing, state, version: existing.version ?? 1 })
+      );
+    } catch {
+      // localStorage unavailable - ignore
+    }
+
+    const fakeUser = {
+      uid: 'test-user-abc-123',
+      email: 'test@example.com',
+      displayName: 'Test User',
+      getIdToken: () => Promise.resolve('fake-firebase-id-token'),
+      getIdTokenResult: () =>
+        Promise.resolve({
+          token: 'fake-firebase-id-token',
+          claims: {},
+          expirationTime: new Date(Date.now() + 3600_000).toISOString(),
+          issuedAtTime: new Date().toISOString(),
+          signInProvider: 'custom',
+          authTime: new Date().toISOString(),
+          signInSecondFactor: null,
+        }),
+    };
+
+    const fakeAuth = {
+      currentUser: fakeUser,
+      onAuthStateChanged: (cb: any) => {
+        // Fire immediately so AuthProvider sets ready=true
+        setTimeout(() => cb(fakeUser), 0);
+        return () => {}; // unsubscribe no-op
+      },
+      signOut: () => Promise.resolve(),
+    };
+
+    // Patch the ES module by intercepting import resolution.
+    // Vite serves modules via native ESM, so we override the global
+    // firebase/auth functions that the adapters import.
+    // We do this by creating a global that our route-level script
+    // injection can reference.
+    (window as any).__FAKE_FIREBASE_AUTH__ = fakeAuth;
+    (window as any).__FAKE_FIREBASE_USER__ = fakeUser;
+  });
+
+  // Block all Firebase network traffic so the real SDK never initializes
+  await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+  await page.route('**/securetoken.googleapis.com/**', (route) => route.abort());
+  await page.route('**/apis.google.com/**', (route) => route.abort());
+  await page.route('**/www.googleapis.com/**', (route) => route.abort());
+  await page.route('**/firebaseinstallations.googleapis.com/**', (route) => route.abort());
+
+  // Intercept the Firebase Auth JS module served by Vite and replace
+  // the key exports with our fakes. This runs before the app code
+  // imports from 'firebase/auth'.
+  // Vite optimizes deps to paths like /node_modules/.vite/deps/firebase_auth-HASH.js
+  // or /node_modules/.vite/deps/chunk-HASH.js that re-exports firebase_auth.
+  // We also intercept firebase/app to prevent initialization errors.
+  await page.route(/firebase_auth/, async (route) => {
+    // Serve a tiny ESM module that exposes our stubs. Must mirror EVERY
+    // export the app's adapters import; missing names cause an ESM
+    // resolution error and the page renders blank.
+    const body = `
+        const fakeAuth = window.__FAKE_FIREBASE_AUTH__;
+        const fakeUser = window.__FAKE_FIREBASE_USER__;
+
+        export function getAuth() { return fakeAuth; }
+        export function onAuthStateChanged(auth, cb) {
+          setTimeout(() => cb(fakeUser), 0);
+          return () => {};
+        }
+        export function signInWithPopup() { return Promise.resolve({ user: fakeUser }); }
+        export function signInWithEmailAndPassword() { return Promise.resolve({ user: fakeUser }); }
+        export function createUserWithEmailAndPassword() { return Promise.resolve({ user: fakeUser }); }
+        export function sendEmailVerification() { return Promise.resolve(); }
+        export function sendPasswordResetEmail() { return Promise.resolve(); }
+        export function updatePassword() { return Promise.resolve(); }
+        export function reauthenticateWithCredential() { return Promise.resolve({ user: fakeUser }); }
+        export function signOut() { return Promise.resolve(); }
+        export class GoogleAuthProvider { addScope() {} }
+        export class EmailAuthProvider {
+          static credential(email, password) { return { email, password, providerId: 'password' }; }
+        }
+        export function connectAuthEmulator() {}
+        export function initializeAuth() { return fakeAuth; }
+        export function getReactNativePersistence() { return {}; }
+        export function browserLocalPersistence() { return {}; }
+        export function browserSessionPersistence() { return {}; }
+        export function inMemoryPersistence() { return {}; }
+        export function setPersistence() { return Promise.resolve(); }
+
+        export default { getAuth, onAuthStateChanged, signOut };
+      `;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body,
+    });
+  });
+
+  await page.route(/firebase_app/, async (route) => {
+    const body = `
+        export function initializeApp() { return {}; }
+        export function getApp() { return {}; }
+        export function getApps() { return [{}]; }
+        export default { initializeApp, getApp, getApps };
+      `;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body,
+    });
+  });
+}
+
 export type AnnotatorFixtures = {
   /** All captured API requests */
   api: ApiCapture;
+  /**
+   * Authenticated page with the shell-level API mocks in place, sitting on
+   * about:blank - the test navigates wherever it needs.
+   */
+  appPage: Page;
   /**
    * Navigate to the annotation page for campaign 42 with all API mocks active.
    * The page will be fully loaded with task data visible.
@@ -153,9 +433,20 @@ export const test = base.extend<AnnotatorFixtures>({
     await use(new ApiCapture());
   },
 
-  annotationPage: async ({ page, api }, use) => {
+  appPage: async ({ page, api }, use) => {
+    // IMPORTANT: Playwright checks routes in LIFO order (last registered = highest priority).
+    // Register the catch-all FIRST so specific routes override it.
+    await installBaseApiMocks(page, api);
+    await installOrgProjectMocks(page, api);
+    await installAuthBypass(page);
+    await use(page);
+  },
+
+  annotationPage: async ({ appPage, api }, use) => {
+    const page = appPage;
+
     // Track ongoing task list data (mutable so tests can change it mid-flight)
-    let taskListData = { ...MOCK_TASK_LIST };
+    const taskListData = { ...MOCK_TASK_LIST };
 
     // Open-mode annotation list (mutable so create/delete reflect within a test).
     // Reset per page setup so each test starts from the same baseline.
@@ -164,56 +455,6 @@ export const test = base.extend<AnnotatorFixtures>({
     // Fixed bbox covering the mock open-mode annotations (near 30.5, 50.5),
     // used by the extent / navigation tile-metadata mocks.
     const openAnnotationsBbox = (): [number, number, number, number] => [30.4, 50.4, 30.6, 50.6];
-
-    // Mock API routes
-    // IMPORTANT: Playwright checks routes in LIFO order (last registered = highest priority).
-    // Register catch-all FIRST so specific routes override it.
-
-    // Catch-all: any unhandled /api/ call -> 200 so tests don't crash
-    await page.route('**/api/**', async (route) => {
-      const url = route.request().url();
-      const pathname = new URL(url).pathname;
-      // Skip Vite module requests (they contain /src/ or /node_modules/)
-      if (pathname.includes('/src/') || pathname.includes('/node_modules/')) {
-        return route.fallback();
-      }
-      console.warn(`[E2E] Unhandled API call: ${route.request().method()} ${url}`);
-      api.requests.push({
-        method: route.request().method(),
-        url,
-        pathname,
-        body: null,
-        pathParams: {},
-      });
-      await route.fulfill({ status: 200, json: {} });
-    });
-
-    // Tile requests: record them and return a 1x1 transparent PNG
-    await page.route('**/tiles.example.com/**', async (route) => {
-      api.requests.push({
-        method: 'GET',
-        url: route.request().url(),
-        pathname: new URL(route.request().url()).pathname,
-        body: null,
-        pathParams: {},
-      });
-      const PIXEL =
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlJRXRFWHRkYXRl' +
-        'OmNyZWF0ZQAyMDI0LTAxLTAxVDAwOjAwOjAwKzAwOjAw5x5CGQAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNC0wMS0w' +
-        'MVQwMDowMDowMCswMDowMJZD+qUAAAAASUVORK5CYII=';
-      await route.fulfill({
-        status: 200,
-        contentType: 'image/png',
-        body: Buffer.from(PIXEL, 'base64'),
-      });
-    });
-
-    // Now register specific routes (these have higher priority than the catch-all above)
-
-    // GET /api/auth/me
-    await page.route('**/api/auth/me', async (route) => {
-      await route.fulfill({ json: MOCK_USER });
-    });
 
     // GET /api/timeseries/:id/:lat/:lon/data
     // Default so any campaign with a timeseries widget gets real data instead
@@ -241,12 +482,6 @@ export const test = base.extend<AnnotatorFixtures>({
         pathParams: extractPathParams(new URL(route.request().url()).pathname),
       });
       await route.fulfill({ json: MOCK_CAMPAIGN });
-    });
-
-    // GET /api/campaigns/:id/users
-    await page.route('**/api/campaigns/*/users', async (route) => {
-      if (route.request().method() !== 'GET') return route.fallback();
-      await route.fulfill({ json: MOCK_CAMPAIGN_USERS });
     });
 
     // GET /api/campaigns/:id/annotation-tasks
@@ -449,149 +684,8 @@ export const test = base.extend<AnnotatorFixtures>({
       });
     });
 
-    // Bypass Firebase auth
-    // Monkey-patch the Firebase Auth module so the app sees a logged-in
-    // user immediately, without any real Firebase network traffic.
-    //
-    // How it works:
-    //   - `getAuth()` returns a fake auth object with `currentUser` set
-    //   - `onAuthStateChanged()` fires the callback synchronously with a
-    //     truthy user so AuthProvider/AuthGate proceed instantly
-    //   - `currentUser.getIdToken()` returns a fake token string
-    //   - `signOut()` is a no-op
-    //   - All Firebase network calls are blocked to avoid side effects
-
-    await page.addInitScript(() => {
-      // Suppress the first-visit guided tour: tests need the annotation
-      // toolbar reachable without an overlay on top. Seeds the persisted
-      // preferences store (`usePreferencesStore`) so hasSeenTour() returns
-      // true. Key is `${accountId}:${campaignId}` for the test user/campaign.
-      // This init script re-runs on every reload, so MERGE rather than
-      // overwrite - otherwise other persisted preferences a test wrote (e.g.
-      // annotation styles) would be wiped on reload.
-      try {
-        const key = 'stacnotator:preferences';
-        const existing = JSON.parse(localStorage.getItem(key) || '{}');
-        const state = existing.state || {};
-        state.tourSeenByCampaign = {
-          ...(state.tourSeenByCampaign || {}),
-          'test-user-abc-123:42': true,
-        };
-        localStorage.setItem(
-          key,
-          JSON.stringify({ ...existing, state, version: existing.version ?? 1 })
-        );
-      } catch {
-        // localStorage unavailable - ignore
-      }
-
-      const fakeUser = {
-        uid: 'test-user-abc-123',
-        email: 'test@example.com',
-        displayName: 'Test User',
-        getIdToken: () => Promise.resolve('fake-firebase-id-token'),
-        getIdTokenResult: () =>
-          Promise.resolve({
-            token: 'fake-firebase-id-token',
-            claims: {},
-            expirationTime: new Date(Date.now() + 3600_000).toISOString(),
-            issuedAtTime: new Date().toISOString(),
-            signInProvider: 'custom',
-            authTime: new Date().toISOString(),
-            signInSecondFactor: null,
-          }),
-      };
-
-      const fakeAuth = {
-        currentUser: fakeUser,
-        onAuthStateChanged: (cb: any) => {
-          // Fire immediately so AuthProvider sets ready=true
-          setTimeout(() => cb(fakeUser), 0);
-          return () => {}; // unsubscribe no-op
-        },
-        signOut: () => Promise.resolve(),
-      };
-
-      // Patch the ES module by intercepting import resolution.
-      // Vite serves modules via native ESM, so we override the global
-      // firebase/auth functions that the adapters import.
-      // We do this by creating a global that our route-level script
-      // injection can reference.
-      (window as any).__FAKE_FIREBASE_AUTH__ = fakeAuth;
-      (window as any).__FAKE_FIREBASE_USER__ = fakeUser;
-    });
-
-    // Block all Firebase network traffic so the real SDK never initializes
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-    await page.route('**/securetoken.googleapis.com/**', (route) => route.abort());
-    await page.route('**/apis.google.com/**', (route) => route.abort());
-    await page.route('**/www.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebaseinstallations.googleapis.com/**', (route) => route.abort());
-
-    // Intercept the Firebase Auth JS module served by Vite and replace
-    // the key exports with our fakes. This runs before the app code
-    // imports from 'firebase/auth'.
-    // Vite optimizes deps to paths like /node_modules/.vite/deps/firebase_auth-HASH.js
-    // or /node_modules/.vite/deps/chunk-HASH.js that re-exports firebase_auth.
-    // We also intercept firebase/app to prevent initialization errors.
-    await page.route(/firebase_auth/, async (route) => {
-      // Serve a tiny ESM module that exposes our stubs. Must mirror EVERY
-      // export the app's adapters import; missing names cause an ESM
-      // resolution error and the page renders blank.
-      const body = `
-        const fakeAuth = window.__FAKE_FIREBASE_AUTH__;
-        const fakeUser = window.__FAKE_FIREBASE_USER__;
-
-        export function getAuth() { return fakeAuth; }
-        export function onAuthStateChanged(auth, cb) {
-          setTimeout(() => cb(fakeUser), 0);
-          return () => {};
-        }
-        export function signInWithPopup() { return Promise.resolve({ user: fakeUser }); }
-        export function signInWithEmailAndPassword() { return Promise.resolve({ user: fakeUser }); }
-        export function createUserWithEmailAndPassword() { return Promise.resolve({ user: fakeUser }); }
-        export function sendEmailVerification() { return Promise.resolve(); }
-        export function sendPasswordResetEmail() { return Promise.resolve(); }
-        export function updatePassword() { return Promise.resolve(); }
-        export function reauthenticateWithCredential() { return Promise.resolve({ user: fakeUser }); }
-        export function signOut() { return Promise.resolve(); }
-        export class GoogleAuthProvider { addScope() {} }
-        export class EmailAuthProvider {
-          static credential(email, password) { return { email, password, providerId: 'password' }; }
-        }
-        export function connectAuthEmulator() {}
-        export function initializeAuth() { return fakeAuth; }
-        export function getReactNativePersistence() { return {}; }
-        export function browserLocalPersistence() { return {}; }
-        export function browserSessionPersistence() { return {}; }
-        export function inMemoryPersistence() { return {}; }
-        export function setPersistence() { return Promise.resolve(); }
-
-        export default { getAuth, onAuthStateChanged, signOut };
-      `;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body,
-      });
-    });
-
-    await page.route(/firebase_app/, async (route) => {
-      const body = `
-        export function initializeApp() { return {}; }
-        export function getApp() { return {}; }
-        export function getApps() { return [{}]; }
-        export default { initializeApp, getApp, getApps };
-      `;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/javascript',
-        body,
-      });
-    });
-
     // Navigate & wait for app to be ready
-    await page.goto('/campaigns/42/annotate');
+    await page.goto('/projects/7/campaigns/42/annotate');
 
     // Wait for the annotation toolbar to render (data-tour="toolbar" on the <header>)
     await page.waitForSelector('[data-tour="toolbar"]', {

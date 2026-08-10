@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
-from src.auth.models import User
+from src.auth.dependencies import require_authenticated_user
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
+from src.config import get_settings
 from src.custom_layers import service
 from src.custom_layers.schemas import (
     CustomMapCreate,
@@ -22,17 +22,31 @@ bearer = HTTPBearer()
 custom_maps_router = APIRouter(
     prefix="/campaigns/{campaign_id}/custom-maps",
     tags=["Custom Maps"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
-def _require_internal_for_internal_storage(internal_storage: bool | None, user: User) -> None:
-    """Only internal staff may point a map at internal (managed-identity) storage."""
-    if internal_storage and not user.is_internal:
+def _require_internal_storage_allowed(internal_storage: bool | None, campaign: Campaign) -> None:
+    """Only organizations cleared for it may point a map at internal
+    (managed-identity) storage."""
+    if internal_storage and not campaign.project.organization.allows_internal_storage:
         raise HTTPException(
             status_code=403,
-            detail="Only internal users can mark a custom map as internal storage",
+            detail="This organization cannot mark a custom map as internal storage",
         )
+
+
+def _require_tiler_allowed(campaign: Campaign) -> None:
+    """Registration always puts a custom map on the default hosted tiler, so the
+    owning organization must be allowed to use it. A deployment without a default
+    tiler has nothing to authorize - registration then fails on its own."""
+    tiler_name = get_settings().DEFAULT_TILER
+    if tiler_name is None or tiler_name in campaign.project.organization.allowed_tiler_names:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=f"Your organization is not authorized to use tiler '{tiler_name}'",
+    )
 
 
 @custom_maps_router.get("", response_model=list[CustomMapOut])
@@ -49,10 +63,10 @@ def create_custom_map(
     campaign_id: int,
     payload: CustomMapCreate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    _require_internal_for_internal_storage(payload.internal_storage, user)
+    _require_internal_storage_allowed(payload.internal_storage, campaign)
+    _require_tiler_allowed(campaign)
     try:
         return service.create_custom_map(db, campaign_id, payload)
     except service.DuplicateCustomMapName as exc:
@@ -69,10 +83,10 @@ def update_custom_map(
     map_id: int,
     payload: CustomMapUpdate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
-    _require_internal_for_internal_storage(payload.internal_storage, user)
+    _require_internal_storage_allowed(payload.internal_storage, campaign)
+    _require_tiler_allowed(campaign)
     try:
         cm = service.update_custom_map(db, campaign_id, map_id, payload)
     except service.DuplicateCustomMapName as exc:
@@ -101,7 +115,7 @@ def delete_custom_map(
 vector_layers_router = APIRouter(
     prefix="/campaigns/{campaign_id}/vector-layers",
     tags=["Vector Layers"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 

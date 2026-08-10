@@ -1,10 +1,8 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 from sqlalchemy import (
     TIMESTAMP,
-    Boolean,
     CheckConstraint,
     ForeignKey,
     Identity,
@@ -19,9 +17,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
+from src.projects.access import VISIBILITY_PUBLIC
 
 if TYPE_CHECKING:
     from src.canvas.models import CanvasLayout
+    from src.projects.models import Project
 
 
 class Campaign(Base):
@@ -30,7 +30,10 @@ class Campaign(Base):
     """
 
     __tablename__ = "campaigns"
-    __table_args__ = {"schema": "data"}
+    __table_args__ = (
+        Index("idx_campaigns_project_id", "project_id"),
+        {"schema": "data"},
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -43,7 +46,6 @@ class Campaign(Base):
         nullable=False,
     )
     mode: Mapped[str] = mapped_column(String(20), nullable=False)  # tasks or open
-    is_public: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     # Mosaic registration status: pending, registering, ready, failed
     registration_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
@@ -60,7 +62,12 @@ class Campaign(Base):
     # affected tiles without a manual purge.
     annotations_version: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
 
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("data.projects.id", ondelete="CASCADE"), nullable=False
+    )
+
     # Relationships
+    project: Mapped["Project"] = relationship(back_populates="campaigns")
     settings: Mapped["CampaignSettings"] = relationship(
         back_populates="campaign",
         uselist=False,
@@ -68,10 +75,6 @@ class Campaign(Base):
     )
     time_series: Mapped[list["TimeSeries"]] = relationship(  # noqa: F821
         back_populates="campaign",
-        cascade="all, delete-orphan",
-    )
-    users = relationship(
-        "CampaignUser",
         cascade="all, delete-orphan",
     )
     task_items: Mapped[list["AnnotationTask"]] = relationship(  # noqa: F821
@@ -119,6 +122,13 @@ class Campaign(Base):
         "TaskSet",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def is_public(self) -> bool:
+        """Platform-public standing, resolved through the owning project.
+        Org-public visibility deliberately does not count: the 'anyone'
+        audience stays tied to platform-public projects only."""
+        return self.project.visibility == VISIBILITY_PUBLIC
 
 
 class TaskSet(Base):
@@ -213,32 +223,3 @@ class CampaignSettings(Base):
 
     # Relationships
     campaign: Mapped["Campaign"] = relationship(back_populates="settings")
-
-
-class CampaignUser(Base):
-    """
-    Association table linking users to campaigns with role-based access.
-    """
-
-    __tablename__ = "campaign_users"
-    __table_args__ = (
-        Index("idx_campaign_users_campaign_id", "campaign_id"),
-        {"schema": "data"},
-    )
-
-    # Composite primary key
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    campaign_id: Mapped[int] = mapped_column(
-        ForeignKey("data.campaigns.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-
-    # User roles in campaign
-    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    is_authoritative_reviewer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-    # Relationships
-    user: Mapped["User"] = relationship()  # noqa: F821

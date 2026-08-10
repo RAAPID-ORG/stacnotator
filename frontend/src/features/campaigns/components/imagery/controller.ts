@@ -32,6 +32,9 @@ export interface ImageryController {
   /** Persisted-mode campaign id (undefined in draft/wizard mode, where entities aren't saved
    *  yet). Used by the API-key controls, which act on persisted basemaps/sources only. */
   readonly campaignId?: number;
+  /** Owning project. Scopes tiler discovery and STAC catalog listing, which are
+   *  organization-level capabilities rather than per-user ones. */
+  readonly projectId: number;
 
   /** Persisted mode only: true when local state differs from server truth. */
   readonly isDirty: boolean;
@@ -89,12 +92,14 @@ export function vizParamsToFrontend(d: Record<string, unknown> | null | undefine
 }
 
 export interface DraftControllerOptions {
+  projectId: number;
   state: ImageryStepState;
   setState: (next: ImageryStepState) => void;
   campaignBbox?: number[] | null;
 }
 
 export function useDraftController({
+  projectId,
   state,
   setState,
   campaignBbox = null,
@@ -151,6 +156,7 @@ export function useDraftController({
     () => ({
       state,
       campaignBbox,
+      projectId,
       mode: 'draft',
       pending: false,
       // Draft mode persists at form submit; controller-level save/dirty are
@@ -229,7 +235,7 @@ export function useDraftController({
         update({ ...stateRef.current, basemaps });
       },
     }),
-    [state, campaignBbox, update, patchSource]
+    [state, campaignBbox, projectId, update, patchSource]
   );
 }
 
@@ -362,6 +368,7 @@ function stateToEditorPayload(state: ImageryStepState): ImageryEditorStateCreate
 
 export interface PersistedControllerOptions {
   campaignId: number;
+  projectId: number;
   imagery: ImagerySourceOut[];
   views: ImageryViewOut[];
   basemaps?: {
@@ -378,6 +385,7 @@ export interface PersistedControllerOptions {
 
 export function usePersistedController({
   campaignId,
+  projectId,
   imagery,
   views,
   basemaps,
@@ -472,6 +480,7 @@ export function usePersistedController({
     () => ({
       state,
       campaignBbox,
+      projectId,
       mode: 'persisted',
       pending,
       isDirty,
@@ -608,6 +617,6 @@ export function usePersistedController({
         mutate((s) => ({ ...s, basemaps }));
       },
     }),
-    [state, campaignBbox, pending, isDirty, save, discard, mutate, campaignId, refetch]
+    [state, campaignBbox, projectId, pending, isDirty, save, discard, mutate, campaignId, refetch]
   );
 }

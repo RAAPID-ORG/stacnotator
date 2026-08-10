@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useIsInternal } from '~/shared/stores/account.store';
+import { useProjectTilers } from '~/shared/hooks/useProjectTilers';
 import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
@@ -110,10 +110,11 @@ const StatusBadge = ({ status, statusError }: StatusBadgeProps) => {
 
 interface CustomMapsEditorProps {
   campaignId: number;
+  projectId: number;
 }
 
-export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
-  const isInternal = useIsInternal();
+export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProps) => {
+  const { allowsInternalStorage } = useProjectTilers(projectId);
   const [maps, setMaps] = useState<CustomMapOut[]>([]);
   const [form, setForm] = useState<FormState>(defaultForm());
   const [submitting, setSubmitting] = useState(false);
@@ -216,9 +217,10 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
         render_config: renderConfig,
         max_native_zoom: form.max_native_zoom !== '' ? Number(form.max_native_zoom) : null,
         mlops_url: form.mlops_url.trim() !== '' ? form.mlops_url.trim() : null,
-        // Omitted for non-internal users so editing a map never downgrades a flag they
-        // cannot see; the backend defaults it to false on create and leaves it on update.
-        ...(isInternal ? { internal_storage: form.internal_storage } : {}),
+        // Omitted when the project cannot use internal storage, so editing a map never
+        // downgrades a flag the user cannot see; the backend defaults it to false on
+        // create and leaves it on update.
+        ...(allowsInternalStorage ? { internal_storage: form.internal_storage } : {}),
       };
 
       const { error } =
@@ -430,7 +432,7 @@ export const CustomMapsEditor = ({ campaignId }: CustomMapsEditorProps) => {
             </p>
           </div>
 
-          {isInternal && (
+          {allowsInternalStorage && (
             <div>
               <label className="flex items-start gap-2 cursor-pointer">
                 <input

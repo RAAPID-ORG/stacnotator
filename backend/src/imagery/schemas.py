@@ -56,21 +56,6 @@ class CollectionStacConfigOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
-class TilerOption(BaseModel):
-    """A tiler the user may use, from the unified registry."""
-
-    name: str
-    kind: str  # "mpc" | "hosted"
-    url: str | None = None  # browser-facing URL (hosted only; null for MPC)
-    is_default: bool  # default hosted pick for non-MPC collections
-
-
-class AllowedTilersOut(BaseModel):
-    """Hosted tilers selectable in the imagery wizard (default first)."""
-
-    tilers: list[TilerOption]
-
-
 class ImageryCollectionOut(BaseModel):
     id: int
     name: str

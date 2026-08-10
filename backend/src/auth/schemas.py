@@ -14,17 +14,12 @@ class UserOut(BaseModel):
 
 
 class UserOutDetailed(UserOut):
-    """Detailed user information."""
+    """Detailed user information (platform admins only)."""
 
-    is_approved: bool
-    is_visitor: bool
     is_admin: bool
-    is_internal: bool
     issuer: str
     external_uid: str
     display_name: str
-    # All tilers this user may set up imagery on (defaults seeded; extras added).
-    allowed_tilers: list[str] = []
 
     model_config = ConfigDict(from_attributes=True)
 

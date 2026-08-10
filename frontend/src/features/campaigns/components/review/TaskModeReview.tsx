@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LoadingSpinner } from '~/shared/ui/LoadingSpinner';
+import { Delayed } from '~/shared/ui/Delayed';
+import { SkeletonRows } from '~/shared/ui/Skeleton';
 import {
   getAllAnnotationTasks,
   listTaskSets,
@@ -8,6 +9,8 @@ import {
   type CampaignOut,
   type TaskSetOut,
 } from '~/api/client';
+import { campaignPath } from '~/app/routes';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useAccountStore } from '~/shared/stores/account.store';
 import {
   countTasksByStatus,
@@ -83,6 +86,10 @@ export const TaskModeReview = ({
   onOpenReviewerAssign,
 }: TaskModeReviewProps) => {
   const navigate = useNavigate();
+  const routeProjectId = useProjectIdParam();
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const annotatePath = campaignPath(campaign?.project_id ?? routeProjectId, campaignId, 'annotate');
   const currentUser = useAccountStore((state) => state.account);
   const isExternallyDriven = tasksProp !== undefined;
 
@@ -244,7 +251,7 @@ export const TaskModeReview = ({
   }, [statusFilter, setFilter, selectedUserIds, selectedConfidences, flaggedOnly]);
 
   const handleNavigateToTask = (taskId: number) => {
-    navigate(`/campaigns/${campaignId}/annotate?task=${taskId}&review=true`);
+    navigate(`${annotatePath}?task=${taskId}&review=true`);
   };
 
   const handleToggleTask = (taskId: number) => {
@@ -295,14 +302,6 @@ export const TaskModeReview = ({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading tasks..." />
-      </div>
-    );
-  }
-
   const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   return (
@@ -323,9 +322,7 @@ export const TaskModeReview = ({
                 disabled={tasks.length === 0}
                 hasConflicts={tasks.some((t) => t.task_status === 'conflicting')}
               />
-              <Button onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}>
-                Start annotating
-              </Button>
+              <Button onClick={() => navigate(annotatePath)}>Start annotating</Button>
             </div>
           </header>
         )}
@@ -350,605 +347,622 @@ export const TaskModeReview = ({
         {!embedded && tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
         {/* Filters - embedded (tasks page) sits flat on the page; standalone keeps its own surface */}
-        <div className={embedded ? undefined : 'surface surface-unclipped'}>
-          <div className={embedded ? 'space-y-3' : 'px-5 py-4 space-y-3'}>
-            <div className="flex items-center gap-2">
-              {headerSlot ?? <h3 className="section-heading">Filters & search</h3>}
-              <button
-                onClick={() => setShowFilters((v) => !v)}
-                className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
-                title="Filter and sort"
-                type="button"
-              >
-                <IconFunnel className="w-4 h-4" />
-                {activeFilterCount > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Stats stay visible regardless of the filter panel's collapsed state. */}
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <span>
-                Showing {filteredTasks.length} of {tasks.length} tasks
-              </span>
-              <div className="flex items-center gap-4">
-                <span>
-                  Complete: <strong className="text-neutral-800">{stats.done}</strong>
-                </span>
-                <span>
-                  Partial: <strong className="text-neutral-800">{stats.partial}</strong>
-                </span>
-                <span>
-                  Conflicting: <strong className="text-neutral-800">{stats.conflicting}</strong>
-                </span>
-                <span>
-                  Pending: <strong className="text-neutral-800">{stats.pending}</strong>
-                </span>
-                <span>
-                  Skipped: <strong className="text-neutral-800">{stats.skipped}</strong>
-                </span>
-              </div>
-            </div>
-
-            {showFilters && (
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 space-y-3">
-                {/* Search */}
-                <div>
-                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                    Search
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Search by ID or annotation #..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className="text-neutral-500 hover:text-neutral-700"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status Filter */}
-                <div className="border-t border-neutral-200 pt-3">
-                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                    Status
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        'all',
-                        'pending',
-                        'partial',
-                        'conflicting',
-                        'done',
-                        'skipped',
-                      ] as StatusFilter[]
-                    ).map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                          statusFilter === status
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                        }`}
-                      >
-                        {status === 'all' ? 'All' : capitalizeFirst(status)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Set Filter */}
-                {!hideSetFilter && taskSets.length > 1 && (
-                  <div className="border-t border-neutral-200 pt-3">
-                    <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                      Set
-                    </div>
-                    <select
-                      data-testid="review-set-filter"
-                      value={setFilter}
-                      onChange={(e) =>
-                        setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                      }
-                      className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                    >
-                      <option value="all">All sets</option>
-                      {taskSets.map((set) => (
-                        <option key={set.id} value={set.id}>
-                          {set.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* User Filter */}
-                <div className="border-t border-neutral-200 pt-3">
-                  <UserFilterDropdown
-                    users={uniqueUsers}
-                    selectedUserIds={selectedUserIds}
-                    setSelectedUserIds={setSelectedUserIds}
-                    currentUserId={currentUser?.id}
-                  />
-                </div>
-
-                {/* Confidence Filter */}
-                <div className="border-t border-neutral-200 pt-3">
-                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                    Confidence
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <button
-                      onClick={() => setSelectedConfidences([])}
-                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        selectedConfidences.length === 0
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                      }`}
-                    >
-                      All
-                    </button>
-                    {[1, 2, 3, 4, 5].map((c) => (
-                      <button
-                        key={c}
-                        onClick={() =>
-                          setSelectedConfidences(
-                            selectedConfidences.includes(c)
-                              ? selectedConfidences.filter((x) => x !== c)
-                              : [...selectedConfidences, c]
-                          )
-                        }
-                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                          selectedConfidences.includes(c)
-                            ? 'bg-brand-600 text-white'
-                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() =>
-                        setSelectedConfidences(
-                          selectedConfidences.includes(0)
-                            ? selectedConfidences.filter((x) => x !== 0)
-                            : [...selectedConfidences, 0]
-                        )
-                      }
-                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        selectedConfidences.includes(0)
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
-                      }`}
-                      title="Tasks with annotations missing a confidence rating, or no annotations"
-                    >
-                      No rating
-                    </button>
-                  </div>
-                </div>
-
-                {/* Flagged Filter */}
-                <div className="border-t border-neutral-200 pt-3">
+        {loading ? (
+          <Delayed>
+            <SkeletonRows count={8} />
+          </Delayed>
+        ) : (
+          <>
+            <div className={embedded ? undefined : 'surface surface-unclipped'}>
+              <div className={embedded ? 'space-y-3' : 'px-5 py-4 space-y-3'}>
+                <div className="flex items-center gap-2">
+                  {headerSlot ?? <h3 className="section-heading">Filters & search</h3>}
                   <button
-                    onClick={() => setFlaggedOnly((v) => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
-                      flaggedOnly
-                        ? 'bg-rose-100 text-rose-800 border-rose-300'
-                        : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
-                    }`}
-                    title="Show only tasks with at least one flagged annotation"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className="relative h-8 w-8 inline-flex items-center justify-center rounded text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100"
+                    title="Filter and sort"
+                    type="button"
                   >
-                    <IconFlag className="w-3.5 h-3.5" />
-                    <span>Flagged only</span>
+                    <IconFunnel className="w-4 h-4" />
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[10px] font-semibold rounded-full bg-brand-600 text-white">
+                        {activeFilterCount}
+                      </span>
+                    )}
                   </button>
                 </div>
 
-                {/* Sort */}
-                <div className="border-t border-neutral-200 pt-3">
-                  <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                    Sort by
+                {/* Stats stay visible regardless of the filter panel's collapsed state. */}
+                <div className="flex items-center justify-between text-xs text-neutral-500">
+                  <span>
+                    Showing {filteredTasks.length} of {tasks.length} tasks
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <span>
+                      Complete: <strong className="text-neutral-800">{stats.done}</strong>
+                    </span>
+                    <span>
+                      Partial: <strong className="text-neutral-800">{stats.partial}</strong>
+                    </span>
+                    <span>
+                      Conflicting: <strong className="text-neutral-800">{stats.conflicting}</strong>
+                    </span>
+                    <span>
+                      Pending: <strong className="text-neutral-800">{stats.pending}</strong>
+                    </span>
+                    <span>
+                      Skipped: <strong className="text-neutral-800">{stats.skipped}</strong>
+                    </span>
                   </div>
-                  <select
-                    value={sortOption}
-                    onChange={(e) => {
-                      if (isSortOption(e.target.value)) setSortOption(e.target.value);
-                    }}
-                    className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
-                  >
-                    <option value="default">Default</option>
-                    <option value="confidence-asc">Confidence (Low to High)</option>
-                    <option value="confidence-desc">Confidence (High to Low)</option>
-                    <option value="id-asc">Annotation # (Ascending)</option>
-                    <option value="id-desc">Annotation # (Descending)</option>
-                  </select>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Tasks Table */}
-        <div className="mt-6">
-          {selectable && (
-            <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 mb-1">
-              {/* Left: selection-scoped actions, constructive-to-destructive */}
-              <div className="flex items-center gap-3">
-                {selectedTasks.size > 0 && (
-                  <span className="text-xs text-neutral-500">{selectedTasks.size} selected</span>
-                )}
-                <div className="flex items-center gap-2">
-                  {onAssignSelected && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => onAssignSelected(Array.from(selectedTasks))}
-                      disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
-                    >
-                      Assign selected
-                    </Button>
-                  )}
-                  {onMoveTasks && taskSets.length > 1 && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowMoveDialog(true)}
-                      disabled={selectedTasks.size === 0}
-                    >
-                      Move to set
-                    </Button>
-                  )}
-                  {onBatchUnassignTasks && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => setConfirmBatchUnassign(true)}
-                      disabled={
-                        selectedTasks.size === 0 ||
-                        !selectedTasksHaveAssignments ||
-                        isDeleting ||
-                        isBatchUnassigning
-                      }
-                      title={
-                        selectedTasks.size === 0
-                          ? 'Select tasks to unassign'
-                          : !selectedTasksHaveAssignments
-                            ? 'Selected tasks have no assignments'
-                            : undefined
-                      }
-                    >
-                      {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
-                    </Button>
-                  )}
-                  {onDeleteTasks && (
-                    <Button
-                      variant="dangerQuiet"
-                      onClick={() => setConfirmDelete(true)}
-                      disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
-                    >
-                      Delete selected
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Right: pool-wide actions */}
-              <div className="flex items-center gap-2">
-                {onOpenBulkAssign && (
-                  <Button
-                    variant="secondary"
-                    onClick={onOpenBulkAssign}
-                    disabled={isDeleting || isBatchUnassigning}
-                  >
-                    Assign all
-                  </Button>
-                )}
-                {onOpenReviewerAssign && (
-                  <Button
-                    variant="secondary"
-                    onClick={onOpenReviewerAssign}
-                    disabled={isDeleting || isBatchUnassigning}
-                  >
-                    Set up reviews
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {filteredTasks.length === 0 ? (
-            <div
-              className={
-                embedded
-                  ? 'text-center py-12'
-                  : 'text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm'
-              }
-            >
-              <svg
-                className="w-12 h-12 text-neutral-400 mx-auto mb-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-              <p className="text-neutral-700 mb-2">No tasks match your filters</p>
-              <p className="text-neutral-500 text-sm">Try adjusting your filter criteria</p>
-            </div>
-          ) : (
-            <div
-              className={
-                embedded
-                  ? 'overflow-x-auto'
-                  : 'overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white'
-              }
-            >
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className={tableHeadRowCls}>
-                    {selectable && (
-                      <th className="px-4 py-3 text-left w-8">
+                {showFilters && (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 space-y-3">
+                    {/* Search */}
+                    <div>
+                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                        Search
+                      </div>
+                      <div className="flex items-center gap-2">
                         <input
-                          type="checkbox"
-                          checked={
-                            selectedTasks.size === filteredTasks.length && filteredTasks.length > 0
-                          }
-                          onChange={handleSelectAll}
-                          className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                          type="text"
+                          placeholder="Search by ID or annotation #..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 w-64"
                         />
-                      </th>
-                    )}
-                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                      Annotation #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                      Coordinates
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                      Annotations
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTasks.map((task, index) => {
-                    const latLon = extractCentroidFromWKT(task.geometry.geometry);
-                    const taskStatus = task.task_status ?? 'pending';
-                    const assignments = task.assignments || [];
-                    const annotations = task.annotations || [];
-                    const isAssignedToMe =
-                      currentUser && assignments.some((a) => a.user_id === currentUser.id);
-                    const isSelected = selectable && selectedTasks.has(task.id);
+                        {searchQuery && (
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="text-neutral-500 hover:text-neutral-700"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                    return (
-                      <tr
-                        key={task.id}
-                        className={listRowCls(index, {
-                          tinted: Boolean(isAssignedToMe),
-                          selected: isSelected,
-                        })}
+                    {/* Status Filter */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                        Status
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(
+                          [
+                            'all',
+                            'pending',
+                            'partial',
+                            'conflicting',
+                            'done',
+                            'skipped',
+                          ] as StatusFilter[]
+                        ).map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                              statusFilter === status
+                                ? 'bg-brand-600 text-white'
+                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                          >
+                            {status === 'all' ? 'All' : capitalizeFirst(status)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Set Filter */}
+                    {!hideSetFilter && taskSets.length > 1 && (
+                      <div className="border-t border-neutral-200 pt-3">
+                        <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                          Set
+                        </div>
+                        <select
+                          data-testid="review-set-filter"
+                          value={setFilter}
+                          onChange={(e) =>
+                            setSetFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                          }
+                          className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                        >
+                          <option value="all">All sets</option>
+                          {taskSets.map((set) => (
+                            <option key={set.id} value={set.id}>
+                              {set.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* User Filter */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <UserFilterDropdown
+                        users={uniqueUsers}
+                        selectedUserIds={selectedUserIds}
+                        setSelectedUserIds={setSelectedUserIds}
+                        currentUserId={currentUser?.id}
+                      />
+                    </div>
+
+                    {/* Confidence Filter */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                        Confidence
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          onClick={() => setSelectedConfidences([])}
+                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                            selectedConfidences.length === 0
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {[1, 2, 3, 4, 5].map((c) => (
+                          <button
+                            key={c}
+                            onClick={() =>
+                              setSelectedConfidences(
+                                selectedConfidences.includes(c)
+                                  ? selectedConfidences.filter((x) => x !== c)
+                                  : [...selectedConfidences, c]
+                              )
+                            }
+                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                              selectedConfidences.includes(c)
+                                ? 'bg-brand-600 text-white'
+                                : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                          >
+                            {c}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() =>
+                            setSelectedConfidences(
+                              selectedConfidences.includes(0)
+                                ? selectedConfidences.filter((x) => x !== 0)
+                                : [...selectedConfidences, 0]
+                            )
+                          }
+                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                            selectedConfidences.includes(0)
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                          }`}
+                          title="Tasks with annotations missing a confidence rating, or no annotations"
+                        >
+                          No rating
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Flagged Filter */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <button
+                        onClick={() => setFlaggedOnly((v) => !v)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors border w-full ${
+                          flaggedOnly
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-neutral-100 text-neutral-700 border-transparent hover:bg-neutral-200'
+                        }`}
+                        title="Show only tasks with at least one flagged annotation"
                       >
+                        <IconFlag className="w-3.5 h-3.5" />
+                        <span>Flagged only</span>
+                      </button>
+                    </div>
+
+                    {/* Sort */}
+                    <div className="border-t border-neutral-200 pt-3">
+                      <div className="text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                        Sort by
+                      </div>
+                      <select
+                        value={sortOption}
+                        onChange={(e) => {
+                          if (isSortOption(e.target.value)) setSortOption(e.target.value);
+                        }}
+                        className="w-full px-3 py-1.5 text-sm border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand-600 bg-white"
+                      >
+                        <option value="default">Default</option>
+                        <option value="confidence-asc">Confidence (Low to High)</option>
+                        <option value="confidence-desc">Confidence (High to Low)</option>
+                        <option value="id-asc">Annotation # (Ascending)</option>
+                        <option value="id-desc">Annotation # (Descending)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tasks Table */}
+            <div className="mt-6">
+              {selectable && (
+                <div className="sticky top-0 z-10 bg-white flex items-center justify-between py-3 mb-1">
+                  {/* Left: selection-scoped actions, constructive-to-destructive */}
+                  <div className="flex items-center gap-3">
+                    {selectedTasks.size > 0 && (
+                      <span className="text-xs text-neutral-500">
+                        {selectedTasks.size} selected
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {onAssignSelected && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => onAssignSelected(Array.from(selectedTasks))}
+                          disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                        >
+                          Assign selected
+                        </Button>
+                      )}
+                      {onMoveTasks && taskSets.length > 1 && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => setShowMoveDialog(true)}
+                          disabled={selectedTasks.size === 0}
+                        >
+                          Move to set
+                        </Button>
+                      )}
+                      {onBatchUnassignTasks && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => setConfirmBatchUnassign(true)}
+                          disabled={
+                            selectedTasks.size === 0 ||
+                            !selectedTasksHaveAssignments ||
+                            isDeleting ||
+                            isBatchUnassigning
+                          }
+                          title={
+                            selectedTasks.size === 0
+                              ? 'Select tasks to unassign'
+                              : !selectedTasksHaveAssignments
+                                ? 'Selected tasks have no assignments'
+                                : undefined
+                          }
+                        >
+                          {isBatchUnassigning ? 'Unassigning…' : 'Unassign selected'}
+                        </Button>
+                      )}
+                      {onDeleteTasks && (
+                        <Button
+                          variant="dangerQuiet"
+                          onClick={() => setConfirmDelete(true)}
+                          disabled={selectedTasks.size === 0 || isDeleting || isBatchUnassigning}
+                        >
+                          Delete selected
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: pool-wide actions */}
+                  <div className="flex items-center gap-2">
+                    {onOpenBulkAssign && (
+                      <Button
+                        variant="secondary"
+                        onClick={onOpenBulkAssign}
+                        disabled={isDeleting || isBatchUnassigning}
+                      >
+                        Assign all
+                      </Button>
+                    )}
+                    {onOpenReviewerAssign && (
+                      <Button
+                        variant="secondary"
+                        onClick={onOpenReviewerAssign}
+                        disabled={isDeleting || isBatchUnassigning}
+                      >
+                        Set up reviews
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {filteredTasks.length === 0 ? (
+                <div
+                  className={
+                    embedded
+                      ? 'text-center py-12'
+                      : 'text-center py-12 bg-white border border-neutral-200 rounded-xl shadow-sm'
+                  }
+                >
+                  <svg
+                    className="w-12 h-12 text-neutral-400 mx-auto mb-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                  <p className="text-neutral-700 mb-2">No tasks match your filters</p>
+                  <p className="text-neutral-500 text-sm">Try adjusting your filter criteria</p>
+                </div>
+              ) : (
+                <div
+                  className={
+                    embedded
+                      ? 'overflow-x-auto'
+                      : 'overflow-x-auto border border-neutral-200 rounded-xl shadow-sm bg-white'
+                  }
+                >
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className={tableHeadRowCls}>
                         {selectable && (
-                          <td className="px-4 py-3">
+                          <th className="px-4 py-3 text-left w-8">
                             <input
                               type="checkbox"
-                              checked={selectedTasks.has(task.id)}
-                              onChange={() => handleToggleTask(task.id)}
+                              checked={
+                                selectedTasks.size === filteredTasks.length &&
+                                filteredTasks.length > 0
+                              }
+                              onChange={handleSelectAll}
                               className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
                             />
-                          </td>
+                          </th>
                         )}
-                        <td className="px-4 py-3 text-neutral-900 font-medium">
-                          {task.annotation_number}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                          Annotation #
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                          Coordinates
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                          Annotations
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTasks.map((task, index) => {
+                        const latLon = extractCentroidFromWKT(task.geometry.geometry);
+                        const taskStatus = task.task_status ?? 'pending';
+                        const assignments = task.assignments || [];
+                        const annotations = task.annotations || [];
+                        const isAssignedToMe =
+                          currentUser && assignments.some((a) => a.user_id === currentUser.id);
+                        const isSelected = selectable && selectedTasks.has(task.id);
+
+                        return (
+                          <tr
+                            key={task.id}
+                            className={listRowCls(index, {
+                              tinted: Boolean(isAssignedToMe),
+                              selected: isSelected,
+                            })}
                           >
-                            {formatTaskStatus(taskStatus)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
-                          {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {annotations.length > 0 ? (
-                              annotations.map((ann) => {
-                                const annotator = assignments.find(
-                                  (a) => a.user_id === ann.created_by_user_id
-                                );
-                                const isCurrentUser = ann.created_by_user_id === currentUser?.id;
-                                const displayName = isCurrentUser
-                                  ? currentUser.display_name || currentUser.email || 'You'
-                                  : ann.created_by_user_display_name ||
-                                    ann.created_by_user_email ||
-                                    annotator?.user_display_name ||
-                                    annotator?.user_email ||
-                                    ann.created_by_user_id?.substring(0, 8) ||
-                                    'Unknown';
+                            {selectable && (
+                              <td className="px-4 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedTasks.has(task.id)}
+                                  onChange={() => handleToggleTask(task.id)}
+                                  className="w-4 h-4 text-brand-600 rounded focus:ring-brand-600"
+                                />
+                              </td>
+                            )}
+                            <td className="px-4 py-3 text-neutral-900 font-medium">
+                              {task.annotation_number}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className={`inline-block px-2 py-1 rounded text-xs font-medium capitalize ${getTaskStatusColor(taskStatus)}`}
+                              >
+                                {formatTaskStatus(taskStatus)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-neutral-900 text-xs font-mono">
+                              {latLon ? `${latLon.lat.toFixed(5)}, ${latLon.lon.toFixed(5)}` : '-'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {annotations.length > 0 ? (
+                                  annotations.map((ann) => {
+                                    const annotator = assignments.find(
+                                      (a) => a.user_id === ann.created_by_user_id
+                                    );
+                                    const isCurrentUser =
+                                      ann.created_by_user_id === currentUser?.id;
+                                    const displayName = isCurrentUser
+                                      ? currentUser.display_name || currentUser.email || 'You'
+                                      : ann.created_by_user_display_name ||
+                                        ann.created_by_user_email ||
+                                        annotator?.user_display_name ||
+                                        annotator?.user_email ||
+                                        ann.created_by_user_id?.substring(0, 8) ||
+                                        'Unknown';
 
-                                const assignmentForAnn = assignments.find(
-                                  (a) => a.user_id === ann.created_by_user_id
-                                );
-                                const isSkippedAnn =
-                                  assignmentForAnn?.status === 'skipped' || ann.label_id == null;
-                                const label = ann.label_id
-                                  ? `#${ann.label_id}`
-                                  : isSkippedAnn
-                                    ? 'Skipped'
-                                    : '-';
-                                const confidence =
-                                  ann.confidence != null ? `${ann.confidence}/5` : '-';
-                                const hasComment = ann.comment && ann.comment.trim() !== '';
-                                const isExtra = ann.counts_toward_completion === false;
+                                    const assignmentForAnn = assignments.find(
+                                      (a) => a.user_id === ann.created_by_user_id
+                                    );
+                                    const isSkippedAnn =
+                                      assignmentForAnn?.status === 'skipped' ||
+                                      ann.label_id == null;
+                                    const label = ann.label_id
+                                      ? `#${ann.label_id}`
+                                      : isSkippedAnn
+                                        ? 'Skipped'
+                                        : '-';
+                                    const confidence =
+                                      ann.confidence != null ? `${ann.confidence}/5` : '-';
+                                    const hasComment = ann.comment && ann.comment.trim() !== '';
+                                    const isExtra = ann.counts_toward_completion === false;
 
-                                return (
-                                  <div
-                                    key={ann.id}
-                                    className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
-                                  >
-                                    {ann.flagged_for_review && (
-                                      <span
-                                        className="text-rose-600"
-                                        title={ann.flag_comment || 'Flagged for review'}
+                                    return (
+                                      <div
+                                        key={ann.id}
+                                        className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1 ${ann.flagged_for_review ? 'bg-rose-50 text-rose-800 border border-rose-300' : isSkippedAnn ? 'bg-violet-100 text-violet-700' : 'bg-neutral-100 text-neutral-700'} ${isExtra ? 'opacity-60' : ''}`}
                                       >
-                                        <IconFlag className="w-3.5 h-3.5" />
-                                      </span>
-                                    )}
-                                    <span className="font-medium" title="Annotator">
-                                      {displayName}
-                                    </span>
-                                    {isExtra && (
-                                      <>
+                                        {ann.flagged_for_review && (
+                                          <span
+                                            className="text-rose-600"
+                                            title={ann.flag_comment || 'Flagged for review'}
+                                          >
+                                            <IconFlag className="w-3.5 h-3.5" />
+                                          </span>
+                                        )}
+                                        <span className="font-medium" title="Annotator">
+                                          {displayName}
+                                        </span>
+                                        {isExtra && (
+                                          <>
+                                            <span className="text-neutral-400">|</span>
+                                            <span
+                                              className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
+                                              title="Does not count toward completion"
+                                            >
+                                              extra
+                                            </span>
+                                          </>
+                                        )}
+                                        <span className="text-neutral-400">|</span>
+                                        <span title="Label ID">{label}</span>
                                         <span className="text-neutral-400">|</span>
                                         <span
-                                          className="px-1 py-0.5 rounded bg-neutral-200 text-neutral-500 text-[9px] font-semibold uppercase tracking-wide"
-                                          title="Does not count toward completion"
+                                          className={ann.confidence != null ? 'font-bold' : ''}
+                                          title="Confidence rating"
                                         >
-                                          extra
+                                          {confidence}
                                         </span>
-                                      </>
-                                    )}
-                                    <span className="text-neutral-400">|</span>
-                                    <span title="Label ID">{label}</span>
-                                    <span className="text-neutral-400">|</span>
-                                    <span
-                                      className={ann.confidence != null ? 'font-bold' : ''}
-                                      title="Confidence rating"
-                                    >
-                                      {confidence}
-                                    </span>
-                                    {hasComment && (
-                                      <>
-                                        <span className="text-neutral-400">|</span>
-                                        <Tooltip text={ann.comment ?? ''}>
-                                          <svg
-                                            className="w-3.5 h-3.5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                                            />
-                                          </svg>
-                                        </Tooltip>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <span className="text-xs text-neutral-400">-</span>
-                            )}
-                            {/* Placeholder labels for assigned users who haven't annotated yet */}
-                            {assignments
-                              .filter(
-                                (a) =>
-                                  a.status === 'pending' &&
-                                  !annotations.some((ann) => ann.created_by_user_id === a.user_id)
-                              )
-                              .map((a) => {
-                                const isCurrentUser = a.user_id === currentUser?.id;
-                                const displayName = isCurrentUser
-                                  ? currentUser.display_name || currentUser.email || 'You'
-                                  : a.user_display_name ||
-                                    a.user_email ||
-                                    a.user_id.substring(0, 8);
-                                return (
-                                  <div
-                                    key={`pending-${a.user_id}`}
-                                    className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
-                                    title="Assigned but not yet annotated"
-                                  >
-                                    <span className="font-medium">{displayName}</span>
-                                    <span className="text-neutral-300">|</span>
-                                    <span className="italic">Awaiting</span>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleNavigateToTask(task.id)}
-                            className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
-                          >
-                            {taskStatus === 'pending' || taskStatus === 'skipped'
-                              ? 'Annotate'
-                              : 'View'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Footer Stats */}
-          {filteredTasks.length > 0 &&
-            (() => {
-              const counts = countTasksByStatus(filteredTasks);
-              return (
-                <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
-                  <span>
-                    Filtered: <strong className="text-neutral-900">{filteredTasks.length}</strong>
-                  </span>
-                  <span>
-                    Complete: <strong className="text-neutral-900">{counts.done}</strong>
-                  </span>
-                  <span>
-                    Partial: <strong className="text-neutral-900">{counts.partial}</strong>
-                  </span>
-                  <span>
-                    Conflicting: <strong className="text-neutral-900">{counts.conflicting}</strong>
-                  </span>
-                  <span>
-                    Pending: <strong className="text-neutral-900">{counts.pending}</strong>
-                  </span>
-                  <span>
-                    Skipped: <strong className="text-neutral-900">{counts.skipped}</strong>
-                  </span>
+                                        {hasComment && (
+                                          <>
+                                            <span className="text-neutral-400">|</span>
+                                            <Tooltip text={ann.comment ?? ''}>
+                                              <svg
+                                                className="w-3.5 h-3.5"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                              >
+                                                <path
+                                                  strokeLinecap="round"
+                                                  strokeLinejoin="round"
+                                                  strokeWidth={2}
+                                                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                                />
+                                              </svg>
+                                            </Tooltip>
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <span className="text-xs text-neutral-400">-</span>
+                                )}
+                                {/* Placeholder labels for assigned users who haven't annotated yet */}
+                                {assignments
+                                  .filter(
+                                    (a) =>
+                                      a.status === 'pending' &&
+                                      !annotations.some(
+                                        (ann) => ann.created_by_user_id === a.user_id
+                                      )
+                                  )
+                                  .map((a) => {
+                                    const isCurrentUser = a.user_id === currentUser?.id;
+                                    const displayName = isCurrentUser
+                                      ? currentUser.display_name || currentUser.email || 'You'
+                                      : a.user_display_name ||
+                                        a.user_email ||
+                                        a.user_id.substring(0, 8);
+                                    return (
+                                      <div
+                                        key={`pending-${a.user_id}`}
+                                        className="text-xs px-2 py-1 rounded inline-flex items-center gap-1 border border-dashed border-neutral-300 text-neutral-400 bg-neutral-50"
+                                        title="Assigned but not yet annotated"
+                                      >
+                                        <span className="font-medium">{displayName}</span>
+                                        <span className="text-neutral-300">|</span>
+                                        <span className="italic">Awaiting</span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleNavigateToTask(task.id)}
+                                className="text-brand-700 hover:text-brand-900 text-sm font-medium transition-colors"
+                              >
+                                {taskStatus === 'pending' || taskStatus === 'skipped'
+                                  ? 'Annotate'
+                                  : 'View'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              );
-            })()}
-        </div>
+              )}
+
+              {/* Footer Stats */}
+              {filteredTasks.length > 0 &&
+                (() => {
+                  const counts = countTasksByStatus(filteredTasks);
+                  return (
+                    <div className="mt-4 flex items-center gap-6 text-sm text-neutral-600">
+                      <span>
+                        Filtered:{' '}
+                        <strong className="text-neutral-900">{filteredTasks.length}</strong>
+                      </span>
+                      <span>
+                        Complete: <strong className="text-neutral-900">{counts.done}</strong>
+                      </span>
+                      <span>
+                        Partial: <strong className="text-neutral-900">{counts.partial}</strong>
+                      </span>
+                      <span>
+                        Conflicting:{' '}
+                        <strong className="text-neutral-900">{counts.conflicting}</strong>
+                      </span>
+                      <span>
+                        Pending: <strong className="text-neutral-900">{counts.pending}</strong>
+                      </span>
+                      <span>
+                        Skipped: <strong className="text-neutral-900">{counts.skipped}</strong>
+                      </span>
+                    </div>
+                  );
+                })()}
+            </div>
+          </>
+        )}
 
         {selectable && (
           <>

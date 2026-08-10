@@ -10,7 +10,6 @@ from pydantic import (
     field_validator,
 )
 
-from src.auth.schemas import UserOut
 from src.campaigns.form_fields import FormField, validate_form_fields
 from src.canvas.schemas import CanvasLayoutOut
 from src.custom_layers.schemas import CustomMapOut, VectorLayerOut
@@ -235,6 +234,7 @@ class CampaignSettingsCreate(BaseModel):
 
 class CampaignOut(BaseModel):
     id: int
+    project_id: int
     name: str
     created_at: datetime
     mode: Literal["tasks", "open"]
@@ -243,6 +243,10 @@ class CampaignOut(BaseModel):
     embedding_status: str = "ready"
     registration_errors: list[dict] | None = None
     annotations_version: int = 0
+
+    viewer_is_admin: bool = False
+    viewer_is_member: bool = False
+    viewer_is_authoritative_reviewer: bool = False
 
     settings: CampaignSettingsOut
     imagery_sources: list[ImagerySourceOut]
@@ -258,7 +262,7 @@ class CampaignOut(BaseModel):
 class CampaignCreate(BaseModel):
     name: str
     mode: Literal["tasks", "open"] = "tasks"  # for default mode. actual ACL in labelling_policy
-    is_public: bool = False
+    project_id: int
     settings: CampaignSettingsCreate
     imagery_editor_state: ImageryEditorStateCreate | None = None
     timeseries_configs: list[TimeSeriesCreate] | None = None
@@ -269,6 +273,7 @@ class CampaignListItemOut(BaseModel):
     id: int
     name: str
     created_at: datetime
+    project_id: int
     is_admin: bool = False
     is_member: bool = False
     is_public: bool = False
@@ -309,6 +314,7 @@ class CampaignOutFull(CampaignOut):
         return cls.model_validate(
             {
                 "id": obj.id,
+                "project_id": obj.project_id,
                 "name": obj.name,
                 "created_at": obj.created_at,
                 "mode": obj.mode,
@@ -327,39 +333,17 @@ class CampaignOutFull(CampaignOut):
         )
 
 
-class CampaignUserOut(BaseModel):
-    user: UserOut
-    is_admin: bool
-    # Wire name keeps the historical typo so the generated frontend client stays stable.
-    is_authoritative_reviewer: bool = Field(serialization_alias="is_authorative_reviewer")
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # ============================================================================
 # Specific Request / Response Schemas
 # ============================================================================
-
-
-class AssignUsersToCampaignRequest(BaseModel):
-    user_ids: list[UUID]
 
 
 class CampaignsListResponse(BaseModel):
     items: list[CampaignListItemOut]
 
 
-class CampaignUsersResponse(BaseModel):
-    campaign_id: int
-    users: list[CampaignUserOut]
-
-
 class UpdateCampaignNameRequest(BaseModel):
     name: str
-
-
-class UpdateCampaignVisibilityRequest(BaseModel):
-    is_public: bool
 
 
 class UpdateCampaignGuideRequest(BaseModel):

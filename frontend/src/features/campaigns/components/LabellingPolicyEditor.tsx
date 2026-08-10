@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CampaignUserOut, LabellingPolicy, PolicyAudience } from '~/api/client';
+import type { LabellingPolicy, PolicyAudience, ProjectUserOut } from '~/api/client';
 import { Tooltip } from '~/shared/ui/Tooltip';
 
 type AxisKey = keyof LabellingPolicy;
@@ -52,25 +52,15 @@ const AXES: {
 
 const emptyAudience: PolicyAudience = { kinds: [], user_ids: [] };
 
-// Matches backend/src/campaigns/schemas.py default_labelling_policy(): any
-// member can label anything; completion stays with assignees/admins/
-// authoritative. Used to seed a new campaign in the wizard.
-export const DEFAULT_LABELLING_POLICY: LabellingPolicy = {
-  explore: { kinds: ['members'], user_ids: [] },
-  unassigned_tasks: { kinds: ['members'], user_ids: [] },
-  assigned_tasks: { kinds: ['members'], user_ids: [] },
-  complete_assigned: { kinds: ['assignees', 'admins', 'authoritative'], user_ids: [] },
-};
-
-const memberName = (u: CampaignUserOut) => u.user.display_name || u.user.email;
+const memberName = (u: ProjectUserOut) => u.user.display_name || u.user.email;
 
 interface LabellingPolicyEditorProps {
   value: LabellingPolicy;
   onChange: (value: LabellingPolicy) => void;
   isPublic: boolean;
-  /** Omit where campaign members aren't known yet - the "selected members"
+  /** Omit where project members aren't known yet - the "selected members"
    * option is hidden in that case. */
-  members?: CampaignUserOut[];
+  members?: ProjectUserOut[];
   /** User IDs to seed into an axis's user_ids the first time its "Selected
    * members" checkbox is enabled with nothing selected yet (e.g. the
    * campaign creator, pre-checked in the create wizard). Filtered to known
@@ -79,11 +69,6 @@ interface LabellingPolicyEditorProps {
   /** Muted helper text rendered under an axis's expanded member picker, e.g.
    * pointing users at where to add more members later. */
   membersHint?: string;
-  /** Called only for direct user interaction with a checkbox (kind, member
-   * toggle) - not for the isPublic-driven 'anyone' strip below. Lets callers
-   * (e.g. the create wizard) distinguish "user customized the policy" from
-   * changes this component makes on its own. */
-  onTouch?: () => void;
 }
 
 export const LabellingPolicyEditor = ({
@@ -93,7 +78,6 @@ export const LabellingPolicyEditor = ({
   members,
   defaultSelectedMemberIds,
   membersHint,
-  onTouch,
 }: LabellingPolicyEditorProps) => {
   // UI-only: whether the member picker is expanded for a given axis. Seeded
   // from any pre-selected members so editing an existing policy shows them
@@ -106,11 +90,9 @@ export const LabellingPolicyEditor = ({
       ) as Record<AxisKey, boolean>
   );
 
-  // A campaign going private must not leave 'anyone' checked on any axis -
-  // the backend rejects it with a 400, and an already-checked box surviving
-  // the flip is an inconsistent, confusing UI state. Strips unconditionally
-  // (independent of any "touched" tracking a caller does) whenever isPublic
-  // is or becomes false.
+  // A private project must not leave 'anyone' checked on any axis - the
+  // backend rejects it with a 400, and an already-checked box surviving the
+  // flip is an inconsistent, confusing UI state.
   useEffect(() => {
     if (isPublic) return;
     const hasAnyone = AXES.some((axis) => (value[axis.key]?.kinds ?? []).includes('anyone'));
@@ -134,7 +116,6 @@ export const LabellingPolicyEditor = ({
   };
 
   const toggleKind = (key: AxisKey, kind: PolicyKind, checked: boolean) => {
-    onTouch?.();
     const current = value[key] ?? emptyAudience;
     const kinds = new Set(current.kinds ?? []);
     if (checked) kinds.add(kind);
@@ -143,7 +124,6 @@ export const LabellingPolicyEditor = ({
   };
 
   const toggleMembersEnabled = (key: AxisKey, checked: boolean) => {
-    onTouch?.();
     setExpanded((prev) => ({ ...prev, [key]: checked }));
     if (!checked) {
       updateAxis(key, { user_ids: [] });
@@ -157,7 +137,6 @@ export const LabellingPolicyEditor = ({
   };
 
   const toggleMember = (key: AxisKey, userId: string, checked: boolean) => {
-    onTouch?.();
     const current = value[key] ?? emptyAudience;
     const ids = new Set(current.user_ids ?? []);
     if (checked) ids.add(userId);
@@ -227,7 +206,7 @@ export const LabellingPolicyEditor = ({
             {members !== undefined && membersEnabled && (
               <div className="rounded-md border border-neutral-200 bg-white p-2.5 max-h-40 overflow-y-auto space-y-1">
                 {members.length === 0 ? (
-                  <p className="text-xs text-neutral-400">No members in this campaign yet.</p>
+                  <p className="text-xs text-neutral-400">No members in this project yet.</p>
                 ) : (
                   members.map((m) => (
                     <label

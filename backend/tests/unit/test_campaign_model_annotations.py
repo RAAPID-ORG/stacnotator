@@ -3,8 +3,8 @@
 import typing
 from uuid import UUID
 
-from src.campaigns.models import CampaignUser
 from src.canvas.models import CanvasLayout
+from src.projects.models import ProjectUser
 
 
 def _get_mapped_inner(annotation):
@@ -25,8 +25,8 @@ def test_canvas_layout_user_id_is_uuid_mapped():
     )
 
 
-def test_campaign_user_user_id_is_uuid_mapped():
-    """CampaignUser.user_id Mapped annotation must be UUID, not int."""
-    annotation = CampaignUser.__annotations__.get("user_id")
+def test_project_user_user_id_is_uuid_mapped():
+    """ProjectUser.user_id Mapped annotation must be UUID, not int."""
+    annotation = ProjectUser.__annotations__.get("user_id")
     inner = _get_mapped_inner(annotation)
-    assert inner is UUID, f"Expected UUID in CampaignUser.user_id annotation, got: {annotation}"
+    assert inner is UUID, f"Expected UUID in ProjectUser.user_id annotation, got: {annotation}"

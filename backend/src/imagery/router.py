@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import require_approved_user
+from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns.dependencies import require_campaign_access, require_campaign_admin
 from src.campaigns.models import Campaign
@@ -11,47 +11,32 @@ from src.canvas.schemas import CanvasLayoutCreateRequest
 from src.database import get_db
 from src.imagery import registration, service
 from src.imagery.schemas import (
-    AllowedTilersOut,
     ApiKeyStatusOut,
     ApiKeyUpdate,
     ImageryEditorStateCreate,
-    TilerOption,
 )
-from src.tilers import registry
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
 router = APIRouter(
     tags=["Imagery"],
-    dependencies=[Depends(bearer), Depends(require_approved_user)],
+    dependencies=[Depends(bearer), Depends(require_authenticated_user)],
 )
 
 
-def _require_internal_for_internal_storage(
-    editor_state: ImageryEditorStateCreate, user: User
+def _require_internal_storage_allowed(
+    editor_state: ImageryEditorStateCreate, campaign: Campaign
 ) -> None:
-    """Only internal staff may point a collection at internal (managed-identity) storage."""
-    if user.is_internal:
+    """Only organizations cleared for it may point a collection at internal
+    (managed-identity) storage."""
+    if campaign.project.organization.allows_internal_storage:
         return
     for source in editor_state.sources:
         for col in source.collections:
             if col.stac_config and col.stac_config.internal_storage:
                 raise HTTPException(
                     status_code=403,
-                    detail="Only internal users can mark imagery as internal storage",
+                    detail="This organization cannot mark imagery as internal storage",
                 )
-
-
-@router.get("/imagery/tilers", response_model=AllowedTilersOut)
-def list_tilers(user: User = Depends(require_approved_user)):
-    """Tilers the current user may use."""
-    allowed = set(user.allowed_tilers)
-    return AllowedTilersOut(
-        tilers=[
-            TilerOption(name=t.name, kind=t.kind, url=t.url, is_default=t.is_default)
-            for t in registry.all_tilers()
-            if t.name in allowed
-        ]
-    )
 
 
 @router.put("/{campaign_id}/imagery")
@@ -59,18 +44,16 @@ def save_imagery(
     campaign_id: int,
     editor_state: ImageryEditorStateCreate,
     campaign: Campaign = Depends(require_campaign_admin),
-    user: User = Depends(require_approved_user),
     db: Session = Depends(get_db),
 ):
     """Upsert the campaign's full imagery editor state. Used by the settings
     edit flow's Save button - reconciles adds/updates/deletes across sources,
     collections, slices, views, and basemaps in a single transaction."""
-    _require_internal_for_internal_storage(editor_state, user)
+    _require_internal_storage_allowed(editor_state, campaign)
     result = service.save_imagery_editor_state(
         db,
         campaign=campaign,
         editor_state=editor_state,
-        user=user,
     )
 
     pending = result["pending_registrations"]
@@ -97,7 +80,7 @@ def create_new_canvas_layout(
     campaign_id: int,
     db: Session = Depends(get_db),
     campaign: Campaign = Depends(require_campaign_access),
-    user: User = Depends(require_approved_user),
+    user: User = Depends(require_authenticated_user),
 ):
     if canvas_layout_req.should_be_default:
         require_campaign_admin(campaign_id=campaign_id, db=db, user=user)

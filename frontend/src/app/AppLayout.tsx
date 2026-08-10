@@ -8,8 +8,7 @@ import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
 import { Breadcrumbs } from 'src/shared/ui/Breadcrumbs';
 import { ErrorFallback } from 'src/shared/ui/ErrorFallback';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
-
-const ANNOTATION_ROUTE = /^\/campaigns\/\d+\/annotate/;
+import { ANNOTATION_ROUTE } from 'src/app/routes';
 
 /**
  * Main application layout

@@ -5,7 +5,7 @@ endpoints authenticate via the campaign-scoped ``tiler_token`` HttpOnly cookie i
 usual Firebase bearer. The provider key is decrypted here and never reaches the client.
 
 This is a separate router (not ``imagery.router``) precisely so it is *not* under that
-router's ``require_approved_user`` bearer dependency.
+router's ``require_authenticated_user`` bearer dependency.
 """
 
 from collections.abc import Callable

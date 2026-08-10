@@ -11,6 +11,8 @@ import { hasSeenTour, usePreferencesStore } from '../stores/preferences.store';
 import { useAnnotationKeyboard } from '../hooks/useAnnotationKeyboard';
 import { useOpenModeKeyboard } from '../hooks/useOpenModeKeyboard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectsPath } from '~/app/routes';
 import { AnnotationToolbar } from '../components/AnnotationToolbar';
 import { Canvas } from '../components/Canvas';
 import { GuidedTour } from '../components/GuidedTour';
@@ -26,6 +28,7 @@ const isWorkMode = (value: string): value is WorkMode =>
 
 export const AnnotationPage = () => {
   const campaignId = useCampaignIdParam();
+  const routeProjectId = useProjectIdParam();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -43,6 +46,10 @@ export const AnnotationPage = () => {
   const allTasks = useTaskStore((s) => s.allTasks);
   const tasksLoaded = useTaskStore((s) => s.tasksLoaded);
   const accountId = useAccountStore((s) => s.account?.id);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   // UI store
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
@@ -113,11 +120,11 @@ export const AnnotationPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaignId}` },
+        { label: 'Projects', path: projectsPath() },
+        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaignId) },
       ]);
     }
-  }, [campaign, campaignId, setBreadcrumbs]);
+  }, [campaign, campaignId, projectId, setBreadcrumbs]);
 
   // A deep link (?mode=explore) can seed workMode='explore' even for a user
   // the campaign's labelling policy doesn't allow to explore. The toolbar
@@ -208,7 +215,7 @@ export const AnnotationPage = () => {
             This may take a few minutes. You&apos;ll be able to start annotating once setup
             completes.
           </p>
-          <Button onClick={() => navigate(`/campaigns/${campaignId}/settings`)}>
+          <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}>
             Go to settings
           </Button>
         </div>
@@ -259,7 +266,7 @@ export const AnnotationPage = () => {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   {isCampaignAdmin && (
-                    <Button onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}>
+                    <Button onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}>
                       Set up tasks
                     </Button>
                   )}

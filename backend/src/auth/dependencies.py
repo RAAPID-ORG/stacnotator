@@ -49,73 +49,17 @@ async def require_authenticated_user(
     return user
 
 
-async def require_approved_user(
+def require_admin(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ) -> User:
     """
-    Verify user is authenticated and has approved status.
-
-    Ensures the user has been granted the 'approved' role,
-    which is required for most application features.
-
-    Args:
-        user: Authenticated user
-        db: Database session
-
-    Returns:
-        Approved user
-
-    Raises:
-        HTTPException: 403 if user is not approved
-    """
-    if not user.is_approved:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account not approved",
-        )
-    return user
-
-
-def require_campaign_creation_permission(
-    user: User = Depends(require_approved_user),
-    db: Session = Depends(get_db),
-) -> User:
-    """
-    Verify user is allowed to create new campaigns.
-
-    Approved users may create campaigns, except visitors. Admins always retain
-    this permission.
-
-    Args:
-        user: Authenticated and approved user
-        db: Database session
-
-    Returns:
-        User permitted to create campaigns
-
-    Raises:
-        HTTPException: 403 if user is a visitor
-    """
-    if user.is_visitor and not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Visitors cannot create campaigns",
-        )
-    return user
-
-
-def require_admin(
-    user: User = Depends(require_approved_user),
-    db: Session = Depends(get_db),
-) -> User:
-    """
-    Verify user is authenticated, approved, and has admin privileges.
+    Verify user is authenticated and has admin privileges.
 
     Ensures the user has admin role for platform administrative operations.
 
     Args:
-        user: Authenticated and approved user
+        user: Authenticated user
         db: Database session
 
     Returns:

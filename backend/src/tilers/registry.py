@@ -1,5 +1,5 @@
 """Unified registry of which tilers exist. MPC and hosted tilers are presented uniformly
-(one ``Tiler`` shape, one allow-set per user); MPC is special-cased only in routing
+(one ``Tiler`` shape, one allow-set per organization); MPC is special-cased only in routing
 (``providers.py``), not here.
 
 Imports ``src.config`` ONLY (no providers/router), so ``auth.models`` can use it without
@@ -38,8 +38,9 @@ class Tiler:
 def all_tilers() -> list[Tiler]:
     """Every tiler the system knows: MPC plus each configured hosted tiler.
 
-    ``default_access`` (auto-granted to all users) = MPC + the configured ``DEFAULT_TILER``.
-    Every other hosted tiler is an "extra" that requires an explicit per-user grant.
+    ``default_access`` (seeded for every organization) = MPC + the configured
+    ``DEFAULT_TILER``. Every other hosted tiler is an "extra" a platform admin has to
+    put on an organization's allowlist explicitly.
     """
     settings = get_settings()
     tilers = [
@@ -69,12 +70,12 @@ def all_tilers() -> list[Tiler]:
 
 
 def default_access_names() -> set[str]:
-    """Tilers seeded (pre-ticked) for new users: MPC + the default hosted tiler."""
+    """Tilers seeded on a newly approved organization: MPC + the default hosted tiler."""
     return {t.name for t in all_tilers() if t.default_access}
 
 
 def all_names() -> list[str]:
-    """Every configured tiler name (the full set an admin can toggle per user)."""
+    """Every configured tiler name (the full set an admin can put on an org allowlist)."""
     return [t.name for t in all_tilers()]
 
 

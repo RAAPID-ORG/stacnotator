@@ -18,8 +18,14 @@ specifically selected members. Empty means "no one".
 | `complete_assigned` | whose labels count toward completing an assigned task   | assignees, admins, authoritative, members          |
 
 `anyone` means any approved platform user, membership not required, and is
-only valid while the campaign is public. Making a campaign private strips
-`anyone` from all axes.
+only valid while the campaign is platform-public (project visibility
+`public`). Moving the project off `public` (to `organization` or `private`)
+strips `anyone` from all axes.
+
+`members` means project members plus platform admins. For org-public
+projects (visibility `organization`) it additionally includes active members
+of the approved owning organization: they get member-level labelling access
+without a membership row, but no roles (not admins, not authoritative).
 
 ## Counting vs extra labels
 

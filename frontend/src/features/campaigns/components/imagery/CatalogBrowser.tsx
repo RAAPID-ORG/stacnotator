@@ -112,6 +112,7 @@ export const MPC_PRESETS: CatalogBrowserPreset[] = [
 const MPC_API_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1';
 
 interface CatalogBrowserProps {
+  projectId: number;
   onAdd: (collections: CollectionItem[]) => void;
   onClose: () => void;
   campaignBbox?: number[] | null;
@@ -172,6 +173,7 @@ const CatalogSection = ({
 };
 
 export const CatalogBrowser = ({
+  projectId,
   onAdd,
   onClose,
   campaignBbox,
@@ -342,7 +344,7 @@ export const CatalogBrowser = ({
       setSelectedCatalog(mpcCatalog);
       setLoading(true);
       // Fetch full collection list to get item_assets metadata
-      getCollections({ query: { catalog_url: MPC_API_URL } })
+      getCollections({ query: { catalog_url: MPC_API_URL, project_id: projectId } })
         .then(({ data, error }) => {
           if (error) throw new Error('Failed to fetch collections');
           const cols = data!;
@@ -392,7 +394,7 @@ export const CatalogBrowser = ({
       return;
     }
     setLoading(true);
-    listCatalogs()
+    listCatalogs({ query: { project_id: projectId } })
       .then(({ data, error }) => {
         if (error) throw new Error('Failed to fetch catalogs');
         setCatalogs(data!);
@@ -410,7 +412,7 @@ export const CatalogBrowser = ({
     setCollections([]);
     setLoading(true);
     setError('');
-    getCollections({ query: { catalog_url: cat.url } })
+    getCollections({ query: { catalog_url: cat.url, project_id: projectId } })
       .then(({ data, error }) => {
         if (error) {
           const detail =
@@ -552,6 +554,7 @@ export const CatalogBrowser = ({
       const dtRange =
         startDate && endDate ? `${startDate}-01T00:00:00Z/${endDate}-28T23:59:59Z` : undefined;
       const { data, error } = await search({
+        query: { project_id: projectId },
         body: {
           catalog_url: selectedCatalog.url,
           collection_id: selectedCollection.id,

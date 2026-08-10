@@ -5,17 +5,20 @@ import { useDraftController } from '../../imagery/controller';
 import { syncToForm } from '../../imagery/draftSync';
 
 export const StepViewLayout = ({
+  projectId,
   form,
   setForm,
   imageryState,
   setImageryState,
 }: {
+  projectId: number;
   form: CampaignCreate;
   setForm: (f: CampaignCreate) => void;
   imageryState: ImageryStepState;
   setImageryState: (s: ImageryStepState) => void;
 }) => {
   const controller = useDraftController({
+    projectId,
     state: imageryState,
     setState: (next) => {
       setImageryState(next);

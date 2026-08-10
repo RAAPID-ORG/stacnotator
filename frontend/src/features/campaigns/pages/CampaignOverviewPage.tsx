@@ -4,31 +4,32 @@ import { useNavigate } from 'react-router-dom';
 import { prefetchAnnotationChunk } from '~/app/routeChunks';
 import { onIdle } from '~/shared/utils/idle';
 
-import {
-  getCampaign,
-  getCampaignUsers,
-  listTaskSets,
-  type CampaignOut,
-  type TaskSetOut,
-} from '~/api/client';
-import { useAccountStore } from '~/shared/stores/account.store';
+import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import { Skeleton, SkeletonCards, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { IconFlag, IconGear, IconMap } from '~/shared/ui/Icons';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectsPath } from '~/app/routes';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
   const [taskSets, setTaskSets] = useState<TaskSetOut[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
 
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 
@@ -39,7 +40,7 @@ export const CampaignOverviewPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
+        { label: 'Projects', path: projectsPath() },
         { label: capitalizeFirst(campaign.name) },
       ]);
     }
@@ -49,16 +50,13 @@ export const CampaignOverviewPage = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [campaignRes, taskSetsRes, usersRes] = await Promise.all([
+        const [campaignRes, taskSetsRes] = await Promise.all([
           getCampaign({ path: { campaign_id: campaignId } }),
           listTaskSets({ path: { campaign_id: campaignId } }),
-          getCampaignUsers({ path: { campaign_id: campaignId } }),
         ]);
         setCampaign(campaignRes.data ?? null);
         setTaskSets(taskSetsRes.data ?? []);
-        const account = useAccountStore.getState().account;
-        const membership = usersRes.data?.users.find((cu) => cu.user.id === account?.id);
-        setIsAdmin((account?.is_admin ?? false) || (membership?.is_admin ?? false));
+        setIsAdmin(campaignRes.data?.viewer_is_admin ?? false);
       } catch (err) {
         handleError(err, 'Failed to load campaign');
       } finally {
@@ -68,26 +66,7 @@ export const CampaignOverviewPage = () => {
     load();
   }, [campaignId]);
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <div className="surface mb-6">
-          <div className="surface-section flex items-center gap-5">
-            <Skeleton className="h-11 w-11 rounded-xl shrink-0" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-3.5 w-64 max-w-full" />
-            </div>
-            <Skeleton className="h-9 w-32 shrink-0" />
-          </div>
-        </div>
-        <Skeleton className="h-4 w-24 mb-3" />
-        <SkeletonCards count={3} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) {
+  if (!loading && !campaign) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <p className="text-neutral-700">Campaign not found</p>
@@ -95,7 +74,7 @@ export const CampaignOverviewPage = () => {
     );
   }
 
-  const createdDate = new Date(campaign.created_at).toLocaleDateString();
+  const createdDate = campaign ? new Date(campaign.created_at).toLocaleDateString() : null;
   const totalTasks = taskSets.reduce((sum, set) => sum + set.num_tasks, 0);
   const totalLabeled = taskSets.reduce((sum, set) => sum + set.num_labeled, 0);
   const hasTasks = totalTasks > 0;
@@ -105,13 +84,21 @@ export const CampaignOverviewPage = () => {
       <FadeIn className="page">
         <header className="page-header">
           <div>
-            <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
-            <p className="page-subtitle">Created {createdDate}</p>
+            {campaign ? (
+              <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
+            ) : (
+              <Skeleton className="h-7 w-52" />
+            )}
+            {campaign ? (
+              <p className="page-subtitle">Created {createdDate}</p>
+            ) : (
+              <Skeleton className="h-4 w-32 mt-2" />
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="secondary"
-              onClick={() => navigate(`/campaigns/${campaignId}/annotations`)}
+              onClick={() => navigate(campaignPath(projectId, campaignId, 'annotations'))}
             >
               Annotations
             </Button>
@@ -119,7 +106,7 @@ export const CampaignOverviewPage = () => {
               <Button
                 variant="secondary"
                 leading={<IconGear className="w-4 h-4" />}
-                onClick={() => navigate(`/campaigns/${campaignId}/settings`)}
+                onClick={() => navigate(campaignPath(projectId, campaignId, 'settings'))}
               >
                 Settings
               </Button>
@@ -131,9 +118,12 @@ export const CampaignOverviewPage = () => {
           className="surface mb-6 cursor-pointer hover:bg-neutral-50 transition-colors"
           role="button"
           tabIndex={0}
-          onClick={() => navigate(`/campaigns/${campaignId}/annotate?mode=explore`)}
+          onClick={() =>
+            navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+          }
           onKeyDown={(e) => {
-            if (e.key === 'Enter') navigate(`/campaigns/${campaignId}/annotate?mode=explore`);
+            if (e.key === 'Enter')
+              navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`);
           }}
         >
           <div className="surface-section flex items-center gap-5">
@@ -147,7 +137,9 @@ export const CampaignOverviewPage = () => {
               </p>
             </div>
             <Button
-              onClick={() => navigate(`/campaigns/${campaignId}/annotate?mode=explore`)}
+              onClick={() =>
+                navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=explore`)
+              }
               className="shrink-0"
             >
               Start exploring
@@ -161,13 +153,17 @@ export const CampaignOverviewPage = () => {
             {isAdmin && (
               <Button
                 variant="secondary"
-                onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+                onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
               >
                 Add tasks
               </Button>
             )}
           </div>
-          {!hasTasks ? (
+          {loading ? (
+            <Delayed>
+              <SkeletonCards count={3} />
+            </Delayed>
+          ) : !hasTasks ? (
             <div className="surface">
               <div className="surface-section text-center py-12">
                 <div className="w-11 h-11 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
@@ -182,7 +178,7 @@ export const CampaignOverviewPage = () => {
                 {isAdmin && (
                   <Button
                     variant="secondary"
-                    onClick={() => navigate(`/campaigns/${campaignId}/tasks`)}
+                    onClick={() => navigate(campaignPath(projectId, campaignId, 'tasks'))}
                   >
                     Add tasks
                   </Button>
@@ -195,8 +191,14 @@ export const CampaignOverviewPage = () => {
                 <AllTasksCard
                   totalLabeled={totalLabeled}
                   totalTasks={totalTasks}
-                  onOpen={() => navigate(`/campaigns/${campaignId}/annotate?mode=tasks`)}
-                  onManage={isAdmin ? () => navigate(`/campaigns/${campaignId}/tasks`) : undefined}
+                  onOpen={() =>
+                    navigate(`${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks`)
+                  }
+                  onManage={
+                    isAdmin
+                      ? () => navigate(campaignPath(projectId, campaignId, 'tasks'))
+                      : undefined
+                  }
                 />
               </MotionListItem>
               {taskSets.map((set, index) => (
@@ -204,11 +206,16 @@ export const CampaignOverviewPage = () => {
                   <TaskSetCard
                     taskSet={set}
                     onOpen={() =>
-                      navigate(`/campaigns/${campaignId}/annotate?mode=tasks&taskSet=${set.id}`)
+                      navigate(
+                        `${campaignPath(projectId, campaignId, 'annotate')}?mode=tasks&taskSet=${set.id}`
+                      )
                     }
                     onManage={
                       isAdmin
-                        ? () => navigate(`/campaigns/${campaignId}/tasks?taskSet=${set.id}`)
+                        ? () =>
+                            navigate(
+                              `${campaignPath(projectId, campaignId, 'tasks')}?taskSet=${set.id}`
+                            )
                         : undefined
                     }
                   />

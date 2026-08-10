@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { CampaignUserOut } from '~/api/client';
+import type { ProjectUserOut } from '~/api/client';
 import { Button, Input } from '~/shared/ui/forms';
 import { searchUsers } from '~/shared/utils/utility';
 
@@ -8,7 +8,7 @@ type AssignSelectedMode = 'every-user-every-task' | 'distribute-evenly';
 interface Props {
   isOpen: boolean;
   numTasks: number;
-  campaignUsers: CampaignUserOut[];
+  projectUsers: ProjectUserOut[];
   taskIds: number[];
   onAssign: (mapping: Record<number, string[]>) => Promise<void>;
   onCancel: () => void;
@@ -17,7 +17,7 @@ interface Props {
 export const AssignSelectedModal = ({
   isOpen,
   numTasks,
-  campaignUsers,
+  projectUsers,
   taskIds,
   onAssign,
   onCancel,
@@ -37,7 +37,7 @@ export const AssignSelectedModal = ({
 
   if (!isOpen) return null;
 
-  const matchingUsers = searchUsers(campaignUsers, (cu) => cu.user, userQuery);
+  const matchingUsers = searchUsers(projectUsers, (cu) => cu.user, userQuery);
 
   const handleToggleUser = (userId: string) => {
     setSelectedUsers((prev) =>

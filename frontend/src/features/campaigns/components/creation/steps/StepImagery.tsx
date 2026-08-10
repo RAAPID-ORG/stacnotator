@@ -16,17 +16,20 @@ export const createInitialImageryState = (): ImageryStepState => {
 };
 
 export const StepImagery = ({
+  projectId,
   form,
   setForm,
   imageryState,
   setImageryState,
 }: {
+  projectId: number;
   form: CampaignCreate;
   setForm: (f: CampaignCreate) => void;
   imageryState: ImageryStepState;
   setImageryState: (s: ImageryStepState) => void;
 }) => {
   const controller = useDraftController({
+    projectId,
     state: imageryState,
     setState: (next) => {
       setImageryState(next);

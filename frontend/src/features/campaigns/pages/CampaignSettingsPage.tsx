@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '~/shared/ui/forms';
-import { SkeletonForm, SkeletonPage } from '~/shared/ui/Skeleton';
+import { Skeleton, SkeletonForm } from '~/shared/ui/Skeleton';
+import { Delayed } from '~/shared/ui/Delayed';
 import { LoadingOverlay } from '~/shared/ui/LoadingOverlay';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import TabNavigator from '~/shared/ui/TabNavigator';
@@ -11,8 +12,9 @@ import ImageryTab from '~/features/campaigns/components/settings/tabs/ImageryTab
 import { usePersistedController } from '~/features/campaigns/components/imagery/controller';
 import { useUnsavedChangesGuard } from '~/shared/hooks/useUnsavedChangesGuard';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
+import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
+import { campaignPath, projectPath, projectsPath } from '~/app/routes';
 import TimeseriesTab from '~/features/campaigns/components/settings/tabs/TimeseriesTab';
-import UsersTab from '~/features/campaigns/components/settings/tabs/UsersTab';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
@@ -21,19 +23,19 @@ import { FadeIn } from '~/shared/ui/motion';
 import {
   createTimeseriesForCampaign,
   getCampaign,
-  getCampaignUsers,
+  getProjectUsers,
   deleteCampaign,
   deleteTimeseries,
   type CampaignOut,
-  type CampaignUserOut,
   type ImagerySourceOut,
+  type ProjectUserOut,
   type TimeSeriesCreate,
   type TimeSeriesOut,
   updateCampaignName,
   updateCampaignBbox,
 } from '~/api/client';
 
-const SETTINGS_TABS = ['general', 'imagery', 'users', 'timeseries'] as const;
+const SETTINGS_TABS = ['general', 'imagery', 'timeseries'] as const;
 type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const isSettingsTab = (t: string | null): t is SettingsTab =>
@@ -41,6 +43,7 @@ const isSettingsTab = (t: string | null): t is SettingsTab =>
 
 export const CampaignSettingsPage = () => {
   const campaignId = useCampaignIdParam();
+  const routeProjectId = useProjectIdParam();
   const navigate = useNavigate();
 
   const [campaign, setCampaign] = useState<CampaignOut | null>(null);
@@ -51,10 +54,14 @@ export const CampaignSettingsPage = () => {
   const initialTab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'general';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
+  // Campaign wins over the URL param, which only stands in until it loads and
+  // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
+  const projectId = campaign?.project_id ?? routeProjectId;
+
   // Form states
   const [campaignName, setCampaignName] = useState('');
   const [imagery, setImagery] = useState<ImagerySourceOut[]>([]);
-  const [campaignUsers, setCampaignUsers] = useState<CampaignUserOut[]>([]);
+  const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [timeseries, setTimeseries] = useState<TimeSeriesOut[]>([]);
   const [newTimeseries, setNewTimeseries] = useState<TimeSeriesCreate[]>([]);
 
@@ -96,6 +103,7 @@ export const CampaignSettingsPage = () => {
 
   const imageryController = usePersistedController({
     campaignId: campaignId,
+    projectId,
     imagery,
     views: campaign?.imagery_views ?? [],
     basemaps: campaign?.basemaps ?? [],
@@ -112,24 +120,12 @@ export const CampaignSettingsPage = () => {
   useEffect(() => {
     if (campaign) {
       setBreadcrumbs([
-        { label: 'Campaigns', path: '/campaigns' },
-        { label: capitalizeFirst(campaign.name), path: `/campaigns/${campaign.id}` },
+        { label: 'Projects', path: projectsPath() },
+        { label: capitalizeFirst(campaign.name), path: campaignPath(projectId, campaign.id) },
         { label: 'Settings' },
       ]);
     }
-  }, [campaign, setBreadcrumbs]);
-
-  // Task management moved to its own page - honor old ?tab=tasks deep links
-  // (e.g. bookmarks, the annotator empty-state CTA) by forwarding them.
-  // Bulk import moved to the Annotations page - honor old ?tab=annotations
-  // deep links the same way.
-  useEffect(() => {
-    if (tabParam === 'tasks') {
-      navigate(`/campaigns/${campaignId}/tasks`, { replace: true });
-    } else if (tabParam === 'annotations') {
-      navigate(`/campaigns/${campaignId}/annotations`, { replace: true });
-    }
-  }, [tabParam, campaignId, navigate]);
+  }, [campaign, projectId, setBreadcrumbs]);
 
   // Load campaign data (core data only)
   useEffect(() => {
@@ -184,26 +180,26 @@ export const CampaignSettingsPage = () => {
     return () => clearInterval(interval);
   }, [isAnyRegistering, campaignId, showAlert]);
 
-  // Load campaign users when the users tab is active, or the general tab
-  // (labelling access needs the member list for the "selected members"
-  // picker). Re-fetches every time the tab becomes active so changes made
-  // in the users tab (add / remove / promote) stay current.
+  // The general tab's labelling access needs the project's member list for the
+  // "selected members" picker. Re-fetched whenever the tab becomes active so
+  // membership changes made in project settings stay current.
+  const campaignProjectId = campaign?.project_id;
   useEffect(() => {
-    if (activeTab !== 'users' && activeTab !== 'general') return;
+    if (activeTab !== 'general' || campaignProjectId === undefined) return;
 
     const loadUsers = async () => {
       try {
-        const { data } = await getCampaignUsers({
-          path: { campaign_id: campaignId },
+        const { data } = await getProjectUsers({
+          path: { project_id: campaignProjectId },
         });
-        setCampaignUsers(data!.users);
+        setProjectUsers(data!.users);
       } catch (err) {
-        handleError(err, 'Failed to load campaign users');
+        handleError(err, 'Failed to load project members');
       }
     };
 
     loadUsers();
-  }, [activeTab, campaignId]);
+  }, [activeTab, campaignProjectId]);
 
   const handleSaveName = async () => {
     if (!campaign || campaignName === campaign.name) return;
@@ -296,7 +292,7 @@ export const CampaignSettingsPage = () => {
       setShowDeleteCampaignDialog(false);
 
       // Navigate to campaigns list after successful deletion
-      navigate('/campaigns');
+      navigate(projectPath(projectId));
     } catch (err) {
       handleError(err, 'Failed to delete campaign');
     } finally {
@@ -329,15 +325,7 @@ export const CampaignSettingsPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <SkeletonPage>
-        <SkeletonForm sections={4} />
-      </SkeletonPage>
-    );
-  }
-
-  if (!campaign) return null;
+  if (!loading && !campaign) return null;
 
   return (
     <>
@@ -345,33 +333,39 @@ export const CampaignSettingsPage = () => {
         <FadeIn className="page">
           <header className="page-header">
             <div>
-              <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
-              <p className="page-subtitle">Manage your campaign settings, imagery, and users.</p>
-            </div>
-            <div className="flex gap-2">
-              {imageryController.isDirty ? (
-                <Button
-                  onClick={() => {
-                    imageryController.save().catch(() => {
-                      /* error already surfaced via handleError */
-                    });
-                  }}
-                  disabled={imageryController.pending}
-                >
-                  {imageryController.pending ? 'Saving…' : 'Save'}
-                </Button>
+              {campaign ? (
+                <h1 className="page-title">{capitalizeFirst(campaign.name)}</h1>
               ) : (
-                <Button
-                  onClick={() => navigate(`/campaigns/${campaignId}/annotate`)}
-                  disabled={isAnyRegistering}
-                  title={
-                    isAnyRegistering ? 'Waiting for background setup to complete...' : undefined
-                  }
-                >
-                  Start annotating
-                </Button>
+                <Skeleton className="h-7 w-52" />
               )}
+              <p className="page-subtitle">Manage your campaign settings and imagery.</p>
             </div>
+            {campaign && (
+              <div className="flex gap-2">
+                {imageryController.isDirty ? (
+                  <Button
+                    onClick={() => {
+                      imageryController.save().catch(() => {
+                        /* error already surfaced via handleError */
+                      });
+                    }}
+                    disabled={imageryController.pending}
+                  >
+                    {imageryController.pending ? 'Saving…' : 'Save'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => navigate(campaignPath(projectId, campaignId, 'annotate'))}
+                    disabled={isAnyRegistering}
+                    title={
+                      isAnyRegistering ? 'Waiting for background setup to complete...' : undefined
+                    }
+                  >
+                    Start annotating
+                  </Button>
+                )}
+              </div>
+            )}
           </header>
 
           {/* Background setup status banners - sit above the surface so they
@@ -495,69 +489,65 @@ export const CampaignSettingsPage = () => {
             )}
           </div>
 
-          <div className="surface">
-            {/* Tab Navigation - inset into the top of the surface so the
-                tabs read as the surface's header, not a separate strip. */}
-            <TabNavigator<SettingsTab>
-              items={[
-                { id: 'general', label: 'General Settings' },
-                { id: 'imagery', label: 'Imagery' },
-                { id: 'timeseries', label: 'Timeseries' },
-                { id: 'users', label: 'Users' },
-              ]}
-              activeId={activeTab}
-              onChange={setActiveTab}
-              className="!mb-0 !border-neutral-200 px-6"
-            />
+          {campaign ? (
+            <div className="surface">
+              {/* Tab Navigation - inset into the top of the surface so the
+                  tabs read as the surface's header, not a separate strip. */}
+              <TabNavigator<SettingsTab>
+                items={[
+                  { id: 'general', label: 'General Settings' },
+                  { id: 'imagery', label: 'Imagery' },
+                  { id: 'timeseries', label: 'Timeseries' },
+                ]}
+                activeId={activeTab}
+                onChange={setActiveTab}
+                className="!mb-0 !border-neutral-200 px-6"
+              />
 
-            <div className="p-6">
-              {/* Tab Content */}
-              {activeTab === 'general' && (
-                <GeneralSettingsTab
-                  campaign={campaign!}
-                  campaignName={campaignName}
-                  setCampaignName={setCampaignName}
-                  saving={saving}
-                  onSaveName={handleSaveName}
-                  onSaveSettings={handleSaveSettings}
-                  onUpdateSettings={(updates) =>
-                    setCampaign({ ...campaign!, settings: { ...campaign!.settings, ...updates } })
-                  }
-                  onOpenDelete={() => setShowDeleteCampaignDialog(true)}
-                  onCampaignUpdated={(updated) => setCampaign(updated)}
-                  campaignUsers={campaignUsers}
-                />
-              )}
+              <div className="p-6">
+                {/* Tab Content */}
+                {activeTab === 'general' && (
+                  <GeneralSettingsTab
+                    campaign={campaign}
+                    campaignName={campaignName}
+                    setCampaignName={setCampaignName}
+                    saving={saving}
+                    onSaveName={handleSaveName}
+                    onSaveSettings={handleSaveSettings}
+                    onUpdateSettings={(updates) =>
+                      setCampaign({ ...campaign, settings: { ...campaign.settings, ...updates } })
+                    }
+                    onOpenDelete={() => setShowDeleteCampaignDialog(true)}
+                    onCampaignUpdated={(updated) => setCampaign(updated)}
+                    projectUsers={projectUsers}
+                  />
+                )}
 
-              {activeTab === 'imagery' && (
-                <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
-              )}
+                {activeTab === 'imagery' && (
+                  <ImageryTab controller={imageryController} campaignBbox={campaignBbox} />
+                )}
 
-              {activeTab === 'timeseries' && (
-                <TimeseriesTab
-                  newTimeseries={newTimeseries}
-                  setNewTimeseries={setNewTimeseries}
-                  timeseries={timeseries}
-                  handleAddTimeseries={handleAddTimeseries}
-                  setDeleteConfirm={setDeleteConfirm}
-                  saving={saving}
-                  campaignName={campaignName}
-                  imagery={imagery}
-                  campaignMode={campaign?.mode || 'tasks'}
-                  campaignSettings={campaign?.settings || {}}
-                />
-              )}
-
-              {activeTab === 'users' && (
-                <UsersTab
-                  campaignId={campaignId}
-                  onError={(msg) => showAlert(msg, 'error')}
-                  onSuccess={(msg) => showAlert(msg, 'success')}
-                  campaignUsers={campaignUsers}
-                />
-              )}
+                {activeTab === 'timeseries' && (
+                  <TimeseriesTab
+                    newTimeseries={newTimeseries}
+                    setNewTimeseries={setNewTimeseries}
+                    timeseries={timeseries}
+                    handleAddTimeseries={handleAddTimeseries}
+                    setDeleteConfirm={setDeleteConfirm}
+                    saving={saving}
+                    campaignName={campaignName}
+                    imagery={imagery}
+                    campaignMode={campaign.mode || 'tasks'}
+                    campaignSettings={campaign.settings || {}}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <Delayed>
+              <SkeletonForm sections={4} />
+            </Delayed>
+          )}
         </FadeIn>
       </div>
 

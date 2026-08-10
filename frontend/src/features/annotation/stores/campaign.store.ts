@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { Layout } from 'react-grid-layout';
 import {
   getCampaignWithImageryWindows,
-  getCampaignUsers,
   getAllAnnotationTasks,
   listTaskSets,
   createNewCanvasLayout,
@@ -10,7 +9,6 @@ import {
   type CampaignOutFull,
   type KnnValidationStatusOut,
 } from '~/api/client';
-import { useAccountStore } from '~/shared/stores/account.store';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useMapStore } from './map.store';
@@ -69,7 +67,7 @@ interface CampaignStore {
   isReviewMode: boolean;
   isAuthoritativeReviewer: boolean;
   isCampaignAdmin: boolean;
-  /** Whether the current user is a CampaignUser of this campaign (any role).
+  /** Whether the current user is a member of the campaign's project (any role).
    *  Feeds the 'members' kind of labelling-policy audience checks. */
   isCampaignMember: boolean;
   /** Client-side work style within the annotation UI, independent of the
@@ -156,21 +154,16 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     set({ isLoadingCampaign: true });
 
     try {
-      const [campaignRes, usersRes, tasksRes, setsRes] = await Promise.all([
+      const [campaignRes, tasksRes, setsRes] = await Promise.all([
         getCampaignWithImageryWindows({ path: { campaign_id: campaignId } }),
-        getCampaignUsers({ path: { campaign_id: campaignId } }),
         getAllAnnotationTasks({ path: { campaign_id: campaignId } }),
         listTaskSets({ path: { campaign_id: campaignId } }),
       ]);
 
       const campaign = campaignRes.data!;
-      const campaignUsers = usersRes.data?.users ?? [];
-      const currentUserId = useAccountStore.getState().account?.id;
-
-      const currentCampaignUser = campaignUsers.find((cu) => cu.user.id === currentUserId);
-      const isAuthoritativeReviewer = currentCampaignUser?.is_authorative_reviewer ?? false;
-      const isCampaignAdmin = currentCampaignUser?.is_admin ?? false;
-      const isCampaignMember = currentCampaignUser != null;
+      const isAuthoritativeReviewer = campaign.viewer_is_authoritative_reviewer ?? false;
+      const isCampaignAdmin = campaign.viewer_is_admin ?? false;
+      const isCampaignMember = campaign.viewer_is_member ?? false;
 
       // View & layout
       const firstView = campaign.imagery_views[0];
@@ -381,7 +374,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
           layout: {
             main_layout_data: mainItems,
             view_layout_data: viewItems.length > 0 ? viewItems : null,
-            view_id: selectedViewId,
           },
         },
       });

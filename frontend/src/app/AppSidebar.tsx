@@ -1,30 +1,8 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '~/app/providers/AuthProvider';
+import { ANNOTATION_ROUTE, projectsPath } from '~/app/routes';
+import { SidebarProjectNav } from '~/app/SidebarProjectNav';
+import { OrgSwitcher } from '~/features/organizations/components/OrgSwitcher';
 import { useAccountStore } from 'src/shared/stores/account.store';
-import { handleError } from '~/shared/utils/errorHandler';
-
-export const LogoutButton = () => {
-  const navigate = useNavigate();
-  const { auth } = useAuth();
-
-  const handleLogout = async () => {
-    try {
-      await auth.logout();
-      navigate('/');
-    } catch (err) {
-      handleError(err, 'Logout failed');
-    }
-  };
-
-  return (
-    <div
-      onClick={handleLogout}
-      className="cursor-pointer text-xs text-neutral-700 hover:text-red-500 select-none"
-    >
-      Logout
-    </div>
-  );
-};
 
 export type AppSidebarProps = {
   collapsed: boolean;
@@ -49,10 +27,10 @@ export const AppSidebar = ({
   const account = useAccountStore((s) => s.account);
 
   const currentPath = location.pathname;
-  const isAnnotationPage = /^\/campaigns\/\d+\/annotate/.test(currentPath);
+  const isAnnotationPage = ANNOTATION_ROUTE.test(currentPath);
 
   const isHomeActive = currentPath === '/';
-  const isCampaignsActive = currentPath.startsWith('/campaigns');
+  const isProjectsActive = currentPath.startsWith(projectsPath());
   const showToggle = isAnnotationPage;
 
   const handleNavClick = (path: string) => {
@@ -134,11 +112,11 @@ export const AppSidebar = ({
           </button>
 
           <button
-            onClick={() => handleNavClick('/campaigns')}
+            onClick={() => handleNavClick(projectsPath())}
             className={`${itemBase} ${collapsed ? 'justify-center' : 'px-2.5'} ${
-              isCampaignsActive ? itemActive : itemInactive
+              isProjectsActive ? itemActive : itemInactive
             }`}
-            title="Campaigns"
+            title="Projects"
           >
             <svg
               width="18"
@@ -149,9 +127,13 @@ export const AppSidebar = ({
             >
               <path d="M2 5.5C2 4.67157 2.67157 4 3.5 4H7.08579C7.351 4 7.60536 4.10536 7.79289 4.29289L9.20711 5.70711C9.39464 5.89464 9.649 6 9.91421 6H16.5C17.3284 6 18 6.67157 18 7.5V14.5C18 15.3284 17.3284 16 16.5 16H3.5C2.67157 16 2 15.3284 2 14.5V5.5ZM3.5 5C3.22386 5 3 5.22386 3 5.5V14.5C3 14.7761 3.22386 15 3.5 15H16.5C16.7761 15 17 14.7761 17 14.5V7.5C17 7.22386 16.7761 7 16.5 7H9.91421C9.649 7 9.39464 6.89464 9.20711 6.70711L7.79289 5.29289C7.60536 5.10536 7.351 5 7.08579 5H3.5Z" />
             </svg>
-            {!collapsed && <span className="truncate">Campaigns</span>}
+            {!collapsed && <span className="truncate">Projects</span>}
           </button>
+
+          {!collapsed && <SidebarProjectNav onNavigate={() => setMobileOpen?.(false)} />}
         </nav>
+
+        {!collapsed && <OrgSwitcher onNavigate={() => setMobileOpen?.(false)} />}
 
         <div className="p-3 border-t border-neutral-200 mt-auto">
           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
@@ -173,7 +155,6 @@ export const AppSidebar = ({
                 >
                   {account?.display_name || account?.email || 'Settings'}
                 </button>
-                <LogoutButton />
               </div>
             )}
           </div>
