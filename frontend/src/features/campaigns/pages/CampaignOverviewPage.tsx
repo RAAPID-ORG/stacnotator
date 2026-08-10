@@ -5,7 +5,6 @@ import { prefetchAnnotationChunk } from '~/app/routeChunks';
 import { onIdle } from '~/shared/utils/idle';
 
 import { getCampaign, listTaskSets, type CampaignOut, type TaskSetOut } from '~/api/client';
-import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Skeleton, SkeletonCards } from '~/shared/ui/Skeleton';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Button } from '~/shared/ui/forms';
@@ -15,7 +14,8 @@ import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useCampaignIdParam } from '~/shared/hooks/useCampaignIdParam';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
-import { campaignPath, projectsPath } from '~/app/routes';
+import { campaignPath } from '~/app/routes';
+import { useCampaignBreadcrumbs } from '~/app/useCampaignBreadcrumbs';
 
 export const CampaignOverviewPage = () => {
   const campaignId = useCampaignIdParam();
@@ -31,20 +31,11 @@ export const CampaignOverviewPage = () => {
   // can be wrong outright on a hand-edited /projects/<id>/campaigns/... URL.
   const projectId = campaign?.project_id ?? routeProjectId;
 
-  const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
-
   // From the overview the next step is almost always the annotator, whose chunk
   // is the heaviest. Warm it on idle so opening it doesn't wait on the download.
   useEffect(() => onIdle(prefetchAnnotationChunk), []);
 
-  useEffect(() => {
-    if (campaign) {
-      setBreadcrumbs([
-        { label: 'Projects', path: projectsPath() },
-        { label: capitalizeFirst(campaign.name) },
-      ]);
-    }
-  }, [campaign, setBreadcrumbs]);
+  useCampaignBreadcrumbs(projectId, campaignId, campaign?.name);
 
   useEffect(() => {
     const load = async () => {

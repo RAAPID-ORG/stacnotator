@@ -101,15 +101,26 @@ const SOURCE = {
   collections: [COLLECTION_S2, COLLECTION_NDVI],
 };
 
+// A view's windows are exactly the collection keys in its canvas layout;
+// source_ids only says which sources are browsable in the view.
+const viewWindowLayout = (id: number, collectionIds: number[]) => ({
+  id,
+  user_id: null,
+  layout_data: collectionIds.map((cid, idx) => ({
+    i: String(cid),
+    x: (idx % 6) * 10,
+    y: 40 + Math.floor(idx / 6) * 11,
+    w: 10,
+    h: 11,
+  })),
+});
+
 const VIEW_DEFAULT = {
   id: 1,
   name: 'Default View',
   display_order: 0,
-  collection_refs: [
-    { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-    { collection_id: 20, source_id: 1, show_as_window: true, display_order: 1 },
-  ],
-  default_canvas_layout: null,
+  source_ids: [1],
+  default_canvas_layout: viewWindowLayout(11, [10, 20]),
   personal_canvas_layout: null,
 };
 
@@ -525,11 +536,8 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE = {
       id: 1,
       name: 'Default View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1, 2],
+      default_canvas_layout: viewWindowLayout(11, [10, 30]),
       personal_canvas_layout: null,
     },
   ],
@@ -644,11 +652,8 @@ export const MOCK_CAMPAIGN_MULTI_SOURCE_WITH_TIMESERIES = {
       id: 1,
       name: 'Default View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 40, source_id: 2, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1, 2],
+      default_canvas_layout: viewWindowLayout(11, [10, 40]),
       personal_canvas_layout: null,
     },
   ],
@@ -757,11 +762,8 @@ export const MOCK_CAMPAIGN_MONTHS = {
       id: 1,
       name: 'Months View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 7001, source_id: 700, show_as_window: true, display_order: 0 },
-        { collection_id: 7002, source_id: 700, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [700],
+      default_canvas_layout: viewWindowLayout(11, [7001, 7002]),
       personal_canvas_layout: null,
     },
   ],
@@ -780,21 +782,16 @@ export const MOCK_CAMPAIGN_MULTI_VIEW = {
       id: 1,
       name: 'Sentinel-2 View',
       display_order: 0,
-      collection_refs: [
-        { collection_id: 10, source_id: 1, show_as_window: true, display_order: 0 },
-        { collection_id: 20, source_id: 1, show_as_window: true, display_order: 1 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [1],
+      default_canvas_layout: viewWindowLayout(11, [10, 20]),
       personal_canvas_layout: null,
     },
     {
       id: 2,
       name: 'VHR View',
       display_order: 1,
-      collection_refs: [
-        { collection_id: 30, source_id: 2, show_as_window: true, display_order: 0 },
-      ],
-      default_canvas_layout: null,
+      source_ids: [2],
+      default_canvas_layout: viewWindowLayout(12, [30]),
       personal_canvas_layout: null,
     },
   ],

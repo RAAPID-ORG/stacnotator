@@ -111,17 +111,11 @@ class ApiKeyStatusOut(BaseModel):
     has_api_key: bool
 
 
-class ViewCollectionRefItem(BaseModel):
-    collection_id: int
-    source_id: int
-    show_as_window: bool = True
-
-
 class ImageryViewOut(BaseModel):
     id: int
     name: str
     display_order: int
-    collection_refs: list[ViewCollectionRefItem]
+    source_ids: list[int]
 
     # Populated by from_orm; stay None on any other construction path (e.g. a
     # plain ImageryViewOut(**kwargs) in a test). Read-only computed fields so
@@ -249,68 +243,31 @@ class BasemapCreate(BaseModel):
     max_native_zoom: int | None = None
 
 
-class ViewCollectionRefCreate(BaseModel):
-    collection_id: str  # frontend temp id - mapped by service
-    source_id: str  # frontend temp id - mapped by service
-    show_as_window: bool = True
-
-
-class ImageryViewCreate(BaseModel):
-    id: int | None = None
-    name: str = ""
-    collection_refs: list[ViewCollectionRefCreate] = []
-
-
 class ImageryEditorStateCreate(BaseModel):
     """Full imagery editor state sent from the frontend on campaign creation."""
 
     sources: list[ImagerySourceCreate]
-    views: list[ImageryViewCreate]
     basemaps: list[BasemapCreate]
 
 
 # ============================================================================
-# Update / Layout Request Schemas
+# View Request Schemas
 # ============================================================================
 
 
-class VisualizationUpdate(BaseModel):
-    name: str
-
-
-class ImagerySourceUpdate(BaseModel):
-    """Partial update for an imagery source's display settings."""
-
-    name: str | None = None
-    crosshair_hex6: str | None = None
-    default_zoom: int | None = None
-    visualizations: list[VisualizationUpdate] | None = None
-
-
-class ImageryCollectionUpdate(BaseModel):
-    """Partial update for an imagery collection."""
-
-    name: str | None = None
-    cover_slice_index: int | None = None
-    has_dedicated_cover: bool | None = None
+class ImageryViewCreate(BaseModel):
+    name: str = ""
+    source_ids: list[int] = []
 
 
 class ImageryViewUpdate(BaseModel):
-    """Partial update for an imagery view."""
+    """Partial update: only the provided fields change."""
 
     name: str | None = None
-    display_order: int | None = None
-    collection_refs: list[ViewCollectionRefItem] | None = None
+    source_ids: list[int] | None = None
 
 
-class ImageryViewAddRequest(BaseModel):
-    """Create a new view on an existing campaign."""
+class ImageryViewOrderUpdate(BaseModel):
+    """Full campaign view ordering; must list every view id exactly once."""
 
-    name: str = ""
-    collection_refs: list[ViewCollectionRefItem] = []
-
-
-class CreateImageryResponse(BaseModel):
-    sources: list[ImagerySourceOut]
-    views: list[ImageryViewOut]
-    basemaps: list[BasemapOut]
+    view_ids: list[int]

@@ -51,7 +51,7 @@ import {
   emphasizedStrokeWidth,
   type LabelStyle,
 } from '../../utils/annotationStyle';
-import { convertWKTToGeoJSON, mockMagicWandSegmentation } from '~/shared/utils/utility';
+import { convertWKTToGeoJSON } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 import { getAnnotation as getAnnotationApi, getAnnotationIdsInBbox } from '~/api/client';
 
@@ -116,17 +116,10 @@ export interface DrawingLayerProps {
   map: OLMap;
   selectedLabel: ExtendedLabel | null;
   activeTool: AnnotationTool;
-  magicWandActive: boolean;
   onTimeseriesClick?: (lat: number, lon: number) => void;
 }
 
-const DrawingLayer = ({
-  map,
-  selectedLabel,
-  activeTool,
-  magicWandActive,
-  onTimeseriesClick,
-}: DrawingLayerProps) => {
+const DrawingLayer = ({ map, selectedLabel, activeTool, onTimeseriesClick }: DrawingLayerProps) => {
   // Store
   const campaign = useCampaignStore((state) => state.campaign);
   const saveAnnotation = useAnnotationStore((state) => state.saveAnnotation);
@@ -448,44 +441,6 @@ const DrawingLayer = ({
     map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
   }, [map, selectedLabel, saveAnnotation, styleForLabel]);
 
-  // 3b. Magic-wand interaction (single click -> auto polygon)
-  const magicWandAbortRef = useRef<AbortController | null>(null);
-
-  const setupMagicWandInteraction = useCallback(() => {
-    if (!selectedLabel) return;
-
-    const controller = new AbortController();
-    magicWandAbortRef.current = controller;
-
-    const handleClick = async (evt: { coordinate: number[] }) => {
-      if (controller.signal.aborted) return;
-      const [lon, lat] = toLonLat(evt.coordinate);
-      try {
-        const polygonGeometry = await mockMagicWandSegmentation(lat, lon);
-        if (controller.signal.aborted) return;
-        if (selectedLabelRef.current) {
-          await saveAnnotation(
-            polygonGeometry,
-            selectedLabelRef.current.id,
-            undefined,
-            useTaskStore.getState().formValues
-          );
-        }
-      } catch (err) {
-        handleError(err, 'Magic wand segmentation failed');
-      }
-    };
-
-    map.on('click', handleClick as unknown as () => void);
-    map.getTargetElement()?.style.setProperty('cursor', 'crosshair');
-
-    return () => {
-      controller.abort();
-      map.un('click', handleClick as unknown as () => void);
-      map.getTargetElement()?.style.setProperty('cursor', '');
-    };
-  }, [map, selectedLabel, saveAnnotation]);
-
   // 3c. Edit interaction (tile click -> single edit; shift-box -> multi-select)
   const setupEditInteractions = useCallback(() => {
     const source = sourceRef.current;
@@ -607,11 +562,7 @@ const DrawingLayer = ({
     }
 
     if (activeTool === 'annotate' && selectedLabel) {
-      if (magicWandActive && selectedLabel.geometry_type === 'polygon') {
-        cleanup = setupMagicWandInteraction() ?? undefined;
-      } else {
-        setupDrawInteraction();
-      }
+      setupDrawInteraction();
     } else if (activeTool === 'edit') {
       cleanup = setupEditInteractions() ?? undefined;
     } else if (activeTool === 'timeseries') {
@@ -623,7 +574,7 @@ const DrawingLayer = ({
       removeAllInteractions();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type, magicWandActive]);
+  }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type]);
 
   // Swallow ESC only while a sketch is being drawn (to abort it); once the
   // geometry is finished ESC belongs to the panel, which closes the draft.

@@ -18,6 +18,7 @@ import type { LayerManager } from './layerManager';
 import type { CampaignOutFull, AnnotationTaskOut } from '~/api/client';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { resolveSliceTileUrl } from '../../utils/proxyTile';
+import { viewCollections } from '../../utils/viewCollections';
 import { useCampaignStore } from '../../stores/campaign.store';
 import { usePreferencesStore, type PreloadMode } from '../../stores/preferences.store';
 import { isMobileNow } from '~/shared/utils/useIsMobile';
@@ -205,7 +206,7 @@ export function useTilePreloading({
   if (campaign && selectedViewId != null) {
     const view = campaign.imagery_views.find((v) => v.id === selectedViewId);
     viewCollectionIdsRef.current = view
-      ? new Set(view.collection_refs.map((r) => r.collection_id))
+      ? new Set(viewCollections(campaign.imagery_sources, view).map((e) => e.collection.id))
       : null;
   } else {
     viewCollectionIdsRef.current = null;

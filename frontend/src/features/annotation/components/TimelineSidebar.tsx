@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import type { CampaignOutFull } from '~/api/client';
 import { sliceView } from '../utils/sliceView';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { viewCollections } from '../utils/viewCollections';
 
 interface TimelineSidebarProps {
   campaign: CampaignOutFull;
@@ -54,7 +55,7 @@ const TimelineSidebar = ({
   const allStepsRef = useRef<TimelineStep[]>([]);
   const yToStepRef = useRef<(clientY: number) => TimelineStep | null>(() => null);
 
-  const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign.imagery_views.find((v) => v.id === selectedViewId) ?? null;
 
   // Derive active source so the timeline only shows that source's collections
   const activeSourceId = useMemo(() => {
@@ -64,24 +65,18 @@ const TimelineSidebar = ({
     );
   }, [campaign.imagery_sources, activeCollectionId]);
 
-  const viewCollections = useMemo(() => {
-    if (!selectedView) return [];
-    return selectedView.collection_refs
-      .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        return { ...ref, collection, source };
-      })
-      .filter((r) => r.collection)
-      .sort(byCollectionDate);
-  }, [selectedView, campaign.imagery_sources, activeSourceId]);
+  const timelineCollections = useMemo(
+    () =>
+      viewCollections(campaign.imagery_sources, selectedView)
+        .filter((entry) => activeSourceId == null || entry.source.id === activeSourceId)
+        .sort(byCollectionDate),
+    [selectedView, campaign.imagery_sources, activeSourceId]
+  );
 
   const dateRange = useMemo(() => {
     let earliest: string | null = null;
     let latest: string | null = null;
-    for (const { collection } of viewCollections) {
-      if (!collection) continue;
+    for (const { collection } of timelineCollections) {
       const { navIndices } = sliceView(
         collection.slices.length,
         collection.cover_slice_index,
@@ -94,11 +89,10 @@ const TimelineSidebar = ({
       }
     }
     return { start: earliest, end: latest };
-  }, [viewCollections]);
+  }, [timelineCollections]);
 
   const allSteps = useMemo<TimelineStep[]>(() => {
-    return viewCollections.map((r, ci) => {
-      const col = r.collection!;
+    return timelineCollections.map(({ collection: col }, ci) => {
       const { navIndices } = sliceView(
         col.slices.length,
         col.cover_slice_index,
@@ -114,7 +108,7 @@ const TimelineSidebar = ({
         sliceCount: col.slices.length,
       };
     });
-  }, [viewCollections]);
+  }, [timelineCollections]);
 
   allStepsRef.current = allSteps;
   yToStepRef.current = useCallback((clientY: number): TimelineStep | null => {
@@ -221,7 +215,7 @@ const TimelineSidebar = ({
     [stablePointerMove, stablePointerUp]
   );
 
-  const totalCollections = viewCollections.length;
+  const totalCollections = timelineCollections.length;
 
   const formatDateLabel = (d: string | null) => {
     if (!d) return '';
@@ -244,10 +238,10 @@ const TimelineSidebar = ({
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
-  const activeIndex = viewCollections.findIndex(
-    ({ collection }) => collection?.id === liveCollectionId
+  const activeIndex = timelineCollections.findIndex(
+    ({ collection }) => collection.id === liveCollectionId
   );
-  const activeCollection = activeIndex >= 0 ? viewCollections[activeIndex].collection : null;
+  const activeCollection = activeIndex >= 0 ? timelineCollections[activeIndex].collection : null;
   const activeLabelText =
     activeCollection?.name || formatDateLabel(activeCollection?.slices[0]?.start_date ?? null);
   const activeTopPct = totalCollections > 0 ? ((activeIndex + 0.5) / totalCollections) * 100 : 0;
@@ -297,8 +291,7 @@ const TimelineSidebar = ({
             >
               <div className="absolute left-1/2 -translate-x-px top-0 bottom-0 w-px bg-neutral-200 pointer-events-none" />
 
-              {viewCollections.map(({ collection }) => {
-                if (!collection) return null;
+              {timelineCollections.map(({ collection }) => {
                 const segH = `${100 / totalCollections}%`;
                 return (
                   <div

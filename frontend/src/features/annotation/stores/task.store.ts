@@ -19,6 +19,7 @@ import { useCampaignStore } from './campaign.store';
 import { useMapStore } from './map.store';
 import { usePreferencesStore } from './preferences.store';
 import { applyTaskFilter, isClaimable, UNASSIGNED, type TaskFilter } from '../utils/taskFilter';
+import { defaultActiveCollectionId } from '../utils/viewCollections';
 import {
   formatMissingFieldsTitle,
   missingRequiredFields,
@@ -52,7 +53,6 @@ interface TaskStore {
   flagComment: string;
   formValues: FormValues;
   activeFieldIndex: number | null;
-  magicWandEnabled: Record<number, boolean>;
   knnValidationEnabled: boolean;
   skipConfirmDisabled: boolean;
 
@@ -97,7 +97,6 @@ interface TaskStore {
   /** Save when every required field is answered, else discard: an open-mode
    *  annotation can't be saved incomplete, so an unfinished draft is thrown away. */
   closeDraft: () => Promise<void>;
-  toggleMagicWand: (labelId: number) => void;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
   resetAnnotationForm: () => void;
@@ -140,10 +139,8 @@ const getFormStateForTask = (task: AnnotationTaskOut | null) => {
 
 /** Resets map state relevant to task navigation. */
 const resetMapForTaskNav = () => {
-  const campaign = useCampaignStore.getState().campaign;
-  const selectedViewId = useCampaignStore.getState().selectedViewId;
+  const { campaign, selectedViewId, currentLayout } = useCampaignStore.getState();
   const view = campaign?.imagery_views.find((v) => v.id === selectedViewId);
-  const windowRefs = view?.collection_refs?.filter((r) => r.show_as_window) ?? [];
 
   // Honour the user's pinned starting collection for this view, falling back to
   // the first window collection if unset or no longer valid (e.g. removed).
@@ -151,8 +148,9 @@ const resetMapForTaskNav = () => {
     selectedViewId != null
       ? usePreferencesStore.getState().taskStartCollectionByView[selectedViewId]
       : undefined;
-  const pinnedValid = windowRefs.some((r) => r.collection_id === pinned);
-  const defaultCollectionId = (pinnedValid ? pinned : windowRefs[0]?.collection_id) ?? null;
+  const defaultCollectionId = campaign
+    ? defaultActiveCollectionId(campaign.imagery_sources, view, currentLayout, pinned)
+    : null;
 
   useMapStore.setState({
     // Clear per-collection memory so the active slice resolves from the
@@ -192,7 +190,6 @@ const initialState = {
   flagComment: '',
   formValues: {} as FormValues,
   activeFieldIndex: null as number | null,
-  magicWandEnabled: {} as Record<number, boolean>,
   knnValidationEnabled: false,
   skipConfirmDisabled: false,
   draftGeometry: null as GeoJSON.Geometry | null,
@@ -659,10 +656,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       }
       await get().commitDraft();
     },
-    toggleMagicWand: (labelId) =>
-      set((s) => ({
-        magicWandEnabled: { ...s.magicWandEnabled, [labelId]: !s.magicWandEnabled[labelId] },
-      })),
     setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
     setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
     resetAnnotationForm: () =>

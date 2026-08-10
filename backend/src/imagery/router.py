@@ -14,6 +14,10 @@ from src.imagery.schemas import (
     ApiKeyStatusOut,
     ApiKeyUpdate,
     ImageryEditorStateCreate,
+    ImageryViewCreate,
+    ImageryViewOrderUpdate,
+    ImageryViewOut,
+    ImageryViewUpdate,
 )
 
 bearer = HTTPBearer()  # Using only for adding bearer scheme to Swagger OpenAPI
@@ -48,7 +52,7 @@ def save_imagery(
 ):
     """Upsert the campaign's full imagery editor state. Used by the settings
     edit flow's Save button - reconciles adds/updates/deletes across sources,
-    collections, slices, views, and basemaps in a single transaction."""
+    collections, slices, and basemaps in a single transaction."""
     _require_internal_storage_allowed(editor_state, campaign)
     result = service.save_imagery_editor_state(
         db,
@@ -130,6 +134,54 @@ def refresh_collection_imagery(
     # Literal, not a re-read: expire_on_commit could reload the row after the
     # background thread has already flipped it to ready/failed.
     return {"registration_status": "registering"}
+
+
+@router.post("/{campaign_id}/imagery/views", response_model=ImageryViewOut, status_code=201)
+def create_imagery_view(
+    campaign_id: int,
+    payload: ImageryViewCreate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Create a view with a default canvas layout showing every collection of
+    its sources as a window (campaign admin only)."""
+    return ImageryViewOut.from_orm(service.create_view(db, campaign, payload))
+
+
+# Declared before /views/{view_id} so "order" is not captured by the int param.
+@router.put("/{campaign_id}/imagery/views/order", status_code=204)
+def reorder_imagery_views(
+    campaign_id: int,
+    payload: ImageryViewOrderUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Persist a full ordering of the campaign's views (campaign admin only)."""
+    service.reorder_views(db, campaign, payload.view_ids)
+
+
+@router.put("/{campaign_id}/imagery/views/{view_id}", response_model=ImageryViewOut)
+def update_imagery_view(
+    campaign_id: int,
+    view_id: int,
+    payload: ImageryViewUpdate,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Rename a view and/or replace its source membership; its canvas layouts
+    follow the new eligible collection set (campaign admin only)."""
+    return ImageryViewOut.from_orm(service.update_view(db, campaign, view_id, payload))
+
+
+@router.delete("/{campaign_id}/imagery/views/{view_id}", status_code=204)
+def delete_imagery_view(
+    campaign_id: int,
+    view_id: int,
+    db: Session = Depends(get_db),
+    campaign: Campaign = Depends(require_campaign_admin),
+):
+    """Delete a view and its canvas layouts (campaign admin only)."""
+    service.delete_view(db, campaign, view_id)
 
 
 @router.put("/{campaign_id}/imagery/basemaps/{basemap_id}/key", response_model=ApiKeyStatusOut)

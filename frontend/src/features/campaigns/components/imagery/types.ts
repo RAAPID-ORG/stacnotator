@@ -118,18 +118,6 @@ export interface ImagerySource {
   hasApiKey?: boolean;
 }
 
-export interface ViewCollectionRef {
-  collectionId: string;
-  sourceId: string;
-  showAsWindow: boolean;
-}
-
-export interface ImageryView {
-  id: string;
-  name: string;
-  collectionRefs: ViewCollectionRef[];
-}
-
 export interface Basemap {
   id: string;
   name: string;
@@ -142,7 +130,6 @@ export interface Basemap {
 
 export interface ImageryStepState {
   sources: ImagerySource[];
-  views: ImageryView[];
   basemaps: Basemap[];
 }
 
@@ -182,12 +169,6 @@ export const emptyManualCollection = (vizNames: string[]): CollectionItem => ({
   },
 });
 
-export const emptyView = (): ImageryView => ({
-  id: createId(),
-  name: '',
-  collectionRefs: [],
-});
-
 export const emptyBasemap = (): Basemap => ({
   id: createId(),
   name: '',
@@ -225,17 +206,6 @@ export const DEFAULT_BASEMAPS: Basemap[] = [
     maxNativeZoom: 19,
   },
 ];
-
-export function resolveCollection(
-  sources: ImagerySource[],
-  ref: ViewCollectionRef
-): { source: ImagerySource; collection: CollectionItem } | null {
-  const source = sources.find((s) => s.id === ref.sourceId);
-  if (!source) return null;
-  const collection = source.collections.find((c) => c.id === ref.collectionId);
-  if (!collection) return null;
-  return { source, collection };
-}
 
 export function swap<T>(arr: T[], i: number, j: number): T[] {
   if (i < 0 || j < 0 || i >= arr.length || j >= arr.length) return arr;

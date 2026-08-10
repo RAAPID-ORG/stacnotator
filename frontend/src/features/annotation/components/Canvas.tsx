@@ -21,6 +21,7 @@ import { useContainerWidth } from '../hooks/useContainerWidth';
 import { handleError } from '~/shared/utils/errorHandler';
 import { useIsMobile } from '~/shared/utils/useIsMobile';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { viewCollections } from '../utils/viewCollections';
 import { isTimeseriesWindowKey } from '../utils/layoutDefaults';
 import { groupTimeseriesIntoWindows, type TimeseriesWindow } from '../utils/timeseriesWindows';
 import { computeTaskProgress, getActiveClaim } from '../utils/taskFilter';
@@ -236,7 +237,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     [allTasks, taskFilter.assignedTo]
   );
 
-  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
   const isOpenMode = workMode === 'explore';
   const campaignBbox = campaign
     ? ([
@@ -272,22 +273,12 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     };
   }, [campaign?.id, workMode, tileVersion]);
 
+  // Windows are exactly the view's collections that are present in the layout.
   const windowCollections = useMemo(() => {
-    if (!campaign || !selectedView) return [];
-    // A collection appears in the grid only if it's eligible at the view level
-    // (`show_as_window=true`) AND present in the user's current layout. The
-    // layout membership is the per-user hide/show lever; the view flag is the
-    // admin-level eligibility gate.
+    if (!campaign) return [];
     const layoutKeys = new Set((currentLayout ?? []).map((it) => it.i));
-    return selectedView.collection_refs
-      .filter((ref) => ref.show_as_window)
-      .filter((ref) => layoutKeys.has(String(ref.collection_id)))
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        return { ...ref, collection, source };
-      })
-      .filter((r) => r.collection && r.source)
+    return viewCollections(campaign.imagery_sources, selectedView)
+      .filter((entry) => layoutKeys.has(String(entry.collection.id)))
       .sort(byCollectionDate);
   }, [campaign, selectedView, currentLayout]);
 
@@ -319,7 +310,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     items.push({ i: 'minimap', x: 0, y, w: 60, h: restRows });
     y += restRows;
     for (const wc of windowCollections) {
-      items.push({ i: String(wc.collection_id), x: 0, y, w: 60, h: restRows });
+      items.push({ i: String(wc.collection.id), x: 0, y, w: 60, h: restRows });
       y += restRows;
     }
     return items;
@@ -374,7 +365,7 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     if (keys.length === 0) return;
     const valid = new Set(['controls', 'minimap']);
     for (const tw of timeseriesWindows) valid.add(tw.key);
-    for (const wc of windowCollections) valid.add(String(wc.collection_id));
+    for (const wc of windowCollections) valid.add(String(wc.collection.id));
     for (const key of keys) {
       if (!valid.has(key)) sendCard(key, null);
     }
@@ -649,8 +640,8 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
     }
     if (key === 'minimap')
       return { key, title: 'Location', headerContent: renderMinimapHeader(), body: minimapBody };
-    const wc = windowCollections.find((w) => String(w.collection_id) === key);
-    if (!wc?.collection || !wc.source) return null;
+    const wc = windowCollections.find((w) => String(w.collection.id) === key);
+    if (!wc) return null;
     const { collection, source } = wc;
     const isActiveCol = collection.id === activeCollectionId;
     return {
@@ -764,7 +755,6 @@ export const Canvas = ({ commentInputRef }: CanvasProps) => {
           )}
 
           {windowCollections.map(({ collection, source }, idx) => {
-            if (!collection || !source) return null;
             if (popped.has(String(collection.id))) return null;
             const isActiveCol = collection.id === activeCollectionId;
 

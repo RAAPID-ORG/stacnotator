@@ -10,6 +10,7 @@ import {
   computeCycleSource,
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
+import { viewSources } from '../utils/viewCollections';
 import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
 
@@ -140,9 +141,9 @@ export const useAnnotationKeyboard = ({ commentInputRef }: UseAnnotationKeyboard
 
   const sourceGroups = useMemo(() => {
     const sources = campaign?.imagery_sources ?? [];
-    const viewSourceIds = new Set((selectedView?.collection_refs ?? []).map((r) => r.source_id));
+    const viewSourceIds = new Set(viewSources(sources, selectedView).map((s) => s.id));
     return buildSourceGroups(sources, viewSourceIds);
-  }, [campaign?.imagery_sources, selectedView?.collection_refs]);
+  }, [campaign?.imagery_sources, selectedView]);
 
   const basemaps = useMemo(() => campaign?.basemaps ?? [], [campaign?.basemaps]);
   const basemapIds = useMemo(() => basemaps.map((b) => `basemap-${b.id}`), [basemaps]);

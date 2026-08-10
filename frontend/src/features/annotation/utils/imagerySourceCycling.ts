@@ -7,7 +7,7 @@ type MinimalSource = {
 };
 
 type MinimalView = {
-  collection_refs: { collection_id: number; source_id: number }[];
+  source_ids: number[];
 };
 
 type SourceStateRecord = { sourceId: number; collectionId: number; layerIndex: number };
@@ -37,7 +37,7 @@ export function buildSourceGroups(
   const groups: SourceGroup[] = [];
   let offset = 0;
   for (const src of sources) {
-    if (viewSourceIds.size > 0 && !viewSourceIds.has(src.id)) {
+    if (!viewSourceIds.has(src.id)) {
       offset += src.visualizations.length;
       continue;
     }
@@ -108,16 +108,17 @@ export function computeCycleSource(
   const targetSource = sources.find((s) => s.id === nextGroup.id);
   if (!targetSource) return { action: 'noop' };
 
+  // Every collection of a view's source is browsable; a source dropped from
+  // the view takes its collections (and any remembered state) with it.
+  const browsableCollectionIds = selectedView.source_ids.includes(targetSource.id)
+    ? targetSource.collections.map((c) => c.id)
+    : [];
+
   const remembered = lastSourceState[targetSource.id];
-  const canRestore =
-    !!remembered &&
-    targetSource.collections.some((c) => c.id === remembered.collectionId) &&
-    selectedView.collection_refs.some((r) => r.collection_id === remembered.collectionId);
+  const canRestore = !!remembered && browsableCollectionIds.includes(remembered.collectionId);
 
   const layerIndex = canRestore ? remembered.layerIndex : nextGroup.startIdx;
-  const collectionId = canRestore
-    ? remembered.collectionId
-    : selectedView.collection_refs.find((r) => r.source_id === targetSource.id)?.collection_id;
+  const collectionId = canRestore ? remembered.collectionId : browsableCollectionIds[0];
 
   return { action: 'switch-to-source', layerIndex, collectionId, recordState: stateToRecord };
 }

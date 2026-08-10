@@ -111,17 +111,6 @@ export function validateImageryStep(imageryState: ImageryStepState): StepValidat
     }
   });
 
-  // Validate views
-  if (imageryState.views.length === 0) {
-    errors.views = 'At least one view is required.';
-  } else {
-    const hasAssignedView = imageryState.views.some((v) => v.collectionRefs.length > 0);
-    if (!hasAssignedView) {
-      errors.views_empty =
-        'At least one view must have collections assigned. Drag a source into the canvas preview.';
-    }
-  }
-
   return { errors, isValid: Object.keys(errors).length === 0 };
 }
 

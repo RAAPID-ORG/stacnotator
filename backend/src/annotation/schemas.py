@@ -114,12 +114,13 @@ class AnnotationTaskAssignmentOut(BaseModel):
 def compute_task_status_value(assignment_list: list[dict], annotation_list: list[dict]) -> str:
     """Derive a task's status from its assignments and annotations.
 
-    Only counting annotations (`counts_toward_completion` is not False;
-    missing means counting) drive done/partial/conflicting. Review
-    assignments set a required review-label count, satisfiable by a counting
-    label from any non-primary user, not just the assigned reviewer(s).
+    Only counting annotations (`counts_toward_completion` is True; every
+    task-linked read path attaches the boolean before this runs) drive
+    done/partial/conflicting. Review assignments set a required review-label
+    count, satisfiable by a counting label from any non-primary user, not
+    just the assigned reviewer(s).
     """
-    counting = [a for a in annotation_list if a.get("counts_toward_completion") is not False]
+    counting = [a for a in annotation_list if a["counts_toward_completion"]]
     labeled = [a for a in counting if a.get("label_id") is not None]
     has_authoritative_label = any(a.get("is_authoritative") for a in labeled)
 
@@ -182,6 +183,7 @@ class _AnnotationRow(Protocol):
     label_id: int | None
     created_by_user_id: UUID
     is_authoritative: bool
+    counts_toward_completion: bool | None
 
 
 def task_status_inputs(
@@ -193,8 +195,9 @@ def task_status_inputs(
     The single seam between ORM rows and that pure function - shared by
     `AnnotationTaskOut`'s validator below and the export path
     (annotation/export.py), so neither hand-rolls its own conversion.
-    `counts_toward_completion` is read via `getattr` since it's an attribute
-    attached at request time (annotation/completion.py), not a mapped column.
+    `counts_toward_completion` is an attribute attached at request time
+    (annotation/completion.py), not a mapped column; a caller that skipped
+    the attach fails here with AttributeError rather than silently counting.
     """
     assignment_list = [
         {"user_id": a.user_id, "status": a.status, "is_review": a.is_review} for a in assignments
@@ -204,7 +207,7 @@ def task_status_inputs(
             "label_id": a.label_id,
             "created_by_user_id": a.created_by_user_id,
             "is_authoritative": a.is_authoritative,
-            "counts_toward_completion": getattr(a, "counts_toward_completion", None),
+            "counts_toward_completion": a.counts_toward_completion,
         }
         for a in annotations
     ]

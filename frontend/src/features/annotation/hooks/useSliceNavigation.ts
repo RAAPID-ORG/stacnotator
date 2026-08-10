@@ -3,6 +3,7 @@ import { useCampaignStore } from '../stores/campaign.store';
 import { useMapStore } from '../stores/map.store';
 import { sliceView } from '../utils/sliceView';
 import { byCollectionDate } from '../utils/collectionOrder';
+import { viewCollections, type ViewEntry } from '../utils/viewCollections';
 
 /**
  * Shared slice/collection navigation used by keyboard shortcuts and on-screen
@@ -30,51 +31,29 @@ export const useSliceNavigation = () => {
     );
   }, [campaign, activeCollectionId]);
 
-  type ViewCollection = {
-    collection_id: number;
-    source_id: number;
-    show_as_window: boolean;
-    source: { id: number };
-    collection: {
-      id: number;
-      cover_slice_index: number;
-      has_dedicated_cover?: boolean;
-      slices: { name: string; start_date: string }[];
-    };
-  };
-
-  const viewCollections = useMemo<ViewCollection[]>(() => {
-    if (!selectedView || !campaign) return [];
-    return selectedView.collection_refs
-      .filter((ref) => activeSourceId == null || ref.source_id === activeSourceId)
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) =>
-          s.collections.some((c) => c.id === ref.collection_id)
-        );
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        if (!source || !collection) return null;
-        return { ...ref, collection, source } as ViewCollection;
-      })
-      .filter((c): c is ViewCollection => c !== null)
+  const navCollections = useMemo<ViewEntry[]>(() => {
+    if (!campaign) return [];
+    return viewCollections(campaign.imagery_sources, selectedView)
+      .filter((entry) => activeSourceId == null || entry.source.id === activeSourceId)
       .sort(byCollectionDate);
   }, [selectedView, campaign, activeSourceId]);
 
-  const currentCollectionIndex = viewCollections.findIndex(
-    (c) => c.collection_id === activeCollectionId
+  const currentCollectionIndex = navCollections.findIndex(
+    (c) => c.collection.id === activeCollectionId
   );
-  const currentEntry = viewCollections[currentCollectionIndex];
+  const currentEntry = navCollections[currentCollectionIndex];
   const currentSliceCount = Math.max(1, currentEntry?.collection.slices.length ?? 0);
 
   /** Indices participating in a/d navigation: regular slices that aren't
    *  known to be empty. (Custom cover slices are excluded by sliceView.) */
   const sliceNavIndices = useCallback(
-    (col: ViewCollection['collection'], colId: number): number[] => {
+    (col: ViewEntry['collection']): number[] => {
       const { navIndices } = sliceView(
         col.slices.length,
         col.cover_slice_index,
         col.has_dedicated_cover
       );
-      return navIndices.filter((i) => !emptySlices[`${colId}-${i}`]);
+      return navIndices.filter((i) => !emptySlices[`${col.id}-${i}`]);
     },
     [emptySlices]
   );
@@ -82,7 +61,7 @@ export const useSliceNavigation = () => {
   const navigateSlice = useCallback(
     (direction: 'next' | 'prev') => {
       if (!currentEntry) return;
-      const nonEmpty = sliceNavIndices(currentEntry.collection, currentEntry.collection_id);
+      const nonEmpty = sliceNavIndices(currentEntry.collection);
 
       const nextInCol =
         direction === 'next'
@@ -99,21 +78,21 @@ export const useSliceNavigation = () => {
       // so setActiveCollectionId picks it up via collectionSliceIndices.
       const targetIdx =
         direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
-      const target = viewCollections[targetIdx];
+      const target = navCollections[targetIdx];
       if (!target) return;
-      const targetNav = sliceNavIndices(target.collection, target.collection_id);
+      const targetNav = sliceNavIndices(target.collection);
       const landing =
         direction === 'next'
           ? (targetNav[0] ?? target.collection.cover_slice_index ?? 0)
           : (targetNav[targetNav.length - 1] ?? target.collection.cover_slice_index ?? 0);
-      setCollectionSliceIndex(target.collection_id, landing);
-      setActiveCollectionId(target.collection_id);
+      setCollectionSliceIndex(target.collection.id, landing);
+      setActiveCollectionId(target.collection.id);
     },
     [
       activeSliceIndex,
       currentCollectionIndex,
       currentEntry,
-      viewCollections,
+      navCollections,
       sliceNavIndices,
       setActiveSliceIndex,
       setActiveCollectionId,
@@ -125,18 +104,18 @@ export const useSliceNavigation = () => {
    *  remembered slice (or the cover_slice_index on first visit). */
   const navigateCollection = useCallback(
     (direction: 'next' | 'prev') => {
-      if (viewCollections.length === 0) return;
+      if (navCollections.length === 0) return;
       const targetIdx =
         direction === 'next' ? currentCollectionIndex + 1 : currentCollectionIndex - 1;
-      const target = viewCollections[targetIdx];
+      const target = navCollections[targetIdx];
       if (!target) return;
-      setActiveCollectionId(target.collection_id);
+      setActiveCollectionId(target.collection.id);
     },
-    [currentCollectionIndex, viewCollections, setActiveCollectionId]
+    [currentCollectionIndex, navCollections, setActiveCollectionId]
   );
 
   const hasMultipleSlices = currentSliceCount > 1;
-  const hasMultipleCollections = viewCollections.length > 1;
+  const hasMultipleCollections = navCollections.length > 1;
 
   return {
     navigateSlice,

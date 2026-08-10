@@ -126,7 +126,6 @@ const OpenModeControls = () => {
   // Get state from store
   const campaign = useCampaignStore((s) => s.campaign);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
-  const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
   const formValues = useTaskStore((s) => s.formValues);
   const activeFieldIndex = useTaskStore((s) => s.activeFieldIndex);
   const draftGeometry = useTaskStore((s) => s.draftGeometry);
@@ -134,7 +133,6 @@ const OpenModeControls = () => {
   const commitDraft = useTaskStore((s) => s.commitDraft);
   const closeDraft = useTaskStore((s) => s.closeDraft);
   const setSelectedLabelId = useTaskStore((s) => s.setSelectedLabelId);
-  const toggleMagicWand = useTaskStore((s) => s.toggleMagicWand);
   const setFormValues = useTaskStore((s) => s.setFormValues);
   const activeTool = useMapStore((s) => s.activeTool);
   const setActiveTool = useMapStore((s) => s.setActiveTool);
@@ -165,7 +163,7 @@ const OpenModeControls = () => {
   const formFields = campaign?.settings.form_fields ?? [];
 
   // Filter tools based on campaign configuration
-  const hasTimeseries = (campaign?.time_series?.length ?? 0) > 0;
+  const hasTimeseries = (campaign?.time_series.length ?? 0) > 0;
   const hasVectorLayers = (campaign?.vector_layers?.length ?? 0) > 0;
   const availableTools = TOOLS.filter(
     (tool) =>
@@ -195,12 +193,6 @@ const OpenModeControls = () => {
     if (activeTool !== 'annotate' && activeTool !== 'labelvector') {
       setActiveTool('annotate');
     }
-  };
-
-  // Toggle magic wand for a label
-  const handleMagicWandToggle = (e: React.MouseEvent, labelId: number) => {
-    e.stopPropagation(); // Prevent label selection when clicking magic wand
-    toggleMagicWand(labelId);
   };
 
   // Get geometry icon based on type
@@ -330,67 +322,31 @@ const OpenModeControls = () => {
                   return (
                     <div key={label.id} className="flex flex-col gap-1">
                       <div className="flex items-center gap-1">
-                        <div className="relative flex-1 min-w-0">
-                          <button
-                            className={`w-full text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
-                              selectedLabelId === label.id
-                                ? 'bg-brand-50 text-brand-700 border border-brand-600 font-semibold'
-                                : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
-                            } cursor-pointer`}
-                            onClick={() => handleLabelSelect(label)}
-                          >
-                            {/* Color indicator - reflects the user's resolved style */}
-                            <span
-                              className="w-3.5 h-3.5 rounded-sm flex-shrink-0 border"
-                              style={{
-                                backgroundColor: resolved.fillColor,
-                                borderColor: resolved.strokeColor,
-                              }}
-                            />
-                            <span className="flex-1 min-w-0 truncate">
-                              {selectedLabelId === label.id ? '✓ ' : ''}
-                              {capitalizeFirst(label.name)}
-                            </span>
-                            <span className="text-neutral-400 text-[10px] flex items-center gap-0.5 flex-shrink-0 tabular-nums">
-                              <span>{getGeometryIcon(label.geometry_type)}</span>
-                              <span>{index + 1}</span>
-                            </span>
-                          </button>
-                          {/* Magic Wand Icon - only for polygon labels.
-                              Currently disabled: the click-to-segment backend (SAM3)
-                              requires GPU inference which we don't have provisioned. */}
-                          {label.geometry_type === 'polygon' && (
-                            <button
-                              type="button"
-                              disabled
-                              title="Disabled - no GPUs available to run SAM3 click image segmentation"
-                              aria-disabled="true"
-                              className="absolute top-0.5 right-0.5 p-0.5 rounded bg-neutral-200 text-neutral-400 cursor-not-allowed opacity-60"
-                              style={{ zIndex: 10 }}
-                            >
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M15 4V2" />
-                                <path d="M15 16v-2" />
-                                <path d="M8 9h2" />
-                                <path d="M20 9h2" />
-                                <path d="M17.8 11.8 19 13" />
-                                <path d="M15 9h0" />
-                                <path d="M17.8 6.2 19 5" />
-                                <path d="m3 21 9-9" />
-                                <path d="M12.2 6.2 11 5" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          className={`flex-1 min-w-0 text-left px-2.5 py-1.5 text-[11px] font-medium rounded transition-colors flex items-center gap-2 ${
+                            selectedLabelId === label.id
+                              ? 'bg-brand-50 text-brand-700 border border-brand-600 font-semibold'
+                              : 'bg-neutral-50 hover:bg-neutral-100 hover:border-neutral-400 text-neutral-700 border border-neutral-200'
+                          } cursor-pointer`}
+                          onClick={() => handleLabelSelect(label)}
+                        >
+                          {/* Color indicator - reflects the user's resolved style */}
+                          <span
+                            className="w-3.5 h-3.5 rounded-sm flex-shrink-0 border"
+                            style={{
+                              backgroundColor: resolved.fillColor,
+                              borderColor: resolved.strokeColor,
+                            }}
+                          />
+                          <span className="flex-1 min-w-0 truncate">
+                            {selectedLabelId === label.id ? '✓ ' : ''}
+                            {capitalizeFirst(label.name)}
+                          </span>
+                          <span className="text-neutral-400 text-[10px] flex items-center gap-0.5 flex-shrink-0 tabular-nums">
+                            <span>{getGeometryIcon(label.geometry_type)}</span>
+                            <span>{index + 1}</span>
+                          </span>
+                        </button>
                         {/* Style editor toggle */}
                         <button
                           type="button"
@@ -537,11 +493,6 @@ const OpenModeControls = () => {
                 {activeTool === 'labelvector' ? (
                   <p className="text-[11px] text-neutral-500 mt-1">
                     Click a vector feature to apply this label, or Shift+drag a box for many.
-                  </p>
-                ) : selectedLabel.geometry_type === 'polygon' &&
-                  magicWandEnabled[selectedLabel.id] ? (
-                  <p className="text-[11px] text-purple-600 mt-1 font-medium">
-                    Magic wand active - click once to auto-generate polygon.
                   </p>
                 ) : (
                   <p className="text-[11px] text-neutral-500 mt-1">

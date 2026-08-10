@@ -29,6 +29,7 @@ import {
 } from '~/shared/utils/utility';
 import { extendLabelsWithMetadata } from '../utils/labelMetadata';
 import { sliceView } from '../utils/sliceView';
+import { viewCollections } from '../utils/viewCollections';
 
 interface MainAnnotationsContainerProps {
   commentInputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -42,11 +43,11 @@ export const MainAnnotationsContainer = ({
   const campaign = useCampaignStore((s) => s.campaign);
   const workMode = useCampaignStore((s) => s.workMode);
   const selectedViewId = useCampaignStore((s) => s.selectedViewId);
+  const currentLayout = useCampaignStore((s) => s.currentLayout);
 
   const visibleTasks = useTaskStore((s) => s.visibleTasks);
   const currentTaskIndex = useTaskStore((s) => s.currentTaskIndex);
   const selectedLabelId = useTaskStore((s) => s.selectedLabelId);
-  const magicWandEnabled = useTaskStore((s) => s.magicWandEnabled);
 
   const activeCollectionId = useMapStore((s) => s.activeCollectionId);
   const activeSliceIndex = useMapStore((s) => s.activeSliceIndex);
@@ -116,7 +117,7 @@ export const MainAnnotationsContainer = ({
   const [mapLayers, setMapLayers] = useState<Layer[]>([]);
   const [activeLayerId, setActiveLayerId] = useState<string>('');
 
-  const selectedView = campaign?.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
+  const selectedView = campaign?.imagery_views.find((v) => v.id === selectedViewId) ?? null;
   const currentTask = visibleTasks[currentTaskIndex] ?? null;
 
   // Resolve the active collection and its source
@@ -137,17 +138,10 @@ export const MainAnnotationsContainer = ({
     return null;
   }, [campaign, activeCollectionId]);
 
-  // Get all collections referenced in the current view
-  const viewCollections = useMemo(() => {
-    if (!campaign || !selectedView) return [];
-    return selectedView.collection_refs
-      .map((ref) => {
-        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-        const collection = source?.collections.find((c) => c.id === ref.collection_id);
-        return { ...ref, collection, source };
-      })
-      .filter((r) => r.collection && r.source);
-  }, [campaign, selectedView]);
+  const browsableCollections = useMemo(
+    () => (campaign ? viewCollections(campaign.imagery_sources, selectedView) : []),
+    [campaign, selectedView]
+  );
 
   const campaignBbox = useMemo(
     () =>
@@ -238,7 +232,6 @@ export const MainAnnotationsContainer = ({
     [campaign?.settings.labels]
   );
   const selectedLabel = extendedLabels.find((l) => l.id === selectedLabelId) ?? null;
-  const magicWandActive = selectedLabelId != null && (magicWandEnabled[selectedLabelId] ?? false);
 
   // Flat viz entries mirroring the store's selectedLayerIndex ordering
   const allVizEntries = useMemo(
@@ -326,8 +319,11 @@ export const MainAnnotationsContainer = ({
   const isTaskMode = workMode === 'tasks';
   const isOpenMode = workMode === 'explore';
 
-  // Number of collections that are shown as windows
-  const windowCollections = viewCollections.filter((r) => r.show_as_window);
+  // Windows are exactly the view's collections present in the user's layout.
+  const layoutKeys = new Set((currentLayout ?? []).map((it) => it.i));
+  const windowCount = browsableCollections.filter((entry) =>
+    layoutKeys.has(String(entry.collection.id))
+  ).length;
 
   return (
     <div className="flex h-full w-full">
@@ -357,12 +353,12 @@ export const MainAnnotationsContainer = ({
                 </div>
               )}
 
-              {viewCollections.length > 1 && (
+              {browsableCollections.length > 1 && (
                 <HeaderSelect
                   value={activeCollectionId ?? ''}
-                  options={viewCollections.map((r) => ({
-                    value: r.collection_id,
-                    label: r.collection!.name,
+                  options={browsableCollections.map(({ collection }) => ({
+                    value: collection.id,
+                    label: collection.name,
                   }))}
                   onChange={(v) => setActiveCollectionId(Number(v))}
                   title={isTaskMode ? 'Select collection (shift + a/d)' : 'Select collection'}
@@ -474,7 +470,7 @@ export const MainAnnotationsContainer = ({
                 </svg>
               </button>
 
-              {windowCollections.length > 1 && (
+              {windowCount > 1 && (
                 <button
                   onClick={toggleViewSync}
                   className={`w-6 h-6 rounded-md transition-colors flex items-center justify-center cursor-pointer ${viewSyncEnabled ? 'bg-brand-600 text-white hover:bg-brand-700' : 'text-neutral-300 hover:bg-neutral-100 hover:text-neutral-500'}`}
@@ -677,7 +673,6 @@ export const MainAnnotationsContainer = ({
             onViewChange={handleViewChange}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
-            magicWandActive={magicWandActive}
             onTimeseriesClick={handleTimeseriesClick}
             probePoint={timeseriesPoint}
           />

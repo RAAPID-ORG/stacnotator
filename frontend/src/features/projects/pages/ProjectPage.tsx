@@ -7,14 +7,16 @@ import {
   getProject,
   listProjectCampaigns,
   type CampaignListItemOut,
+  type CampaignOut,
   type ProjectOut,
 } from '~/api/client';
+import { DuplicateCampaignModal } from '~/features/campaigns/components/DuplicateCampaignModal';
 import { ProjectSettingsSection } from '~/features/projects/components/ProjectSettingsSection';
 import { ProjectUsersSection } from '~/features/projects/components/ProjectUsersSection';
 import { useProjectIdParam } from '~/shared/hooks/useProjectIdParam';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { Button } from '~/shared/ui/forms';
-import { IconDocument, IconGlobe, IconPlus } from '~/shared/ui/Icons';
+import { IconCopy, IconDocument, IconGlobe, IconPlus } from '~/shared/ui/Icons';
 import { FadeIn, MotionListItem } from '~/shared/ui/motion';
 import { Delayed } from '~/shared/ui/Delayed';
 import { Skeleton, SkeletonRows } from '~/shared/ui/Skeleton';
@@ -32,8 +34,11 @@ export const ProjectPage = () => {
   const navigate = useNavigate();
   const setBreadcrumbs = useLayoutStore((state) => state.setBreadcrumbs);
 
+  const showAlert = useLayoutStore((state) => state.showAlert);
+
   const [project, setProject] = useState<ProjectOut | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignListItemOut[]>([]);
+  const [duplicating, setDuplicating] = useState<CampaignListItemOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -85,6 +90,14 @@ export const ProjectPage = () => {
     primeNavInfo(projectId, { project: updated, campaigns });
   };
 
+  // Land in the copy's settings: the whole point of duplicating is tweaking
+  // the few remaining differences right away.
+  const handleDuplicated = (created: CampaignOut) => {
+    setDuplicating(null);
+    showAlert(`Campaign duplicated as "${created.name}"`, 'success');
+    navigate(campaignPath(projectId, created.id, 'settings'));
+  };
+
   const selectTab = (tab: ProjectTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === 'campaigns') {
@@ -132,12 +145,21 @@ export const ProjectPage = () => {
             onSelectTab={selectTab}
             onOpenCampaign={(campaign) => navigate(campaignPath(project.id, campaign.id))}
             onCreateCampaign={() => navigate(newCampaignPath(project.id))}
+            onDuplicateCampaign={setDuplicating}
             onProjectUpdated={handleProjectUpdated}
           />
         ) : (
           <Delayed>
             <SkeletonRows count={4} />
           </Delayed>
+        )}
+
+        {duplicating && (
+          <DuplicateCampaignModal
+            campaign={duplicating}
+            onClose={() => setDuplicating(null)}
+            onDuplicated={handleDuplicated}
+          />
         )}
       </FadeIn>
     </div>
@@ -151,6 +173,7 @@ interface ProjectTabsProps {
   onSelectTab: (tab: ProjectTab) => void;
   onOpenCampaign: (campaign: CampaignListItemOut) => void;
   onCreateCampaign: () => void;
+  onDuplicateCampaign: (campaign: CampaignListItemOut) => void;
   onProjectUpdated: (updated: ProjectOut) => void;
 }
 
@@ -161,6 +184,7 @@ const ProjectTabs = ({
   onSelectTab,
   onOpenCampaign,
   onCreateCampaign,
+  onDuplicateCampaign,
   onProjectUpdated,
 }: ProjectTabsProps) => {
   const isAdmin = project.is_admin ?? false;
@@ -188,6 +212,7 @@ const ProjectTabs = ({
             canCreate={isAdmin}
             onOpen={onOpenCampaign}
             onCreate={onCreateCampaign}
+            onDuplicate={onDuplicateCampaign}
           />
         )}
 
@@ -208,9 +233,16 @@ interface CampaignsListProps {
   canCreate: boolean;
   onOpen: (campaign: CampaignListItemOut) => void;
   onCreate: () => void;
+  onDuplicate: (campaign: CampaignListItemOut) => void;
 }
 
-const CampaignsList = ({ campaigns, canCreate, onOpen, onCreate }: CampaignsListProps) => {
+const CampaignsList = ({
+  campaigns,
+  canCreate,
+  onOpen,
+  onCreate,
+  onDuplicate,
+}: CampaignsListProps) => {
   if (campaigns.length === 0) {
     return (
       <div className="text-center py-16">
@@ -236,7 +268,11 @@ const CampaignsList = ({ campaigns, canCreate, onOpen, onCreate }: CampaignsList
     <ul className="divide-y divide-neutral-100">
       {campaigns.map((campaign, index) => (
         <MotionListItem key={campaign.id} index={index}>
-          <CampaignRow campaign={campaign} onOpen={() => onOpen(campaign)} />
+          <CampaignRow
+            campaign={campaign}
+            onOpen={() => onOpen(campaign)}
+            onDuplicate={() => onDuplicate(campaign)}
+          />
         </MotionListItem>
       ))}
     </ul>
@@ -246,9 +282,11 @@ const CampaignsList = ({ campaigns, canCreate, onOpen, onCreate }: CampaignsList
 const CampaignRow = ({
   campaign,
   onOpen,
+  onDuplicate,
 }: {
   campaign: CampaignListItemOut;
   onOpen: () => void;
+  onDuplicate: () => void;
 }) => {
   const isMember = campaign.is_member ?? false;
   const isAdmin = campaign.is_admin ?? false;
@@ -296,6 +334,21 @@ const CampaignRow = ({
         </div>
         <p className="text-[11px] text-neutral-500 mt-0.5">{role}</p>
       </div>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDuplicate();
+          }}
+          className="shrink-0 grid h-8 w-8 place-items-center rounded-md text-neutral-400 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100 hover:bg-neutral-200/60 hover:text-neutral-700 cursor-pointer"
+          title="Duplicate campaign"
+          aria-label={`Duplicate ${campaign.name}`}
+          data-testid="duplicate-campaign"
+        >
+          <IconCopy className="h-4 w-4" />
+        </button>
+      )}
     </li>
   );
 };

@@ -18,13 +18,13 @@ import {
 import { StepCampaign } from '../components/creation/steps/StepCampaign';
 import { StepSettings } from '../components/creation/steps/StepSettings';
 import { StepImagery, createInitialImageryState } from '../components/creation/steps/StepImagery';
-import { StepViewLayout } from '../components/creation/steps/StepViewLayout';
 import { StepAddTimeseries } from '../components/creation/steps/StepAddTimeseries';
 import { StepReview } from '../components/creation/steps/StepReview';
 import { StepIndicator } from '../components/creation/StepIndicator';
 import type { ImageryStepState } from '../components/imagery/types';
 import { Button } from '~/shared/ui/forms';
 import { FadeIn } from '~/shared/ui/motion';
+import { capitalizeFirst } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
 
 export const CreateCampaignPage = () => {
@@ -35,14 +35,6 @@ export const CreateCampaignPage = () => {
   const showLoadingOverlay = useLayoutStore((s) => s.showLoadingOverlay);
   const hideLoadingOverlay = useLayoutStore((s) => s.hideLoadingOverlay);
 
-  useEffect(() => {
-    setBreadcrumbs([
-      { label: 'Projects', path: projectsPath() },
-      { label: 'Project', path: projectPath(projectId) },
-      { label: 'New Campaign' },
-    ]);
-  }, [projectId, setBreadcrumbs]);
-
   const [step, setStep] = useState(1);
   const [showValidation, setShowValidation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,6 +42,17 @@ export const CreateCampaignPage = () => {
   const [project, setProject] = useState<ProjectOut | null>(null);
   const [projectUsers, setProjectUsers] = useState<ProjectUserOut[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
+
+  useEffect(() => {
+    setBreadcrumbs([
+      { label: 'Projects', path: projectsPath() },
+      {
+        label: project ? capitalizeFirst(project.name) : 'Project',
+        path: projectPath(projectId),
+      },
+      { label: 'New Campaign' },
+    ]);
+  }, [project, projectId, setBreadcrumbs]);
 
   const [form, setForm] = useState<CampaignCreate>({
     name: '',
@@ -116,7 +119,6 @@ export const CreateCampaignPage = () => {
     { name: 'Campaign', component: 'StepCampaign' },
     { name: 'Settings', component: 'StepSettings' },
     { name: 'Imagery', component: 'StepImagery' },
-    { name: 'Annotation Views', component: 'StepViewLayout' },
     { name: 'Time Series', component: 'StepAddTimeseries' },
     { name: 'Create', component: 'StepReview' },
   ] as const;
@@ -140,16 +142,6 @@ export const CreateCampaignPage = () => {
       case 'StepImagery':
         return (
           <StepImagery
-            projectId={projectId}
-            form={form}
-            setForm={setForm}
-            imageryState={imageryState}
-            setImageryState={setImageryState}
-          />
-        );
-      case 'StepViewLayout':
-        return (
-          <StepViewLayout
             projectId={projectId}
             form={form}
             setForm={setForm}
@@ -181,7 +173,7 @@ export const CreateCampaignPage = () => {
         showAlert('Campaign created successfully', 'success');
       }
       if (campaign) {
-        navigate(campaignPath(campaign.project_id, campaign.id, 'settings'));
+        navigate(campaignPath(campaign.project_id, campaign.id, 'annotate'));
       } else {
         navigate(projectPath(projectId));
       }

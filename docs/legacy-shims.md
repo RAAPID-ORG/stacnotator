@@ -1,115 +1,110 @@
 # Legacy compatibility shims
 
-Inventory of every place the codebase still branches to support old data shapes or old
-behavior. The target state is a codebase with no legacy branches: for each entry, migrate
-the old data forward (or wait out the deprecation window), then delete the shim and the
-tests that pin it. Ordered roughly by how easy they are to retire.
+Inventory of every place the codebase branches to support old data shapes or
+old behavior. The target state is a codebase with no legacy branches: for each
+entry, migrate the old data forward (or wait out the deprecation window), then
+delete the shim and the tests that pin it.
 
-Each entry lists: what old thing it supports, where the code lives, how to check whether
-the legacy case still occurs in real data, and how to remove it.
+**Current state: no known legacy shims remain.** The last sweep (2026-08)
+audited backend and frontend and retired everything it found; the list below
+records what was removed and which migration carries the data forward. New
+shims should be added here as numbered entries with: what old thing they
+support, where the code lives, a data check, and a removal recipe.
 
-## 1. Legacy bare-string label format
+## Retired (2026-08 sweep, branch refactor/remove-legacy-shims)
 
-- **Supports:** `campaign_settings.labels` rows written before labels became objects.
-  Old shape `{"1": "Forest"}`, new shape
-  `{"1": {"name": "Forest", "geometry_type": "polygon"}}`.
-- **Code:** `backend/src/campaigns/schemas.py` (`convert_labels` validator, the
-  `isinstance(vv, dict)` else-branch).
-- **Data check:**
-  ```sql
-  SELECT s.campaign_id, e.key, e.value
-  FROM data.campaign_settings s, jsonb_each(s.labels) e
-  WHERE jsonb_typeof(e.value) <> 'object';
-  ```
-- **Removal:** author a data migration that rewrites string values to
-  `{"name": <value>, "geometry_type": null}`, then delete the else-branch so a non-dict
-  value fails loudly. No dedicated test pins the legacy branch.
+Code-only removals:
 
-## 2. Labelling-policy default fallback
+- **Dead WebGL flat-style builder** (`annotationTileStyle.ts`): kept for a
+  renderer swap that never landed, with property names that no longer matched
+  the backend MVT. Deleted; `TileLabelStyle` moved to its consumer.
+- **Magic-wand mock segmentation**: a placeholder that saved fake bbox
+  polygons as real annotations. Whole UI surface removed; re-add when a real
+  segmentation backend exists.
+- **Empty view `source_ids` meant "all sources"** (frontend cycling): pre-
+  `source_ids` behavior. Now strict - an empty view selects no sources; the
+  duplicated inline cycling logic in `useOpenModeKeyboard.ts` was replaced
+  with the shared `imagerySourceCycling.ts` utils.
+- **Vestigial optional chaining** on `imagery_views`/`basemaps`/`time_series`,
+  which are required fields on `CampaignOutFull`.
+- **`seed_dev_data.py`**: still built the pre-views `collection_refs` payload
+  (broken import) and swept campaigns by name for pre-tenancy dev DBs.
+  Rewritten against the current schemas; seeds a default view per campaign.
 
-- **Supports:** campaigns whose settings predate the `labelling_policy` column.
-- **Code:** `backend/src/campaigns/service.py` (`get_labelling_policy`).
-- **Pinned by:** `backend/tests/unit/test_labelling_policy.py` ("legacy campaign" case),
-  `backend/tests/unit/test_labelling_policy_enforcement.py`.
-- **Note:** the column is now `nullable=False` with a full server default
-  (`backend/src/campaigns/models.py`), so every settings row has a policy. The fallback
-  can only fire when `campaign.settings` is None entirely.
-- **Data check:**
-  ```sql
-  SELECT c.id FROM data.campaigns c
-  LEFT JOIN data.campaign_settings s ON s.campaign_id = c.id
-  WHERE s.campaign_id IS NULL;
-  ```
-- **Removal:** if the query is empty (and campaign creation always writes settings),
-  reduce the function to `LabellingPolicy.model_validate(campaign.settings.labelling_policy)`
-  and delete the fallback tests. If any campaign lacks a settings row, backfill one first.
+Migration-backed removals (each migration normalizes old rows so the code
+could go strict):
 
-## 3. Frontend fallback window layout for campaigns without stored view layouts
+- **Bare-string label format** - `aa5labelobj` rewrites `{"1": "Forest"}` to
+  `{"1": {"name": "Forest"}}`; the four independent decode branches
+  (`label_id_to_name`, `convert_labels`, export's `_resolve_label_name`,
+  `update_campaign_labels`) now assume the object shape.
+- **Labelling-policy default fallback** - `aa6polback` backfills empty
+  policies and aborts if any campaign lacks a settings row;
+  `get_labelling_policy` is now a bare `model_validate`. The column's server
+  default is generated from `default_labelling_policy()` instead of a
+  hand-maintained JSON copy.
+- **Drifted form-value degradation in export** - `aa7formnorm` drops stored
+  form values whose shape no longer matches their field type;
+  `_format_form_value` now raises on a mismatch instead of degrading to
+  `str(value)`. Drift can no longer be created: `update_campaign_form_fields`
+  rejects type/option changes on answered fields.
+- **Permissive `RenderConfig` parsing** - `aa8rendfix` repairs continuous
+  configs (default colormap/rescale) and deletes empty categorical ones;
+  renderability (`build_viz_params`) now runs as a schema validator on
+  `RenderConfig` itself, so unrenderable configs never parse and the service
+  no longer re-checks.
 
-- **Supports:** campaigns created before view layouts were persisted server-side; the
-  frontend generates a default grid on the fly.
-- **Code:** `frontend/src/features/annotation/stores/campaign.store.ts`
-  (`generateFallbackWindowLayout`, the `if (view)` branch in `buildMergedLayout`).
-- **Data check:** views with no default canvas layout row:
-  ```sql
-  SELECT v.id FROM data.imagery_views v
-  LEFT JOIN data.canvas_layouts l
-    ON l.view_id = v.id AND l.is_default = true
-  WHERE l.id IS NULL;
-  ```
-- **Removal:** author a backfill migration that inserts a default `canvas_layouts` row per
-  layout-less view (reuse the layout logic in `backend/src/canvas/layout.py` rather than
-  porting the frontend grid math). Then delete `generateFallbackWindowLayout` and the
-  fallback branch so `buildMergedLayout` trusts the stored layout.
+Behavior change:
 
-## 4. Permissive `RenderConfig` parsing for custom maps
+- **`counts_toward_completion` None-counted-as-True**: the counting helpers
+  (`compute_task_status_value`, export's `_conflicting_task_numbers` and
+  merged-row flag) now require the explicitly attached boolean - only True
+  counts, and a caller that skips the attach fails loudly (AttributeError /
+  KeyError) instead of silently counting. None remains reserved for
+  standalone annotations, which never reach task-status computation.
 
-- **Supports:** custom-map rows written before the service-level renderability check
-  existed. Renderability is deliberately not enforced in the schema because `RenderConfig`
-  also types `CustomMapOut`: a schema validator would make old unrenderable rows unreadable
-  and 500 the whole campaign GET.
-- **Code:** `backend/src/custom_layers/schemas.py` (`RenderConfig`), enforcement lives in
-  the service.
-- **Pinned by:** `backend/tests/unit/test_custom_map_schemas.py`
-  (`test_unrenderable_config_still_parses_so_legacy_rows_stay_readable`).
-- **Data check:** select rows failing the same conditions the service checks, e.g.
-  continuous mode without `colormap_name`:
-  ```sql
-  SELECT id, name, render_config FROM data.custom_maps
-  WHERE (render_config->>'mode' = 'continuous' AND render_config->>'colormap_name' IS NULL)
-     OR (render_config->>'mode' = 'categorical' AND jsonb_array_length(coalesce(render_config->'entries', '[]')) = 0);
-  ```
-- **Removal:** fix or delete any offending rows, then move the renderability validation
-  onto the input schema (`CustomMapCreate`/update). Keeping `CustomMapOut` permissive is
-  still reasonable defense-in-depth; the decision point is whether reads should ever trust
-  the DB less than writes. Either way the "legacy rows" justification disappears.
+Earlier:
 
-## 5. `counts_toward_completion` tri-state (None counts as True)
-
-- **Supports:** two things at once, only one of which is legacy.
-  None means "not applicable" for standalone annotations (deliberate, see
-  `attach_counts_toward_completion_flat` in `backend/src/annotation/service.py`), but the
-  counting helpers treat None as counting so that callers which never attach the flag keep
-  pre-labelling-policy behavior.
-- **Code:** `backend/src/annotation/io.py` (`_conflicting_task_numbers`, export records),
-  `backend/src/annotation/schemas.py` (`is not False` checks).
-- **Pinned by:** `backend/tests/unit/test_annotation_io_export.py`
-  (`test_missing_flag_defaults_to_counting`).
-- **Removal:** requires a decision, not a data migration. The clean end state is: every
-  task-linked read path attaches the flag before the counting helpers run, so the helpers
-  can require an explicit boolean and None is reserved for standalone annotations. Audit
-  callers of `_conflicting_task_numbers` / `compute_task_status_value` first; if all
-  already attach, tighten the checks and repurpose the test to assert the strict behavior.
+- **Frontend fallback window layout** (`generateFallbackWindowLayout`) -
+  removed in `8df100d` when views and layouts became authored in edit mode;
+  the backend creates a layout for every view.
 
 ## Not shims (checked, no action)
 
-- Standalone annotations reading `counts_toward_completion` back as None is by design
-  ("not applicable"), only the unset-means-counts half of entry 5 is legacy.
-- The guided-tour localStorage migration in `preferences.store.ts` was already removed;
-  a stale comment claiming otherwise was cleaned up alongside this doc.
-- `Campaign.is_public` (`backend/src/campaigns/models.py`) reads through to the owning
-  project's `visibility` and is true only for the `public` scope (org-public does not
-  count). Visibility is stored once, on `data.projects`; the property is the campaign-side
-  view of it, not a compatibility read for old data.
-- Alembic migrations that mention legacy schema (`*_drop_legacy_*`, `*_retire_*`) are
-  immutable history, not live compat code.
+- Standalone annotations reading `counts_toward_completion` back as None is by
+  design ("not applicable").
+- `Campaign.is_public` (`backend/src/campaigns/models.py`) is a computed
+  property over the owning project's `visibility` (org-public deliberately
+  does not count). Stored once, on `data.projects`; not a compatibility read.
+  The `project.visibility == VISIBILITY_PUBLIC` expression is duplicated in
+  four places - a mild smell, not a shim.
+- `CORS_ORIGINS` accepting a comma-separated string (`backend/src/config.py`)
+  is the live production format - `azure_deploy/deploy-app.sh` and both
+  compose files build it comma-separated. The JSON-array path is the
+  secondary one, not the legacy one.
+- Timeseries `window_name` read-side default (`timeseries/windows.py`
+  `strip() or DEFAULT_TIMESERIES_WINDOW_NAME`) is redundant defense: the
+  write-path validator and the column's server default guarantee a non-empty
+  name. Harmless.
+- Stale `source_ids` tolerance when resolving views (`imagery/service.py`,
+  `campaigns/duplication.py`): reads drop ids not present in the campaign
+  while writes reject them (`_validated_source_ids`). Deliberate referential
+  tolerance for JSONB membership, pinned by `test_stale_source_ids_are_ignored`.
+- `canvas/layout.py` defensive reads of the `layout_data` JSONB column
+  (`or []`, `.get(...)` defaults) are JSON hardening, not versioned-shape
+  handling; no old layout shape exists.
+- `geometry_type || 'polygon'` in `frontend/.../labelMetadata.ts` covers a
+  field that is genuinely nullable in the schema.
+- The `'Default'` visualization-name fallback in the campaign wizard
+  (`features/campaigns/components/imagery/controller.ts` and `draftSync.ts`)
+  handles a source with zero named visualizations in the live wizard draft -
+  an editing-state ergonomic, not legacy persisted data.
+- The `new-layout` endpoint living on the imagery router is an API-stability
+  choice (documented in CLAUDE.md), not a data shim.
+- Persisted frontend stores (`preferences.store.ts` `version: 1` with no
+  `migrate`; `org.store.ts` and `popout.store.ts` unversioned) are the inverse
+  of shims: old localStorage blobs are dropped or rehydrated as-is rather than
+  branched on. Known gap, tracked separately from legacy-data shims.
+- Alembic migrations that mention legacy schema (`*_drop_legacy_*`,
+  `*_retire_*`, `aa4viewsrc`, `aa5labelobj`-`aa8rendfix`) are immutable
+  history, not live compat code.

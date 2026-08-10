@@ -63,6 +63,19 @@ const ensureNavInfo = (projectId: number) => {
     .finally(() => pendingLoads.delete(projectId));
 };
 
+/** Project name from the nav cache, fetched on demand for deep entries.
+ *  Feeds the project crumb on campaign pages, whose API responses only carry
+ *  the project id. */
+export const useProjectName = (projectId: number | null): string | null => {
+  const info = useSyncExternalStore(subscribe, () =>
+    projectId === null ? undefined : navInfoCache.get(projectId)
+  );
+  useEffect(() => {
+    if (projectId !== null) ensureNavInfo(projectId);
+  }, [projectId]);
+  return info?.project.name ?? null;
+};
+
 const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
 
 /** Longer names are visually truncated in the 180px sidebar; give them a
@@ -83,8 +96,9 @@ interface SidebarProjectNavProps {
 }
 
 /** Wayfinding under the Projects nav item while the current route is inside a
- *  project: the project itself, its tabs the viewer can see, and the current
- *  campaign. Renders nothing outside project routes. */
+ *  project: the project itself, its tabs the viewer can see, and every
+ *  campaign of the project (alphabetical, current one highlighted). Renders
+ *  nothing outside project routes. */
 export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -108,7 +122,6 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
   if (projectId === null || info === undefined) return null;
 
   const { project } = info;
-  const campaign = campaignId === null ? null : info.campaigns.find((c) => c.id === campaignId);
 
   const tab = new URLSearchParams(location.search).get('tab');
   const onProjectIndex = location.pathname === projectPath(projectId);
@@ -134,17 +147,15 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       active: onProjectIndex && tab !== 'members' && tab !== 'settings',
       depth: 1,
     },
-    ...(campaign
-      ? [
-          {
-            key: `campaign-${campaign.id}`,
-            label: campaign.name,
-            path: campaignPath(projectId, campaign.id),
-            active: true,
-            depth: 2 as const,
-          },
-        ]
-      : []),
+    ...[...info.campaigns]
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+      .map((c) => ({
+        key: `campaign-${c.id}`,
+        label: c.name,
+        path: campaignPath(projectId, c.id),
+        active: c.id === campaignId,
+        depth: 2 as const,
+      })),
     ...(canSeeMembers
       ? [
           {
@@ -174,13 +185,11 @@ export const SidebarProjectNav = ({ onNavigate }: SidebarProjectNavProps) => {
       data-testid="sidebar-project-nav"
       className="ml-[1.4rem] pl-2 border-l border-neutral-200 flex flex-col gap-0.5 py-0.5"
     >
-      <button
-        type="button"
-        onClick={() => go(projectPath(projectId))}
-        className="flex items-center w-full py-1 px-2 text-left text-xs font-medium text-neutral-800 rounded-md cursor-pointer transition-colors hover:bg-neutral-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600/30"
-      >
+      {/* Group title, not a link - the Campaigns entry below already opens the
+          project index. */}
+      <div className="flex items-center px-2 text-xs font-medium text-neutral-600 select-none">
         <NavName name={project.name} />
-      </button>
+      </div>
       {entries.map((entry) => {
         const button = (
           <button

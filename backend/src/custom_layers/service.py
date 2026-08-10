@@ -10,7 +10,6 @@ from src.custom_layers.render import build_viz_params
 from src.custom_layers.schemas import (
     CustomMapCreate,
     CustomMapUpdate,
-    RenderConfig,
     VectorLayerCreate,
     VectorLayerUpdate,
 )
@@ -22,23 +21,6 @@ logger = logging.getLogger(__name__)
 
 class DuplicateCustomMapName(Exception):
     pass
-
-
-class InvalidRenderConfig(Exception):
-    pass
-
-
-def _render_config_dict(render_config: RenderConfig) -> dict:
-    """`build_viz_params` is the authority on what can actually render, so run it up front:
-    an unrenderable config becomes a 422 rather than a map that saves and then serves no
-    tiles. Kept off the schema deliberately - `RenderConfig` also types `CustomMapOut`, and
-    rows predating this check must stay readable (and therefore deletable)."""
-    data = render_config.model_dump(mode="json")
-    try:
-        build_viz_params(data)
-    except ValueError as exc:
-        raise InvalidRenderConfig(str(exc)) from exc
-    return data
 
 
 def _name_taken(db: Session, campaign_id: int, name: str, exclude_id: int | None = None) -> bool:
@@ -53,7 +35,7 @@ def _insert(db: Session, campaign_id: int, payload: CustomMapCreate) -> CustomMa
         campaign_id=campaign_id,
         name=payload.name,
         cog_url=payload.cog_url,
-        render_config=_render_config_dict(payload.render_config),
+        render_config=payload.render_config.model_dump(mode="json"),
         max_native_zoom=payload.max_native_zoom,
         mlops_url=payload.mlops_url,
         internal_storage=payload.internal_storage,
@@ -143,7 +125,7 @@ def update_custom_map(
         raise DuplicateCustomMapName(data["name"])
     render_changed = False
     if payload.render_config is not None:
-        cm.render_config = _render_config_dict(payload.render_config)
+        cm.render_config = payload.render_config.model_dump(mode="json")
         render_changed = True
     needs_reregister = False
     if "cog_url" in data and data["cog_url"] != cm.cog_url:

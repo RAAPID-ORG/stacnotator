@@ -8,7 +8,14 @@ import type {
   VizParams,
 } from './types';
 import { emptySlice, emptyVizParams, sliceDateRange } from './types';
-import { IconTrash, IconChevronDown, IconChevronUp, IconPlus, IconClock } from '~/shared/ui/Icons';
+import {
+  IconTrash,
+  IconChevronDown,
+  IconChevronUp,
+  IconInfo,
+  IconPlus,
+  IconClock,
+} from '~/shared/ui/Icons';
 import { IconButton, Input, Select } from '~/shared/ui/forms';
 import { Tooltip } from '~/shared/ui/Tooltip';
 import { VizTabs } from './VizTabs';
@@ -42,6 +49,11 @@ export const CollectionEditor = ({
   const [activeVizIndex, setActiveVizIndex] = useState(0);
   const [activeCoverVizIndex, setActiveCoverVizIndex] = useState(0);
   const [showCoverOptions, setShowCoverOptions] = useState(false);
+  // Cover-only viz edits are easy to mistake for collection-wide ones (the
+  // annotator shows the cover first), so after such an edit we prompt whether
+  // to propagate to the regular slices. 'dismissed' means the user chose
+  // cover-only for this editing session - do not nag on every keystroke.
+  const [coverVizPrompt, setCoverVizPrompt] = useState<'hidden' | 'open' | 'dismissed'>('hidden');
 
   const sb = collection.data.type === 'stac_browser' ? collection.data : null;
   const updateSb = (updates: Partial<StacBrowserCollectionData>) => {
@@ -129,6 +141,28 @@ export const CollectionEditor = ({
         ? existing.map((v, i) => (i === existingIdx ? { ...v, vizParams: params } : v))
         : [...existing, { name, vizParams: params }];
     updateSb({ coverVisualizations: newVizs });
+    setCoverVizPrompt((p) => (p === 'dismissed' ? p : 'open'));
+  };
+
+  /** Copy the cover visualizations onto the regular slices, keeping each
+   *  regular viz's own compositing (covers typically pin 'first', which is
+   *  rarely what a browsable slice mosaic wants). */
+  const applyCoverVizToAllSlices = () => {
+    if (!sb) return;
+    updateSb({
+      visualizations: vizNames.map((name) => {
+        const cover = coverVizs.find((v) => v.name === name);
+        const regular = sb.visualizations.find((v) => v.name === name);
+        return {
+          name,
+          vizParams: {
+            ...(cover?.vizParams ?? emptyVizParams()),
+            compositing: regular?.vizParams.compositing,
+          },
+        };
+      }),
+    });
+    setCoverVizPrompt('hidden');
   };
 
   const enableDedicatedCover = () => {
@@ -384,22 +418,19 @@ export const CollectionEditor = ({
             )}
 
             {(() => {
-              const customCoverArrayIndex = collection.hasDedicatedCover
-                ? collection.coverSliceIndex
-                : -1;
-              const customCover =
-                customCoverArrayIndex >= 0 ? collection.slices[customCoverArrayIndex] : null;
+              // The cover always leads the list - it is what annotators see
+              // first, so it is what admins usually come here to edit.
+              const coverArrayIndex =
+                collection.slices.length > 0
+                  ? Math.min(collection.coverSliceIndex, collection.slices.length - 1)
+                  : -1;
+              const coverSlice = coverArrayIndex >= 0 ? collection.slices[coverArrayIndex] : null;
               const regularSlices = collection.slices
                 .map((s, i) => ({ slice: s, originalIndex: i }))
-                .filter(({ originalIndex }) => originalIndex !== customCoverArrayIndex);
+                .filter(({ originalIndex }) => originalIndex !== coverArrayIndex);
 
-              const renderSliceCard = (
-                slice: ImagerySlice,
-                originalIndex: number,
-                variant: 'custom-cover' | 'regular'
-              ) => {
+              const renderSliceCard = (slice: ImagerySlice, originalIndex: number) => {
                 const isActiveCover = originalIndex === collection.coverSliceIndex;
-                const isCustomCover = variant === 'custom-cover';
                 return (
                   <div
                     key={slice.id}
@@ -437,11 +468,6 @@ export const CollectionEditor = ({
                           >
                             Set as cover
                           </button>
-                        )}
-                        {isCustomCover && !isActiveCover && (
-                          <span className="text-[10px] px-1.5 py-0.5 text-neutral-500 bg-neutral-100 rounded shrink-0">
-                            Has overrides
-                          </span>
                         )}
                       </div>
                       <IconButton
@@ -504,22 +530,9 @@ export const CollectionEditor = ({
                                   sb.coverMaxCloudCover ?? sb.maxCloudCover
                                 )}
                               />
-                              {coverVizs.length > 0 && (
-                                <div className="space-y-2">
-                                  <label className="text-xs text-neutral-700 font-medium">
-                                    Cover visualizations
-                                  </label>
-                                  <VizTabs
-                                    visualizations={coverVizs}
-                                    activeIndex={activeCoverVizIndex}
-                                    onActiveIndexChange={setActiveCoverVizIndex}
-                                    collectionId={sb.stacCollectionId}
-                                    availableAssets={availableAssets}
-                                    showCompositing
-                                    onParamsChange={writeCoverVizParams}
-                                  />
-                                </div>
-                              )}
+                              <p className="text-[11px] text-neutral-500 leading-snug">
+                                The cover visualization is edited below, next to the regular slices.
+                              </p>
                               <button
                                 type="button"
                                 onClick={disableDedicatedCover}
@@ -552,24 +565,24 @@ export const CollectionEditor = ({
 
               return (
                 <>
-                  {customCover && (
+                  {coverSlice && (
                     <div className="space-y-1.5">
                       <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
                         Cover slice
                       </label>
-                      {renderSliceCard(customCover, customCoverArrayIndex, 'custom-cover')}
+                      {renderSliceCard(coverSlice, coverArrayIndex)}
                     </div>
                   )}
                   {regularSlices.length > 0 && (
                     <div className="space-y-1.5">
-                      {customCover && (
+                      {coverSlice && (
                         <label className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
                           Regular slices
                         </label>
                       )}
                       <div className="space-y-2">
                         {regularSlices.map(({ slice, originalIndex }) =>
-                          renderSliceCard(slice, originalIndex, 'regular')
+                          renderSliceCard(slice, originalIndex)
                         )}
                       </div>
                     </div>
@@ -708,21 +721,70 @@ export const CollectionEditor = ({
                     </div>
                   )}
 
-                  {/* Visualization parameters - tabs synced with source vizNames */}
+                  {/* Visualization parameters - tabs synced with source vizNames.
+                      Cover first: it is what annotators see when a task opens. */}
                   {vizNames.length > 0 && (
-                    <div className="space-y-2 mt-2">
-                      <label className="text-xs text-neutral-700 font-medium">
-                        Visualization Parameters
-                      </label>
-                      <VizTabs
-                        visualizations={orderedVizs}
-                        activeIndex={activeVizIndex}
-                        onActiveIndexChange={setActiveVizIndex}
-                        collectionId={sb.stacCollectionId}
-                        availableAssets={availableAssets}
-                        showCompositing={sb.mode === 'mosaic'}
-                        onParamsChange={writeVizParams}
-                      />
+                    <div className="space-y-3 mt-2">
+                      {collection.hasDedicatedCover && coverVizs.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-xs text-neutral-700 font-medium">
+                            Cover slice visualization
+                          </label>
+                          <VizTabs
+                            visualizations={coverVizs}
+                            activeIndex={activeCoverVizIndex}
+                            onActiveIndexChange={setActiveCoverVizIndex}
+                            collectionId={sb.stacCollectionId}
+                            availableAssets={availableAssets}
+                            showCompositing
+                            onParamsChange={writeCoverVizParams}
+                          />
+                          {coverVizPrompt === 'open' && (
+                            <div
+                              className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2"
+                              data-testid="cover-viz-prompt"
+                            >
+                              <IconInfo className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+                              <p className="flex-1 text-[11px] leading-snug text-amber-800">
+                                This changes only the cover. Should the regular slices use the same
+                                visualization?
+                              </p>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={applyCoverVizToAllSlices}
+                                  className="rounded bg-amber-600 px-2 py-1 text-[11px] font-medium text-white transition-colors hover:bg-amber-700"
+                                >
+                                  Apply to all slices
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCoverVizPrompt('dismissed')}
+                                  className="rounded border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100"
+                                >
+                                  Only cover
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <label className="text-xs text-neutral-700 font-medium">
+                          {collection.hasDedicatedCover
+                            ? 'Regular slices visualization'
+                            : 'Visualization Parameters'}
+                        </label>
+                        <VizTabs
+                          visualizations={orderedVizs}
+                          activeIndex={activeVizIndex}
+                          onActiveIndexChange={setActiveVizIndex}
+                          collectionId={sb.stacCollectionId}
+                          availableAssets={availableAssets}
+                          showCompositing={sb.mode === 'mosaic'}
+                          onParamsChange={writeVizParams}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

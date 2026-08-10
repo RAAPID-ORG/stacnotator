@@ -44,19 +44,11 @@ class LabelBase(BaseModel):
 
 
 def label_id_to_name(labels: dict | None) -> dict[int, str]:
-    """Decode a campaign's labels JSONB into {label_id: display_name}.
-
-    Handles both the current per-label object format
-    ({"1": {"name": "Forest", "geometry_type": "polygon"}}) and the legacy
-    format where the value was just the name string ({"1": "Forest"}).
-    """
-    mapping: dict[int, str] = {}
+    """Decode a campaign's labels JSONB ({"1": {"name": "Forest", ...}}) into
+    {label_id: display_name}."""
     if not isinstance(labels, dict):
-        return mapping
-    for label_id, data in labels.items():
-        name = data.get("name") if isinstance(data, dict) else str(data)
-        mapping[int(label_id)] = name or f"Label {label_id}"
-    return mapping
+        return {}
+    return {int(label_id): data["name"] for label_id, data in labels.items()}
 
 
 PolicyAudienceKind = Literal["admins", "authoritative", "assignees", "members", "anyone"]
@@ -182,19 +174,15 @@ class CampaignSettingsOut(BaseModel):
     @field_validator("labels", mode="before")
     @classmethod
     def convert_labels(cls, v):
-        """
-        Convert JSONB dict from DB to -> list[Label]
-        New format: {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, name: "Forest", geometry_type: "polygon"}]
-        Legacy format: {"1": "Forest"} -> [{id: 1, name: "Forest", geometry_type: None}]
-        """
+        """Convert the labels JSONB dict from the DB into list[LabelBase]:
+        {"1": {"name": "Forest", "geometry_type": "polygon"}} -> [{id: 1, ...}]."""
         if not isinstance(v, dict):
             return v
-        names = label_id_to_name(v)
         return [
             LabelBase(
                 id=int(k),
-                name=names[int(k)],
-                geometry_type=vv.get("geometry_type") if isinstance(vv, dict) else None,
+                name=vv["name"],
+                geometry_type=vv.get("geometry_type"),
             )
             for k, vv in v.items()
         ]
@@ -344,6 +332,13 @@ class CampaignsListResponse(BaseModel):
 
 class UpdateCampaignNameRequest(BaseModel):
     name: str
+
+
+class CampaignDuplicateRequest(BaseModel):
+    """Both switches are deliberate decisions - no defaults."""
+
+    include_tasks: bool
+    include_annotations: bool
 
 
 class UpdateCampaignGuideRequest(BaseModel):

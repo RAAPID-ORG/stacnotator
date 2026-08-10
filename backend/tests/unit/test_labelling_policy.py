@@ -319,19 +319,8 @@ def test_update_labelling_policy_missing_campaign_raises_404():
 
 
 # ============================================================================
-# get_labelling_policy: campaign -> LabellingPolicy, with legacy fallback
+# get_labelling_policy: campaign -> LabellingPolicy
 # ============================================================================
-
-
-def test_get_labelling_policy_returns_default_when_settings_missing():
-    campaign = Campaign(id=1, name="x", mode="tasks")
-    campaign.settings = None
-    assert get_labelling_policy(campaign) == default_labelling_policy()
-
-
-def test_get_labelling_policy_returns_default_when_column_empty():
-    campaign = _campaign()  # labelling_policy={} per the shared helper
-    assert get_labelling_policy(campaign) == default_labelling_policy()
 
 
 def test_get_labelling_policy_reads_stored_policy():

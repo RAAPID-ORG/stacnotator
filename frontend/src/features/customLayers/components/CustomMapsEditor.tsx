@@ -273,28 +273,27 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
 
   const submitLabel = submitting ? 'Saving…' : editingId === null ? 'Add map' : 'Save map';
 
+  // Rendered as a subsection of the settings "Overlays" section (ImagerySetup
+  // owns the section header), alongside the vector-layers subsection.
   return (
-    <section>
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="text-sm font-semibold text-neutral-900">Overlays</h3>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            COG raster overlays displayed in the annotation view.
-          </p>
-        </div>
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+          Raster layers (COG)
+        </h4>
         {!showForm && (
           <button
             type="button"
             onClick={startCreate}
             className="text-xs text-brand-700 hover:text-brand-900 underline underline-offset-4 decoration-brand-300 hover:decoration-brand-700 transition-colors cursor-pointer"
           >
-            + Add map
+            + Add raster layer
           </button>
         )}
       </div>
 
       {maps.length === 0 && !showForm ? (
-        <p className="text-xs text-neutral-400 italic">No overlays configured.</p>
+        <p className="text-xs text-neutral-400 italic">No raster layers configured.</p>
       ) : (
         <ul className="divide-y divide-neutral-100 border-y border-neutral-100">
           {maps.map((m) => (
@@ -592,6 +591,6 @@ export const CustomMapsEditor = ({ campaignId, projectId }: CustomMapsEditorProp
           </div>
         </form>
       )}
-    </section>
+    </div>
   );
 };

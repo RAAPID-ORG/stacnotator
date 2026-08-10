@@ -27,13 +27,18 @@
 - Presets for common collections (band combinations, rescale ranges)
 - Post-creation editing of viz params from settings page
 
+### Campaign duplication
+- Duplicate a campaign from the project campaign list (admin): full setup copy (imagery, views, layouts, labels, forms, policy, time series, basemaps, overlays)
+- Tasks and annotations are copied only on explicit opt-in; task-linked annotations require the tasks to be copied too
+
 ### Views & Canvas
-- Multiple views per campaign - each view selects which collections to display
+- Multiple views per campaign - each view is an ordered set of imagery sources; all their collections are browsable in it
+- Views are authored by campaign admins in the annotation page's edit mode (create, rename, reorder, delete, source membership); a campaign is annotatable once its first view exists
 - Drag-and-resize grid layout (react-grid-layout)
 - Split between (Main map + minimap + control panel) and  imagery windows items on the canvas. Prior are constant, latter may change.
-- Personal layouts saved per user, default layouts per campaign
+- Personal layouts saved per user, default layouts per campaign; a collection is a window exactly when its key is in the layout
 - View-independent state (active slice, empty detection, selected viz)
-- Preview Windows (ImageryContainer) can be hidden as dedicated windows but will still appear in the timeline per collection.
+- Imagery windows (ImageryContainer) can be hidden from the canvas but still appear in the timeline per collection.
 
 ### Basemaps
 - Multiple basemaps per campaign (CartoDB, ESRI, OpenTopoMap, custom)

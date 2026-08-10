@@ -59,7 +59,6 @@ interface OpenModeMapProps {
   onLayersChange?: (layers: Layer[], activeLayerId: string) => void;
   selectedLabel: ExtendedLabel | null;
   activeTool: AnnotationTool;
-  magicWandActive: boolean;
   onTimeseriesClick?: (lat: number, lon: number) => void;
   refocusTrigger?: number;
   probePoint?: { lat: number; lon: number } | null;
@@ -86,7 +85,6 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
       onLayersChange,
       selectedLabel,
       activeTool,
-      magicWandActive,
       onTimeseriesClick,
       refocusTrigger,
       probePoint,
@@ -358,7 +356,6 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
             map={olMap}
             selectedLabel={selectedLabel}
             activeTool={activeTool}
-            magicWandActive={magicWandActive}
             onTimeseriesClick={onTimeseriesClick}
           />
         )}

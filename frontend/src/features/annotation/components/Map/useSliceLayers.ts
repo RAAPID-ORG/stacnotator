@@ -7,6 +7,7 @@ import { crossOriginForTile } from '../../utils/tileLoading';
 import { resolveBasemapUrl, resolveSliceTileUrl } from '../../utils/proxyTile';
 import { useMapStore } from '../../stores/map.store';
 import { useCampaignStore } from '../../stores/campaign.store';
+import { viewSources } from '../../utils/viewCollections';
 
 /** Return an attribution string for known basemap providers based on their URL pattern. */
 function getBasemapAttribution(url: string): string | undefined {
@@ -127,29 +128,18 @@ export function useSliceLayers({
       }
 
       // Build UI layer list: one entry per (source × visualization) for all
-      // sources referenced in the current view, deduplicated by source ID.
+      // sources in the current view.
       const allLayers = lm.getLayers();
       const basemapLayers = allLayers.filter((l) => l.layerType === 'basemap');
       const vizLayers: Layer[] = [];
 
-      const selectedView = campaign.imagery_views?.find((v) => v.id === selectedViewId) ?? null;
-      const viewRefs = selectedView?.collection_refs ?? [];
+      const selectedView = campaign.imagery_views.find((v) => v.id === selectedViewId) ?? null;
 
-      // Pick one collection per source (prefer the active collection if it
-      // belongs to that source, otherwise take the first ref).
-      const seenSources = new Set<number>();
-      for (const ref of viewRefs) {
-        if (seenSources.has(ref.source_id)) continue;
-        seenSources.add(ref.source_id);
-
-        const source = campaign.imagery_sources.find((s) => s.id === ref.source_id);
-        if (!source) continue;
-
-        // Use active collection if it belongs to this source, else first ref
-        const collectionId = source.collections.some((c) => c.id === activeCollectionId)
-          ? activeCollectionId!
-          : ref.collection_id;
-        const collection = source.collections.find((c) => c.id === collectionId);
+      // One collection per source: the active one if it belongs to that
+      // source, otherwise the source's first collection.
+      for (const source of viewSources(campaign.imagery_sources, selectedView)) {
+        const collection =
+          source.collections.find((c) => c.id === activeCollectionId) ?? source.collections[0];
         if (!collection) continue;
 
         const sliceIdx = Math.min(activeSliceIndex, collection.slices.length - 1);
@@ -224,10 +214,11 @@ export function useSliceLayers({
 
   const initLayers = useCallback(
     (lm: LayerManager) => {
+      if (!campaign) return;
+
       // Register basemaps from backend
-      const campaignId = campaign?.id;
-      const basemaps = (campaign?.basemaps ?? []).map((b) => {
-        const url = campaignId != null ? resolveBasemapUrl(campaignId, b) : b.url;
+      const basemaps = campaign.basemaps.map((b) => {
+        const url = resolveBasemapUrl(campaign.id, b);
         return new XYZLayer({
           id: `basemap-${b.id}`,
           name: b.name,
@@ -249,7 +240,7 @@ export function useSliceLayers({
 
       syncLayers(lm);
     },
-    [syncLayers, campaign?.id, campaign?.basemaps, setLayers, setActiveLayerId, onLayersChange]
+    [syncLayers, campaign, setLayers, setActiveLayerId, onLayersChange]
   );
 
   // Re-sync when view changes
