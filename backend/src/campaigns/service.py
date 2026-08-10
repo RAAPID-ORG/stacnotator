@@ -8,6 +8,7 @@ from sqlalchemy import ARRAY, Text, and_, cast, delete, func, or_, select, updat
 from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
+from src import background
 from src.annotation import embeddings_service
 from src.annotation.geometries import (
     delete_orphan_geometries,
@@ -33,6 +34,7 @@ from src.canvas.service import new_default_main_layout
 from src.database import SessionLocal
 from src.imagery.models import ImageryCollection, ImagerySlice, ImagerySource, ImageryView
 from src.imagery.registration import (
+    REGISTRATION_RUN,
     RegistrationSpec,
     re_register_stac_collections,
     spawn_background_mosaic_registration,
@@ -291,8 +293,12 @@ def create_campaign(
 
     # Set initial statuses based on what background work is needed
     embedding_year = campaign.settings.embedding_year
-    campaign.registration_status = "registering" if pending_registrations else "ready"
-    campaign.embedding_status = "registering" if embedding_year is not None else "ready"
+    campaign.registration_status = "ready"
+    campaign.embedding_status = "ready"
+    if pending_registrations:
+        background.begin_status_run(campaign, REGISTRATION_RUN)
+    if embedding_year is not None:
+        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
 
     db.commit()
     db.refresh(campaign)
@@ -588,7 +594,7 @@ def update_embedding_year(
         # Off the request path: populate_campaign_embeddings makes slow external
         # calls, so the caller marks "registering" now and the spawned thread
         # flips it to ready/failed once the recomputation finishes.
-        campaign.embedding_status = "registering"
+        background.begin_status_run(campaign, embeddings_service.EMBEDDING_RUN)
 
     db.commit()
     db.refresh(campaign)

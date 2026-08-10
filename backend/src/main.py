@@ -13,14 +13,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 import src.models  # noqa: F401 -- side-effect import: ensures all ORM models are registered before any mapper configures  # isort: skip
 
+from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.annotation.router import router as annotations_router
 from src.auth.router import router as auth_router
+from src.background import fail_stale_status_runs
 from src.campaigns.router import router as campaigns_router
 from src.config import get_settings
 from src.custom_layers.router import router as custom_layers_router
 from src.database import SessionLocal
 from src.earth_engine import initialize_earth_engine
 from src.imagery.proxy_router import router as imagery_proxy_router
+from src.imagery.registration import REGISTRATION_RUN
 from src.imagery.router import router as imagery_router
 from src.organizations.router import router as organizations_router
 from src.projects.router import router as projects_router
@@ -75,7 +78,25 @@ async def lifespan(app: FastAPI):
 
     to_thread.current_default_thread_limiter().total_tokens = settings.THREAD_POOL_MAX
     initialize_earth_engine()
+    _sweep_stale_background_runs()
     yield
+
+
+def _sweep_stale_background_runs() -> None:
+    """Recover campaigns whose background run died with a previous worker.
+
+    Guarded: a DB hiccup at boot must not keep the worker from serving - the
+    sweep re-runs on every worker start and from the polled campaign read.
+    """
+    try:
+        db = SessionLocal()
+        try:
+            fail_stale_status_runs(db, (REGISTRATION_RUN, EMBEDDING_RUN))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.warning("Stale background-run sweep failed at startup", exc_info=True)
 
 
 # Initialize the FastAPI app

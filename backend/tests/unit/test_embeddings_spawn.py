@@ -1,15 +1,11 @@
-"""Tests for spawn_background_embedding_computation's status-transition protocol.
+"""Tests for spawn_background_embedding_computation's wiring into the
+background-run protocol (src/background.py, covered in test_background_runs.py).
 
-Stubs threading.Thread to run the target inline (no real thread) and stubs
-SessionLocal/populate_campaign_embeddings so the transitions can be asserted
-against a plain campaign stand-in without a database. Both the success and
-failure paths call imagery.registration.finish_registration (a Core UPDATE)
-rather than mutating the campaign object directly, so those tests assert on
-how it was called instead of on campaign attributes; finish_registration
-itself is covered against a real database in test_finish_registration.py.
+The spawn hands the protocol a work callable and an error sanitizer; these
+tests capture that call and exercise both, DB-free.
 """
 
-from types import SimpleNamespace
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,137 +13,45 @@ import pytest
 from src.annotation import embeddings_service
 
 
-class _InlineThread:
-    """Stand-in for threading.Thread that runs the target synchronously."""
-
-    def __init__(self, target, daemon=True):
-        self._target = target
-
-    def start(self):
-        self._target()
+@pytest.fixture()
+def spawn(monkeypatch):
+    spawn = MagicMock()
+    monkeypatch.setattr(embeddings_service.background, "spawn_status_run", spawn)
+    return spawn
 
 
-@pytest.fixture(autouse=True)
-def _run_thread_inline(monkeypatch):
-    monkeypatch.setattr(embeddings_service.threading, "Thread", _InlineThread)
+def test_spawns_the_embedding_status_run(spawn):
+    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+
+    spawn.assert_called_once()
+    args, kwargs = spawn.call_args
+    assert args == (1, embeddings_service.EMBEDDING_RUN)
+    assert kwargs["name"] == "embedding computation"
 
 
-def _make_campaign():
-    # Caller is expected to have already committed "registering" before spawning.
-    return SimpleNamespace(embedding_status="registering", registration_errors=None)
+def test_work_populates_the_year_range_when_earth_engine_is_ready(spawn, monkeypatch):
+    monkeypatch.setattr(embeddings_service, "ensure_earth_engine", lambda: True)
+    populate = MagicMock()
+    monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", populate)
 
-
-def _make_session(campaign):
+    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
     db = MagicMock()
-    db.get.return_value = campaign
-    return db
+    spawn.call_args.kwargs["work"](db)
+
+    populate.assert_called_once_with(db, 1, datetime(2023, 1, 1), datetime(2023, 12, 31))
 
 
-class TestSpawnBackgroundEmbeddingComputation:
-    def test_success_finishes_embedding_status_ready_with_no_errors(self, monkeypatch):
-        campaign = _make_campaign()
-        db = _make_session(campaign)
-        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
-        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", lambda *a, **k: {})
-        finish_registration = MagicMock()
-        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
+def test_work_fails_clearly_when_earth_engine_is_unavailable(spawn, monkeypatch):
+    monkeypatch.setattr(embeddings_service, "ensure_earth_engine", lambda: False)
 
-        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
+    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-        finish_registration.assert_called_once_with(
-            db,
-            1,
-            status_field="embedding_status",
-            status="ready",
-            errors=[],
-        )
-        db.commit.assert_called()
-        db.close.assert_called()
+    with pytest.raises(RuntimeError, match="Earth Engine is unavailable"):
+        spawn.call_args.kwargs["work"](MagicMock())
 
-    def test_failure_calls_finish_registration_with_prefixed_sanitized_error(self, monkeypatch):
-        campaign = _make_campaign()
-        db = _make_session(campaign)
-        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
-        finish_registration = MagicMock()
-        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
 
-        def _raise(*a, **k):
-            raise RuntimeError("GEE exploded")
+def test_sanitizer_prefixes_the_domain(spawn):
+    embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
 
-        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", _raise)
-
-        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
-
-        finish_registration.assert_called_once_with(
-            db,
-            1,
-            status_field="embedding_status",
-            status="failed",
-            errors=[{"error": "Embeddings: GEE exploded"}],
-        )
-        db.commit.assert_called()
-        db.close.assert_called()
-
-    def test_failure_rolls_back_poisoned_session_before_finish_registration(self, monkeypatch):
-        """A DB error mid-computation leaves the session's transaction invalid;
-        finish_registration's own db.flush() would raise PendingRollbackError
-        unless the session is rolled back first."""
-        campaign = _make_campaign()
-        db = _make_session(campaign)
-        calls: list[str] = []
-        db.rollback.side_effect = lambda: calls.append("rollback")
-        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
-        finish_registration = MagicMock(
-            side_effect=lambda *a, **k: calls.append("finish_registration")
-        )
-        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
-
-        def _raise(*a, **k):
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", _raise)
-
-        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
-
-        assert calls == ["rollback", "finish_registration"]
-
-    def test_failure_does_not_read_modify_write_registration_errors(self, monkeypatch):
-        """The failure path must go through finish_registration's atomic append,
-        never through a read-then-write of campaign.registration_errors - that
-        read-modify-write is exactly what let concurrent threads clobber each
-        other's errors."""
-        campaign = _make_campaign()
-        campaign.registration_errors = [{"error": "prior mosaic failure"}]
-        db = _make_session(campaign)
-        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
-        finish_registration = MagicMock()
-        monkeypatch.setattr(embeddings_service, "finish_registration", finish_registration)
-
-        def _raise(*a, **k):
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", _raise)
-
-        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
-
-        finish_registration.assert_called_once_with(
-            db,
-            1,
-            status_field="embedding_status",
-            status="failed",
-            errors=[{"error": "Embeddings: boom"}],
-        )
-        # Only finish_registration's own UPDATE writes registration_errors; this
-        # path must never have touched the ORM attribute directly.
-        assert campaign.registration_errors == [{"error": "prior mosaic failure"}]
-
-    def test_missing_campaign_does_not_raise(self, monkeypatch):
-        db = MagicMock()
-        db.get.return_value = None
-        monkeypatch.setattr(embeddings_service, "SessionLocal", lambda: db)
-        monkeypatch.setattr(embeddings_service, "populate_campaign_embeddings", lambda *a, **k: {})
-
-        # Should not raise even though there is no campaign row to update.
-        embeddings_service.spawn_background_embedding_computation(campaign_id=1, year=2023)
-
-        db.close.assert_called()
+    sanitized = spawn.call_args.kwargs["sanitize_error"](RuntimeError("GEE exploded"))
+    assert sanitized == "Embeddings: GEE exploded"

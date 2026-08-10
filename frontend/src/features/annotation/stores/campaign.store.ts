@@ -90,7 +90,9 @@ interface CampaignStore {
     initialTaskId?: number,
     isReviewMode?: boolean,
     initialWorkMode?: WorkMode,
-    initialTaskSetId?: number
+    initialTaskSetId?: number,
+    /** Explore deep link: start centred here and select the annotation. */
+    initialFocus?: { lat: number; lon: number; annotationId?: number }
   ) => Promise<void>;
   refreshKnnValidationStatus: () => Promise<void>;
   setWorkMode: (mode: WorkMode) => void;
@@ -153,7 +155,8 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
     initialTaskId,
     isReviewMode,
     initialWorkMode,
-    initialTaskSetId
+    initialTaskSetId,
+    initialFocus
   ) => {
     set({ isLoadingCampaign: true });
 
@@ -194,10 +197,12 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       let initialMapCenter: [number, number] | null = null;
       let initialMapZoom: number | null = null;
       if (workMode === 'explore') {
-        initialMapCenter = [
-          (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
-          (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
-        ];
+        initialMapCenter = initialFocus
+          ? [initialFocus.lat, initialFocus.lon]
+          : [
+              (campaign.settings.bbox_south + campaign.settings.bbox_north) / 2,
+              (campaign.settings.bbox_west + campaign.settings.bbox_east) / 2,
+            ];
         const firstSource = campaign.imagery_sources[0];
         initialMapZoom = firstSource?.default_zoom ?? DEFAULT_MAP_ZOOM;
       }
@@ -253,6 +258,14 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
       // loaded upfront. Seed the tile cache-busting version from the campaign
       // for every campaign, since Explore can be entered from any of them.
       useAnnotationStore.getState().setCampaignVersion(campaign.annotations_version ?? 0);
+
+      // Deep-linked annotation: arm the edit tool and stage the annotation for
+      // it. The map consumes pendingEditAnnotationId once its edit interactions
+      // exist; selecting here directly would be wiped on map mount.
+      if (workMode === 'explore' && initialFocus?.annotationId !== undefined) {
+        useMapStore.getState().setActiveTool('edit');
+        useAnnotationStore.setState({ pendingEditAnnotationId: initialFocus.annotationId });
+      }
 
       // Off the critical path: the tooltip it feeds isn't needed for first paint.
       void get().refreshKnnValidationStatus();

@@ -44,7 +44,7 @@ def upgrade() -> None:
     conn = op.get_bind()
     campaigns = conn.execute(
         text(
-            "SELECT campaign_id, form_fields FROM data.campaign_settings "
+            "SELECT campaign_id, form_fields FROM data.settings "
             "WHERE jsonb_array_length(coalesce(form_fields, '[]'::jsonb)) > 0"
         )
     ).fetchall()

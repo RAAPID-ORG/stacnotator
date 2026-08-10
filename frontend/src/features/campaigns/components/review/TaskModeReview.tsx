@@ -19,7 +19,6 @@ import {
 } from '~/shared/utils/taskStatus';
 import { extractCentroidFromWKT } from '~/shared/utils/utility';
 import { handleError } from '~/shared/utils/errorHandler';
-import Statistics from './Statistics';
 import { AnnotationDistributionMap } from './AnnotationDistributionMap';
 import { ExportDropdown } from './ExportDropdown';
 import { Button } from '~/shared/ui/forms';
@@ -342,9 +341,6 @@ export const TaskModeReview = ({
             />
           </div>
         )}
-
-        {/* Statistics */}
-        {!embedded && tasks.length > 0 && <Statistics campaignId={campaignId} />}
 
         {/* Filters - embedded (tasks page) sits flat on the page; standalone keeps its own surface */}
         {loading ? (

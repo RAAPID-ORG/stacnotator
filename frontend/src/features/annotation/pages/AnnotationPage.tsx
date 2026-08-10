@@ -83,7 +83,17 @@ export const AnnotationPage = () => {
     const initialWorkMode = modeParam && isWorkMode(modeParam) ? modeParam : undefined;
     const initialTaskSetId = taskSetParam ? Number(taskSetParam) : undefined;
 
-    if (taskIdParam || reviewParam || modeParam || taskSetParam) {
+    // Explore deep link (annotations page "View"): centre on a point and
+    // select an annotation there. Number(null) is 0, hence the ?? NaN guards.
+    const lat = Number(searchParams.get('lat') ?? NaN);
+    const lon = Number(searchParams.get('lon') ?? NaN);
+    const annotationId = Number(searchParams.get('annotation') ?? NaN);
+    const initialFocus =
+      Number.isFinite(lat) && Number.isFinite(lon)
+        ? { lat, lon, annotationId: Number.isFinite(annotationId) ? annotationId : undefined }
+        : undefined;
+
+    if (searchParams.size > 0) {
       setSearchParams({}, { replace: true });
     }
 
@@ -96,7 +106,8 @@ export const AnnotationPage = () => {
           initialTaskId && !Number.isNaN(initialTaskId) ? initialTaskId : undefined,
           isReviewMode,
           initialWorkMode,
-          initialTaskSetId && !Number.isNaN(initialTaskSetId) ? initialTaskSetId : undefined
+          initialTaskSetId && !Number.isNaN(initialTaskSetId) ? initialTaskSetId : undefined,
+          initialFocus
         );
       } catch (error) {
         if (!cancelled) {

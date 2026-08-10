@@ -79,6 +79,9 @@ class AnnotationFromTaskOut(BaseModel):
 
 class AnnotationOut(AnnotationFromTaskOut):
     geometry: GeometryOut
+    # Origin: set for task-bound annotations, None for standalone (explore)
+    # ones. Lets the annotations page open the matching work mode on "View".
+    annotation_task_id: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,20 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { LEAVE_PUBLIC_WARNING, requiresLeavePublicConfirm } from './projectVisibility';
+import { LEAVE_PUBLIC_WARNING, visibilityConfirm } from './projectVisibility';
 
-/** ProjectSettingsSection defers updateProject behind a ConfirmDialog showing
- *  LEAVE_PUBLIC_WARNING exactly when this predicate is true. */
-describe('requiresLeavePublicConfirm', () => {
-  it('confirms leaving public for either narrower scope', () => {
-    expect(requiresLeavePublicConfirm('public', 'organization')).toBe(true);
-    expect(requiresLeavePublicConfirm('public', 'private')).toBe(true);
+/** ProjectSettingsSection defers updateProject behind a ConfirmDialog with
+ *  exactly the copy this helper returns; null means the switch applies
+ *  directly. */
+describe('visibilityConfirm', () => {
+  it('confirms going public from either narrower scope, without danger styling', () => {
+    for (const from of ['private', 'organization'] as const) {
+      const confirm = visibilityConfirm(from, 'public');
+      expect(confirm?.confirmText).toBe('Make public');
+      expect(confirm?.isDangerous).toBe(false);
+    }
   });
 
-  it('never confirms transitions that do not leave public', () => {
-    expect(requiresLeavePublicConfirm('private', 'public')).toBe(false);
-    expect(requiresLeavePublicConfirm('private', 'organization')).toBe(false);
-    expect(requiresLeavePublicConfirm('organization', 'private')).toBe(false);
-    expect(requiresLeavePublicConfirm('organization', 'public')).toBe(false);
-    expect(requiresLeavePublicConfirm('public', 'public')).toBe(false);
+  it('confirms leaving public as destructive, naming the target scope', () => {
+    expect(visibilityConfirm('public', 'organization')).toMatchObject({
+      confirmText: 'Restrict to organization',
+      isDangerous: true,
+    });
+    expect(visibilityConfirm('public', 'private')).toMatchObject({
+      confirmText: 'Make private',
+      isDangerous: true,
+    });
+  });
+
+  it('lets switches between the narrower scopes apply directly', () => {
+    expect(visibilityConfirm('private', 'organization')).toBeNull();
+    expect(visibilityConfirm('organization', 'private')).toBeNull();
+    expect(visibilityConfirm('public', 'public')).toBeNull();
   });
 
   it('warns about the stripped anyone audience', () => {

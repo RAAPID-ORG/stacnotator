@@ -1,5 +1,4 @@
 import logging
-import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,6 +8,7 @@ from geoalchemy2.shape import to_shape
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from src import background
 from src.annotation.constants import EMBD_MIN_N_NEIGHBOURS
 from src.annotation.models import (
     Annotation,
@@ -19,8 +19,8 @@ from src.annotation.models import (
     Embedding as EmbeddingRow,
 )
 from src.annotation.schemas import KnnValidationStatusOut, ValidateLabelSubmissionsResponse
-from src.database import SessionLocal
-from src.imagery.registration import finish_registration, sanitize_error_message
+from src.earth_engine import ensure_earth_engine
+from src.imagery.registration import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -464,52 +464,39 @@ def _sanitize_embedding_error(exc: Exception) -> str:
     return sanitize_error_message(exc, fallback="Embedding computation failed")
 
 
-def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
-    """Run embedding computation on a daemon thread with its own DB session.
+# The embeddings domain's background run on the campaign.
+EMBEDDING_RUN = background.StatusField(
+    status_column="embedding_status",
+    heartbeat_column="embedding_heartbeat_at",
+    interrupted_error=(
+        "Embedding computation was interrupted by a server restart. "
+        "Trigger it again from the campaign settings to retry."
+    ),
+)
 
-    The single status protocol for embeddings background work. Mirrors
-    imagery.registration.spawn_background_mosaic_registration: the caller commits
-    `campaign.embedding_status = "registering"` in its own transaction before
-    calling this, then this thread flips it to ready/failed once
-    populate_campaign_embeddings finishes (or fails). Both transitions go
-    through registration.finish_registration so its error append can never
-    clobber (or be clobbered by) the mosaic thread's, since both write
-    registration_errors.
+
+def spawn_background_embedding_computation(campaign_id: int, year: int) -> None:
+    """Run embedding computation off the request path (see src/background.py).
+
+    The caller commits begin_status_run(campaign, EMBEDDING_RUN) in its own
+    transaction before calling this; the spawned run flips the status to
+    ready/failed once populate_campaign_embeddings finishes (or fails).
     """
     start_date = datetime(year, 1, 1)
     end_date = datetime(year, 12, 31)
 
-    def _run() -> None:
-        bg_db = SessionLocal()
-        try:
-            logger.info(
-                "Background embeddings started for campaign %d (year %d)", campaign_id, year
+    def work(db: Session) -> None:
+        if not ensure_earth_engine():
+            raise RuntimeError(
+                "Earth Engine is unavailable (initialization failed); "
+                "retry the embedding computation"
             )
-            populate_campaign_embeddings(bg_db, campaign_id, start_date, end_date)
-            finish_registration(
-                bg_db,
-                campaign_id,
-                status_field="embedding_status",
-                status="ready",
-                errors=[],
-            )
-            bg_db.commit()
-            logger.info("Embeddings completed for campaign %d", campaign_id)
-        except Exception as exc:
-            logger.exception("Embeddings failed for campaign %d", campaign_id)
-            bg_db.rollback()
-            try:
-                finish_registration(
-                    bg_db,
-                    campaign_id,
-                    status_field="embedding_status",
-                    status="failed",
-                    errors=[{"error": f"Embeddings: {_sanitize_embedding_error(exc)}"}],
-                )
-                bg_db.commit()
-            except Exception:
-                logger.warning("Failed to persist embedding error status", exc_info=True)
-        finally:
-            bg_db.close()
+        populate_campaign_embeddings(db, campaign_id, start_date, end_date)
 
-    threading.Thread(target=_run, daemon=True).start()
+    background.spawn_status_run(
+        campaign_id,
+        EMBEDDING_RUN,
+        name="embedding computation",
+        work=work,
+        sanitize_error=lambda exc: f"Embeddings: {_sanitize_embedding_error(exc)}",
+    )

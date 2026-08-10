@@ -757,12 +757,20 @@ export const AnnotationToolbar = () => {
               <div className="w-px h-5 bg-neutral-200" />
             </>
           )}
-          {/* Navigate to the campaign's Annotations page */}
+          {/* Tasks mode lists work as tasks, explore mode as free-form annotations */}
           <button
-            onClick={() => navigate(campaignPath(campaign.project_id, campaign.id, 'annotations'))}
+            onClick={() =>
+              navigate(
+                campaignPath(
+                  campaign.project_id,
+                  campaign.id,
+                  workMode === 'tasks' ? 'tasks' : 'annotations'
+                )
+              )
+            }
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
             type="button"
-            title="Go to Annotations page"
+            title={workMode === 'tasks' ? 'Go to Tasks page' : 'Go to Annotations page'}
           >
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
               <path

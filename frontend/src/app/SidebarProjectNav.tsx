@@ -7,7 +7,6 @@ import {
   type ProjectOut,
 } from '~/api/client';
 import { campaignPath, projectPath } from '~/app/routes';
-import { Tooltip } from '~/shared/ui/Tooltip';
 
 export interface ProjectNavInfo {
   project: ProjectOut;
@@ -78,18 +77,13 @@ export const useProjectName = (projectId: number | null): string | null => {
 
 const PROJECT_ROUTE = /^\/projects\/(\d+)(?:\/campaigns\/(\d+))?/;
 
-/** Longer names are visually truncated in the 180px sidebar; give them a
- *  hoverable tooltip with the full text. */
-const TRUNCATION_THRESHOLD = 18;
-
-const NavName = ({ name }: { name: string }) =>
-  name.length > TRUNCATION_THRESHOLD ? (
-    <Tooltip text={name} align="start" className="min-w-0">
-      <span className="min-w-0 truncate">{name}</span>
-    </Tooltip>
-  ) : (
-    <span className="min-w-0 truncate">{name}</span>
-  );
+/** Longer names are visually truncated in the 180px sidebar; the native title
+ *  shows the full text on hover without extra chrome. */
+const NavName = ({ name }: { name: string }) => (
+  <span className="min-w-0 truncate" title={name}>
+    {name}
+  </span>
+);
 
 interface SidebarProjectNavProps {
   onNavigate: (path: string) => void;

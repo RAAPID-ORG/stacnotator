@@ -227,14 +227,22 @@ export const OpenModeReview = ({
     }
   };
 
+  // Open the annotator where the annotation came from: task-bound ones jump
+  // to their task in Tasks mode, standalone ones open Explore centred on the
+  // annotation. Without an explicit mode the annotator would seed from
+  // campaign.mode and open the first task regardless of origin.
   const handleNavigateToAnnotation = (ann: AnnotationOut) => {
+    if (ann.annotation_task_id != null) {
+      navigate(`${annotatePath}?task=${ann.annotation_task_id}&review=true`);
+      return;
+    }
     const centroid = extractCentroidFromWKT(ann.geometry.geometry);
     if (centroid) {
       navigate(
-        `${annotatePath}?lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}&review=true`
+        `${annotatePath}?mode=explore&lat=${centroid.lat}&lon=${centroid.lon}&annotation=${ann.id}`
       );
     } else {
-      navigate(`${annotatePath}?review=true`);
+      navigate(`${annotatePath}?mode=explore`);
     }
   };
 

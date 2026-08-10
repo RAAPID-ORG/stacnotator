@@ -55,6 +55,15 @@ class Campaign(Base):
     embedding_status: Mapped[str] = mapped_column(
         String(20), server_default="ready", nullable=False
     )
+    # Liveness stamps for the background runs behind the two statuses; a
+    # "registering" campaign whose stamp goes stale is swept to "failed"
+    # (see src/background.py).
+    registration_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    embedding_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
     # Errors from background registration (JSON array, null when no errors)
     registration_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 

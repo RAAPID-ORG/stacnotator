@@ -7,6 +7,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
+from src import background
+from src.annotation.embeddings_service import EMBEDDING_RUN
 from src.auth.dependencies import require_authenticated_user
 from src.auth.models import User
 from src.campaigns import assignments, duplication, service, statistics, task_sets
@@ -43,6 +45,7 @@ from src.campaigns.schemas import (
 )
 from src.database import get_db
 from src.filenames import clean_filename
+from src.imagery.registration import REGISTRATION_RUN
 from src.organizations.service import is_active_org_member
 from src.projects.access import is_policy_member
 from src.projects.dependencies import assert_project_admin
@@ -104,6 +107,16 @@ def get_campaign(
     user: User = Depends(require_authenticated_user),
     db: Session = Depends(get_db),
 ):
+    # The UI polls this while a campaign is "registering"; recover here if the
+    # run's worker died, so the user is unblocked without waiting for a restart.
+    if "registering" in (
+        campaign.registration_status,
+        campaign.embedding_status,
+    ) and background.fail_stale_status_runs(
+        db, (REGISTRATION_RUN, EMBEDDING_RUN), campaign_id=campaign_id
+    ):
+        db.commit()
+        db.expire_all()
     return _campaign_out(service.get_campaign_full(db, campaign_id), db, user)
 
 
@@ -147,6 +160,7 @@ def duplicate_campaign(
         campaign,
         include_tasks=req.include_tasks,
         include_annotations=req.include_annotations,
+        include_user_layouts=req.include_user_layouts,
     )
     return _campaign_out(service.get_campaign_full(db, dup.id), db, user)
 

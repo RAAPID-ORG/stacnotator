@@ -36,6 +36,10 @@ interface OpenAnnotationStore {
   /** Full record of the single selected annotation, fetched by id for the
    * controls panel (label, flags, comment). Null when 0 or many selected. */
   selectedAnnotationDetail: AnnotationOut | null;
+  /** Deep-linked annotation (annotations page "View") waiting to be opened
+   * for editing. Consumed by the map's edit tool once its interactions are
+   * set up - selecting earlier would race the mount-time selection clear. */
+  pendingEditAnnotationId: number | null;
 
   setCampaignVersion: (version: number) => void;
   bumpTileVersion: () => void;
@@ -87,6 +91,7 @@ const initialState = {
   selectedAnnotationId: null as number | null,
   selectedAnnotationIds: [] as number[],
   selectedAnnotationDetail: null as AnnotationOut | null,
+  pendingEditAnnotationId: null as number | null,
 };
 
 export const useAnnotationStore = create<OpenAnnotationStore>((set, get) => ({

@@ -1,4 +1,4 @@
-"""DB-bound test for imagery.registration.finish_registration.
+"""DB-bound test for background.finish_status_run.
 
 Runs against the real dev Postgres (SessionLocal / settings.DATABASE_URL). Each
 test creates its own throwaway campaign and never commits, so the session's
@@ -14,9 +14,11 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
+from src.annotation.embeddings_service import EMBEDDING_RUN
+from src.background import finish_status_run
 from src.campaigns.models import Campaign
 from src.database import SessionLocal
-from src.imagery.registration import finish_registration
+from src.imagery.registration import REGISTRATION_RUN
 
 
 @pytest.fixture()
@@ -58,17 +60,17 @@ class TestFinishRegistration:
         fields, with no data lost to the second write."""
         campaign = _make_campaign(db_session)
 
-        finish_registration(
+        finish_status_run(
             db_session,
             campaign.id,
-            status_field="registration_status",
+            field=REGISTRATION_RUN,
             status="failed",
             errors=[{"error": "mosaic slice A failed"}],
         )
-        finish_registration(
+        finish_status_run(
             db_session,
             campaign.id,
-            status_field="embedding_status",
+            field=EMBEDDING_RUN,
             status="failed",
             errors=[{"error": "Embeddings: GEE exploded"}],
         )
@@ -84,10 +86,10 @@ class TestFinishRegistration:
 
     def test_success_flip_with_no_errors_leaves_errors_list_untouched(self, db_session):
         campaign = _make_campaign(db_session)
-        finish_registration(
+        finish_status_run(
             db_session,
             campaign.id,
-            status_field="registration_status",
+            field=REGISTRATION_RUN,
             status="ready",
             errors=[],
         )
@@ -97,23 +99,12 @@ class TestFinishRegistration:
         assert refreshed.registration_status == "ready"
         assert refreshed.registration_errors == []
 
-    def test_unknown_status_field_is_rejected(self, db_session):
-        campaign = _make_campaign(db_session)
-        with pytest.raises(ValueError, match="Unknown status_field"):
-            finish_registration(
-                db_session,
-                campaign.id,
-                status_field="not_a_real_column",
-                status="failed",
-                errors=[],
-            )
-
     def test_missing_campaign_is_a_noop(self, db_session):
         """No row matches -> the UPDATE affects zero rows; must not raise."""
-        finish_registration(
+        finish_status_run(
             db_session,
             campaign_id=-1,
-            status_field="registration_status",
+            field=REGISTRATION_RUN,
             status="failed",
             errors=[{"error": "irrelevant"}],
         )

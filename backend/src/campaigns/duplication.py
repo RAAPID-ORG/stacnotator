@@ -3,8 +3,8 @@
 The full setup is always copied: settings, imagery sources/collections/slices
 with their registered tile URLs (pgstac/MPC mosaic searches are content
 addressed, so both campaigns can safely point at the same mosaics), basemaps,
-views, default canvas layouts, time series and overlay layers. Tasks and
-annotations are opt-in. Personal canvas layouts and soft task claims are
+views, default canvas layouts, time series and overlay layers. Tasks,
+annotations and personal canvas layouts are opt-in. Soft task claims are
 runtime state of the original campaign and are never copied.
 """
 
@@ -60,6 +60,7 @@ def duplicate_campaign(
     *,
     include_tasks: bool,
     include_annotations: bool,
+    include_user_layouts: bool,
 ) -> Campaign:
     """Create the duplicate in one transaction and commit. Returns the new
     campaign row. Annotations linked to a task are only copied when the tasks
@@ -129,22 +130,21 @@ def duplicate_campaign(
         db.flush()
         view_map[view.id] = new_view.id
 
-    default_layouts = db.scalars(
-        select(CanvasLayout).where(
-            CanvasLayout.campaign_id == campaign.id,
-            CanvasLayout.user_id.is_(None),
-            CanvasLayout.is_default,
-        )
+    layout_filter = CanvasLayout.user_id.is_(None) & CanvasLayout.is_default
+    if include_user_layouts:
+        layout_filter = layout_filter | CanvasLayout.user_id.is_not(None)
+    layouts = db.scalars(
+        select(CanvasLayout).where(CanvasLayout.campaign_id == campaign.id, layout_filter)
     ).all()
-    for layout in default_layouts:
+    for layout in layouts:
         if layout.view_id is not None and layout.view_id not in view_map:
             continue
         db.add(
             CanvasLayout(
                 campaign_id=dup.id,
                 view_id=view_map[layout.view_id] if layout.view_id is not None else None,
-                user_id=None,
-                is_default=True,
+                user_id=layout.user_id,
+                is_default=layout.is_default,
                 layout_data=remapped_layout_data(layout.layout_data, collection_map),
             )
         )

@@ -175,6 +175,11 @@ export const MainAnnotationsContainer = ({
   );
 
   const initialCenter = useMemo<[number, number]>(() => {
+    // Explore is seeded by loadCampaign (campaign bbox centre, or a
+    // deep-linked annotation from the annotations page) - honour that seed;
+    // recomputing the bbox centre here would ignore the deep link.
+    const seeded = workMode === 'explore' ? useMapStore.getState().currentMapCenter : null;
+    if (seeded) return seeded;
     if (latLon) return [latLon.lat, latLon.lon];
     if (campaignBbox)
       return [(campaignBbox[1] + campaignBbox[3]) / 2, (campaignBbox[0] + campaignBbox[2]) / 2];

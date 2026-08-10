@@ -6,10 +6,35 @@ import {
   type PairwiseAgreement,
 } from '~/api/client';
 import { handleError } from '~/shared/utils/errorHandler';
+import { IconChevronDown, IconChevronRight } from '~/shared/ui/Icons';
+import { listRowCls, tableHeadRowCls } from '~/shared/ui/listRow';
 
 interface StatisticsProps {
   campaignId: number;
 }
+
+const thCls = 'px-4 py-3 text-left text-xs font-medium text-neutral-600 uppercase tracking-wider';
+
+const alphaColor = (alpha: number) => {
+  if (alpha >= 0.8) return 'text-green-600';
+  if (alpha >= 0.67) return 'text-yellow-600';
+  return 'text-red-600';
+};
+
+const alphaQualifier = (alpha: number) => {
+  if (alpha >= 0.8) return 'excellent agreement';
+  if (alpha >= 0.67) return 'good agreement';
+  return 'poor agreement';
+};
+
+const agreementBadgeCls = (agreement: number) => {
+  if (agreement >= 80) return 'bg-green-100 text-green-800';
+  if (agreement >= 60) return 'bg-yellow-100 text-yellow-800';
+  return 'bg-red-100 text-red-800';
+};
+
+const displayName = (annotator: AnnotatorInfo) =>
+  annotator.user_display_name || annotator.user_email.split('@')[0];
 
 const Statistics = ({ campaignId }: StatisticsProps) => {
   const [statistics, setStatistics] = useState<CampaignStatistics | null>(null);
@@ -39,210 +64,133 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
     fetchStats();
   }, [campaignId]);
 
+  const heading = <h2 className="section-heading">Inter-annotator agreement</h2>;
+
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-4">
-        <div className="text-sm text-neutral-500">Loading statistics...</div>
+      <div>
+        {heading}
+        <p className="section-description">Loading statistics...</p>
       </div>
     );
   }
 
   if (error || !statistics) {
     return (
-      <div className="bg-white rounded-lg border border-neutral-200 p-4 mb-4">
-        <div className="text-sm text-red-600">{error || 'No statistics available'}</div>
+      <div>
+        {heading}
+        <p className="section-description text-red-600">{error || 'No statistics available'}</p>
       </div>
     );
   }
 
-  const getKrippendorffColor = (alpha: number | null | undefined) => {
-    if (alpha === null || alpha === undefined) return 'text-neutral-400';
-    if (alpha >= 0.8) return 'text-green-600';
-    if (alpha >= 0.67) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  const annotators = statistics.annotators;
+  const alpha = statistics.krippendorff_alpha;
 
-  const getAgreementColor = (agreement: number | null | undefined) => {
-    if (agreement === null || agreement === undefined) return 'bg-neutral-100 text-neutral-400';
-    if (agreement >= 80) return 'bg-green-100 text-green-800';
-    if (agreement >= 60) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
+  const agreementMap = new Map<string, PairwiseAgreement>();
+  statistics.pairwise_agreements.forEach((ag) => {
+    agreementMap.set(`${ag.annotator1_id}-${ag.annotator2_id}`, ag);
+    agreementMap.set(`${ag.annotator2_id}-${ag.annotator1_id}`, ag);
+  });
 
-  // Build agreement matrix
-  const buildAgreementMatrix = () => {
-    const annotators = statistics.annotators;
-    const agreements = statistics.pairwise_agreements;
-
-    // Create a map for quick lookup
-    const agreementMap = new Map<string, PairwiseAgreement>();
-    agreements.forEach((ag) => {
-      const key1 = `${ag.annotator1_id}-${ag.annotator2_id}`;
-      const key2 = `${ag.annotator2_id}-${ag.annotator1_id}`;
-      agreementMap.set(key1, ag);
-      agreementMap.set(key2, ag);
-    });
-
-    return { annotators, agreementMap };
-  };
-
-  const { annotators, agreementMap } = buildAgreementMatrix();
-
-  const getAgreementValue = (userId1: string, userId2: string) => {
-    if (userId1 === userId2) return null; // Diagonal
-    const key = `${userId1}-${userId2}`;
-    const agreement = agreementMap.get(key);
-    return agreement;
-  };
-
-  const getUserDisplayName = (annotator: AnnotatorInfo) => {
-    return annotator.user_display_name || annotator.user_email.split('@')[0];
-  };
+  const allLabels = Array.from(
+    new Set(annotators.flatMap((ann) => Object.keys(ann.label_distribution || {})))
+  ).sort();
 
   return (
-    <div className="bg-white rounded-lg border border-neutral-200 mb-4 shadow-sm hover:shadow-md transition-shadow">
-      {/* Header - Always visible */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-50 transition-colors rounded-lg group"
-        type="button"
-      >
-        <div className="flex items-center gap-4">
-          <span className="text-lg font-semibold text-neutral-900">Inter-Annotator Agreement</span>
-          <div className="flex gap-4 text-sm">
-            <span className="text-neutral-600">{statistics.total_annotations} annotations</span>
-            <span className="text-neutral-600">{annotators.length} annotators</span>
-            {statistics.krippendorff_alpha !== null &&
-              statistics.krippendorff_alpha !== undefined && (
-                <span
-                  className={`font-medium ${getKrippendorffColor(statistics.krippendorff_alpha)}`}
-                >
-                  α = {statistics.krippendorff_alpha.toFixed(3)}
-                </span>
-              )}
-          </div>
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          {heading}
+          <p className="section-description">
+            {statistics.total_annotations} annotations from {annotators.length}{' '}
+            {annotators.length === 1 ? 'annotator' : 'annotators'}
+            {alpha !== null && alpha !== undefined && (
+              <>
+                {' · '}
+                <span className={`font-medium ${alphaColor(alpha)}`}>α = {alpha.toFixed(3)}</span> (
+                {alphaQualifier(alpha)}, based on {statistics.tasks_with_multiple_annotations}{' '}
+                multi-annotated tasks)
+              </>
+            )}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-400 group-hover:text-brand-600 transition-colors">
-            {isExpanded ? 'Hide details' : 'Click for details'}
-          </span>
-          <svg
-            className={`w-5 h-5 text-neutral-400 group-hover:text-brand-600 transition-all ${isExpanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="flex items-center gap-1.5 px-3 h-8 rounded-full text-sm border border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400 transition-colors shrink-0"
+          aria-expanded={isExpanded}
+        >
+          {isExpanded ? (
+            <IconChevronDown className="w-4 h-4" />
+          ) : (
+            <IconChevronRight className="w-4 h-4" />
+          )}
+          Details
+        </button>
+      </div>
 
-      {/* Expanded Content */}
       {isExpanded && (
-        <div className="px-4 pb-4 border-t border-neutral-200">
-          {/* Krippendorff's Alpha Info */}
-          <div className="py-4 border-b border-neutral-200">
-            <h3 className="text-sm font-semibold text-neutral-700 mb-2">Krippendorff's Alpha</h3>
-            <div className="flex items-baseline gap-3">
-              <div
-                className={`text-xl font-bold ${getKrippendorffColor(statistics.krippendorff_alpha)}`}
-              >
-                {statistics.krippendorff_alpha !== null &&
-                statistics.krippendorff_alpha !== undefined
-                  ? statistics.krippendorff_alpha.toFixed(3)
-                  : 'N/A'}
-              </div>
-              {statistics.krippendorff_alpha !== null &&
-                statistics.krippendorff_alpha !== undefined && (
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-sm font-medium ${getKrippendorffColor(statistics.krippendorff_alpha)}`}
-                    >
-                      {statistics.krippendorff_alpha >= 0.8
-                        ? 'Excellent agreement'
-                        : statistics.krippendorff_alpha >= 0.67
-                          ? 'Good agreement'
-                          : 'Poor agreement'}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      Based on {statistics.tasks_with_multiple_annotations} multi-annotated tasks.
-                      Values {'>='} 0.8 are generally considered good, but this can vary by context.
-                    </span>
-                  </div>
-                )}
-            </div>
-          </div>
-
-          {/* Pairwise Agreement Matrix */}
-          {annotators.length > 1 && (
-            <div className="py-4">
-              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
-                Pairwise Agreement Matrix
-              </h3>
-              <p className="text-xs text-neutral-500 mb-3">
-                Agreement percentage between each pair of annotators (based on shared tasks)
+        <div className="space-y-6">
+          {annotators.length > 1 ? (
+            <div>
+              <h3 className="section-heading">Pairwise agreement</h3>
+              <p className="section-description">
+                Agreement percentage between each pair of annotators, based on their shared tasks.
               </p>
-
               <div className="overflow-x-auto">
-                <table className="min-w-full text-xs border-collapse">
+                <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr>
-                      <th className="border border-neutral-300 bg-neutral-50 px-2 py-1 text-left font-medium text-neutral-700 sticky left-0 z-10">
-                        Annotator
-                      </th>
+                    <tr className={tableHeadRowCls}>
+                      <th className={thCls}>Annotator</th>
                       {annotators.map((annotator) => (
                         <th
                           key={annotator.user_id}
-                          className="border border-neutral-300 bg-neutral-50 px-2 py-1 text-center font-medium text-neutral-700 min-w-[80px]"
+                          className={`${thCls} text-center`}
                           title={annotator.user_email}
                         >
-                          <div className="truncate max-w-[80px]">
-                            {getUserDisplayName(annotator)}
-                          </div>
+                          <div className="truncate max-w-[110px]">{displayName(annotator)}</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {annotators.map((rowAnnotator) => (
-                      <tr key={rowAnnotator.user_id}>
-                        <td className="border border-neutral-300 bg-neutral-50 px-2 py-1 font-medium text-neutral-700 sticky left-0 z-10">
-                          <div className="truncate max-w-[120px]" title={rowAnnotator.user_email}>
-                            {getUserDisplayName(rowAnnotator)}
-                          </div>
+                    {annotators.map((rowAnnotator, index) => (
+                      <tr key={rowAnnotator.user_id} className={listRowCls(index)}>
+                        <td
+                          className="px-4 py-3 font-medium text-neutral-700"
+                          title={rowAnnotator.user_email}
+                        >
+                          <div className="truncate max-w-[140px]">{displayName(rowAnnotator)}</div>
                         </td>
                         {annotators.map((colAnnotator) => {
-                          const agreement = getAgreementValue(
-                            rowAnnotator.user_id,
-                            colAnnotator.user_id
+                          if (rowAnnotator.user_id === colAnnotator.user_id) {
+                            return (
+                              <td
+                                key={colAnnotator.user_id}
+                                className="px-4 py-3 text-center text-neutral-300"
+                              >
+                                -
+                              </td>
+                            );
+                          }
+                          const agreement = agreementMap.get(
+                            `${rowAnnotator.user_id}-${colAnnotator.user_id}`
                           );
-                          const isDiagonal = rowAnnotator.user_id === colAnnotator.user_id;
-
+                          const pct = agreement?.agreement_percentage;
                           return (
-                            <td
-                              key={colAnnotator.user_id}
-                              className={`border border-neutral-300 px-2 py-1 text-center ${
-                                isDiagonal ? 'bg-neutral-200' : ''
-                              }`}
-                            >
-                              {isDiagonal ? (
-                                <span className="text-neutral-400">-</span>
-                              ) : agreement ? (
-                                <div>
-                                  <div
-                                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${getAgreementColor(
-                                      agreement.agreement_percentage
-                                    )}`}
+                            <td key={colAnnotator.user_id} className="px-4 py-3 text-center">
+                              {agreement && pct !== null && pct !== undefined ? (
+                                <>
+                                  <span
+                                    className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${agreementBadgeCls(pct)}`}
                                   >
-                                    {agreement.agreement_percentage !== null &&
-                                    agreement.agreement_percentage !== undefined
-                                      ? `${agreement.agreement_percentage.toFixed(0)}%`
-                                      : 'N/A'}
-                                  </div>
+                                    {pct.toFixed(0)}%
+                                  </span>
                                   <div className="text-xs text-neutral-400 mt-0.5">
-                                    ({agreement.shared_tasks} tasks)
+                                    {agreement.shared_tasks} tasks
                                   </div>
-                                </div>
+                                </>
                               ) : (
                                 <span className="text-neutral-400">N/A</span>
                               )}
@@ -254,58 +202,37 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
                   </tbody>
                 </table>
               </div>
-
-              {/* Legend */}
-              <div className="mt-4 flex items-center gap-4 text-xs text-neutral-600">
-                <span className="font-medium">Agreement:</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-                  <span>≥80% (High)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
-                  <span>60-79% (Medium)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-                  <span>&lt;60% (Low)</span>
-                </div>
-              </div>
             </div>
-          )}
-
-          {annotators.length <= 1 && (
-            <div className="py-4 text-center text-sm text-neutral-500">
+          ) : (
+            <p className="text-sm text-neutral-500">
               Need at least 2 annotators to show pairwise agreement.
-            </div>
+            </p>
           )}
 
-          {/* Overall Label Distribution */}
           {Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
-            <div className="py-4 border-t border-neutral-200">
-              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
-                Overall Label Distribution
-              </h3>
+            <div>
+              <h3 className="section-heading">Label distribution</h3>
+              <p className="section-description">
+                How often each label was used across all annotations.
+              </p>
               <div className="space-y-2">
                 {Object.entries(statistics.overall_label_distribution || {})
                   .sort(([, a], [, b]) => b - a)
                   .map(([label, count]) => (
-                    <div key={label} className="flex items-center gap-2">
+                    <div key={label} className="flex items-center gap-3">
                       <div className="w-32 text-xs text-neutral-700 truncate" title={label}>
                         {label}
                       </div>
-                      <div className="flex-1 bg-neutral-200 rounded-full h-3 relative">
+                      <div className="flex-1 bg-neutral-100 rounded-full h-2">
                         <div
-                          className="bg-brand-600 h-3 rounded-full flex items-center justify-end pr-2"
+                          className="bg-brand-600 h-2 rounded-full"
                           style={{
                             width: `${Math.max((count / statistics.total_annotations) * 100, 2)}%`,
                           }}
-                        >
-                          <span className="text-xs text-white font-medium">{count}</span>
-                        </div>
+                        />
                       </div>
-                      <div className="w-16 text-xs text-neutral-500 text-right">
-                        {((count / statistics.total_annotations) * 100).toFixed(1)}%
+                      <div className="w-24 text-xs text-neutral-500 text-right">
+                        {count} ({((count / statistics.total_annotations) * 100).toFixed(1)}%)
                       </div>
                     </div>
                   ))}
@@ -313,101 +240,62 @@ const Statistics = ({ campaignId }: StatisticsProps) => {
             </div>
           )}
 
-          {/* Per-User Label Distribution */}
-          {annotators.length > 0 &&
-            Object.keys(statistics.overall_label_distribution || {}).length > 0 && (
-              <div className="py-4 border-t border-neutral-200">
-                <h3 className="text-sm font-semibold text-neutral-700 mb-3">
-                  Label Distribution by Annotator
-                </h3>
-                <p className="text-xs text-neutral-500 mb-3">
-                  Comparing how each annotator uses different labels
-                </p>
-
-                {/* Get all unique labels */}
-                {(() => {
-                  const allLabels = Array.from(
-                    new Set(annotators.flatMap((ann) => Object.keys(ann.label_distribution || {})))
-                  ).sort();
-
-                  return (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-xs">
-                        <thead className="bg-neutral-50">
-                          <tr>
-                            <th className="border border-neutral-300 px-3 py-2 text-left font-medium text-neutral-700 sticky left-0 bg-neutral-50 z-10">
-                              Annotator
-                            </th>
-                            {allLabels.map((label) => (
-                              <th
-                                key={label}
-                                className="border border-neutral-300 px-3 py-2 text-center font-medium text-neutral-700 min-w-[100px]"
-                                title={label}
-                              >
-                                <div className="truncate max-w-[100px]">{label}</div>
-                              </th>
-                            ))}
-                            <th className="border border-neutral-300 px-3 py-2 text-center font-medium text-neutral-700">
-                              Total
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white">
-                          {annotators.map((annotator) => {
-                            const total = annotator.total_annotations;
-                            return (
-                              <tr key={annotator.user_id} className="hover:bg-neutral-50">
-                                <td className="border border-neutral-300 px-3 py-2 font-medium text-neutral-700 sticky left-0 bg-white z-10">
-                                  <div
-                                    className="truncate max-w-[120px]"
-                                    title={annotator.user_email}
-                                  >
-                                    {getUserDisplayName(annotator)}
-                                  </div>
-                                </td>
-                                {allLabels.map((label) => {
-                                  const count = annotator.label_distribution?.[label] || 0;
-                                  const percentage = total > 0 ? (count / total) * 100 : 0;
-                                  return (
-                                    <td
-                                      key={label}
-                                      className="border border-neutral-300 px-3 py-2 text-center"
-                                    >
-                                      {count > 0 ? (
-                                        <div>
-                                          <div className="font-medium text-neutral-900">
-                                            {count}
-                                          </div>
-                                          <div className="text-neutral-500">
-                                            ({percentage.toFixed(0)}%)
-                                          </div>
-                                          {/* Mini bar */}
-                                          <div className="mt-1 bg-neutral-200 rounded-full h-1.5 w-full">
-                                            <div
-                                              className="bg-brand-600 h-1.5 rounded-full"
-                                              style={{ width: `${percentage}%` }}
-                                            />
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <span className="text-neutral-300">-</span>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                                <td className="border border-neutral-300 px-3 py-2 text-center font-bold text-neutral-900">
-                                  {total}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  );
-                })()}
+          {annotators.length > 0 && allLabels.length > 0 && (
+            <div>
+              <h3 className="section-heading">Labels by annotator</h3>
+              <p className="section-description">
+                Comparing how each annotator uses different labels.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className={tableHeadRowCls}>
+                      <th className={thCls}>Annotator</th>
+                      {allLabels.map((label) => (
+                        <th key={label} className={`${thCls} text-center`} title={label}>
+                          <div className="truncate max-w-[110px]">{label}</div>
+                        </th>
+                      ))}
+                      <th className={`${thCls} text-right`}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {annotators.map((annotator, index) => (
+                      <tr key={annotator.user_id} className={listRowCls(index)}>
+                        <td
+                          className="px-4 py-3 font-medium text-neutral-700"
+                          title={annotator.user_email}
+                        >
+                          <div className="truncate max-w-[140px]">{displayName(annotator)}</div>
+                        </td>
+                        {allLabels.map((label) => {
+                          const count = annotator.label_distribution?.[label] || 0;
+                          const total = annotator.total_annotations;
+                          return (
+                            <td key={label} className="px-4 py-3 text-center">
+                              {count > 0 ? (
+                                <span className="text-neutral-900">
+                                  {count}{' '}
+                                  <span className="text-neutral-400">
+                                    ({total > 0 ? ((count / total) * 100).toFixed(0) : 0}%)
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-neutral-300">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 py-3 text-right font-medium text-neutral-900">
+                          {annotator.total_annotations}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+          )}
         </div>
       )}
     </div>

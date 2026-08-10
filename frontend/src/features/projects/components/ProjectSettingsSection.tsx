@@ -10,11 +10,7 @@ import { handleError } from '~/shared/utils/errorHandler';
 import { projectsPath } from '~/app/routes';
 import { deleteProject, updateProject, type ProjectOut } from '~/api/client';
 import { ProjectVisibilityPicker } from './ProjectVisibilityPicker';
-import {
-  LEAVE_PUBLIC_WARNING,
-  requiresLeavePublicConfirm,
-  type ProjectVisibility,
-} from './projectVisibility';
+import { visibilityConfirm, type ProjectVisibility } from './projectVisibility';
 
 interface ProjectSettingsSectionProps {
   project: ProjectOut;
@@ -76,19 +72,22 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
 
   const handleVisibilityChange = async (visibility: ProjectVisibility) => {
     if (visibility === project.visibility) return;
-    if (requiresLeavePublicConfirm(project.visibility, visibility)) {
+    if (visibilityConfirm(project.visibility, visibility)) {
       setPendingVisibility(visibility);
       return;
     }
     await applyUpdate({ visibility }, visibilityMessage(visibility));
   };
 
-  const handleConfirmLeavePublic = async () => {
+  const handleConfirmVisibility = async () => {
     if (pendingVisibility === null) return;
     const visibility = pendingVisibility;
     setPendingVisibility(null);
     await applyUpdate({ visibility }, visibilityMessage(visibility));
   };
+
+  const pendingConfirm =
+    pendingVisibility !== null ? visibilityConfirm(project.visibility, pendingVisibility) : null;
 
   const handleDelete = async () => {
     try {
@@ -170,15 +169,13 @@ export const ProjectSettingsSection = ({ project, onUpdated }: ProjectSettingsSe
       </section>
 
       <ConfirmDialog
-        isOpen={pendingVisibility !== null}
-        title="Leave public visibility?"
-        description={LEAVE_PUBLIC_WARNING}
-        confirmText={
-          pendingVisibility === 'organization' ? 'Restrict to organization' : 'Make private'
-        }
-        isDangerous
+        isOpen={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ''}
+        description={pendingConfirm?.description ?? ''}
+        confirmText={pendingConfirm?.confirmText ?? ''}
+        isDangerous={pendingConfirm?.isDangerous}
         isLoading={saving}
-        onConfirm={handleConfirmLeavePublic}
+        onConfirm={handleConfirmVisibility}
         onCancel={() => setPendingVisibility(null)}
       />
 

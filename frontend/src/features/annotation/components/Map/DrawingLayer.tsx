@@ -576,6 +576,17 @@ const DrawingLayer = ({ map, selectedLabel, activeTool, onTimeseriesClick }: Dra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool, selectedLabel?.id, selectedLabel?.geometry_type]);
 
+  // Deep-linked annotation staged by loadCampaign: open it for editing once
+  // the edit interactions exist. Runs after the tool effect above, whose
+  // mount-time setup clears any selection made earlier.
+  useEffect(() => {
+    if (activeTool !== 'edit') return;
+    const pending = useAnnotationStore.getState().pendingEditAnnotationId;
+    if (pending === null) return;
+    useAnnotationStore.setState({ pendingEditAnnotationId: null });
+    void beginEditAnnotationRef.current(pending);
+  }, [activeTool]);
+
   // Swallow ESC only while a sketch is being drawn (to abort it); once the
   // geometry is finished ESC belongs to the panel, which closes the draft.
   useEffect(() => {

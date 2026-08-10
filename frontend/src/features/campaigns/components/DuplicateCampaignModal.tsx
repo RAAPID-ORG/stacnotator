@@ -53,6 +53,7 @@ export const DuplicateCampaignModal = ({
 }: DuplicateCampaignModalProps) => {
   const [includeTasks, setIncludeTasks] = useState<Choice>(null);
   const [includeAnnotations, setIncludeAnnotations] = useState<Choice>(null);
+  const [includeUserLayouts, setIncludeUserLayouts] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const ready = includeTasks !== null && includeAnnotations !== null;
@@ -66,6 +67,7 @@ export const DuplicateCampaignModal = ({
         body: {
           include_tasks: includeTasks,
           include_annotations: includeAnnotations,
+          include_user_layouts: includeUserLayouts,
         },
       });
       if (error || !data) {
@@ -130,6 +132,20 @@ export const DuplicateCampaignModal = ({
               value={includeAnnotations}
               onChange={setIncludeAnnotations}
               testId="duplicate-annotations"
+            />
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 p-3">
+            <div>
+              <p className="text-xs font-semibold text-neutral-800">Keep personal layouts?</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-neutral-500">
+                Copies the canvas window arrangements individual users saved for themselves.
+              </p>
+            </div>
+            <YesNoChoice
+              value={includeUserLayouts}
+              onChange={setIncludeUserLayouts}
+              testId="duplicate-user-layouts"
             />
           </div>
         </div>

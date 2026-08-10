@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '~/app/providers/AuthProvider';
 import { PlatformUsersTable } from '~/features/settings/components/PlatformUsersTable';
 import { PlatformOrganizationsTable } from '~/features/settings/components/PlatformOrganizationsTable';
-import { SkeletonForm } from 'src/shared/ui/Skeleton';
 import { LoadingOverlay } from 'src/shared/ui/LoadingOverlay';
-import { Delayed } from '~/shared/ui/Delayed';
 import { Button, Field, Input } from '~/shared/ui/forms';
 import { useLayoutStore } from 'src/shared/stores/layout.store';
 import {
@@ -94,13 +92,6 @@ export const SettingsPage = () => {
   // Use individual selectors to avoid creating new objects on every render
   const account = useAccountStore((s) => s.account);
   const fetchAccount = useAccountStore((s) => s.fetchAccount);
-
-  // Fetch account on mount if not already loaded
-  useEffect(() => {
-    if (!account) {
-      fetchAccount();
-    }
-  }, [account, fetchAccount]);
 
   // Set breadcrumbs
   useEffect(() => {
@@ -327,25 +318,8 @@ export const SettingsPage = () => {
     setDisplayNameInput('');
   };
 
-  // Show a skeleton while the account is being fetched.
-  if (!account) {
-    return (
-      <div className="flex-1 overflow-auto">
-        <FadeIn className="page">
-          <header className="page-header">
-            <div>
-              <h1 className="page-title">Settings</h1>
-              <p className="page-subtitle">Manage your profile and platform settings.</p>
-            </div>
-          </header>
-
-          <Delayed>
-            <SkeletonForm sections={3} />
-          </Delayed>
-        </FadeIn>
-      </div>
-    );
-  }
+  // AuthGate only renders the app once the account is loaded.
+  if (!account) return null;
 
   const sectionCls =
     'space-y-4 pt-6 mt-6 first:mt-0 first:pt-0 border-t border-neutral-100 first:border-t-0';

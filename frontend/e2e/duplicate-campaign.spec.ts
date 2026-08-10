@@ -64,7 +64,11 @@ test.describe('Duplicate campaign', () => {
       appPage.getByTestId('confirm-duplicate-campaign').click(),
     ]);
 
-    expect(duplicateBody).toEqual({ include_tasks: true, include_annotations: false });
+    expect(duplicateBody).toEqual({
+      include_tasks: true,
+      include_annotations: false,
+      include_user_layouts: true,
+    });
     await expect(appPage).toHaveURL(
       new RegExp(`/projects/${MOCK_PROJECT.id}/campaigns/${DUPLICATED.id}/settings$`)
     );
