@@ -109,7 +109,6 @@ interface CampaignStore {
   moveView: (viewId: number, direction: -1 | 1) => Promise<void>;
   setViewSources: (viewId: number, sourceIds: number[]) => Promise<void>;
   setCurrentLayout: (layout: Layout) => void;
-  setSavedLayout: (layout: Layout) => void;
   setIsEditingLayout: (isEditing: boolean) => void;
   setNewWindowSize: (size: { w: number; h: number }) => void;
   /** Remove a collection's window from the current layout. The grid stops
@@ -442,7 +441,6 @@ export const useCampaignStore = create<CampaignStore>((set, get) => ({
   },
 
   setCurrentLayout: (layout) => set({ currentLayout: layout }),
-  setSavedLayout: (layout) => set({ savedLayout: layout }),
   setIsEditingLayout: (isEditing) => set({ isEditingLayout: isEditing }),
   setNewWindowSize: (size) => set({ newWindowSize: size }),
 

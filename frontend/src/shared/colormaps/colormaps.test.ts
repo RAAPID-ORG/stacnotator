@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  gradientFor,
-  formatTick,
-  nextCategoricalColor,
-  CATEGORICAL_PALETTE,
-} from './customMapColormaps';
+import { gradientFor, formatTick, nextCategoricalColor, CATEGORICAL_PALETTE } from './colormaps';
 
 describe('gradientFor', () => {
   it('viridis gradient contains first and last stops', () => {

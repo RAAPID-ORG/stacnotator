@@ -2,8 +2,8 @@ import { useState } from 'react';
 import type { ImageryController } from './controller';
 import { SourcesTab } from './SourcesTab';
 import { BasemapList } from './BasemapList';
-import { CustomMapsEditor } from '~/features/customLayers/components/CustomMapsEditor';
-import { VectorLayersEditor } from '~/features/customLayers/components/VectorLayersEditor';
+import { CustomMapsEditor } from '../CustomMapsEditor';
+import { VectorLayersEditor } from '../VectorLayersEditor';
 import { SourceEditor } from './SourceEditor';
 
 interface ImagerySetupProps {

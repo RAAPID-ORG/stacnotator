@@ -6,9 +6,6 @@ import { APPROVED } from '../utils/organizations';
 export interface UseOrganizations {
   orgs: OrganizationOut[];
   loading: boolean;
-  /** Set when the list could not be fetched. An empty `orgs` with an error is a
-   *  failure, not a viewer without organizations - the two look identical
-   *  otherwise and read very differently to the user. */
   error: string | null;
   refresh: () => Promise<void>;
 }

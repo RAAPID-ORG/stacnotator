@@ -33,8 +33,8 @@ import { getAnnotationsExtent, type CampaignOutFull } from '~/api/client';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
 import type { ExtendedLabel } from '../../utils/labelMetadata';
 import { useSliceLayers } from './useSliceLayers';
-import { useCustomMapLayer } from '~/features/customLayers/hooks/useCustomMapLayer';
-import { useVectorLayers } from '~/features/customLayers/hooks/useVectorLayers';
+import { useCustomMapLayer } from './useCustomMapLayer';
+import { useVectorLayers } from './useVectorLayers';
 import { useAnnotationTileLayer } from './useAnnotationTileLayer';
 import VectorLabelLayer from './VectorLabelLayer';
 
@@ -201,21 +201,20 @@ const OpenModeMap = forwardRef<OpenModeMapHandle, OpenModeMapProps>(
 
     // Location search: fit to the result's extent when available, else center + zoom.
     const searchFocusTrigger = useMapStore((s) => s.searchFocusTrigger);
-    const lastSearchFocusRef = useRef(searchFocusTrigger);
+    const lastSearchFocusRef = useRef(searchFocusTrigger.count);
     useEffect(() => {
-      if (searchFocusTrigger === lastSearchFocusRef.current) return;
-      lastSearchFocusRef.current = searchFocusTrigger;
+      if (searchFocusTrigger.count === lastSearchFocusRef.current) return;
+      lastSearchFocusRef.current = searchFocusTrigger.count;
       const map = mapRef.current;
-      const request = useMapStore.getState().searchFocusRequest;
-      if (!map || !request) return;
+      if (!map) return;
       const view = map.getView();
-      if (request.extent) {
-        const ext = transformExtent(request.extent, 'EPSG:4326', 'EPSG:3857');
+      if (searchFocusTrigger.extent) {
+        const ext = transformExtent(searchFocusTrigger.extent, 'EPSG:4326', 'EPSG:3857');
         if (!isEmpty(ext)) {
           view.fit(ext, { padding: [60, 60, 60, 60], maxZoom: 16, duration: 400 });
         }
       } else {
-        view.animate({ center: fromLonLat(request.center), zoom: 12, duration: 400 });
+        view.animate({ center: fromLonLat(searchFocusTrigger.center), zoom: 12, duration: 400 });
       }
     }, [searchFocusTrigger]);
 

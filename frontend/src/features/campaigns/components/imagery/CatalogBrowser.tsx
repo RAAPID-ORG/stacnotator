@@ -14,6 +14,7 @@ import type {
   ItemSortOption,
 } from './types';
 import { createId, emptyVizParams, isItemSortOption } from './types';
+import { buildStacAutoQuery } from './stacQuery';
 import { VizTabs } from './VizTabs';
 import { CoverSearchParams } from './CoverSearchParams';
 import { COLLECTION_PRESETS, KNOWN_RESCALE, guessRescale } from './collectionPresets';
@@ -270,47 +271,14 @@ export const CatalogBrowser = ({
     setSlicePeriodUnit(p.sliceUnit);
   };
 
-  const SORTBY_MAP: Record<ItemSortOption, Array<{ field: string; direction: string }>> = {
-    date_desc: [{ field: 'datetime', direction: 'desc' }],
-    date_asc: [{ field: 'datetime', direction: 'asc' }],
-    cloud_cover_asc: [
-      { field: 'eo:cloud_cover', direction: 'asc' },
-      { field: 'datetime', direction: 'desc' },
-    ],
-  };
-
   /** Build a search query from given parameters. */
   const buildQuery = (cloudCover: number, sort: ItemSortOption): Record<string, unknown> | null => {
     if (!selectedCollection) return null;
     const hasCloudCover = selectedCollection.has_cloud_cover ?? false;
-    const cloudCoverFilter =
-      hasCloudCover && cloudCover < 100
-        ? [
-            {
-              op: 'or',
-              args: [
-                { op: 'isNull', args: [{ property: 'eo:cloud_cover' }] },
-                { op: '<=', args: [{ property: 'eo:cloud_cover' }, cloudCover] },
-              ],
-            },
-          ]
-        : [];
-
-    return {
-      collections: [selectedCollection.id],
-      filter: {
-        op: 'and',
-        args: [
-          {
-            op: 'anyinteracts',
-            args: [{ property: 'datetime' }, { interval: ['{sliceStart}', '{sliceEnd}'] }],
-          },
-          ...cloudCoverFilter,
-        ],
-      },
-      filterLang: 'cql2-json',
-      sortby: SORTBY_MAP[sort],
-    };
+    return buildStacAutoQuery(selectedCollection.id, {
+      maxCloudCover: hasCloudCover ? cloudCover : undefined,
+      itemSort: sort,
+    });
   };
 
   /** Build the canonical search query from UI state. Single source of truth for queries. */

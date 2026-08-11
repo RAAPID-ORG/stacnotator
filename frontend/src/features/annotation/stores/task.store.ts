@@ -79,7 +79,6 @@ interface TaskStore {
   nextTask: () => void;
   previousTask: () => void;
   goToTask: (annotationNumber: number) => void;
-  goToTaskById: (taskId: number, options?: { resetFilters?: boolean }) => void;
   claimCurrentTask: () => Promise<void>;
 
   setSelectedLabelId: (id: number | null) => void;
@@ -99,10 +98,8 @@ interface TaskStore {
   closeDraft: () => Promise<void>;
   setKnnValidationEnabled: (enabled: boolean) => void;
   setSkipConfirmDisabled: (disabled: boolean) => void;
-  resetAnnotationForm: () => void;
 
   setTaskFilter: (filter: Partial<TaskFilter>) => void;
-  resetTaskFilter: () => void;
 
   reset: () => void;
 }
@@ -356,7 +353,7 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       set({ isSubmitting: true });
 
       // visibleTasks is treated as a stable working set between explicit re-filters
-      // (setTaskFilter, resetTaskFilter, loadTasks, goToTaskById({resetFilters})).
+      // (setTaskFilter, loadTasks).
       // Submissions update the task object in place - they never add or remove
       // list entries - so currentTaskIndex stays well-defined across the session.
       const replaceTaskInList = (
@@ -523,39 +520,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
       startNavigation({ currentTaskIndex: taskIndex, ...getFormStateForTask(targetTask) });
     },
 
-    goToTaskById: (taskId, options) => {
-      const { allTasks, visibleTasks: currentVisible, taskFilter: currentFilter } = get();
-      const currentUserId = useAccountStore.getState().account?.id;
-
-      let taskFilter: TaskFilter;
-      let visibleTasks: AnnotationTaskOut[];
-
-      if (options?.resetFilters) {
-        taskFilter = {
-          assignedTo: [],
-          statuses: ['pending', 'partial', 'done', 'skipped', 'conflicting'],
-          selectedConfidences: [],
-          flaggedOnly: false,
-          taskSetId: null,
-        };
-        ({ visibleTasks } = applyTaskFilter(allTasks, taskFilter, currentUserId, taskId));
-      } else {
-        taskFilter = currentFilter;
-        visibleTasks = currentVisible;
-      }
-
-      const targetIndex = visibleTasks.findIndex((t) => t.id === taskId);
-      if (targetIndex === -1) return;
-
-      const targetTask = visibleTasks[targetIndex] || null;
-      startNavigation({
-        taskFilter,
-        visibleTasks,
-        currentTaskIndex: targetIndex,
-        ...getFormStateForTask(targetTask),
-      });
-    },
-
     // Claim the current task (or renew our own claim) so others stop seeing it as
     // free. The backend enforces one claim per user, so this also releases any prior
     // claim; the lease TTL is the real release. A 409 means someone beat us: skip on.
@@ -658,18 +622,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
     },
     setKnnValidationEnabled: (enabled) => set({ knnValidationEnabled: enabled }),
     setSkipConfirmDisabled: (disabled) => set({ skipConfirmDisabled: disabled }),
-    resetAnnotationForm: () =>
-      set({
-        selectedLabelId: null,
-        comment: '',
-        confidence: 5,
-        flaggedForReview: false,
-        flagComment: '',
-        formValues: {},
-        activeFieldIndex: null,
-        draftGeometry: null,
-        draftLabelId: null,
-      }),
 
     // Filter actions
     setTaskFilter: (filterUpdate) => {
@@ -685,17 +637,6 @@ export const useTaskStore = create<TaskStore>((set, get) => {
         visibleTasks,
         currentTaskIndex: suggestedIndex,
         ...getFormStateForTask(firstTask),
-      });
-    },
-
-    resetTaskFilter: () => {
-      const currentUserId = useAccountStore.getState().account?.id;
-      if (!currentUserId) return;
-      get().setTaskFilter({
-        assignedTo: [currentUserId],
-        statuses: ['pending'],
-        selectedConfidences: [],
-        flaggedOnly: false,
       });
     },
 

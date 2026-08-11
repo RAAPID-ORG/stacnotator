@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useMapStore } from '~/features/annotation/stores/map.store';
-import { usePreferencesStore } from '~/features/annotation/stores/preferences.store';
+import { useMapStore } from '../../stores/map.store';
+import { usePreferencesStore } from '../../stores/preferences.store';
 import type { CustomMapOut, RenderConfig } from '~/api/client';
-import { ColormapSelect } from './ColormapSelect';
-import { gradientFor, formatTick, isColormapName } from '../utils/customMapColormaps';
+import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
+import { gradientFor, formatTick, isColormapName } from '~/shared/colormaps/colormaps';
 import {
   effectiveRenderConfig,
   isCustomized,
   type RenderOverride,
-} from '../utils/customMapOverride';
+} from '../../utils/customMapOverride';
 
 const withHash = (color: string) => (color.startsWith('#') ? color : `#${color}`);
 

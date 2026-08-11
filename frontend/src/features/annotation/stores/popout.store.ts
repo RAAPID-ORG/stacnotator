@@ -5,7 +5,7 @@ import type { PopoutBounds } from '~/shared/ui/PopoutWindow';
 import { packItem, withoutKeys } from '../utils/popoutLayout';
 
 /** Card size used when the sender cannot tell us how big the card was. */
-export const FALLBACK_CARD_SIZE = { w: 20, h: 12 };
+const FALLBACK_CARD_SIZE = { w: 20, h: 12 };
 
 const FIRST_SCREEN_ID = 2; // the main browser window is screen 1
 

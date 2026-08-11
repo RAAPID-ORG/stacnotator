@@ -23,12 +23,12 @@ make dev-restore-backup FILE=db/backups/<f>.sql
 Quality gates (run before pushing; CI runs the same):
 
 ```bash
-make test                # backend pytest + frontend Playwright
-make test-backend        # == cd backend && uv run pytest -v
+make test                # backend pytest + SDK pytest + frontend Playwright
+make test-backend        # == cd backend && uv run pytest -v (test-sdk for sdk/)
 make test-e2e            # == cd frontend && npx playwright test
-make lint                # ruff check + eslint
+make lint                # ruff check + eslint (backend, frontend, sdk)
 make format-check        # ruff format --check + prettier --check
-make typecheck           # mypy + tsc --noEmit
+make typecheck           # mypy (backend + sdk) + tsc --noEmit
 make ci-check            # all of the above
 ```
 
@@ -88,8 +88,8 @@ For MPC collections with first-valid compositing, the frontend fetches tiles **d
 
 Feature-sliced under `frontend/src/`:
 - `app/` — `router.tsx`, providers (`app/providers/AuthProvider.tsx`), app shell (`AppLayout.tsx`, `AppSidebar.tsx`)
-- `features/<name>/` — `annotation`, `campaigns`, `customLayers`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`
-- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`)
+- `features/<name>/` — `annotation`, `campaigns`, `auth`, `settings`, `home`. Each has `components/`, `hooks/`, `pages/`, `stores/` (Zustand), `utils/`. Custom-layers UI follows the surface split: authoring editors under `campaigns/components/`, runtime controls/hooks under `annotation/components/Map/`
+- `shared/` — cross-feature `ui/`, `hooks/`, `utils/`, `stores/` (global UI state: `layout.store.ts`, `account.store.ts`), `colormaps/` (tiler colormap definitions + select, used by the campaign editors and the annotation legend)
 - `api/` — generated client (`client/`), `hey-api.ts` config, plus `stacBrowser.ts` and `tilerToken.ts`
 
 The annotation feature is the heart of the app. Two campaign modes drive parallel component sets: **Task Mode** (predefined locations, `ControlsTaskMode`/`TaskModeMap`) and **Open Mode** (free-form, `ControlsOpenMode`/`OpenModeMap`). Maps are OpenLayers (`features/annotation/components/Map/`): `layerManager.ts`, `useSliceLayers.ts`, and tile prefetching (`tilePreloader.ts`, `useTilePreloading.ts`). State is Zustand stores. The whole annotation workflow supports keyboard hotkeys.

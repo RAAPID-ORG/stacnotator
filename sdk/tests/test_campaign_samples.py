@@ -164,3 +164,18 @@ def test_update_samples_requires_annotation_id_column():
 
     with pytest.raises(ValueError, match="annotation_id"):
         campaign.update_samples(frame_without_ids)
+
+
+@responses.activate
+def test_update_samples_rejects_merged_training_set():
+    campaign = make_campaign()
+    merged = point_feature(None)
+    del merged["properties"]["stacnotator_annotation_id"]
+    responses.get(
+        f"{BASE}/api/campaigns/42/export-annotations-geojson",
+        json=geojson(merged),
+    )
+    training_set = campaign.get_samples(merge_on_agreement=True)
+
+    with pytest.raises(ValueError, match="merged"):
+        campaign.update_samples(training_set)

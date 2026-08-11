@@ -55,18 +55,20 @@ export const AnnotationPage = () => {
   const showGuidedTour = useLayoutStore((state) => state.showGuidedTour);
   const setShowGuidedTour = useLayoutStore((state) => state.setShowGuidedTour);
 
-  const [hasBeenReady, setHasBeenReady] = useState(false);
   // Admins may enter during registration to author the campaign's views and
   // layout; edit mode renders no window maps, so missing tiles are harmless.
   const [bypassRegistering, setBypassRegistering] = useState(false);
   const isRegistering =
     campaign?.registration_status === 'registering' || campaign?.embedding_status === 'registering';
   const isReady = !isLoadingCampaign && !!campaign && (!isRegistering || bypassRegistering);
-  useEffect(() => {
-    if (isReady && !hasBeenReady) setHasBeenReady(true);
-  }, [isReady, hasBeenReady]);
 
-  const showContent = hasBeenReady;
+  // Once the annotator UI is up for a campaign, keep it up: a mid-session flip
+  // back to loading/registering must not tear down the Canvas (and with it all
+  // OpenLayers map state). Latched per campaign so navigating to another
+  // campaign goes back through the loading gate.
+  const [readyCampaignId, setReadyCampaignId] = useState<number | null>(null);
+  if (isReady && readyCampaignId !== campaignId) setReadyCampaignId(campaignId);
+  const showContent = readyCampaignId === campaignId;
 
   // Keyboard shortcuts
   useAnnotationKeyboard({ commentInputRef });
@@ -96,6 +98,8 @@ export const AnnotationPage = () => {
     if (searchParams.size > 0) {
       setSearchParams({}, { replace: true });
     }
+
+    setBypassRegistering(false);
 
     let cancelled = false;
 
@@ -188,7 +192,7 @@ export const AnnotationPage = () => {
 
   // Early returns
 
-  if (isRegistering && !hasBeenReady) {
+  if (isRegistering && !showContent) {
     return (
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="text-center max-w-md space-y-4">

@@ -49,19 +49,4 @@ describe('task mode submit guards required form fields', () => {
 
     expect(alert).not.toHaveBeenCalledWith(expect.stringContaining('Crop'), 'error');
   });
-
-  it('resetAnnotationForm clears form values and active field index alongside the rest of the draft', () => {
-    useTaskStore.setState({
-      selectedLabelId: 5,
-      comment: 'note',
-      formValues: { '1': 'answer' },
-      activeFieldIndex: 1,
-    });
-    useTaskStore.getState().resetAnnotationForm();
-    const state = useTaskStore.getState();
-    expect(state.formValues).toEqual({});
-    expect(state.activeFieldIndex).toBeNull();
-    expect(state.selectedLabelId).toBeNull();
-    expect(state.comment).toBe('');
-  });
 });

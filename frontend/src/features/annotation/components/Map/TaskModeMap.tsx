@@ -33,7 +33,7 @@ import type { Layer } from './Layer';
 import type { CampaignOutFull } from '~/api/client';
 import { LayerManager } from './layerManager';
 import { useSliceLayers } from './useSliceLayers';
-import { useCustomMapLayer } from '~/features/customLayers/hooks/useCustomMapLayer';
+import { useCustomMapLayer } from './useCustomMapLayer';
 import { useTilePreloading } from './useTilePreloading';
 import { useTaskStore } from '../../stores/task.store';
 import { useMapStore, type AnnotationTool } from '../../stores/map.store';
@@ -103,7 +103,7 @@ const TaskModeMap = ({
   const zoomOutTrigger = useMapStore((s) => s.zoomOutTrigger);
   const panTrigger = useMapStore((s) => s.panTrigger);
   const searchFocusTrigger = useMapStore((s) => s.searchFocusTrigger);
-  const lastSearchFocusRef = useRef(searchFocusTrigger);
+  const lastSearchFocusRef = useRef(searchFocusTrigger.count);
 
   // Shared layer management
   const {
@@ -205,19 +205,18 @@ const TaskModeMap = ({
   // Location search: fit to the result's extent when available, else center + zoom.
   // Overrides the task-locked center transiently, same as zoom/pan triggers do.
   useEffect(() => {
-    if (searchFocusTrigger === lastSearchFocusRef.current) return;
-    lastSearchFocusRef.current = searchFocusTrigger;
+    if (searchFocusTrigger.count === lastSearchFocusRef.current) return;
+    lastSearchFocusRef.current = searchFocusTrigger.count;
     const map = mapRef.current;
-    const request = useMapStore.getState().searchFocusRequest;
-    if (!map || !request) return;
+    if (!map) return;
     const view = map.getView();
-    if (request.extent) {
-      const ext = transformExtent(request.extent, 'EPSG:4326', 'EPSG:3857');
+    if (searchFocusTrigger.extent) {
+      const ext = transformExtent(searchFocusTrigger.extent, 'EPSG:4326', 'EPSG:3857');
       if (!isEmpty(ext)) {
         view.fit(ext, { padding: [60, 60, 60, 60], maxZoom: 16, duration: 400 });
       }
     } else {
-      view.animate({ center: fromLonLat(request.center), zoom: 12, duration: 400 });
+      view.animate({ center: fromLonLat(searchFocusTrigger.center), zoom: 12, duration: 400 });
     }
   }, [searchFocusTrigger]);
 

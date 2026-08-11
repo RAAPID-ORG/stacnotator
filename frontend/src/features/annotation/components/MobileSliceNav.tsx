@@ -1,5 +1,11 @@
 import type { MouseEvent } from 'react';
 import { useSliceNavigation } from '../hooks/useSliceNavigation';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronDoubleLeft,
+  IconChevronDoubleRight,
+} from '~/shared/ui/Icons';
 
 /**
  * Touch-only on-screen arrows that mirror the A / D / Shift+A / Shift+D
@@ -22,7 +28,7 @@ export const MobileSliceNav = () => {
 
   return (
     <div
-      className="desktop:hidden absolute left-1/2 -translate-x-1/2 z-[450] flex items-stretch gap-px bg-neutral-200 border border-neutral-300 rounded-full shadow-md pointer-events-auto overflow-hidden"
+      className="desktop:hidden absolute left-1/2 -translate-x-1/2 z-[450] flex items-stretch divide-x divide-neutral-100 bg-white border border-neutral-200 rounded-full shadow-lg pointer-events-auto overflow-hidden"
       style={{
         bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)',
         touchAction: 'none',
@@ -37,22 +43,22 @@ export const MobileSliceNav = () => {
           onClick={handle(() => navigateCollection('prev'))}
           ariaLabel="Previous collection"
         >
-          <DoubleChevron direction="left" />
+          <IconChevronDoubleLeft className="w-5 h-5" />
         </NavButton>
       )}
       {hasMultipleSlices && (
         <NavButton onClick={handle(() => navigateSlice('prev'))} ariaLabel="Previous slice">
-          <Chevron direction="left" />
+          <IconChevronLeft className="w-5 h-5" />
         </NavButton>
       )}
       {hasMultipleSlices && (
         <NavButton onClick={handle(() => navigateSlice('next'))} ariaLabel="Next slice">
-          <Chevron direction="right" />
+          <IconChevronRight className="w-5 h-5" />
         </NavButton>
       )}
       {hasMultipleCollections && (
         <NavButton onClick={handle(() => navigateCollection('next'))} ariaLabel="Next collection">
-          <DoubleChevron direction="right" />
+          <IconChevronDoubleRight className="w-5 h-5" />
         </NavButton>
       )}
     </div>
@@ -68,48 +74,13 @@ const NavButton = ({
   ariaLabel: string;
   children: React.ReactNode;
 }) => (
+  // 44×40 hits the iOS 44pt minimum on width with a comfortable height.
   <button
     type="button"
     onClick={onClick}
     aria-label={ariaLabel}
-    // 44×40 hits the iOS 44pt minimum on width with a comfortable height.
-    // Hairline gaps (gap-px on parent + bg-neutral-200) keep buttons visually
-    // separate so misstaps don't bleed into the adjacent action.
-    className="flex items-center justify-center w-11 h-10 bg-white text-neutral-700 active:bg-brand-50 active:text-brand-700 transition-colors first:rounded-l-full last:rounded-r-full"
+    className="flex items-center justify-center w-11 h-10 text-neutral-700 active:bg-brand-50 active:text-brand-700 transition-colors"
   >
     {children}
   </button>
-);
-
-const Chevron = ({ direction }: { direction: 'left' | 'right' }) => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ transform: direction === 'left' ? 'rotate(180deg)' : undefined }}
-  >
-    <path d="M7 4l6 6-6 6" />
-  </svg>
-);
-
-const DoubleChevron = ({ direction }: { direction: 'left' | 'right' }) => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ transform: direction === 'left' ? 'rotate(180deg)' : undefined }}
-  >
-    <path d="M4 4l6 6-6 6" />
-    <path d="M10 4l6 6-6 6" />
-  </svg>
 );

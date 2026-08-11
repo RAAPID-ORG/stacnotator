@@ -1,5 +1,5 @@
 import type { SelectHTMLAttributes } from 'react';
-import { COLORMAPS, isColormapName, type ColormapName } from '../utils/customMapColormaps';
+import { COLORMAPS, isColormapName, type ColormapName } from './colormaps';
 
 interface ColormapSelectProps extends Omit<
   SelectHTMLAttributes<HTMLSelectElement>,

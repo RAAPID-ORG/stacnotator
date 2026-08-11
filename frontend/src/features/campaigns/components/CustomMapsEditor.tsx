@@ -4,13 +4,13 @@ import { Spinner } from '~/shared/ui/Spinner';
 import { Input, Button, IconButton } from '~/shared/ui/forms';
 import { IconTrash, IconPlus, IconPencil, IconExternalLink } from '~/shared/ui/Icons';
 import { handleError } from '~/shared/utils/errorHandler';
-import { ColormapSelect } from './ColormapSelect';
+import { ColormapSelect } from '~/shared/colormaps/ColormapSelect';
 import {
   isColormapName,
   nextCategoricalColor,
   CATEGORICAL_PALETTE,
   type ColormapName,
-} from '../utils/customMapColormaps';
+} from '~/shared/colormaps/colormaps';
 import {
   listCustomMaps,
   createCustomMap,

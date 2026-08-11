@@ -8,14 +8,14 @@ The same `deploy-app.sh` script runs both from CI (on a self-hosted runner insid
 
 | Environment | Backend (CPU/Mem · replicas) | Tiler (CPU/Mem · replicas · profile) |
 |---|---|---|
-| **prod** | 1 / 2Gi · 1-1 · Consumption | 4 / 8Gi · 0-2 · Consumption |
-| **dev**  | 2 / 4Gi · 1-1 · Consumption | 4 / 8Gi · 0-1 · Consumption |
+| **prod** | 1 / 2Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
+| **dev**  | 2 / 4Gi · 1-1 · Consumption | 4 / 8Gi · 1-1 · Consumption |
 
 Backend is pinned to a single replica (MIN=MAX=1) so the alembic migration
 that runs on container startup is serialized by definition. To scale beyond
 1 replica, we'd also need to add a `pg_advisory_lock` around `context.run_migrations()`
 in `backend/alembic/env.py` (see note in that file). The deploy script has
-a `TILER_DEDICATED=true` branch that provisions a D16 dedicated workload
+a `TILER_DEDICATED=true` branch that provisions a D8 dedicated workload
 profile for the tiler - currently disabled in both envs; flip the flag in
 `deploy-app.sh` if you need it for heavy tile load.
 
@@ -48,8 +48,8 @@ The manual CLI path below is the fallback for local deploys and first-time envir
 - **Infrastructure** deployed by Platform Engineers via Terraform (RG, ACR, KV, DB, CAE) for both prod and dev
 - **Contributor** role on the project resource group
 - **Azure CLI** logged in (`az login`) and within VPN
-- **Docker** installed for building images
-- **Node.js** installed for building the frontend
+- **Tiler repo** checked out next to this one (`../stacnotator-tiler`, or set `TILER_REPO_DIR`) - the deploy delegates the tiler build/deploy to its `deployment/deploy-containerapp.sh` and aborts if it's missing
+- **Node.js** installed for building the frontend (images are built server-side via `az acr build`, no local Docker needed)
 
 ## First-Time Setup for local deployments (ONE TIME per environment)
 
@@ -226,12 +226,12 @@ make az-deploy-dev
 
 The script will:
 1. Discover infrastructure (ACR, KV, CAE) from the resource group
-2. Build and push Docker images (backend + tiler) to ACR
+2. Build the backend image server-side (`az acr build`); the tiler is built and deployed by the tiler repo's `deployment/deploy-containerapp.sh` (checkout required, see Prerequisites)
 3. Create or update Container Apps with KV secret refs (no plaintext credentials)
-4. If `TILER_DEDICATED=true`: add a D16 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
-5. Poll the new backend revision until `healthState=Healthy`. Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback).
-6. Build and deploy frontend to Azure Static Web App
-7. Update CORS on backend + tiler
+4. If `TILER_DEDICATED=true`: add a D8 dedicated workload profile for the tiler. Off by default in both envs; the consumption profile handles current load.
+5. Build and deploy frontend to Azure Static Web App
+6. Update CORS and the tiler registry (`TILERS`, `DEFAULT_TILER`, `TILER_COOKIE_DOMAIN`) on the backend
+7. Poll the new backend revision until `healthState=Healthy` (deliberately last, so the gated revision includes the env updates). Migrations run as part of container startup (`alembic upgrade head` in the Dockerfile CMD before gunicorn) - a failed migration leaves the new revision unhealthy and Container Apps keeps the previous revision serving 100% traffic (automatic rollback). There is no pre-deploy DB backup (on-demand backups are unsupported on the Burstable SKU), so a migration that succeeds but corrupts data has no automated rollback path.
 
 **Image tagging**: defaults to git commit SHA. Override with `IMAGE_TAG` env var.
 
@@ -317,11 +317,11 @@ After this, hitting **Run workflow** on `Deploy Dev` from the `develop` branch w
 | Script | When | Purpose |
 |--------|------|---------|
 | `deploy-app.sh` | Every deployment | Build, push, create/update apps, migrate, deploy SWA |
-| `upload-secrets.sh` | First time only | Upload Firebase + EE credentials + generate tiler auth secret to Key Vault |
-| `download-prod-db.sh` | As needed | Pull production DB to local development |
-| `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment |
-| `dev-restore-backup.sh` | As needed | Restore a local SQL dump into the dev stack (wipe, restore, migrate, restart) |
-| `grant-admin.sh` | After first deploy | Grant `approved` + `admin` roles to a user by Firebase UID |
+| `upload-secrets.sh` | First time only | Upload Firebase (server + client) + EE credentials, generate tiler auth + API-key encryption secrets in Key Vault |
+| `download-prod-db.sh` | As needed | Pull production DB to local development (no env argument, prod-only) |
+| `sync-prod-data-to-dev.sh` | As needed | Sync production DB to dev Azure environment (no env argument) |
+| `dev-restore-backup.sh` | As needed | Restore a SQL dump into the **local** docker dev stack (wipe, restore, migrate, restart); run via `make dev-restore-backup FILE=...` |
+| `grant-admin.sh` | After first deploy | Grant the `admin` role to a user by Firebase UID |
 | `view-logs.sh` | Debugging | Stream real-time logs from Container Apps |
 
 ## Makefile Targets
@@ -346,15 +346,22 @@ Per-environment config files in `azure_deploy/`:
 .env.deploy.example  # Template
 ```
 
-All scripts take `prod` or `dev` as a positional argument. The matching `.env.deploy.<env>` file and its associated resource group is loaded automatically.
+`deploy-app.sh`, `upload-secrets.sh`, `view-logs.sh`, and `grant-admin.sh` take `prod` or `dev` as a positional argument; the matching `.env.deploy.<env>` file and its associated resource group is loaded automatically. The DB scripts hardcode their environments (see the table above).
+
+Optional deploy knobs (in `.env.deploy.<env>` locally, GitHub Actions variables/secrets in CI):
+
+- `EXTRA_TILERS` (`EXTRA_TILERS_DEV`/`EXTRA_TILERS_PROD` in CI) - registers additional externally hosted tilers (e.g. a GCP VM tiler) into the backend's `TILERS` registry.
+- `TILER_AZURE_SIGNING` - lets the tiler read internal-storage custom-map COGs via managed identity (passed through as `AZURE_SIGNING_ENABLED`).
+- `CUSTOM_DOMAINS` (`CUSTOM_DOMAINS_PROD` secret in CI) - extra origins appended to `CORS_ORIGINS`.
+- `TILER_NAME` / `TILER_ALLOWS_INGEST` - shared between backend registry and tiler config so `allows_ingest` cannot drift.
 
 ## Tiler Authentication
 
-The tiler service requires authentication to prevent unauthorized tile access. This uses an HMAC-signed token:
+The tiler service requires authentication to prevent unauthorized tile access. This uses a short-lived HS256 JWT delivered as a cookie:
 
-1. **Backend** issues short-lived tokens (1hr) to approved users via `GET /api/auth/tiler-token`
-2. **Frontend** fetches this token and attaches it to all tiler requests
-3. **Tiler** verifies the HMAC signature using a shared secret
+1. **Backend** mints a campaign-scoped token (1hr) via `GET /api/auth/tiler-token` and sets it as an `HttpOnly` `tiler_token` cookie - the token value never reaches JS, the frontend only tracks refresh timing
+2. **Browser** sends the cookie automatically with tile requests (this is why tiler and app must share a registrable domain, see Custom domains above); the backend's tile proxy for API-key providers is authorized off the same cookie
+3. **Tiler** verifies the JWT signature using a shared secret
 
 The shared secret (`tiler-token-secret`) is auto-generated by `upload-secrets.sh` and stored in Key Vault. Both backend and tiler reference it via `keyvaultref:`. No manual secret management is needed - just run `upload-secrets.sh` once per environment.
 

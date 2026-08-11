@@ -187,7 +187,6 @@ export const AnnotationControls = ({
   const userAnnotation = currentTask?.annotations.find(
     (a) => a.created_by_user_id === currentUserId
   );
-  const _hasExistingAnnotation = userAnnotation !== undefined;
   const hasExistingLabel = userAnnotation !== undefined && userAnnotation.label_id != null;
 
   // Skipping submits a null-label annotation, so only assignees may skip.

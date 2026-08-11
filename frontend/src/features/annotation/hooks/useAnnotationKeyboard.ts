@@ -11,7 +11,7 @@ import {
   computeCycleVisualization,
 } from '../utils/imagerySourceCycling';
 import { viewSources } from '../utils/viewCollections';
-import { toggleCustomMap, cycleCustomMap } from '~/features/customLayers/utils/customMapNav';
+import { toggleCustomMap, cycleCustomMap } from '../utils/customMapNav';
 import { handleFormFieldKey } from '../utils/formFieldNav';
 
 interface UseAnnotationKeyboardOptions {

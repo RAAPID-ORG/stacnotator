@@ -55,11 +55,11 @@ interface MapStore {
   panToCenterTrigger: number;
   // Location search (minimap geocoder): center is [lon, lat] EPSG:4326, matching
   // GeocodingResult, since this is consumed directly by OL's fromLonLat/transformExtent.
-  searchFocusRequest: {
+  searchFocusTrigger: {
     center: [number, number];
     extent: [number, number, number, number] | null;
-  } | null;
-  searchFocusTrigger: number;
+    count: number;
+  };
   showCrosshair: boolean;
   showAnnotations: boolean;
 
@@ -79,7 +79,6 @@ interface MapStore {
   setActiveSliceIndex: (index: number) => void;
   setCollectionSliceIndex: (collectionId: number, index: number) => void;
   markSlicesEmpty: (sliceKeys: string[]) => void;
-  clearEmptySlices: () => void;
   saveViewSnapshot: (viewId: number | null) => void;
   restoreViewSnapshot: (viewId: number | null, fallbackCollectionId: number | null) => void;
 
@@ -93,9 +92,6 @@ interface MapStore {
   setShowVectorLayer: (show: boolean) => void;
   recordSourceState: (sourceId: number, collectionId: number, layerIndex: number) => void;
 
-  setMapCenter: (center: [number, number]) => void;
-  setMapZoom: (zoom: number) => void;
-  setMapBounds: (bounds: [number, number, number, number]) => void;
   // Single batched write for the per-frame view sync, so one motion frame is one
   // store notification (not three). Bounds omitted in task mode (unused there).
   setView: (
@@ -167,11 +163,11 @@ const initialState = {
   zoomOutTrigger: 0,
   panTrigger: { direction: 'up' as const, count: 0 },
   panToCenterTrigger: 0,
-  searchFocusRequest: null as {
-    center: [number, number];
-    extent: [number, number, number, number] | null;
-  } | null,
-  searchFocusTrigger: 0,
+  searchFocusTrigger: {
+    center: [0, 0] as [number, number],
+    extent: null as [number, number, number, number] | null,
+    count: 0,
+  },
   showCrosshair: true,
   showAnnotations: true,
 
@@ -216,8 +212,6 @@ export const useMapStore = create<MapStore>((set) => ({
       for (const k of sliceKeys) emptySlices[k] = true;
       return { emptySlices };
     }),
-
-  clearEmptySlices: () => set({ emptySlices: {} }),
 
   /** Save current view state before switching away */
   saveViewSnapshot: (viewId) => {
@@ -286,9 +280,6 @@ export const useMapStore = create<MapStore>((set) => ({
       },
     })),
 
-  setMapCenter: (center) => set({ currentMapCenter: center }),
-  setMapZoom: (zoom) => set({ currentMapZoom: zoom }),
-  setMapBounds: (bounds) => set({ currentMapBounds: bounds }),
   setView: (center, zoom, bounds) =>
     set(
       bounds !== undefined
@@ -305,10 +296,7 @@ export const useMapStore = create<MapStore>((set) => ({
   triggerPanToCenter: (center) =>
     set((s) => ({ currentMapCenter: center, panToCenterTrigger: s.panToCenterTrigger + 1 })),
   triggerSearchFocus: (center, extent) =>
-    set((s) => ({
-      searchFocusRequest: { center, extent },
-      searchFocusTrigger: s.searchFocusTrigger + 1,
-    })),
+    set((s) => ({ searchFocusTrigger: { center, extent, count: s.searchFocusTrigger.count + 1 } })),
   toggleCrosshair: () => set((s) => ({ showCrosshair: !s.showCrosshair })),
   toggleAnnotations: () => set((s) => ({ showAnnotations: !s.showAnnotations })),
 

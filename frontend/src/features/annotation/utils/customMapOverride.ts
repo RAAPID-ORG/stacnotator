@@ -8,7 +8,7 @@
  * the two drift apart. `mode` is never overridable.
  */
 import type { CategoricalEntry, RenderConfig } from '~/api/client';
-import type { ColormapName } from './customMapColormaps';
+import type { ColormapName } from '~/shared/colormaps/colormaps';
 
 export interface RenderOverride {
   colormap_name?: ColormapName;

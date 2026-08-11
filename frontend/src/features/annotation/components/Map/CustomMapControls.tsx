@@ -1,7 +1,7 @@
-import { useMapStore } from '~/features/annotation/stores/map.store';
+import { useMapStore } from '../../stores/map.store';
 import type { CustomMapOut } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
-import HeaderSelect from '~/features/annotation/components/Map/HeaderSelect';
+import HeaderSelect from './HeaderSelect';
 
 export function CustomMapControls({ customMaps }: { customMaps: CustomMapOut[] }) {
   const activeCustomMapId = useMapStore((s) => s.activeCustomMapId);
