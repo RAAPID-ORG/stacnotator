@@ -1,5 +1,5 @@
 import type { LabelBase } from '~/api/client';
-import { LabelChips } from '~/features/annotation/panels/shared/LabelChips';
+import { LabelChips } from '~/features/annotation/shared/LabelChips';
 
 export interface LabelGridProps {
   labels: LabelBase[];

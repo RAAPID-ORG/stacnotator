@@ -8,8 +8,8 @@ import {
 } from '~/features/annotation/core/annotation';
 import { useWorkStore } from '~/features/annotation/stores';
 import type { Binding } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx, HotkeyTable } from '../registry';
-import { focusFormFieldInput } from '../shared/FormFields';
+import type { ComposeCtx, HotkeyTable } from '../../composition';
+import { focusFormFieldInput } from '../../shared/FormFields';
 import { isSkipConfirmDisabled, requestConfirm } from './confirmBus';
 import { submitCurrent, type SubmitOutcome } from './submit';
 import {

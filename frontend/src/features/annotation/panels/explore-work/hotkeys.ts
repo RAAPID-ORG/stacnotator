@@ -1,10 +1,10 @@
 import type { Binding } from '~/features/annotation/engine/hotkeys';
 import { useWorkStore } from '~/features/annotation/stores';
 import { useLayoutStore } from '~/shared/stores/layout.store';
-import type { ComposeCtx, HotkeyTable } from '../registry';
-import { bumpAnnotationVersion } from '../shared/annotationVersion';
-import { getEditSession, saveAnnotationFlag } from '../shared/editSession';
-import { selectLabel, selectTool, type ActiveTool } from '../shared/toolState';
+import type { ComposeCtx, HotkeyTable } from '../../composition';
+import { bumpAnnotationVersion } from '../../shared/annotationVersion';
+import { getEditSession, saveAnnotationFlag } from '../../shared/editSession';
+import { selectLabel, selectTool, type ActiveTool } from '../../shared/toolState';
 
 const TOOL_KEYS: Array<{ key: string; tool: ActiveTool; help: string }> = [
   { key: 'p', tool: 'pan', help: 'Pan tool' },

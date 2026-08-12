@@ -10,11 +10,11 @@ import {
   validateForm,
 } from '~/features/annotation/core/annotation';
 import { useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
-import { bumpAnnotationVersion } from '../shared/annotationVersion';
-import { saveAnnotationFlag, setEditAnnotation, useEditSession } from '../shared/editSession';
-import { FormFields } from '../shared/FormFields';
-import { LabelChips } from '../shared/LabelChips';
+import type { ComposeCtx } from '../../composition';
+import { bumpAnnotationVersion } from '../../shared/annotationVersion';
+import { saveAnnotationFlag, setEditAnnotation, useEditSession } from '../../shared/editSession';
+import { FormFields } from '../../shared/FormFields';
+import { LabelChips } from '../../shared/LabelChips';
 
 export interface EditDetailsProps {
   ctx: ComposeCtx;

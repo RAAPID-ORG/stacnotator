@@ -24,7 +24,7 @@ import type {
   StyleSpec,
   TileStats,
 } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 
 export const ANNOTATION_LAYER_ID = 'annotations';
 export const EXTENT_LAYER_ID = 'task-extent';

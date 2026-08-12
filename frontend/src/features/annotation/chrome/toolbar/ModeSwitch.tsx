@@ -3,7 +3,7 @@ import { useSessionStore, useWorkStore, type WorkMode } from '~/features/annotat
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import type { CampaignOutFull } from '~/api/client';
 import type { TaskFilter } from '~/features/annotation/core/tasks';
-import { bumpAnnotationVersion } from '../shared/annotationVersion';
+import { bumpAnnotationVersion } from '../../shared/annotationVersion';
 
 export interface ModeSwitchProps {
   campaign: CampaignOutFull;

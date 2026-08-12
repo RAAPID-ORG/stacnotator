@@ -7,17 +7,17 @@ import {
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
 import { useImageryStore, usePrefsStore, type ImageryState } from '~/features/annotation/stores';
-import { useAnnotationVersion } from '~/features/annotation/panels/shared/annotationVersion';
-import { cameraFor, mainCamera, releaseCamera } from '~/features/annotation/panels/shared/cameras';
-import { useMapFocus } from '~/features/annotation/panels/shared/mapFocus';
+import { useAnnotationVersion } from '~/features/annotation/shared/annotationVersion';
+import { cameraFor, mainCamera, releaseCamera } from '~/features/annotation/shared/cameras';
+import { useMapFocus } from '~/features/annotation/shared/mapFocus';
 import {
   composeLayers,
   emptySliceFrom,
   type AnnotationTileState,
   type ComposeState,
-} from '~/features/annotation/panels/shared/composeLayers';
+} from '~/features/annotation/shared/composeLayers';
 import { MapView, type LayerId, type TileStats } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { healingEnabled, shouldHeal, useEmptyHealing } from './useEmptyHealing';
 
 // Per-window slice memory: survives remounts so a window keeps the slice the

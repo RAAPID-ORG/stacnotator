@@ -14,7 +14,7 @@ import {
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
 import type { LayerSpec, VectorTileLayerSpec } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import {
   ANNOTATION_LAYER_ID,
   CROSSHAIR_LAYER_ID,

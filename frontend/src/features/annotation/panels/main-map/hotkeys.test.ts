@@ -4,7 +4,7 @@ import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign, makeView } from '~/features/annotation/core/catalog/testHelpers';
 import { useImageryStore } from '~/features/annotation/stores';
 import { registerBindings } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { hotkeyTip, mainMapBindings, stopSliceAutoNav } from './hotkeys';
 
 const CAMPAIGN: CampaignOutFull = makeCampaign({

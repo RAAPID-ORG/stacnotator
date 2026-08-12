@@ -9,7 +9,7 @@ import {
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useWorkStore } from '~/features/annotation/stores';
 import type { MapClickEvent } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import { ANNOTATION_LAYER_ID } from '../shared/composeLayers';
 import {
   clearEditSession,

@@ -3,8 +3,13 @@ import type { CampaignOutFull } from '~/api/client';
 import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign, makeTimeSeries } from '~/features/annotation/core/catalog/testHelpers';
 import { getHelp } from '~/features/annotation/engine/hotkeys';
-import { activeFeatures, CONTROLS_PANEL_ID, featuresToPanels, registerAllHotkeys } from './index';
-import type { ComposeCtx } from './registry';
+import {
+  activeFeatures,
+  CONTROLS_PANEL_ID,
+  featuresToPanels,
+  registerAllHotkeys,
+} from './composition';
+import type { ComposeCtx } from './composition';
 
 function ctxFor(mode: ComposeCtx['mode'], overrides: Partial<ComposeCtx> = {}): ComposeCtx {
   const campaign: CampaignOutFull = makeCampaign();
@@ -42,14 +47,7 @@ describe('activeFeatures', () => {
   it('keeps the mode-independent features in both modes', () => {
     for (const mode of ['tasks', 'explore'] as const) {
       expect(names(ctxFor(mode))).toEqual(
-        expect.arrayContaining([
-          'main-map',
-          'imagery-windows',
-          'minimap',
-          'timeseries',
-          'toolbar',
-          'layout-edit',
-        ])
+        expect.arrayContaining(['main-map', 'imagery-windows', 'minimap', 'timeseries'])
       );
     }
   });

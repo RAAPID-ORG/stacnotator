@@ -5,8 +5,8 @@ import {
 } from '~/features/annotation/core/catalog';
 import { useImageryStore, useSessionStore } from '~/features/annotation/stores';
 import { keyLabel, type Binding } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx } from '../registry';
-import { fallbackCollectionFor } from '../shared/viewSelection';
+import type { ComposeCtx } from '../../composition';
+import { fallbackCollectionFor } from '../../shared/viewSelection';
 import { fitAnnotations, pan, recenter, zoom } from './cameraBus';
 
 /** Holding A/D scrubs the time series at a readable cadence; OS key-repeat is

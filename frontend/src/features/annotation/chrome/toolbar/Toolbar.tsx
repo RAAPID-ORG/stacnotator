@@ -5,7 +5,7 @@ import type { PolicyContext } from '~/features/annotation/core/annotation';
 import type { Catalog } from '~/features/annotation/core/catalog';
 import { useSessionStore } from '~/features/annotation/stores';
 import type { TaskFilter } from '~/features/annotation/core/tasks';
-import { fallbackCollectionFor } from '../shared/viewSelection';
+import { fallbackCollectionFor } from '../../shared/viewSelection';
 import { ExportMenu } from './ExportMenu';
 import { GuidePanel } from './GuidePanel';
 import { HelpMenu } from './HelpMenu';

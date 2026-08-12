@@ -7,7 +7,7 @@ import {
   useWorkStore,
   useWorkspaceStore,
 } from '~/features/annotation/stores';
-import { mainCamera } from '~/features/annotation/panels/shared/cameras';
+import { mainCamera } from '~/features/annotation/shared/cameras';
 import { useContainerSize } from '~/features/annotation/engine/canvas';
 import {
   MapView,
@@ -15,16 +15,16 @@ import {
   type MapClickEvent,
   type TileStats,
 } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { fitAnnotations, recenter, useFocusCamera, useMapFocus } from './cameraBus';
-import { useAnnotationVersion } from '../shared/annotationVersion';
+import { useAnnotationVersion } from '../../shared/annotationVersion';
 import {
   composeLayers,
   emptySliceFrom,
   type AnnotationTileState,
   type ComposeState,
-} from '../shared/composeLayers';
-import { setProbePoint, useInteractionSpec } from '../shared/interactionSpec';
+} from '../../shared/composeLayers';
+import { setProbePoint, useInteractionSpec } from '../../shared/interactionSpec';
 import { CollectionPicker } from './header/CollectionPicker';
 import { CustomMapControls } from './header/CustomMapControls';
 import { CustomMapLegend } from './header/CustomMapLegend';

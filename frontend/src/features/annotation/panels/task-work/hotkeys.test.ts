@@ -4,7 +4,7 @@ import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign, makeTask } from '~/features/annotation/core/catalog/testHelpers';
 import { useWorkStore } from '~/features/annotation/stores';
 import { keyLabel, matchKey } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import {
   DEFAULT_CONFIDENCE,
   taskFormBindings,

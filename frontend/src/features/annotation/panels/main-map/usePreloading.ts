@@ -7,14 +7,14 @@ import {
   type SliceAddress,
 } from '~/features/annotation/core/catalog';
 import { useImageryStore, usePrefsStore, type PreloadTier } from '~/features/annotation/stores';
-import { mainCamera } from '~/features/annotation/panels/shared/cameras';
+import { mainCamera } from '~/features/annotation/shared/cameras';
 import {
   TilePreloader,
   type Bbox,
   type LonLat,
   type PreloadJob,
 } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 
 /** In-flight cap per tier. Heavy suits links where the server, not the pipe,
  *  is the bottleneck; the lower tiers leave bandwidth and HTTP/2 stream

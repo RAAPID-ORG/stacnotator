@@ -1,7 +1,7 @@
 import { capitalizeFirst } from '~/shared/utils/utility';
 import type { FormField, FormValues } from '~/features/annotation/core/apiTypes';
 import type { ExtendedLabel } from '~/features/annotation/core/annotation';
-import { FormFields } from '../shared/FormFields';
+import { FormFields } from '../../shared/FormFields';
 
 export interface DraftCatalogProps {
   label: ExtendedLabel | null;

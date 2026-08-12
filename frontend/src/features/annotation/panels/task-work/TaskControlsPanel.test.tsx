@@ -10,7 +10,7 @@ import {
 } from '~/features/annotation/core/catalog/testHelpers';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { TaskControlsPanel } from './TaskControlsPanel';
 import { initTaskList, resetTaskList } from './taskListBus';
 

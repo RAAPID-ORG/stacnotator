@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { Feature } from '../registry';
+import type { Feature } from '../../composition';
 import { MainMapBody, MainMapHeader } from './MainMapPanel';
 import { mainMapBindings } from './hotkeys';
 

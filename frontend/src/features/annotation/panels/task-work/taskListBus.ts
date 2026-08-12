@@ -9,7 +9,7 @@ import {
   type TaskFilter,
 } from '~/features/annotation/core/tasks';
 import { useImageryStore } from '~/features/annotation/stores';
-import { setMapFocus, type MapFocus } from '~/features/annotation/panels/shared/mapFocus';
+import { setMapFocus, type MapFocus } from '~/features/annotation/shared/mapFocus';
 import type { LonLat } from '~/features/annotation/engine/map';
 
 export interface TaskListState {

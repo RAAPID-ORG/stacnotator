@@ -7,7 +7,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
 } from '~/shared/ui/Icons';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 
 export interface MobileSliceNavProps {
   ctx: ComposeCtx;

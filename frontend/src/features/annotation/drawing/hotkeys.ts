@@ -1,5 +1,5 @@
 import type { Binding } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx, HotkeyTable } from '../registry';
+import type { ComposeCtx, HotkeyTable } from '../composition';
 import { useWorkStore } from '~/features/annotation/stores';
 import { clearEditSession, getEditSession } from '../shared/editSession';
 import { commitEdit, deleteSelection } from './useDrawingInteractions';

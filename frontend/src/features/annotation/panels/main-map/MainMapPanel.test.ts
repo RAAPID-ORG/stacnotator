@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MapClickEvent } from '~/features/annotation/engine/map';
-import { resetInteractionSpec, useInteractionSpec } from '../shared/interactionSpec';
+import { resetInteractionSpec, useInteractionSpec } from '../../shared/interactionSpec';
 import { taskProbeClick } from './MainMapPanel';
 
 function click(over: Partial<MapClickEvent> = {}): MapClickEvent {

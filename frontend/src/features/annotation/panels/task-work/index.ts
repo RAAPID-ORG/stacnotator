@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { Feature } from '../registry';
+import type { Feature } from '../../composition';
 import { TaskControlsPanel } from './TaskControlsPanel';
 import { taskWorkHotkeys } from './hotkeys';
 

@@ -1,7 +1,7 @@
 import type { ImageryCollectionOut } from '~/api/client';
 import { emptyKey, slicePickerIndices } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { selectWindowSlice, useWindowSlice, windowAddress } from './WindowPanel';
 
 export interface WindowHeaderProps {

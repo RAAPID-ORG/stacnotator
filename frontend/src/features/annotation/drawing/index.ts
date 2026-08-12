@@ -1,4 +1,4 @@
-import type { Feature } from '../registry';
+import type { Feature } from '../composition';
 import { drawingHotkeys } from './hotkeys';
 
 export const drawingFeature: Feature = {

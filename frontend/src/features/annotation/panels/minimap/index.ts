@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { Feature } from '../registry';
+import type { Feature } from '../../composition';
 import { MinimapBody, MinimapHeader } from './MinimapPanel';
 
 export const MINIMAP_PANEL_ID = 'minimap';

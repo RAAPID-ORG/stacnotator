@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAnnotationDensity, type AnnotationDensityCell } from '~/api/client';
 import { IconExternalLink } from '~/shared/ui/Icons';
-import { mainCamera, minimapCamera } from '~/features/annotation/panels/shared/cameras';
+import { mainCamera, minimapCamera } from '~/features/annotation/shared/cameras';
 import {
   MapView,
   type CameraController,
@@ -10,7 +10,7 @@ import {
   type LonLat,
   type RasterLayerSpec,
 } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import { exploreRefitTarget, tasksModeTarget } from './followTarget';
 import { type GeocodingResult } from './geocoding';
 import { LocationSearch } from './LocationSearch';

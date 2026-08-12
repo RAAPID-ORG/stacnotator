@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { collectionsInView } from '~/features/annotation/core/catalog';
 import { useImageryStore, useWorkspaceStore } from '~/features/annotation/stores';
-import type { Feature } from '../registry';
+import type { Feature } from '../../composition';
 import { WindowHeader } from './WindowHeader';
 import { activateWindow, WindowBody } from './WindowPanel';
 

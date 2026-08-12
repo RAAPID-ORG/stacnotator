@@ -46,8 +46,8 @@ import {
   featuresToPanels,
   registerAllHotkeys,
   type ComposeCtx,
-} from '~/features/annotation/panels';
-import { EditOverlayControls } from '~/features/annotation/panels/drawing';
+} from '~/features/annotation/composition';
+import { EditOverlayControls } from '~/features/annotation/drawing';
 import {
   EditControls,
   layoutWithoutPopped,
@@ -57,16 +57,16 @@ import {
   TrayContent,
   useScreens,
   ViewAdmin,
-} from '~/features/annotation/panels/layout-edit';
+} from '~/features/annotation/chrome/layout-edit';
 import { resetWindowSlices } from '~/features/annotation/panels/imagery-windows';
 import { MAIN_MAP_PANEL_ID, resetMainMapNav } from '~/features/annotation/panels/main-map';
-import { applyCameraTarget, loadCameraTarget } from '~/features/annotation/panels/shared/cameras';
-import { clearEditSession, openEdit } from '~/features/annotation/panels/shared/editSession';
-import { resetInteractionSpec } from '~/features/annotation/panels/shared/interactionSpec';
-import { resetToolState, selectTool } from '~/features/annotation/panels/shared/toolState';
-import { resetAnnotationVersion } from '~/features/annotation/panels/shared/annotationVersion';
-import { getMapFocus, setMapFocus } from '~/features/annotation/panels/shared/mapFocus';
-import { MobileSliceNav } from '~/features/annotation/panels/mobile';
+import { applyCameraTarget, loadCameraTarget } from '~/features/annotation/shared/cameras';
+import { clearEditSession, openEdit } from '~/features/annotation/shared/editSession';
+import { resetInteractionSpec } from '~/features/annotation/shared/interactionSpec';
+import { resetToolState, selectTool } from '~/features/annotation/shared/toolState';
+import { resetAnnotationVersion } from '~/features/annotation/shared/annotationVersion';
+import { getMapFocus, setMapFocus } from '~/features/annotation/shared/mapFocus';
+import { MobileSliceNav } from '~/features/annotation/chrome/mobile';
 import {
   initTaskList,
   resetDigitBuffer,
@@ -75,8 +75,8 @@ import {
   syncMapFocus,
   useTaskListState,
 } from '~/features/annotation/panels/task-work';
-import { Toolbar } from '~/features/annotation/panels/toolbar';
-import { TourOverlay } from '~/features/annotation/panels/tour';
+import { Toolbar } from '~/features/annotation/chrome/toolbar';
+import { TourOverlay } from '~/features/annotation/chrome/tour';
 import {
   AllTasksDoneGate,
   LoadingGate,

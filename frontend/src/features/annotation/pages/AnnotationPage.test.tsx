@@ -9,10 +9,7 @@ import {
   getWindowSlice,
   selectWindowSlice,
 } from '~/features/annotation/panels/imagery-windows';
-import {
-  setProbePoint,
-  useInteractionSpec,
-} from '~/features/annotation/panels/shared/interactionSpec';
+import { setProbePoint, useInteractionSpec } from '~/features/annotation/shared/interactionSpec';
 
 /** loadCampaign's three calls, so the page can be driven without a server.
  *  `campaignFixture` is swapped per test before rendering. */

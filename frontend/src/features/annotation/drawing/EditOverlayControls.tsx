@@ -1,5 +1,5 @@
 import { useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import { clearEditSession, useEditSession } from '../shared/editSession';
 import { commitEdit, deleteSelection, useDrawingInteractions } from './useDrawingInteractions';
 

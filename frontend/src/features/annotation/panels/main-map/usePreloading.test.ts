@@ -12,7 +12,7 @@ import {
   makeViz,
 } from '~/features/annotation/core/catalog/testHelpers';
 import { TilePreloader } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../../composition';
 import {
   coverSliceJobs,
   PRIORITY_CURRENT,

@@ -6,13 +6,13 @@ import {
   fitBbox,
   focusCameraTarget,
   mainCamera,
-} from '~/features/annotation/panels/shared/cameras';
+} from '~/features/annotation/shared/cameras';
 import {
   getMapFocus,
   setMapFocus,
   useMapFocus,
   type MapFocus,
-} from '~/features/annotation/panels/shared/mapFocus';
+} from '~/features/annotation/shared/mapFocus';
 
 export { getMapFocus, setMapFocus, useMapFocus, type MapFocus };
 // Explore's controls panel offers the same fit command, so it lives with the

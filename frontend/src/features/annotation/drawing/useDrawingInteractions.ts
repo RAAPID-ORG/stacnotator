@@ -24,7 +24,7 @@ import type {
   InteractionSpec,
   MapClickEvent,
 } from '~/features/annotation/engine/map';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import { bumpAnnotationVersion } from '../shared/annotationVersion';
 import { ANNOTATION_LAYER_ID, vectorLayerId } from '../shared/composeLayers';
 import {

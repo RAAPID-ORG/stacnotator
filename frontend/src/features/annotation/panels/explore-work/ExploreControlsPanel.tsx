@@ -8,12 +8,12 @@ import {
 } from '~/features/annotation/core/annotation';
 import { useImageryStore, usePrefsStore, useWorkStore } from '~/features/annotation/stores';
 import { getHelp } from '~/features/annotation/engine/hotkeys';
-import type { ComposeCtx } from '../registry';
-import { bumpAnnotationVersion } from '../shared/annotationVersion';
-import { fitAnnotations } from '../shared/cameras';
-import { FormFields } from '../shared/FormFields';
-import { LabelChips } from '../shared/LabelChips';
-import { selectLabel, selectTool, useActiveTool, type ActiveTool } from '../shared/toolState';
+import type { ComposeCtx } from '../../composition';
+import { bumpAnnotationVersion } from '../../shared/annotationVersion';
+import { fitAnnotations } from '../../shared/cameras';
+import { FormFields } from '../../shared/FormFields';
+import { LabelChips } from '../../shared/LabelChips';
+import { selectLabel, selectTool, useActiveTool, type ActiveTool } from '../../shared/toolState';
 import { DraftCatalog } from './DraftCatalog';
 import { EditDetails } from './EditDetails';
 import { LabelStyleEditor } from './LabelStyleEditor';

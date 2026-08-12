@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { groupTimeseriesIntoWindows } from '~/features/annotation/core/catalog';
 import type { PanelDef } from '~/features/annotation/engine/canvas';
-import type { Feature } from '../registry';
+import type { Feature } from '../../composition';
 import { TimeseriesPanel } from './TimeseriesPanel';
 
 export const timeseriesFeature: Feature = {

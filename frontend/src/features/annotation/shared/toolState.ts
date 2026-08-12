@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import { setProbePoint } from './interactionSpec';
 
 export type ActiveTool = 'pan' | 'annotate' | 'edit' | 'labelVector' | 'timeseries';

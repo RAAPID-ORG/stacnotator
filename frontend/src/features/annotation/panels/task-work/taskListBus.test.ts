@@ -3,7 +3,7 @@ import type { AnnotationTaskOut } from '~/api/client';
 import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign, makeSource, makeTask } from '~/features/annotation/core/catalog/testHelpers';
 import { useImageryStore } from '~/features/annotation/stores';
-import { getMapFocus } from '~/features/annotation/panels/shared/mapFocus';
+import { getMapFocus } from '~/features/annotation/shared/mapFocus';
 import {
   goToAnnotationNumber,
   initTaskList,

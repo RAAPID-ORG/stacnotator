@@ -3,8 +3,8 @@ import type { AnnotationTaskOut } from '~/api/client';
 import { ConfirmDialog } from '~/shared/ui/ConfirmDialog';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useSessionStore, useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
-import { FormFields } from '../shared/FormFields';
+import type { ComposeCtx } from '../../composition';
+import { FormFields } from '../../shared/FormFields';
 import { ClaimBadge } from './ClaimBadge';
 import { resolveConfirm, setSkipConfirmDisabled, useConfirmDialogState } from './confirmBus';
 import {

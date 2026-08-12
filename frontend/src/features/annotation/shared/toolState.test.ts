@@ -5,7 +5,7 @@ import { buildCatalog } from '~/features/annotation/core/catalog';
 import { makeCampaign } from '~/features/annotation/core/catalog/testHelpers';
 import { useLayoutStore } from '~/shared/stores/layout.store';
 import { useWorkStore } from '~/features/annotation/stores';
-import type { ComposeCtx } from '../registry';
+import type { ComposeCtx } from '../composition';
 import { getActiveTool, resetToolState, selectLabel, selectTool } from './toolState';
 
 const alerts: string[] = [];

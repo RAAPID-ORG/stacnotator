@@ -20,8 +20,8 @@ import type { TimeSeriesOut } from '~/api/client';
 import { nearestSlice } from '~/features/annotation/core/catalog';
 import { useImageryStore } from '~/features/annotation/stores';
 import { IconInfo, IconSliders } from '~/shared/ui/Icons';
-import type { ComposeCtx } from '../registry';
-import { setProbeMarkerHidden } from '../shared/interactionSpec';
+import type { ComposeCtx } from '../../composition';
+import { setProbeMarkerHidden } from '../../shared/interactionSpec';
 import type { TimeSeriesData } from './lib/cache';
 import {
   collectSeriesLabels,

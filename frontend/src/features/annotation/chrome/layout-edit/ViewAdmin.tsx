@@ -18,7 +18,7 @@ import {
 } from '~/shared/ui/Icons';
 import { buildCatalog } from '~/features/annotation/core/catalog';
 import { useSessionStore } from '~/features/annotation/stores';
-import { fallbackCollectionFor } from '../shared/viewSelection';
+import { fallbackCollectionFor } from '../../shared/viewSelection';
 
 export interface ViewAdminProps {
   campaign: CampaignOutFull;
